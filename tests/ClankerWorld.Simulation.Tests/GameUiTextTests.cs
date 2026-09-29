@@ -166,6 +166,7 @@ public sealed class GameUiTextTests
 
     [Theory]
     [InlineData("tick_advanced", false)]
+    [InlineData("initial_content_activated", false)]
     [InlineData("build_completed", true)]
     public void EventTimelineKeepsWorldNewsAndDropsProtocolNoise(string kind, bool expected)
     {

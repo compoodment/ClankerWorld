@@ -159,6 +159,8 @@ public partial class Main
         }
 
         mainMenuOverlay.Hide();
+        // Title-screen notices such as "continue from Main Menu" are stale here.
+        statusToast.Hide();
         isInWorld = true;
         if (resumeWorldOnContinue)
         {

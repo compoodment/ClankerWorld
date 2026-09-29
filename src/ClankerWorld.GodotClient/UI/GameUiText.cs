@@ -115,6 +115,7 @@ public static class GameUiText
             _ when kind.StartsWith("hosted_decision_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("instruction_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("content_", StringComparison.Ordinal) => false,
+            _ when kind.StartsWith("initial_content_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("owner_", StringComparison.Ordinal) => false,
             _ when kind.EndsWith("_failed", StringComparison.Ordinal) => false,
             _ when kind.EndsWith("_rejected", StringComparison.Ordinal) => false,

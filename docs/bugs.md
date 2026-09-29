@@ -77,6 +77,39 @@ specific paired-client check; see the resolution evidence below.
   placeholder household names `Camp Alpha`/`Camp Beta` are disliked; the
   naming flow needs a player-facing replacement without changing membership.
 
+## September 29 client UI audit
+
+A live audit of the Godot client against a local host found these defects.
+Each is fixed in the repository build and covered by the headless UI smoke
+test; computment's Windows playtest remains pending.
+
+- **Town panel and reselected agent text blank — fixed in repository build,
+  laptop check pending:** refreshes cleared a text panel and then re-assigned
+  identical text, which Godot ignores, so the Town panel emptied while paused
+  and a reselected agent lost relationships, thoughts and memories. Panels now
+  replace only changed text, which also keeps the Event Log scroll position.
+  Five "Initial content activated" entries no longer open every Event Log.
+- **Status messages vanished within a second — fixed in repository build,
+  laptop check pending:** each one-second observation refresh erased the
+  toast, including Choose Town site and Move founder instructions. Results now
+  stay readable, mode instructions stay while the mode is active, refused
+  requests are no longer reported as disconnections, and messages show above
+  Main Menu Settings.
+- **New worlds opened over open sea — fixed in repository build, laptop check
+  pending:** the camera started at the map's geometric center; it now frames
+  the first Town, then living agents, then camp objects, across a wrapped seam.
+- **Tile card clipped and garbled map labels — fixed in repository build,
+  laptop check pending:** the selected-tile card was measured while hidden and
+  overflowed the screen bottom; zoomed-out marker names clipped into fragments
+  such as "rehou". The card now fits its facts inside the view, and markers
+  too small for a name show their glyph only.
+- **Top bar live behind modal menus — fixed in repository build, laptop check
+  pending:** Start World, Play/Pause and founder edits stayed clickable behind
+  the Pause Menu; the top bar is now shaded and blocked with the world view.
+  Town-site mode shows Cancel Town site while active. The Connect/Pair screen
+  no longer shows both a close button and a large Back to Main Menu button, and
+  misaligned settings captions now share one column.
+
 ## September playtest reports and confirmed product gaps
 
 - **Disconnected-land agent placement broke observation — deployed on

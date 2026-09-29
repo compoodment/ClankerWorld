@@ -34,23 +34,15 @@ public partial class Main
         autosaveEnabledToggle.Text = "Autosave enabled";
         autosaveEnabledToggle.ButtonPressed = true;
         content.AddChild(autosaveEnabledToggle);
-        var intervalRow = new HBoxContainer();
-        intervalRow.AddChild(new Label { Text = "Every" });
         foreach (var minutes in new[] { 1, 2, 5, 10, 15, 30 })
             autosaveIntervalChoice.AddItem(minutes + " minutes", minutes);
         autosaveIntervalChoice.Select(autosaveIntervalChoice.GetItemIndex(5));
-        autosaveIntervalChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        intervalRow.AddChild(autosaveIntervalChoice);
-        content.AddChild(intervalRow);
-        var rotationRow = new HBoxContainer();
-        rotationRow.AddChild(new Label { Text = "Rotating copies" });
+        content.AddChild(DisplaySettingRow("Every", autosaveIntervalChoice));
         autosaveRotationChoice.AddItem("Off (keep latest)", 0);
         foreach (var count in new[] { 3, 5, 10 })
             autosaveRotationChoice.AddItem(count.ToString(CultureInfo.InvariantCulture), count);
         autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(5));
-        autosaveRotationChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        rotationRow.AddChild(autosaveRotationChoice);
-        content.AddChild(rotationRow);
+        content.AddChild(DisplaySettingRow("Rotating copies", autosaveRotationChoice));
         autosaveSettingsStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
         content.AddChild(autosaveSettingsStatus);

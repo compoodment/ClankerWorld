@@ -16,6 +16,8 @@ public partial class Main : Control
     private const int DefaultTileSize = 96;
     private const int TileGap = 0;
     private const int RefreshSeconds = 1;
+    private const long StatusToastMilliseconds = 6_000;
+    private const int SettingCaptionWidth = 135;
     private const string UiScaleBaseFontSizeMetaPrefix = "clanker_ui_scale_base_font_size_";
     private static readonly string[] UiScaleFontSizeThemeItems = ["font_size"];
     private static readonly string[] UiScaleRichTextFontSizeThemeItems =
@@ -41,6 +43,7 @@ public partial class Main : Control
     private readonly Dictionary<string, float> inhabitantCanonicalXs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> mapObjectCanonicalXs = new(StringComparer.Ordinal);
     private readonly HashSet<ulong> uiScaleWatchedNodes = [];
+    private readonly List<Label> settingCaptionLabels = [];
 
     private readonly Label statusLabel = new();
     private readonly PanelContainer statusToast = new();
@@ -91,6 +94,7 @@ public partial class Main : Control
     private readonly Button eventsButton = new();
     private readonly Button settlementButton = new();
     private readonly Button menuButton = new();
+    private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
@@ -219,6 +223,9 @@ public partial class Main : Control
     private GameDisplayPreferences displayPreferences = new();
     private OwnerWorldCalendarPace? observedCalendarPace;
     private bool uiScaleTreeReady;
+    private string? renderedEventLog;
+    private StatusToastKind statusToastKind;
+    private long statusToastShownAtMsec;
 
     public Main()
     {
@@ -426,6 +433,16 @@ public partial class Main : Control
                 throw new InvalidOperationException("World Settings cannot be opened from the Main Menu.");
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - uiScaleChoice.GetGlobalRect().Position.X) > 1 ||
+                Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1 ||
+                Math.Abs(renderResolutionChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
+                throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
+            if (!topBarShade.Visible || topBarShade.ZIndex <= mainMenuOverlay.ZIndex)
+                throw new InvalidOperationException("Main Menu Settings must shade the top bar like the rest of the title backdrop.");
+            SetStatus("Settings status check", good: true);
+            if (!statusToast.Visible || statusToast.ZIndex <= gameMenuPanel.ZIndex || statusToast.ZIndex <= mainMenuOverlay.ZIndex)
+                throw new InvalidOperationException("Status messages must remain visible above Main Menu Settings.");
+            statusToast.Hide();
             var backPoint = menuCloseButton.GetGlobalRect().GetCenter();
             GetViewport().PushInput(new InputEventMouseMotion { Position = backPoint }, true);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -446,6 +463,13 @@ public partial class Main : Control
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!mainMenuOverlay.Visible || !mainMenuCard.Visible || gameMenuPanel.Visible)
                 throw new InvalidOperationException($"Clicking Back in Main Menu Settings must return to the Main Menu. Back={menuCloseButton.GetGlobalRect()}, pointer={backPoint}, hovered={hoveredBackControl?.GetPath()}");
+            OpenMenuForSetup();
+            if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || menuResumeButton.Visible ||
+                menuCloseButton.Text != "<" || menuHeadingLabel.Text != "Connect this device" || !topBarShade.Visible)
+                throw new InvalidOperationException("Connect/pair setup must keep the title backdrop with a single compact back button.");
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!mainMenuCard.Visible || gameMenuPanel.Visible || topBarShade.Visible)
+                throw new InvalidOperationException("Back from connect/pair setup must return to the Main Menu.");
             var displayWindow = GetWindow();
             var originalWindowSize = displayWindow.Size;
             var originalRenderSize = displayWindow.ContentScaleSize;
@@ -539,6 +563,8 @@ public partial class Main : Control
             resumeWorldOnContinue = false;
             gameMenuPanel.Show();
             menuShade.Show();
+            if (!topBarShade.Visible)
+                throw new InvalidOperationException("Top-bar actions must be blocked while the Pause Menu is open.");
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1920, 1080), new Vector2I(1024, 768) })
             {
                 GetWindow().Size = size;
@@ -591,6 +617,8 @@ public partial class Main : Control
             }
             gameMenuPanel.Hide();
             menuShade.Hide();
+            if (topBarShade.Visible)
+                throw new InvalidOperationException("Closing the Pause Menu must restore top-bar actions.");
             selectedInhabitantCard.Hide();
             var sampleResource = new OwnerWorldResource("wood", "construction", new(1, 1), false, "available", 8, 12, 0, 0, "spring");
             var sample = new OwnerWorldSnapshot("ui-test", 0, "ui-map", Enumerable.Range(0, 16)
@@ -633,6 +661,37 @@ public partial class Main : Control
             usageStatus = null;
             RenderUsageStatus();
             Render(sample, []);
+            Render(sample, []);
+            if (worldDetails.GetParsedText().Length == 0)
+                throw new InvalidOperationException("An unchanged refresh must keep the Town panel's stores and projects visible.");
+            SetStatus("Action result check", good: true);
+            ExpireStatusToast(refreshSucceeded: true);
+            if (!statusToast.Visible)
+                throw new InvalidOperationException("A new action result must survive the next observation refresh.");
+            statusToastShownAtMsec -= StatusToastMilliseconds;
+            ExpireStatusToast(refreshSucceeded: false);
+            if (statusToast.Visible)
+                throw new InvalidOperationException("An action result must clear after its reading time.");
+            ShowHeldState("connection check");
+            ExpireStatusToast(refreshSucceeded: false);
+            if (!statusToast.Visible)
+                throw new InvalidOperationException("A connection problem must stay visible until a refresh succeeds.");
+            ExpireStatusToast(refreshSucceeded: true);
+            if (statusToast.Visible)
+                throw new InvalidOperationException("A successful refresh must clear a connection problem.");
+            choosingFirstTownSite = true;
+            SetStatus("Map mode check", good: true, StatusToastKind.Sticky);
+            statusToastShownAtMsec -= StatusToastMilliseconds;
+            ExpireStatusToast(refreshSucceeded: true);
+            if (!statusToast.Visible)
+                throw new InvalidOperationException("Map-click instructions must stay visible while their mode is active.");
+            RenderFounderSetup(sample with { FounderSetup = new OwnerFounderSetup(4, 0, false) { CanChooseTownSite = true } });
+            if (townSiteButton.Text != "Cancel Town site")
+                throw new InvalidOperationException("An active Town-site selection must show how to cancel it.");
+            choosingFirstTownSite = false;
+            ExpireStatusToast(refreshSucceeded: true);
+            if (statusToast.Visible)
+                throw new InvalidOperationException("Map-click instructions must clear after their mode ends.");
             Render(sample with
             {
                 FounderSetup = new OwnerFounderSetup(4, 0, false)
@@ -699,6 +758,11 @@ public partial class Main : Control
                 selectedTileText.Text.Contains("unavailable", StringComparison.Ordinal) ||
                 selectedTileText.Text.Contains("none", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Selected-tile inspection must show available map facts without empty placeholders.");
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()))
+                throw new InvalidOperationException($"Selected-tile inspection must open inside the world view: map={mapCanvas.GetGlobalRect()} card={selectedTilePanel.GetGlobalRect()}.");
+            if (selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
+                throw new InvalidOperationException($"Selected-tile facts must fit without an inner scrollbar: content={selectedTileText.GetContentHeight()} visible={selectedTileText.Size.Y}.");
             var ownedMap = sample with
             {
                 PlacedBuildings = [.. sample.PlacedBuildings,
@@ -879,6 +943,12 @@ public partial class Main : Control
                 !selectedActorConditionLabel.IsVisibleInTree() ||
                 !selectedInhabitantCard.GetGlobalRect().Encloses(selectedActorConditionLabel.GetGlobalRect()))
                 throw new InvalidOperationException("Agent hover targets and condition stats must survive observation refreshes.");
+            selectedInhabitantId = null;
+            RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
+            selectedInhabitantId = founder.Id;
+            RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
+            if (inhabitantSocialDetails.GetParsedText().Length == 0 || privateThoughtHistory.GetParsedText().Length == 0)
+                throw new InvalidOperationException("Reselecting an unchanged agent must restore their social details and private thoughts.");
             UpdateTileHover(founderButton.Position + mapStage.Position + founderButton.Size / 2);
             if (terrainLayer.HoveredTile is not null)
                 throw new InvalidOperationException("An agent marker must take hover priority over its ground tile.");
@@ -992,6 +1062,10 @@ public partial class Main : Control
             var eventDestination = cameraCenterTiles.X < 8 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
             knownEvents[100] = new OwnerWorldEvent(100, 1, "food_consumed", "founder-scout", eventDestination);
             RenderEventLog();
+            eventLog.AddText("\nscroll-sentinel");
+            RenderEventLog();
+            if (!eventLog.GetParsedText().Contains("scroll-sentinel", StringComparison.Ordinal))
+                throw new InvalidOperationException("An unchanged Event Log must not be rebuilt, which would reset its scroll position.");
             var beforeEventJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
@@ -1015,6 +1089,7 @@ public partial class Main : Control
                     .Append(new OwnerWeatherRegion(4, 2, "rain", 78)).ToArray(),
                 Resources = [],
                 PlacedBuildings = [],
+                Towns = [],
             };
             RenderMap(largeMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1199,6 +1274,8 @@ public partial class Main : Control
                 !selectedTileText.Text.Contains("Tile 255, 64", StringComparison.Ordinal))
                 throw new InvalidOperationException("Repeated wrapped travel must preserve marker visibility and canonical selection alignment.");
 
+            if (mapObjectVisuals["resource:seam-wood"].Text.Contains('\n', StringComparison.Ordinal))
+                throw new InvalidOperationException("A map marker too small for its name must show its glyph instead of a clipped fragment.");
             RenderMap(largeMap);
             CenterCameraAt(new Vector2(-5, 64));
             if (worldOverview.VisibleTiles.Position.X < 0 || worldOverview.WrapsEastWest)
@@ -1231,6 +1308,24 @@ public partial class Main : Control
             widePan.Stop();
             GD.Print($"Zoom comparison at {mapCanvas.Size}: 12 px={oldVisibleWidth:0} columns/{oldTileCount} tiles, {baselinePan.Elapsed.TotalMilliseconds:0} ms/8 pan frames; 8 px={wideVisibleWidth:0} columns/{wideTileCount} tiles, {widePan.Elapsed.TotalMilliseconds:0} ms/8 pan frames (headless sample).");
             cameraZoom = 1;
+            RenderMap(largeMap);
+            var focusedMap = largeMap with
+            {
+                WorldId = "ui-camera-focus",
+                Towns = [new OwnerWorldTown("town:first", "First Town", "founding", 0, [], [],
+                    [new(180, 80), new(181, 80), new(180, 81), new(181, 81)])],
+            };
+            RenderMap(focusedMap);
+            if (cameraCenterTiles.DistanceTo(new Vector2(181, 81)) > 1.5f)
+                throw new InvalidOperationException($"A newly opened world must frame its first Town, not the map center: camera={cameraCenterTiles}.");
+            RenderMap(focusedMap with
+            {
+                WorldId = "ui-camera-seam",
+                WrapsEastWest = true,
+                Towns = [new OwnerWorldTown("town:first", "First Town", "founding", 0, [], [], [new(255, 64), new(0, 64)])],
+            });
+            if (PositiveMod(cameraCenterTiles.X + 1, 256) > 2 || Math.Abs(cameraCenterTiles.Y - 64.5f) > 1.5f)
+                throw new InvalidOperationException($"A Town across the wrapped seam must be framed as one place: camera={cameraCenterTiles}.");
             RenderMap(largeMap);
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
@@ -1283,6 +1378,7 @@ public partial class Main : Control
                 deathDestination);
             RenderEventLog();
             if (!eventLog.GetParsedText().Contains("died.", StringComparison.Ordinal) ||
+                eventLog.GetParsedText().Contains("scroll-sentinel", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[101], historicalSnapshot) != "Mira died." ||
                 gameSettingsContent.GetChildren().OfType<Label>()
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
@@ -1407,6 +1503,7 @@ public partial class Main : Control
 
     private async Task PulseAsync()
     {
+        ExpireStatusToast(refreshSucceeded: false);
         if (pendingPairing is not null)
         {
             await PollPairingAsync();
@@ -1443,6 +1540,7 @@ public partial class Main : Control
             pairingExpiryLabel.Text = $"expires {pendingPairing.ExpiresAtUtc.LocalDateTime:yyyy-MM-dd HH:mm:ss}";
             pairButton.Text = "Start fresh pairing";
             SetStatus("waiting for private host approval", good: true);
+            _ = RevealPairingPanelAsync();
         }
         catch (Exception exception)
         {
@@ -1453,6 +1551,15 @@ public partial class Main : Control
             isPairingOperation = false;
             RefreshControlAvailability();
         }
+    }
+
+    // The comparison code sits below the display settings; scroll it into
+    // view once the settings page has laid out the newly shown panel.
+    private async Task RevealPairingPanelAsync()
+    {
+        for (var frame = 0; frame < 2; frame++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (pairingPanel.IsVisibleInTree()) settingsScroll.EnsureControlVisible(pairingPanel);
     }
 
     private async Task PollPairingAsync()
@@ -1647,10 +1754,15 @@ public partial class Main : Control
             successfulRefreshCount++;
             if (!isOwnerAction)
             {
-                SetStatus(usageStatus?.LimitReached == true && reconnect.Baseline.Snapshot.Authoring?.IsPaused == true
-                    ? "Paid-call limit reached. The world is paused; open World Settings to allow more calls."
-                    : string.Empty,
-                    good: usageStatus?.LimitReached != true);
+                if (usageStatus?.LimitReached == true && reconnect.Baseline.Snapshot.Authoring?.IsPaused == true)
+                {
+                    SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.",
+                        good: false, StatusToastKind.UsageLimit);
+                }
+                else
+                {
+                    ExpireStatusToast(refreshSucceeded: true);
+                }
             }
         }
         catch (Exception exception)
@@ -2476,6 +2588,12 @@ public partial class Main : Control
             SetStatus(detail, good: true);
             await RefreshAsync();
         }
+        catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
+        {
+            // The host answered and refused this one action; the connection
+            // and the displayed world remain current.
+            SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
+        }
         catch (Exception exception)
         {
             ShowHeldState($"owner request rejected or unavailable · {FriendlyFailure(exception)}");
@@ -2675,6 +2793,14 @@ public partial class Main : Control
 
         margin.AddChild(topBar);
         chrome.AddChild(margin);
+        // Mirrors the world-view menu shade so top-bar actions such as Start
+        // World or Play cannot run behind a modal menu. It draws above the
+        // title backdrop so Main Menu Settings dims the whole screen evenly.
+        topBarShade.Color = new Color(0, 0, 0, 0.46f);
+        topBarShade.MouseFilter = Control.MouseFilterEnum.Stop;
+        topBarShade.ZIndex = 190;
+        topBarShade.Hide();
+        chrome.AddChild(topBarShade);
         content.AddChild(chrome);
     }
 
@@ -3064,9 +3190,11 @@ public partial class Main : Control
         tileHeading.AddChild(closeTile);
         tileBody.AddChild(tileHeading);
         ConfigureTextPanel(selectedTileText, 64);
+        selectedTileText.Resized += FitSelectedTileText;
         tileBody.AddChild(selectedTileText);
         AddPanelContents(selectedTilePanel, tileBody);
         selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
+        selectedTilePanel.Resized += PositionSelectedTilePanel;
         selectedTilePanel.ZIndex = 80;
         selectedTilePanel.Hide();
         content.AddChild(selectedTilePanel);
@@ -3079,6 +3207,7 @@ public partial class Main : Control
         menuShade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         menuShade.ZIndex = 90;
         menuShade.Hide();
+        menuShade.VisibilityChanged += () => topBarShade.Visible = menuShade.Visible;
         content.AddChild(menuShade);
 
         var body = new VBoxContainer
@@ -3176,26 +3305,18 @@ public partial class Main : Control
         uiScaleChoice.ItemSelected += SetUiScale;
         gameSettingsContent.AddChild(DisplaySettingRow("UI Scale", uiScaleChoice));
 
-        var clockFormatRow = new HBoxContainer();
-        clockFormatRow.AddChild(new Label { Text = "Time display" });
-        clockFormatChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         clockFormatChoice.AddItem("24-hour", 0);
         clockFormatChoice.AddItem("12-hour (AM/PM)", 1);
         clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
         clockFormatChoice.ItemSelected += SetClockFormat;
-        clockFormatRow.AddChild(clockFormatChoice);
-        gameSettingsContent.AddChild(clockFormatRow);
+        gameSettingsContent.AddChild(DisplaySettingRow("Time display", clockFormatChoice));
 
-        var dateFormatRow = new HBoxContainer();
-        dateFormatRow.AddChild(new Label { Text = "Date display" });
-        dateFormatChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         dateFormatChoice.AddItem("DD-MM-YYYY");
         dateFormatChoice.AddItem("MM-DD-YYYY");
         dateFormatChoice.AddItem("YYYY-MM-DD");
         dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
         dateFormatChoice.ItemSelected += SetDateFormat;
-        dateFormatRow.AddChild(dateFormatChoice);
-        gameSettingsContent.AddChild(dateFormatRow);
+        gameSettingsContent.AddChild(DisplaySettingRow("Date display", dateFormatChoice));
 
         var lifePaceRow = new HBoxContainer();
         lifePaceRow.AddChild(new Label { Text = "Aging multiplier" });
@@ -3492,7 +3613,13 @@ public partial class Main : Control
         statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
         statusLabel.CustomMinimumSize = new Vector2(320, 0);
         AddPanelContents(statusToast, statusLabel);
-        statusToast.ZIndex = 120;
+        // Above the title backdrop and menus, so connection and pairing
+        // results remain visible from Main Menu Settings.
+        statusToast.ZIndex = 250;
+        // Messages now stay up for several seconds; let clicks reach the map.
+        statusToast.MouseFilter = Control.MouseFilterEnum.Ignore;
+        foreach (var child in statusToast.FindChildren("*", nameof(Control), recursive: true, owned: false).OfType<Control>())
+            child.MouseFilter = Control.MouseFilterEnum.Ignore;
         statusToast.Hide();
         content.AddChild(statusToast);
     }
@@ -3655,16 +3782,11 @@ public partial class Main : Control
 
     private void OpenMenuForSetup()
     {
-        returnToMainMenu = true;
-        mainMenuOverlay.Hide();
+        // Connection and pairing share Main Menu Settings' presentation: the
+        // title backdrop stays up and one compact header button goes back.
+        OpenMainMenuSettings();
         menuPausedWorld = false;
-        menuCloseButton.TooltipText = "Back to Main Menu";
-        menuResumeButton.Text = "Back to Main Menu";
-        SetWorldMenuActionsVisible(false);
-        menuHeadingLabel.Text = "Set up your world";
-        gameMenuPanel.Show();
-        menuShade.Show();
-        ShowSettingsSection(worldSpecific: false);
+        menuHeadingLabel.Text = "Connect this device";
     }
 
     private void SetFullscreen(bool enabled)
@@ -3809,10 +3931,14 @@ public partial class Main : Control
         return 0;
     }
 
-    private static HBoxContainer DisplaySettingRow(string label, OptionButton choice)
+    // Every labelled settings row shares one caption column so the choices
+    // line up; ApplyResponsiveLayout widens it with the caption text.
+    private HBoxContainer DisplaySettingRow(string label, OptionButton choice)
     {
         var row = new HBoxContainer();
-        row.AddChild(new Label { Text = label, CustomMinimumSize = new Vector2(135, 0) });
+        var caption = new Label { Text = label, CustomMinimumSize = new Vector2(SettingCaptionWidth, 0) };
+        settingCaptionLabels.Add(caption);
+        row.AddChild(caption);
         choice.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         row.AddChild(choice);
         return row;
@@ -4046,7 +4172,7 @@ public partial class Main : Control
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
-            cameraCenterTiles = new Vector2(mapWidth / 2f, mapHeight / 2f);
+            cameraCenterTiles = InitialCameraCenter(snapshot, mapWidth, mapHeight);
         }
         UpdateMapGeometry(snapshot);
 
@@ -4165,6 +4291,46 @@ public partial class Main : Control
         RefreshTileHoverAtMouse();
     }
 
+    // Clipped captions degrade into unreadable fragments such as "rehou", so a
+    // marker shows its name only when the whole caption fits; the glyph and
+    // tooltip still identify it when zoomed out.
+    private static bool MapObjectLabelFits(Label visual, string label)
+    {
+        var font = visual.GetThemeFont("font");
+        var fontSize = visual.GetThemeFontSize("font_size");
+        return visual.Size.Y >= font.GetHeight(fontSize) * 2 &&
+            font.GetStringSize(label, HorizontalAlignment.Left, -1, fontSize).X <= visual.Size.X;
+    }
+
+    /// <summary>
+    /// Opens a world on its settlement rather than the geometric map center,
+    /// which on generated maps is often open water: the first Town, then the
+    /// living agents, then the starting camp objects.
+    /// </summary>
+    private static Vector2 InitialCameraCenter(OwnerWorldSnapshot snapshot, int mapWidth, int mapHeight)
+    {
+        IReadOnlyList<OwnerWorldPosition> focus =
+            snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Count > 0)?.BorderTiles ?? [];
+        if (focus.Count == 0)
+        {
+            focus = snapshot.Inhabitants
+                .Where(person => !person.IsDraft &&
+                    string.Equals(person.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
+                .Select(person => person.Position).ToArray();
+        }
+        if (focus.Count == 0) focus = snapshot.Objects.Select(item => item.Position).ToArray();
+        if (focus.Count == 0) return new Vector2(mapWidth / 2f, mapHeight / 2f);
+        // Measure east/west offsets from one member so a group straddling a
+        // wrapped seam is framed together instead of averaging to the far side.
+        var reference = focus[0].X;
+        var offset = focus.Average(position =>
+        {
+            var dx = position.X - reference;
+            return snapshot.WrapsEastWest ? dx - MathF.Round(dx / (float)mapWidth) * mapWidth : dx;
+        });
+        return new Vector2(reference + (float)offset + 0.5f, (float)focus.Average(position => position.Y) + 0.5f);
+    }
+
     private void AddMapObjectVisual(
         string id,
         OwnerWorldPosition position,
@@ -4193,13 +4359,13 @@ public partial class Main : Control
             objectLayer.AddChild(visual);
             mapObjectVisuals.Add(id, visual);
         }
-        visual.Text = $"{glyph}\n{label}";
         var canonicalX = position.X * stride + 4;
         mapObjectCanonicalXs[id] = canonicalX;
         visual.Position = new Vector2(WrappedMarkerX(canonicalX, terrainMap!.Width, stride,
             renderedMapSnapshot?.WrapsEastWest == true), position.Y * stride + 4);
         visual.Size = new Vector2(stride * Math.Clamp(width, 1, 32) - TileGap - 8,
             stride * Math.Clamp(height, 1, 32) - TileGap - 8);
+        visual.Text = MapObjectLabelFits(visual, label) ? $"{glyph}\n{label}" : glyph;
         visual.TooltipText = tooltip;
     }
 
@@ -4297,15 +4463,15 @@ public partial class Main : Control
     {
         var inhabitant = snapshot.Inhabitants.FirstOrDefault(item =>
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
-        inhabitantDetails.Clear();
         if (inhabitant is null)
         {
+            SetPanelText(inhabitantDetails, string.Empty);
             return;
         }
 
         if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
         {
-            inhabitantDetails.AppendText("Deceased · historical record; no current activity or carried inventory.");
+            SetPanelText(inhabitantDetails, "Deceased · historical record; no current activity or carried inventory.");
             return;
         }
 
@@ -4318,7 +4484,7 @@ public partial class Main : Control
         var destination = inhabitant.Route.Destination is { } routeDestination
             ? $" toward {routeDestination.X}, {routeDestination.Y}"
             : string.Empty;
-        inhabitantDetails.AppendText(
+        SetPanelText(inhabitantDetails,
             $"{currentActivity}{destination}\n" +
             $"Hunger {NeedPercent(inhabitant.HungerBasisPoints)}%\n" +
             $"Carrying {inventory}");
@@ -4335,9 +4501,9 @@ public partial class Main : Control
             renamingAgentId = null;
             selectedActorSummaryLabel.Text = string.Empty;
             selectedActorConditionLabel.Text = string.Empty;
-            inhabitantSocialDetails.Clear();
-            privateThoughtHistory.Clear();
-            memoryHistory.Clear();
+            SetPanelText(inhabitantSocialDetails, string.Empty);
+            SetPanelText(privateThoughtHistory, string.Empty);
+            SetPanelText(memoryHistory, string.Empty);
             memoriesPanel.Hide();
             selectedInhabitantCard.Hide();
             return;
@@ -4409,12 +4575,12 @@ public partial class Main : Control
         if (inhabitant.Proficiency is { } practice)
             learning += $"\nPractice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30";
         var socialText = $"{(role is null ? "" : Pretty(role) + "\n")}{(inhabitant.Project is null ? intention : projectText)}{learning}\n{relationships}{standing}{socialNotes}\n{activity}";
-        if (inhabitantSocialDetails.Text != socialText) inhabitantSocialDetails.Text = socialText;
+        SetPanelText(inhabitantSocialDetails, socialText);
         var thoughtHeading = isDeceased ? "Private thoughts · historical" : "Private thoughts";
-        privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
+        SetPanelText(privateThoughtHistory, inhabitant.RecentPrivateThoughts.Count == 0
             ? thoughtHeading + "\nNone recorded yet."
             : thoughtHeading + "\n" + string.Join("\n", inhabitant.RecentPrivateThoughts
-                .Reverse().Select(thought => $"{DisplayWorldClock(thought.WorldTick)}  {thought.Text}"));
+                .Reverse().Select(thought => $"{DisplayWorldClock(thought.WorldTick)}  {thought.Text}")));
         var memoryRows = new List<(long WorldTick, int Kind, string Text)>();
         memoryRows.AddRange(inhabitant.RecentBeliefs.Select(belief =>
         {
@@ -4458,10 +4624,10 @@ public partial class Main : Control
             return (artifact.CreatedTick, 3,
                 $"{DisplayWorldClock(artifact.CreatedTick)} · {Pretty(artifact.Kind)} · {artifact.Title} · by {artifact.CreatorName}\n{sites}");
         }));
-        memoryHistory.Text = memoryRows.Count == 0
+        SetPanelText(memoryHistory, memoryRows.Count == 0
             ? "No saved memories, beliefs, or map records for this agent yet."
             : string.Join("\n\n", memoryRows.OrderByDescending(item => item.WorldTick)
-                .ThenBy(item => item.Kind).Select(item => item.Text));
+                .ThenBy(item => item.Kind).Select(item => item.Text)));
         inhabitantSocialDetails.TooltipText = decision is null ? "" :
             $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
             $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +
@@ -4474,7 +4640,6 @@ public partial class Main : Control
 
     private void RenderWorldDetails(OwnerWorldSnapshot snapshot)
     {
-        worldDetails.Clear();
         var authoring = snapshot.Authoring;
         var instructions = snapshot.Instructions.Count == 0
             ? "none"
@@ -4497,7 +4662,7 @@ public partial class Main : Control
               $"{worldSystems.RecipeDefinitionCount} recipes";
         if (authoring is null)
         {
-            worldDetails.AppendText($"tick {snapshot.WorldTick}\nworld {snapshot.WorldId}\nNo authoring projection returned.");
+            SetPanelText(worldDetails, $"tick {snapshot.WorldTick}\nworld {snapshot.WorldId}\nNo authoring projection returned.");
             return;
         }
 
@@ -4506,15 +4671,16 @@ public partial class Main : Control
         var projects = snapshot.Inhabitants.Where(person => person.Project is not null).Select(person =>
             $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}" +
             (person.Project.Blocker is null ? "" : $"\n  {person.Project.Blocker}"));
-        worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)}\n" +
+        var details = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)}\n" +
             $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))} at camera\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
             string.Join("\n", snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")));
         if (snapshot.Council is { } council)
         {
-            worldDetails.Text += $"\n\nHousehold council\nSteward: {council.StewardName ?? "awaiting a contributor"}\n" +
+            details += $"\n\nHousehold council\nSteward: {council.StewardName ?? "awaiting a contributor"}\n" +
                 (council.FoodPolicy == "essential_first" ? "Food reserve: hungry members first" : "Shared food: open access") +
                 (council.ProposedPolicy is null ? "" : $"\nVote: {Pretty(council.ProposedPolicy)} · {council.Approvals} yes / {council.Rejections} no / {council.Voters} voters");
         }
+        SetPanelText(worldDetails, details);
         worldDetails.TooltipText =
             $"tick {snapshot.WorldTick} · revision {authoring.Revision} · epoch {authoring.RunEpoch}\n" +
             $"state: {(authoring.IsPaused ? "PAUSED — authoring allowed" : "RUNNING — authoring disabled")}\n" +
@@ -4530,30 +4696,35 @@ public partial class Main : Control
 
     private void RenderEventLog()
     {
-        eventLog.Clear();
         var snapshot = observationSession.Current?.Baseline.Snapshot;
-        var events = knownEvents.Values
+        var entries = knownEvents.Values
             .Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
             .OrderByDescending(worldEvent => worldEvent.EventId)
             .Take(30)
+            .Select(worldEvent => (worldEvent.EventId, Located: worldEvent.Position is not null,
+                Text: $"{DisplayWorldClock(worldEvent.WorldTick)}\n{DescribeWorldEvent(worldEvent, snapshot)}"))
             .ToArray();
-        if (events.Length == 0)
+        // Rebuilding identical rows every refresh would reset the reader's
+        // scroll position, so only a changed list is redrawn.
+        var content = string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Text}"));
+        if (renderedEventLog == content) return;
+        renderedEventLog = content;
+        eventLog.Clear();
+        if (entries.Length == 0)
         {
             eventLog.AppendText("Nothing notable has happened yet.");
             return;
         }
 
-        foreach (var worldEvent in events)
+        foreach (var entry in entries)
         {
-            var line = $"{DisplayWorldClock(worldEvent.WorldTick)}\n" +
-                $"{DescribeWorldEvent(worldEvent, snapshot)}";
-            if (worldEvent.Position is not null)
+            if (entry.Located)
             {
-                eventLog.PushMeta(worldEvent.EventId.ToString(CultureInfo.InvariantCulture));
-                eventLog.AddText(line + " ↗");
+                eventLog.PushMeta(entry.EventId.ToString(CultureInfo.InvariantCulture));
+                eventLog.AddText(entry.Text + " ↗");
                 eventLog.Pop();
             }
-            else eventLog.AddText(line);
+            else eventLog.AddText(entry.Text);
             eventLog.AddText("\n\n");
         }
     }
@@ -4748,6 +4919,14 @@ public partial class Main : Control
         ? "none"
         : string.Join(", ", positions.Select(position => $"{position.X},{position.Y}"));
 
+    // RichTextLabel ignores assigning its current non-empty text, even after
+    // Clear() emptied the display, so text panels are only ever replaced.
+    // Skipping unchanged text also keeps the reader's scroll position.
+    private static void SetPanelText(RichTextLabel label, string text)
+    {
+        if (label.Text != text) label.Text = text;
+    }
+
     private static void ConfigureTextPanel(RichTextLabel label, float minimumHeight)
     {
         label.BbcodeEnabled = false;
@@ -4773,6 +4952,12 @@ public partial class Main : Control
         worldInfoPanel.CustomMinimumSize = new Vector2(panelWidth(365), 280);
         selectedTilePanel.CustomMinimumSize = new Vector2(panelWidth(315), 0);
         filtersPanel.CustomMinimumSize = new Vector2(panelWidth(305), 0);
+        // Size the shared caption column from its widest caption at the
+        // current font size, so no single long caption pushes its choice out.
+        var captionWidth = settingCaptionLabels.Aggregate(SettingCaptionWidth * uiScale,
+            (widest, caption) => Math.Max(widest, caption.GetMinimumSize().X));
+        foreach (var caption in settingCaptionLabels)
+            caption.CustomMinimumSize = new Vector2(captionWidth, 0);
         mainMenuCard.CustomMinimumSize = new Vector2(panelWidth(440), 0);
         worldMenuCard.CustomMinimumSize = new Vector2(panelWidth(480), 0);
         manualSaveCard.CustomMinimumSize = new Vector2(panelWidth(470), 0);
@@ -4797,9 +4982,7 @@ public partial class Main : Control
         filtersPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(filtersPanel.Size.X, filtersPanel.CustomMinimumSize.X) - 14),
             14);
-        selectedTilePanel.Position = new Vector2(14,
-            Math.Max(14, viewport.Y - Math.Max(selectedTilePanel.Size.Y,
-                selectedTilePanel.CustomMinimumSize.Y) - 14));
+        PositionSelectedTilePanel();
         eventsPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
             14);
@@ -4999,8 +5182,9 @@ public partial class Main : Control
                 {
                     selectedTile = tile;
                     terrainLayer.SetSelectedTile(tile);
-                    RenderTileInspection(snapshot);
+                    // Show first: hidden containers report no content size.
                     selectedTilePanel.Show();
+                    RenderTileInspection(snapshot);
                     mapCanvas.AcceptEvent();
                 }
             }
@@ -5086,12 +5270,33 @@ public partial class Main : Control
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
-        selectedTileText.Text = string.Join('\n', lines);
-        selectedTileText.CustomMinimumSize = new Vector2(0, Math.Min(
-            Math.Max(64, mapCanvas.Size.Y - 96),
-            Math.Max(64, (lines.Count * 20 + 12) * DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent))));
-        selectedTilePanel.Size = selectedTilePanel.GetCombinedMinimumSize();
+        SetPanelText(selectedTileText, string.Join('\n', lines));
+        FitSelectedTileText();
     }
+
+    /// <summary>
+    /// Grows the tile card to its wrapped facts, so the last one is not hidden
+    /// behind a scrollbar, and re-anchors it inside the bottom of the view.
+    /// Before the card has been laid out its text width is unknown; the
+    /// label's Resized signal repeats the fit once the width arrives.
+    /// </summary>
+    private void FitSelectedTileText()
+    {
+        if (selectedTileText.Size.X >= 64)
+        {
+            var height = Math.Min(Math.Max(64, mapCanvas.Size.Y - 96),
+                Math.Max(64, selectedTileText.GetContentHeight() + 4));
+            if (Math.Abs(selectedTileText.CustomMinimumSize.Y - height) >= 1)
+                selectedTileText.CustomMinimumSize = new Vector2(0, height);
+        }
+        selectedTilePanel.Size = selectedTilePanel.GetCombinedMinimumSize();
+        PositionSelectedTilePanel();
+    }
+
+    private void PositionSelectedTilePanel() =>
+        selectedTilePanel.Position = new Vector2(14,
+            Math.Max(14, mapCanvas.Size.Y - Math.Max(selectedTilePanel.Size.Y,
+                selectedTilePanel.CustomMinimumSize.Y) - 14));
 
     private void UpdateTileHover(Vector2 canvasPosition)
     {
@@ -5350,7 +5555,18 @@ public partial class Main : Control
         return !string.IsNullOrWhiteSpace(worldUrl);
     }
 
-    private void SetStatus(string text, bool good)
+    private enum StatusToastKind
+    {
+        // Action results and hints stay readable for a few refreshes.
+        Message,
+        // Instructions for an active map-click mode stay until replaced.
+        Sticky,
+        // Connection trouble clears on the next successful refresh.
+        Connection,
+        UsageLimit,
+    }
+
+    private void SetStatus(string text, bool good, StatusToastKind kind = StatusToastKind.Message)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -5360,8 +5576,29 @@ public partial class Main : Control
 
         statusLabel.Text = text;
         statusLabel.Modulate = new Color(good ? "B9E8C5" : "F0B6A6");
+        statusToastKind = kind;
+        statusToastShownAtMsec = (long)Time.GetTicksMsec();
         statusToast.Show();
         ApplyResponsiveLayout();
+    }
+
+    /// <summary>
+    /// Runs on every one-second pulse and after each successful observation
+    /// refresh, which must not erase an action result before the player can
+    /// read it. Connection and usage-limit notices clear once a refresh
+    /// succeeds without them.
+    /// </summary>
+    private void ExpireStatusToast(bool refreshSucceeded)
+    {
+        if (!statusToast.Visible) return;
+        var expired = statusToastKind switch
+        {
+            StatusToastKind.Connection or StatusToastKind.UsageLimit => refreshSucceeded,
+            // A mode instruction outlives its mode only as an ordinary message.
+            StatusToastKind.Sticky when choosingFirstTownSite || movingFounderId is not null => false,
+            _ => (long)Time.GetTicksMsec() - statusToastShownAtMsec >= StatusToastMilliseconds,
+        };
+        if (expired) statusToast.Hide();
     }
 
     private void ShowHeldState(string reason)
@@ -5371,7 +5608,7 @@ public partial class Main : Control
             heldTick is null
                 ? $"disconnected · {reason}"
                 : $"disconnected · holding accepted tick {heldTick} · {reason}",
-            good: false);
+            good: false, StatusToastKind.Connection);
     }
 
     private static string FriendlyFailure(Exception exception) => exception switch

@@ -201,6 +201,29 @@ release yet.
 
 ### Fixed
 
+- The Town panel no longer goes blank while the world is paused, and
+  reselecting an agent no longer leaves their relationships, private thoughts
+  or memories empty. The Event Log keeps your scroll position between updates
+  and no longer repeats "Initial content activated" when a world is created.
+- Action results and map-click instructions, such as choosing the Town site or
+  moving a founder, stay on screen long enough to read instead of disappearing
+  within a second; mode instructions remain until the mode ends. A request the
+  world host refuses is reported as not accepted rather than as a lost
+  connection. Messages from Main Menu Settings are no longer hidden behind the
+  title backdrop.
+- Opening a world now centers the camera on its first Town (or its agents)
+  instead of the middle of the map, which was often open sea.
+- The selected-tile card no longer extends below the bottom of the screen or
+  hides its last fact behind a scrollbar.
+- Map markers too small for their name now show only their symbol, with full
+  details in the tooltip, instead of clipped fragments such as "rehou".
+- Top-bar actions such as Start World, Play and Undo last founder are dimmed
+  and blocked while the Pause Menu or Settings are open. Choosing the Town
+  site now changes its button to Cancel Town site until a site is chosen.
+- The Connect/Pair screen keeps the title backdrop, uses the same compact back
+  button as Main Menu Settings instead of a second large Back button, and
+  scrolls the pairing code into view. Settings and autosave choices line up in
+  one column at every UI Scale.
 - Adults in a household that already has a House no longer plan a redundant
   new House. An in-progress second-House project ends with a visible reason
   before spending supplies; household invitation and new-household choices for

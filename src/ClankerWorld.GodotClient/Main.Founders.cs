@@ -41,7 +41,8 @@ public partial class Main
         moveFounderButton.Text = "Cancel move";
         founderApiKeyInput.Text = string.Empty;
         founderSetupPanel.Hide();
-        SetStatus("Click an empty passable tile to move the selected founder before Start World.", good: true);
+        SetStatus("Click an empty passable tile to move the selected founder before Start World.", good: true,
+            StatusToastKind.Sticky);
     }
 
     private async Task MoveFounderAtAsync(Vector2I tile)
@@ -94,11 +95,13 @@ public partial class Main
         if (observationSession.Current?.Baseline.Snapshot.FounderSetup is not
             { CanChooseTownSite: true }) return;
         choosingFirstTownSite = !choosingFirstTownSite;
+        townSiteButton.Text = TownSiteButtonText(observationSession.Current.Baseline.Snapshot.FounderSetup);
         if (choosingFirstTownSite)
         {
             founderApiKeyInput.Text = string.Empty;
             founderSetupPanel.Hide();
-            SetStatus("Click buildable land to generate the first Town. Choose again to redo before placing founders.", good: true);
+            SetStatus("Click buildable land to generate the first Town. Choose again to redo before placing founders.", good: true,
+                StatusToastKind.Sticky);
         }
         else SetStatus("Town-site selection closed", good: true);
     }
@@ -204,6 +207,7 @@ public partial class Main
     private async Task ToggleFounderSetupAsync()
     {
         choosingFirstTownSite = false;
+        townSiteButton.Text = TownSiteButtonText(observationSession.Current?.Baseline.Snapshot.FounderSetup);
         movingFounderId = null;
         moveFounderButton.Text = "Move founder";
         placingAddedAgent = false;
@@ -371,7 +375,6 @@ public partial class Main
     {
         var setup = snapshot.FounderSetup;
         townSiteButton.Visible = setup is { CanChooseTownSite: true };
-        townSiteButton.Text = setup?.HasAcceptedTownSite == true ? "Redo Town site" : "Choose Town site";
         moveFounderButton.Visible = setup is { Started: false, Placed: > 0 };
         undoFounderButton.Visible = setup is { Started: false, Placed: > 0 };
         moveFounderButton.Text = movingFounderId is null ? "Move founder" : "Cancel move";
@@ -386,6 +389,7 @@ public partial class Main
             return;
         }
         if (!setup.CanChooseTownSite) choosingFirstTownSite = false;
+        townSiteButton.Text = TownSiteButtonText(setup);
         if (movingFounderId is not null && !snapshot.Inhabitants.Any(person => person.Id == movingFounderId))
         {
             movingFounderId = null;
@@ -396,6 +400,11 @@ public partial class Main
             ? $"Choose this founder’s provider, model, and API key. Then click an empty tile near the first Town. The first two join Camp Alpha; the next two join Camp Beta. {setup.Placed}/{setup.Required} placed. Select a placed founder to move it, or undo the last placement."
             : "All four founders are placed. Move a selected founder or undo the last placement if needed, then choose Start World to let time run.";
     }
+
+    // Town-site selection is a map-click mode; the button shows how to leave it.
+    private string TownSiteButtonText(OwnerFounderSetup? setup) =>
+        choosingFirstTownSite ? "Cancel Town site" :
+        setup?.HasAcceptedTownSite == true ? "Redo Town site" : "Choose Town site";
 
     private void ResetAddAgentPlacementHint()
     {
