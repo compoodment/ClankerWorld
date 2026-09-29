@@ -71,6 +71,12 @@ creates an unsigned Windows x64 PE bundle and writes a SHA-256 manifest.
 CI uploads that bundle as an artifact. These checks verify the build and
 export; they do not replace playing the bundle on Windows.
 
+The program icon, `src/ClankerWorld.GodotClient/icon.ico`, is generated from
+the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After
+changing that art, rebuild the icon with
+`godot --headless --path src/ClankerWorld.GodotClient -- --write-app-icon`.
+The UI smoke test fails if the committed icon no longer matches the art.
+
 ## Focused documentation checks
 
 ```bash

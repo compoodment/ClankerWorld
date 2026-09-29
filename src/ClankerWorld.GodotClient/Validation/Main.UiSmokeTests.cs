@@ -196,11 +196,35 @@ public partial class Main
         RefreshMainMenuAvailability();
         if (!MenuLogo.Create().GetData().AsSpan().SequenceEqual(((ImageTexture)mainMenuLogo.Texture).GetImage().GetData()))
             throw new InvalidOperationException("The logo must be drawn the same way every time.");
-        foreach (var iconSize in new[] { 16, 32, 64 })
+        foreach (var iconSize in MenuLogo.IconSizes)
         {
             var icon = MenuLogo.Icon(iconSize);
             if (icon.GetWidth() != iconSize || icon.GetHeight() != iconSize || icon.GetPixel(iconSize / 2, iconSize / 2).A < 1)
                 throw new InvalidOperationException($"The {iconSize} px window icon must be a filled square image.");
+        }
+        VerifyAppIconFile();
+    }
+
+    /// <summary>The committed Windows program icon must still match the logo art.</summary>
+    private static void VerifyAppIconFile()
+    {
+        const string stale = "The Windows program icon is out of date. Run: godot --headless --path src/ClankerWorld.GodotClient -- --write-app-icon";
+        var file = Godot.FileAccess.GetFileAsBytes(AppIconPath);
+        if (file.Length < 6 || BitConverter.ToUInt16(file, 2) != 1 || BitConverter.ToUInt16(file, 4) != MenuLogo.IconSizes.Length)
+            throw new InvalidOperationException(stale);
+        for (var i = 0; i < MenuLogo.IconSizes.Length; i++)
+        {
+            var entry = 6 + 16 * i;
+            var size = file[entry] == 0 ? 256 : file[entry];
+            var length = (int)BitConverter.ToUInt32(file, entry + 8);
+            var offset = (int)BitConverter.ToUInt32(file, entry + 12);
+            var image = new Image();
+            if (size != MenuLogo.IconSizes[i] || offset + length > file.Length ||
+                image.LoadPngFromBuffer(file[offset..(offset + length)]) != Error.Ok)
+                throw new InvalidOperationException(stale);
+            image.Convert(Image.Format.Rgba8);
+            if (!image.GetData().AsSpan().SequenceEqual(MenuLogo.Icon(size).GetData()))
+                throw new InvalidOperationException(stale);
         }
     }
 

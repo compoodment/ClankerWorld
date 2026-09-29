@@ -18,6 +18,7 @@ public partial class Main : Control
     private const int RefreshSeconds = 1;
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
+    private const string AppIconPath = "res://icon.ico";
     private const string UiScaleBaseFontSizeMetaPrefix = "clanker_ui_scale_base_font_size_";
     private static readonly string[] UiScaleFontSizeThemeItems = ["font_size"];
     private static readonly string[] UiScaleRichTextFontSizeThemeItems =
@@ -240,6 +241,13 @@ public partial class Main : Control
 
     public override void _Ready()
     {
+        // Developer command: rewrite the Windows program icon from the logo art.
+        if (OS.HasFeature("editor") && OS.GetCmdlineUserArgs().Contains("--write-app-icon", StringComparer.Ordinal))
+        {
+            File.WriteAllBytes(ProjectSettings.GlobalizePath(AppIconPath), MenuLogo.IconFile());
+            GetTree().Quit();
+            return;
+        }
         displayPreferences = displayPreferencesStore.Load();
         ApplySavedDisplaySettings();
         // The logo's robot and planet are the window and taskbar icon.

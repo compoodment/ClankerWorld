@@ -65,14 +65,29 @@ public static class MenuLogo
         return canvas.ToImage();
     }
 
-    /// <summary>The robot and planet on their own, for the window icon; 64 px doubles the 32 px design.</summary>
+    /// <summary>Sizes written to the Windows program icon.</summary>
+    public static readonly int[] IconSizes = [16, 32, 48, 64, 128, 256];
+
+    /// <summary>
+    /// The robot and planet on their own, for the window and program icon.
+    /// 16, 32 and 48 px are separate pixel designs; 64, 128 and 256 px double
+    /// the 32 px design so every size stays crisp.
+    /// </summary>
     public static Image Icon(int size)
     {
-        if (size >= 64)
+        if (size > 48 && size % 32 == 0)
         {
             var image = Icon(32);
-            image.Resize(64, 64, Image.Interpolation.Nearest);
+            image.Resize(size, size, Image.Interpolation.Nearest);
             return image;
+        }
+        if (size == 48)
+        {
+            var large = new Canvas(48, 48);
+            Planet(large, 23.5f, 20.5f, 20);
+            large.Outline(large.Filled(), Outline);
+            Robot(large, 12, 20);
+            return large.ToImage();
         }
         if (size >= 32)
         {
@@ -104,6 +119,34 @@ public static class MenuLogo
         small.Outline(Mask(head.Keys, 16, 16), Outline, diagonal: false);
         foreach (var (point, color) in head) small.Put(point.X, point.Y, color);
         return small.ToImage();
+    }
+
+    /// <summary>A Windows .ico holding every <see cref="IconSizes"/> image as PNG data.</summary>
+    public static byte[] IconFile()
+    {
+        var images = IconSizes.Select(size => Icon(size).SavePngToBuffer()).ToArray();
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write((ushort)0);
+        writer.Write((ushort)1);
+        writer.Write((ushort)IconSizes.Length);
+        var offset = 6 + 16 * IconSizes.Length;
+        for (var i = 0; i < IconSizes.Length; i++)
+        {
+            var edge = (byte)(IconSizes[i] >= 256 ? 0 : IconSizes[i]);
+            writer.Write(edge);
+            writer.Write(edge);
+            writer.Write((byte)0);
+            writer.Write((byte)0);
+            writer.Write((ushort)1);
+            writer.Write((ushort)32);
+            writer.Write((uint)images[i].Length);
+            writer.Write((uint)offset);
+            offset += images[i].Length;
+        }
+        foreach (var image in images) writer.Write(image);
+        writer.Flush();
+        return stream.ToArray();
     }
 
     private static bool[,] TextMask(string text, out List<int> starts)
