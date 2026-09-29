@@ -159,6 +159,10 @@ reopen the decided player-local distribution goal.
   **Event Log** button, an **Add Agent** button near the menu button, and the
   menu button at top-right. Date display format and 24-hour/AM-PM time format
   belong in UI Settings.
+- **Decided after the September 29 style review:** the Event Log button shows
+  how many events arrived since the player last opened the log. Because a
+  world can hold several Towns, the top bar has no single-Town button; Town
+  facts belong in World Info.
 - Important events belong in the **Event Log**, not optional out-of-view
   event pop-ups/notices. Clicking the top-bar Event Log button opens the log;
   clicking a located event moves the camera to where it happened. Opening the

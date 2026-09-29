@@ -245,6 +245,11 @@ public static class UiTheme
         theme.SetStylebox("panel", "InsetPanel", Box(p.Inset, p.InsetEdge, 2, contentMargin: 8));
         theme.SetTypeVariation("TopBar", "PanelContainer");
         theme.SetStylebox("panel", "TopBar", TopBar(p));
+        // A wax-seal count on a button's corner, and a small warning dot.
+        theme.SetTypeVariation("Badge", "PanelContainer");
+        theme.SetStylebox("panel", "Badge", Round(p.Seal, p.SealRing, 10, 2));
+        theme.SetTypeVariation("WarningDot", "PanelContainer");
+        theme.SetStylebox("panel", "WarningDot", Round(p.Ember, p.ButtonEdge, 4, 1));
 
         // Buttons.
         var button = Bevel(p.Button, p.ButtonLight, p.ButtonDark, p.ButtonEdge);
@@ -283,6 +288,8 @@ public static class UiTheme
         SetLabel(theme, "GoodLabel", p.Good, "Label");
         SetLabel(theme, "BadLabel", p.Bad, "Label");
         SetLabel(theme, "KeyLabel", p.Section, "Label");
+        SetLabel(theme, "BadgeLabel", p.SealInk, "Label");
+        SetLabel(theme, "NewMarkLabel", p.Warning, "Label");
         // Text sitting straight on a wooden bar rather than on parchment.
         SetLabel(theme, "WoodLabel", p.OnWood, "Label");
         SetLabel(theme, "WoodSoftLabel", p.OnWoodSoft, "Label");
@@ -445,6 +452,20 @@ public static class UiTheme
         }
         return box;
     }
+
+    private static StyleBoxFlat Round(Color fill, Color ring, int radius, int ringWidth) => new()
+    {
+        BgColor = fill,
+        BorderColor = ring,
+        BorderWidthLeft = ringWidth,
+        BorderWidthTop = ringWidth,
+        BorderWidthRight = ringWidth,
+        BorderWidthBottom = ringWidth,
+        CornerRadiusTopLeft = radius,
+        CornerRadiusTopRight = radius,
+        CornerRadiusBottomLeft = radius,
+        CornerRadiusBottomRight = radius,
+    };
 
     private static StyleBoxLine Line(Color color, bool vertical) =>
         new() { Color = color, Thickness = 2, Vertical = vertical };

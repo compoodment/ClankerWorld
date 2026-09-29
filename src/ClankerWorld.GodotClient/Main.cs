@@ -89,10 +89,8 @@ public partial class Main : Control
     private readonly Button mapButton = new();
     private readonly Button worldInfoButton = new();
     private readonly Label clockLabel = new();
-    private readonly Label climateLabel = new();
     private readonly Button inhabitantsButton = new();
     private readonly Button eventsButton = new();
-    private readonly Button settlementButton = new();
     private readonly Button menuButton = new();
     private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
@@ -137,7 +135,6 @@ public partial class Main : Control
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
-    private readonly PanelContainer settlementPanel = new();
     private readonly PanelContainer worldInfoPanel = new();
     private readonly PanelContainer selectedTilePanel = new();
     private readonly RichTextLabel selectedTileText = new();
@@ -662,17 +659,11 @@ public partial class Main : Control
                             {
                                 throw new InvalidOperationException($"Menu escaped its centered bounds: window={size}, settings={settingsVisible}, world={worldSpecific}, selected={selected}, menu={menu}, bounds={bounds}");
                             }
-                            settlementPanel.Show();
-                            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                            if (!mapCanvas.GetGlobalRect().Encloses(settlementPanel.GetGlobalRect()))
-                            {
-                                throw new InvalidOperationException($"Settlement panel escaped the world viewport: window={size}");
-                            }
-                            settlementPanel.Hide();
+                            ShowWorldInfoPage(towns: true);
                             worldInfoPanel.Show();
                             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                             if (!mapCanvas.GetGlobalRect().Encloses(worldInfoPanel.GetGlobalRect()))
-                                throw new InvalidOperationException($"World Info escaped the world viewport: window={size}");
+                                throw new InvalidOperationException($"World Info escaped the world viewport: window={size} map={mapCanvas.GetGlobalRect()} info={worldInfoPanel.GetGlobalRect()} hud={hudBar.GetGlobalRect()}");
                             worldInfoPanel.Hide();
                         }
                     }
@@ -705,7 +696,8 @@ public partial class Main : Control
             Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
             if (clockLabel.Text != "01-02-0001 · 00:00" ||
                 !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
-                !worldInfoText.Text.Contains("First Town · Founding · 4 residents", StringComparison.Ordinal))
+                !TownListText().Contains("First Town", StringComparison.Ordinal) ||
+                !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
                 throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
@@ -739,7 +731,7 @@ public partial class Main : Control
                 worldDetails.GetParsedText().Contains("revision", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderWorldDetails(sample);
-            foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, settlementPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
+            foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
             {
                 panel.Show();
                 var close = panel.FindChildren("*", nameof(Button), recursive: true, owned: false)
@@ -869,7 +861,7 @@ public partial class Main : Control
                 throw new InvalidOperationException($"Map Filters must open inside the world view: map={mapCanvas.GetGlobalRect()} filters={filtersPanel.GetGlobalRect()} site_visible={townSiteButton.Visible}.");
             townBorderFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
-            if (!worldInfoText.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+            if (!townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Town border filter must update the visible map explanation.");
             HandleMapInput(new InputEventMouseButton
             {
@@ -1438,6 +1430,22 @@ public partial class Main : Control
                 throw new InvalidOperationException($"Same-day events must share one date heading: {eventLog.GetParsedText()}");
             knownEvents.Remove(101);
             RenderEventLog();
+            // Events that arrive while the log is closed are counted on its
+            // button, then marked read once it is opened.
+            eventsPanel.Hide();
+            UpdateUnreadEvents(eventsWorldId);
+            var readBefore = unreadEvents;
+            knownEvents[102] = new OwnerWorldEvent(102, 3, "food_consumed", "founder-scout", null);
+            RenderEventLog();
+            if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
+                eventsBadgeLabel.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
+                throw new InvalidOperationException($"A new event must show an unread count on the Event Log button: {unreadEvents} after {readBefore}.");
+            ToggleEvents();
+            if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
+                throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            ToggleEvents();
+            knownEvents.Remove(102);
+            RenderEventLog();
             var largeTerrain = Enumerable.Range(0, 256 * 128)
                 .Select(index => (byte)(index % 37 == 0 ? 3 : 0)).ToArray();
             var largeMap = sample with
@@ -1466,7 +1474,7 @@ public partial class Main : Control
             if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTerrain.Length / 2 ||
                 worldOverview.VisibleTiles.Size.X >= 256)
                 throw new InvalidOperationException($"A regional map must draw only the visible terrain without per-tile nodes: children={terrainLayer.GetChildCount()}, visible={terrainLayer.VisibleTileCount}, overview={worldOverview.VisibleTiles.Size}.");
-            if (climateLabel.Text != "Spring · Rain" ||
+            if (seasonLabel.Text != "Spring" || weatherLabel.Text != "Rain" ||
                 !worldInfoText.Text.Contains("Soil moisture here: 78%", StringComparison.Ordinal) ||
                 terrainLayer.WeatherAt(150, 80) != "rain" || terrainLayer.WeatherAt(20, 20) != "snow")
                 throw new InvalidOperationException("The world HUD and info must show weather and moisture at the camera.");
@@ -1524,10 +1532,10 @@ public partial class Main : Control
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
-            if (climateLabel.Text != "Spring · Snow" ||
+            if (seasonLabel.Text != "Spring" || weatherLabel.Text != "Snow" ||
                 !worldInfoText.Text.Contains("here: Spring · Snow", StringComparison.Ordinal) ||
                 !worldInfoText.Text.Contains("Soil moisture here: 12%", StringComparison.Ordinal))
-                throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={climateLabel.Text}, info={worldInfoText.Text}.");
+                throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={seasonLabel.Text} · {weatherLabel.Text}, info={worldInfoText.Text}.");
             var wrappedMap = largeMap with
             {
                 WorldId = "ui-wrapped-map",
@@ -1713,7 +1721,9 @@ public partial class Main : Control
             baselinePan.Stop();
             cameraZoom = 0.65f;
             RenderMap(largeMap);
-            if (currentTileSize != 8 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.4f ||
+            // The HUD floats over the map, so the full-height view needs a
+            // 9 px floor to keep the Small map's poles out of sight.
+            if (currentTileSize > 9 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.3f ||
                 terrainLayer.VisibleTileCount > 40_000)
                 throw new InvalidOperationException($"Overview zoom must widen bounded terrain coverage: tile={currentTileSize}, width={oldVisibleWidth}->{worldOverview.VisibleTiles.Size.X}, tiles={terrainLayer.VisibleTileCount}.");
             var wideVisibleWidth = worldOverview.VisibleTiles.Size.X;
@@ -1796,6 +1806,10 @@ public partial class Main : Control
                 inhabitantList.GetItemText(2) != "Deceased" || inhabitantList.IsItemSelectable(2) ||
                 !inhabitantList.GetItemText(3).StartsWith("Mira", StringComparison.Ordinal))
                 throw new InvalidOperationException("The roster must list the living with their activity and hunger before the deceased.");
+            RenderWorldHud(rosterMap);
+            if (!agentsWarning.Visible || inhabitantsButton.Text != "2" ||
+                !inhabitantsButton.TooltipText.Contains("hungry: Rowan", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents button must count the living and flag anyone hungry.");
             CenterCameraAt(new Vector2(40, 30));
             SelectInhabitantFromList(1);
             if (selectedInhabitantId != "roster-rowan" || cameraCenterTiles.DistanceTo(new Vector2(180.5f, 90.5f)) > 1.5f)
@@ -1920,7 +1934,7 @@ public partial class Main : Control
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (choosingFirstTownSite || townSiteButton.Text == "Cancel Town site")
                 throw new InvalidOperationException("Escape must cancel an active Town-site selection.");
-            if (topBar.GetChildren().OfType<Button>().Any(button => button.FocusMode == Control.FocusModeEnum.None))
+            if (HudButtons().Any(button => button.FocusMode == Control.FocusModeEnum.None))
                 throw new InvalidOperationException("Top-bar actions must remain reachable by keyboard focus.");
             eventsButton.GrabFocus();
             eventsButton.EmitSignal(BaseButton.SignalName.Pressed);
@@ -1939,6 +1953,18 @@ public partial class Main : Control
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.I, Pressed = true });
             if (worldInfoPanel.Visible)
                 throw new InvalidOperationException("Pressing a panel shortcut again must close that panel.");
+            ShowWorldInfoPage(towns: false);
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.T, Pressed = true });
+            if (!worldInfoPanel.Visible || !WorldInfoShowsTowns)
+                throw new InvalidOperationException("T must open World Info on its Towns page; a world can hold several Towns.");
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.T, Pressed = true });
+            if (worldInfoPanel.Visible)
+                throw new InvalidOperationException("Pressing T again must close the Towns page.");
+            // The three HUD groups float over the map side by side, never on top of each other.
+            var hudGroups = new[] { hudLeft, hudTime, hudRight }.Select(row => row.GetParent<Control>().GetGlobalRect()).ToArray();
+            if (hudGroups.Any(rect => !mapCanvas.GetGlobalRect().Encloses(rect)) ||
+                hudGroups[0].Intersects(hudGroups[1]) || hudGroups[1].Intersects(hudGroups[2]) || hudGroups[0].Intersects(hudGroups[2]))
+                throw new InvalidOperationException($"HUD groups must sit inside the world view without overlapping: {string.Join(' ', hudGroups)}.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.F1, Pressed = true });
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!controlsPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(controlsPanel.GetGlobalRect()))
@@ -3202,8 +3228,8 @@ public partial class Main : Control
         root.AddThemeConstantOverride("separation", 0);
         AddChild(root);
 
-        BuildTopBar(root);
         BuildWorldColumn(root);
+        BuildTopBar(mapCanvas);
         BuildFounderSetupPanel(mapCanvas);
         BuildInspectorColumn(mapCanvas);
         BuildOwnerColumn(mapCanvas);
@@ -3213,140 +3239,6 @@ public partial class Main : Control
 
         Resized += ApplyResponsiveLayout;
         ApplyResponsiveLayout();
-    }
-
-    private void BuildTopBar(Control content)
-    {
-        var chrome = new PanelContainer
-        {
-            CustomMinimumSize = new Vector2(0, 60),
-        };
-        chrome.ThemeTypeVariation = "TopBar";
-        var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_left", 14);
-        margin.AddThemeConstantOverride("margin_right", 14);
-        margin.AddThemeConstantOverride("margin_top", 9);
-        margin.AddThemeConstantOverride("margin_bottom", 9);
-
-        topBar.AddThemeConstantOverride("separation", 8);
-        mapButton.Text = "Map";
-        mapButton.TooltipText = "World map (M). Scroll to zoom, and use WASD or middle-drag to move around. F1 lists all controls.";
-        StyleButton(mapButton);
-        mapButton.Pressed += () =>
-        {
-            var show = !worldOverviewPanel.Visible;
-            rosterPanel.Hide();
-            settlementPanel.Hide();
-            eventsPanel.Hide();
-            familyTreePanel.Hide();
-            worldInfoPanel.Hide();
-            filtersPanel.Hide();
-            worldOverviewPanel.Visible = show;
-        };
-        topBar.AddChild(mapButton);
-        BuildFiltersButton();
-
-        clockLabel.Text = "Connecting…";
-        clockLabel.AddThemeFontSizeOverride("font_size", 20);
-        clockLabel.ThemeTypeVariation = "WoodLabel";
-        topBar.AddChild(clockLabel);
-
-        climateLabel.Text = string.Empty;
-        climateLabel.ThemeTypeVariation = "WoodSoftLabel";
-        climateLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        topBar.AddChild(climateLabel);
-
-        worldInfoButton.Text = "Info";
-        worldInfoButton.TooltipText = "World Info (I)";
-        StyleButton(worldInfoButton);
-        worldInfoButton.Pressed += ToggleWorldInfo;
-        topBar.AddChild(worldInfoButton);
-
-        inhabitantsButton.Text = "Inhabitants";
-        StyleButton(inhabitantsButton);
-        inhabitantsButton.Pressed += ToggleInhabitants;
-        topBar.AddChild(inhabitantsButton);
-
-        settlementButton.Text = "Town";
-        settlementButton.TooltipText = "Town stores and projects (T)";
-        StyleButton(settlementButton);
-        settlementButton.Pressed += () =>
-        {
-            filtersPanel.Hide();
-            rosterPanel.Hide();
-            eventsPanel.Hide();
-            worldOverviewPanel.Hide();
-            worldInfoPanel.Hide();
-            settlementPanel.Visible = !settlementPanel.Visible;
-        };
-        topBar.AddChild(settlementButton);
-
-        eventsButton.Text = "Events";
-        eventsButton.TooltipText = "Event Log (E)";
-        StyleButton(eventsButton);
-        eventsButton.Pressed += ToggleEvents;
-        topBar.AddChild(eventsButton);
-
-        townSiteButton.Text = "Choose Town site";
-        StyleButton(townSiteButton);
-        townSiteButton.Pressed += ToggleFirstTownSite;
-        townSiteButton.Hide();
-        topBar.AddChild(townSiteButton);
-
-        moveFounderButton.Text = "Move founder";
-        moveFounderButton.TooltipText = "Pick a founder you have placed, then click a new spot. Only works before time starts.";
-        StyleButton(moveFounderButton);
-        moveFounderButton.Pressed += ToggleMoveFounder;
-        moveFounderButton.Hide();
-        topBar.AddChild(moveFounderButton);
-
-        undoFounderButton.Text = "Undo last founder";
-        undoFounderButton.TooltipText = "Take back the last founder you placed. Their model choice is cleared. Your saved keys stay.";
-        StyleButton(undoFounderButton);
-        undoFounderButton.Pressed += () => _ = UndoLastFounderAsync();
-        undoFounderButton.Hide();
-        topBar.AddChild(undoFounderButton);
-
-        founderSetupButton.Text = "Add founders";
-        StyleButton(founderSetupButton);
-        founderSetupButton.Pressed += () => _ = ToggleFounderSetupAsync();
-        topBar.AddChild(founderSetupButton);
-
-        startWorldButton.Text = "Start World";
-        StyleButton(startWorldButton, primary: true);
-        startWorldButton.Pressed += () => _ = StartFounderWorldAsync();
-        topBar.AddChild(startWorldButton);
-
-        pauseButton.Text = "Pause";
-        StyleButton(pauseButton, primary: true);
-        pauseButton.Pressed += () => _ = TogglePauseAsync();
-        topBar.AddChild(pauseButton);
-
-        addAgentButton.Text = "Add Agent";
-        StyleButton(addAgentButton);
-        addAgentButton.Pressed += () => _ = ToggleAddAgentAsync();
-        topBar.AddChild(addAgentButton);
-
-        menuButton.Text = "Menu";
-        StyleButton(menuButton);
-        menuButton.Pressed += () => _ = ToggleGameMenuAsync();
-        topBar.AddChild(menuButton);
-
-        // Activated buttons return focus to the map. They remain reachable by
-        // Tab/Enter, including actions without a one-key shortcut.
-        foreach (var button in topBar.GetChildren().OfType<Button>())
-            button.Pressed += button.ReleaseFocus;
-        margin.AddChild(topBar);
-        chrome.AddChild(margin);
-        // Mirrors the world-view menu shade so top-bar actions such as Start
-        // World or Play cannot run behind a modal menu. It draws above the
-        // title backdrop so Main Menu Settings dims the whole screen evenly.
-        topBarShade.Color = UiTheme.Current.Shade;
-        topBarShade.MouseFilter = Control.MouseFilterEnum.Stop;
-        topBarShade.ZIndex = 190;
-        topBarShade.Hide();
-        chrome.AddChild(topBarShade);
-        content.AddChild(chrome);
     }
 
     private void BuildConnectionPanel()
@@ -3715,19 +3607,7 @@ public partial class Main : Control
         memoriesPanel.Hide();
         content.AddChild(memoriesPanel);
 
-        ConfigureTextPanel(worldDetails, 320);
-        AddClosablePanelContents(settlementPanel, "Town", worldDetails);
-        settlementPanel.CustomMinimumSize = new Vector2(420, 380);
-        settlementPanel.ZIndex = 80;
-        settlementPanel.Hide();
-        content.AddChild(settlementPanel);
-
-        ConfigureTextPanel(worldInfoText, 220);
-        AddClosablePanelContents(worldInfoPanel, "World Info", worldInfoText);
-        worldInfoPanel.CustomMinimumSize = new Vector2(365, 280);
-        worldInfoPanel.ZIndex = 80;
-        worldInfoPanel.Hide();
-        content.AddChild(worldInfoPanel);
+        BuildWorldInfoPanel(content);
         BuildControlsPanel(content);
 
         var tileBody = new VBoxContainer();
@@ -4197,7 +4077,6 @@ public partial class Main : Control
         var show = !rosterPanel.Visible;
         filtersPanel.Hide();
         familyTreePanel.Hide();
-        settlementPanel.Hide();
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
@@ -4209,11 +4088,11 @@ public partial class Main : Control
         var show = !eventsPanel.Visible;
         filtersPanel.Hide();
         familyTreePanel.Hide();
-        settlementPanel.Hide();
         rosterPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+        if (show) MarkEventsSeen();
     }
 
     private void ToggleWorldInfo()
@@ -4221,7 +4100,6 @@ public partial class Main : Control
         var show = !worldInfoPanel.Visible;
         filtersPanel.Hide();
         familyTreePanel.Hide();
-        settlementPanel.Hide();
         rosterPanel.Hide();
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
@@ -4244,7 +4122,6 @@ public partial class Main : Control
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
-        settlementPanel.Hide();
         filtersPanel.Hide();
         familyTreePanel.Show();
         ApplyResponsiveLayout();
@@ -4277,7 +4154,6 @@ public partial class Main : Control
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
-        settlementPanel.Hide();
         memoriesPanel.Show();
         ApplyResponsiveLayout();
     }
@@ -4304,7 +4180,7 @@ public partial class Main : Control
         menuResumeButton.Text = "Resume";
         SetWorldMenuActionsVisible(true);
         menuHeadingLabel.Text = "Paused";
-        settlementPanel.Hide();
+        worldInfoPanel.Hide();
         gameMenuPanel.Show();
         menuShade.Show();
         ApplyResponsiveLayout();
@@ -4395,6 +4271,7 @@ public partial class Main : Control
         // The fallback base scale helps theme-aware controls, while this
         // client's explicit font-size overrides also need direct scaling.
         ThemeDB.FallbackBaseScale = factor;
+        RefreshHudIcons();
         if (uiScaleTreeReady)
         {
             ApplyUiScaleFontOverrides(this, factor);
@@ -4572,9 +4449,10 @@ public partial class Main : Control
         appBackdrop.Color = palette.Backdrop;
         worldBackdrop.Color = palette.Backdrop;
         mainMenuBackground.Color = palette.Backdrop;
-        topBarShade.Color = palette.Shade;
         menuShade.Color = palette.Shade;
         familyTreeView.QueueRedraw();
+        RefreshHudIcons();
+        renderedTownList = null;
         renderedTownPanel = null;
         renderedEventLog = null;
         if (observationSession.Current is { } current)
@@ -5016,15 +4894,8 @@ public partial class Main : Control
 
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)
     {
-        var paused = snapshot.Authoring?.IsPaused == true;
         clockLabel.Text = DisplayWorldClock(snapshot.WorldTick);
-        inhabitantsButton.Text = $"Agents {LivingPopulation(snapshot)}";
-        inhabitantsButton.TooltipText = "Living agents · open the agent list (R). N selects the next agent.";
-        climateLabel.Text = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
-            : string.Empty;
-        pauseButton.Text = paused ? "Play" : "Pause";
-        pauseButton.TooltipText = paused ? "Resume the world (Space)" : "Pause the world (Space)";
+        RenderHudState(snapshot);
         UpdatePausedBadge(snapshot);
         menuResumeButton.Text = menuPausedWorld ? "Resume" : "Close menu";
     }
@@ -5049,13 +4920,7 @@ public partial class Main : Control
         var localWeather = snapshot.Authoring is { } authoring
             ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
             : "Not reported";
-        var townInfo = snapshot.Towns.Count == 0 ? string.Empty :
-            (townBorderFilter.ButtonPressed ? "\nTown borders are outlined in amber on the map.\n"
-                : "\nTown borders are hidden. Turn them on in Filters.\n") + string.Join("\n",
-            snapshot.Towns.Select(town =>
-                $"{town.Name} · {Pretty(town.FoundingState)} · {town.ResidentIds.Count} residents\n" +
-                "Residents: " + string.Join(", ", town.ResidentIds.Select(id =>
-                    snapshot.Inhabitants.FirstOrDefault(item => item.Id == id)?.DisplayName).Where(name => name is not null))));
+        RenderTownList(snapshot);
         worldInfoText.Text =
             $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
             (snapshot.CalendarPace is { } pace ? $"Year length: {pace.DaysPerYear} days\n" : "") +
@@ -5063,7 +4928,7 @@ public partial class Main : Control
             $"Map size: {width} × {height}\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
             $"Roads: {snapshot.RoadTiles.Count} tiles\n" +
-            townInfo + "\n" +
+            $"Towns: {snapshot.Towns.Count}\n" +
             $"Resource locations: {snapshot.Resources.Count}\n" +
             $"Season and weather here: {localWeather}" +
             (WeatherRegionAtCamera(snapshot)?.SoilMoisture is { } moisture
@@ -5381,7 +5246,9 @@ public partial class Main : Control
             .ToArray();
         // Rebuilding identical rows every refresh would reset the reader's
         // scroll position, so only a changed list is redrawn.
-        var content = string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
+        UpdateUnreadEvents(snapshot?.WorldId ?? eventsWorldId);
+        var content = newEventsAfter + "\n" +
+            string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
         if (renderedEventLog == content) return;
         renderedEventLog = content;
         eventLog.Clear();
@@ -5408,6 +5275,13 @@ public partial class Main : Control
                 eventLog.Pop();
                 eventLog.Newline();
                 day = date;
+            }
+            // Rows that arrived since the log was last opened keep a small dot.
+            if (entry.EventId > newEventsAfter)
+            {
+                eventLog.PushColor(UiTheme.Current.Warning);
+                eventLog.AddText("● ");
+                eventLog.Pop();
             }
             eventLog.PushColor(DimText);
             eventLog.AddText(time + "  ");
@@ -5640,13 +5514,12 @@ public partial class Main : Control
             return;
         }
 
-        climateLabel.Visible = Size.X >= 1100;
+        climateBox.Visible = Size.X >= 1100 && renderedMapSnapshot?.Authoring is not null;
         var uiScale = DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent);
         float panelWidth(int width) => Math.Min(width * uiScale, Math.Max(1, viewport.X - 28));
         rosterPanel.CustomMinimumSize = new Vector2(panelWidth(410), 0);
         eventsPanel.CustomMinimumSize = new Vector2(panelWidth(390), 360);
-        settlementPanel.CustomMinimumSize = new Vector2(panelWidth(420), 380);
-        worldInfoPanel.CustomMinimumSize = new Vector2(panelWidth(365), 280);
+        worldInfoPanel.CustomMinimumSize = new Vector2(panelWidth(420), 380);
         selectedTilePanel.CustomMinimumSize = new Vector2(panelWidth(315), 0);
         filtersPanel.CustomMinimumSize = new Vector2(panelWidth(305), 0);
         // Size the shared caption column from its widest caption at the
@@ -5675,28 +5548,31 @@ public partial class Main : Control
 
         if (controlsPanel.Visible) PositionControlsPanel();
         PositionMapHud();
-        rosterPanel.Position = new Vector2(14, 14);
-        settlementPanel.Position = new Vector2(14, 14);
-        worldInfoPanel.Position = new Vector2(14, 14);
+        // Panels open just below the floating HUD rather than under it.
+        var hudTop = HudTop;
+        rosterPanel.Position = new Vector2(14, hudTop);
+        worldInfoPanel.Position = new Vector2(14, hudTop);
+        worldOverviewPanel.Position = new Vector2(14, hudTop);
+        founderSetupPanel.Position = new Vector2(founderSetupPanel.Position.X, Math.Max(founderSetupPanel.Position.Y, hudTop));
         filtersPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(filtersPanel.Size.X, filtersPanel.CustomMinimumSize.X) - 14),
-            14);
+            hudTop);
         PositionSelectedTilePanel();
         eventsPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
-            14);
+            hudTop);
         var familySize = new Vector2(Math.Clamp(viewport.X - 28, 320, 840 * uiScale),
             Math.Clamp(viewport.Y - 28, 280, 600));
         familyTreePanel.Size = familySize;
         familyTreePanel.Position = new Vector2(
             Math.Max(14, (viewport.X - familySize.X) / 2),
-            Math.Max(14, (viewport.Y - familySize.Y) / 2));
+            Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
         var memoriesSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600 * uiScale),
             Math.Clamp(viewport.Y - 28, 280, 430));
         memoriesPanel.Size = memoriesSize;
         memoriesPanel.Position = new Vector2(
             Math.Max(14, (viewport.X - memoriesSize.X) / 2),
-            Math.Max(14, (viewport.Y - memoriesSize.Y) / 2));
+            Math.Max(hudTop, (viewport.Y - memoriesSize.Y) / 2));
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
@@ -6114,7 +5990,7 @@ public partial class Main : Control
             ClearTileSelection();
             return true;
         }
-        var overlays = new Control[] { rosterPanel, eventsPanel, settlementPanel, worldInfoPanel, filtersPanel, worldOverviewPanel };
+        var overlays = new Control[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel };
         if (overlays.Any(panel => panel.Visible))
         {
             foreach (var panel in overlays) panel.Hide();
@@ -6169,7 +6045,7 @@ public partial class Main : Control
         selectedInhabitantCard.Size = cardSize;
         if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
         {
-            selectedInhabitantCard.Position = new Vector2(Math.Max(12, mapCanvas.Size.X - cardWidth - 12), 12);
+            selectedInhabitantCard.Position = new Vector2(Math.Max(12, mapCanvas.Size.X - cardWidth - 12), CardTop(cardSize.Y));
             return;
         }
         var stride = currentTileSize + TileGap;
@@ -6183,7 +6059,7 @@ public partial class Main : Control
             y = actorCenter.Y + (currentTileSize / 2f) + 12;
         }
 
-        y = Math.Clamp(y, 12, Math.Max(12, mapCanvas.Size.Y - cardSize.Y - 12));
+        y = Math.Clamp(y, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), mapCanvas.Size.Y - cardSize.Y - 12));
         // A tall card on a short screen cannot fit above or below the agent,
         // so it moves beside them rather than covering the person it describes.
         var actorRect = new Rect2(actorCenter - new Vector2(currentTileSize, currentTileSize) / 2,
@@ -6194,10 +6070,13 @@ public partial class Main : Control
             var left = actorRect.Position.X - cardWidth - 12;
             if (right + cardWidth <= mapCanvas.Size.X - 12) x = right;
             else if (left >= 12) x = left;
-            y = Math.Clamp(actorCenter.Y - cardSize.Y / 2, 12, Math.Max(12, mapCanvas.Size.Y - cardSize.Y - 12));
+            y = Math.Clamp(actorCenter.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), mapCanvas.Size.Y - cardSize.Y - 12));
         }
         selectedInhabitantCard.Position = new Vector2(x, y);
     }
+
+    /// <summary>The agent card sits below the HUD when it fits, and slides up over it only when it is taller than the room left.</summary>
+    private float CardTop(float cardHeight) => Math.Max(12, Math.Min(HudTop, mapCanvas.Size.Y - cardHeight - 12));
 
     private static PanelContainer NewPanel(string title, Control content)
     {

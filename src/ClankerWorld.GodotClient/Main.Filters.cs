@@ -16,7 +16,7 @@ public partial class Main
         filtersButton.TooltipText = "Show or hide map overlays.";
         StyleButton(filtersButton);
         filtersButton.Pressed += ToggleMapFilters;
-        topBar.AddChild(filtersButton);
+        hudLeft.AddChild(filtersButton);
     }
 
     private void BuildMapFiltersPanel(Control canvas)

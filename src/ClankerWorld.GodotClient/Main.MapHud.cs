@@ -43,7 +43,7 @@ public partial class Main
     private void PositionMapHud()
     {
         pausedBadge.Size = pausedBadge.GetCombinedMinimumSize();
-        pausedBadge.Position = new Vector2(Math.Max(14, (mapCanvas.Size.X - pausedBadge.Size.X) / 2), 14);
+        pausedBadge.Position = new Vector2(Math.Max(14, (mapCanvas.Size.X - pausedBadge.Size.X) / 2), HudTop);
         hoverReadout.Size = hoverReadout.GetCombinedMinimumSize();
         hoverReadout.Position = new Vector2(
             Math.Max(14, mapCanvas.Size.X - hoverReadout.Size.X - 14),

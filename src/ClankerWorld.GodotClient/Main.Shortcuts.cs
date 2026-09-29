@@ -22,12 +22,12 @@ public partial class Main
         ("Space or P", "Pause or resume"),
         ("N / Shift+N", "Next or previous agent"),
         ("C", "Center on the selected agent"),
-        ("H", "Back to the Town"),
+        ("H", "Back to the first Town"),
         ("M", "Map overview"),
         ("F", "Filters"),
         ("I", "World Info"),
         ("R", "Agents"),
-        ("T", "Town"),
+        ("T", "Towns"),
         ("E", "Event Log"),
         ("F1 or ?", "Show or hide this list"),
         ("Esc", "Close the newest panel, or open the Pause Menu"),
@@ -116,7 +116,7 @@ public partial class Main
                 PressTopBarAction(inhabitantsButton);
                 return true;
             case Key.T:
-                PressTopBarAction(settlementButton);
+                ToggleTowns();
                 return true;
             case Key.E:
                 PressTopBarAction(eventsButton);

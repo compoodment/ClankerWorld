@@ -274,6 +274,18 @@ release yet.
   Agents, Town, Event Log, World Info, Filters and World Map panels now have
   a close button, and the panels are titled Agents and Event Log to match the
   top bar.
+- The top bar is now three small wooden panels floating over the map, with
+  pixel icons on every button: Map and Filters; the pause control with the
+  date, time, season and local weather; and the world actions. When time is
+  stopped the pause button turns orange and reads Paused. The Agents button
+  shows how many are alive and a small orange dot when someone is hungry, and
+  the Event Log button shows a red count of events since you last opened it,
+  with those rows dotted in the log.
+- The Town button is gone, since a world can hold more than one Town. World
+  Info now opens on a Towns page listing every Town with its residents, when
+  it was founded and a Show button that moves the map there, followed by the
+  household stores, projects and council; the World page holds the rest. T
+  now opens Towns.
 - The Agents list now shows what each living agent is doing and flags anyone
   hungry, lists the deceased under their own heading, and fits its height to
   the people in it. Choosing someone moves the map to them, and the agent
