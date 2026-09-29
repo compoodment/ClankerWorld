@@ -17,7 +17,7 @@ public sealed class WorldSelectionCoordinator(
     ILogger<WorldSelectionCoordinator> logger,
     Func<string, IDecisionProvider> providerFactory)
 {
-    private readonly object gate = new();
+    private readonly object gate = providers.WorldMutationGate;
 
     public WorldCatalogSnapshot List()
     {

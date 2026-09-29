@@ -26,6 +26,13 @@ An interrupted catalog update is recovered against the active checkpoint.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
 
+Founder placement restores the prior in-memory world and provider configuration
+if its checkpoint commit fails. World selection and founder/add-agent setup
+share a transaction lock while restoring checkpoint and model routing. This
+handles ordinary operation failures; process termination between separate
+files and a second failure during rollback still require operator recovery.
+It does not make every owner endpoint a multi-file transaction.
+
 Windows provider configuration uses current-user DPAPI. Validated legacy JSON
 migrates atomically to the protected envelope; damaged or wrong-user data is
 not overwritten with empty state. Unix uses private permissions. Forgetting a

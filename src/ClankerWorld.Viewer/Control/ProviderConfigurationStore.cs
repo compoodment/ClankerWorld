@@ -135,6 +135,33 @@ public sealed class ProviderConfigurationStore
 
     public string Path { get; }
 
+    // Shared by selection and founder/add-agent setup across the complete
+    // world/checkpoint/routing transaction, not just individual store writes.
+    public object WorldMutationGate { get; } = new();
+
+    public void ConfigureWithCommit(OwnerProviderConfigurationAction action, Action commit)
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+        lock (gate)
+        {
+            var before = state;
+            try
+            {
+                Configure(action);
+                commit();
+            }
+            catch
+            {
+                if (state != before)
+                {
+                    SaveUnsafe(before);
+                    state = before;
+                }
+                throw;
+            }
+        }
+    }
+
     public RuntimeProviderConfiguration CaptureRuntimeConfiguration()
     {
         lock (gate)
