@@ -175,6 +175,35 @@ public partial class Main
         }
     }
 
+    /// <summary>The logo replaces the old title and slogan, sits above the card and stays crisp.</summary>
+    private void VerifyMainMenuLogo(Vector2I size)
+    {
+        var logo = mainMenuLogo.GetGlobalRect();
+        var scale = logo.Size.X / MenuLogo.Width;
+        if (!mainMenuLogo.IsVisibleInTree() || mainMenuLogo.Texture.GetWidth() != MenuLogo.Width ||
+            mainMenuLogo.Texture.GetHeight() != MenuLogo.Height || scale < 2 || scale != Mathf.Floor(scale) ||
+            logo.Size.Y != MenuLogo.Height * scale || logo.End.Y > mainMenuCard.GetGlobalRect().Position.Y ||
+            !mainMenuOverlay.GetGlobalRect().Encloses(logo))
+            throw new InvalidOperationException($"At {size} the logo must sit above the menu card at a whole-number scale: logo={logo} card={mainMenuCard.GetGlobalRect()}.");
+        if (mainMenuCard.FindChildren("*", nameof(Label), true, false).OfType<Label>().Any(label =>
+                label.Visible && (label.Text == "CLANKERWORLD" || label.Text.StartsWith("A world shaped", StringComparison.Ordinal))))
+            throw new InvalidOperationException("The Main Menu must show the logo instead of a text title or slogan.");
+        if (!mainMenuStatus.Visible || mainMenuStatus.Text != "Connect this device to your world to play.")
+            throw new InvalidOperationException("An unpaired Main Menu must say how to start playing.");
+        SetMainMenuStatus(null);
+        if (mainMenuStatus.Visible)
+            throw new InvalidOperationException("The Main Menu status line must disappear when nothing needs attention.");
+        RefreshMainMenuAvailability();
+        if (!MenuLogo.Create().GetData().AsSpan().SequenceEqual(((ImageTexture)mainMenuLogo.Texture).GetImage().GetData()))
+            throw new InvalidOperationException("The logo must be drawn the same way every time.");
+        foreach (var iconSize in new[] { 16, 32, 64 })
+        {
+            var icon = MenuLogo.Icon(iconSize);
+            if (icon.GetWidth() != iconSize || icon.GetHeight() != iconSize || icon.GetPixel(iconSize / 2, iconSize / 2).A < 1)
+                throw new InvalidOperationException($"The {iconSize} px window icon must be a filled square image.");
+        }
+    }
+
     private async Task VerifyMenuLayoutAsync()
     {
         try
@@ -185,9 +214,10 @@ public partial class Main
                 GetWindow().Size = size;
                 for (var frame = 0; frame < 3; frame++)
                     await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                if (!mainMenuOverlay.GetGlobalRect().Encloses(mainMenuCard.GetGlobalRect()) ||
-                    mainMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(mainMenuCard.GetGlobalRect().GetCenter()) > 2)
+                if (!mainMenuOverlay.GetGlobalRect().Encloses(mainMenuStack.GetGlobalRect()) ||
+                    mainMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(mainMenuStack.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Main Menu escaped its centered bounds at {size}.");
+                VerifyMainMenuLogo(size);
                 manualSaveOverlay.Show();
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!manualSaveOverlay.GetGlobalRect().Encloses(manualSaveCard.GetGlobalRect()) ||
@@ -215,7 +245,7 @@ public partial class Main
             OpenMainMenuSettings();
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
-                menuCloseButton.Text != "<" || !mainMenuBackdrop.IsVisibleInTree())
+                menuCloseButton.Text != "<" || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
                 throw new InvalidOperationException("Main Menu Settings must keep the title background and show only Game Settings.");
             if (!gameSettingsCategoryButton.ButtonPressed || gameSettingsCategoryButton.Disabled)
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");

@@ -117,8 +117,9 @@ haze/flashes. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
 Ground, buildings, agents and natural objects use provisional code-drawn pixel
-art. The interface uses wooden frames and parchment panels. The Main Menu sits
-on an animated pixel-art valley that follows the Light or Dark theme. None of
+art. The interface uses wooden frames and parchment panels. The Main Menu shows
+the ClankerWorld logo over an animated pixel-art valley that follows the Light
+or Dark theme. None of
 this is a finished production art catalogue. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 

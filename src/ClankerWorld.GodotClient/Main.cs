@@ -242,6 +242,9 @@ public partial class Main : Control
     {
         displayPreferences = displayPreferencesStore.Load();
         ApplySavedDisplaySettings();
+        // The logo's robot and planet are the window and taskbar icon.
+        if (DisplayServer.GetName() != "headless")
+            DisplayServer.SetIcon(MenuLogo.Icon(64));
         // Pixel frames, buttons and icons stay crisp when the picture is scaled.
         TextureFilter = TextureFilterEnum.Nearest;
         UiTheme.Apply(GetTree().Root, UiTheme.Resolve(UiTheme.Parse(displayPreferences.Theme)));
