@@ -163,6 +163,7 @@ public sealed class PrivateWorldStateFile
     public void VerifyRequiredHistory(PrivateWorldRuntimeState checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
+        if (checkpoint.HistoryArchiveHead is null) return;
         lock (gate) VerifyHistory(checkpoint.HistoryArchiveHead);
     }
 

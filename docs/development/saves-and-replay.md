@@ -138,6 +138,14 @@ these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints. Updating autosave
 configuration trims only that configured world, including rotation off.
 
+Manual overwrite first writes an immutable checkpoint generation, then
+atomically publishes its metadata pointer with the matching model assignments
+and autosave settings. Failure before publication leaves the previous selected
+pair intact. Legacy saves without a generation pointer remain readable.
+Unpublished generations are retained; no cleanup policy is implied. Older
+binaries do not understand this pointer and must not load newly overwritten
+saves. Use a matching pre-upgrade backup for rollback.
+
 A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.

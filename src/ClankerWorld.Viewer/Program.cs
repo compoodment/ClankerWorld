@@ -848,10 +848,11 @@ app.MapPost("/api/v1/owner/saves/load", (
     }
     try
     {
-        var checkpoint = saves.Read(action.Value);
+        var committed = saves.ReadCommitted(action.Value);
+        var checkpoint = committed.Checkpoint;
         stateFile.VerifyRequiredHistory(checkpoint);
-        var assignments = saves.ReadAssignments(action.Value);
-        var autosaveSettings = saves.ReadAutosaveSettings(action.Value);
+        var assignments = committed.Assignments;
+        var autosaveSettings = committed.AutosaveSettings;
         if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
         {
             ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");

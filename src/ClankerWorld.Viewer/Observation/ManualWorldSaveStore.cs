@@ -16,7 +16,7 @@ public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string Ba
 public sealed class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
-        WorldAutosaveSettings? AutosaveSettings, string? WorldId = null);
+        WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null);
     private readonly object gate = new();
     private readonly string directory;
     private readonly ILogger<ManualWorldSaveStore>? logger;
@@ -57,14 +57,14 @@ public sealed class ManualWorldSaveStore
             throw new InvalidOperationException("Pause the world before overwriting a manual save.");
         lock (gate)
         {
-            if (!File.Exists(MetadataPath(id)) || !File.Exists(StatePath(id)))
+            if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The selected manual save no longer exists.");
             var previousMetadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))
                 ?? throw new InvalidDataException("The selected manual save metadata is invalid.");
             if (previousMetadata.Save.Id != id || previousMetadata.Save.IsAutosave ||
                 previousMetadata.WorldId != state.Society.Society.WorldId)
                 throw new InvalidOperationException("Only a named save from this world can be overwritten.");
-            var previousBytes = File.ReadAllBytes(StatePath(id));
+            var previousBytes = File.ReadAllBytes(CommittedStatePath(id, previousMetadata));
             var oldCheckpoint = PrivateWorldRuntimeCodec.Decode(previousBytes);
             if (oldCheckpoint.Society.Society.WorldId != previousMetadata.WorldId)
                 throw new InvalidDataException("The selected checkpoint does not match its metadata.");
@@ -78,16 +78,19 @@ public sealed class ManualWorldSaveStore
             };
             WriteAtomic(StatePath(backup.Id), previousBytes);
             WriteAtomic(MetadataPath(backup.Id), JsonSerializer.SerializeToUtf8Bytes(
-                previousMetadata with { Save = backup }));
+                previousMetadata with { Save = backup, Generation = null }));
 
             var saved = previousMetadata.Save with
             {
                 CreatedUtc = DateTimeOffset.UtcNow,
                 WorldTick = state.Society.Society.WorldTick
             };
-            WriteAtomic(StatePath(id), PrivateWorldRuntimeCodec.Encode(state), overwrite: true);
+            var generation = Guid.NewGuid().ToString("N");
+            // Only metadata publishes the new immutable generation. A failed metadata
+            // replacement leaves the prior checkpoint and routing/settings selected.
+            WriteAtomic(GenerationPath(id, generation), PrivateWorldRuntimeCodec.Encode(state));
             WriteAtomic(MetadataPath(id), JsonSerializer.SerializeToUtf8Bytes(new Metadata(
-                saved, assignments, autosaveSettings, state.Society.Society.WorldId)), overwrite: true);
+                saved, assignments, autosaveSettings, state.Society.Society.WorldId, generation)), overwrite: true);
             return new ManualSaveOverwriteReceipt(saved, backup.Id);
         }
     }
@@ -129,12 +132,12 @@ public sealed class ManualWorldSaveStore
                 try
                 {
                     var item = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path));
-                    if (item?.Save is null || !IsId(fileId) || item.Save.Id != fileId)
+                    if (item?.Save is null || !IsId(fileId) || item.Save.Id != fileId || item.Generation is not null && !IsId(item.Generation))
                     {
                         ReportInvalid(path, fileId, "invalid_metadata", invalidPaths);
                         continue;
                     }
-                    if (!File.Exists(StatePath(fileId)))
+                    if (!File.Exists(CommittedStatePath(fileId, item)))
                     {
                         ReportInvalid(path, fileId, "missing_checkpoint", invalidPaths);
                         continue;
@@ -181,12 +184,21 @@ public sealed class ManualWorldSaveStore
 
     public PrivateWorldRuntimeState Read(string id)
     {
+        return ReadCommitted(id).Checkpoint;
+    }
+
+    /// <summary>Read the checkpoint and its routing/settings from one published generation.</summary>
+    public (PrivateWorldRuntimeState Checkpoint, IReadOnlyList<InhabitantProviderAssignment> Assignments,
+        WorldAutosaveSettings? AutosaveSettings) ReadCommitted(string id)
+    {
         if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
         lock (gate)
         {
-            if (!File.Exists(MetadataPath(id)) || !File.Exists(StatePath(id)))
+            if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The manual save does not exist.");
-            return PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(StatePath(id)));
+            var metadata = ReadMetadata(id);
+            var checkpoint = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(CommittedStatePath(id, metadata)));
+            return (checkpoint, metadata.Assignments, metadata.AutosaveSettings);
         }
     }
 
@@ -195,10 +207,9 @@ public sealed class ManualWorldSaveStore
         if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
         lock (gate)
         {
-            if (!File.Exists(StatePath(id)) || !File.Exists(MetadataPath(id)))
+            if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The manual save does not exist.");
-            return JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))?.Assignments
-                ?? throw new InvalidDataException("The manual save metadata is invalid.");
+            return ReadMetadata(id).Assignments;
         }
     }
 
@@ -207,10 +218,28 @@ public sealed class ManualWorldSaveStore
         if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
         lock (gate)
         {
-            if (!File.Exists(StatePath(id)) || !File.Exists(MetadataPath(id)))
+            if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The manual save does not exist.");
-            return JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))?.AutosaveSettings;
+            return ReadMetadata(id).AutosaveSettings;
         }
+    }
+
+    private Metadata ReadMetadata(string id)
+    {
+        var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))
+            ?? throw new InvalidDataException("The manual save metadata is invalid.");
+        if (metadata.Save.Id != id || metadata.Generation is not null && !IsId(metadata.Generation))
+            throw new InvalidDataException("The manual save generation is invalid.");
+        return metadata;
+    }
+
+    private string CommittedStatePath(string id, Metadata metadata) => metadata.Generation is { } generation
+        ? GenerationPath(id, generation) : StatePath(id);
+
+    private string GenerationPath(string id, string generation)
+    {
+        if (!IsId(generation)) throw new InvalidDataException("The manual save generation is invalid.");
+        return Path.Combine(directory, id + "." + generation + ".save");
     }
 
     private string StatePath(string id) => Path.Combine(directory, id + ".save");
