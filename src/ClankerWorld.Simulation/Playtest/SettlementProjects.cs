@@ -443,12 +443,27 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var inputs = building?.BuildCosts ?? recipe!.Inputs;
-        var constructionOwner = building?.Tags.Any(IsHouseholdBuildingTag) == true ||
-            recipe?.Tags.Contains("grain", StringComparer.Ordinal) == true ||
-            recipe?.WorkstationBuildingId is { } workstationId && worldContent.Buildings.Any(definition =>
-                definition.CanonicalId == workstationId && definition.Tags.Any(IsHouseholdBuildingTag))
-            ? HouseholdFor(inhabitantId) : society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null
-                ? inhabitantId : HouseholdId;
+        PlacedBuilding? recipeBuilding = null;
+        if (recipe is not null)
+        {
+            if (!TryFindRecipeSite(recipe, out var recipeSite, out _, inhabitantId))
+            {
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for a free work site" });
+                return;
+            }
+            recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
+        }
+        var constructionOwner = recipe is not null ? ProductionOwnerFor(recipeBuilding, inhabitantId)
+            : building?.Tags.Any(IsHouseholdBuildingTag) == true ? HouseholdFor(inhabitantId)
+            : society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : HouseholdId;
+        if (recipe is not null && recipeBuilding?.HouseholdId is not null &&
+            worldContent.Buildings.Any(definition => definition.CanonicalId == recipeBuilding.DefinitionId &&
+                definition.Tags.Any(IsHouseholdBuildingTag)) &&
+            !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
+        {
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for ingredients at this household building" });
+            return;
+        }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));
         if (missing.Amount > 0)
         {
@@ -535,6 +550,10 @@ public sealed partial class PrivateWorldRuntime
             if (job is not null)
             {
                 SetProject(inhabitantId, project with { Stage = "waiting", JobId = job.JobId, Blocker = null });
+            }
+            else
+            {
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Production could not start; waiting to retry" });
             }
         }
     }

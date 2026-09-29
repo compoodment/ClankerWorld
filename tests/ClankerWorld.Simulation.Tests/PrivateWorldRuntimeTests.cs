@@ -10,6 +10,21 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class PrivateWorldRuntimeTests
 {
     [Fact]
+    public async Task UnavailableMustDoIsNotCompletedByAcceptedIdleAndSurvivesReload()
+    {
+        using var world = new PrivateWorldRuntime("must-do-illegal-review", _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        var receipt = world.SubmitInstruction(new OwnerInstructionRequest("must-eat-with-no-food", "owner:test",
+            "founder-ilya", OwnerInstructionKind.MustDo, "eat food"));
+        _ = await world.AdvanceOneTickAsync();
+        var state = world.ExportState();
+        Assert.DoesNotContain(receipt.InstructionId, state.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied" && item.Detail.StartsWith(receipt.InstructionId + ":", StringComparison.Ordinal));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        Assert.Contains(restored.ExportState().Instructions!, instruction => instruction.InstructionId == receipt.InstructionId);
+        Assert.DoesNotContain(receipt.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
+    }
+
+    [Fact]
     public void PrivateWorldStartsWithAnActiveSettlementInsteadOfAuthoringDrafts()
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");
@@ -105,7 +120,7 @@ public sealed partial class PrivateWorldRuntimeTests
             "owner-device:test",
             "founder-rowan",
             OwnerInstructionKind.MustDo,
-            "gather food");
+            "travel to berry patch");
 
         var first = runtime.SubmitInstruction(request);
         var replay = runtime.SubmitInstruction(request);

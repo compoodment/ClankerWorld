@@ -2999,10 +2999,20 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             candidateId = forcedCandidate;
         }
 
+        var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
+            lot.OwnerId == decision.InhabitantId && lot.ItemKind == "food").Sum(lot => (long)lot.Quantity);
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+        var forcedApplied = forcedCandidate == candidateId && (candidateId switch
+        {
+            "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
+            "consume_food" => inhabitants[decision.InhabitantId].HungerBasisPoints > state.HungerBasisPoints,
+            "harvest_food" => society.Checkpoint.Inventory.Lots.Where(lot =>
+                lot.OwnerId == decision.InhabitantId && lot.ItemKind == "food").Sum(lot => (long)lot.Quantity) > carriedFoodBefore,
+            _ => false,
+        });
 
         if (!decision.Admission.FellBack && pendingInstruction is not null &&
-            (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedCandidate is not null))
+            (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedApplied))
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);
             AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
@@ -3372,7 +3382,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private MapResource? AvailableFoodSource(GridPoint position) => map.Resources
         .Where(resource => resource.Kind is "food" or "fruit" &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableFromCampOnFoot(resource.Position))
+            map.IsReachableOnFoot(position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
         .FirstOrDefault();
 
@@ -3654,8 +3664,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
-            var recipeOwner = householdWorkstation || recipe.Tags.Contains("grain", StringComparer.Ordinal)
-                ? inhabitant.HouseholdId : inhabitant.HouseholdId is null ? inhabitant.Id : null;
+            var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
             if (!NeedsRecipeOutput(recipe, recipeOwner) || !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation &&

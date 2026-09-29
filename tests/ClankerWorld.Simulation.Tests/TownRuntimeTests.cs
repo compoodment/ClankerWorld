@@ -13,6 +13,29 @@ public sealed class TownRuntimeTests
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public async Task AddedIslandAdultCanHarvestAdjacentFoodOutsideTheCampComponent()
+    {
+        var geography = new GeographyOptions("island-food-review-0", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        PlaceFourFounders(world);
+        world.StartWorld();
+        var position = new GridPoint(22, 13);
+        world.AddAgent("agent:00000000000000000000000000000099", position);
+        var before = world.ExportState();
+        var food = before.Map.Resources.Single(item => item.Id == "wild-16-0");
+        Assert.False(before.Map.IsReachableFromCampOnFoot(food.Position));
+        Assert.True(before.Map.IsReachableOnFoot(position, food.Position));
+        Assert.False(before.Map.IsReachableOnFoot(position, before.Map.Resources.Single(item => item.Id == "berry-patch").Position));
+        for (var tick = 0; tick < 10; tick++) _ = await world.AdvanceOneTickAsync();
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "food_harvested" &&
+            item.Detail.StartsWith("agent:00000000000000000000000000000099:", StringComparison.Ordinal));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "movement_blocked" &&
+            item.Detail.StartsWith("agent:00000000000000000000000000000099:no_route", StringComparison.Ordinal));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.True(restored.ExportState().Map.IsReachableOnFoot(position, food.Position));
+    }
+
+    [Fact]
     public void OlderCampWorldWithoutSavedTownRebuildsItsResidentBorder()
     {
         using var world = new PrivateWorldRuntime("older-camp-town", startPace: WorldStartPace.FounderSetup);

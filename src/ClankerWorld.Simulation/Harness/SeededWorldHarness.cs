@@ -218,6 +218,28 @@ public sealed record SeededMap(
         Contains(point) && layer?.Length == Width * Height
             ? layer[point.Y * Width + point.X] : null;
 
+    private static readonly ConditionalWeakTable<SeededMap, int[]> FootComponents = new();
+
+    public bool IsReachableOnFoot(GridPoint origin, GridPoint destination)
+    {
+        if (!Contains(origin) || !Contains(destination) || !IsPassable(origin) || !IsPassable(destination)) return false;
+        var components = FootComponents.GetValue(this, static map =>
+        {
+            var labels = new int[checked(map.Width * map.Height)];
+            var component = 0;
+            foreach (var tile in map.Tiles)
+            {
+                var index = tile.Position.Y * map.Width + tile.Position.X;
+                if (labels[index] != 0 || !map.IsPassable(tile.Position)) continue;
+                component++;
+                foreach (var point in MapAcceptance.ReachableFrom(map, tile.Position))
+                    labels[point.Y * map.Width + point.X] = component;
+            }
+            return labels;
+        });
+        return components[origin.Y * Width + origin.X] == components[destination.Y * Width + destination.X];
+    }
+
     public bool IsReachableFromCampOnFoot(GridPoint point) => Contains(point) &&
         CampReachability.GetValue(this, static map =>
             MapAcceptance.ReachableFrom(map,
