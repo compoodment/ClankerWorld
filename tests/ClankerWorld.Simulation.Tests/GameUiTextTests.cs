@@ -7,6 +7,24 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GameUiTextTests
 {
+    [Theory]
+    [InlineData("future_internal_diagnostic", false)]
+    [InlineData("saved_road_footprints_repaired", false)]
+    [InlineData("estate_will_started", false)]
+    [InlineData("town_resident_joined", true)]
+    [InlineData("child_born", true)]
+    [InlineData("world_started", true)]
+    [InlineData("partnership_accepted", true)]
+    [InlineData("partnership_ended", true)]
+    [InlineData("caregiver_assigned", true)]
+    [InlineData("council_policy_adopted", true)]
+    [InlineData("settlement_trade_completed", true)]
+    [InlineData("paused", true)]
+    public void EventLogSelectsKnownPlayerEventsInsteadOfPublishingUnknownDiagnostics(string kind, bool visible)
+    {
+        Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));
+    }
+
     private static readonly int[] UiScalePercentages = [100, 125, 150, 175, 200];
 
     [Theory]

@@ -726,7 +726,7 @@ app.MapPost("/api/v1/owner/saves/autosave/configure", (
     try
     {
         var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
-        saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount));
+        saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount), worldId: updated.WorldId);
         ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
             updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
         return Results.Ok(updated);

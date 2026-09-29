@@ -7,6 +7,17 @@ public sealed partial class PrivateWorldRuntime
 {
     private const int MaximumLandRoadSearchTiles = 32_768;
 
+    private void RepairSavedRoadFootprints()
+    {
+        var occupied = worldSimulation.Buildings.SelectMany(building =>
+        {
+            var design = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+            return WorldContentSimulationRules.Footprint(design, building.Position);
+        }).ToHashSet();
+        var removed = roadTiles.RemoveWhere(occupied.Contains);
+        if (removed > 0) AppendEvent("saved_road_footprints_repaired", $"removed:{removed}");
+    }
+
     private int RoadStepCost(GridPoint from, GridPoint to)
     {
         var cost = map.FootStepCost(from, to);

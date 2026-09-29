@@ -104,7 +104,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private const long CognitionReevaluationIntervalTicks = 30;
     private const int ResourceInteractionRange = 1;
     private const int HarvestFoodYield = 4;
-    private static readonly string LegacyStarterDigest = StarterContent.Create().PackageDigest;
     private static readonly string House1x1DefinitionId = HouseContent.House1x1().CanonicalId;
 
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -408,7 +407,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.events.Clear();
         runtime.events.AddRange(state.Events);
         runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
-        if (!trustedPreparedState) runtime.Validate();
+        if (!trustedPreparedState)
+        {
+            runtime.RepairSavedRoadFootprints();
+            runtime.Validate();
+        }
         return runtime;
     }
 
@@ -3108,11 +3111,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             BeginProject(inhabitantId, state, candidateId);
             return;
         }
-        if (candidateId.StartsWith("invent:building:", StringComparison.Ordinal))
-        {
-            ApplyInhabitantBuildingDesignCandidate(inhabitantId, candidateId);
-            return;
-        }
         if (candidateId.StartsWith("assist:", StringComparison.Ordinal))
         {
             AssistProject(inhabitantId, state, candidateId[7..]);
@@ -3571,7 +3569,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
-            AddInhabitantBuildingDesignCandidates(candidates, inhabitant, state);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
@@ -3599,8 +3596,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var layout = CreateTownLayoutContext(inhabitant.Id);
             foreach (var definition in worldContent.Buildings)
             {
-                if (definition.PackageDigest == LegacyStarterDigest && definition.LocalId == "storage" &&
-                    worldContent.Buildings.Any(building => building.Tags.Contains("warehouse", StringComparer.Ordinal)))
+                if (RetiredBuildings.Contains(definition))
                     continue;
                 if (definition.Tags.Contains("warehouse", StringComparer.Ordinal) &&
                     (TownForResident(inhabitant.Id) is not { } townId ||
@@ -3615,9 +3611,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     continue;
                 if (definition.Tags.Contains("blacksmith", StringComparer.Ordinal) &&
                     (inhabitant.HouseholdId is null || TownForResident(inhabitant.Id) is null))
-                    continue;
-                if (definition.PackageDigest == LegacyStarterDigest && definition.LocalId == "shelter" &&
-                    worldContent.Buildings.Any(building => building.Tags.Contains("house", StringComparer.Ordinal)))
                     continue;
                 if (NeedsUrgentWarmth(state) && !definition.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
                 {

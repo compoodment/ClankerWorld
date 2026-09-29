@@ -24,7 +24,7 @@ public sealed partial class PrivateWorldRuntime
     private const int BlockedProjectRetryDelayTicks = 60;
     // The pre-energy-removal settlement package included bedding. Its digest
     // remains a valid provenance marker for three staged map resources.
-    private const string LegacySettlementPackageDigest =
+    internal const string LegacySettlementPackageDigest =
         "sha256:037c1b07a6a88989adfc6fe61fb03e7c625524dfbbb530b3e1b30701f66a21ac";
 
     private static bool IsCompatibleSavedMap(SeededMap generated, PrivateWorldRuntimeState state)

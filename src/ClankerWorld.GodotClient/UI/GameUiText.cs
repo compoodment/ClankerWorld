@@ -167,25 +167,15 @@ public static class GameUiText
     public static bool IsPlayerFacingEvent(string kind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-        return kind switch
-        {
-            "tick_advanced" or
-            "inhabitant_moved" or
-            "actor_moved" or
-            "destination_reached" or
-            "movement_blocked" or
-            "inhabitant_idle" => false,
-            "estate_will_started" => false,
-            _ when kind.StartsWith("cognition_", StringComparison.Ordinal) => false,
-            _ when kind.StartsWith("hosted_decision_", StringComparison.Ordinal) => false,
-            _ when kind.StartsWith("instruction_", StringComparison.Ordinal) => false,
-            _ when kind.StartsWith("content_", StringComparison.Ordinal) => false,
-            _ when kind.StartsWith("initial_content_", StringComparison.Ordinal) => false,
-            _ when kind.StartsWith("owner_", StringComparison.Ordinal) => false,
-            _ when kind.EndsWith("_failed", StringComparison.Ordinal) => false,
-            _ when kind.EndsWith("_rejected", StringComparison.Ordinal) => false,
-            _ => true,
-        };
+        return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+            "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
+            "crop_moisture_effect" or "food_harvested" or "food_consumed" or "child_born" or
+            "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
+            "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "council_policy_adopted" or "settlement_trade_completed" or
+            "inhabitant_building_proposed" or "settlement_founded" or "town_founding_started" or
+            "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
+            "town_building_assigned" or "town_border_expanded" or "town_founded" or "paused" or "resumed";
     }
 
     /// <summary>

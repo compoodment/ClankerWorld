@@ -42,6 +42,29 @@ public sealed class FirstTownLayoutPlannerTests
         restored.Validate();
     }
 
+    [Fact]
+    public void RestoreRepairsOnlyRoadTilesInsideSavedBuildingFootprintsAndIsIdempotent()
+    {
+        var geography = new GeographyOptions("road-compatibility", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        world.AcceptFirstTownLayout(world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
+        var state = world.ExportState();
+        var overlap = state.WorldSimulation!.Buildings[0].Position;
+        var damaged = state with { RoadTiles = state.RoadTiles!.Append(overlap).Distinct().OrderBy(p => p.Y).ThenBy(p => p.X).ToArray() };
+        var originalBytes = PrivateWorldRuntimeCodec.Encode(damaged);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(originalBytes));
+        var repaired = restored.ExportState();
+        Assert.Equal(state.RoadTiles, repaired.RoadTiles);
+        Assert.Equal(state.WorldSimulation.Buildings, repaired.WorldSimulation!.Buildings);
+        Assert.Equal(originalBytes, PrivateWorldRuntimeCodec.Encode(repaired with { RoadTiles = damaged.RoadTiles, Events = damaged.Events }));
+        Assert.Equal(originalBytes, PrivateWorldRuntimeCodec.Encode(damaged));
+        Assert.Single(repaired.Events, item => item.Kind == "saved_road_footprints_repaired");
+        using var twice = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(repaired)));
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(repaired), PrivateWorldRuntimeCodec.Encode(twice.ExportState()));
+    }
+
     private static void AssertStarterStock(PrivateWorldRuntime world)
     {
         var stock = world.Society.Inventory;

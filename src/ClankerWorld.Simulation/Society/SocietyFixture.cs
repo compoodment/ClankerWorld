@@ -1365,6 +1365,11 @@ public static partial class SocietyFixture
         string estateId,
         long targetTick)
     {
+        // Use the normal cancellation transition so both parties' reservations
+        // are released. Completed exchanges are not retroactively cancelled.
+        foreach (var offer in inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
+                     (offer.FirstPartyId == ownerId || offer.SecondPartyId == ownerId)).ToArray())
+            inventory = InventoryFixture.CancelDirectBarterOffer(inventory, offer.Id, offer.Revision, ownerId);
         var lots = inventory.Lots.Select(lot => lot.OwnerId == ownerId
                 ? lot with { OwnerId = estateId, StorageBuildingId = null, DeliveryBuildingId = null }
                 : lot)
@@ -1373,11 +1378,7 @@ public static partial class SocietyFixture
                 ? reservation with { State = InventoryReservationState.Released }
                 : reservation)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
-        var offers = inventory.Offers.Select(offer =>
-                offer.FirstPartyId == ownerId || offer.SecondPartyId == ownerId
-                    ? offer with { State = DirectBarterState.Cancelled }
-                    : offer)
-            .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        var offers = inventory.Offers.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         var events = inventory.Events.ToList();
         events.Add(new InventoryEvent(
             checked(inventory.EventHistoryFloor + events.Count + 1L),

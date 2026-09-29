@@ -6,6 +6,43 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SocietyTests
 {
+    [Theory]
+    [InlineData("a", false)]
+    [InlineData("b", false)]
+    [InlineData("a", true)]
+    [InlineData("b", true)]
+    public void DeathReleasesBothOpenBarterReservationsButPreservesOtherWork(string deceased, bool accepted)
+    {
+        var state = SocietyFixture.CreateGenesis("death-barter", [SocietyFixture.CreateFounder("a", "A"), SocietyFixture.CreateFounder("b", "B")]);
+        state = state with { Inventory = InventoryFixture.AddLot(state.Inventory, "a-food", "food", "a", 2) };
+        state = state with { Inventory = InventoryFixture.AddLot(state.Inventory, "b-food", "food", "b", 2) };
+        state = SocietyFixture.CreateBarterOffer(state, new DirectBarterProposal("offer", 1, "a", "b", "a-food", 1, "b-food", 1, 120)).Checkpoint;
+        if (accepted) state = SocietyFixture.AcceptBarterOffer(state, "offer", 1, "a").Checkpoint;
+        var survivor = deceased == "a" ? "b" : "a";
+        state = state with { Inventory = InventoryFixture.Reserve(state.Inventory, "unrelated", survivor, survivor + "-food", 1, "work", 120) };
+        state = SocietyFixture.Kill(state, deceased, SocietyDeathCause.Accident).Checkpoint;
+        Assert.Equal(DirectBarterState.Cancelled, state.Inventory.GetOffer("offer").State);
+        Assert.Equal(InventoryReservationState.Released, state.Inventory.GetReservation("offer:first").State);
+        Assert.Equal(InventoryReservationState.Released, state.Inventory.GetReservation("offer:second").State);
+        Assert.Equal(InventoryReservationState.Reserved, state.Inventory.GetReservation("unrelated").State);
+        state = SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(state));
+        state = SocietyFixture.ConsumeInventory(state, survivor, survivor + "-food", 1).Checkpoint;
+        Assert.Equal(1, state.Inventory.Lots.Single(lot => lot.Id == survivor + "-food").Quantity);
+    }
+
+    [Fact]
+    public void DeathDoesNotCancelAnAlreadySettledBarter()
+    {
+        var state = SocietyFixture.CreateGenesis("settled-barter-death", [SocietyFixture.CreateFounder("a", "A"), SocietyFixture.CreateFounder("b", "B")]);
+        state = state with { Inventory = InventoryFixture.AddLot(state.Inventory, "a-food", "food", "a", 1) };
+        state = state with { Inventory = InventoryFixture.AddLot(state.Inventory, "b-food", "food", "b", 1) };
+        state = SocietyFixture.CreateBarterOffer(state, new DirectBarterProposal("done", 1, "a", "b", "a-food", 1, "b-food", 1, 120)).Checkpoint;
+        state = SocietyFixture.AcceptBarterOffer(state, "done", 1, "a").Checkpoint;
+        state = SocietyFixture.AcceptBarterOffer(state, "done", 1, "b").Checkpoint;
+        state = SocietyFixture.Kill(state, "a", SocietyDeathCause.Accident).Checkpoint;
+        Assert.Equal(DirectBarterState.Settled, state.Inventory.GetOffer("done").State);
+    }
+
     [Fact]
     public void SocietyClockExpiresInventoryReservationsExactlyOnce()
     {

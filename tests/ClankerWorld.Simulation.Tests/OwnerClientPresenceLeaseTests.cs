@@ -233,6 +233,45 @@ public sealed class OwnerClientPresenceLeaseTests
         }
     }
 
+    [Fact]
+    public async Task FailedRecoveryWriteRetainsTickPausesAndRetriesWithoutAdvancing()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "recovery-secret-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var blocker = Path.Combine(directory, "blocked");
+        File.WriteAllText(blocker, "secret-key-must-not-be-logged");
+        try
+        {
+            using var runtime = new PrivateWorldRuntime("recovery-hold");
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(5));
+            presence.RecordAuthenticatedReconnect("owner");
+            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            var file = new PrivateWorldStateFile(Path.Combine(blocker, "world.json"));
+            using var service = new PrivateWorldRuntimeService(runtime, file, presence, logger);
+            Assert.False(await service.TryAdvanceOnceAsync());
+            Assert.Equal(1, runtime.WorldTick);
+            Assert.True(runtime.Society.IsPaused);
+            runtime.Resume();
+            Assert.False(await service.TryAdvanceOnceAsync());
+            Assert.Equal(1, runtime.WorldTick);
+            Assert.True(runtime.Society.IsPaused);
+            Assert.Single(logger.Messages, message => message.Contains("held_for_write", StringComparison.Ordinal));
+            File.Delete(blocker);
+            Directory.CreateDirectory(blocker);
+            Assert.False(await service.TryAdvanceOnceAsync());
+            Assert.Equal(1, runtime.WorldTick);
+            Assert.True(runtime.Society.IsPaused);
+            Assert.True(File.Exists(file.Path));
+            Assert.Contains(logger.Messages, message => message.Contains("saved_paused", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message => message.Contains(directory, StringComparison.Ordinal) ||
+                message.Contains("secret-key", StringComparison.Ordinal));
+            runtime.Resume();
+            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Equal(2, runtime.WorldTick);
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     private sealed class ManualTimeProvider : TimeProvider
     {
         private long timestamp;

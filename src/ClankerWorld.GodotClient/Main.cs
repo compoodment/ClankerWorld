@@ -6409,6 +6409,7 @@ public partial class Main : Control
         return worldEvent.Kind switch
         {
             "world_created" => "A new world has begun.",
+            "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
             "building_placed" => $"{ThingAt(1)} was built.",
             "build_started" => $"Work began on {ThingAt(1)}.",
@@ -6425,6 +6426,11 @@ public partial class Main : Control
             "inhabitant_removed" => $"{NameAt(0)} died.",
             "estate_will_accepted" => "A final will decided who gets their belongings.",
             "estate_will_default" => "Their belongings went to their household.",
+            "partnership_accepted" => "Two agents formed a partnership.",
+            "partnership_ended" => "A partnership ended.",
+            "caregiver_assigned" => "A child has a new caregiver.",
+            "council_policy_adopted" => "The Town adopted a new policy.",
+            "settlement_trade_completed" => "A trade was completed.",
             "inhabitant_building_proposed" => $"{NameAt(0)} suggested a new building design.",
             "settlement_founded" => "A new Town was founded.",
             "town_founding_started" => "Your first Town is being set up.",

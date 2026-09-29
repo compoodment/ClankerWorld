@@ -14,6 +14,42 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task AutosaveConfigurationNeverTrimsAnotherWorld(int rotation)
+    {
+        var directory = Directory.CreateTempSubdirectory("autosave-world-boundary-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            using var other = new PrivateWorldRuntime("other-autosave-world");
+            other.Pause();
+            var settings = new WorldAutosaveSettings(other.Society.WorldId, true, 1, 3, DateTimeOffset.MinValue, 0);
+            var otherIds = Enumerable.Range(0, 3).Select(_ => saves.CreateAutosave(other, [], settings).Id).ToArray();
+            var root = host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual";
+            var before = otherIds.SelectMany(id => new[] { id + ".save", id + ".meta.json" })
+                .ToDictionary(name => name, name => File.ReadAllBytes(Path.Combine(root, name)));
+            var activeSettings = settings with { WorldId = runtime.Society.WorldId };
+            for (var n = 0; n < 12; n++) saves.CreateAutosave(runtime, [], activeSettings);
+            var action = new OwnerAutosaveConfigurationAction(true, 1, rotation);
+            using var response = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/saves/autosave/configure", action, OwnerHttpBinding.AutosaveConfigurationPayload(action));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(Math.Max(1, rotation), saves.List(runtime.Society.WorldId).Count(item => item.IsAutosave));
+            Assert.Equal(otherIds.Order(), saves.List(other.Society.WorldId).Select(item => item.Id).Order());
+            foreach (var (name, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(root, name)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task SignedNewWorldPreviewWorksWhileCurrentWorldIsRunningWithoutChangingIt()
     {
