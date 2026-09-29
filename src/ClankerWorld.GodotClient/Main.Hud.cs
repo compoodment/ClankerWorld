@@ -15,9 +15,12 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private readonly MarginContainer hudBar = new();
+    private readonly VBoxContainer hudRows = new();
     private readonly HBoxContainer hudLeft = new();
     private readonly HBoxContainer hudTime = new();
     private readonly HBoxContainer hudRight = new();
+    private readonly HBoxContainer founderHudRow = new();
+    private readonly HBoxContainer hudFounders = new();
     private readonly HBoxContainer climateBox = new();
     private readonly TextureRect seasonIcon = new();
     private readonly Label seasonLabel = new();
@@ -124,31 +127,31 @@ public partial class Main
         StyleButton(townSiteButton);
         townSiteButton.Pressed += ToggleFirstTownSite;
         townSiteButton.Hide();
-        hudRight.AddChild(townSiteButton);
+        hudFounders.AddChild(townSiteButton);
 
         moveFounderButton.Text = "Move founder";
         moveFounderButton.TooltipText = "Pick a founder you have placed, then click a new spot. Only works before time starts.";
         StyleButton(moveFounderButton);
         moveFounderButton.Pressed += ToggleMoveFounder;
         moveFounderButton.Hide();
-        hudRight.AddChild(moveFounderButton);
+        hudFounders.AddChild(moveFounderButton);
 
         undoFounderButton.Text = "Undo last founder";
         undoFounderButton.TooltipText = "Take back the last founder you placed. Their model choice is cleared. Your saved keys stay.";
         StyleButton(undoFounderButton);
         undoFounderButton.Pressed += () => _ = UndoLastFounderAsync();
         undoFounderButton.Hide();
-        hudRight.AddChild(undoFounderButton);
+        hudFounders.AddChild(undoFounderButton);
 
         founderSetupButton.Text = "Add founders";
         StyleButton(founderSetupButton);
         founderSetupButton.Pressed += () => _ = ToggleFounderSetupAsync();
-        hudRight.AddChild(founderSetupButton);
+        hudFounders.AddChild(founderSetupButton);
 
         startWorldButton.Text = "Start World";
         StyleButton(startWorldButton, primary: true);
         startWorldButton.Pressed += () => _ = StartFounderWorldAsync();
-        hudRight.AddChild(startWorldButton);
+        hudFounders.AddChild(startWorldButton);
 
         addAgentButton.Text = "Add Agent";
         StyleButton(addAgentButton);
@@ -165,7 +168,16 @@ public partial class Main
         // Tab/Enter, including actions without a one-key shortcut.
         foreach (var button in HudButtons())
             button.Pressed += button.ReleaseFocus;
-        hudBar.AddChild(topBar);
+        hudRows.AddChild(topBar);
+        founderHudRow.AddChild(new Control
+        {
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        });
+        founderHudRow.AddChild(HudGroup(hudFounders));
+        founderHudRow.Hide();
+        hudRows.AddChild(founderHudRow);
+        hudBar.AddChild(hudRows);
         // Mirrors the world-view menu shade so HUD actions such as Start World
         // or Play cannot run behind a modal menu. The menu shade already dims
         // the HUD, which now floats inside the world view, so this one only
@@ -211,7 +223,7 @@ public partial class Main
     }
 
     private IEnumerable<Button> HudButtons() =>
-        new[] { hudLeft, hudTime, hudRight }.SelectMany(row => row.GetChildren().OfType<Button>());
+        new[] { hudLeft, hudTime, hudRight, hudFounders }.SelectMany(row => row.GetChildren().OfType<Button>());
 
     /// <summary>Icons follow the theme's ink and the current UI scale.</summary>
     private void RefreshHudIcons()

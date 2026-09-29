@@ -281,6 +281,8 @@ release yet.
   shows how many are alive and a small orange dot when someone is hungry, and
   the Event Log button shows a red count of events since you last opened it,
   with those rows dotted in the log.
+  During first-Town setup, its extra controls sit in a second row so Start
+  World and Menu stay on screen at 1280×720.
 - The Town button is gone, since a world can hold more than one Town. World
   Info now opens on a Towns page listing every Town with its residents, when
   it was founded and a Show button that moves the map there, followed by the

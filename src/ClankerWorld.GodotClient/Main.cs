@@ -805,10 +805,11 @@ public partial class Main : Control
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!founderSetupButton.Visible || !founderSetupButton.Text.Contains("2/4", StringComparison.Ordinal) ||
                 !startWorldButton.Visible || !startWorldButton.Disabled ||
-                !undoFounderButton.Visible ||
-                !GetViewport().GetVisibleRect().Encloses(undoFounderButton.GetGlobalRect()) ||
+                !undoFounderButton.Visible || !founderHudRow.Visible ||
+                HudButtons().Where(button => button.IsVisibleInTree())
+                    .Any(button => !mapCanvas.GetGlobalRect().Encloses(button.GetGlobalRect())) ||
                 !mapCanvas.GetGlobalRect().Encloses(founderSetupPanel.GetGlobalRect()))
-                throw new InvalidOperationException("Founder setup must show progress and keep Start World gated inside the world view.");
+                throw new InvalidOperationException("Founder setup must keep every HUD action inside the world view and Start World gated.");
             founderSetupPanel.Hide();
             Render(sample with { FounderSetup = new OwnerFounderSetup(4, 4, true) }, []);
             if (!addAgentButton.Visible || founderSetupButton.Visible || startWorldButton.Visible ||

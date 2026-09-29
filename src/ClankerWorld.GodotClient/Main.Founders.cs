@@ -396,6 +396,7 @@ public partial class Main
         moveFounderButton.Text = movingFounderId is null ? "Move founder" : "Cancel move";
         founderSetupButton.Visible = setup is { Started: false };
         startWorldButton.Visible = setup is { Started: false };
+        founderHudRow.Visible = setup is { Started: false };
         addAgentButton.Visible = setup is { Started: true };
         if (setup is not { Started: false })
         {
