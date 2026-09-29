@@ -10,7 +10,7 @@ updated: 2026-09-26
 > This is the chronological interview record, preserved for traceability. Some
 > early “Open” labels were resolved by later answers and are intentionally not
 > edited here. For the current decisions and remaining questions, use
-> [current vision ledger](../vision-interview.md).
+> [current vision ledger](../game-design/README.md).
 
 > This is archived interview evidence, not the current decision authority or
 > implementation status. Earlier notes below may describe superseded plans.
@@ -1115,7 +1115,7 @@ dependency/conflict UI and distribution mechanism remain open.
 ## World-generation interview — continent controls and camp placement (2026-09-27)
 
 The questions and answers below preserve this round's exact scope. The
-[current vision ledger](../vision-interview.md) is authoritative if later
+[current vision ledger](../game-design/README.md) is authoritative if later
 answers revise it.
 
 1. **Question:** If a player chooses **2 continents**, should the preview

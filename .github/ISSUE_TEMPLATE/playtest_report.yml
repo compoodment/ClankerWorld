@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        One report can hold several observations. Confirmed problems will be split into Bug issues and recorded in the known-bugs register. Do not paste API keys, pairing codes or private saves.
+        One report can hold several observations. Link follow-up Bug issues when a finding needs a separate fix. Issues is the place to keep reports and progress. Do not paste API keys, pairing codes or private saves.
   - type: input
     id: build
     attributes:

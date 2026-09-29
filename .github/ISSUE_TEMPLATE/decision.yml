@@ -13,7 +13,7 @@ body:
     id: context
     attributes:
       label: Why it matters
-      description: What is unclear today, and what does the vision ledger already say? Link it.
+      description: What is unclear today, and what does the game design already say? Link the relevant page.
     validations:
       required: true
   - type: textarea

@@ -1,4 +1,4 @@
-name: Implementation task
+name: Build a feature
 description: The design is settled and needs to be built.
 labels: ["type:implementation"]
 body:
@@ -13,13 +13,13 @@ body:
     id: authority
     attributes:
       label: Decision this follows
-      description: Link the vision section, decision issue or design that settles this. If none exists, open a Decision issue first.
+      description: Link the agreed game design or decision, or explain the existing behavior this follows. Use a Decision issue if a game choice is still unresolved.
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
+      label: How we will know it works
       description: A checklist someone else can verify in the normal game path.
       placeholder: |
         - [ ] ...
@@ -37,4 +37,4 @@ body:
     id: risks
     attributes:
       label: Saves, replay and docs
-      description: Does this change saved state, events or replay? Which canonical documents need updating?
+      description: Does this change what gets saved or how the world is reconstructed? Which docs need updating? Technical details are welcome here when needed.

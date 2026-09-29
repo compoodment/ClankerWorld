@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in the game or host behaves wrongly.
+description: Something in the game or server behaves wrongly.
 labels: ["bug"]
 body:
   - type: markdown
@@ -22,7 +22,7 @@ body:
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
+      label: How to make it happen again
       description: Numbered steps. Include the world seed if it matters; do not attach a private save.
       placeholder: |
         1. Create a Small world with seed "example"
@@ -42,8 +42,8 @@ body:
     attributes:
       label: Where it happens
       options:
-        - Godot client (what you see and click)
-        - World host or simulation (what happens in the world)
+        - Game window (what you see and click)
+        - World or server (what happens in the world)
         - Saves and loading
         - Model calls and keys
         - Not sure

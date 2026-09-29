@@ -1,21 +1,22 @@
 ---
-title: Current Private-Host Device Pairing
+title: Device pairing
 type: development-reference
 status: active
-updated: 2026-09-26
+updated: 2026-09-29
 ---
 
-# Current Private-Host Device Pairing
+# Device pairing
 
-The private Tailnet provides encrypted transport and limits network reachability.
-It is **not** authority to inspect or control a world. The current prototype grants owner
-access only to a specifically paired device.
+Pairing gives one approved device permission to inspect and control the private
+world. The private Tailnet encrypts the connection and limits who can reach the
+server; being on that network alone does not grant world access. For the player
+steps, see [Playing](../playing.md#connect-your-device).
 
-The approved pre-release ClankerWorld identifier reset creates a new Windows
-`user://` registration and CNG key name. A prior development client registration
-is not imported; after installing the matching new build, pair it with the new
-host authority through the normal flow below. The previous authority is kept
-only in the operator's rollback backup.
+The September 2026 identifier reset requires a new Windows registration and
+device key. The previous registration is not imported; pair the matching new
+client and host through the normal flow. Keep old authority in a private
+rollback backup. This is the approved pre-release exception described in
+[Saves and replay](saves-and-replay.md).
 
 ## Pairing flow
 
@@ -100,17 +101,6 @@ or origin boundary, and it can be explicitly forgotten. The record never
 contains a private key, signature, challenge, comparison code, or bearer
 credential.
 
-## Approved authored assets
-
-Paused authoring may name an asset reference only when its exact normalized
-`assetId` and lowercase `sha256:<64-hex>` digest appear in the immutable,
-host-owned approved-asset catalog loaded at process startup. A missing catalog
-is an empty deny-all catalog. An existing catalog that is malformed, ambiguous,
-or has an unknown schema prevents host startup; the host never guesses or
-partially trusts a catalog update. Owner-device requests cannot modify the
-catalog or upload asset bytes. This narrow current reference policy is not yet
-the later content-proposal or provenance pipeline.
-
 ## Current scope
 
 Every paired device has the sole `owner` scope: world observation,
@@ -133,7 +123,7 @@ Current pairing evidence must cover expiry, bounded failed-code attempts,
 invalid proof, replayed challenge, revocation, unpaired read/write denial,
 owner-only observation, server-derived issuer/tick/sequence, idempotent control
 submission, paired-origin binding, signed registry/approval/revocation,
-response-loss retry, approved-asset allow/deny handling, and authority/runtime
+response-loss retry, and authority/runtime
 recovery across restart. The Windows client must prove it can create/store a
 device key, complete a paired reconnect, and reject a server response that
 lacks the negotiated owner capability. The export path must be verified

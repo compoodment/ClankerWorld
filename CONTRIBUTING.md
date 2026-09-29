@@ -1,161 +1,159 @@
 # Contributing to ClankerWorld
 
-ClankerWorld is a private, persistent world simulation inhabited by autonomous
-agents. It is an early private alpha: the technical foundation is solid, but the
-connected gameplay is still thin. This guide explains how work is proposed,
-reviewed and merged, so that contributions from people and from coding agents
-look the same and are easy to check.
+ClankerWorld is an early private alpha. Contributions should make the game
+easier to play, understand or maintain. This guide covers the shared workflow
+for people and coding agents. [AGENTS.md](AGENTS.md) adds instructions for agents.
 
-## Where to start
+## Find the right starting point
 
-Read these before proposing a change. Each question has one canonical home, so
-link to it rather than copying it.
-
-| Question | Read |
+| I want to… | Start here |
 | --- | --- |
-| What should the finished game be? | [Vision ledger](docs/vision-interview.md) |
-| What actually works today? | [Current state](docs/current-state.md) |
-| What is broken or missing? | [Known bugs](docs/bugs.md) |
-| How are the pieces separated? | [Architecture](docs/architecture.md) |
-| How do I build and test? | [Building](docs/building.md) |
-| How do releases and versions work? | [Releasing](docs/releasing.md) |
+| Understand or try the game | [Playing](docs/playing.md) |
+| See what is available and what is unfinished | [What works today](docs/what-works.md) |
+| Understand the intended game | [Game design](docs/game-design/README.md) |
+| Report a problem or find work | [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues) |
+| Understand the code and its boundaries | [Developer guide](docs/development/README.md) |
+| Build, test or package the game | [Build and test](docs/development/build-and-test.md) |
 
-The [documentation map](docs/README.md) explains which document wins when two
-disagree. A data type, a fixture or a passing unit test does not make a feature
-playable. A feature counts as playable only once it is connected to the default
-private world and the normal Godot client.
+The [documentation guide](docs/README.md) explains where each kind of
+information belongs. Read the pages relevant to your change. There is no
+separate bug list in the repository: Issues is the place for reports,
+reproduction steps, progress and evidence that a fix works.
 
-## Useful contributions right now
+## Issues and design questions
 
-- Connect existing pieces into the **Living Settlement** loop.
-- Fix a confirmed problem from the known-bugs register.
-- Add reproducible evidence for a gameplay or architecture claim.
-- Make the UI clearer, or the operator path simpler, without weakening server
-  authority.
-- Make player-facing text plainer (see
-  [Writing player-facing text](#writing-player-facing-text)).
-- Remove duplicated or stale documentation.
-- Challenge an accepted design choice with concrete evidence.
+Search existing issues before opening one. Use the matching template:
 
-## Issues
+| Kind | When to use it | What to include |
+| --- | --- | --- |
+| **Bug** | Something behaves wrongly | What happened, what you expected, steps to repeat it, and the build or commit |
+| **Implementation** | An agreed feature needs building | The goal, the design it follows, how we will know it works, and what is out of scope |
+| **Decision** | An unresolved game choice needs the owner's answer | The question, options, trade-offs, a recommendation, and what is waiting on it |
+| **Prototype** | A small experiment would answer a question | What to learn, the smallest useful experiment, and how to judge the result |
+| **Playtest report** | You played and have observations | Build, date, what you did, and what felt good, wrong or confusing |
 
-Open one issue per problem or decision, using the matching template. Search
-open issues first.
+Write a title that describes the problem or desired result in ordinary words.
+Keep each issue to one topic; a playtest report can collect observations from
+one session. Link related issues instead of copying the same progress notes.
+When a playtest finding needs its own fix, link the follow-up issue.
 
-| Kind | Use it when | Labels | The issue must include |
-| --- | --- | --- | --- |
-| **Bug** | Something behaves wrongly | `bug` | Steps, expected result, actual result, build or commit, seed or save if relevant |
-| **Implementation** | The design is settled and needs building | `type:implementation` | The decision or vision section it follows, acceptance criteria, what is out of scope |
-| **Decision** | A design question needs an answer from the owner | `type:decision` | The question, options with trade-offs, a recommendation, what it blocks |
-| **Prototype** | Something must be tried before it can be decided | `type:prototype` | The hypothesis, the smallest experiment, how the result will be judged |
-| **Playtest report** | You played and noticed things | none | Build, date, what happened, what felt wrong, screenshots if useful |
+Use an `area:` label when one fits, `accessibility` for accessibility barriers,
+and `gate:blocker` only for work that must finish before the current milestone.
+Keep implementation, decision and prototype labels consistent with the templates.
 
-Add an `area:` label when one fits, and `accessibility` for barriers that
-affect people with disabilities. Use `gate:blocker` only for work that must
-close before the current milestone can pass.
+A routine fix does not need a new design decision. Follow the agreed design and
+existing behavior. If a change would settle an open game choice, use a Decision
+issue or an explicit owner decision; a draft pull request does not make a
+suggestion agreed.
 
-Guidelines for every issue:
+Do not close a gameplay issue merely because an isolated test passes. State
+what was checked and whether the normal game path still needs testing.
+Never include keys, pairing codes, private saves or raw model-service payloads.
 
-- Write a title that says what happens or what is wanted, in plain words.
-- Say who is affected: a player, an agent or an operator.
-- Keep it to one topic. Split combined reports, except playtest reports that
-  collect observations from the same session.
-- Define "done" with checks someone else can run or see.
-- Confirmed defects and product gaps are also recorded in
-  [docs/bugs.md](docs/bugs.md). A closed issue does not remove an entry there
-  until the fix is merged and verified through the normal game path.
-- Never paste API keys, pairing codes, private saves or raw provider payloads.
+## Organize the work
 
-## Pull requests
+For work with several steps, keep a short plan and work through it in a clear
+order. Keep related code, docs and checks together. Avoid mixing unrelated
+changes, starting competing fixes for the same issue, or leaving unexplained
+files and temporary notes in the repository.
 
-### Before you open one
+Use the related issue and PR to record progress, decisions and remaining work.
+Before handing work over, state what changed, what was checked and what still
+needs doing. Keep that record concise and current rather than opening a second
+tracker in Markdown.
 
-1. Link the issue, or explain in the description why none exists.
-2. Read the relevant current-state, vision and architecture documents.
-3. Check open pull requests that touch the same files. If yours overlaps,
-   say so in the description and agree an order. Do not silently stack on an
-   unmerged branch.
-4. Keep the change to **one concern**. A wording pass, a bug fix and a
-   refactor are three pull requests.
+## Prepare a pull request
 
-### Title and description
+1. Link the issue, or explain the purpose if no issue is needed.
+2. Read the relevant game-design, current-feature and developer pages.
+3. Check open pull requests for overlapping work. Name any overlap in your
+   description and agree an integration order before stacking on an unmerged
+   branch. Preserve other contributors' changes.
+4. Keep the pull request to one concern. Include the docs and tests needed for
+   that concern; leave unrelated cleanup for a separate change.
+5. Use the [pull request template](.github/pull_request_template.md). Explain
+   the result for someone who has not read the conversation. Mark sections
+   that do not apply rather than removing them.
 
-- Title: a short imperative sentence about the effect, for example
-  `Show fullness instead of hunger on the agent panel`.
-- Fill in every section of the
-  [pull request template](.github/pull_request_template.md). If a section does
-  not apply, say so instead of deleting it.
-- Write for a reviewer who has not seen your branch: what changed, why, and how
-  you know it works.
+Use a short title about the effect, such as
+`Show fullness instead of hunger on the agent panel`.
 
-### Change rules
+### Change and verification rules
 
-1. Keep the authoritative simulation independent of Godot and model providers.
-2. Treat model output as untrusted input. Legal actions and state transitions
-   stay server-owned.
-3. Never add API keys, private saves, pairing material or raw provider payloads
-   to the repository, logs or bug reports.
-4. Log outcomes at meaningful boundaries with stable event names and named
-   fields, and never log secrets (see [AGENTS.md](AGENTS.md)).
-5. A change to canonical state, events, saves or replay needs migration and
-   replay coverage, and must say so in the template.
-6. Update the canonical document in the same pull request when behavior, UI,
-   operations, compatibility, known bugs or scope change.
-7. Add or update tests for behavior changes. Wording-only and documentation-only
-   changes need no new tests, but must not break existing ones.
+- Follow the [code boundaries](docs/development/how-it-works.md#core-rules).
+  The server decides world changes, and model output is untrusted input.
+- Keep credentials and private data out of code, saves, logs and reports.
+- Runtime changes must remain diagnosable. Follow the
+  [logging rules](docs/development/how-it-works.md#runtime-logging).
+- Changes to saved state, events or replay need the relevant
+  [compatibility and replay checks](docs/development/saves-and-replay.md).
+- Add or update meaningful tests for behavior changes. Wording and docs changes
+  do not need new tests; update existing checks when their contract changes.
+- Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run).
+  Put commands and results in the PR, including anything that could not run.
+  A passing export is different from a Windows playtest.
 
-### Verification gate
+### Keep documentation and the changelog useful
 
-Run what CI runs, and put the results in the description:
+Update the affected documentation in the same change when behavior, controls,
+operations, compatibility or intended scope changes. Keep one home for each
+subject and link to it. Use [what works today](docs/what-works.md) for a concise
+feature summary and Issues for detailed failures, progress and repair evidence.
 
-```bash
-dotnet restore --locked-mode
-bash scripts/verify-godot-client.sh
-dotnet format --verify-no-changes --no-restore
-dotnet test --configuration Release --no-restore
-```
+Only call a feature available in the game once it is connected to the normal
+private-world and Godot play path. A data type, test fixture or passing unit
+test can support a technical claim, but cannot establish playability. State
+when deployment or hands-on verification is still pending.
 
-Changes to the Windows client should also pass
-`bash scripts/verify-godot-windows-export.sh`. If a check cannot run in your
-environment, say which one and why. Do not report it as passing.
-
-### Changelog and documentation
-
-- Every player-visible gameplay, UI, world-runtime, save-compatibility,
-  deployment, packaging or security change adds an entry under **Unreleased**
-  in [CHANGELOG.md](CHANGELOG.md), written for players or operators. Skip
-  entries for refactors, test-only changes and documentation edits.
-- Update the affected canonical document in the same change. Do not copy
-  volatile status into overview files.
-- If another open pull request also edits the changelog, expect a small merge
-  conflict and resolve it by keeping both entries.
+Add a plain-English entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md)
+for player-visible gameplay, UI, world-runtime, save-compatibility, deployment,
+packaging or security changes. Skip refactors, tests and docs-only edits unless
+they change an explicit supported behavior or operational promise. Preserve
+other PRs' entries when resolving conflicts.
 
 ### Review and merge
 
 - CI must be green.
 - Have someone other than the branch author review the exact diff before merging.
-- Squash-merge, with the pull request title as the commit subject. Follow the
-  [release policy](docs/releasing.md) for versions and tags.
+- Squash-merge with the PR title as the commit subject.
 - Delete the branch after merging.
+- Versions and tags follow the [release policy](docs/development/releasing.md).
+  A merged change does not automatically need a release.
 
-## Writing player-facing text
+## Writing clearly
 
-This covers everything a player reads: buttons, tooltips, hints, status
-messages, errors and event-log lines.
+These rules apply to documentation, issues, PR descriptions and game text.
 
-- **Write for a person, not a system.** Say what happened and what to do next.
-- **Keep it short.** One sentence for a tooltip and two at most for a hint.
-  Put longer explanations in an optional help view.
-- **Use ordinary words.** Avoid protocol, storage and architecture terms such as
-  *cognition*, *inhabitant*, *tick*, *revision*, *origin*, *pinned*, *atomic*,
-  *signed request*, *basis points*, *fallback* and *provider role*.
-- **Name things as the player sees them,** and use the same word everywhere:
-  *agent*, *model*, *key*, *Town*, *House*.
-- **Be kind about failures.** Say what went wrong, whether anything was lost, and
-  what the player can do.
-- **Make numbers readable.** Use percentages for needs and make the direction
-  obvious: *Fullness 40%*, not *Hunger 40%* when 100% means full.
-- **Use sentence case,** with no all-caps labels.
+- **Use plain English wherever possible.** Start with what a person wants to
+  know, what happened, or what they can do next.
+- Use familiar words and consistent names: *agent*, *model*, *key*, *Town* and
+  *House*. Explain an unfamiliar term when it is needed.
+- Prefer short paragraphs, descriptive headings and concrete examples.
+  Use a list or table when it makes choices or steps easier to compare.
+- Keep agreed design, suggestions and current behavior clearly distinguished.
+  Do not turn a preference into a promise or a test result into a claim of
+  successful playtesting.
+- Keep necessary technical detail in the developer pages. Exact commands,
+  field names, compatibility versions and security requirements must remain
+  precise; explain their purpose before the detail.
+- Avoid internal progress labels and implementation jargon in introductions
+  and player guides. Link to the deeper explanation rather than repeating it.
+
+### Writing player-facing text
+
+Buttons, tooltips, hints, errors and event-log lines should say what happened
+and what the player can do.
+
+- Keep a tooltip to one sentence and a hint to two when possible. Put longer
+  explanations in optional help.
+- Avoid terms such as *cognition*, *tick*, *revision*, *atomic*, *signed request*
+  and *provider role*. Text only for developers can remain technical behind
+  **Developer tools**.
+- Be kind about failures: explain what went wrong, whether anything was lost,
+  and the next useful action.
+- Make numbers readable and their direction clear: **Fullness 40%** when 100%
+  means full.
+- Use sentence case rather than all-caps labels.
 
 | Instead of | Write |
 | --- | --- |
@@ -164,22 +162,14 @@ messages, errors and event-log lines.
 | `Deterministic (fallback) · take it easy` | `The model did not provide a usable choice. Built-in rules chose to take it easy.` |
 | `Inspect ancestry and partnerships, including deceased relatives.` | `See their family, including those who have passed.` |
 
-Text meant only for developers belongs behind **Developer tools** and may stay
-technical.
+## Commits, security and conduct
 
-## Commit messages
+Use an imperative commit summary of about 70 characters or fewer. Explain why
+in the body when needed, and use `Fixes #123` only when the issue is actually
+resolved; otherwise use `Refs #123`.
 
-- First line: an imperative summary of about 70 characters or fewer.
-- Body: why the change was made, when that is not obvious.
-- Reference the issue with `Fixes #123` or `Refs #123`.
+Report vulnerabilities privately to the repository owner. Never include
+credentials, pairing material or private saves in a report.
 
-## Security
-
-Report a vulnerability privately to the repository owner, not in a public issue.
-Never include credentials, pairing material or private saves in any report.
-
-## Conduct
-
-Be respectful and assume good faith. Disagree with the design, never the person.
-Concrete evidence beats opinion, and unresolved design questions belong in a
-**Decision** issue.
+Be respectful and assume good faith. Disagree with the design rather than the
+person, and use concrete evidence to explain concerns.

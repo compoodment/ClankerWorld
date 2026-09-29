@@ -1,80 +1,72 @@
-# ClankerWorld — Delivery Rules
+# Working on ClankerWorld
 
-## GitHub sync
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) for the shared contribution workflow,
+review requirements, writing rules, tests, documentation and changelog policy.
+This file adds instructions for coding agents; it does not repeat that guide.
 
-For user-authorized repository changes, completion means the verified commit is
-on GitHub's `origin/main`, not merely committed locally. Before reporting work
-done: commit the intended changes, push them, and verify `main` matches
-`origin/main`. Report the remote commit hash or link.
+## Start with the user's requested outcome
 
-## Release versioning
+If the user asks for a proposal or review first, present it before implementing.
+If they request a draft or PR only, stop at that stage. For authorized
+implementation, carry the work through verification and the normal review and
+merge process. Do not bypass required review to satisfy a delivery deadline.
 
-Follow [the release-version policy](docs/releasing.md)
-for every ClankerWorld release. Keep the public game release version separate
-from saved-world compatibility versions. Do not create a release tag merely
-because a commit exists.
+Inspect the current branch, working tree and open PRs before changing files.
+Preserve unrelated and uncommitted work. Refresh the relevant repository state
+rather than relying on old notes. Keep the diff focused on the requested concern.
 
-Before a release, update the authoritative runtime/package version and
-`CHANGELOG.md`, run the applicable acceptance gate, check migration and replay
-coverage for compatibility changes, push the release commit, then push and
-verify the annotated tag on GitHub.
+Follow [Organize the work](CONTRIBUTING.md#organize-the-work). For a task with
+several steps, keep a short working plan, update it as evidence changes, and
+leave a clear handoff if the work cannot finish in this session. Keep scratch
+files out of the delivered diff.
 
-## Changelog discipline
+## Find the right source
 
-Update `CHANGELOG.md` in the same commit as every user-visible gameplay, UI,
-world-runtime, save-compatibility, deployment, packaging, or security change.
-Keep new entries under `Unreleased` until a release is cut, and describe the
-effect in player or operator language rather than commit or implementation
-jargon.
+Use the [documentation guide](docs/README.md) to choose the right page.
 
-Do not add changelog noise for refactors, test-only changes, or documentation
-edits unless they change supported behavior or an explicit compatibility or
-operational promise. Before pushing, compare the intended diff with the
-`Unreleased` section and confirm the relevant capability is represented.
+| Task | Read |
+| --- | --- |
+| Change game rules or intended features | [Game design](docs/game-design/README.md) and the relevant chapter |
+| Describe what a player can do now | [What works today](docs/what-works.md) and [Playing](docs/playing.md) |
+| Change simulation, model handling or logging | [How it works](docs/development/how-it-works.md) |
+| Change saved state, events or compatibility | [Saves and replay](docs/development/saves-and-replay.md) |
+| Change owner access or device credentials | [Device pairing](docs/development/device-pairing.md) |
+| Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
+| Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 
-## Documentation discipline
+GitHub Issues owns bug reports, reproduction steps, progress and repair evidence.
+Do not recreate a bug register in Markdown. An open PR is proposed work, not
+proof that its design is agreed or its feature is available.
 
-Follow the [documentation map and authority rules](docs/README.md).
-There is one canonical source per question:
+## Keep explanations understandable
 
-- [vision ledger](docs/vision-interview.md) owns computment's intended finished
-  game, with decided/preferred/open labels;
-- [current state](docs/current-state.md) owns what is playable,
-  integrated, fixture-only, or planned;
-- [known bugs](docs/bugs.md) owns confirmed defects and product gaps;
-- [architecture](docs/architecture.md) owns current technical boundaries.
+Keep documentation in plain English wherever possible. Follow
+[Writing clearly](CONTRIBUTING.md#writing-clearly), including its rules for
+game text. Keep exact technical details where needed in developer references,
+and explain what they mean.
 
-The vision ledger, not a separate roadmap, owns intended features. Put a short
-current implementation focus in current state only when it helps distinguish
-unfinished work from playable behavior.
+Update the appropriate page alongside the implementation. Link between pages
+instead of duplicating rules or maintaining parallel feature lists. Preserve
+agreement labels and open questions when reorganizing design notes.
 
-Every user-visible gameplay, UI, world-runtime, compatibility, packaging,
-security, or operational change must include a documentation-impact review.
-Update the affected canonical document in the same commit; do not copy a
-volatile current-status summary into other overview files. A schema, fixture,
-or passing unit test is not a
-player-visible feature. Call a capability playable only after it is connected
-to the default private world and normal Godot path.
+Check the actual normal game path before describing a feature as available.
+Distinguish code or test evidence from deployment and hands-on playtesting.
+Put detailed unresolved findings in Issues and link them from the overview
+only when they help a reader understand a limitation.
 
-Documentation-only changes do not require tests. When a change also affects
-code or behavior, run the applicable checks for that change; the accompanying
-documentation does not add a separate full-suite requirement. Git history
-retains retired phase and exploratory documents; they are not active product
-authority.
+## Verify and deliver
 
-## Operational observability
+Use the checks appropriate to the change in
+[Build and test](docs/development/build-and-test.md#which-checks-to-run).
+Docs-only edits need no new tests or separate full runtime suite. Check links
+and update existing documentation checks if files move. Report unrun or failed
+checks clearly.
 
-Treat live diagnosis as part of every server-owned gameplay loop, provider
-adapter, persistence boundary, and lifecycle gate. New or changed runtime work
-must leave low-noise, structured logs at meaningful outcome boundaries so an
-operator can tell what the world attempted, what was accepted, what fell back,
-and why. Prefer stable event names and named fields such as world tick, entity
-or request ID, provider role/model, legal intention, outcome, latency, and
-bounded usage. Log state transitions and decisions, not render frames or idle
-polls.
+For changes intended for main, use the reviewed PR workflow in CONTRIBUTING.
+After merging, fetch and verify the resulting commit on GitHub's `origin/main`
+before reporting the implementation delivered. Report its hash or link.
+If review or another required step is pending, report that remaining step and
+the reviewable PR instead of claiming completion.
 
-Never log API keys, authorization headers, signatures, credential-bearing
-URLs, prompts, raw provider request/response bodies, hidden reasoning, or
-unbounded player/model text. Operational logs are derived telemetry, never
-simulation authority or required save state. Tests for observability changes
-must prove both the useful signal and the absence of representative secrets.
+Follow the release guide for versions, compatibility checks and annotated tags.
+Do not create a release or tag merely because a change was merged.

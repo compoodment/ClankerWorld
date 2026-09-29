@@ -1,47 +1,42 @@
 ## Summary
 
-<!-- What changed and why, in plain words. Write for a reviewer who has not seen this branch. -->
+<!-- What changed, why, and what a player or contributor can do afterwards. -->
 
 ## Type of change
 
 - [ ] Bug fix
 - [ ] New or changed gameplay
-- [ ] UI or player-facing text
-- [ ] Documentation only
-- [ ] Refactor or tooling (no behavior change)
+- [ ] UI or game text
+- [ ] Documentation
+- [ ] Refactor or tooling
 
-## Authority and scope
+## Scope and related work
 
-- Linked issue:
-- Governing contract or decision:
-- Capability-ledger impact:
-- Other open pull requests touching the same files:
+- Related issue, or reason no issue is needed:
+- Agreed design or existing behavior this follows:
+- Other open PRs that overlap:
+- Work left for later:
 
-## Verification
+## Checks
 
-- Command(s) run:
-- Result:
-- Fixture or CI evidence:
+- Commands run and results:
 - Checked in the game by hand (what you did and saw):
+- Checks not run, and why:
 
-## Persistence and replay impact
+<!-- Distinguish automated tests, export checks, deployment and actual playtesting. -->
 
-- [ ] No canonical state, event, save, migration, or replay behavior changed.
-- [ ] This change updates a compatibility field and includes migration/replay coverage.
-- [ ] This change changes only non-authoritative derived data or presentation.
+## Saves and replay
 
-Explain the selected item:
+- [ ] Saved world state, events and replay behavior are unchanged.
+- [ ] Compatibility changes are covered by migration, old-save and replay checks.
+- [ ] Only display or other derived information changes.
 
-## Player-facing text
+Explain any compatibility or recovery impact:
 
-- [ ] No player-facing text changed.
-- [ ] Text changed and follows [Writing player-facing text](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#writing-player-facing-text): short, plain words, no engine jargon.
+## Writing, docs and changelog
 
-## Changelog and docs
+- [ ] Changed docs and game text follow [Writing clearly](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#writing-clearly), or no text changed.
+- [ ] Affected docs are updated in their proper home, or no docs are affected.
+- [ ] CHANGELOG.md has an Unreleased entry, or this change does not need one under [the contribution rules](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
 
-- [ ] `CHANGELOG.md` updated under Unreleased, or the change is not player-visible.
-- [ ] The affected canonical document is updated, or none is affected.
-
-## Out of scope
-
-<!-- State intentionally deferred work or write "None". -->
+<!-- Bug reports and repair progress belong in Issues. Link to them rather than maintaining a second bug list. -->

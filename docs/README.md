@@ -1,46 +1,48 @@
 ---
-title: ClankerWorld Documentation
+title: Documentation
 type: documentation-index
 status: active
-updated: 2026-09-26
+updated: 2026-09-29
 ---
 
 # Documentation
 
-**ClankerWorld** is the product, repository and codebase name. The pre-release
-identifier reset intentionally required a fresh save and device pairing.
+Choose the question you want answered. You do not need to read the developer
+pages to understand the game or give feedback.
 
-| Question | Read |
+| I want to… | Read |
 | --- | --- |
-| What does computment want the finished game to be? | [Vision interview and decision ledger](vision-interview.md) |
-| What actually works in the Godot/private-VPS prototype today? | [Current state](current-state.md) |
-| How are the current client, simulation, saves and model calls separated? | [Architecture](architecture.md) |
-| Which confirmed problems or unverified fixes remain? | [Known bugs](bugs.md) |
-| What is the accepted finished-game base asset roster? | [Finished-game asset roster](finished-game-asset-roster.md) |
+| Start playing and learn the controls | [Playing the current game](playing.md) |
+| Know what the current build can do | [What works today](what-works.md) |
+| Understand the game we are making | [Game design](game-design/README.md) |
+| Browse planned items, buildings and art | [Planned game content](game-design/content-list.md) |
+| Report a problem or see unfinished work | [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues) |
+| Help with the project | [Contributing](../CONTRIBUTING.md) |
+| Build, test or run the server | [Developer guide](development/README.md) |
 
-Development references: [build and test](building.md), [current private-host
-pairing](pairing.md), and [release/version policy](releasing.md).
+## What these pages mean
 
-## Authority
+**Game design** records the owner's choices for the intended game. “Agreed,”
+“Leaning toward,” “Suggestion” and “Still to decide” have different meanings.
+Moving or rewriting a suggestion does not approve it.
 
-- The **vision ledger** is the single source for owner intent. Its Decided,
-  Preferred, Proposed and Open labels matter. It is not evidence that a feature
-  exists. Earlier interview turns are retained in the
-  [historical record](archive/vision-interview-history.md); the current ledger
-  wins if they differ.
-- **Current state** reports the normal playable Godot path. Code, tests and
-  observed play are executable evidence; a contract or passing fixture alone
-  does not make a feature playable.
-- **Architecture** describes the present technical boundary and the protected
-  invariants that current code must respect. It does not override the finished
-  vision. **Known bugs** tracks confirmed gaps; current state may note the
-  immediate implementation focus without creating another vision document.
-- The **finished-game asset roster** is the vision ledger's detailed accepted
-  content annex, with open/deferred details marked. It is not a claim of
-  implemented assets; if its summary conflicts with the ledger, the ledger wins.
-- Keep these answers separate. Update the affected current document when
-  behavior or policy changes; link to it instead of maintaining another copy.
+**What works today** explains the current repository build. A design, a data
+type or a test on its own does not make a feature available in normal play.
+Pending Windows playtests are stated separately from code and test evidence.
 
-Superseded phase ledgers, old concepts, decision registers and exploratory
-contracts were removed from the active tree. Git history retains them; their
-past claims do not supersede the current vision or implementation evidence.
+**Developer pages** explain the present implementation and the rules a change
+must preserve. They do not redefine the intended game.
+
+**Issues** are the place for problems, requests, work and design discussions.
+There is no separate maintained bug list or roadmap in the docs. When a design
+choice is agreed, record it in its game-design chapter and link the issue.
+
+Each subject has one main page. Update that page and link to it from elsewhere
+rather than keeping several copies of the same changing information.
+
+## Earlier material
+
+[Earlier design conversations](archive/vision-interview-history.md) explain how
+some choices developed. They are history; the current game-design pages take
+precedence. Removed documents remain in Git history. Refresh any old report
+about the running server before acting on it.
