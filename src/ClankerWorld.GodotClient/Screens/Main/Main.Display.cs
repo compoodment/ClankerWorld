@@ -246,6 +246,7 @@ public partial class Main
         appBackdrop.Color = palette.Backdrop;
         worldBackdrop.Color = palette.Backdrop;
         mainMenuBackground.Color = palette.Backdrop;
+        mainMenuBackdrop.Night = ReferenceEquals(palette, UiTheme.Dark);
         menuShade.Color = palette.Shade;
         familyTreeView.QueueRedraw();
         RefreshHudIcons();

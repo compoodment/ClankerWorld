@@ -133,10 +133,53 @@ public partial class Main
         }
     }
 
+    private async Task VerifyMenuBackdropAsync()
+    {
+        var originalPalette = UiTheme.Current;
+        try
+        {
+            if (!mainMenuBackdrop.IsVisibleInTree() || mainMenuBackdrop.MouseFilter != MouseFilterEnum.Ignore ||
+                !mainMenuBackdrop.GetGlobalRect().Grow(1).Encloses(mainMenuOverlay.GetGlobalRect()))
+                throw new InvalidOperationException("The Main Menu backdrop must fill the title screen without taking clicks.");
+            UiTheme.Apply(GetTree().Root, UiTheme.Light);
+            var day = mainMenuBackdrop.Scene;
+            if (mainMenuBackdrop.Night || day.Night || day.Stars.Count != 0 || day.Glows.Count != 0 ||
+                day.Land.GetWidth() != MenuScene.Width || day.Land.GetHeight() != MenuScene.Height ||
+                day.Land.GetPixel(0, 0).A != 0 || day.Land.GetPixel(0, MenuScene.Height - 1).A < 1 ||
+                day.Clouds.Count == 0 || day.Chimneys.Count == 0 || day.Sparkles.Count == 0)
+                throw new InvalidOperationException("The Light theme must show the daytime valley with clouds, smoke and river sparkles.");
+            if (!MenuScene.Create(night: false).Land.GetData().AsSpan().SequenceEqual(day.Land.GetData()))
+                throw new InvalidOperationException("The Main Menu backdrop must draw the same picture every time.");
+            UiTheme.Apply(GetTree().Root, UiTheme.Dark);
+            var dusk = mainMenuBackdrop.Scene;
+            if (!mainMenuBackdrop.Night || !dusk.Night || dusk.Stars.Count == 0 || dusk.Glows.Count == 0 ||
+                dusk.FireflyHomes.Count == 0 || dusk.MoonReflection.Count == 0)
+                throw new InvalidOperationException("The Dark theme must switch the backdrop to dusk with stars, lights and fireflies.");
+            var before = mainMenuBackdrop.AnimationTime;
+            for (var frame = 0; frame < 4; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (mainMenuBackdrop.AnimationTime <= before)
+                throw new InvalidOperationException("The Main Menu backdrop must animate while the title screen is open.");
+            mainMenuOverlay.Hide();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var hidden = mainMenuBackdrop.AnimationTime;
+            for (var frame = 0; frame < 4; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (mainMenuBackdrop.AnimationTime != hidden)
+                throw new InvalidOperationException("The Main Menu backdrop must hold still while it is hidden.");
+        }
+        finally
+        {
+            mainMenuOverlay.Show();
+            UiTheme.Apply(GetTree().Root, originalPalette);
+        }
+    }
+
     private async Task VerifyMenuLayoutAsync()
     {
         try
         {
+            await VerifyMenuBackdropAsync();
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 768) })
             {
                 GetWindow().Size = size;
@@ -172,7 +215,7 @@ public partial class Main
             OpenMainMenuSettings();
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
-                menuCloseButton.Text != "<")
+                menuCloseButton.Text != "<" || !mainMenuBackdrop.IsVisibleInTree())
                 throw new InvalidOperationException("Main Menu Settings must keep the title background and show only Game Settings.");
             if (!gameSettingsCategoryButton.ButtonPressed || gameSettingsCategoryButton.Disabled)
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");
