@@ -524,10 +524,9 @@ app.MapPost("/api/v1/owner/control/pause", (
         var wasPaused = privateRuntime.Society.IsPaused;
         privateRuntime.Pause();
         var changed = !wasPaused && privateRuntime.Society.IsPaused;
-        if (changed)
-        {
-            privateStateFile.Save(privateRuntime);
-        }
+        // A prior failed write may already have changed memory. Even a no-op
+        // retry must durably acknowledge the requested pause.
+        privateStateFile.Save(privateRuntime);
 
         return Results.Ok(OwnerControlReceipt.From("pause", changed, privateRuntime.ExportState()));
     }
@@ -1149,9 +1148,9 @@ app.MapPost("/api/v1/owner/agents/rename", (
     {
         var runtime = services.GetRequiredService<PrivateWorldRuntime>();
         var changed = runtime.RenameAgent(action.AgentId, action.Name);
+        services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
         if (changed)
         {
-            services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
             var logger = loggerFactory.CreateLogger("ClankerWorld.AgentIdentity");
             AgentPlacementLog.Renamed(logger, action.AgentId, runtime.WorldTick);
         }

@@ -48,6 +48,10 @@ that recorded events reproduce its expected results and digests.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
+Signed pause and rename retries persist the requested state before reporting
+success, including when the in-memory value already matches after a failed
+write. Storage failure remains an error; recovery does not resume time.
+
 The internally captured proposed tick can reuse its committed map. External
 loads still validate and regenerate it; this shortcut must not weaken input
 validation. Missing/corrupt referenced history must fail closed. See Issues for

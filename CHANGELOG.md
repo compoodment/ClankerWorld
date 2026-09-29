@@ -12,6 +12,7 @@ release yet.
 ### Added
 
 - Death cancels unfinished barter through the normal two-sided release, immediately freeing the survivor’s stock without cancelling completed exchanges.
+- Successful pause and rename retries now persist the acknowledged state even when a failed earlier save already changed it in memory.
 
 - Starting households are named First household and Second household instead of
   Camp Alpha/Beta. Existing default camp names display the new wording without
