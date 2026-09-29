@@ -671,6 +671,31 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.DoesNotContain(runtime.ExportState().Events, item => item.Kind == "exploration_started");
     }
 
+    [Fact]
+    public async Task ExplorationAfterLegalTravelInterruptionKeepsAValidSaveablePath()
+    {
+        var provider = new ExplorationSelectingProvider("founder-scout");
+        using var world = new PrivateWorldRuntime("interrupted-exploration-repro", _ => provider);
+        _ = await world.AdvanceOneTickAsync();
+        var initial = world.Inhabitants.Single(person => person.InhabitantId == "founder-scout");
+        Assert.NotEmpty(initial.Exploration!.OutingPath);
+        world.SubmitInstruction(new OwnerInstructionRequest("interrupt-exploration", "owner:test",
+            "founder-scout", OwnerInstructionKind.MustDo, "travel to berry patch"));
+        for (var tick = 0; tick < 60; tick++)
+        {
+            _ = await world.AdvanceOneTickAsync();
+            var state = world.ExportState();
+            var bytes = PrivateWorldRuntimeCodec.Encode(state);
+            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+            var scout = state.Inhabitants.Single(person => person.InhabitantId == "founder-scout");
+            var path = scout.Exploration!.OutingPath;
+            Assert.All(path.Zip(path.Skip(1)), edge => Assert.True(state.Map.CanFootStep(edge.First, edge.Second)));
+        }
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "exploration_aborted" &&
+            item.Detail == "founder-scout:interrupted_movement");
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "exploration_completed");
+    }
+
     private sealed class ExplorationSelectingProvider(string targetId) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;

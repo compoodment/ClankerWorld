@@ -10,6 +10,63 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class AgentKnowledgeTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InheritedNaturalFieldRecordKeepsItsPhysicalIdentityAndPrivateProvenance(bool selectedHeir)
+    {
+        using var seed = new PrivateWorldRuntime("inherited-natural-record");
+        var initial = seed.ExportState();
+        var creator = initial.Inhabitants[0].InhabitantId;
+        using var scout = PrivateWorldRuntime.Restore(initial with
+        {
+            Inhabitants = initial.Inhabitants.Select(person => person with { HungerBasisPoints = 9_500 }).ToArray(),
+        }, _ => new CandidateProvider(creator, "explore"));
+        for (var tick = 0; tick < 75 && scout.ExportState().Knowledge!.Artifacts.Count == 0; tick++)
+            _ = await scout.AdvanceOneTickAsync();
+        var state = scout.ExportState();
+        var artifact = Assert.Single(state.Knowledge!.Artifacts);
+        var physical = state.Inhabitants.Single(person => person.InhabitantId == creator);
+        var dead = SocietyFixture.Kill(state.Society.Society, creator, SocietyDeathCause.Accident).Checkpoint;
+        var estate = Assert.Single(dead.Estates);
+        // Bounded test clock: accelerate only this valid fixture's escrow deadline.
+        dead = dead with { Estates = [estate with { ExpiryTick = state.Society.Society.WorldTick + 1 }] };
+        var heir = dead.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active).Last().Id;
+        if (selectedHeir)
+        {
+            dead = SocietyFixture.MarkWillStarted(dead, estate.Id).Checkpoint;
+            dead = SocietyFixture.ResolveWill(dead, estate.Id, heir, "accepted").Checkpoint;
+        }
+        state = state with
+        {
+            Society = state.Society with { Society = dead },
+            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != creator).ToArray(),
+            DeceasedInhabitants = [new PlaytestDeceasedInhabitantState(creator, state.Society.Society.WorldTick,
+                dead.AgeAt(dead.GetInhabitant(creator), state.Society.Society.WorldTick), physical)],
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new CandidateProvider("nobody", "never"));
+        _ = await world.AdvanceOneTickAsync();
+        var settled = world.ExportState();
+        Assert.True(settled.Society.Society.GetEstate(estate.Id).Settled);
+        var inherited = settled.Society.Society.Inventory.GetLot(artifact.LotId);
+        Assert.Equal(1, inherited.Quantity);
+        Assert.Equal(selectedHeir ? heir : estate.BeneficiaryIds.Order(StringComparer.Ordinal).First(), inherited.OwnerId);
+        Assert.Equal(ArtifactKey(artifact), ArtifactKey(Assert.Single(settled.Knowledge!.Artifacts)));
+        Assert.DoesNotContain(settled.Knowledge.Facts, fact => fact.OwnerId != creator);
+        var directory = Directory.CreateTempSubdirectory("inherited-record-save-");
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(world);
+            using var restored = file.LoadOrCreate(state.WorldSeed);
+            var snapshot = new OwnerWorldObservationStore(restored).GetSnapshot();
+            Assert.Single(snapshot.Inhabitants.Single(person => person.Id == inherited.OwnerId).KnowledgeArtifacts);
+            Assert.Equal(artifact.CreatorId, restored.ExportState().Knowledge!.Artifacts.Single().CreatorId);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task ExplorationCreatesBoundedPersonalKnowledgeAndMigratesThroughSaveReload()
     {

@@ -105,6 +105,10 @@ Exploration can create a one-site field record or a map of up to nine sites.
 Sharing nearby or bartering teaches only those sites to the recipient, retaining
 the discoverer and source agent. It does not grant access to unrelated knowledge.
 
+If intervening legal movement interrupts an outing, scouting restarts at the
+actual position without inventing the missing path. Visited facts remain
+personal knowledge; an unfinished outing does not create a completed artifact.
+
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.

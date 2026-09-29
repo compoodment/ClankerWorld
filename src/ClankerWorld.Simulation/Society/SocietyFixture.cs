@@ -1322,12 +1322,15 @@ public static partial class SocietyFixture
                         continue;
                     }
 
+                    // Physical knowledge artifacts are indivisible and their saved
+                    // ledger references this lot ID. Ownership changes, identity does not.
+                    var preserveIdentity = lot.Quantity == 1 && lot.ItemKind is "field_map" or "field_record";
                     nextLots.Add(lot with
                     {
-                        Id = $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",
+                        Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",
                         OwnerId = beneficiaries[index],
                         Quantity = quantity,
-                        ProvenanceLotId = lot.Id,
+                        ProvenanceLotId = preserveIdentity ? lot.ProvenanceLotId : lot.Id,
                         StorageBuildingId = null,
                         DeliveryBuildingId = null,
                     });

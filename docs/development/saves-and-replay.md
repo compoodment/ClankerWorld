@@ -103,6 +103,11 @@ to the household default on the next active tick. Failure/deadline does likewise
 Estate settlement waits for the pending will and commits once. Per-lot bequests,
 debts, minors and inheritance-law policy remain open.
 
+A quantity-one physical map or field record retains its lot ID when inherited.
+Ownership and location change; its creator, discovery facts and artifact link
+remain. Ordinary divisible stock follows the usual split rules. Inheritance
+does not broadcast the artifact's knowledge to everyone.
+
 ## Checkpoints, history and backups
 
 The active recovery checkpoint is encoded and fsync-written after every advanced

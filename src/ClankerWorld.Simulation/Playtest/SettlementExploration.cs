@@ -44,6 +44,13 @@ public sealed partial class PrivateWorldRuntime
     private void Explore(string actor, PlaytestInhabitantState person)
     {
         var exploration = person.Exploration ?? new SettlementExploration([], [], WorldTick, false);
+        if (exploration.OutingPath.Count > 0 && exploration.OutingPath[^1] != person.Position)
+        {
+            // Another legal intention moved the actor. Never splice that move
+            // into a stale scouting path or pretend its intermediate tiles were visited.
+            exploration = exploration with { OutingPath = [], OutingDiscoveries = [], Returning = false };
+            AppendEvent("exploration_aborted", $"{actor}:interrupted_movement");
+        }
         if (exploration.OutingPath.Count == 0)
         {
             var learnedStartingTile = RecordKnowledgeFact(actor, person.Position);
