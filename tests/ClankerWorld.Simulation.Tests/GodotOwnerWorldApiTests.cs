@@ -10,6 +10,34 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GodotOwnerWorldApiTests
 {
+    [Theory]
+    [InlineData("new-world")]
+    [InlineData("earlier-existing-world")]
+    public async Task LostSwitchReceiptStillAllowsTheActualEarlierTimeline(string selectedWorld)
+    {
+        var session = new OwnerWorldObservationSession();
+        var old = CreateCoherentReconnect();
+        Assert.True(session.TryAccept(old, 3, out _));
+        var selected = old with
+        {
+            Baseline = new OwnerWorldReconnectBaseline(
+                old.Baseline.Snapshot with { WorldId = selectedWorld, WorldTick = 0, LatestEventId = 0 },
+                new OwnerWorldEventSlice(0, 0, []))
+        };
+        var committed = false;
+        await Assert.ThrowsAsync<IOException>(() => session.ChangeTimelineAsync(() =>
+        {
+            Assert.Equal(0, session.EventCursor);
+            committed = true;
+            return Task.FromException(new IOException("response lost after commit"));
+        }));
+        Assert.True(committed);
+        Assert.True(session.TryAccept(selected, session.EventCursor, out var failure), failure);
+        Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
+        Assert.True(session.TryAccept(old, 3, out _));
+        Assert.False(session.TryAccept(selected, 0, out _));
+    }
+
     [Fact]
     public void CachedTerrainReconnectPayloadMatchesHostAndLegacyPayloadRemainsStable()
     {

@@ -123,9 +123,10 @@ public sealed partial class PrivateWorldRuntime
             checkpointSchemaVersion = StateSchemaVersion;
             return;
         }
-        if (candidate == "lesson_cancel" && person.Lesson is { } withdrawn && ActiveLesson(withdrawn))
+        if (candidate == "lesson_cancel")
         {
-            SetLesson(actor, withdrawn with { Stage = "cancelled" });
+            if (person.Lesson is { } withdrawn && ActiveLesson(withdrawn))
+                SetLesson(actor, withdrawn with { Stage = "cancelled" });
             return;
         }
         if (candidate == "lesson_attend" || candidate.StartsWith("lesson_teach:", StringComparison.Ordinal))
@@ -134,6 +135,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var accept = candidate.StartsWith("lesson_accept:", StringComparison.Ordinal);
+        if (!accept && !candidate.StartsWith("lesson_decline:", StringComparison.Ordinal)) return;
         var studentId = candidate[(accept ? 14 : 15)..];
         if (!inhabitants.TryGetValue(studentId, out var student) || student.Lesson is not { } lesson ||
             lesson.TeacherId != actor || !ActiveLesson(lesson))

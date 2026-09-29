@@ -12,6 +12,9 @@ release yet.
 ### Added
 
 - World selection and named checkpoint loading verify required history segments before replacing the healthy active world. Missing or corrupted archive chains remain recoverable without becoming the active save.
+- Simultaneous lesson refusal and student cancellation safely preserve the terminal lesson instead of halting world advancement.
+- Create/Load World resets the observation timeline before sending the switch, so a lost response cannot trap reconnect on the old world’s event cursor.
+- Interrupted world selection restores routing and autosave settings during startup, before Resume or owner mutations can be acknowledged.
 
 - Scouting safely starts a new local path after another action moves the agent away, instead of joining nonadjacent steps and breaking saves.
 - Inherited physical maps and field records keep their lot identity, preserving the knowledge artifact link and saveability without broadcasting their contents.

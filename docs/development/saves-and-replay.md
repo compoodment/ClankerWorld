@@ -22,7 +22,8 @@ accounting. Saves store slot IDs and model choices, never API-key bytes.
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.
-An interrupted catalog update is recovered against the active checkpoint.
+An interrupted catalog update is recovered against the active checkpoint before
+the server starts hosted services or accepts requests.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
 
@@ -58,6 +59,11 @@ that recorded events reproduce its expected results and digests.
 Signed pause and rename retries persist the requested state before reporting
 success, including when the in-memory value already matches after a failed
 write. Storage failure remains an error; recovery does not resume time.
+
+Before a potentially committed create/select/rewind request, the client clears
+its held observation timeline. If the receipt is lost, reconnect starts from a
+fresh baseline while retaining normal regression and terrain-identity checks
+within that timeline. Continue does not resume an uncertain world switch.
 
 The internally captured proposed tick can reuse its committed map. External
 loads still validate and regenerate it; this shortcut must not weaken input

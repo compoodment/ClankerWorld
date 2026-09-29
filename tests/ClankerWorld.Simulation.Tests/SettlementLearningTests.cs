@@ -8,6 +8,46 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementLearningTests
 {
     [Fact]
+    public async Task SimultaneousDeclineAndCancelDoesNotHaltTheRuntimeService()
+    {
+        var directory = Directory.CreateTempSubdirectory("lesson-terminal-");
+        try
+        {
+            using var world = new PrivateWorldRuntime("lesson-decline-cancel-repro", actor => new CancellationRaceProvider(actor));
+            world.StageStarterContent();
+            var beforeRole = world.Society.GetInhabitant("founder-scout").CurrentRole;
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(world);
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(5));
+            presence.RecordAuthenticatedReconnect("test-owner");
+            using var service = new PrivateWorldRuntimeService(world, file, presence);
+            for (var tick = 0; tick < 3; tick++) Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Equal("declined", world.Inhabitants.Single(person => person.InhabitantId == "founder-scout").Lesson!.Stage);
+            Assert.Equal(beforeRole, world.Society.GetInhabitant("founder-scout").CurrentRole);
+            Assert.False(world.Society.IsPaused);
+            Assert.True(await service.TryAdvanceOnceAsync());
+            using var reloaded = file.LoadOrCreate("lesson-decline-cancel-repro");
+            Assert.Equal(world.WorldTick, reloaded.WorldTick);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private sealed class CancellationRaceProvider(string actor) : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var candidates = request.Observation.Candidates;
+            var choice = actor == "founder-scout"
+                ? candidates.FirstOrDefault(item => item.Id == "lesson_cancel") ?? candidates.FirstOrDefault(item => item.Id == "learn:farmer:founder-ilya")
+                : actor == "founder-ilya" ? candidates.FirstOrDefault(item => item.Id == "lesson_decline:founder-scout") : null;
+            choice ??= candidates.Single(item => item.Id == "safe_idle");
+            return new DeterministicDecisionProvider().DecideAsync(request with { Observation = request.Observation with { Candidates = [choice] } }, cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task BusyMentorGetsAnIndependentTeachingDecisionBeforeFinishingTheirProject()
     {
         var state = await PreparedState();

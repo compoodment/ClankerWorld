@@ -571,8 +571,15 @@ public sealed class OwnerWorldObservationSession
 
     public long EventCursor => Current?.Baseline.Snapshot.LatestEventId ?? 0;
 
-    /// <summary>A confirmed manual rewind starts a new observation timeline.</summary>
+    /// <summary>A possible rewind starts a new observation timeline, even if its receipt is lost.</summary>
     public void ResetAfterLoad() => Current = null;
+
+    public async Task ChangeTimelineAsync(Func<Task> mutation)
+    {
+        ArgumentNullException.ThrowIfNull(mutation);
+        ResetAfterLoad();
+        await mutation();
+    }
 
     public bool TryAccept(OwnerWorldReconnect response, long requestedAfterEventId, out string failure)
     {

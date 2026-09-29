@@ -191,6 +191,8 @@ if (advanceRuntime)
 }
 
 var app = builder.Build();
+// Recover an interrupted selection before hosted services, requests or model dispatch.
+if (isPrivateWorld) _ = app.Services.GetRequiredService<WorldCatalogStore>();
 if (app.Services.GetRequiredService<ProviderUsageStore>().Capture().AccountingError is not null)
     ProviderUsageTelemetry.AccountingBlocked(app.Logger);
 ProviderCredentialTelemetry.Ready(app.Logger, OperatingSystem.IsWindows() ? "windows_current_user" : "private_file_permissions");

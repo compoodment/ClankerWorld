@@ -613,10 +613,9 @@ public partial class Main
         {
             await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
                 signer, CancellationToken.None);
-            await ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
-                action, signer, CancellationToken.None);
-            observationSession.ResetAfterLoad();
             resumeWorldOnContinue = false;
+            await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None));
             worldMenuOverlay.Hide();
             await EnterWorldAsync();
         }
@@ -644,10 +643,9 @@ public partial class Main
         {
             await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
                 signer, CancellationToken.None);
-            await ownerApi.SelectWorldAsync(ResolveWorldUri(), authority, deviceId,
-                listedWorlds[selected[0]].Id, signer, CancellationToken.None);
-            observationSession.ResetAfterLoad();
             resumeWorldOnContinue = false;
+            await observationSession.ChangeTimelineAsync(() => ownerApi.SelectWorldAsync(ResolveWorldUri(), authority, deviceId,
+                listedWorlds[selected[0]].Id, signer, CancellationToken.None));
             worldMenuOverlay.Hide();
             await EnterWorldAsync();
         }
