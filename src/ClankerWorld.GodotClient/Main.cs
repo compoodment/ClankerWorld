@@ -1986,6 +1986,7 @@ public partial class Main : Control
 
     public override void _ExitTree()
     {
+        UiTheme.Changed -= ApplyThemeColors;
         deviceKey?.Dispose();
         httpClient.Dispose();
         base._ExitTree();
