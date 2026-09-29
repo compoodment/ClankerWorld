@@ -121,6 +121,12 @@ everything that is available in the current build. See [what works today](../wha
   main action. Game Settings offers a **Theme** of **Light**, **Dark** (dark
   wood with cream text) or **Match system**. The exact font, icon set and
   remaining accessibility treatment stay open.
+- **Agreed after the September 29 background review:** the Main Menu
+  background is a side-view pixel-art valley chosen from three mockup
+  directions: mountains, patchwork fields, a river and small Towns built from
+  the game's own building types. It animates gently (drifting clouds, chimney
+  smoke, birds, river sparkle). The Light theme shows a clear morning and the
+  Dark theme a dusk with lit windows, lanterns, stars and fireflies.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

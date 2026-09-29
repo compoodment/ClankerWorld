@@ -9,6 +9,7 @@ public partial class Main
 {
     private readonly Control mainMenuOverlay = new();
     private readonly ColorRect mainMenuBackground = new();
+    private readonly MenuBackdrop mainMenuBackdrop = new();
     private readonly CenterContainer mainMenuCenter = new();
     private readonly PanelContainer mainMenuCard = new();
     private readonly Label mainMenuStatus = new();
@@ -64,6 +65,9 @@ public partial class Main
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
         mainMenuBackground.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         mainMenuOverlay.AddChild(mainMenuBackground);
+        mainMenuBackdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        mainMenuBackdrop.Night = ReferenceEquals(UiTheme.Current, UiTheme.Dark);
+        mainMenuOverlay.AddChild(mainMenuBackdrop);
 
         mainMenuCenter.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         mainMenuOverlay.AddChild(mainMenuCenter);
