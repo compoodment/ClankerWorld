@@ -16,7 +16,7 @@ public partial class WeatherLayer : Control
     /// <summary>Screen cell that holds one or two falling drops.</summary>
     private const float DropCell = 34f;
     private const int FieldMargin = 12;
-    private const float FieldRefreshSeconds = 0.5f;
+    private const float FieldRefreshSeconds = 2f;
     private const int CloudTexels = 128;
     /// <summary>World tiles covered by one cloud texel.</summary>
     private const float CloudTileScale = 2f;
@@ -82,7 +82,7 @@ public partial class WeatherLayer : Control
     {
         if (source is null || !IsVisibleInTree() || source.TileSize <= 0) return;
         var now = Time.GetTicksMsec() / 1000.0;
-        if (source.WeatherVersion != fieldVersion || source.VisibleTiles != fieldCamera ||
+        if (source.WeatherVersion != fieldVersion || !FieldCoversCamera() ||
             source.TileSize != fieldTileSize || (source.HasActiveWeather && now - fieldTime >= FieldRefreshSeconds))
         {
             RebuildField(now);
@@ -121,6 +121,18 @@ public partial class WeatherLayer : Control
         return source.WrapsEastWest
             ? new Rect2(-1e7f, 0, 2e7f, world.Height * stride)
             : new Rect2(0, 0, world.Width * stride, world.Height * stride);
+    }
+
+    /// <summary>Reuse the padded world-space field while a small camera pan stays inside it.</summary>
+    private bool FieldCoversCamera()
+    {
+        if (source is null || fieldWidth == 0) return false;
+        var camera = source.VisibleTiles;
+        var cushion = FieldMargin / 2f;
+        return camera.Position.X >= fieldLeft + cushion &&
+            camera.Position.Y >= fieldTop + cushion &&
+            camera.End.X <= fieldLeft + fieldWidth * fieldResolution - cushion &&
+            camera.End.Y <= fieldTop + fieldHeight * fieldResolution - cushion;
     }
 
     private void RebuildField(double now)
