@@ -57,7 +57,7 @@ public partial class Main
         mainMenuOverlay.ZIndex = 180;
         AddChild(mainMenuOverlay);
 
-        mainMenuBackground.Color = new Color("0D151C");
+        mainMenuBackground.Color = UiTheme.Current.Backdrop;
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
         mainMenuBackground.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         mainMenuOverlay.AddChild(mainMenuBackground);
@@ -70,13 +70,13 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 12);
         var title = new Label { Text = "CLANKERWORLD", HorizontalAlignment = HorizontalAlignment.Center };
         title.AddThemeFontSizeOverride("font_size", 35);
-        title.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+        title.ThemeTypeVariation = "HeadingLabel";
         body.AddChild(title);
         body.AddChild(new Label
         {
             Text = "A world shaped by the people who live in it",
             HorizontalAlignment = HorizontalAlignment.Center,
-            Modulate = new Color("AFC4BA"),
+            ThemeTypeVariation = "SoftLabel",
         });
 
         mainMenuStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -237,7 +237,7 @@ public partial class Main
         worldMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
         worldMenuOverlay.ZIndex = 210;
         AddChild(worldMenuOverlay);
-        var shade = new ColorRect { Color = new Color("071015E0"), MouseFilter = MouseFilterEnum.Stop };
+        var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.88f }, MouseFilter = MouseFilterEnum.Stop };
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         worldMenuOverlay.AddChild(shade);
         var center = new CenterContainer();
@@ -327,7 +327,7 @@ public partial class Main
         // The frame keeps its size while a new preview generates, so the
         // layout does not jump each time an option changes.
         worldPreviewFrame.CustomMinimumSize = new Vector2(WorldPreviewWidth, WorldPreviewWidth / 2f);
-        worldPreviewFrame.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("101A1E") });
+        worldPreviewFrame.ThemeTypeVariation = "InsetPanel";
         worldPreview.ShowCameraBounds = false;
         worldPreview.MouseFilter = MouseFilterEnum.Ignore;
         worldPreview.TooltipText = "Map preview. You will choose where your Town goes after creating the world.";
@@ -405,7 +405,7 @@ public partial class Main
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 8);
         var label = new Label { Text = caption, CustomMinimumSize = new Vector2(104, 0) };
-        label.AddThemeColorOverride("font_color", new Color("A7B9B7"));
+        label.ThemeTypeVariation = "DimLabel";
         row.AddChild(label);
         field.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         row.AddChild(field);
@@ -484,7 +484,7 @@ public partial class Main
                     (world.Id == catalog.ActiveId ? "  ·  current" : string.Empty) +
                     "  ·  saved " + world.UpdatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) + state);
                 if (world.Compatibility == "incompatible")
-                    worldSelectionList.SetItemCustomFgColor(row, new Color("8FA5A7"));
+                    worldSelectionList.SetItemCustomFgColor(row, UiTheme.Current.InkMuted);
             }
             worldMenuStatus.Text = listedWorlds.Length == 0 ? "No worlds yet." : "Choose a world. Double-click to open it.";
         }

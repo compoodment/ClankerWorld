@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.UI;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -5,10 +6,10 @@ namespace ClankerWorld.GodotClient;
 /// <summary>Shared text styling for the Town panel and Event Log.</summary>
 public partial class Main
 {
-    private static readonly Color HeadingText = new("E3C27A");
-    private static readonly Color DimText = new("8FA5A7");
-    private static readonly Color WarningText = new("E8A87C");
-    private static readonly Color LinkText = new("9FD8C8");
+    private static Color HeadingText => UiTheme.Current.Section;
+    private static Color DimText => UiTheme.Current.InkMuted;
+    private static Color WarningText => UiTheme.Current.Warning;
+    private static Color LinkText => UiTheme.Current.Link;
     private string? renderedTownPanel;
 
     private enum TownStyle { Heading, Name, Detail, Body, Note, Warning }

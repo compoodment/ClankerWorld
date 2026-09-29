@@ -200,6 +200,12 @@ reopen the decided player-local distribution goal.
   does not need the pause/save helper sentence. Player-facing wording should
   be short and ordinary; `Agent model` is preferred over `Inhabitant cognition`,
   and the optional model-call limit needs a clear unit and consequence.
+- **Decided after the September 29 style review:** the interface uses the
+  **Timber & Parchment** look chosen from three mockup directions: wooden
+  frames around parchment panels, ink text, bevelled pixel buttons and a green
+  main action. Game Settings offers a **Theme** of **Light**, **Dark** (dark
+  wood with cream text) or **Match system**. The exact font, icon set and
+  remaining accessibility treatment stay open.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

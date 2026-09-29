@@ -145,6 +145,9 @@ public partial class Main : Control
     private readonly PanelContainer gameMenuPanel = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
+    private readonly ColorRect appBackdrop = new();
+    private readonly ColorRect worldBackdrop = new();
+    private readonly OptionButton themeChoice = new();
     private readonly Label menuHeadingLabel = new();
     private readonly Button menuCloseButton = new();
     private readonly Button menuResumeButton = new();
@@ -239,9 +242,14 @@ public partial class Main : Control
     {
         displayPreferences = displayPreferencesStore.Load();
         ApplySavedDisplaySettings();
+        // Pixel frames, buttons and icons stay crisp when the picture is scaled.
+        TextureFilter = TextureFilterEnum.Nearest;
+        UiTheme.Apply(GetTree().Root, UiTheme.Resolve(UiTheme.Parse(displayPreferences.Theme)));
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         BuildLayout();
+        UiTheme.Changed += ApplyThemeColors;
+        ApplyThemeColors();
         uiScaleTreeReady = true;
         WatchUiScaleTree(this);
         ApplyUiScale(displayPreferences.UiScalePercent);
@@ -448,6 +456,43 @@ public partial class Main : Control
                 Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1 ||
                 Math.Abs(renderResolutionChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
                 throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
+            // Both themes keep text readable on every surface it sits on.
+            foreach (var palette in new[] { UiTheme.Light, UiTheme.Dark })
+            {
+                (string Pair, Color Text, Color Surface, float Minimum)[] readable =
+                [
+                    ("ink on parchment", palette.Ink, palette.Paper, 7f),
+                    ("muted ink on parchment", palette.InkMuted, palette.Paper, 4.5f),
+                    ("section headings", palette.Section, palette.Paper, 4.5f),
+                    ("links", palette.Link, palette.Paper, 4.5f),
+                    ("warnings", palette.Warning, palette.Paper, 4.5f),
+                    ("good status", palette.Good, palette.Paper, 4.5f),
+                    ("bad status", palette.Bad, palette.Paper, 4.5f),
+                    ("button text", palette.Ink, palette.Button, 4.5f),
+                    ("primary button text", palette.PrimaryInk, palette.Primary, 4.5f),
+                    ("paused button text", palette.EmberInk, palette.Ember, 4.5f),
+                    ("text on the wooden bar", palette.OnWood, palette.Wood, 4.5f),
+                    ("soft text on the wooden bar", palette.OnWoodSoft, palette.Wood, 4.5f),
+                    ("field text", palette.Ink, palette.Field, 4.5f),
+                    ("disabled text", palette.InkFaint, palette.FieldDisabled, 3f),
+                ];
+                foreach (var (pair, text, surface, minimum) in readable)
+                    if (UiTheme.Contrast(text, surface) < minimum)
+                        throw new InvalidOperationException($"{palette.Name} theme {pair} is too faint: {UiTheme.Contrast(text, surface):0.00}.");
+            }
+            var themeBefore = displayPreferences.Theme;
+            var frameBefore = settingsPanel.GetThemeStylebox("panel");
+            var (switchTo, expected) = UiTheme.Current == UiTheme.Dark
+                ? (UiThemeChoice.Light, UiTheme.Light)
+                : (UiThemeChoice.Dark, UiTheme.Dark);
+            themeChoice.Select((int)switchTo);
+            SetUiTheme((int)switchTo);
+            if (UiTheme.Current != expected || GetTree().Root.Theme != UiTheme.Theme ||
+                displayPreferences.Theme != UiTheme.Key(switchTo) || settingsPanel.GetThemeStylebox("panel") == frameBefore ||
+                appBackdrop.Color != expected.Backdrop)
+                throw new InvalidOperationException("Choosing a theme must restyle the open window at once and be remembered.");
+            themeChoice.Select((int)UiTheme.Parse(themeBefore));
+            SetUiTheme((int)UiTheme.Parse(themeBefore));
             if (!topBarShade.Visible || topBarShade.ZIndex <= mainMenuOverlay.ZIndex)
                 throw new InvalidOperationException("Main Menu Settings must shade the top bar like the rest of the title backdrop.");
             SetStatus("Settings status check", good: true);
@@ -565,7 +610,8 @@ public partial class Main : Control
             if (!quitToMenuConfirmation.Visible)
                 throw new InvalidOperationException("Quit to Menu must request confirmation.");
             if (quitToMenuConfirmation.OkButtonText != "Quit to Menu" || quitGameConfirmation.OkButtonText != "Quit Game" ||
-                manualSaveOverwriteConfirmation.OkButtonText != "Overwrite" || quitToMenuConfirmation.Theme is null)
+                manualSaveOverwriteConfirmation.OkButtonText != "Overwrite" ||
+                quitToMenuConfirmation.GetThemeStylebox("embedded_border", "Window") != UiTheme.Theme.GetStylebox("embedded_border", "Window"))
                 throw new InvalidOperationException("Confirmations must use the game's panel style and name their action instead of OK.");
             quitToMenuConfirmation.Hide();
             // The pause receipt can succeed even when the following reconnect
@@ -3144,16 +3190,11 @@ public partial class Main : Control
 
     private void BuildLayout()
     {
-        AddThemeColorOverride("font_color", new Color("E5EFEA"));
         AddThemeFontSizeOverride("font_size", 14);
 
-        var backdrop = new ColorRect
-        {
-            Color = new Color("0D151C"),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        AddChild(backdrop);
+        appBackdrop.MouseFilter = Control.MouseFilterEnum.Ignore;
+        appBackdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        AddChild(appBackdrop);
 
         var root = new VBoxContainer();
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -3179,7 +3220,7 @@ public partial class Main : Control
         {
             CustomMinimumSize = new Vector2(0, 60),
         };
-        chrome.AddThemeStyleboxOverride("panel", TopBarStyle());
+        chrome.ThemeTypeVariation = "TopBar";
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 14);
         margin.AddThemeConstantOverride("margin_right", 14);
@@ -3206,11 +3247,11 @@ public partial class Main : Control
 
         clockLabel.Text = "Connecting…";
         clockLabel.AddThemeFontSizeOverride("font_size", 20);
-        clockLabel.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+        clockLabel.ThemeTypeVariation = "WoodLabel";
         topBar.AddChild(clockLabel);
 
         climateLabel.Text = string.Empty;
-        climateLabel.Modulate = new Color("AFC4BA");
+        climateLabel.ThemeTypeVariation = "WoodSoftLabel";
         climateLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         topBar.AddChild(climateLabel);
 
@@ -3299,7 +3340,7 @@ public partial class Main : Control
         // Mirrors the world-view menu shade so top-bar actions such as Start
         // World or Play cannot run behind a modal menu. It draws above the
         // title backdrop so Main Menu Settings dims the whole screen evenly.
-        topBarShade.Color = new Color(0, 0, 0, 0.46f);
+        topBarShade.Color = UiTheme.Current.Shade;
         topBarShade.MouseFilter = Control.MouseFilterEnum.Stop;
         topBarShade.ZIndex = 190;
         topBarShade.Hide();
@@ -3323,6 +3364,7 @@ public partial class Main : Control
         pairAgainButton.Pressed += () => _ = PairAgainAsync();
         body.AddChild(pairAgainButton);
         AddPanelContents(connectionPanel, "World connection", body);
+        connectionPanel.ThemeTypeVariation = "InsetPanel";
     }
 
     private void BuildCognitionSettingsPanel()
@@ -3390,7 +3432,7 @@ public partial class Main : Control
         body.AddChild(cognitionApiKeyInput);
 
         cognitionCredentialHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        cognitionCredentialHint.Modulate = new Color("8FA5A7");
+        cognitionCredentialHint.ThemeTypeVariation = "DimLabel";
         body.AddChild(cognitionCredentialHint);
 
         cognitionCredentialHint.TooltipText = "Keys are sent securely and stay on the game server. They are never shown again, logged, or saved in world files.";
@@ -3448,6 +3490,7 @@ public partial class Main : Control
         body.AddChild(usageButtons);
 
         AddPanelContents(cognitionSettingsPanel, "Agent model", body);
+        cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
         RenderProviderConfiguration();
         RenderUsageStatus();
     }
@@ -3548,6 +3591,7 @@ public partial class Main : Control
         buttons.AddChild(forgetRegistrationButton);
         body.AddChild(buttons);
         AddPanelContents(pairingPanel, body);
+        pairingPanel.ThemeTypeVariation = "InsetPanel";
         pairingPanel.Hide();
     }
 
@@ -3557,11 +3601,7 @@ public partial class Main : Control
         mapCanvas.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         mapCanvas.ClipContents = true;
 
-        var worldBackdrop = new ColorRect
-        {
-            Color = new Color("101A1E"),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
+        worldBackdrop.MouseFilter = Control.MouseFilterEnum.Ignore;
         worldBackdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         mapCanvas.AddChild(worldBackdrop);
 
@@ -3608,7 +3648,7 @@ public partial class Main : Control
         var rosterBody = new VBoxContainer();
         rosterBody.AddThemeConstantOverride("separation", 6);
         rosterSummaryLabel.Text = "Waiting for the world…";
-        rosterSummaryLabel.Modulate = new Color("A7B9B7");
+        rosterSummaryLabel.ThemeTypeVariation = "DimLabel";
         rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         rosterBody.AddChild(rosterSummaryLabel);
 
@@ -3711,7 +3751,7 @@ public partial class Main : Control
 
     private void BuildOwnerColumn(Control content)
     {
-        menuShade.Color = new Color(0, 0, 0, 0.46f);
+        menuShade.Color = UiTheme.Current.Shade;
         menuShade.MouseFilter = Control.MouseFilterEnum.Stop;
         menuShade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         menuShade.ZIndex = 90;
@@ -3730,7 +3770,7 @@ public partial class Main : Control
         menuHeadingLabel.Text = "Paused";
         menuHeadingLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         menuHeadingLabel.AddThemeFontSizeOverride("font_size", 24);
-        menuHeadingLabel.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+        menuHeadingLabel.ThemeTypeVariation = "HeadingLabel";
         menuHeading.AddChild(menuHeadingLabel);
         menuCloseButton.Text = "×";
         menuCloseButton.TooltipText = "Return to the world";
@@ -3804,6 +3844,14 @@ public partial class Main : Control
         renderResolutionChoice.TooltipText = "How sharp the picture is. Automatic matches your window or screen. Fixed sizes are scaled to fit.";
         renderResolutionChoice.ItemSelected += SetRenderResolution;
         gameSettingsContent.AddChild(DisplaySettingRow("Render Resolution", renderResolutionChoice));
+
+        themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
+        themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
+        themeChoice.AddItem("Match system", (int)UiThemeChoice.System);
+        themeChoice.Selected = (int)UiTheme.Parse(displayPreferences.Theme);
+        themeChoice.TooltipText = "Light parchment or dark wood panels. Match system follows your computer's setting.";
+        themeChoice.ItemSelected += SetUiTheme;
+        gameSettingsContent.AddChild(DisplaySettingRow("Theme", themeChoice));
 
         foreach (var percentage in DisplayUiScalePolicy.SupportedPercentages)
             uiScaleChoice.AddItem($"{percentage}%");
@@ -3888,6 +3936,8 @@ public partial class Main : Control
         settingsLayout.AddChild(settingsCategories);
         settingsLayout.AddChild(settingsScroll);
         AddPanelContents(settingsPanel, "Settings", settingsLayout);
+        // Settings sits inside the menu panel, so it reads as a section of it.
+        settingsPanel.ThemeTypeVariation = "InsetPanel";
         settingsPanel.Hide();
         body.AddChild(settingsPanel);
         BuildModLibrary(body);
@@ -3991,7 +4041,7 @@ public partial class Main : Control
         var heading = new HBoxContainer();
         selectedActorNameLabel.Text = string.Empty;
         selectedActorNameLabel.AddThemeFontSizeOverride("font_size", 18);
-        selectedActorNameLabel.AddThemeColorOverride("font_color", new Color("F0F4EC"));
+        selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
         selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         heading.AddChild(selectedActorNameLabel);
         clearSelectionButton.Text = "×";
@@ -4022,10 +4072,10 @@ public partial class Main : Control
         selectedAgentModelScroll.Hide();
 
         selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        selectedActorSummaryLabel.Modulate = new Color("A7B9B7");
+        selectedActorSummaryLabel.ThemeTypeVariation = "DimLabel";
         selectedAgentOverview.AddChild(selectedActorSummaryLabel);
         selectedActorConditionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        selectedActorConditionLabel.Modulate = new Color("C9DFCF");
+        selectedActorConditionLabel.ThemeTypeVariation = "SoftLabel";
         selectedAgentOverview.AddChild(selectedActorConditionLabel);
 
         var renameRow = new HBoxContainer();
@@ -4070,7 +4120,7 @@ public partial class Main : Control
 
         var instructionHeading = new Label { Text = "Speak to them" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
-        instructionHeading.AddThemeColorOverride("font_color", new Color("D8C6A5"));
+        instructionHeading.ThemeTypeVariation = "SectionLabel";
         selectedAgentOverview.AddChild(instructionHeading);
         instructionKind.AddItem("Suggestion", 0);
         instructionKind.AddItem("Direct order", 1);
@@ -4494,6 +4544,40 @@ public partial class Main : Control
         var percent = DisplayUiScalePolicy.SupportedPercentages[(int)index];
         SaveDisplayPreferences(displayPreferences with { UiScalePercent = percent });
         ApplyUiScale(percent);
+    }
+
+    private void SetUiTheme(long index)
+    {
+        var choice = (UiThemeChoice)Math.Clamp((int)index, 0, 2);
+        SaveDisplayPreferences(displayPreferences with { Theme = UiTheme.Key(choice) });
+        UiTheme.Apply(GetTree().Root, UiTheme.Resolve(choice));
+    }
+
+    public override void _Notification(int what)
+    {
+        // Match system picks up a change made while the game was in the background.
+        if (what == NotificationApplicationFocusIn && UiTheme.Parse(displayPreferences.Theme) == UiThemeChoice.System)
+            UiTheme.Apply(GetTree().Root, UiTheme.Resolve(UiThemeChoice.System));
+    }
+
+    /// <summary>
+    /// Colors drawn outside the Theme resource: backdrops, modal shades and
+    /// rich text written with explicit colors, which are redrawn in the new
+    /// palette.
+    /// </summary>
+    private void ApplyThemeColors()
+    {
+        var palette = UiTheme.Current;
+        appBackdrop.Color = palette.Backdrop;
+        worldBackdrop.Color = palette.Backdrop;
+        mainMenuBackground.Color = palette.Backdrop;
+        topBarShade.Color = palette.Shade;
+        menuShade.Color = palette.Shade;
+        familyTreeView.QueueRedraw();
+        renderedTownPanel = null;
+        renderedEventLog = null;
+        if (observationSession.Current is { } current)
+            Render(current.Baseline.Snapshot, []);
     }
 
     private void SetClockFormat(long index)
@@ -5010,7 +5094,7 @@ public partial class Main : Control
             if (!IsLiving(inhabitant) && living > 0 && inhabitantList.ItemCount == living)
             {
                 var header = inhabitantList.AddItem("Deceased", selectable: false);
-                inhabitantList.SetItemCustomFgColor(header, new Color("8FA5A7"));
+                inhabitantList.SetItemCustomFgColor(header, UiTheme.Current.InkMuted);
             }
             var rowText = RosterRow(inhabitant);
             var row = inhabitantList.AddItem(rowText);
@@ -5019,7 +5103,7 @@ public partial class Main : Control
             inhabitantList.SetItemTooltip(row, rowText + "\n" + (IsLiving(inhabitant)
                 ? "Select to find this agent on the map and open their card."
                 : "Select to open this historical profile."));
-            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, new Color("A7B9B7"));
+            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, UiTheme.Current.InkFaint);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
                 selectionFound = true;
@@ -6116,8 +6200,8 @@ public partial class Main : Control
 
     private static PanelContainer NewPanel(string title, Control content)
     {
-        var panel = new PanelContainer();
-        panel.AddThemeStyleboxOverride("panel", PanelStyle());
+        // Always nested inside another panel, so it reads as a section.
+        var panel = new PanelContainer { ThemeTypeVariation = "InsetPanel" };
         AddPanelContents(panel, title, content);
         return panel;
     }
@@ -6130,7 +6214,6 @@ public partial class Main : Control
 
     private static void AddPanelContents(PanelContainer panel, string title, Control content, bool closable = false)
     {
-        panel.AddThemeStyleboxOverride("panel", PanelStyle());
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 10);
         margin.AddThemeConstantOverride("margin_right", 10);
@@ -6143,7 +6226,7 @@ public partial class Main : Control
             var headingRow = new HBoxContainer();
             var heading = new Label { Text = title, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             heading.AddThemeFontSizeOverride("font_size", 17);
-            heading.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+            heading.ThemeTypeVariation = "HeadingLabel";
             headingRow.AddChild(heading);
             var close = new Button
             {
@@ -6162,7 +6245,7 @@ public partial class Main : Control
         }
         else if (!string.IsNullOrWhiteSpace(title))
         {
-            var heading = new Label { Text = title };
+            var heading = new Label { Text = title, ThemeTypeVariation = "HeadingLabel" };
             heading.AddThemeFontSizeOverride("font_size", 15);
             body.AddChild(heading);
         }
@@ -6181,7 +6264,7 @@ public partial class Main : Control
             Text = caption,
             CustomMinimumSize = new Vector2(82, 0),
         };
-        label.Modulate = new Color("8FA5A7");
+        label.ThemeTypeVariation = "DimLabel";
         row.AddChild(label);
         value.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         value.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -6189,25 +6272,11 @@ public partial class Main : Control
         return row;
     }
 
+    /// <summary>Buttons take their look from the current theme; primary ones are the green action.</summary>
     private static void StyleButton(Button button, bool primary = false)
     {
         button.CustomMinimumSize = new Vector2(0, 34);
-        button.AddThemeStyleboxOverride("normal", ButtonStyle(
-            primary ? new Color("2C706B") : new Color("20343B"),
-            primary ? new Color("80CDBA") : new Color("49656A")));
-        button.AddThemeStyleboxOverride("hover", ButtonStyle(
-            primary ? new Color("38877E") : new Color("2B464D"),
-            new Color("B0DFCE")));
-        button.AddThemeStyleboxOverride("pressed", ButtonStyle(
-            primary ? new Color("225A58") : new Color("182A31"),
-            new Color("D8C6A5")));
-        button.AddThemeStyleboxOverride("disabled", ButtonStyle(
-            new Color("17232A"),
-            new Color("2A3A40")));
-        button.AddThemeColorOverride("font_color", new Color("E5EFEA"));
-        button.AddThemeColorOverride("font_hover_color", new Color("FFFFFF"));
-        button.AddThemeColorOverride("font_pressed_color", new Color("FFFFFF"));
-        button.AddThemeColorOverride("font_disabled_color", new Color("718486"));
+        button.ThemeTypeVariation = primary ? "PrimaryButton" : string.Empty;
     }
 
     // Settings categories are tabs: the open one reads as selected instead of
@@ -6216,9 +6285,7 @@ public partial class Main : Control
     {
         StyleButton(button);
         button.ToggleMode = true;
-        var selected = ButtonStyle(new Color("2C706B"), new Color("80CDBA"));
-        button.AddThemeStyleboxOverride("pressed", selected);
-        button.AddThemeStyleboxOverride("hover_pressed", selected);
+        button.ThemeTypeVariation = "TabButton";
     }
 
     private void SelectSettingsCategory(Button selected)
@@ -6226,63 +6293,6 @@ public partial class Main : Control
         foreach (var button in new[] { gameSettingsCategoryButton, worldSettingsCategoryButton, developerToggleButton })
             button.SetPressedNoSignal(button == selected);
     }
-
-    private static StyleBoxFlat ButtonStyle(Color background, Color border) => new()
-    {
-        BgColor = background,
-        BorderWidthLeft = 1,
-        BorderWidthTop = 1,
-        BorderWidthRight = 1,
-        BorderWidthBottom = 1,
-        BorderColor = border,
-        CornerRadiusTopLeft = 6,
-        CornerRadiusTopRight = 6,
-        CornerRadiusBottomLeft = 6,
-        CornerRadiusBottomRight = 6,
-        ContentMarginLeft = 12,
-        ContentMarginRight = 12,
-        ContentMarginTop = 7,
-        ContentMarginBottom = 7,
-    };
-
-    private static StyleBoxFlat InnerPanelStyle() => new()
-    {
-        BgColor = new Color("111D24"),
-        BorderWidthLeft = 1,
-        BorderWidthTop = 1,
-        BorderWidthRight = 1,
-        BorderWidthBottom = 1,
-        BorderColor = new Color("263D44"),
-        CornerRadiusTopLeft = 6,
-        CornerRadiusTopRight = 6,
-        CornerRadiusBottomLeft = 6,
-        CornerRadiusBottomRight = 6,
-    };
-
-    private static StyleBoxFlat PanelStyle() => new()
-    {
-        BgColor = new Color("192631"),
-        BorderWidthLeft = 1,
-        BorderWidthTop = 1,
-        BorderWidthRight = 1,
-        BorderWidthBottom = 1,
-        BorderColor = new Color("345363"),
-        CornerRadiusTopLeft = 10,
-        CornerRadiusTopRight = 10,
-        CornerRadiusBottomLeft = 10,
-        CornerRadiusBottomRight = 10,
-    };
-
-    private static StyleBoxFlat TopBarStyle() => new()
-    {
-        BgColor = new Color("162127"),
-        BorderWidthBottom = 1,
-        BorderColor = new Color("314A4A"),
-        ContentMarginLeft = 0,
-        ContentMarginRight = 0,
-        ContentMarginTop = 0,
-        ContentMarginBottom = 0,
-    };
 
     private Uri ResolveWorldUri()
     {
@@ -6347,7 +6357,7 @@ public partial class Main : Control
         }
 
         statusLabel.Text = text;
-        statusLabel.Modulate = new Color(good ? "B9E8C5" : "F0B6A6");
+        statusLabel.ThemeTypeVariation = good ? "GoodLabel" : "BadLabel";
         statusToastKind = kind;
         statusToastShownAtMsec = (long)Time.GetTicksMsec();
         statusToast.Show();

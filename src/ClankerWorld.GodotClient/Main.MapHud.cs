@@ -19,15 +19,14 @@ public partial class Main
     private void BuildMapHud(Control canvas)
     {
         var badgeLabel = new Label { Text = "Paused · press Space to resume" };
-        badgeLabel.AddThemeColorOverride("font_color", new Color("FFD166"));
+        badgeLabel.ThemeTypeVariation = "SectionLabel";
         badgeLabel.AddThemeFontSizeOverride("font_size", 15);
-        pausedBadge.AddThemeStyleboxOverride("panel", HudStyle(new Color("FFD166")));
+        pausedBadge.ThemeTypeVariation = "HudPanel";
         pausedBadge.AddChild(badgeLabel);
         pausedBadge.Hide();
 
-        hoverReadoutLabel.AddThemeColorOverride("font_color", new Color("DCE8E2"));
         hoverReadoutLabel.AddThemeFontSizeOverride("font_size", 13);
-        hoverReadout.AddThemeStyleboxOverride("panel", HudStyle(new Color("345363")));
+        hoverReadout.ThemeTypeVariation = "HudPanel";
         hoverReadout.AddChild(hoverReadoutLabel);
         hoverReadout.Hide();
 
@@ -40,24 +39,6 @@ public partial class Main
             canvas.AddChild(hud);
         }
     }
-
-    private static StyleBoxFlat HudStyle(Color border) => new()
-    {
-        BgColor = new Color(0.06f, 0.09f, 0.11f, 0.82f),
-        BorderColor = border,
-        BorderWidthLeft = 1,
-        BorderWidthTop = 1,
-        BorderWidthRight = 1,
-        BorderWidthBottom = 1,
-        CornerRadiusTopLeft = 8,
-        CornerRadiusTopRight = 8,
-        CornerRadiusBottomLeft = 8,
-        CornerRadiusBottomRight = 8,
-        ContentMarginLeft = 10,
-        ContentMarginRight = 10,
-        ContentMarginTop = 4,
-        ContentMarginBottom = 4,
-    };
 
     private void PositionMapHud()
     {

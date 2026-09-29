@@ -20,6 +20,7 @@ public partial class Main
         ConfigureTextPanel(modLibraryContents, 190);
         body.AddChild(modLibraryContents);
         AddPanelContents(modLibraryPanel, "Mod Library", body);
+        modLibraryPanel.ThemeTypeVariation = "InsetPanel";
         modLibraryPanel.Hide();
         menuBody.AddChild(modLibraryPanel);
     }

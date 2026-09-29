@@ -223,7 +223,7 @@ list as a cap on invention, or fabricate every possible invented sprite now.
 | 9.5 | D | Economy/work | Item icons used consistently in inventories, stock panels, farm/work progress, Store/Market/Restaurant trade, and offers. Actual physical location and ownership must be visible. |
 | 9.6 | D | Events and conversation | Event Log location markers, chat bubble, conversation summary/full view, decisions, law/election and invention notices inside their relevant panels. No optional out-of-view pop-up notice system. |
 | 9.7 | D | Pause, settings, save, mods | Compact Pause Menu: Save World, Settings, Mod Library, **Quit to Menu last**; no Quit Game there. Game/World Settings, confirmation dialogs, save compatibility, AI-usage meter/limit and mod states. |
-| 9.8 | D | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. Exact look and accessibility treatment open. |
+| 9.8 | D | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes is decided in the vision ledger; the font and remaining accessibility treatment are open. |
 
 All important information remains readable in **text**. Generated voice,
 music, ambient sound and sound effects are **outside the first complete game's

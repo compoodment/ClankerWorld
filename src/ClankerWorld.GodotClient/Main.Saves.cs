@@ -101,7 +101,7 @@ public partial class Main
         manualSaveOverlay.MouseFilter = MouseFilterEnum.Stop;
         manualSaveOverlay.ZIndex = 220;
         AddChild(manualSaveOverlay);
-        var shade = new ColorRect { Color = new Color(0, 0, 0, 0.78f), MouseFilter = MouseFilterEnum.Stop };
+        var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.78f }, MouseFilter = MouseFilterEnum.Stop };
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.AddChild(shade);
         var center = new CenterContainer();

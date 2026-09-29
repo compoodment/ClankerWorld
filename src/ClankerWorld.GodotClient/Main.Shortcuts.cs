@@ -41,7 +41,7 @@ public partial class Main
         foreach (var (keys, action) in ControlsList)
         {
             var keyLabel = new Label { Text = keys };
-            keyLabel.AddThemeColorOverride("font_color", new Color("FFD166"));
+            keyLabel.ThemeTypeVariation = "KeyLabel";
             grid.AddChild(keyLabel);
             grid.AddChild(new Label { Text = action });
         }

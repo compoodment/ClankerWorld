@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- A new look for every menu and panel: wooden frames around parchment
+  panels, ink text and chunky pixel buttons, with green for the main action.
+  Settings has a new Theme choice of Light, Dark (dark wood with cream text)
+  or Match system, which follows your computer's setting. Switching applies at
+  once and is remembered.
 - Escape now backs out one step at a time: a focused text field, an open
   menu, Town-site selection or a founder move, the newest open panel, then the
   selected agent. With nothing open it opens the Pause Menu. The mouse wheel

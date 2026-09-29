@@ -116,9 +116,10 @@ public partial class FamilyTreeView : Control
                     Position = new Vector2(left + column * ColumnWidth, 24 + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
                     TooltipText = "Open " + person.DisplayName + "'s profile",
-                    Modulate = deceased ? new Color("B9B1B8") : new Color("F3E8D2"),
+                    // The person whose tree this is stands out; the deceased are faded.
+                    ThemeTypeVariation = person.Id == centerId ? "PrimaryButton" : string.Empty,
+                    Modulate = deceased ? new Color(1, 1, 1, 0.68f) : Colors.White,
                 };
-                if (person.Id == centerId) button.Modulate = new Color("FFC982");
                 var personId = person.Id;
                 button.Pressed += () => PersonRequested?.Invoke(personId);
                 buttons.Add(person.Id, button);
@@ -140,15 +141,16 @@ public partial class FamilyTreeView : Control
             var from = buttons[parent].Position + new Vector2(NodeWidth / 2, NodeHeight);
             var to = buttons[child].Position + new Vector2(NodeWidth / 2, 0);
             var midpoint = (from.Y + to.Y) / 2;
-            DrawLine(from, new Vector2(from.X, midpoint), new Color("9CD5C4"), 2);
-            DrawLine(new Vector2(from.X, midpoint), new Vector2(to.X, midpoint), new Color("9CD5C4"), 2);
-            DrawLine(new Vector2(to.X, midpoint), to, new Color("9CD5C4"), 2);
+            var kin = UiTheme.Current.Primary;
+            DrawLine(from, new Vector2(from.X, midpoint), kin, 2);
+            DrawLine(new Vector2(from.X, midpoint), new Vector2(to.X, midpoint), kin, 2);
+            DrawLine(new Vector2(to.X, midpoint), to, kin, 2);
         }
         foreach (var (first, second) in partnerEdges)
         {
             var a = buttons[first].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
             var b = buttons[second].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
-            DrawLine(a, b, new Color("E6A4B4"), 2);
+            DrawLine(a, b, UiTheme.Current.Partner, 2);
         }
     }
 }
