@@ -64,6 +64,10 @@ loads still validate and regenerate it; this shortcut must not weaken input
 validation. Missing/corrupt referenced history must fail closed. See Issues for
 current defects rather than treating these requirements as proof of every load path.
 
+World and manual-checkpoint selection preflight the actual referenced history
+before replacing the active save. Save-list metadata alone is not enough to
+establish that the checkpoint can load.
+
 ## Current formats and older worlds
 
 Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON

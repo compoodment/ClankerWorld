@@ -10,7 +10,7 @@ updated: 2026-09-29
 This is the **agreed base-content list for the intended finished game**,
 including things not in the prototype. Computment accepted the initial draft's
 unmentioned entries and corrected the entries called out below. The
-[game design](README.md) is authoritative for decisions; this
+[game design](README.md) records the owner's decisions; this
 numbered list is its detailed content list. The
 [current feature summary](../what-works.md) describes what exists in the playable
 prototype.

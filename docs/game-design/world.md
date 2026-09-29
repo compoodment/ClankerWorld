@@ -33,7 +33,7 @@ everything that is available in the current build. See [what works today](../wha
   simple PC install that runs the game and its the game rules on
   that player's own computer. Their saves and provider credentials belong on
   their computer; playing must not depend on access to computment's VPS or a
-  mandatory hosted game account. If they choose cloud-hosted LLMs, those
+  mandatory hosted game account. If they choose cloud-hosted AI models, those
   providers still require an internet connection and applicable credentials;
   local game hosting does not mean all model inference is offline.
 - **The first finished release supports Windows only.** Computment has a

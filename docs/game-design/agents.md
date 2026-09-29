@@ -27,7 +27,7 @@ everything that is available in the current build. See [what works today](../wha
   During paused setup, the player chooses a rough site and Town generation
   creates the **first Town** with its initial border and buildings. The player
   adds and configures **four biologically unrelated starting agents** using
-  the per-agent provider/model/credential flow. They are grouped 2+2 into two
+  each agent's model and key setup. They are grouped 2+2 into two
   starting households, not forced couples; family lines develop later through
   relationships and children. All four begin as agents of the first Town.
   The simulation cannot begin until this setup is complete. The exact order

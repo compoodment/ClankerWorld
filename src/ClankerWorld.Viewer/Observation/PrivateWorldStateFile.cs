@@ -160,6 +160,12 @@ public sealed class PrivateWorldStateFile
         }
     }
 
+    public void VerifyRequiredHistory(PrivateWorldRuntimeState checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        lock (gate) VerifyHistory(checkpoint.HistoryArchiveHead);
+    }
+
     private void VerifyHistory(string? head)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);

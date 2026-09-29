@@ -11,6 +11,8 @@ release yet.
 
 ### Added
 
+- World selection and named checkpoint loading verify required history segments before replacing the healthy active world. Missing or corrupted archive chains remain recoverable without becoming the active save.
+
 - Scouting safely starts a new local path after another action moves the agent away, instead of joining nonadjacent steps and breaking saves.
 - Inherited physical maps and field records keep their lot identity, preserving the knowledge artifact link and saveability without broadcasting their contents.
 - Failed founder checkpoint writes roll back the founder and provider configuration. World selection and founder setup share one transaction gate so successful placements keep their model assignments.

@@ -39,6 +39,7 @@ public sealed class WorldSelectionCoordinator(
         try
         {
             var checkpoint = catalog.Read(world.Id);
+            stateFile.VerifyRequiredHistory(checkpoint);
             using var verified = PrivateWorldRuntime.Restore(checkpoint, providerFactory);
             if (!providers.CanRestoreWorldAssignments(world.Assignments))
                 return world with
@@ -135,6 +136,7 @@ public sealed class WorldSelectionCoordinator(
 
     private void SelectCore(CatalogWorld entry, PrivateWorldRuntimeState target)
     {
+        stateFile.VerifyRequiredHistory(target);
         var old = runtime.ExportState();
         var oldEntry = catalog.Active();
         var oldAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];

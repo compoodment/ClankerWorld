@@ -72,8 +72,9 @@ question. The graph should show discoveries, not spoil a fixed future list.
 
 ### Still to decide
 
-Exact sandbox/runtime and APIs; world rules that inventions cannot change; validation and
-activation/rollback semantics; art generation/cost; model invention prompts;
-materials/prerequisite logic; who knows which capabilities; package
-compatibility/dependencies/rights; external-mod import UX; and how the
-library handles revisions and conflicting imports.
+How scripts are restricted and which game functions they can use; the world
+rules inventions cannot change; checks before activation and how to undo a
+failed change; generated art and its cost; model invention prompts; required
+materials and discoveries; who knows which capabilities; package compatibility,
+dependencies and rights; the steps for importing outside mods; and how the
+library handles updated or conflicting imports.

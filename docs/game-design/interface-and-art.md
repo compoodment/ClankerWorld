@@ -143,8 +143,8 @@ everything that is available in the current build. See [what works today](../wha
   of recent private thoughts** is available there too. The player can inspect
   them, but other agents do not automatically know them. A separate
   **Memories** section lets the player inspect what this agent remembers or
-  believes happened, including mistaken beliefs; it is not the authoritative
-  world event log. Inventory, relationships, and model settings can expand
+  believes happened, including mistaken beliefs; it is different from the game's
+  record of actual world events. Inventory, relationships, and model settings can expand
   from the same popup. A **Family Tree** action opens a larger interactive
   graphical view; selecting a person in the tree opens that person's agent
   info popup, including for deceased relatives. The tree distinguishes
