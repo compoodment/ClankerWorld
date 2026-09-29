@@ -801,6 +801,15 @@ interrupt/resume behavior, memory importance/retention rules, compaction
 triggers and fallback method without Jev, and Jev's exact role
 need implementation and playtesting. The proposed lifecycle is accepted as a
 direction, not proof that it will feel right in the finished game.
+The September 29 external code review raised additional **questions, not
+decisions**: whether personality is fixed at creation or changes through
+experience; whether a model sees numeric needs or descriptive bands; how
+routine and dialogue budgets are split; whether each participant's own model
+speaks its own conversation turns; and whether spoken promises become tracked
+commitments whose fulfilment or breach can be observed. Resolve these against
+the accepted per-agent identity, truth/provenance and spending principles
+before specifying a conversation-call protocol. The review's proposed schemas
+and token settings are implementation options, not finished-game canon.
 
 ## Survival and exploration
 

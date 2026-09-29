@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- Fresh generated worlds no longer show a second pre-placed camp or provisional
+  Town beside the player-chosen five-building site. The New World preview no
+  longer marks a supposed starting camp. Older saves keep their original map
+  identity and camp objects rather than being rewritten on load.
+
 - Starter Town and later Town-building Roads now connect beside building
   entrances, never through their footprints. New branches use connected
   orthogonal ground tiles instead of painting a building anchor as Road. Future
@@ -201,6 +206,8 @@ release yet.
 
 ### Fixed
 
+- A world where an agent ate orchard fruit now saves and reloads normally;
+  that meal source was previously rejected by save validation.
 - The Town panel no longer goes blank while the world is paused, and
   reselecting an agent no longer leaves their relationships, private thoughts
   or memories empty. The Event Log keeps your scroll position between updates
@@ -211,8 +218,8 @@ release yet.
   world host refuses is reported as not accepted rather than as a lost
   connection. Messages from Main Menu Settings are no longer hidden behind the
   title backdrop.
-- Opening a world now centers the camera on its first Town (or its agents)
-  instead of the middle of the map, which was often open sea.
+- Opening a world now centers the camera on its first Town or living agents;
+  a new, unsettled world starts over dry land instead of possibly over open sea.
 - The selected-tile card no longer extends below the bottom of the screen or
   hides its last fact behind a scrollbar.
 - Map markers too small for their name now show only their symbol, with full
@@ -224,6 +231,7 @@ release yet.
   button as Main Menu Settings instead of a second large Back button, and
   scrolls the pairing code into view. Settings and autosave choices line up in
   one column at every UI Scale.
+
 - Adults in a household that already has a House no longer plan a redundant
   new House. An in-progress second-House project ends with a visible reason
   before spending supplies; household invitation and new-household choices for

@@ -13,7 +13,9 @@ public sealed class FirstTownLayoutPlannerTests
         using var world = new PrivateWorldRuntime(geography.Seed,
             startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         world.InitializeFirstTownContent();
-        var initialSite = world.ExportState().Map.GetObject("storage").Position;
+        Assert.Empty(world.Towns);
+        Assert.Empty(world.ExportState().Map.CampObjects);
+        var initialSite = world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position;
         var first = world.AcceptFirstTownLayout(initialSite);
         Assert.Equal(5, first.Buildings.Count);
         Assert.Equal(5, world.WorldSimulation.Buildings.Count);
@@ -63,7 +65,7 @@ public sealed class FirstTownLayoutPlannerTests
     public void StartingPlanHasFiveLegalBuildingsAndAConnectedRoadNetwork(string seed)
     {
         var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small));
-        var roughSite = map.GetObject("storage").Position;
+        var roughSite = map.Resources.Single(item => item.Id == "berry-patch").Position;
         var plan = FirstTownLayoutPlanner.Plan(map, roughSite);
         Assert.NotNull(plan);
         var repeated = FirstTownLayoutPlanner.Plan(map, roughSite);

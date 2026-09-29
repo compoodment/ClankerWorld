@@ -47,11 +47,13 @@ public sealed partial class PrivateWorldRuntime
                 };
             }
             var starterInventory = PrepareFirstTownStock(society.Checkpoint.Inventory);
+            var firstTownWasUnplaced = towns.Count == 0;
             worldSimulation = WorldContentSimulationState.Empty with { Buildings = placed };
             towns = [town];
             roadTiles = plan.RoadTiles.ToHashSet();
             ApplyInventoryTransition(_ => starterInventory);
             checkpointSchemaVersion = StateSchemaVersion;
+            if (firstTownWasUnplaced) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
             AppendEvent(existing.Count == 0 ? "first_town_layout_accepted" : "first_town_layout_redone",
                 $"{roughSite.X},{roughSite.Y}:buildings:{placed.Length}:roads:{roadTiles.Count}");
             return plan;

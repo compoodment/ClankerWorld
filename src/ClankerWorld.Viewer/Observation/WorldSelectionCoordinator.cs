@@ -78,7 +78,9 @@ public sealed class WorldSelectionCoordinator(
             // the currently selected world is running or waiting for a client;
             // Create and Select still require a confirmed pause.
             var map = GeneratedCampMapGenerator.Generate(geography);
-            var camp = map.GetObject("storage").Position;
+            // The preview contract retains a suggested passable area for older
+            // clients, but fresh maps have no placed camp or Town at this site.
+            var camp = map.Resources.First(item => item.Id == "berry-patch").Position;
             WorldSelectionTelemetry.Previewed(logger, map.Width, map.Height);
             return new ViewerWorldPreview(OwnerWorldObservationStore.PackTerrain(map),
                 new ViewerPosition(camp.X, camp.Y), map.ManifestDigest, map.Resources.Count)

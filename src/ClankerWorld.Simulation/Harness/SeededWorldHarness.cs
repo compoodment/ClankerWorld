@@ -220,7 +220,9 @@ public sealed record SeededMap(
 
     public bool IsReachableFromCampOnFoot(GridPoint point) => Contains(point) &&
         CampReachability.GetValue(this, static map =>
-            MapAcceptance.ReachableFrom(map, map.GetObject("storage").Position)).Contains(point);
+            MapAcceptance.ReachableFrom(map,
+                map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
+                map.Resources.First(item => item.Id == "berry-patch").Position)).Contains(point);
 
     private static bool IsOpenGround(byte kind) => kind is
         (byte)TerrainKind.Meadow or (byte)TerrainKind.Sand or
@@ -422,16 +424,21 @@ public static class GeneratedCampMapGenerator
     private const int CampHeight = 5;
 
     public static SeededMap Generate(GeographyOptions options, bool includeLegacyBedroll = false)
-        => GenerateCore(options, includeLegacyBedroll, legacyLayout: false);
+        => GenerateCore(options, includeLegacyBedroll, legacyLayout: false, retainLegacyCamp: false);
+
+    // Preserve the exact map lineage of pre-site-selection generated worlds.
+    // Their saved camp objects remain valid and are never silently rewritten.
+    public static SeededMap GenerateWithLegacyCamp(GeographyOptions options, bool includeLegacyBedroll = false)
+        => GenerateCore(options, includeLegacyBedroll, legacyLayout: false, retainLegacyCamp: true);
 
     // Reconstruct the pre-layer generated manifest when validating old saves.
     // The old resource placement and camp-site rules are part of that map's
     // identity; accepting its self-digest alone would not prove provenance.
     public static SeededMap GenerateLegacy(GeographyOptions options, bool includeLegacyBedroll)
-        => GenerateCore(options, includeLegacyBedroll, legacyLayout: true);
+        => GenerateCore(options, includeLegacyBedroll, legacyLayout: true, retainLegacyCamp: true);
 
     private static SeededMap GenerateCore(GeographyOptions options, bool includeLegacyBedroll,
-        bool legacyLayout)
+        bool legacyLayout, bool retainLegacyCamp)
     {
         ArgumentNullException.ThrowIfNull(options);
         // This bridge still allocates one object per tile for the old
@@ -496,7 +503,7 @@ public static class GeneratedCampMapGenerator
             ? FindLegacyCampOrigin(kinds, width, height)
             : FindCampOrigin(hydrologyKinds, elevationLevels, legacySurfaceKinds, width, height);
         var template = BaseCampMapGenerator.Generate(options.Seed, includeLegacyBedroll);
-        var objects = template.CampObjects.Select(item => item with
+        var objects = (retainLegacyCamp ? template.CampObjects : []).Select(item => item with
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
         }).ToArray();
@@ -541,7 +548,7 @@ public static class GeneratedCampMapGenerator
         var map = withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
         var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
         if (!validation.IsValid)
-            throw new InvalidOperationException($"Generated base camp is invalid: {validation.Failure}");
+            throw new InvalidOperationException($"Generated world is invalid: {validation.Failure}");
         return map;
     }
 
@@ -1177,7 +1184,7 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("An empty base camp cannot contain a founder marker.");
 
         var requiredKinds = new[] { "shelter", "storage", "cooking" };
-        if (requiredKinds.Any(kind => !map.CampObjects.Any(mapObject =>
+        if ((!allowEmptyCamp || map.CampObjects.Count > 0) && requiredKinds.Any(kind => !map.CampObjects.Any(mapObject =>
                 string.Equals(mapObject.Kind, kind, StringComparison.Ordinal))))
         {
             return MapValidationResult.Invalid("A required camp-start placement is missing.");
@@ -1216,8 +1223,12 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("Reachable food, construction, or fertile-land resources are missing.");
         }
 
-        var startingPoint = founder?.Position ?? map.GetObject("storage").Position;
-        var reachable = ReachableFrom(map, startingPoint);
+        var startingPoint = founder?.Position ??
+            map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
+            map.Resources.FirstOrDefault(item => item.Id == "berry-patch")?.Position;
+        if (startingPoint is null)
+            return MapValidationResult.Invalid("The starting area has no reachable food resource.");
+        var reachable = ReachableFrom(map, startingPoint.Value);
         var starterResources = allowEmptyCamp
             ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "fertile-land")
             : map.Resources;

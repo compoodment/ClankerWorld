@@ -210,22 +210,20 @@ public sealed class GeographyGeneratorTests
     [Theory]
     [InlineData(WorldSizePreset.Small)]
     [InlineData(WorldSizePreset.Medium)]
-    public void GeneratedGeographySupportsAnEmptyPlayableCampAndNoBuildHighGround(WorldSizePreset size)
+    public void GeneratedGeographyStartsWithoutCampObjectsAndKeepsHighGroundUnbuildable(WorldSizePreset size)
     {
         var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(
             "river-world-a", size, WrapEastWest: true));
 
         Assert.Equal(GeographyGenerator.Dimensions(size), (map.Width, map.Height));
         Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid);
-        Assert.DoesNotContain(map.CampObjects, item => item.Kind == "founder");
+        Assert.Empty(map.CampObjects);
         Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.River);
         Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.Mountain);
         Assert.All(map.Tiles.Where(item => item.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
             item => Assert.False(map.IsBuildable(item.Position)));
-        Assert.All(map.CampObjects, item => Assert.True(map.IsPassable(item.Position)));
-        Assert.True(map.Resources.Count > 20, "Generated worlds need usable sites beyond the starter camp.");
+        Assert.True(map.Resources.Count > 20, "Generated worlds need usable sites beyond the starting area.");
         Assert.All(map.Resources, site => Assert.True(map.IsPassable(site.Position)));
-        Assert.DoesNotContain(map.Resources, site => map.CampObjects.Any(item => item.Position == site.Position));
     }
 
     [Fact]
@@ -614,12 +612,19 @@ public sealed class GeographyGeneratorTests
         using var setup = new PrivateWorldRuntime(options.Seed,
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = setup.ExportState().Map;
-        var campAnchor = map.GetObject("storage").Position;
+        var campAnchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        setup.InitializeFirstTownContent();
+        setup.AcceptFirstTownLayout(campAnchor);
+        var buildingTiles = setup.WorldSimulation.Buildings.SelectMany(building =>
+        {
+            var definition = setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+            return WorldContentSimulationRules.Footprint(definition, building.Position);
+        }).ToHashSet();
         var startingTiles = map.Tiles.Where(tile =>
                 Math.Abs(tile.Position.X - campAnchor.X) <= 5 &&
                 Math.Abs(tile.Position.Y - campAnchor.Y) <= 5 &&
-                map.IsPassable(tile.Position) &&
-                !map.CampObjects.Any(item => item.Position == tile.Position) &&
+                map.IsBuildable(tile.Position) &&
+                !buildingTiles.Contains(tile.Position) &&
                 !map.Resources.Any(item => item.Position == tile.Position))
             .Take(4).Select(tile => tile.Position).ToArray();
         Assert.Equal(4, startingTiles.Length);
@@ -630,7 +635,7 @@ public sealed class GeographyGeneratorTests
     }
 
     [Fact]
-    public async Task GeneratedCampCanStartAdvanceAndRestoreWithItsOwnGeography()
+    public async Task GeneratedWorldCanStartAdvanceAndRestoreWithItsOwnGeography()
     {
         var options = new GeographyOptions("generated-life", WorldSizePreset.Small, WrapEastWest: true);
         using var world = new PrivateWorldRuntime(options.Seed,
@@ -655,12 +660,21 @@ public sealed class GeographyGeneratorTests
         var terrainBytes = Convert.FromBase64String(projection.PackedTerrain.Data);
         Assert.Equal(initial.Map.Tiles.Count, terrainBytes.Length);
         Assert.Equal((byte)initial.Map.Tiles[0].Terrain, terrainBytes[0]);
-        var townStorage = initial.Map.GetObject("storage").Position;
+        var townStorage = initial.Map.Resources.Single(item => item.Id == "berry-patch").Position;
+        Assert.Empty(initial.Map.CampObjects);
+        Assert.Empty(world.Towns);
+        world.InitializeFirstTownContent();
+        world.AcceptFirstTownLayout(townStorage);
+        var buildingTiles = world.WorldSimulation.Buildings.SelectMany(building =>
+        {
+            var definition = world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+            return WorldContentSimulationRules.Footprint(definition, building.Position);
+        }).ToHashSet();
         var positions = initial.Map.Tiles.Where(tile =>
                 tile.Position.X >= townStorage.X - 1 && tile.Position.X < townStorage.X + 5 &&
                 tile.Position.Y >= townStorage.Y - 1 && tile.Position.Y < townStorage.Y + 4 &&
-                initial.Map.IsPassable(tile.Position) &&
-                !initial.Map.CampObjects.Any(item => item.Position == tile.Position) &&
+                initial.Map.IsBuildable(tile.Position) &&
+                !buildingTiles.Contains(tile.Position) &&
                 !initial.Map.Resources.Any(item => item.Position == tile.Position))
             .Take(4).Select(tile => tile.Position).ToArray();
         Assert.Equal(4, positions.Length);
@@ -672,7 +686,7 @@ public sealed class GeographyGeneratorTests
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var restored = PrivateWorldRuntime.Restore(saved);
         Assert.Equal(1, restored.WorldTick);
-        Assert.Equal(initial.Map.ManifestDigest, restored.ExportState().Map.ManifestDigest);
+        Assert.Equal(saved.Map.ManifestDigest, restored.ExportState().Map.ManifestDigest);
         Assert.Equal(options, restored.ExportState().Geography);
         Assert.True(restored.ExportState().Map.WrapsEastWest);
         using var legacyCheckpoint = PrivateWorldRuntime.Restore(saved with
@@ -840,7 +854,7 @@ public sealed class GeographyGeneratorTests
         var options = new GeographyOptions("storm-cover", WorldSizePreset.Small);
         var initial = StartedGeneratedWorld(options);
         var map = initial.Map;
-        var camp = map.GetObject("storage").Position;
+        var camp = map.Resources.Single(item => item.Id == "berry-patch").Position;
         var pair = map.Tiles.Where(tile => map.VegetationAt(tile.Position) == VegetationCover.Forest &&
                 map.IsPassable(tile.Position) && map.FootDistance(camp, tile.Position) > 12)
             .SelectMany(tile => map.FootNeighbors(tile.Position).Where(neighbor =>

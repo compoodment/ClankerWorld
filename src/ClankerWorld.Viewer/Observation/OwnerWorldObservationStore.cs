@@ -228,9 +228,12 @@ public sealed class OwnerWorldObservationStore
         var mapLayersUnchanged = terrainUnchanged && mapLayersDigest is not null &&
             string.Equals(knownMapLayersDigest, mapLayersDigest, StringComparison.Ordinal);
         var packedTerrain = state.Geography is null || terrainUnchanged ? null : PackTerrain(map);
+        var weatherAnchor = map.CampObjects.FirstOrDefault(item => item.Kind == "cooking")?.Position ??
+            state.Towns?.FirstOrDefault(item => item.OriginSite is not null)?.OriginSite ??
+            map.Resources.First(item => item.Id == "berry-patch").Position;
         var campWeather = state.WorldSystems is { } currentSystems
             ? WeatherRules.At(currentSystems,
-                map.CampObjects.First(item => item.Kind == "cooking").Position, map.Height)
+                weatherAnchor, map.Height)
             : WeatherKind.Clear;
         return new ViewerWorldSnapshot(
             state.Society.Society.WorldId,

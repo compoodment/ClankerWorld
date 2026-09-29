@@ -406,8 +406,8 @@ public partial class Main : Control
                     throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
                 manualSaveOverlay.Hide();
                 worldMenuHeading.Text = "New World";
-                worldMenuStatus.Text = "Choose a seed and size. The new world opens paused at its empty camp; add four founders before starting time.";
-                worldPreviewStatus.Text = "Map preview · camp at 100, 60. The world you create will use this terrain.";
+                worldMenuStatus.Text = "Choose a seed and size. Then choose your Town site and add four founders before starting time.";
+                worldPreviewStatus.Text = "Map preview · choose your Town site after creating the world.";
                 worldPreview.Show();
                 worldMenuOverlay.Show();
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1309,6 +1309,19 @@ public partial class Main : Control
             GD.Print($"Zoom comparison at {mapCanvas.Size}: 12 px={oldVisibleWidth:0} columns/{oldTileCount} tiles, {baselinePan.Elapsed.TotalMilliseconds:0} ms/8 pan frames; 8 px={wideVisibleWidth:0} columns/{wideTileCount} tiles, {widePan.Elapsed.TotalMilliseconds:0} ms/8 pan frames (headless sample).");
             cameraZoom = 1;
             RenderMap(largeMap);
+            var waterCenter = WorldTerrainMap.FromTiles(
+                (from y in Enumerable.Range(0, 9)
+                 from x in Enumerable.Range(0, 9)
+                 select new OwnerWorldTile(x, y, x is >= 5 and <= 7 && y is >= 5 and <= 7
+                     ? "meadow" : "ocean")).ToArray(), 9, 9);
+            var emptyWorldFocus = InitialCameraCenter(largeMap with
+            {
+                Towns = [],
+                Inhabitants = [],
+                Objects = [],
+            }, waterCenter);
+            if (emptyWorldFocus.DistanceTo(new Vector2(6.5f, 6.5f)) > 0.01f)
+                throw new InvalidOperationException($"A new world without a Town or agents must open over dry land: camera={emptyWorldFocus}.");
             var focusedMap = largeMap with
             {
                 WorldId = "ui-camera-focus",
@@ -4172,7 +4185,7 @@ public partial class Main : Control
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
-            cameraCenterTiles = InitialCameraCenter(snapshot, mapWidth, mapHeight);
+            cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
         }
         UpdateMapGeometry(snapshot);
 
@@ -4305,10 +4318,13 @@ public partial class Main : Control
     /// <summary>
     /// Opens a world on its settlement rather than the geometric map center,
     /// which on generated maps is often open water: the first Town, then the
-    /// living agents, then the starting camp objects.
+    /// living agents, then camp objects. A new world has none of these yet,
+    /// so it opens near dry land instead of possibly over open water.
     /// </summary>
-    private static Vector2 InitialCameraCenter(OwnerWorldSnapshot snapshot, int mapWidth, int mapHeight)
+    private static Vector2 InitialCameraCenter(OwnerWorldSnapshot snapshot, WorldTerrainMap terrain)
     {
+        var mapWidth = terrain.Width;
+        var mapHeight = terrain.Height;
         IReadOnlyList<OwnerWorldPosition> focus =
             snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Count > 0)?.BorderTiles ?? [];
         if (focus.Count == 0)
@@ -4319,7 +4335,43 @@ public partial class Main : Control
                 .Select(person => person.Position).ToArray();
         }
         if (focus.Count == 0) focus = snapshot.Objects.Select(item => item.Position).ToArray();
-        if (focus.Count == 0) return new Vector2(mapWidth / 2f, mapHeight / 2f);
+        if (focus.Count == 0)
+        {
+            // Prefer a little room around the cursor for Town-site selection.
+            // This is a camera hint, not a claim that the host will accept a
+            // five-building layout at that tile.
+            static bool Dry(byte kind) => kind is 1 or 7 or 8 or 9;
+            Vector2? nearestDry = null;
+            Vector2? nearestWithRoom = null;
+            var dryDistance = float.MaxValue;
+            var roomDistance = float.MaxValue;
+            for (var y = 1; y < mapHeight - 1; y++)
+            {
+                for (var x = 1; x < mapWidth - 1; x++)
+                {
+                    if (!Dry(terrain.At(x, y))) continue;
+                    var deltaX = x - mapWidth / 2f;
+                    var deltaY = y - mapHeight / 2f;
+                    var distance = deltaX * deltaX + deltaY * deltaY;
+                    if (distance < dryDistance)
+                    {
+                        dryDistance = distance;
+                        nearestDry = new Vector2(x + 0.5f, y + 0.5f);
+                    }
+                    var hasRoom = true;
+                    for (var dy = -1; dy <= 1 && hasRoom; dy++)
+                    {
+                        for (var dx = -1; dx <= 1; dx++)
+                            if (!Dry(terrain.At(x + dx, y + dy))) hasRoom = false;
+                    }
+                    if (!hasRoom) continue;
+                    if (distance >= roomDistance) continue;
+                    roomDistance = distance;
+                    nearestWithRoom = new Vector2(x + 0.5f, y + 0.5f);
+                }
+            }
+            return nearestWithRoom ?? nearestDry ?? new Vector2(mapWidth / 2f, mapHeight / 2f);
+        }
         // Measure east/west offsets from one member so a group straddling a
         // wrapped seam is framed together instead of averaging to the far side.
         var reference = focus[0].X;

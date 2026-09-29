@@ -312,7 +312,7 @@ public partial class Main
         body.AddChild(worldPreviewButton);
         worldPreview.ShowCameraBounds = false;
         worldPreview.MouseFilter = MouseFilterEnum.Ignore;
-        worldPreview.TooltipText = "Generated map preview; the gold marker shows the starting camp.";
+        worldPreview.TooltipText = "Generated map preview. Choose a Town site after creating the world.";
         worldPreview.CustomMinimumSize = new Vector2(400, 170);
         worldPreview.Hide();
         body.AddChild(worldPreview);
@@ -357,7 +357,7 @@ public partial class Main
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
         worldMenuHeading.Text = create ? "New World" : "Load World";
         worldMenuStatus.Text = create
-            ? "Choose a seed and size. The new world opens paused at its empty camp; add four founders before starting time."
+            ? "Choose a seed and size. Then choose your Town site and add four founders before starting time."
             : "Choose a world. The current world is saved before switching.";
         worldNameInput.Visible = create;
         worldSeedInput.GetParent<Control>().Visible = create;
@@ -474,13 +474,13 @@ public partial class Main
             {
                 return;
             }
-            worldPreview.MarkerTile = new Vector2(result.Camp.X, result.Camp.Y);
+            worldPreview.MarkerTile = null;
             worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain, result.PackedMapLayers));
             worldPreview.Show();
             previewedWorldOptions = action;
             worldCreateButton.Disabled = false;
-            worldPreviewStatus.Text = $"Map preview · camp at {result.Camp.X}, {result.Camp.Y}. " +
-                $"{result.ResourceSites} resource sites. The world you create will use this terrain.";
+            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
+                "Choose your Town site after creating the world.";
         }
         catch (Exception exception)
         {

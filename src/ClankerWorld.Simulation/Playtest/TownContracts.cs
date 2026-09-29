@@ -38,7 +38,8 @@ public static class TownBorderRules
         GridPoint[] anchors = originSite is { } site ? [site] : map.CampObjects
             .Where(item => item.Kind is not ("founder" or "bedroll"))
             .Select(item => item.Position).ToArray();
-        if (anchors.Length == 0) anchors = [map.GetObject("storage").Position];
+        if (anchors.Length == 0)
+            throw new ArgumentException("Choose a Town origin before establishing a Town on a map without camp objects.", nameof(originSite));
         var border = Rectangle(map,
             anchors.Min(point => point.X) - SpareTileMargin,
             anchors.Min(point => point.Y) - SpareTileMargin,

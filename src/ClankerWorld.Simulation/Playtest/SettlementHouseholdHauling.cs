@@ -36,7 +36,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } house)
             return;
-        var camp = map.GetObject("storage").Position;
+        var camp = SettlementStoragePosition;
         if (UnlocatedHouseholdStock(householdId) is not null &&
             FindUnoccupiedRoute(actor, state.Position, camp, ResourceInteractionRange).Count > 0 &&
             FindUnoccupiedRoute(actor, camp, house.Position, 0).Count > 0)
@@ -96,7 +96,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         if (UnlocatedHouseholdStock(householdId) is not { } stock)
             return;
-        var camp = map.GetObject("storage").Position;
+        var camp = SettlementStoragePosition;
         if (!IsWithinInteractionRange(state.Position, camp, ResourceInteractionRange))
         {
             MoveToward(actor, state, camp, "household_stock", ResourceInteractionRange);

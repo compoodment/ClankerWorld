@@ -2,7 +2,7 @@
 title: ClankerWorld Current Architecture
 type: architecture
 status: active
-updated: 2026-09-28
+updated: 2026-09-29
 ---
 
 # Current architecture
@@ -40,8 +40,10 @@ reuses its verified map; first connection, world switch and digest changes
 send a full map. This whole-map delta avoids routine retransmission, but
 viewport/chunk transfer and control-receipt caching remain large-world work.
 The simulation projects Small/Medium deterministic generated geography into
-its existing physical-map contract, places an empty camp on a clear 64×64
-region, then carries generation options through save/reload and starting-agent setup.
+its existing physical-map contract. Fresh maps contain no pre-placed camp
+objects or Town; the player-accepted site creates the first Town. The previous
+generator remains available to verify older saves against their original map
+identity. Generation options survive save/reload and starting-agent setup.
 It persists separate row-major climate-zone, elevation, hydrology, surface,
 and vegetation-cover layers beside the stable v1 terrain projection. Individual
 trees remain resources/objects, not vegetation-cover values. Generated movement
@@ -59,13 +61,13 @@ optional latitude cooling. The larger geography presets remain compact
 generator outputs, not playable-map promises.
 Generated maps also choose bounded resource sites per 16×16 ground
 cell, with food/fiber/seed/stone/wood biased by their surface and vegetation
-layers. Starter camp resources remain reachable; remote sites need not be
+layers. Starter-area resources remain reachable; remote sites need not be
 reachable on foot.
 The simulation creates 64×64 chunk manifests across the generated map, each
 holding only its own resource metadata; the tiny fixture retains one chunk.
-Food and project-material selection currently consider the camp's foot-accessible
-ground component, so resources across water or mountains do not masquerade as
-immediately available. A boat-access model must broaden this later.
+Food and project-material selection currently consider the starting area's
+foot-accessible ground component, so resources across water or mountains do
+not masquerade as immediately available. A boat-access model must broaden this later.
 This is not yet a detailed vegetation/object model.
 The optional abundance setting uses a provisional density rule over those
 16×16 cells: Sparse visits alternating cells, Normal tries one site per cell,
@@ -111,9 +113,9 @@ catalog selection update. Named manual saves are listed only for their world.
 World creation and selection require the paired owner's signed request and
 leave the selected world paused.
 The signed preview regenerates the same deterministic Small/Medium map and
-returns its packed terrain, camp point and manifest digest without changing the
-active world or catalog. The client draws that data atlas before Create World
-is enabled; changed generation options invalidate the preview.
+returns its packed terrain, suggested starting point and manifest digest
+without changing the active world or catalog. The client draws that data atlas
+before Create World is enabled; changed generation options invalidate the preview.
 The existing paired-device authority ID remains installation-stable across
 world selection; it does not become the selected simulation world's ID. A
 restart checks the server authority and restores the paired key even when the
@@ -159,6 +161,27 @@ local relevance path remains available when Jev is disabled. Source records
 remain unchanged and inspectable; beliefs do not become world facts through
 compaction. This is bounded relevance assistance, not automatic experience
 capture or generated narrative summaries.
+
+The current provider contract is a **single legal-candidate choice**, not a
+dialogue turn. OpenAI-compatible adapters receive an ID, tick/epoch bookkeeping,
+an unlabeled `hunger_basis_points` value that actually measures fullness (0 =
+starving, 10,000 = full), legal candidates, up to four retrieved memories and
+bounded known-map facts. They do not receive the agent's name, life stage,
+personality, aspiration, household, current activity, nearby people or
+relationships, weather/warmth/illness, inventory, or recent thoughts. The
+system message describes JSON and memory provenance, not the agent's world or
+role. Jev receives a different, smaller choice payload plus optional memory
+compaction candidates; it is not a persona/dialogue adapter. These are current
+implementation limits, not an intended definition of personal-model identity.
+The selected candidate must be legal and response confidence below 0.5 invokes
+only `safe_idle`; probabilities are validated/retained but do not choose the
+action. Provider-owned model text cannot directly mutate world state.
+
+The active recovery checkpoint is re-encoded and fsync-written after each
+advanced one-second tick. History is compacted into digest-addressed segments,
+so the active event list is bounded, but segment retention and large-world
+write cost have not been measured. This durability/performance trade-off must
+be resolved before claiming Large/Huge/Mega runtime support.
 
 ## Authority and failure boundaries
 

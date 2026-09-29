@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("settlement_trade_declined", actor);
             return;
         }
-        var camp = map.GetObject("storage").Position;
+        var camp = SettlementStoragePosition;
         if (!IsWithinInteractionRange(state.Position, camp, ResourceInteractionRange))
         {
             MoveToward(actor, state, camp, "trade", ResourceInteractionRange);

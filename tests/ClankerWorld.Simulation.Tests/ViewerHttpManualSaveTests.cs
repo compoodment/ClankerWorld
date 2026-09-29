@@ -141,12 +141,14 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
                 Assert.Equal(preview.MapLayersDigest, MapLayerManifestCodec.Digest(runtime.ExportState().Map));
                 Assert.Equal(preview.ResourceSites, runtime.ExportState().Map.Resources.Count);
-                Assert.Equal(preview.Camp.X, runtime.ExportState().Map.GetObject("storage").Position.X);
-                Assert.Equal(preview.Camp.Y, runtime.ExportState().Map.GetObject("storage").Position.Y);
+                Assert.Empty(runtime.ExportState().Map.CampObjects);
+                Assert.Empty(runtime.Towns);
+                Assert.Equal(preview.Camp.X, runtime.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position.X);
+                Assert.Equal(preview.Camp.Y, runtime.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position.Y);
                 Assert.Equal(ClimateMode.Uniform, runtime.ExportState().Geography?.ClimateMode);
                 Assert.Equal(ResourceAbundance.Abundant, runtime.ExportState().Geography?.ResourceAbundance);
                 Assert.Equal(ClimateZone.Dry, runtime.ExportState().Map.ClimateAt(
-                    runtime.ExportState().Map.GetObject("storage").Position));
+                    new GridPoint(preview.Camp.X, preview.Camp.Y)));
                 var townSite = new OwnerFirstTownLayoutAction(preview.Camp.X, preview.Camp.Y);
                 using var acceptedTown = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/town/first-layout", townSite,

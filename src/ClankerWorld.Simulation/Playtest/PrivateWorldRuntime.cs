@@ -140,6 +140,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
     private HashSet<GridPoint> roadTiles = [];
+    private GridPoint SettlementStoragePosition =>
+        map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
+        worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
+        towns.FirstOrDefault(item => item.OriginSite is not null)?.OriginSite ??
+        map.Resources.First(item => item.Id == "berry-patch").Position;
+    private GridPoint WeatherAnchor =>
+        map.CampObjects.FirstOrDefault(item => item.Kind == "cooking")?.Position ??
+        towns.FirstOrDefault(item => item.OriginSite is not null)?.OriginSite ??
+        SettlementStoragePosition;
     private long nextInstructionSequence = 1;
     private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
     private readonly List<PrivateWorldMemoryCompactionTransition> memoryCompactionTransitions = [];
@@ -219,7 +228,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (startPace == WorldStartPace.FounderSetup)
         {
             founderSetup = new FounderSetupState([], false);
-            towns = [TownBorderRules.CreateFirstTown(map)];
+            if (geographyOptions is null)
+                towns = [TownBorderRules.CreateFirstTown(map)];
         }
         else
             CreatePhysicalState();
@@ -732,7 +742,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var previousClimate = worldSystems.Climate;
             worldSystems = WorldSystemsRules.AdvanceOneTick(worldSystems);
             SyncEcologyResourceStates();
-            var campPosition = map.CampObjects.First(item => item.Kind == "cooking").Position;
+            var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherRules.At(worldSystems with
             { WorldTick = previousClimate.WorldTick, Climate = previousClimate },
                 campPosition, map.Height, WeatherRules.RegionClimate(map, campPosition));
@@ -1538,7 +1548,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (geographyOptions is not null && setup.FounderIds.Count == 0 &&
             contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.ActivationTick == 0) &&
-            towns.Single(item => item.Id == TownBorderRules.FirstTownId).OriginSite is null)
+            !towns.Any(item => item.Id == TownBorderRules.FirstTownId && item.OriginSite is not null))
             throw new InvalidOperationException("Choose the first Town site before placing founders.");
         if (founderId is null || !founderId.StartsWith("founder:", StringComparison.Ordinal) ||
             !Guid.TryParseExact(founderId["founder:".Length..], "N", out _) ||
@@ -1814,6 +1824,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private static IReadOnlyList<TownRuntimeState> MigrateTowns(PrivateWorldRuntimeState state)
     {
         if (state.FounderSetup is not { } setup) return [];
+        if (!setup.Started && setup.FounderIds.Count == 0 && state.Map.CampObjects.Count == 0)
+            return [];
         var active = state.Society.Society.Inhabitants
             .Where(person => person.Status == SocietyInhabitantStatus.Active)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
@@ -1837,6 +1849,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             return;
         }
 
+        if (savedTowns.Count == 0 && !setup.Started && setup.FounderIds.Count == 0 &&
+            map.CampObjects.Count == 0 && simulation.Buildings.Count == 0)
+            return;
         if (savedTowns.Count != 1)
             throw new InvalidDataException("A founder-setup world must have exactly one first Town.");
         var town = savedTowns[0];
@@ -3422,7 +3437,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.StorageBuildingId is { } buildingId
         ? worldSimulation.Buildings.Single(building => building.InstanceId == buildingId).Position
-        : map.GetObject("storage").Position;
+        : SettlementStoragePosition;
 
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
         lot.StorageBuildingId is null ? ResourceInteractionRange : 0;

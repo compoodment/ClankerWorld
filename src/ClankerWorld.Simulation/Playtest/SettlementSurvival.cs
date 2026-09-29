@@ -387,7 +387,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Survival is { } condition && (state.SchemaVersion < 6 || state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
-                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations")))
+                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard")))
             {
                 throw new InvalidDataException("The saved inhabitant survival condition is invalid.");
             }

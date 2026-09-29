@@ -13,6 +13,29 @@ public sealed class TownRuntimeTests
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void OlderCampWorldWithoutSavedTownRebuildsItsResidentBorder()
+    {
+        using var world = new PrivateWorldRuntime("older-camp-town", startPace: WorldStartPace.FounderSetup);
+        var founderIds = new[]
+        {
+            "founder:00000000000000000000000000000001",
+            "founder:00000000000000000000000000000002",
+            "founder:00000000000000000000000000000003",
+            "founder:00000000000000000000000000000004",
+        };
+        var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
+        for (var index = 0; index < founderIds.Length; index++) world.PlaceFounder(founderIds[index], positions[index]);
+        var expected = Assert.Single(world.Towns);
+        var earlierCheckpoint = world.ExportState() with { SchemaVersion = 20, Towns = null };
+
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(earlierCheckpoint)));
+        var town = Assert.Single(restored.Towns);
+        Assert.Equal(expected.ResidentIds, town.ResidentIds);
+        Assert.Equal(expected.BorderTiles, town.BorderTiles);
+    }
+
+    [Fact]
     public async Task PausedFounderTownMembershipAndBordersSurviveSaveLoadAndProjectToOwnerAndTelemetry()
     {
         var geography = new GeographyOptions("first-town-persistence", WorldSizePreset.Small);
@@ -22,17 +45,20 @@ public sealed class TownRuntimeTests
             var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"),
                 newWorldPace: WorldStartPace.FounderSetup, newWorldGeography: geography);
             using var world = file.LoadOrCreate(geography.Seed);
+            Assert.Empty(world.Towns);
+            world.InitializeFirstTownContent();
+            world.AcceptFirstTownLayout(world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
             var foundingTown = Assert.Single(world.Towns);
             Assert.Equal(TownBorderRules.FirstTownId, foundingTown.Id);
             Assert.Equal(TownBorderRules.FirstTownName, foundingTown.Name);
             Assert.Equal("founding", foundingTown.FoundingState);
             Assert.Empty(foundingTown.ResidentIds);
-            Assert.Empty(foundingTown.AssignedBuildingIds);
+            Assert.Equal(5, foundingTown.AssignedBuildingIds.Count);
             Assert.NotEmpty(foundingTown.BorderTiles);
             Assert.True(world.Society.IsPaused);
 
             var founderIds = new List<string>();
-            var founderPositions = FounderPositions(world.ExportState().Map);
+            var founderPositions = FounderPositions(world);
             for (var index = 0; index < founderPositions.Length; index++)
             {
                 var founderId = "founder:" + Guid.NewGuid().ToString("N");
@@ -69,7 +95,7 @@ public sealed class TownRuntimeTests
                 await service.StopAsync(CancellationToken.None);
             }
             Assert.Contains(logger.Messages, message => message.Contains(
-                "town_transition tick=0 town=town:first transition=StateLoaded residents=4 buildings=0 border_tiles=",
+                "town_transition tick=0 town=town:first transition=StateLoaded residents=4 buildings=5 border_tiles=",
                 StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("credential-secret-token", StringComparison.Ordinal));
 
@@ -82,12 +108,6 @@ public sealed class TownRuntimeTests
             Assert.Equal(populatedTown.ResidentIds, restoredTown.ResidentIds);
             Assert.Equal(populatedTown.BorderTiles, restoredTown.BorderTiles);
 
-            var legacySchema = reloaded.ExportState() with { SchemaVersion = 20, Towns = null };
-            using var migrated = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-                PrivateWorldRuntimeCodec.Encode(legacySchema)));
-            Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, migrated.ExportState().SchemaVersion);
-            Assert.Equal(restoredTown.ResidentIds, Assert.Single(migrated.Towns).ResidentIds);
-            Assert.Equal(restoredTown.BorderTiles, Assert.Single(migrated.Towns).BorderTiles);
         }
         finally
         {
@@ -107,11 +127,11 @@ public sealed class TownRuntimeTests
             using var world = file.LoadOrCreate(geography.Seed);
             PlaceFourFounders(world);
             world.StartWorld();
-            Assert.True(world.StageStarterContent());
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-            Assert.Empty(world.RoadTiles);
+            var starterRoads = world.RoadTiles.ToHashSet();
+            Assert.NotEmpty(starterRoads);
 
-            var definition = world.WorldContent.Buildings.Single(item => item.Tags.Contains("shelter", StringComparer.Ordinal));
+            var definition = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
             var town = Assert.Single(world.Towns);
             var map = world.ExportState().Map;
             var occupied = map.CampObjects.Select(item => item.Position)
@@ -123,7 +143,8 @@ public sealed class TownRuntimeTests
                 }))
                 .ToHashSet();
             var position = map.Tiles.Select(tile => tile.Position).First(point =>
-                map.IsBuildable(point) && !occupied.Contains(point) && !town.BorderTiles.Contains(point) &&
+                map.IsBuildable(point) && !occupied.Contains(point) && !starterRoads.Contains(point) &&
+                !town.BorderTiles.Contains(point) &&
                 TownBorderRules.IsWithinOrAdjacent(town, point, definition.Width, definition.Height) &&
                 TownBorderRules.ExpandForBuilding(map, town, point, definition.Width, definition.Height).Count > town.BorderTiles.Count);
 
@@ -201,20 +222,30 @@ public sealed class TownRuntimeTests
 
     private static void PlaceFourFounders(PrivateWorldRuntime world)
     {
-        var map = world.ExportState().Map;
-        var positions = FounderPositions(map);
+        if (world.Towns.Count == 0)
+        {
+            world.InitializeFirstTownContent();
+            world.AcceptFirstTownLayout(world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
+        }
+        var positions = FounderPositions(world);
         for (var index = 0; index < positions.Length; index++)
             world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), positions[index]);
     }
 
-    private static GridPoint[] FounderPositions(SeededMap map)
+    private static GridPoint[] FounderPositions(PrivateWorldRuntime world)
     {
-        var storage = map.GetObject("storage").Position;
+        var map = world.ExportState().Map;
+        var storage = Assert.Single(world.Towns).OriginSite!.Value;
+        var buildingTiles = world.WorldSimulation.Buildings.SelectMany(building =>
+        {
+            var definition = world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+            return WorldContentSimulationRules.Footprint(definition, building.Position);
+        }).ToHashSet();
         var positions = map.Tiles.Where(tile =>
                 Math.Abs(tile.Position.X - storage.X) <= 5 &&
                 Math.Abs(tile.Position.Y - storage.Y) <= 5 &&
-                map.IsPassable(tile.Position) &&
-                !map.CampObjects.Any(item => item.Position == tile.Position) &&
+                map.IsBuildable(tile.Position) &&
+                !buildingTiles.Contains(tile.Position) &&
                 !map.Resources.Any(item => item.Position == tile.Position))
             .Take(PrivateWorldRuntime.RequiredFounders)
             .Select(tile => tile.Position)

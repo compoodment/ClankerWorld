@@ -33,20 +33,24 @@ public sealed partial class PrivateWorldRuntime
         {
             return false;
         }
-        if (generated.ManifestDigest == state.Map.ManifestDigest)
+        var baseline = state.Geography is { } savedGeography && state.Map.CampObjects.Count > 0
+            ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(savedGeography,
+                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
+            : generated;
+        if (baseline.ManifestDigest == state.Map.ManifestDigest)
             return true;
-        var withoutNaturalDetails = generated with
+        var withoutNaturalDetails = baseline with
         {
-            Resources = generated.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
+            Resources = baseline.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
             ManifestDigest = string.Empty,
         };
         withoutNaturalDetails = withoutNaturalDetails with
         {
             ManifestDigest = MapManifestCodec.Digest(withoutNaturalDetails),
         };
-        var withoutGeology = generated with
+        var withoutGeology = baseline with
         {
-            Resources = generated.Resources.Where(resource =>
+            Resources = baseline.Resources.Where(resource =>
                 !resource.Id.StartsWith("geology-", StringComparison.Ordinal)).ToArray(),
             ManifestDigest = string.Empty,
         };
@@ -77,10 +81,10 @@ public sealed partial class PrivateWorldRuntime
         {
             ManifestDigest = MapManifestCodec.Digest(previousVegetation),
         };
-        foreach (var baseline in new[]
-                 { generated, withoutNaturalDetails, withoutGeology, legacyNaturalDetails, previousTrees, previousVegetation })
+        foreach (var candidateBaseline in new[]
+                 { baseline, withoutNaturalDetails, withoutGeology, legacyNaturalDetails, previousTrees, previousVegetation })
         {
-            if (SavedMapMatchesBaseline(state, baseline)) return true;
+            if (SavedMapMatchesBaseline(state, candidateBaseline)) return true;
         }
         // Before independent map layers, resource placement and clearing
         // selection used the flattened TerrainKind. Validate that historical
@@ -242,7 +246,7 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
             .ToHashSet();
         var additions = new List<MapResource>();
-        var townStorage = map.GetObject("storage").Position;
+        var townStorage = SettlementStoragePosition;
         var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
             ChunkRules.ToChunkCoordinate(townStorage, chunk.ChunkSize));
         var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
@@ -545,7 +549,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var house = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId == constructionOwner
                 ? HouseForHousehold(constructionOwner) : null;
-            var store = house?.Position ?? map.GetObject("storage").Position;
+            var store = house?.Position ?? SettlementStoragePosition;
             var interactionRange = house is null ? ResourceInteractionRange : 0;
             SetProject(inhabitantId, project with { Stage = "delivering", Blocker = $"Taking {input.ResourceId} to household storage" });
             if (!IsWithinInteractionRange(state.Position, store, interactionRange))
@@ -744,7 +748,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var house = society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId
             ? HouseForHousehold(request.OwnerId) : null;
-        var store = house?.Position ?? map.GetObject("storage").Position;
+        var store = house?.Position ?? SettlementStoragePosition;
         var interactionRange = house is null ? ResourceInteractionRange : 0;
         if (!IsWithinInteractionRange(state.Position, store, interactionRange))
         {

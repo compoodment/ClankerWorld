@@ -164,7 +164,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var person = inhabitants[actor];
-        var camp = map.GetObject("storage").Position;
+        var camp = SettlementStoragePosition;
         if (!IsWithinInteractionRange(person.Position, camp, ResourceInteractionRange))
         {
             MoveToward(actor, person, camp, "lesson", ResourceInteractionRange);
