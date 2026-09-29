@@ -96,6 +96,7 @@ public partial class Main : Control
     private readonly Button menuButton = new();
     private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
+    private readonly WeatherLayer weatherLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private string? terrainManifestDigest;
@@ -1423,6 +1424,32 @@ public partial class Main : Control
                 !worldInfoText.Text.Contains("Soil moisture here: 78%", StringComparison.Ordinal) ||
                 terrainLayer.WeatherAt(150, 80) != "rain" || terrainLayer.WeatherAt(20, 20) != "snow")
                 throw new InvalidOperationException("The world HUD and info must show weather and moisture at the camera.");
+            // Regions are squares on the host; on the map their weather must
+            // reach the middle fully but end in a wandering, soft edge.
+            var edgeColumns = new List<int>();
+            for (var edgeRow = 68; edgeRow <= 92; edgeRow += 2)
+                for (var column = 100; column < 160; column++)
+                    if (weatherLayer.CoverageAt(column, edgeRow, "rain") > 0.5f)
+                    {
+                        edgeColumns.Add(column);
+                        break;
+                    }
+            if (weatherLayer.GetChildCount() != 0 || weatherLayer.CoverageAt(144, 80, "rain") < 0.9f ||
+                weatherLayer.CoverageAt(144, 80, "snow") > 0.1f || edgeColumns.Count < 10 ||
+                edgeColumns.Max() - edgeColumns.Min() < 3)
+                throw new InvalidOperationException($"Rain must fill its region and end in a wandering edge, not a square: edge={string.Join(',', edgeColumns)}.");
+            // Lightning brightens softly and rarely: never a strobe.
+            var (brightest, lit, flashes, wasLit) = (0f, 0, 0, false);
+            for (var step = 0; step < 9000; step++)
+            {
+                var flash = WeatherLayer.LightningFlash(step * 0.01);
+                brightest = Math.Max(brightest, flash);
+                if (flash > 0.02f) lit++;
+                if (flash > 0.02f && !wasLit) flashes++;
+                wasLit = flash > 0.02f;
+            }
+            if (brightest > 0.31f || lit > 900 || flashes > 25)
+                throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -3550,6 +3577,11 @@ public partial class Main : Control
         entityLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
+
+        // Weather falls over buildings and agents alike.
+        weatherLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        weatherLayer.Follow(terrainLayer);
+        mapStage.AddChild(weatherLayer);
 
         BuildSelectedInhabitantCard();
         mapCanvas.AddChild(selectedInhabitantCard);

@@ -37,6 +37,25 @@ public partial class WorldTerrainLayer : Control
 
     public int VisibleTileCount { get; private set; }
 
+    /// <summary>Camera-visible tile rectangle, in tiles; x can run past the seam on wrapped worlds.</summary>
+    public Rect2 VisibleTiles => visibleTiles;
+
+    public int TileSize => tileSize;
+
+    public int Stride => tileSize + tileGap;
+
+    public bool WrapsEastWest => wrapsEastWest;
+
+    public WorldTerrainMap? World => world;
+
+    public int WeatherRegionSize => weatherRegionSize;
+
+    /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
+    public int WeatherVersion { get; private set; }
+
+    /// <summary>Whether any region currently has rain, a storm or snow.</summary>
+    public bool HasActiveWeather { get; private set; }
+
     /// <summary>Whether the current zoom draws generated ground textures rather than flat overview pixels.</summary>
     public bool DrawsGroundTextures => tileSize >= TexturedTileMinimum || tileGap != 0;
 
@@ -62,6 +81,8 @@ public partial class WorldTerrainLayer : Control
         campResources.Clear();
         naturalStages = new byte[checked(map.Width * map.Height)];
         weatherRegions.Clear();
+        HasActiveWeather = false;
+        WeatherVersion++;
         townBorderTiles.Clear();
         roadTiles.Clear();
         householdPropertyTiles.Clear();
@@ -80,6 +101,8 @@ public partial class WorldTerrainLayer : Control
         weatherRegionSize = regionSize;
         weatherRegions.Clear();
         foreach (var entry in next) weatherRegions.Add(entry.Key, entry.Value);
+        HasActiveWeather = weatherRegions.Values.Any(weather => weather is "rain" or "storm" or "snow");
+        WeatherVersion++;
         QueueRedraw();
     }
 
@@ -396,7 +419,6 @@ public partial class WorldTerrainLayer : Control
                 else if (campResources.TryGetValue(index, out var campSprite))
                     DrawCampResource(new Vector2(x * stride, y * stride), campSprite);
             }
-        DrawPrecipitation(bounds, stride);
         DrawHouseholdProperties(bounds, stride);
         DrawTownBorders(bounds, stride);
         if (hoveredTile is { } hover && tileSize > 0 &&
@@ -658,39 +680,6 @@ public partial class WorldTerrainLayer : Control
                         !roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(nextX, world.Width) : nextX, nextY)))
                         continue;
                     DrawLine(center, center + new Vector2(dx * stride, dy * stride), color, width);
-                }
-            }
-    }
-
-    private void DrawPrecipitation((int Left, int Top, int Width, int Height) bounds, int stride)
-    {
-        if (world is null || weatherRegions.Count == 0 || tileSize < 8) return;
-        // One mark per four-by-four tile cell remains legible at overview zoom
-        // and bounds draw work by the camera rather than world size.
-        var firstX = bounds.Left - Mod(bounds.Left, 4);
-        var firstY = bounds.Top - Mod(bounds.Top, 4);
-        for (var y = firstY; y < bounds.Top + bounds.Height; y += 4)
-            for (var x = firstX; x < bounds.Left + bounds.Width; x += 4)
-            {
-                if (x < bounds.Left || y < bounds.Top) continue;
-                var weather = WeatherAt(x, y);
-                if (weather is not ("rain" or "snow" or "storm")) continue;
-                var hash = unchecked((uint)(x * 73856093) ^ (uint)(y * 19349663));
-                var markX = x + 1 + (int)(hash % 3);
-                var markY = y + 1 + (int)((hash >> 8) % 3);
-                if (WeatherAt(markX, markY) != weather) continue;
-                var position = new Vector2(markX * stride, markY * stride);
-                if (weather == "snow")
-                {
-                    DrawCircle(position, Math.Max(1.5f, tileSize * 0.08f),
-                        new Color(0.98f, 0.99f, 1f, 0.75f));
-                }
-                else
-                {
-                    var length = Math.Max(3f, tileSize * (weather == "storm" ? 0.55f : 0.38f));
-                    DrawLine(position, position + new Vector2(-length * 0.34f, length),
-                        new Color(0.70f, 0.86f, 1f, weather == "storm" ? 0.82f : 0.64f),
-                        Math.Max(1f, tileSize * 0.045f));
                 }
             }
     }
