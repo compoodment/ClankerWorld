@@ -246,6 +246,9 @@ release yet.
   the lighter shallows and the thin foam line on coasts and lakes follow that
   edge; rivers keep a quiet bank without foam and still read as one-tile
   channels.
+- Where a river runs into the sea or a lake spills into a river, the lighter
+  water now fans softly into the darker instead of changing color in a
+  straight line.
 - The Town panel and Event Log are easier to scan. The Town panel puts
   shared stores, projects, the household council and social activity under
   headings, and says "No one is working on a project right now" instead of

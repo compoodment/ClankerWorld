@@ -996,6 +996,21 @@ public partial class Main : Control
                 throw new InvalidOperationException("Grass must not take an edge from lower sand.");
             if (TerrainTransitions.CornerLevel(3, 5, 3, true) != TerrainTransitions.CornerLevel(0, 5, 3, true))
                 throw new InvalidOperationException("Edge corners must continue across a wrapped world seam.");
+            if (!TerrainTransitions.WaterOverlaps(TerrainStyle.River, TerrainStyle.Ocean) ||
+                TerrainTransitions.WaterOverlaps(TerrainStyle.Ocean, TerrainStyle.River) ||
+                !TerrainTransitions.WaterOverlaps(TerrainStyle.Lake, TerrainStyle.River) ||
+                TerrainTransitions.WaterOverlaps(TerrainStyle.Grass, TerrainStyle.Ocean))
+                throw new InvalidOperationException("Lighter water must fan into darker water, and land never into water this way.");
+            var mouthMap = WorldTerrainMap.FromTiles(
+                Enumerable.Range(0, 9).Select(index => new OwnerWorldTile(index % 3, index / 3, index == 3 ? "river" : "ocean")).ToArray(), 3, 3);
+            TerrainTransitions.CollectWater(mouthMap, 1, 1, false, edgePieces);
+            var mouthLevels = (TerrainTransitions.CornerLevel(1, 1, 3, false), TerrainTransitions.CornerLevel(1, 2, 3, false));
+            if (edgePieces.Count != 1 || edgePieces[0].Style != TerrainStyle.River ||
+                edgePieces[0].Piece != TerrainTransitions.EdgePiece(3, mouthLevels.Item1, mouthLevels.Item2, (int)(PixelArt.Hash(1, 1, 94) % TerrainTransitions.EdgeVariants)))
+                throw new InvalidOperationException("Sea beside a river mouth must take one soft west edge of river water.");
+            TerrainTransitions.CollectWater(mouthMap, 0, 1, false, edgePieces);
+            if (edgePieces.Count != 0)
+                throw new InvalidOperationException("A river must not take an edge from the darker sea.");
             var spriteData = new HashSet<string>(StringComparer.Ordinal);
             foreach (var atlasSize in new[] { 16, 32 })
                 foreach (var nature in Enum.GetValues<NatureSprite>())

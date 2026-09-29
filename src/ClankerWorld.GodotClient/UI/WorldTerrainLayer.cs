@@ -362,6 +362,11 @@ public partial class WorldTerrainLayer : Control
                     DrawTextureRectRegion(atlas, tile, TerrainTextures.Region(style, TerrainTextures.VariantAt(mapX, y), atlasSize));
                     if (TerrainTextures.IsWater(style))
                     {
+                        // Lighter water fans in first (a river mouth into the
+                        // sea), then the rounded shore goes on top.
+                        TerrainTransitions.CollectWater(world, mapX, y, wrapsEastWest, transitionPieces);
+                        foreach (var (over, piece) in transitionPieces)
+                            DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
                         DrawCoast(coasts, tile, mapX, y, style, atlasSize);
                         continue;
                     }

@@ -55,6 +55,18 @@ public static class TerrainTransitions
         TerrainStyle.Peak,
     ];
 
+    // Low to high among waters: lighter water fans into darker, so a river
+    // mouth spreads into the sea and a lake spills a little into its river.
+    private static readonly TerrainStyle[] WaterOrder =
+    [
+        TerrainStyle.Ocean,
+        TerrainStyle.ShallowWater,
+        TerrainStyle.River,
+        TerrainStyle.Lake,
+    ];
+
+    private enum Mode { Land, Coast, Water }
+
     /// <summary>Overlap rank, or −1 for water and unknown ground, which take no land edges.</summary>
     public static int Rank(TerrainStyle style) => Array.IndexOf(Order, style);
 
@@ -66,6 +78,17 @@ public static class TerrainTransitions
         return high > low && low >= 0 &&
             under is not (TerrainStyle.Mountain or TerrainStyle.Peak) &&
             TerrainTextures.BaseColor(over) != TerrainTextures.BaseColor(under);
+    }
+
+    /// <summary>Water overlap rank, or −1 for land and unknown ground.</summary>
+    public static int WaterRank(TerrainStyle style) => Array.IndexOf(WaterOrder, style);
+
+    /// <summary>Whether water <paramref name="over"/> fans into a neighboring water <paramref name="under"/> tile.</summary>
+    public static bool WaterOverlaps(TerrainStyle over, TerrainStyle under)
+    {
+        var high = WaterRank(over);
+        var low = WaterRank(under);
+        return high > low && low >= 0 && TerrainTextures.BaseColor(over) != TerrainTextures.BaseColor(under);
     }
 
     /// <summary>
@@ -118,7 +141,7 @@ public static class TerrainTransitions
     /// ends on top where two different neighbors meet at a corner.
     /// </summary>
     public static void Collect(WorldTerrainMap map, int x, int y, bool wrapsEastWest,
-        List<(TerrainStyle Style, int Piece)> pieces) => CollectPieces(map, x, y, wrapsEastWest, pieces, coast: false);
+        List<(TerrainStyle Style, int Piece)> pieces) => CollectPieces(map, x, y, wrapsEastWest, pieces, Mode.Land);
 
     /// <summary>
     /// The land pieces reaching into one water tile from its land neighbors,
@@ -126,15 +149,23 @@ public static class TerrainTransitions
     /// shallow band and foam that follow the same shape.
     /// </summary>
     public static void CollectCoast(WorldTerrainMap map, int x, int y, bool wrapsEastWest,
-        List<(TerrainStyle Style, int Piece)> pieces) => CollectPieces(map, x, y, wrapsEastWest, pieces, coast: true);
+        List<(TerrainStyle Style, int Piece)> pieces) => CollectPieces(map, x, y, wrapsEastWest, pieces, Mode.Coast);
+
+    /// <summary>
+    /// The pieces of lighter neighboring water fanning into one water tile,
+    /// such as a river mouth into the sea; drawn before its shore.
+    /// </summary>
+    public static void CollectWater(WorldTerrainMap map, int x, int y, bool wrapsEastWest,
+        List<(TerrainStyle Style, int Piece)> pieces) => CollectPieces(map, x, y, wrapsEastWest, pieces, Mode.Water);
 
     private static void CollectPieces(WorldTerrainMap map, int x, int y, bool wrapsEastWest,
-        List<(TerrainStyle Style, int Piece)> pieces, bool coast)
+        List<(TerrainStyle Style, int Piece)> pieces, Mode mode)
     {
         pieces.Clear();
         var here = map.StyleAt(x, y);
-        if (coast ? !TerrainTextures.IsWater(here) : Rank(here) < 0 || here is TerrainStyle.Mountain or TerrainStyle.Peak)
+        if (mode == Mode.Land ? Rank(here) < 0 || here is TerrainStyle.Mountain or TerrainStyle.Peak : !TerrainTextures.IsWater(here))
             return;
+        int RankOf(int style) => mode == Mode.Water ? WaterRank((TerrainStyle)style) : Rank((TerrainStyle)style);
         // Neighbors clockwise from north; a missing neighbor (map edge) is −1.
         var around = Around;
         for (var index = 0; index < 8; index++)
@@ -150,10 +181,15 @@ public static class TerrainTransitions
         var count = 0;
         foreach (var neighbor in around)
         {
-            var reaches = neighbor >= 0 && (coast ? Rank((TerrainStyle)neighbor) >= 0 : Overlaps((TerrainStyle)neighbor, here));
+            var reaches = neighbor >= 0 && mode switch
+            {
+                Mode.Land => Overlaps((TerrainStyle)neighbor, here),
+                Mode.Coast => Rank((TerrainStyle)neighbor) >= 0,
+                _ => WaterOverlaps((TerrainStyle)neighbor, here),
+            };
             if (!reaches || Array.IndexOf(candidates, neighbor, 0, count) >= 0) continue;
             var slot = count++;
-            while (slot > 0 && Rank((TerrainStyle)candidates[slot - 1]) > Rank((TerrainStyle)neighbor))
+            while (slot > 0 && RankOf(candidates[slot - 1]) > RankOf(neighbor))
             {
                 candidates[slot] = candidates[slot - 1];
                 slot--;
@@ -197,7 +233,7 @@ public static class TerrainTransitions
         if (Images.TryGetValue(size, out var cached)) return cached;
         var width = size * PieceCount;
         var data = new byte[width * size * StyleCount * 4];
-        foreach (var style in Order)
+        foreach (var style in Order.Concat(WaterOrder))
             for (var piece = 0; piece < PieceCount; piece++)
                 PaintPiece(data, width, piece * size, (int)style * size, size, style, piece);
         var image = Image.CreateFromData(width, size * StyleCount, false, Image.Format.Rgba8, data);
