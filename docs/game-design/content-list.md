@@ -12,7 +12,7 @@ including things not in the prototype. Computment accepted the initial draft's
 unmentioned entries and corrected the entries called out below. The
 [game design](README.md) is authoritative for decisions; this
 numbered list is its detailed content list. The
-[what works today](../what-works.md) describes what exists in the playable
+[current feature summary](../what-works.md) describes what exists in the playable
 prototype.
 These numbers are review handles, not implementation IDs. Acceptance of an
 asset family does **not** set its recipe, cost, storage capacity, art file or
@@ -223,7 +223,7 @@ list as a cap on invention, or fabricate every possible invented sprite now.
 | 9.5 | Agreed | Economy/work | Item icons used consistently in inventories, stock panels, farm/work progress, Store/Market/Restaurant trade, and offers. Actual physical location and ownership must be visible. |
 | 9.6 | Agreed | Events and conversation | Event Log location markers, chat bubble, conversation summary/full view, decisions, law/election and invention notices inside their relevant panels. No optional out-of-view pop-up notice system. |
 | 9.7 | Agreed | Pause, settings, save, mods | Compact Pause Menu: Save World, Settings, Mod Library, **Quit to Menu last**; no Quit Game there. Game/World Settings, confirmation dialogs, save compatibility, AI-usage meter/limit and mod states. |
-| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes is decided in the vision ledger; the font and remaining accessibility treatment are open. |
+| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes is agreed in the game design; the font and remaining accessibility treatment are open. |
 
 All important information remains readable in **text**. Generated voice,
 music, ambient sound and sound effects are **outside the first complete game's

@@ -103,5 +103,5 @@ be cancelled and retried later; the provider may charge for both attempts.
 Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choose)
 for a bug or playtest report. Rough notes are welcome: what you did, what happened,
 what you expected and the build you used.
-[Contributing](../CONTRIBUTING.md#report-a-problem) explains the report options.
+[Contributing](../CONTRIBUTING.md#issues-and-design-questions) explains the report options.
 Some fixes still need a Windows playtest; include failures as well as successes.

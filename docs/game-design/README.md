@@ -53,5 +53,11 @@ agreed catalogue; accepting an item or building does not also decide its recipe,
 price, storage capacity or development order. Reconcile conflicting summaries
 against the owner's actual decision.
 
+Still-open topics include the player's normal role and intervention limits,
+knowledge across generations, government and the economy, medicine and
+injuries, art references and invention assets, save branches and mod
+compatibility. Work out the intended experience before narrowing these choices
+to what the current prototype can already do.
+
 [Earlier design conversations](../archive/vision-interview-history.md) are kept
 for reference. The current chapters take precedence over their earlier answers.
