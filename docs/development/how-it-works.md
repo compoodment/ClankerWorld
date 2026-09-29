@@ -62,6 +62,12 @@ authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
+Recognized MustDo instructions complete only when their requested legal action
+actually progresses: acquiring/eating food or taking a travel step. An unrelated
+action, blocked movement or unavailable food leaves the instruction pending,
+including across reload. Travel completion here is one step, not a full-route
+goal; suggestive instructions retain their separate semantics.
+
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
 methods remain for isolated tests; they are not the live scheduling path.
@@ -141,9 +147,11 @@ Mountains are slower to cross and cannot be built on; peaks are impassable.
 
 Resources are placed in bounded 16×16 cells with surface/cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
-attempt alternating cells, one site per cell or two sites per cell. Food and
-project-material selection use the starting area's foot-accessible component;
-boat access remains unfinished.
+attempt alternating cells, one site per cell or two sites per cell. Food choices
+use the actor's foot-accessible terrain component.
+Immutable map connectivity is cached once per map; temporary occupancy remains
+a movement-time check. Project resource selection still uses accessibility
+from the original camp component. Boat access remains unfinished.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -186,6 +194,12 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+
+Recipe preparation and production must use the same actor/building owner.
+Household workstation inputs must be present at the actual building; stock
+elsewhere in the household is not on-site stock. Missing inputs block the
+project under its existing retry rules, without granting another household's
+materials or implicitly transporting remote goods.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded

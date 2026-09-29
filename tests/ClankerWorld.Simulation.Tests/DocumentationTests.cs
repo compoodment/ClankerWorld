@@ -23,7 +23,7 @@ public sealed partial class DocumentationTests
             "docs/what-works.md",
             "docs/game-design/README.md",
             "docs/game-design/world.md",
-            "docs/game-design/agents.md",
+            "docs/game-design/agents-and-families.md",
             "docs/game-design/towns.md",
             "docs/game-design/interface-and-art.md",
             "docs/game-design/inventions-and-mods.md",

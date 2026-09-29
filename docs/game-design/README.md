@@ -28,7 +28,7 @@ A choice recorded here does not require every feature to be built immediately.
 | Subject | Page |
 | --- | --- |
 | Where the game runs, maps, time, weather and survival | [The world](world.md) |
-| Starting agents, models, memories, families and combat | [Agents and social life](agents.md) |
+| Starting agents, models, memories, families and combat | [Agents and social life](agents-and-families.md) |
 | Buildings, property, work, trade, animals and government | [Towns](towns.md) |
 | Menus, controls, settings, pixel art and audio | [Interface and art](interface-and-art.md) |
 | Agent inventions and imported mods | [Inventions and mods](inventions-and-mods.md) |
