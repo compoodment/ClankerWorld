@@ -208,12 +208,22 @@ public partial class Main
                 picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna" || picker.Problem.Length > 0 ||
                 !picker.Choice.IsItemDisabled(Index(unavailable)) || picker.Choice.IsItemDisabled(Index("gpt-6-sol")))
                 throw new InvalidOperationException($"The model list must keep the game's order and mark models the key can't use: {Items()}.");
+            OwnerProviderModelChoice[] noLuna = [new("gpt-6.1-sol", false), new("gpt-6-astra", true), new("gpt-6-sol", true), new("gpt-6-luna", false)];
+            const string cantUseLuna = "This key can't use gpt-6-luna. Choose a model it can use.";
+            picker.SetModel("gpt-6-luna");
+            picker.ShowList(noLuna, "gpt-6-luna");
+            if (picker.Model.Length > 0 || picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.ChooseText ||
+                !picker.Choice.IsItemDisabled(Index(ModelPicker.ChooseText)) || picker.Problem != cantUseLuna || picker.CanRetry)
+                throw new InvalidOperationException($"When the key can't use the chosen model, no other model may be chosen for the owner: {Items()}.");
+            Pick("gpt-6-sol");
+            if (picker.Model != "gpt-6-sol" || picker.Problem.Length > 0)
+                throw new InvalidOperationException("Choosing a model must clear the request to choose one.");
             var fresh = new ModelPicker();
-            fresh.ShowList([new("gpt-6.1-sol", false), new("gpt-6-sol", true), new("gpt-6-luna", false)], "gpt-6-luna");
-            var newest = fresh.Model;
+            fresh.ShowList(noLuna, "gpt-6-luna");
+            var (freshModel, freshProblem) = (fresh.Model, fresh.Problem);
             fresh.Free();
-            if (newest != "gpt-6-sol")
-                throw new InvalidOperationException("Without a usable default model, a new agent must start on the top usable model.");
+            if (freshModel.Length > 0 || freshProblem != cantUseLuna)
+                throw new InvalidOperationException("A new agent must not start on another model when the key can't use the default.");
             picker.SetModel("my-fine-tune");
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "my-fine-tune" || picker.Model != "my-fine-tune" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.TypeOwnText)

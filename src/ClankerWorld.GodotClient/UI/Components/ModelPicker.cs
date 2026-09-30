@@ -12,6 +12,7 @@ public partial class ModelPicker : VBoxContainer
 {
     public const string TypeOwnText = "Type a model name…";
     public const string UnavailableNote = " (not available with this key)";
+    public const string ChooseText = "Choose a model";
     private const string TypeOwnId = "\u0001type";
 
     private readonly OptionButton choice = new();
@@ -26,6 +27,7 @@ public partial class ModelPicker : VBoxContainer
     private bool loading;
     private bool listed;
     private bool typing;
+    private bool mustChoose;
     private int request;
 
     public ModelPicker()
@@ -97,6 +99,7 @@ public partial class ModelPicker : VBoxContainer
         typed.Text = current;
         ChooseWhenEmpty();
         FollowList();
+        AskWhenUnusable();
         Rebuild();
     }
 
@@ -109,6 +112,7 @@ public partial class ModelPicker : VBoxContainer
         defaultModel = fallbackModel;
         loading = true;
         listed = false;
+        mustChoose = false;
         error = null;
         models = [];
         Rebuild();
@@ -119,9 +123,10 @@ public partial class ModelPicker : VBoxContainer
 
     /// <summary>
     /// Shows the game's models in the order given. With nothing chosen yet, the
-    /// default model is picked when the key can use it, otherwise the top
-    /// usable one. <paramref name="note"/> explains a key
-    /// that couldn't be checked.
+    /// default model is picked when the key can use it. If the key can't use
+    /// the chosen or default model, nothing is picked and the owner is asked to
+    /// choose, so no other model is chosen for them. <paramref name="note"/>
+    /// explains a key that couldn't be checked.
     /// </summary>
     public void ShowList(IReadOnlyList<OwnerProviderModelChoice> choices, string fallbackModel,
         string? note = null, bool canRetry = true)
@@ -130,11 +135,13 @@ public partial class ModelPicker : VBoxContainer
         models = choices;
         loading = false;
         listed = true;
+        mustChoose = false;
         error = note;
         // Keep a name the owner typed, but an empty text box gives way to the list.
         if (typing && typed.Text.Trim().Length == 0 && choices.Count > 0) typing = false;
         ChooseWhenEmpty();
         FollowList();
+        AskWhenUnusable();
         Rebuild(canRetry);
     }
 
@@ -144,6 +151,7 @@ public partial class ModelPicker : VBoxContainer
         models = [];
         loading = false;
         listed = false;
+        mustChoose = false;
         error = message;
         if (current.Length == 0) current = defaultModel;
         Rebuild(canRetry);
@@ -158,6 +166,7 @@ public partial class ModelPicker : VBoxContainer
         typing = true;
         loading = false;
         listed = false;
+        mustChoose = false;
         error = null;
         models = [];
         choice.Visible = false;
@@ -167,13 +176,29 @@ public partial class ModelPicker : VBoxContainer
 
     private bool Lists(string model) => models.Any(item => item.Model == model);
 
-    // With nothing chosen, start on the default model when the key can use it,
-    // otherwise on the top usable model in the list.
+    // With nothing chosen, start on the default model when the key can use it.
     private void ChooseWhenEmpty()
     {
-        if (current.Length > 0 || models.Count == 0) return;
-        current = models.FirstOrDefault(item => item.Model == defaultModel && item.Available)?.Model ??
-            models.FirstOrDefault(item => item.Available)?.Model ?? models[0].Model;
+        if (current.Length == 0 && models.Any(item => item.Model == defaultModel && item.Available))
+            current = defaultModel;
+    }
+
+    // A listed model the key can't use is never left chosen, and no other model
+    // is chosen in its place: the owner picks one.
+    private void AskWhenUnusable()
+    {
+        if (mustChoose)
+        {
+            mustChoose = false;
+            error = null;
+        }
+        if (typing || models.Count == 0) return;
+        var unusable = models.Any(item => item.Model == current && !item.Available) ? current :
+            current.Length == 0 && models.Any(item => item.Model == defaultModel) ? defaultModel : null;
+        if (unusable is null && current.Length > 0) return;
+        current = string.Empty;
+        mustChoose = true;
+        error = unusable is null ? "Choose a model." : $"This key can't use {unusable}. Choose a model it can use.";
     }
 
     // An agent's model that isn't in the game's list stays, as a typed name.
@@ -189,6 +214,12 @@ public partial class ModelPicker : VBoxContainer
         choice.Visible = true;
         choice.Clear();
         if (!listed && !typing && current.Length > 0) AddModel(current, current, available: true);
+        if (listed && !typing && current.Length == 0 && models.Count > 0)
+        {
+            choice.AddItem(ChooseText);
+            choice.SetItemDisabled(choice.ItemCount - 1, true);
+            choice.SetItemMetadata(choice.ItemCount - 1, string.Empty);
+        }
         foreach (var item in models)
             AddModel(item.Model, item.Available ? item.Model : item.Model + UnavailableNote, item.Available);
         if (loading)
@@ -203,7 +234,7 @@ public partial class ModelPicker : VBoxContainer
         SelectCurrent();
         typed.Visible = typing;
         problem.Text = error ?? string.Empty;
-        retry.Visible = canRetry;
+        retry.Visible = canRetry && !mustChoose;
         problemRow.Visible = error is not null;
     }
 
@@ -225,8 +256,9 @@ public partial class ModelPicker : VBoxContainer
                 return;
             }
         }
-        // Nothing chosen yet: wait for the list, or ask for a typed name.
-        if (loading && current.Length == 0)
+        // Nothing chosen yet: wait for the list, ask the owner to choose from
+        // it, or ask for a typed name.
+        if (current.Length == 0 && (loading || listed && models.Count > 0))
         {
             choice.Select(0);
             return;
@@ -238,6 +270,13 @@ public partial class ModelPicker : VBoxContainer
     private void OnItemSelected(long index)
     {
         var id = choice.GetItemMetadata((int)index).AsString();
+        if (mustChoose && id.Length > 0)
+        {
+            // The owner has chosen, so the request to choose goes away.
+            mustChoose = false;
+            error = null;
+            problemRow.Visible = false;
+        }
         if (id == TypeOwnId)
         {
             if (!typing) typed.Text = current;

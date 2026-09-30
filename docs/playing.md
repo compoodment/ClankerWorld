@@ -38,7 +38,8 @@ If the server changes, forget the old registration and pair again.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
-   provider, newest at the top. Models your key can't use are greyed out, and
+   provider, newest at the top. Models your key can't use are greyed out; if
+   it can't use the model shown, the picker asks you to choose another.
    **Type a model name…** covers any other model. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does

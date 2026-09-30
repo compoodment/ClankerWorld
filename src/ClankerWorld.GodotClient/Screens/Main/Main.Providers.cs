@@ -144,6 +144,11 @@ public partial class Main
             SetStatus("Give the new key a name and paste the key.", good: false);
             return;
         }
+        if (HasModelList(provider) && cognitionModelPicker.Model.Length == 0)
+        {
+            SetStatus("Pick a model first.", good: false);
+            return;
+        }
         var action = new OwnerProviderConfigurationAction(
             role,
             provider,

@@ -136,7 +136,9 @@ not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
 `:cloud`, `-cloud` or `:latest` endings. If the key can't be checked, the whole
 list stays usable and the reason is shown. A new agent starts on the provider's
-default model when the key can use it, otherwise on the top usable model.
+default model when the key can use it. If the key can't use the chosen or
+default model, the picker selects nothing and asks the owner to choose, so no
+other model, possibly a costlier one, is chosen for them.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 

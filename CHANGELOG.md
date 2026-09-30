@@ -317,7 +317,9 @@ release yet.
   model comes from the game's own short list, newest at the top: GPT-6.1 Sol,
   GPT-6 Astra, GPT-6 Sol and GPT-6 Luna for OpenAI, and GLM 5.3 Flash,
   GLM 5.3, DeepSeek V4.1 Flash, DeepSeek V4 Pro, MiniMax M3, Kimi K3 and
-  Gemma 4 for Ollama Cloud. Models the key can't use are greyed out.
+  Gemma 4 for Ollama Cloud. Models the key can't use are greyed out. If the
+  key can't use the agent's model, no other model is chosen for you: the
+  picker asks you to choose one first.
   **Type a model name…** covers any other model, and an agent already on an
   unlisted model keeps it as a typed name. If the key can't be checked, the
   reason is shown with **Retry** and the list stays usable. The host checks
