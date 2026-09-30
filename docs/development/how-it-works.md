@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -103,6 +103,8 @@ invalid response values such as confidence outside 0–1, also completes with
 safe idle instead of repeatedly spending calls on the same decision. A choice
 that was offered but is no longer legal stays stale; request, provider and run
 identity checks still reject late replies without applying fallback.
+A reply for a different request cannot cancel the agent's current pending choice
+or replace its last accepted intention.
 No adapter can turn provider prose directly into a world mutation.
 Jev has a separate, smaller routine payload; it is not a persona/dialogue adapter.
 
