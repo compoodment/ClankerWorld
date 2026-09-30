@@ -1401,6 +1401,42 @@ public partial class Main
             var seamMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, seamLayers);
             if ((seamMap.WaterEdgeMaskAt(0, 0, true) & 8) == 0)
                 throw new InvalidOperationException("Water-edge transitions must continue across an enabled world seam.");
+            // A mountain at (1, 1) raises a hill base on the high land around
+            // it; low ground stays lowland, and hills warm the overview color.
+            var hillElevation = Enumerable.Repeat((byte)200, 16).ToArray();
+            hillElevation[5] = 230;
+            hillElevation[6] = 150;
+            var hillLayers = testLayers with
+            {
+                Elevation = Convert.ToBase64String(hillElevation),
+                Hydrology = Convert.ToBase64String(new byte[16]),
+                Surface = Convert.ToBase64String(new byte[16]),
+            };
+            var hillMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, hillLayers);
+            var flatMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, testLayers);
+            if (!hillMap.IsHillAt(0, 0) || !hillMap.IsHillAt(3, 3) || hillMap.IsHillAt(1, 1) || hillMap.IsHillAt(2, 1) ||
+                hillMap.DisplayColorAt(0, 0).IsEqualApprox(TerrainTextures.BaseColor(hillMap.StyleAt(0, 0))) ||
+                flatMap.IsHillAt(0, 0) ||
+                !flatMap.DisplayColorAt(0, 0).IsEqualApprox(TerrainTextures.BaseColor(flatMap.StyleAt(0, 0))))
+                throw new InvalidOperationException("Hills must ring a mountain above low ground and warm only their own overview color.");
+            foreach (var atlasSize in new[] { 16, 32 })
+            {
+                var overlays = new[] { TerrainTextures.HillOverlay(0, atlasSize), TerrainTextures.HillOverlay(1, atlasSize) };
+                foreach (var overlay in overlays)
+                {
+                    var relief = 0;
+                    for (var oy = 0; oy < atlasSize; oy++)
+                        for (var ox = 0; ox < atlasSize; ox++)
+                            if (overlay.GetPixel(ox, oy).A > 0.05f) relief++;
+                    for (var edge = 0; edge < atlasSize; edge++)
+                        if (overlay.GetPixel(edge, 0).A > 0 || overlay.GetPixel(0, edge).A > 0)
+                            throw new InvalidOperationException($"{atlasSize}px hill relief must stay off tile edges.");
+                    if (relief < atlasSize * atlasSize * 0.08f || relief > atlasSize * atlasSize * 0.7f)
+                        throw new InvalidOperationException($"{atlasSize}px hill relief must be visible without hiding the ground: {relief} pixels.");
+                }
+                if (overlays[0].GetData().SequenceEqual(overlays[1].GetData()))
+                    throw new InvalidOperationException("Hills need two distinct relief variants.");
+            }
             var marker = mapObjectVisuals["resource:wood"];
             var identity = marker.GetInstanceId();
             var entered = false;

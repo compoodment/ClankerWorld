@@ -134,6 +134,18 @@ diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
 impassable; mountains and peaks cannot hold construction. Town streets take
 diagonals where the land allows. Bridges remain unfinished.
 
+In newly generated worlds, sand forms deserts and stretches of ocean beach
+only; rivers and lakes keep grass banks, and trees and plants never grow on
+sand. Forests show small groves on darker forest floor, where every tile holds
+a tree, among scattered trees on forest grass. A band of hills rings each
+mountain area. Hills are drawn over the ground and cost the same to walk and
+build on as grass. These are the first version of the September 29 terrain
+direction: their numbers are provisional until computment reviews generated
+maps, and they have not been checked by hand in the Windows game yet
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)). Worlds
+generated before this change no longer load; they are refused and their saves
+are kept.
+
 Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
 fruit trees have fruiting, picked and growing stages. Replanting currently uses a
 generic seed at an existing depleted wood-tree site. Species-specific seeds,

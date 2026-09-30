@@ -114,6 +114,16 @@ New World preview and Create World. Existing saves are not regenerated with it;
 there is no in-place lake shrink or river rewrite. Older builds need not accept
 new-revision worlds.
 
+The terrain rules for sand, groves and hills
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)) change the
+surfaces, vegetation and resource layout generated from a seed, for every
+hydrology revision. There is no generator switch and no migration: a generated
+world saved before them no longer matches regeneration and is refused with "The
+private-world map does not match deterministic regeneration." Its file is kept.
+The save format and schema number do not change. As with any unloadable active
+world, the host will not start until that save is moved aside. Hills are drawn
+from the saved elevation and water layers, so nothing extra is saved for them.
+
 Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON
 remains readable and migrates atomically on load. Historical generators and
 known package digests validate older generated maps without replacing their

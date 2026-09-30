@@ -93,6 +93,66 @@ public static class TerrainTextures
         AtlasImage(atlasTileSize).GetRegion(new Rect2I(variant * atlasTileSize, (int)style * atlasTileSize,
             atlasTileSize, atlasTileSize));
 
+    /// <summary>Overview color for a hill: its ground color, warmed and slightly darkened.</summary>
+    public static Color HillColor(Color ground) => ground.Lerp(new Color("7E6F4B"), 0.28f);
+
+    private static readonly Dictionary<int, ImageTexture> HillAtlases = [];
+    private static readonly Dictionary<int, Image> HillAtlasImages = [];
+
+    /// <summary>
+    /// Provisional hill relief drawn over a tile's own ground: low mounds with a
+    /// lit north-west rim and a shaded south-east rim on a clear background,
+    /// so grass, forest or snow still shows beneath.
+    /// </summary>
+    public static ImageTexture HillAtlas(int atlasTileSize)
+    {
+        if (HillAtlases.TryGetValue(atlasTileSize, out var cached)) return cached;
+        var texture = ImageTexture.CreateFromImage(HillAtlasImage(atlasTileSize));
+        HillAtlases[atlasTileSize] = texture;
+        return texture;
+    }
+
+    public static Rect2 HillRegion(int variant, int atlasTileSize) =>
+        new(variant * atlasTileSize, 0, atlasTileSize, atlasTileSize);
+
+    /// <summary>One hill overlay, for inspection and tests.</summary>
+    public static Image HillOverlay(int variant, int atlasTileSize) =>
+        HillAtlasImage(atlasTileSize).GetRegion(new Rect2I(variant * atlasTileSize, 0, atlasTileSize, atlasTileSize));
+
+    private static Image HillAtlasImage(int size)
+    {
+        if (HillAtlasImages.TryGetValue(size, out var cached)) return cached;
+        var image = Image.CreateEmpty(size * VariantCount, size, false, Image.Format.Rgba8);
+        image.Fill(Colors.Transparent);
+        var unit = size / 32f;
+        // Variant 0 is one broad mound; variant 1 two smaller ones.
+        Mound(image, size / 2, (int)(20 * unit), (int)(12 * unit), (int)(7 * unit));
+        Mound(image, size + (int)(11 * unit), (int)(22 * unit), (int)(8 * unit), (int)(5 * unit));
+        Mound(image, size + (int)(21 * unit), (int)(14 * unit), (int)(8 * unit), (int)(5 * unit));
+        HillAtlasImages[size] = image;
+        return image;
+    }
+
+    private static void Mound(Image image, int centerX, int centerY, int radiusX, int radiusY)
+    {
+        radiusX = Math.Max(3, radiusX);
+        radiusY = Math.Max(2, radiusY);
+        var body = new Color(0.22f, 0.17f, 0.08f, 0.10f);
+        var lit = new Color(1f, 0.97f, 0.84f, 0.30f);
+        var shade = new Color(0.12f, 0.09f, 0.05f, 0.38f);
+        for (var dy = -radiusY; dy <= radiusY; dy++)
+            for (var dx = -radiusX; dx <= radiusX; dx++)
+            {
+                var distance = (float)(dx * dx) / (radiusX * radiusX) + (float)(dy * dy) / (radiusY * radiusY);
+                if (distance > 1f) continue;
+                // The outer ring of the mound is its rim: lit facing the
+                // north-west light, shaded on the far side.
+                var rim = distance > 0.62f;
+                var color = !rim ? body : dx + dy * 2 < 0 ? lit : shade;
+                PixelArt.Put(image, centerX + dx, centerY + dy, color);
+            }
+    }
+
     private static Image AtlasImage(int size)
     {
         if (AtlasImages.TryGetValue(size, out var cached)) return cached;
