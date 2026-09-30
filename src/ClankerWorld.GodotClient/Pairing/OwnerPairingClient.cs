@@ -350,13 +350,14 @@ public sealed class OwnerPairingClient
         TAction action,
         IOwnerDeviceSigner deviceKey,
         CancellationToken cancellationToken,
-        string? requiredPayloadDomain = null)
+        string? requiredPayloadDomain = null,
+        TimeSpan? maximumDuration = null)
         where TResponse : class
     {
         // ResponseHeadersRead ends HttpClient's timeout at the headers. Keep
         // a deadline alive across both JSON bodies and the complete signed flow.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var maximum = TimeSpan.FromSeconds(15);
+        var maximum = maximumDuration ?? TimeSpan.FromSeconds(15);
         deadline.CancelAfter(httpClient.Timeout == Timeout.InfiniteTimeSpan || httpClient.Timeout > maximum
             ? maximum : httpClient.Timeout);
         cancellationToken = deadline.Token;
