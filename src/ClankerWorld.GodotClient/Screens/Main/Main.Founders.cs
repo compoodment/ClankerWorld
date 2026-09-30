@@ -143,6 +143,7 @@ public partial class Main
         founderProviderChoice.ItemSelected += _ =>
         {
             founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
+            founderModelSetupCheckStatus.Text = string.Empty;
             PopulateFounderCredentials();
         };
         body.AddChild(founderProviderChoice);
@@ -164,6 +165,14 @@ public partial class Main
         founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
         body.AddChild(founderModelPicker);
+        founderModelSetupCheckButton.Text = "Test model · 1 paid call";
+        founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(founderModelSetupCheckButton);
+        founderModelSetupCheckButton.Pressed += () => _ = RunFounderModelSetupCheckAsync();
+        body.AddChild(founderModelSetupCheckButton);
+        founderModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        founderModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(founderModelSetupCheckStatus);
         // Placement hints wrap differently as the pointer crosses the map.
         // Keep them after the fields so those click targets never move.
         body.AddChild(founderSetupHint);

@@ -870,6 +870,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyModelPicker();
+            VerifyModelSetupCheckControls();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");

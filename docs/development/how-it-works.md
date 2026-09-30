@@ -223,6 +223,17 @@ hand-picked model the key can't use stays shown, greyed, with the same request.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
+**Test model** is a separate owner action in Add Agent and an agent's Model
+panel. It sends one request through the same OpenAI-compatible personal
+decision adapter used in play, including the required JSON response format.
+It sends no temperature or output-token limit. The host durably reserves a
+paid-call allowance before sending; every result after that point, including a
+timeout or rejected format, counts as one attempt. The check never tries an
+alternate request format, changes provider settings, or saves a pasted key.
+The response contains only a bounded result such as ready, missing key, usage
+limit, unsupported format, timed out, unavailable, or unusable reply. It does
+not include provider error text or response bodies.
+
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.

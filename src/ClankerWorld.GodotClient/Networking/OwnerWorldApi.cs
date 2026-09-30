@@ -634,4 +634,22 @@ public sealed class OwnerWorldApi
             action,
             deviceKey,
             cancellationToken);
+
+    public Task<OwnerProviderSetupCheckResult> CheckProviderSetupAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProviderSetupCheckAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProviderSetupCheckAction, OwnerProviderSetupCheckResult>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderSetupCheck,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderSetupCheck(action),
+            action,
+            deviceKey,
+            cancellationToken);
 }
