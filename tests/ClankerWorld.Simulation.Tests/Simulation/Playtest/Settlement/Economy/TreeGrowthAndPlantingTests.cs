@@ -7,7 +7,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class TreePlantingTests
+public sealed class TreeGrowthAndPlantingTests
 {
     private const string SeedLotId = "test-tree-seed";
 
@@ -214,8 +214,9 @@ public sealed class TreePlantingTests
         var treeId = TreeGrowthRules.PlantedTreeId(site);
 
         // An older schema cannot hold planted trees.
-        Assert.Contains("schema 27", Assert.Throws<InvalidDataException>(() =>
-            PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 26 })).Message, StringComparison.Ordinal);
+        Assert.StartsWith("Trees planted on new tiles require", Assert.Throws<InvalidDataException>(() =>
+            PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 })).Message,
+            StringComparison.Ordinal);
 
         // A planted tree must be a plantable species on legal ground.
         var orchardMap = saved.Map with
@@ -235,6 +236,105 @@ public sealed class TreePlantingTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
         Assert.Equal(TreeGrowthRules.Broadleaf, restored.ExportState().Map.GetResource(treeId).TreeKind);
     }
+
+    [Fact]
+    public void GeneratedOrchardTreesFruitOnlyInAutumnAndRefruitAfterPicking()
+    {
+        var options = new GeographyOptions("saved-orchard-stages", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(options.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+        var orchards = world.ExportState().Map.Resources.Where(resource => resource.TreeKind == "orchard")
+            .Select(resource => resource.Id).ToArray();
+        Assert.NotEmpty(orchards);
+        var config = world.WorldSystems.Config;
+        var first = world.WorldSystems.Ecology.GetResource(orchards[0]);
+        Assert.Equal("fruit", first.Kind);
+        Assert.Equal(0, first.Quantity);
+        Assert.Equal(SeasonKind.Autumn, first.RegenerationSeason);
+        // A new world starts in spring, so orchard trees have leaves but no fruit.
+        Assert.Equal(ResourceState.Depleted, world.ExportState().Resources.Single(item => item.ResourceId == orchards[0]).State);
+        Assert.Equal("growing", Assert.Single(new OwnerWorldObservationStore(world).GetSnapshot().Resources,
+            resource => resource.Id == orchards[0]).TreeStage);
+
+        // Step the saved growth state through two calendar years, one day at a
+        // time, exactly as each tick's ecology advance would.
+        var ecology = world.WorldSystems.Ecology;
+        var pickedOnDay = -1L;
+        for (var day = 0L; day < 2L * config.DaysPerYear; day++)
+        {
+            var calendar = WorldCalendarRules.FromTick(day * config.TicksPerDay, config);
+            ecology = EcologyRules.Advance(ecology, calendar, config);
+            var autumn = calendar.Season == SeasonKind.Autumn;
+            if (autumn && calendar.DayOfSeason == 1)
+            {
+                // Pick the first tree on autumn's second day, as a harvest does.
+                var pick = EcologyRules.Harvest(ecology.GetResource(orchards[0]), 1);
+                Assert.True(pick.IsValid);
+                pickedOnDay = day;
+                ecology = ecology with
+                {
+                    Resources = ecology.Resources.Select(resource => resource.Id == orchards[0]
+                        ? pick.Resource! with { NextRegenerationDay = day + TreeGrowthRules.OrchardRefruitDays }
+                        : resource).ToArray(),
+                };
+            }
+
+            foreach (var id in orchards)
+            {
+                var tree = ecology.GetResource(id);
+                var waitingAfterPick = id == orchards[0] && autumn && pickedOnDay >= 0 &&
+                    day >= pickedOnDay && day < pickedOnDay + TreeGrowthRules.OrchardRefruitDays;
+                Assert.Equal(autumn && !waitingAfterPick ? 1 : 0, tree.Quantity);
+                Assert.Equal(autumn ? waitingAfterPick ? "picked" : "fruiting" : "growing",
+                    TreeGrowthRules.StageOf("orchard", tree, calendar.Season));
+            }
+            if (!autumn) pickedOnDay = -1;
+        }
+    }
+
+    [Fact]
+    public void WoodTreeStagesComeFromTheSavedGrowthState()
+    {
+        var sapling = TreeGrowthRules.PlantedSapling(
+            new MapResource("planted-tree-3-4", "construction", new GridPoint(3, 4), true, "conifer"), 5);
+        Assert.Equal(8, sapling.NextRegenerationDay);
+        Assert.Equal("sapling", TreeGrowthRules.StageOf("conifer", sapling, SeasonKind.Summer));
+        var config = WorldSystemsConfig.Default with
+        {
+            TicksPerDay = 10,
+            DaysPerYear = 40,
+            SpringDays = 10,
+            SummerDays = 10,
+            AutumnDays = 10,
+            WinterDays = 10,
+        };
+        var stillGrowing = EcologyRules.Regenerate(sapling, WorldCalendarRules.FromTick(70, config), config);
+        Assert.Equal("sapling", TreeGrowthRules.StageOf("conifer", stillGrowing, SeasonKind.Summer));
+        var mature = EcologyRules.Regenerate(stillGrowing, WorldCalendarRules.FromTick(80, config), config);
+        Assert.Equal(1, mature.Quantity);
+        Assert.Equal("mature", TreeGrowthRules.StageOf("conifer", mature, SeasonKind.Summer));
+        // Growth completes once: later days cannot add a second yield.
+        var later = EcologyRules.Regenerate(mature, WorldCalendarRules.FromTick(390, config), config);
+        Assert.Equal(1, later.Quantity);
+        var felled = EcologyRules.Harvest(later, 1);
+        Assert.True(felled.IsValid);
+        Assert.Equal("stump", TreeGrowthRules.StageOf("conifer", felled.Resource, SeasonKind.Summer));
+        Assert.False(EcologyRules.Harvest(felled.Resource!, 1).IsValid);
+    }
+
+    /// <summary>
+    /// Orchard trees fruit only in autumn and a new world starts in spring.
+    /// Runtime harvest checks move one tree's recorded fruiting season to the
+    /// current season; <see cref="GeneratedOrchardTreesFruitOnlyInAutumnAndRefruitAfterPicking"/>
+    /// covers the autumn calendar itself.
+    /// </summary>
+    internal static EcologyResource InFruitingSeason(EcologyResource orchard, PrivateWorldRuntimeState state) =>
+        orchard with
+        {
+            Quantity = 1,
+            State = EcologyResourceState.Available,
+            RegenerationSeason = state.WorldSystems!.Climate.Season,
+        };
 
     /// <summary>A started world where the first agent carries one tree seed beside an empty plantable tile.</summary>
     private static (PrivateWorldRuntimeState State, string Actor, GridPoint Site) PlantingWorld(string seed)

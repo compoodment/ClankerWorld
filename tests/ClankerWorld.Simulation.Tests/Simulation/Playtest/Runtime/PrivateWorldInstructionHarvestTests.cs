@@ -122,7 +122,7 @@ public sealed partial class PrivateWorldRuntimeTests
                 Ecology = state.WorldSystems.Ecology with
                 {
                     Resources = state.WorldSystems.Ecology.Resources.Select(resource => orchards.Contains(resource.Id)
-                        ? GeographyGeneratorTests.InFruitingSeason(resource, state) : resource).ToArray(),
+                        ? TreeGrowthAndPlantingTests.InFruitingSeason(resource, state) : resource).ToArray(),
                 },
             },
         }, _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
