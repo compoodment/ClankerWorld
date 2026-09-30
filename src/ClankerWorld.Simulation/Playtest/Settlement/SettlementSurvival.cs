@@ -134,7 +134,8 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<PlacedBuilding> AccessibleShelters(string actor) => BuildingsWithTag("shelter")
         .Where(building => building.HouseholdId is null ||
-            building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
+            building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+            || WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(actor, building.InstanceId));
 
     private bool NearShelter(string actor, GridPoint point) => AccessibleShelters(actor).Any(building =>
         IsWithinInteractionRange(point, building.Position,

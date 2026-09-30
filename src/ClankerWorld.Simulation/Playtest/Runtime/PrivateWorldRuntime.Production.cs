@@ -22,11 +22,12 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
                     throw new InvalidDataException("A placed building has no active definition.");
-                return WorldContentSimulationRules.Footprint(definition, building.Position);
+                return WorldContentSimulationRules.Footprint(definition, building);
             }))
             .Concat(inhabitants.Values.Where(person => person.InhabitantId != actor)
                 .Select(person => person.Position))
@@ -36,7 +37,7 @@ public sealed partial class PrivateWorldRuntime
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available));
         var buildingsForLayout = worldSimulation.Buildings
             .Where(building => definitions.ContainsKey(building.DefinitionId))
-            .Select(building => new TownLayoutBuilding(building, definitions[building.DefinitionId]));
+            .Select(building => new TownLayoutBuilding(building, BuildingStorageRules.EffectiveDefinition(definitions[building.DefinitionId], building)));
         return new TownLayoutContext(
             map,
             town,
@@ -229,6 +230,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
@@ -239,7 +241,7 @@ public sealed partial class PrivateWorldRuntime
                 return false;
             }
 
-            foreach (var existingPoint in WorldContentSimulationRules.Footprint(existingDefinition, placed.Position))
+            foreach (var existingPoint in WorldContentSimulationRules.Footprint(existingDefinition, placed))
             {
                 occupied.Add(existingPoint);
             }
@@ -258,10 +260,20 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyInventoryTransition(Func<InventoryCheckpoint, InventoryCheckpoint> transition)
     {
         ArgumentNullException.ThrowIfNull(transition);
-        society.Apply(checkpoint => new SocietyOperationResult(
-            checkpoint with { Inventory = transition(checkpoint.Inventory) },
-            null,
-            []));
+        society.Apply(checkpoint =>
+        {
+            var updated = transition(checkpoint.Inventory);
+            foreach (var building in worldSimulation.Buildings)
+            {
+                var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+                if (BuildingStorageRules.Capacity(definition, building) is not { } capacity) continue;
+                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+                if (after > capacity && after > before)
+                    throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
+            }
+            return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
+        });
     }
 
     private static InventoryCheckpoint ConsumeQuantities(
@@ -420,7 +432,7 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
             AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }
@@ -450,7 +462,7 @@ public sealed partial class PrivateWorldRuntime
                         ? candidate with { State = completed ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled }
                         : candidate)
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
-                    .ToArray());
+                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
             AppendEvent(completed ? "build_completed" : "build_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }

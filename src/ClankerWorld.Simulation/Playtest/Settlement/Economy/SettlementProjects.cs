@@ -281,7 +281,8 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
+                worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .ToHashSet();
         var additions = new List<MapResource>();
         var townStorage = SettlementStoragePosition;
@@ -649,10 +650,16 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(inhabitantId, inhabitants[inhabitantId], store, "deliver", interactionRange);
                 return;
             }
+            var deliveryQuantity = Math.Min(input.Amount, AvailableLotQuantity(carried));
+            if (house is not null) deliveryQuantity = Math.Min(deliveryQuantity, StorageRoom(house.InstanceId));
+            if (deliveryQuantity == 0)
+            {
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "House storage is full; expand it before delivering more." });
+                return;
+            }
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"project-delivery:{WorldTick}:{inhabitantId}", inhabitantId, constructionOwner, carried.Id,
-                Math.Min(input.Amount, AvailableLotQuantity(carried)), "project_contribution",
-                house?.InstanceId));
+                deliveryQuantity, "project_contribution", house?.InstanceId));
             AppendEvent("project_material_delivered", $"{inhabitantId}:{input.ResourceId}");
             return;
         }
@@ -865,6 +872,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
+        if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, request.OwnerId, carried.Id, quantity, "project_request_fulfilled",
             house?.InstanceId));

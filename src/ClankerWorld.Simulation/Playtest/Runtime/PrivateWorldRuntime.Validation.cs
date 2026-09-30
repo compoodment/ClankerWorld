@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         assetReservations.Validate();
         ValidateAssetReservationsAgainstActivePackages();
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
@@ -169,7 +170,7 @@ public sealed partial class PrivateWorldRuntime
         if (town.BorderTiles.Any(point => !map.Contains(point)) ||
             town.OriginSite is { } site && !border.Contains(site) ||
             town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
-                WorldContentSimulationRules.Footprint(definition, byInstance[id].Position).Any(tile => !border.Contains(tile))))
+                WorldContentSimulationRules.Footprint(definition, byInstance[id]).Any(tile => !border.Contains(tile))))
             throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
     }
 
@@ -334,6 +335,7 @@ public sealed partial class PrivateWorldRuntime
                 state.WorldContent,
                 state.Map,
                 state.Society.Society.WorldTick);
+            ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society, state.Map, state.SchemaVersion);
             ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
                 state.WorldContent, state.Society.Society.Inhabitants);
             if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&

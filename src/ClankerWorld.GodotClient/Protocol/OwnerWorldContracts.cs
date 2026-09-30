@@ -240,7 +240,13 @@ public sealed record OwnerWorldPlacedBuilding(
     string? TownId = null,
     string? HouseholdId = null,
     IReadOnlyList<OwnerWorldInventoryEntry>? StoredItems = null,
-    OwnerWorldPosition? Entrance = null);
+    OwnerWorldPosition? Entrance = null,
+    int? StorageCapacity = null,
+    int StoredQuantity = 0,
+    int FootprintRevision = 0,
+    IReadOnlyList<string>? InvitedGuests = null,
+    string? ExpansionState = null,
+    string? ExpansionFailure = null);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
