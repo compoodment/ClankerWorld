@@ -29,7 +29,7 @@ everything that is available in the current build. See [what works today](../wha
   adds and configures **four biologically unrelated starting agents** using
   each agent's model and key setup. They are grouped 2+2 into two
   starting households, not forced couples; family lines develop later through
-  relationships and children. All four begin as agents of the first Town.
+  relationships and children. All four begin as residents of the first Town.
   The simulation cannot begin until this setup is complete. The exact order
   of site choice and agent configuration remains open.
 - Once all four starting agents are configured and placed, the player explicitly
@@ -43,8 +43,8 @@ everything that is available in the current build. See [what works today](../wha
 - Each agent independently has a chosen provider/model, private memory and
   context, goals/personality, call schedule, usage, and failure state. Different
   agents may use the same stored key. Agents choose their own personality,
-  aspirations and initial identity. Agents start with no skills; they gain each
-  one by doing the work. The player can add adults freely.
+  aspirations and initial identity. Agents start with no skills; an agent first
+  gains a skill by finishing that kind of work. The player can add adults freely.
 - An agent chooses its personality and aspiration **once, at its first
   decision**. **Leaning toward (provisional; the moments and the cap are tuned
   in playtests):** it can change them later only at moments the game names: a
@@ -145,7 +145,7 @@ for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
 generated Roads. If no legal five-building layout fits, explain the problem
 and let the player choose another site without committing a partial Town.
 The player can change the rough site before placing founders; there is no
-separate layout Accept/Redo step. Clothing-making place and Workshop are not
+separate layout Accept/Redo step. Tailor Shop and Workshop are not
 guaranteed starters; agents may develop them later.
 
 The Town automatically assigns the Farmhouse and Blacksmith to the two
@@ -161,7 +161,7 @@ controls, and whether a nonguaranteed building can appear at start also remain
 open. The
 [planned game content](content-list.md) records the accepted
 base tool/item/food/object/art set and explicitly marked remaining choices;
-the [what works today](../what-works.md) describes the playable prototype.
+[What works today](../what-works.md) describes the playable prototype.
 
 ### Still to decide
 
@@ -243,7 +243,7 @@ another sprite family at first.
   conversation above is a special case: it must be started even across the
   world, has the four-turn bound described above, and a marriage cannot
   complete with its surname undecided. Ordinary conversations have no agreed
-  numeric turn limit yet. These are intended rules, not a claim that the
+  numeric turn limit yet; a provisional limit is recorded below. These are intended rules, not a claim that the
   marriage conversation is implemented.
 - **Each participant's own model speaks that participant's turns** in a
   conversation, as in the marriage-surname conversation above.
@@ -312,7 +312,7 @@ options, not agreed game design.
   personal feuds, and organized war**. Hunting and sport/duels were not chosen
   in that discussion.
 - Combat can turn lethal, but agents should not be dying constantly. Personal
-  models choose intentions; the game rules resolves reach, movement,
+  models choose intentions; the game rules resolve reach, movement,
   timing, protection, injury, and outcomes. Health already exists in the
   prototype, but the integrated game **does not yet have a combat loop,
   weapons, armor, combat injuries, or combat AI**.

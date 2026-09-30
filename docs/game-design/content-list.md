@@ -19,7 +19,8 @@ asset family does **not** set its recipe, cost, storage capacity, art file or
 development order unless stated explicitly. It is not a claim of implementation.
 
 **Status key:** **Agreed** = accepted for the finished-game base roster (not
-necessarily built yet). **Still to decide** = explicitly deferred or unresolved choice, not
+necessarily built yet). **Leaning toward** = a provisional choice inside an
+agreed row, to be tuned in playtests. **Still to decide** = explicitly deferred or unresolved choice, not
 accepted as a specific asset. “Late-development” means accepted but staged
 later. The row description controls scope: acceptance of a family is
 not acceptance of every possible variant or a detailed mechanic.
@@ -51,7 +52,9 @@ worlds. Grass, stone and snow should suit their generated climate; cacti were
 previously an example but are now disfavored, pending a final exclusion.
 Forest-floor art should correspond to a visible tree or plant, mostly trees;
 grass-surfaced forest art can carry scattered trees. Hills at mountain bases
-are a preferred addition, with exact terrain rules still open. Sand need not
+are agreed as a visual layer only; for now a hill costs the same to walk as
+grass, and exact elevation thresholds remain open (see
+[The world](world.md#maps-plants-and-weather)). Sand need not
 outline every coast or river. The current grain, striped transitions and
 large circular weather overlays are rejected, not accepted asset references.
 
@@ -72,7 +75,7 @@ large circular weather overlays are rejected, not accepted asset references.
 | 2.9 | Agreed | Universal-grain field: prepared soil, seeded, sprout, mature, harvested | **Grain**, with no species-specific wheat/barley/etc. item; grain seed. |
 | 2.10 | Agreed | Potato field: same functional stages | **Potatoes** and potato planting stock; not generic roots or carrots. |
 | 2.11 | Agreed | Cultivated leafy-green field: same functional stages | Farmed greens, a **different, more filling food** than wild greens. |
-| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit; the orchard tree also obeys **one tree per tile**. Species, yield and seasonality open. |
+| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit; the orchard tree also obeys **one tree per tile**. **Leaning toward** (provisional, tuned in playtests): one species that fruits in autumn. Yield and other details open. |
 
 The accepted compact base-food set is berries, wild greens, universal grain,
 potatoes, cultivated greens and orchard fruit. It avoids dozens of crops that
@@ -112,7 +115,8 @@ an endless ore ladder merely because they are conventional crafting-game items.
 
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
 Blacksmith, plus **eight food portions in each House** and **at least one
-usable wooden axe and one usable wooden pickaxe** in the communal Warehouse.
+usable wooden axe and one usable wooden pickaxe** in the communal Warehouse,
+and **one garment** for each starting agent, kept in their House.
 The game automatically assigns the Farmhouse and Blacksmith to the two
 starting households, one productive building each. Optional extra supplies,
 later ownership transfers and replacement recipes are **open**. The Blacksmith can
@@ -120,7 +124,7 @@ support the bootstrap; the Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
-| # | Status | Carryable item / visual | Proposed source and role |
+| # | Status | Carryable item / visual | Source and role |
 | --- | --- | --- | --- |
 | 5.1 | Agreed | Wild berries; wild greens | Gathered food; distinct fresh-food icons. |
 | 5.2 | Agreed | Raw universal grain; potatoes; cultivated greens; orchard fruit | Harvested farm foods, each with its own item/icon; farmed greens satisfy more hunger than wild greens. |
@@ -186,7 +190,7 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | One small crafted boat and an occupied/cargo state for water travel through ports; improved craft can be agent inventions. Exact water/boat rules open. |
+| 7.3 | Agreed | Boat | One small crafted boat and an occupied/cargo state for water travel through ports; improved craft can be agent inventions. Boats are communal Town property, and a journey needs a completed Port at each end (see [The world](world.md#first-boat-and-port-travel)). Exact recipes, costs, speed and queueing open. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
 | 7.6 | Agreed | Weapon | Axe is also a work tool; **spear and simple sword** are accepted additional combat items. Materials, crafting and lethality remain open. |
@@ -223,7 +227,7 @@ list as a cap on invention, or fabricate every possible invented sprite now.
 | 9.5 | Agreed | Economy/work | Item icons used consistently in inventories, stock panels, farm/work progress, Store/Market/Restaurant trade, and offers. Actual physical location and ownership must be visible. |
 | 9.6 | Agreed | Events and conversation | Event Log location markers, chat bubble, conversation summary/full view, decisions, law/election and invention notices inside their relevant panels. No optional out-of-view pop-up notice system. |
 | 9.7 | Agreed | Pause, settings, save, mods | Compact Pause Menu: Save World, Settings, Mod Library, **Quit to Menu last**; no Quit Game there. Game/World Settings, confirmation dialogs, save compatibility, AI-usage meter/limit and mod states. |
-| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes is agreed in the game design; the font and remaining accessibility treatment are open. |
+| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes, and its pixel fonts (Fusion Pixel 12px for text, Timber for headings), are agreed in [Interface and art](interface-and-art.md); the exact icon set and remaining accessibility treatment are open. |
 
 All important information remains readable in **text**. Generated voice,
 music, ambient sound and sound effects are **outside the first complete game's
