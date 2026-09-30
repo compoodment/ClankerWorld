@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Planned game content
@@ -87,7 +87,7 @@ spoilage and farm count still need design.
 | 3.2 | Agreed | Stone | Outcrops → stone tools and construction. |
 | 3.3 | Agreed | Iron ore / refined iron | Iron outcrop → separate ore item → Blacksmith refines it into a separate usable metal item → tools and other crafts. Selling refined metal to others is proposed and awaiting final confirmation. |
 | 3.4 | Agreed | Gold / diamond | Named rarer materials. No assumed mining tier, currency role or automatic weapon upgrade. |
-| 3.5 | Agreed | Plant fiber / cloth | Fiber plants → real **cloth intermediate** → Tailor Shop clothing; cloth can be held and traded as its own stock. |
+| 3.5 | Agreed | Plant fiber / cloth | Fiber plants → the Tailor Shop turns plant fiber into a real **cloth intermediate** → the Tailor Shop turns cloth into clothing; cloth can be held and traded as its own stock. Recipe numbers are provisional (see 6.8). |
 | 3.6 | Agreed | Seeds | Tree seed, universal-grain seed, potato planting stock and cultivated-green seed. Exact item split and orchard propagation remain open; the prototype's generic `seed` need not remain universal. |
 | 3.7 | Agreed | Rope | Fiber → rope for boat/building/transport use; exact recipe and function open. |
 | 3.8 | Agreed | Clay / pottery | Clay bank → pottery; storage vessel/trade-good roles and recipe open. Not a required technological age. |
@@ -144,22 +144,22 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 
 | # | Status | Building / footprint | Finished-game function and art |
 | --- | --- | --- | --- |
-| 6.1 | Agreed | House: 1×1, 1×2, 2×2 | Three readable exterior footprints; private household food/resources, cooking and storm refuge. Expansion raises storage, **not** occupancy. No beds or sleeping props required. |
-| 6.2 | Agreed | Warehouse: 2×2, 2×3 | Two exterior footprints; physical communal **non-food** resource stock for Town residents. |
-| 6.3 | Agreed | Store: 1×1, 1×2 | Two exterior footprints; household shop with goods physically delivered and stocked there before sale. |
-| 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, claimable by a starting household. |
+| 6.1 | Agreed | House: 1×1, 1×2, 2×2 | Three readable exterior footprints; private household food/resources, cooking and storm refuge. Invited guests may shelter from storms but get no access to the House's stock or cooking. Expansion raises storage, **not** occupancy. No beds or sleeping props required. |
+| 6.2 | Agreed | Warehouse: 2×2, 2×3 | Two exterior footprints; physical communal **non-food** resource stock for Town residents only, checked when they pick something up. What someone already carries stays theirs. |
+| 6.3 | Agreed | Store: 1×1, 1×2 | Two exterior footprints; **optional** household shop, held by the household that builds it (a Farmhouse or Tailor Shop household may build one), with goods physically delivered and stocked there before sale. |
+| 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, held by a starting household. Household-held, **not communal**: the holding household works there and sells directly from it, and any adult resident of that household may use it. A Farmhouse household may also build a Silo and an optional Store. |
 | 6.5 | Agreed | Farm fields | Prepared/seeded/growing/ready/harvested states for each accepted crop, not visible building interiors. |
-| 6.6 | Agreed | Private farm Silo: 1×1 | Separate private farm-work stock **next to the Farmhouse**; exact adjacency/placement rule and storage capacity open. |
-| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, claimable by a household. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
-| 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Dedicated clothing business. Tool/cloth recipes and sales workflow remain open. |
-| 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; **late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. |
+| 6.6 | Agreed | Private farm Silo: 1×1 | Separate private farm-work stock **next to the Farmhouse**, which the Farmhouse household may build; exact adjacency/placement rule and storage capacity open. |
+| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
+| 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
+| 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. Whether the Workshop is an exception to the household-only planning rule is still to decide. |
 | 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn; rules for reservation, stall ownership and filling it are open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Accepted care business for illness/injury treatment. Exact name, recipes and care actions open. |
-| 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Roads remain after their building or Town disappears. |
-| 6.16 | Agreed | Bridge | Narrow river crossing sprite(s); generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Separate nearby streams may each need a bridge. |
+| 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Roads remain after their building or Town disappears. Roads cost no materials. |
+| 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
 
 Port footprint interpretation, shown in one of its four orientations (`P` is
 part of the 2×4 Port, `·` is clear docking water beside it):

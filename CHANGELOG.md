@@ -6,7 +6,7 @@ release yet.
 
 ## Unreleased
 
-- Inventory lot splits keep stock committed to reservations and barter in the original lot, so those commitments can still be fulfilled.
+- A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
@@ -45,6 +45,7 @@ release yet.
 - Failed founder checkpoint writes roll back the founder and provider configuration. World selection and founder setup share one transaction gate so successful placements keep their model assignments.
 
 - Death cancels unfinished barter through the normal two-sided release, immediately freeing the survivor’s stock without cancelling completed exchanges.
+- Inventory lot splits keep stock committed to reservations and barter in the original lot, so those commitments can still be fulfilled.
 - Resume keeps the world paused until its running checkpoint is saved, and retries cannot report success while saving still fails—even when an earlier request left memory running.
 - Successful pause and rename retries now persist the acknowledged state even when a failed earlier save already changed it in memory.
 

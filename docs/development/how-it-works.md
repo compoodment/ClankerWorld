@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -63,8 +63,8 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Recognized MustDo instructions complete only when their requested legal action
-actually progresses: acquiring/eating food or taking a travel step. An unrelated
-action, blocked movement or unavailable food leaves the instruction pending,
+actually progresses: acquiring food or orchard fruit, eating, or taking a travel
+step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
 including across reload. Travel completion here is one step, not a full-route
 goal; suggestive instructions retain their separate semantics.
 

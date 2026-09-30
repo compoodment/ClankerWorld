@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Towns, buildings and government
@@ -34,10 +34,11 @@ everything that is available in the current build. See [what works today](../wha
   by household members while physically inside; food is kept here. It provides
   cooking, storm refuge, childcare and household property functions. Agents
   outside the household may enter **when invited**; invitation does not grant
-  access to the household's private inventory. **There is no fixed occupant
-  limit for a House**, including invited visitors; prior capacity and crowding
-  ideas are superseded. It has no bed or sleep-recovery role. A selected
-  building exposes inspectable occupants, stock and ownership in a panel;
+  access to the household's private inventory. Invited guests may shelter from
+  storms but get no access to the House's stock or cooking. **There is no
+  fixed occupant limit for a House**, including invited visitors; prior
+  capacity and crowding ideas are superseded. It has no bed or sleep-recovery
+  role. A selected building exposes inspectable occupants, stock and ownership in a panel;
   there are **no visible/enterable room interiors**.
 - **Storage-driven building expansion:** a House starts at **1×1** and can
   expand to **1×2** or **2×2** when its household needs more storage.
@@ -67,8 +68,10 @@ everything that is available in the current build. See [what works today](../wha
   than choosing tiles.
 - **Housing priority for a newly added adult (decided):** when the adult has no
   home, seek suitable existing household housing first; start a new House
-  project only if none is suitable. How they join an existing household and
-  gain its permission, or form a new household, remains open. There is no
+  project only if none is suitable. Moving into another household's House
+  after setup needs that household's agreement, while placing an agent with Add
+  Agent on household property still joins that household without consent. How
+  an adult forms a new household remains open. There is no
   occupancy-capacity gate.
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
@@ -82,18 +85,40 @@ everything that is available in the current build. See [what works today](../wha
   erased. Its identity, buildings, border and infrastructure remain in the
   world, and later residents can revive that same Town. Exact treatment of
   abandoned stock and claims still needs its own decision.
-- **Warehouse** replaces Storehouse. It holds actual inspectable resource stock
-  at its location for agents/households resident in its Town, within that
-  Town's borders. Food belongs at home instead. Residency and border-change
-  access cases remain open.
-- **Workshop** remains for agent inventions/mods and is usable by outsiders.
-  Its footprint is **2×2**. Its mechanic/code is a **late-development phase**:
+- **Warehouse** replaces Storehouse. It is communal: it holds actual
+  inspectable resource stock at its location for agents/households resident in
+  its Town, within that Town's borders. Food belongs at home instead. It is for
+  residents only, checked when they pick something up; what someone already
+  carries stays theirs. Residency and border-change access cases remain open.
+- **Household buildings and who may use them:** work roles do not decide what
+  an agent may do. One household holds each household building: the Farmhouse,
+  Blacksmith, Store and Tailor Shop. Any adult resident of that household may
+  use it. The Farmhouse and Blacksmith are household-held, **not communal**: the
+  holding household works there and sells directly from its own building. A
+  building built after setup is held by the household that builds it. A
+  Farmhouse household may also build a Silo and an optional Store, and a Tailor
+  Shop household may build an optional Store; Stores are optional. An agent
+  cannot give itself access to a household building its household does not
+  hold. The two starting households receive the Farmhouse and Blacksmith
+  automatically, as recorded in the starter economy note below.
+- **Removing or reassigning a building** that holds stock or jobs is refused
+  until the stock is moved.
+- **Workshop** is communal and held by the Town. It remains for agent
+  inventions/mods and is usable by outsiders. Its footprint is **2×2**. Its
+  mechanic/code is a **late-development phase**:
   first establish a functioning simulation and broader base asset set, then
   build the invention/mod loop on that foundation. This is staging, not removal
   from the intended finished game. Remove separate Cooking fire/Campfire and
   Stone hearth buildings; House handles cooking. Remove Weaving frame and
-  bed/bedroll content. A dedicated **Tailor Shop** makes clothing at **1×1 or
-  2×2**; its exact production chain remains open.
+  bed/bedroll content.
+- **Tailor Shop** is a household-held building, **1×1 or 2×2**. It turns plant
+  fiber into cloth and cloth into clothing, and cloth is a real item that can be
+  held and traded. The Weaving frame and its "Woven clothing" are removed
+  outright as soon as the Tailor Shop works, with no legacy transition; old
+  alpha saves are not kept (see [Saves](saves.md)). **Leaning toward:** the
+  recipe numbers, costs and work time are provisional and will be tuned in
+  playtests; this chapter does not fix them. The holding household sells clothing
+  directly from the building, as the Blacksmith does, and does not need a Store.
 - **Roads and bridges:** the world system generates infrastructure, not the
   player or individual agent. The full agreed road rule is below; the starter
   Path becomes a Road in intended content.
@@ -127,8 +152,8 @@ invented content are not silently approved. In particular:
 - The farm roster includes **universal grain** (no named grain species),
   **potatoes**, a cultivated leafy green distinct from wild greens that
   satisfies more hunger, and orchard fruit. Flour is a sellable Farmhouse
-  intermediate, including at a Market; cloth is likewise a real intermediate
-  item.
+  intermediate, including at a Market; cloth, made at the Tailor Shop from
+  plant fiber, is likewise a real intermediate item.
 - The Blacksmith refines **iron ore into a separate metal item**, then uses it to
   make tools. Selling spare refined metal directly from the Blacksmith is
   a strong proposed extension awaiting final confirmation. The Blacksmith
@@ -171,14 +196,20 @@ terrain, resources, existing buildings, ownership, access, other Towns, room
 for growth and building purpose. Town appearance/layout should vary by
 Town/culture. Exact weights and when another offer appears are open.
 
+**Agreed, what a household plans:** a household plans only the buildings it
+needs for itself: a House, or a Farmhouse, Blacksmith, Store or Tailor Shop it
+does not yet hold. Buildings the Town shares wait for governance. **Still to
+decide:** the design says agents may develop a Workshop later, which this rule
+would block, so whether the Workshop is an exception remains open.
+
 The intended building roles now include House, Warehouse, Workshop,
-Farmhouse, farm fields, an adjacent private farm Silo, household-run Store,
-household-run Blacksmith with internal work stock and direct sales, Tailor Shop,
-public Market and stalls, Town Hall, Port, Clinic, and optional agent-founded
-Restaurant. A
-Farmhouse processes crops; its owning household places fertile fields, plants
-seeds, tends, harvests, and sells/trades the produce. Farm count responds to
-**Town population and farm yields**; a shortage or reduced yield can justify
+Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
+Store, household-run Blacksmith with internal work stock and direct sales,
+Tailor Shop, public Market and stalls, Town Hall, Port, Clinic, and optional
+agent-founded Restaurant. A
+Farmhouse processes crops; the household that holds it places fertile fields,
+plants seeds, tends, harvests, and sells/trades the produce. Farm count
+responds to **Town population and farm yields**; a shortage or reduced yield can justify
 more farming rather than a hard cap blocking recovery. The exact formula is
 open. Farm work stock
 is private to its household; its Silo is distinct from the public Town
@@ -239,9 +270,12 @@ footprint. The player's September 29 sketch indicates a connected spine with
 short branches as a useful layout direction, not a mandatory fixed street map.
 **Bridge placement responds to traffic** at narrow river crossings, even
 without a planned Road. A Road generation pass also builds a bridge immediately
-if its legal route encounters a bridgeable river. Either case excludes a
-redundant nearby bridge over the same crossing/river, not a necessary bridge
-over a different nearby stream.
+if its legal route encounters a bridgeable river. A river is **bridgeable up to
+two tiles wide**; wider water is not bridged. Roads and bridges **cost no
+materials**. Either case excludes a redundant nearby bridge over the same
+crossing/river, not a necessary bridge over a different nearby stream. Bridge
+spacing compares the actual connected banks, with **no fixed radius**, so a
+needed bridge over a separate nearby stream is never blocked.
 For traffic-created bridges, the initial playtest threshold is **six completed
 crossings by at least two distinct agents within two world-days** at the same
 legal narrow crossing. Only actual traversal counts, not route previews,
@@ -252,8 +286,8 @@ for this traffic.
 **Roads and bridges remain permanently** once built. They do not decay or
 disappear automatically when traffic stops, a building is removed or a Town is
 abandoned. There is one Road type; no temporary-versus-permanent class is
-needed. Exact inter-Town route timing, layout, bridge spacing/materials and
-rendering remain open. Diagonal travel/Roads remain in scope; diagonal moves
+needed. Exact inter-Town route timing, layout and rendering remain open.
+Diagonal travel/Roads remain in scope; diagonal moves
 must not pass through blocked corners. Playable foot movement now uses the strict
   two-clear-shoulder rule and a 141% diagonal route cost; diagonal Road
   construction/visuals remain open.
@@ -262,10 +296,12 @@ must not pass through blocked corners. Playable foot movement now uses the stric
 
 Further structure effects; exact configurations and unchosen footprints;
 building
-inspection fields, invitation and non-residential access/reservations/queues;
+inspection fields, invitation details, access to other non-residential
+buildings, reservations and queues; whether the Workshop is an exception to
+the household planning rule;
 claim boundaries, shared-use grants and mayoral powers; Town borders and
 governance; currency/land pricing;
-transport progression; bridge spacing and materials, other terrain eligibility,
+transport progression; other terrain eligibility,
 travel effects and junction/diagonal visuals; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
 economics; and later livestock/wildlife detail.
@@ -332,18 +368,19 @@ These remain open; they are not new decisions.
    yields fall; the population-and-yield planning rule remains open.
 
 - **Automatic infrastructure details.** Towns connect by Road where a legal
-   land route exists and can remain disconnected otherwise. Bridge spacing
-   prevents redundant crossings on the same river but does not block a needed
-   bridge on a separate nearby stream. A generated Road may bridge a legal
-   crossing immediately. The trial traffic threshold is given above. Decide
-   the exact bridge spacing and whether Roads or bridges consume materials;
-   their permanence, including after building loss or Town abandonment, is
-   already agreed.
+   land route exists and can remain disconnected otherwise. A generated Road
+   may bridge a legal crossing immediately. The trial traffic threshold, the
+   two-tile width limit, the spacing rule and the no-materials rule are given
+   above, and permanence, including after building loss or Town abandonment,
+   is already agreed. What remains open is exact inter-Town route timing,
+   layout and rendering.
 
 - **Home invitations and later membership.** Add Agent placement on household
-   land forcibly assigns starting membership, without a consent step. Guests
-   may enter by invitation but cannot use private inventory. Decide guest
-   cooking/storm access and how agents later leave or change households.
+   land still joins the household without a consent step, while moving into
+   another household's House after setup needs that household's agreement.
+   Invited guests may shelter from storms but cannot use the House's stock or
+   cooking. Both rules are agreed above. Decide how agents later leave or
+   change households, beyond that agreement rule.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
