@@ -1422,6 +1422,7 @@ public partial class Main
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
                 BuildingSprites.KindFor(["silo", "farm-storage"]) != BuildingKind.Silo ||
+                BuildingSprites.KindFor(["tailor", "clothing-making"]) != BuildingKind.TailorShop ||
                 BuildingSprites.KindFor(null) != BuildingKind.Generic ||
                 BuildingSprites.KindForObject("campfire") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||
@@ -1984,6 +1985,25 @@ public partial class Main
             UpdateHoverReadout(afterRoad, hoveredCenter);
             if (!hoverReadoutLabel.Text.Contains(" · Road", StringComparison.Ordinal))
                 throw new InvalidOperationException("The hovered tile must reflect a newly observed road without moving the pointer.");
+            var withBridge = beforeRoad with
+            {
+                Bridges =
+                [
+                    new OwnerWorldBridge("bridge-ui-test", "plank_span_1", "traffic", "east_west",
+                        [new OwnerWorldPosition(hoveredCenter.X - 1, hoveredCenter.Y), new OwnerWorldPosition(hoveredCenter.X + 1, hoveredCenter.Y)],
+                        [new OwnerWorldPosition(hoveredCenter.X, hoveredCenter.Y)], 0),
+                ],
+            };
+            // Draw the saved deck, then read it back from the hover readout and World Info.
+            RenderMap(withBridge);
+            RenderWorldInfo(withBridge);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateHoverReadout(withBridge, hoveredCenter);
+            if (!hoverReadoutLabel.Text.Contains(" · Bridge", StringComparison.Ordinal) ||
+                !worldInfoText.Text.Contains("Bridges: 1", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A saved bridge must show in the hover readout and World Info: {hoverReadoutLabel.Text}");
+            RenderMap(largeMap);
+            RenderWorldInfo(largeMap);
             UpdateTileHover(new Vector2(-5, -5));
             if (hoverReadout.Visible)
                 throw new InvalidOperationException("Leaving the map must hide the hover readout.");

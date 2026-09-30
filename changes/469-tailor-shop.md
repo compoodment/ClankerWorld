@@ -1,0 +1,3 @@
+- Households can build a Tailor Shop. There they weave plant fiber into cloth and sew cloth into clothing, bringing fiber in from their own stock or gathering it. An adult without clothing collects a finished garment from the shop.
+- The Weaving frame and its "Woven clothing" are gone. Each starting agent's garment now waits in their household's House.
+- Saves from worlds that were running before this change can no longer be loaded.

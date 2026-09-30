@@ -273,6 +273,19 @@ public sealed record ViewerTown(
 
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
+/// <summary>
+/// A saved bridge exactly as movement uses it: its deck tiles are walkable
+/// only along <see cref="Axis"/> between the two entrances.
+/// </summary>
+public sealed record ViewerBridge(
+    string Id,
+    string Design,
+    string Trigger,
+    string Axis,
+    IReadOnlyList<ViewerPosition> Entrances,
+    IReadOnlyList<ViewerPosition> Span,
+    long BuiltTick);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -295,6 +308,7 @@ public sealed record ViewerWorldSnapshot(
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
+    public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
     /// <summary>

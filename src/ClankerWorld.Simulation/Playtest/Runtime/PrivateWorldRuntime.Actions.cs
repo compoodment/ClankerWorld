@@ -47,6 +47,7 @@ public sealed partial class PrivateWorldRuntime
             TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
+        RecordBridgeTraffic(inhabitantId, state.Position, next);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
     }
 

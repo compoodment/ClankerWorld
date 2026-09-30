@@ -114,8 +114,9 @@ public partial class Main
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
+        terrainLayer.SetBridges(snapshot.Bridges);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
-        worldOverview.SetRoads(snapshot.RoadTiles);
+        worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
         var mapHeight = terrainMap.Height;
@@ -400,6 +401,7 @@ public partial class Main
             $"Map size: {width} × {height}\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
             $"Roads: {snapshot.RoadTiles.Count} tiles\n" +
+            $"Bridges: {snapshot.Bridges.Count}\n" +
             $"Towns: {snapshot.Towns.Count}\n" +
             $"Resource locations: {snapshot.Resources.Count}\n" +
             $"Season and weather here: {localWeather}" +

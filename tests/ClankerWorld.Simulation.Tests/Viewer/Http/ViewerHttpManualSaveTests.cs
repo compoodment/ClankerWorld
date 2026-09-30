@@ -165,7 +165,7 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(8, runtime.Content.Packages.Count);
+                Assert.Equal(9, runtime.Content.Packages.Count);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "house-1x1");
@@ -307,7 +307,7 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(8, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(9, restoredRuntime.Content.Packages.Count);
             Assert.Equal(5, restoredRuntime.WorldSimulation.Buildings.Count);
             Assert.NotEmpty(restoredRuntime.RoadTiles);
             var selectedOld = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
