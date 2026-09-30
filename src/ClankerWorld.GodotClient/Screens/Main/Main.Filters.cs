@@ -24,9 +24,9 @@ public partial class Main
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 8);
 
+        // Filters start off, so the map starts clean.
         townBorderFilter.Text = "Town borders";
-        townBorderFilter.TooltipText = "Outline Town borders in amber.";
-        townBorderFilter.ButtonPressed = true;
+        townBorderFilter.TooltipText = "Show Town borders as a dashed line.";
         townBorderFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
         body.AddChild(townBorderFilter);
 
@@ -67,9 +67,17 @@ public partial class Main
         }
     }
 
+    /// <summary>
+    /// Placing a founder or an added agent shows Town borders and household
+    /// property, so the owner can see where the agent will belong, without
+    /// switching the Filters on.
+    /// </summary>
+    private bool ShowsPlacementOverlays => founderSetupPanel.Visible;
+
     private void ApplyMapFilters(OwnerWorldSnapshot snapshot)
     {
-        terrainLayer.SetTownBorders(townBorderFilter.ButtonPressed ? snapshot.Towns : []);
-        terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed ? snapshot.PlacedBuildings : []);
+        terrainLayer.SetTownBorders(townBorderFilter.ButtonPressed || ShowsPlacementOverlays ? snapshot.Towns : []);
+        terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.PlacedBuildings : []);
     }
 }

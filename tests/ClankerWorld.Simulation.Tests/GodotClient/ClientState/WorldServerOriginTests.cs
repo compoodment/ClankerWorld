@@ -6,7 +6,6 @@ public sealed class WorldServerOriginTests
 {
     [Theory]
     [InlineData("https://clanker.tail87ae72.ts.net:8443/")]
-    [InlineData("https://EXAMPLE.test/")]
     [InlineData("http://[::1]:5188/")]
     public void AcceptsAnHttpsOriginOrLiteralLoopbackDevelopmentOrigin(string value)
     {

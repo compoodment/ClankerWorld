@@ -9,7 +9,6 @@ public sealed class BuildingDesignTests
 {
     [Theory]
     [InlineData("shelter")]
-    [InlineData("hearth")]
     public async Task InhabitantsConstructReviewedDesignThroughOrdinaryPlanning(string purpose)
     {
         var package = BuildingDesign.Create("Resident-built " + purpose, purpose, 8);

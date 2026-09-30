@@ -84,6 +84,9 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(1, building.Width);
             Assert.Equal(1, building.Height);
             var package = Assert.Single(snapshot.ContentPackages);
+            Assert.Equal(preview.Package.PackageId, package.PackageId);
+            Assert.Equal("active", package.Lifecycle);
+            Assert.Contains(snapshot.ContentEvents, item => item.Kind == "package_activated");
             Assert.Equal(action.Name, package.DisplayName);
             Assert.Equal(preview.ManifestDigest, package.ManifestDigest);
             using var restored = PrivateWorldRuntime.Restore(runtime.ExportState());

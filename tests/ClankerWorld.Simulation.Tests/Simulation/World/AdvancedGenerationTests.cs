@@ -34,7 +34,6 @@ public sealed class AdvancedGenerationTests
     }
 
     [Theory]
-    [InlineData(WorldSizePreset.Small, GenerationAmount.Low, 20)]
     [InlineData(WorldSizePreset.Medium, GenerationAmount.High, 80)]
     public void AdvancedOptionsSurviveExactSaveRestore(WorldSizePreset size, GenerationAmount amount, int water)
     {

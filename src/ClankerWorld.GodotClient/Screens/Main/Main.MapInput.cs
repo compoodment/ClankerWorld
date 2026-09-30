@@ -270,6 +270,7 @@ public partial class Main
         if (surface is not null) lines.Add($"Surface: {surface}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
+        if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");
         if ((region?.Weather ?? snapshot.Authoring?.Weather) is { } weather)
             lines.Add($"Weather: {Pretty(weather)}");
         if (region?.SoilMoisture is { } moisture)
@@ -306,7 +307,8 @@ public partial class Main
         // hovered control. Keep the last placement preview while a menu is
         // open, or while the pointer is inside the scaled Add Agent panel.
         // Tooltips let the pointer pass through, so they never block the map.
-        if (GetViewport().GetEmbeddedSubwindows().Any(window => !window.GetFlag(Window.Flags.MousePassthrough)) ||
+        if (GetViewport().GetEmbeddedSubwindows().Any(window => window.Visible &&
+                !window.GetFlag(Window.Flags.MousePassthrough)) ||
             founderSetupPanel.IsVisibleInTree() && founderSetupPanel.GetGlobalRect()
                 .HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition))
             return;

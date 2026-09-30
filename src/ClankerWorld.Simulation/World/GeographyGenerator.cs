@@ -242,6 +242,24 @@ public static class GeographyGenerator
             temperature, climate, drainage);
     }
 
+    /// <summary>
+    /// A seeded, coherent noise field for a later map layer, such as where
+    /// beaches or groves form. Values are about -1 to 1, and the field stays
+    /// continuous across an enabled east/west seam like the geography itself.
+    /// </summary>
+    public static Func<int, int, float> LayerNoise(string worldSeed, string layer, float frequency,
+        int width, bool wrapEastWest)
+    {
+        var noise = NewNoise(NoiseSeed(worldSeed, layer), frequency);
+        if (!wrapEastWest) return (x, y) => noise.GetNoise(x, y);
+        var radius = width / (2f * MathF.PI);
+        return (x, y) =>
+        {
+            var angle = 2f * MathF.PI * x / width;
+            return noise.GetNoise(radius * MathF.Cos(angle), y, radius * MathF.Sin(angle));
+        };
+    }
+
     private static ClimateZone NaturalClimate(byte temperature, byte rainfall) =>
         temperature < 48 ? ClimateZone.Polar :
         temperature < 105 ? ClimateZone.Cold :

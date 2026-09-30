@@ -1046,14 +1046,23 @@ public partial class Main
                 Stockpiles = [new("household:one", "Founder's household", [])],
             };
             RenderMap(ownedMap);
+            if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+                throw new InvalidOperationException("Map Filters must start off, with no Town borders or property drawn.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!filtersPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(filtersPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Map Filters must open inside the world view: map={mapCanvas.GetGlobalRect()} filters={filtersPanel.GetGlobalRect()} site_visible={townSiteButton.Visible}.");
+            townBorderFilter.ButtonPressed = true;
+            if (terrainLayer.TownBorderTileCount == 0 ||
+                !townBorderHint.Text.Contains("dashed line", StringComparison.Ordinal))
+                throw new InvalidOperationException("Turning on Town borders must draw them and explain the dashed line.");
             townBorderFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
-            if (!townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
-                throw new InvalidOperationException("The Town border filter must update the visible map explanation.");
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
+                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Town border filter must update the map and its visible explanation.");
             HandleMapInput(new InputEventMouseButton
             {
                 Position = mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f),
@@ -1062,8 +1071,12 @@ public partial class Main
             });
             if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();
+            if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0)
+                throw new InvalidOperationException("Add Agent placement must show Town borders and property without switching Filters on.");
             ResetAddAgentPlacementHint();
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1094,10 +1107,14 @@ public partial class Main
             if (founderSetupHint.Text != placementPreview)
                 throw new InvalidOperationException("An open model popup must not preview the map behind it.");
             founderModelPicker.Choice.GetPopup().Hide();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-            householdPropertyFilter.ButtonPressed = false;
-            townBorderFilter.ButtonPressed = true;
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0)
+                throw new InvalidOperationException("Leaving Add Agent placement must hide overlays the Filters leave off.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             RenderMap(sample);
             selectedTile = new Vector2I(1, 1);
@@ -1348,6 +1365,31 @@ public partial class Main
                     BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(side, 0)).GetData())).Distinct().Count() != 4 ||
                 northDoor.GetPixel(16, 1).A < 0.5f || southDoor.GetPixel(16, 1).A > 0)
                 throw new InvalidOperationException("A building must show its door on the side it faces.");
+            if (BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(DoorSide.South, 0)).GetPixel(16, 31).A < 0.5f ||
+                southDoor.GetPixel(16, 31).A > 0)
+                throw new InvalidOperationException("A building facing a Road must start its doorstep path at the edge of its footprint.");
+            bool Drawn(RoadLinks links, int x, int y, bool dark = false) => RoadSprites.Render(links, 0, 32, dark).GetPixel(x, y).A > 0.5f;
+            const RoadLinks road = RoadLinks.Road;
+            if (!Drawn(road | RoadLinks.North | RoadLinks.South, 16, 0) || !Drawn(road | RoadLinks.North | RoadLinks.South, 16, 31) ||
+                Drawn(road | RoadLinks.North | RoadLinks.South, 1, 16) || Drawn(road | RoadLinks.North | RoadLinks.South, 30, 16))
+                throw new InvalidOperationException("A straight Road piece must run edge to edge along the Road and nowhere else.");
+            if (!Drawn(road | RoadLinks.NorthEast, 29, 2) || Drawn(road | RoadLinks.NorthEast, 16, 1) ||
+                Drawn(road | RoadLinks.NorthEast | RoadLinks.North, 29, 2))
+                throw new InvalidOperationException("A diagonal Road step must draw one smooth diagonal only where no straight path joins it.");
+            if (!Drawn(RoadLinks.North | RoadLinks.East, 30, 1) || Drawn(RoadLinks.North | RoadLinks.East, 16, 16) ||
+                Drawn(RoadLinks.North | RoadLinks.East | RoadLinks.NorthEast, 30, 1) ||
+                RoadSprites.Draws(RoadLinks.North) || !RoadSprites.Draws(RoadLinks.North | RoadLinks.East))
+                throw new InvalidOperationException("A tile beside a diagonal Road must draw only its share of that diagonal.");
+            if (!Drawn(road | RoadLinks.North | RoadLinks.East | RoadLinks.NorthEast, 28, 4) ||
+                Drawn(road | RoadLinks.North | RoadLinks.East, 29, 2))
+                throw new InvalidOperationException("A Road corner must fill in only where the tile between its two arms is Road too.");
+            if (!Drawn(road | RoadLinks.DoorNorth, 16, 1) || Drawn(road, 16, 1) || Drawn(road | RoadLinks.DoorNorth, 11, 1))
+                throw new InvalidOperationException("A narrow doorstep path must run from the Road to the building's door.");
+            if (!RoadSprites.NeedsDarkEdge(TerrainStyle.Sand) || !RoadSprites.NeedsDarkEdge(TerrainStyle.Snow) ||
+                RoadSprites.NeedsDarkEdge(TerrainStyle.Grass) || RoadSprites.NeedsDarkEdge(TerrainStyle.ForestGrass) ||
+                RoadSprites.Render(road | RoadLinks.East, 0, 32, true).GetPixel(16, 23) is var darkEdge &&
+                    (darkEdge.A < 0.5f || darkEdge.Luminance >= RoadSprites.WornEdge.Luminance))
+                throw new InvalidOperationException("Roads on sand and snow must take a solid darker edge to stay visible.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
@@ -1384,6 +1426,42 @@ public partial class Main
             var seamMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, seamLayers);
             if ((seamMap.WaterEdgeMaskAt(0, 0, true) & 8) == 0)
                 throw new InvalidOperationException("Water-edge transitions must continue across an enabled world seam.");
+            // A mountain at (1, 1) raises a hill base on the high land around
+            // it; low ground stays lowland, and hills warm the overview color.
+            var hillElevation = Enumerable.Repeat((byte)200, 16).ToArray();
+            hillElevation[5] = 230;
+            hillElevation[6] = 150;
+            var hillLayers = testLayers with
+            {
+                Elevation = Convert.ToBase64String(hillElevation),
+                Hydrology = Convert.ToBase64String(new byte[16]),
+                Surface = Convert.ToBase64String(new byte[16]),
+            };
+            var hillMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, hillLayers);
+            var flatMap = WorldTerrainMap.FromTiles(sample.Tiles, 4, 4, testLayers);
+            if (!hillMap.IsHillAt(0, 0) || !hillMap.IsHillAt(3, 3) || hillMap.IsHillAt(1, 1) || hillMap.IsHillAt(2, 1) ||
+                hillMap.DisplayColorAt(0, 0).IsEqualApprox(TerrainTextures.BaseColor(hillMap.StyleAt(0, 0))) ||
+                flatMap.IsHillAt(0, 0) ||
+                !flatMap.DisplayColorAt(0, 0).IsEqualApprox(TerrainTextures.BaseColor(flatMap.StyleAt(0, 0))))
+                throw new InvalidOperationException("Hills must ring a mountain above low ground and warm only their own overview color.");
+            foreach (var atlasSize in new[] { 16, 32 })
+            {
+                var overlays = new[] { TerrainTextures.HillOverlay(0, atlasSize), TerrainTextures.HillOverlay(1, atlasSize) };
+                foreach (var overlay in overlays)
+                {
+                    var relief = 0;
+                    for (var oy = 0; oy < atlasSize; oy++)
+                        for (var ox = 0; ox < atlasSize; ox++)
+                            if (overlay.GetPixel(ox, oy).A > 0.05f) relief++;
+                    for (var edge = 0; edge < atlasSize; edge++)
+                        if (overlay.GetPixel(edge, 0).A > 0 || overlay.GetPixel(0, edge).A > 0)
+                            throw new InvalidOperationException($"{atlasSize}px hill relief must stay off tile edges.");
+                    if (relief < atlasSize * atlasSize * 0.08f || relief > atlasSize * atlasSize * 0.7f)
+                        throw new InvalidOperationException($"{atlasSize}px hill relief must be visible without hiding the ground: {relief} pixels.");
+                }
+                if (overlays[0].GetData().SequenceEqual(overlays[1].GetData()))
+                    throw new InvalidOperationException("Hills need two distinct relief variants.");
+            }
             var marker = mapObjectVisuals["resource:wood"];
             var identity = marker.GetInstanceId();
             var entered = false;
