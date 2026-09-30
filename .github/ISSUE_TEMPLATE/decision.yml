@@ -1,6 +1,6 @@
 name: Design decision
 description: A design question needs an answer from the owner before work can start.
-labels: ["type:decision"]
+labels: ["type:decision", "status:needs-decision"]
 body:
   - type: textarea
     id: question

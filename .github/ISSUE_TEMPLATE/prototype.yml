@@ -1,6 +1,6 @@
 name: Prototype or experiment
 description: Something must be tried before it can be decided.
-labels: ["type:prototype"]
+labels: ["type:experiment"]
 body:
   - type: textarea
     id: hypothesis

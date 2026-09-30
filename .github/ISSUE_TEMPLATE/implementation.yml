@@ -1,6 +1,6 @@
 name: Build a feature
 description: The design is settled and needs to be built.
-labels: ["type:implementation"]
+labels: ["type:feature"]
 body:
   - type: textarea
     id: goal

@@ -37,10 +37,6 @@ Keep each issue to one topic; a playtest report can collect observations from
 one session. Link related issues instead of copying the same progress notes.
 When a playtest finding needs its own fix, link the follow-up issue.
 
-Use an `area:` label when one fits, `accessibility` for accessibility barriers,
-and `gate:blocker` only for work that must finish before the current milestone.
-Keep implementation, decision and prototype labels consistent with the templates.
-
 A routine fix does not need a new design decision. Follow the agreed design and
 existing behavior. If a change would settle an open game choice, use a Decision
 issue or an explicit owner decision; a draft pull request does not make a
@@ -49,6 +45,23 @@ suggestion agreed.
 Do not close a gameplay issue merely because an isolated test passes. State
 what was checked and whether the normal game path still needs testing.
 Never include keys, pairing codes, private saves or raw model-service payloads.
+
+### Labels
+
+Give each issue **one type** and **one or two areas**. The templates add the
+type. Pull requests get areas automatically from the files they change, and a
+type from the ticked **Type of change** box. Add or fix labels by hand when the
+automatic ones are wrong.
+
+| Kind | Labels |
+| --- | --- |
+| Type | `type:bug`, `type:feature` (agreed work to build), `type:decision`, `type:experiment`, `type:playtest`, `type:docs` |
+| Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade, crafting), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (Godot screens, controls, art), `area:server` (host, pairing, keys, deployment, packaging), `area:tooling` (CI, tests, build) |
+| Status | `status:needs-decision` (waiting on the owner), `status:needs-playtest` (built, waiting for a hands-on check), `status:blocked` (waiting on another issue or PR), `status:ready` (agreed and unblocked; ready to pick up) |
+| Other | `priority:blocker` only for work that must finish before the current milestone or playtest; `accessibility` for accessibility barriers |
+
+The labels are defined in [`.github/labels.json`](.github/labels.json); change
+that file to add or rename one, and a workflow updates the repository to match.
 
 ## Organize the work
 
