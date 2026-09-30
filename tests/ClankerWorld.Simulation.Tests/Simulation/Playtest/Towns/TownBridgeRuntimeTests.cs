@@ -1,0 +1,345 @@
+using System.Text.Json;
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
+using GodotOwnerWorldEvent = ClankerWorld.GodotClient.UI.OwnerWorldEvent;
+using GodotOwnerWorldSnapshot = ClankerWorld.GodotClient.UI.OwnerWorldSnapshot;
+
+namespace ClankerWorld.Simulation.Tests;
+
+/// <summary>
+/// Bridges on the normal private-world path, using generated maps. The seeds
+/// and tiles were chosen so that a Town beside a river can grow across it,
+/// and so that an agent wades a narrow river to reach food.
+/// </summary>
+public sealed class TownBridgeRuntimeTests
+{
+    private const string GrowthSeed = "town-bridge-5";
+    private static readonly GridPoint GrowthTownSite = new(86, 3);
+    private static readonly GridPoint GrowthBuildingSite = new(92, 2);
+    private const string GrowthBridgeId = "bridge-90-3-ew-2";
+    private const string GrowthBuildingId = "bridge-growth";
+    private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
+
+    [Fact]
+    public async Task TownGrowthAcrossATwoTileRiverSavesOneRoadBridgeThatMovementDrawingAndInspectionShare()
+    {
+        using var world = await GrowthWorldAsync();
+        var before = world.ExportState();
+        var roadsBefore = world.RoadTiles.ToHashSet();
+        Assert.Empty(world.Bridges);
+        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+
+        var placed = world.PlaceBuilding(GrowthBuildingId, workshop.CanonicalId, GrowthBuildingSite);
+
+        Assert.True(placed.Applied, placed.Failure);
+        var bridge = Assert.Single(world.Bridges);
+        Assert.Equal(GrowthBridgeId, bridge.Id);
+        Assert.Equal(BridgeTriggers.Road, bridge.Trigger);
+        Assert.Equal(BridgeDesigns.PlankSpanTwo, bridge.Design);
+        Assert.Equal($"road:{TownBorderRules.FirstTownId}:{GrowthBuildingId}", bridge.RouteId);
+        Assert.Equal(2, bridge.Span.Count);
+        var state = world.ExportState();
+        var map = state.Map;
+        Assert.All(bridge.Entrances, entrance => Assert.Contains(entrance, world.RoadTiles));
+        Assert.True(roadsBefore.IsSubsetOf(world.RoadTiles));
+        Assert.All(world.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
+        Assert.DoesNotContain(world.RoadTiles, tile => bridge.Span.Contains(tile));
+        // Only the workshop's own cost is charged: the Road and bridge cost nothing.
+        var spent = Totals(before).ToDictionary(item => item.Key, item => item.Value - Totals(state).GetValueOrDefault(item.Key));
+        Assert.Equal(workshop.BuildCosts.ToDictionary(item => item.ResourceId, item => item.Amount),
+            spent.Where(item => item.Value != 0).ToDictionary());
+        Assert.Contains(state.Events, item => item.Kind == "bridge_built" &&
+            item.Detail == $"road:{GrowthBridgeId}:{bridge.RouteId}");
+
+        // The water was impassable before; movement now walks the saved deck.
+        Assert.All(bridge.Span, tile => Assert.False(before.Map.IsPassable(tile)));
+        Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
+        Assert.True(map.CanFootStep(bridge.Span[0], bridge.Span[1]));
+        Assert.True(map.CanFootStep(bridge.Span[1], bridge.Entrances[1]));
+        Assert.True(map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
+
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal([GrowthBridgeId], reloaded.Bridges.Select(item => item.Id));
+        Assert.Equal(world.RoadTiles, reloaded.RoadTiles);
+        Assert.True(reloaded.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+
+        // An agent standing on the deck, and its memory of that tile, are
+        // valid only because the saved bridge makes that water walkable.
+        var walker = state.Inhabitants[0].InhabitantId;
+        var onDeck = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == walker
+                ? person with { Position = bridge.Span[1] } : person).ToArray(),
+            Knowledge = state.Knowledge! with
+            {
+                Facts = [.. state.Knowledge.Facts, new AgentKnowledgeFact("fact:bridge-deck", walker, walker,
+                    bridge.Span[1], nameof(TerrainKind.River), [], state.Society.Society.WorldTick, "firsthand")],
+            },
+        };
+        using (var standing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(onDeck))))
+            Assert.Equal(bridge.Span[1], standing.Inhabitants.Single(person => person.InhabitantId == walker).Position);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(onDeck with { Bridges = [] }));
+
+        var snapshot = new OwnerWorldObservationStore(reloaded).GetSnapshot();
+        var projected = Assert.Single(snapshot.Bridges);
+        Assert.Equal((bridge.Id, bridge.Design, bridge.Trigger, "east_west"),
+            (projected.Id, projected.Design, projected.Trigger, projected.Axis));
+        Assert.Equal(bridge.Span.Select(point => (point.X, point.Y)), projected.Span.Select(point => (point.X, point.Y)));
+        Assert.Equal(bridge.Entrances.Select(point => (point.X, point.Y)), projected.Entrances.Select(point => (point.X, point.Y)));
+        var godot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
+            JsonSerializer.Serialize(snapshot, GodotJsonOptions), GodotJsonOptions)!;
+        var godotBridge = Assert.Single(godot.Bridges);
+        Assert.Equal(bridge.Span.Select(point => (point.X, point.Y)), godotBridge.Span.Select(point => (point.X, point.Y)));
+        var built = new OwnerWorldObservationStore(reloaded).GetEventsAfter(0).Events.Single(item => item.Kind == "bridge_built");
+        var godotEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(JsonSerializer.Serialize(built, GodotJsonOptions), GodotJsonOptions)!;
+        Assert.Equal("A new Road crosses a river on a new bridge.", ClankerWorld.GodotClient.UI.WorldEventText.Describe(godotEvent, godot));
+
+        // Replay identity: the saved world and the live one keep advancing identically.
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        }
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Fact]
+    public async Task RepeatingOrReloadingBeforeTheProposalGivesTheSameRoadsAndBridgeWithoutDuplicates()
+    {
+        using var first = await GrowthWorldAsync();
+        var beforeProposal = first.ExportState();
+        var workshop = first.WorldContent.Buildings.Single(item => item.LocalId == "workshop").CanonicalId;
+        Assert.True(first.PlaceBuilding(GrowthBuildingId, workshop, GrowthBuildingSite).Applied);
+
+        // Nothing of a proposal is saved before it commits; restoring the
+        // checkpoint taken just before it and growing again gives the same result.
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(beforeProposal)));
+        Assert.Empty(reloaded.Bridges);
+        Assert.True(reloaded.PlaceBuilding(GrowthBuildingId, workshop, GrowthBuildingSite).Applied);
+        using var repeated = await GrowthWorldAsync();
+        Assert.True(repeated.PlaceBuilding(GrowthBuildingId, workshop, GrowthBuildingSite).Applied);
+        foreach (var other in new[] { reloaded, repeated })
+        {
+            Assert.Equal(first.RoadTiles, other.RoadTiles);
+            Assert.Equal(first.Bridges.Select(item => (item.Id, item.RouteId)), other.Bridges.Select(item => (item.Id, item.RouteId)));
+        }
+
+        // A second building across the same river reuses the bridge.
+        var bridges = first.Bridges;
+        var roads = first.RoadTiles.ToHashSet();
+        var map = first.ExportState().Map;
+        var defs = first.WorldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
+            .Concat(first.WorldSimulation.Buildings.SelectMany(item => WorldContentSimulationRules.Footprint(defs[item.DefinitionId], item.Position)))
+            .ToHashSet();
+        var town = Assert.Single(first.Towns);
+        var farBank = bridges.Single().Entrances[1];
+        var neighbor = map.Tiles.Select(tile => tile.Position)
+            .Where(point => point.X > farBank.X && map.FootDistance(point, GrowthBuildingSite) <= 3)
+            .OrderBy(point => map.FootDistance(point, GrowthBuildingSite)).ThenBy(point => point.Y).ThenBy(point => point.X)
+            .First(point => map.IsBuildable(point) && !occupied.Contains(point) && !roads.Contains(point) &&
+                TownBorderRules.IsWithinOrAdjacent(town, point, 1, 1));
+        Assert.True(first.PlaceBuilding("bridge-growth-second", workshop, neighbor).Applied);
+        Assert.Equal(bridges.Select(item => item.Id), first.Bridges.Select(item => item.Id));
+        Assert.Single(first.ExportState().Events, item => item.Kind == "bridge_built");
+    }
+
+    [Fact]
+    public async Task AStreetRunningOnPastANewDoorCrossesANarrowRiverOnASavedBridge()
+    {
+        // The workshop faces an existing street, so no new side street is
+        // needed; a nearby dead end then runs on and meets a one-tile river.
+        using var world = await GrowthWorldAsync("town-bridge-0", new GridPoint(45, 0));
+        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+        var roadsBefore = world.RoadTiles.ToHashSet();
+        var eventsBefore = world.ExportState().Events.Count;
+
+        Assert.True(world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(43, 1)).Applied);
+
+        var bridge = Assert.Single(world.Bridges);
+        Assert.Equal(("bridge-47-5-ns-1", BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
+            (bridge.Id, bridge.Trigger, bridge.RouteId));
+        var events = world.ExportState().Events.Skip(eventsBefore).Select(item => item.Kind).ToArray();
+        Assert.DoesNotContain("town_road_generated", events);
+        Assert.Contains("town_road_extended", events);
+        Assert.Contains("bridge_built", events);
+        var map = world.ExportState().Map;
+        Assert.True(roadsBefore.IsSubsetOf(world.RoadTiles));
+        Assert.All(bridge.Entrances, entrance => Assert.Contains(entrance, world.RoadTiles));
+        Assert.All(world.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
+        Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
+        Assert.True(map.CanFootStep(bridge.Span[0], bridge.Entrances[1]));
+        // The far bank is inside the Town border, which grew around the new street.
+        Assert.Contains(bridge.Entrances[1], Assert.Single(world.Towns).BorderTiles);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.Equal([bridge.Id], reloaded.Bridges.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task RoadsAndBridgesRemainWhenTheirBuildingIsGoneAndDamagedBridgeSavesAreRefused()
+    {
+        using var world = await GrowthWorldAsync();
+        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+        Assert.True(world.PlaceBuilding(GrowthBuildingId, workshop.CanonicalId, GrowthBuildingSite).Applied);
+        var state = world.ExportState();
+        var bridge = Assert.Single(state.Bridges!);
+
+        // Remove the building that caused the Road and bridge.
+        var buildings = state.WorldSimulation!.Buildings.Where(item => item.InstanceId != GrowthBuildingId).ToArray();
+        // The saved border is authoritative and stays as it grew.
+        var town = Assert.Single(state.Towns!);
+        var shrunk = town with { AssignedBuildingIds = town.AssignedBuildingIds.Where(id => id != GrowthBuildingId).ToArray() };
+        using var withoutBuilding = PrivateWorldRuntime.Restore(state with
+        {
+            WorldSimulation = state.WorldSimulation with { Buildings = buildings },
+            Towns = [shrunk],
+        });
+        Assert.Equal([bridge.Id], withoutBuilding.Bridges.Select(item => item.Id));
+        Assert.Equal(world.RoadTiles, withoutBuilding.RoadTiles);
+        Assert.True(withoutBuilding.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
+
+        // A Road bridge whose Road ends were lost, a missing bridge list, an
+        // older schema carrying bridges, or a deck over dry land is refused.
+        PrivateWorldRuntimeState[] damaged =
+        [
+            state with { RoadTiles = state.RoadTiles!.Where(tile => tile != bridge.Entrances[1]).ToArray() },
+            state with { Bridges = null },
+            state with { BridgeTraffic = null },
+            state with { SchemaVersion = 27 },
+            state with { Bridges = [bridge with { Span = [bridge.Entrances[0], bridge.Span[1]] }] },
+        ];
+        foreach (var item in damaged)
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(item));
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        var tampered = System.Text.Encoding.UTF8.GetString(bytes).Replace(GrowthBridgeId, "bridge-221-4-ew-1", StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(tampered)));
+    }
+
+    [Fact]
+    public async Task RealWadesBuildATrafficBridgeWithoutAnyRoadAndWaitingDoesNotCount()
+    {
+        const string crossingId = "bridge-92-1-ns-1";
+        var start = new GridPoint(92, 0);
+        using var control = await TrafficWorldAsync(seedEvidence: false);
+        var roads = control.RoadTiles;
+
+        var wadingSeen = false;
+        for (var tick = 0; tick < 20 && control.BridgeTraffic.Completed.All(item => item.AgentId != TrafficAgentId); tick++)
+        {
+            Assert.True((await control.AdvanceOneTickAsync()).Advanced);
+            var position = control.Inhabitants.Single(item => item.InhabitantId == TrafficAgentId).Position;
+            if (position == new GridPoint(92, 1))
+            {
+                wadingSeen = true;
+                Assert.Equal(new BridgeTrafficWade(TrafficAgentId, crossingId, start), Assert.Single(control.BridgeTraffic.InProgress));
+                Assert.DoesNotContain(control.BridgeTraffic.Completed, item => item.AgentId == TrafficAgentId);
+            }
+        }
+        Assert.True(wadingSeen);
+        var crossing = Assert.Single(control.BridgeTraffic.Completed);
+        Assert.Equal((crossingId, TrafficAgentId), (crossing.CrossingId, crossing.AgentId));
+        Assert.Empty(control.Bridges);
+        using (var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+                   PrivateWorldRuntimeCodec.Encode(control.ExportState()))))
+            Assert.Equal(control.BridgeTraffic.Completed, reloaded.BridgeTraffic.Completed);
+
+        using var busy = await TrafficWorldAsync(seedEvidence: true);
+        var directory = Directory.CreateTempSubdirectory("clankerworld-traffic-bridge-");
+        var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+        try
+        {
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
+            presence.RecordAuthenticatedReconnect("owner");
+            using var service = new PrivateWorldRuntimeService(busy,
+                new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
+            for (var tick = 0; tick < 20 && busy.Bridges.Count == 0; tick++)
+                Assert.True(await service.TryAdvanceOnceAsync());
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+        Assert.Contains(logger.Messages, message => message.Contains(
+            $"bridge outcome=built world_tick={busy.WorldTick} bridge={crossingId} trigger=traffic reason=none",
+            StringComparison.Ordinal));
+        var bridge = Assert.Single(busy.Bridges);
+        Assert.Equal((crossingId, BridgeTriggers.Traffic, BridgeDesigns.PlankSpanOne, (string?)null),
+            (bridge.Id, bridge.Trigger, bridge.Design, bridge.RouteId));
+        Assert.Equal(roads, busy.RoadTiles);
+        Assert.DoesNotContain(busy.BridgeTraffic.Completed, item => item.CrossingId == crossingId);
+        Assert.Contains(busy.ExportState().Events, item => item.Kind == "bridge_built" && item.Detail == $"traffic:{crossingId}");
+        Assert.Equal(100, busy.ExportState().Map.FootTravelCost(bridge.Span[0]));
+    }
+
+    private const string TrafficAgentId = "agent:00000000000000000000000000000099";
+
+    private static async Task<PrivateWorldRuntime> TrafficWorldAsync(bool seedEvidence)
+    {
+        var geography = new GeographyOptions("traffic-bridge-0", WorldSizePreset.Small);
+        using var setup = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup,
+            geographyOptions: geography);
+        setup.InitializeFirstTownContent();
+        setup.AcceptFirstTownLayout(setup.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
+        var founders = new[] { new GridPoint(128, 60), new GridPoint(129, 60), new GridPoint(130, 60), new GridPoint(131, 60) };
+        for (var index = 0; index < founders.Length; index++)
+            setup.PlaceFounder($"founder:0000000000000000000000000000000{index + 1}", founders[index]);
+        setup.StartWorld();
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var map = setup.ExportState().Map;
+        Assert.True(RiverBridgeRules.TryResolve(map, "bridge-92-1-ns-1", out var crossing));
+        Assert.Equal((new GridPoint(92, 0), new GridPoint(92, 2)), (crossing!.EntranceA, crossing.EntranceB));
+        setup.AddAgent(TrafficAgentId, new GridPoint(92, 0));
+        var state = setup.ExportState();
+        // Five earlier crossings by the founders at this narrow crossing; the
+        // added agent's real wade is the sixth, by a second distinct agent.
+        BridgeTrafficCrossing[] earlier =
+        [
+            new(crossing.Id, "founder:00000000000000000000000000000001", 0),
+            new(crossing.Id, "founder:00000000000000000000000000000001", 1),
+            new(crossing.Id, "founder:00000000000000000000000000000002", 0),
+            new(crossing.Id, "founder:00000000000000000000000000000003", 0),
+            new(crossing.Id, "founder:00000000000000000000000000000004", 1),
+        ];
+        return PrivateWorldRuntime.Restore(state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == TrafficAgentId
+                ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+            BridgeTraffic = seedEvidence ? new BridgeTrafficState([], earlier) : state.BridgeTraffic,
+        });
+    }
+
+    private static async Task<PrivateWorldRuntime> GrowthWorldAsync(string seed = GrowthSeed, GridPoint? townSite = null)
+    {
+        var geography = new GeographyOptions(seed, WorldSizePreset.Small);
+        var world = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        world.AcceptFirstTownLayout(townSite ?? GrowthTownSite);
+        var map = world.ExportState().Map;
+        var origin = Assert.Single(world.Towns).OriginSite!.Value;
+        var buildingTiles = world.WorldSimulation.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(
+                world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building.Position))
+            .ToHashSet();
+        var positions = map.Tiles.Select(tile => tile.Position).Where(point =>
+                Math.Abs(point.X - origin.X) <= 5 && Math.Abs(point.Y - origin.Y) <= 5 &&
+                map.IsBuildable(point) && !buildingTiles.Contains(point) &&
+                !map.Resources.Any(item => item.Position == point))
+            .Take(PrivateWorldRuntime.RequiredFounders).ToArray();
+        for (var index = 0; index < positions.Length; index++)
+            world.PlaceFounder($"founder:0000000000000000000000000000000{index + 1}", positions[index]);
+        world.StartWorld();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        return world;
+    }
+
+    private static Dictionary<string, int> Totals(PrivateWorldRuntimeState state) =>
+        state.Society.Society.Inventory.Lots.GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(lot => lot.Quantity), StringComparer.Ordinal);
+}

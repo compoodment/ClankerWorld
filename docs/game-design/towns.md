@@ -288,6 +288,10 @@ legal narrow crossing. Only actual traversal counts, not route previews,
 failed attempts or waiting. Keep bounded crossing evidence across saves; the
 threshold can be tuned after playtesting. Generated-Road bridges need not wait
 for this traffic.
+Both bridge triggers are now built; Road links between Towns wait for a second
+Town. [What works today](../what-works.md#maps-weather-and-appearance) says what
+normal play shows so far, and [How it works](../development/how-it-works.md#roads-and-bridges)
+says how the same connected banks are compared.
 
 **Roads and bridges remain permanently** once built. They do not decay or
 disappear automatically when traffic stops, a building is removed or a Town is

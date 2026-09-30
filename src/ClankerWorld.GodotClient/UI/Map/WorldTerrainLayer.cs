@@ -28,6 +28,8 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, string> weatherRegions = [];
     private readonly HashSet<Vector2I> townBorderTiles = [];
     private readonly HashSet<Vector2I> roadTiles = [];
+    // Saved bridge decks, true when the deck runs east-west.
+    private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     private static readonly Color[] HouseholdPropertyColors =
@@ -85,6 +87,7 @@ public partial class WorldTerrainLayer : Control
         WeatherVersion++;
         townBorderTiles.Clear();
         roadTiles.Clear();
+        bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
     }
@@ -124,6 +127,21 @@ public partial class WorldTerrainLayer : Control
         if (next.Count == roadTiles.Count && next.SetEquals(roadTiles)) return;
         roadTiles.Clear();
         roadTiles.UnionWith(next);
+        QueueRedraw();
+    }
+
+    /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
+    public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
+    {
+        ArgumentNullException.ThrowIfNull(bridges);
+        var next = new Dictionary<Vector2I, bool>();
+        foreach (var bridge in bridges)
+            foreach (var tile in bridge.Span)
+                next[new Vector2I(tile.X, tile.Y)] = bridge.Axis == "east_west";
+        if (next.Count == bridgeDecks.Count && next.All(entry =>
+                bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value)) return;
+        bridgeDecks.Clear();
+        foreach (var entry in next) bridgeDecks.Add(entry.Key, entry.Value);
         QueueRedraw();
     }
 
@@ -410,6 +428,7 @@ public partial class WorldTerrainLayer : Control
             }
         }
         DrawRoads(bounds, stride);
+        DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
@@ -686,6 +705,51 @@ public partial class WorldTerrainLayer : Control
                         !roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(nextX, world.Width) : nextX, nextY)))
                         continue;
                     DrawLine(center, center + new Vector2(dx * stride, dy * stride), color, width);
+                }
+            }
+    }
+
+    private void DrawBridges((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || bridgeDecks.Count == 0 || tileSize <= 0) return;
+        // A plank deck reaching a little onto each bank, with dark side rails
+        // and, when large enough to read, cross planks.
+        var deck = new Color("A47A4C");
+        var rail = new Color("4F3522");
+        var plank = new Color("7C5836");
+        var breadth = Math.Max(2f, tileSize * 0.62f);
+        var overhang = tileSize * 0.3f;
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                if (!bridgeDecks.TryGetValue(new Vector2I(mapX, y), out var eastWest)) continue;
+                var center = new Vector2(x * stride + tileSize / 2f, y * stride + tileSize / 2f);
+                var length = stride + overhang * 2;
+                var size = eastWest ? new Vector2(length, breadth) : new Vector2(breadth, length);
+                var rect = new Rect2(center - size / 2f, size);
+                DrawRect(rect, deck);
+                if (tileSize >= SpriteTileMinimum)
+                {
+                    var planks = Math.Max(2, tileSize / 6);
+                    for (var index = 1; index < planks * 2; index++)
+                    {
+                        var offset = -length / 2f + index * length / (planks * 2);
+                        var from = eastWest ? center + new Vector2(offset, -breadth / 2f) : center + new Vector2(-breadth / 2f, offset);
+                        var to = eastWest ? center + new Vector2(offset, breadth / 2f) : center + new Vector2(breadth / 2f, offset);
+                        DrawLine(from, to, plank, 1f);
+                    }
+                }
+                var railWidth = Math.Max(1f, tileSize / 14f);
+                if (eastWest)
+                {
+                    DrawLine(rect.Position, rect.Position + new Vector2(rect.Size.X, 0), rail, railWidth);
+                    DrawLine(rect.End - new Vector2(rect.Size.X, 0), rect.End, rail, railWidth);
+                }
+                else
+                {
+                    DrawLine(rect.Position, rect.Position + new Vector2(0, rect.Size.Y), rail, railWidth);
+                    DrawLine(rect.End - new Vector2(0, rect.Size.Y), rect.End, rail, railWidth);
                 }
             }
     }

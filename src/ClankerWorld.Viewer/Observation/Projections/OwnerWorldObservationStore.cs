@@ -313,6 +313,12 @@ public sealed class OwnerWorldObservationStore
                 .ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),
+            Bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => new ViewerBridge(item.Id, item.Design, item.Trigger,
+                    RiverBridgeRules.AxisOf(item) == BridgeAxis.EastWest ? "east_west" : "north_south",
+                    item.Entrances.Select(ToPosition).ToArray(), item.Span.Select(ToPosition).ToArray(),
+                    item.BuiltTick))
+                .ToArray(),
             WeatherRegions = state.WorldSystems is { } weatherSystems
                 ? CreateWeatherRegions(weatherSystems, map)
                 : [],

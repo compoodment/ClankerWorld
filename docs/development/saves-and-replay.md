@@ -123,6 +123,16 @@ state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
 before an upgrade.
 
+Bridges are saved in the same checkpoint as the Road tiles they join, so a
+Road never ends at a river without its bridge. Loading checks every bridge
+against the map (a legal one- or two-tile river span between buildable banks,
+matching its ID and design), refuses overlapping decks, a bridge landing on a
+building, resource or camp object, and a Road bridge whose two entrances are
+not both Road tiles. It does not need the Town or building that caused the
+bridge. Traffic evidence must be recent, within its per-agent bound, for real
+unbridged one-tile crossings, and any open wade must match where that agent
+stands. A save that fails these checks is refused with a reason and kept.
+
 | Compatibility change | Meaning |
 | --- | --- |
 | Schema 18 | Removes persisted energy/sleep state. Legacy bedding can remain inert compatibility data; recipes cannot restart sleep gameplay. |
@@ -135,6 +145,7 @@ before an upgrade.
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 | Schema 27 | Optional building entrances: the tile beside the footprint that the building's door faces. It must be directly beside one edge. Older saves load with no entrances. |
+| Schema 28 | Saved bridges and bounded bridge-traffic evidence. An older save has no bridges; an older schema that carries them is refused. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

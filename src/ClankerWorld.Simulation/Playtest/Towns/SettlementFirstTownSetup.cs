@@ -17,7 +17,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("Choose the first Town layout during paused setup before placing founders.");
             var existing = worldSimulation.Buildings;
             if (existing.Any(building => !building.InstanceId.StartsWith("first-town-", StringComparison.Ordinal)) ||
-                existing.Count is not (0 or 5))
+                existing.Count is not (0 or 5) || bridges.Count != 0)
                 throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var plan = FirstTownLayoutPlanner.Plan(map, roughSite)
                 ?? throw new ArgumentException("No connected five-building layout fits near this rough site.", nameof(roughSite));

@@ -130,7 +130,19 @@ Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
 impassable; mountains and peaks cannot hold construction. Town streets take
-diagonals where the land allows. Bridges remain unfinished.
+diagonals where the land allows.
+
+Bridges are a basic version. Where agents often wade across the same one-tile
+river (six crossings by at least two agents within two world days), a bridge
+appears. It is drawn on the map, named on the tile card and hover readout, and
+walked at dry-ground speed. When a Town grows, a new side street or a street
+running on past a door crosses a river up to two tiles wide on a new bridge.
+A normal game does not grow new Town buildings yet
+([#470](https://github.com/compoodment/ClankerWorld/issues/470)), and the
+starting layout keeps its streets on dry land, so Road bridges are not seen in
+normal play yet. No bridge is added where one already joins the same river
+banks. Road links between Towns are unfinished, and bridges have not been
+checked in hands-on Windows play.
 
 Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
 fruit trees have fruiting, picked and growing stages. Replanting currently uses a

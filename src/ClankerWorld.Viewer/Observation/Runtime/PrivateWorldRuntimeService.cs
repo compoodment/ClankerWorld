@@ -262,7 +262,8 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
-                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal)))
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal) ||
+                             item.Kind is "bridge_built" or "traffic_bridge_not_built"))
                     LogTownEvent(worldEvent);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "work_practice_earned"))
                 {
@@ -388,6 +389,11 @@ public sealed partial class PrivateWorldRuntimeService(
             }
             return;
         }
+        if (worldEvent.Kind is "bridge_built" or "traffic_bridge_not_built" or "town_road_unconnected")
+        {
+            LogRoadOrBridgeEvent(logger, worldEvent, runtime.Towns);
+            return;
+        }
         var kind = worldEvent.Kind switch
         {
             "town_resident_joined" => TownTransitionKind.ResidentJoined,
@@ -407,6 +413,33 @@ public sealed partial class PrivateWorldRuntimeService(
         var town = runtime.Towns.FirstOrDefault(item => item.Id == townId);
         TownTelemetry.Transition(logger, worldEvent.WorldTick, townId, kind.Value,
             town?.ResidentIds.Count ?? 0, town?.AssignedBuildingIds.Count ?? 0, town?.BorderTiles.Count ?? 0);
+    }
+
+    /// <summary>Bounded Road and bridge outcomes from accepted events; details carry only IDs and reason codes.</summary>
+    private static void LogRoadOrBridgeEvent(ILogger logger, PlaytestWorldEvent worldEvent,
+        IReadOnlyList<TownRuntimeState> towns)
+    {
+        var detail = worldEvent.Detail;
+        var reasonAt = detail.LastIndexOf(':');
+        switch (worldEvent.Kind)
+        {
+            case "bridge_built":
+                var fields = detail.Split(':', 3);
+                if (fields.Length >= 2)
+                    TownTelemetry.Bridge(logger, worldEvent.WorldTick, fields[1], fields[0], "built", "none");
+                break;
+            case "traffic_bridge_not_built" when reasonAt > 0:
+                TownTelemetry.Bridge(logger, worldEvent.WorldTick, detail[..reasonAt], "traffic", "not_built",
+                    detail[(reasonAt + 1)..]);
+                break;
+            case "town_road_unconnected":
+                var town = towns.OrderByDescending(item => item.Id.Length)
+                    .FirstOrDefault(item => detail.StartsWith(item.Id + ":", StringComparison.Ordinal));
+                if (town is not null && reasonAt > town.Id.Length + 1)
+                    TownTelemetry.RoadUnconnected(logger, worldEvent.WorldTick, town.Id,
+                        detail[(town.Id.Length + 1)..reasonAt], detail[(reasonAt + 1)..]);
+                break;
+        }
     }
 
     private static string EstateWillReason(PlaytestWorldEvent worldEvent, string estateId, string outcome)
