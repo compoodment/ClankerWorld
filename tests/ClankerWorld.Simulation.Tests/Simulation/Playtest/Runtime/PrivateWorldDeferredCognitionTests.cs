@@ -264,6 +264,51 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.Equal("Restored Name", restored.Society.GetInhabitant(NameTargetId).Name);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlayerRenameCancelsQueuedNamingWorkAndPreservesOtherTriggers(bool otherWork)
+    {
+        var provider = new SequencedHostedProvider(
+            [new NameReply("Taken Name"), new NameReply("Retry Name")], holdSecond: true);
+        using var world = CreateNameTestWorld("rename-queued-name-retry", provider);
+        Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+        world.StartWorld();
+        await world.AdvanceOneTickNonBlockingAsync();
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        world.Pause();
+        var saved = world.ExportState();
+        saved = saved with
+        {
+            Society = saved.Society with
+            {
+                Cognition = saved.Society.Cognition with
+                {
+                    Queue = saved.Society.Cognition.Queue.Select(entry => entry.InhabitantId == NameTargetId
+                        ? entry with
+                        {
+                            TriggerIds = otherWork ? [SocietyCognitionScheduler.NameRetryTriggerId, "other_work"]
+                            : [SocietyCognitionScheduler.NameRetryTriggerId]
+                        } : entry).ToArray(),
+                }
+            }
+        };
+        var freshProvider = new SequencedHostedProvider(new NameReply("Unexpected Retry"));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)),
+            id => id == NameTargetId ? freshProvider : new DeterministicDecisionProvider());
+        Assert.True(restored.RenameAgent(NameTargetId, "Player Name"));
+        var queued = restored.ExportState().Society.Cognition.Queue.SingleOrDefault(entry => entry.InhabitantId == NameTargetId);
+        if (otherWork) Assert.Equal(["other_work"], queued!.TriggerIds);
+        else Assert.Null(queued);
+        restored.Resume();
+        await restored.AdvanceOneTickNonBlockingAsync();
+        await Task.Delay(100);
+        Assert.DoesNotContain(freshProvider.ObservedRequests, request => request.IsNameRetry || request.NeedsName);
+        if (!otherWork) Assert.Equal(0, freshProvider.CallCount);
+        Assert.Equal("Player Name", restored.Society.GetInhabitant(NameTargetId).Name);
+    }
+
     [Fact]
     public async Task ActorEventRetainsItsLocationAcrossSaveAndViewerProjection()
     {

@@ -163,6 +163,20 @@ public sealed class SocietyCognitionScheduler
         var infants = current.Where(item => item.AgeBand == SocietyAgeBand.Infant)
             .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         queue.RemoveAll(entry => infants.Contains(entry.InhabitantId));
+        var named = current.Where(item => !item.NeedsName).Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        for (var index = queue.Count - 1; index >= 0; index--)
+        {
+            var entry = queue[index];
+            if (!named.Contains(entry.InhabitantId) || !entry.TriggerIds.Contains(NameRetryTriggerId, StringComparer.Ordinal))
+                continue;
+            var remaining = entry.TriggerIds.Where(trigger => trigger != NameRetryTriggerId).ToArray();
+            if (remaining.Length == 0) queue.RemoveAt(index);
+            else queue[index] = entry with
+            {
+                TriggerIds = remaining,
+                Observation = entry.Observation with { NeedsName = false },
+            };
+        }
         if (bornChildIds is not null)
         {
             for (var index = 0; index < queue.Count; index++)
