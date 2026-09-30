@@ -41,14 +41,15 @@ different point.
   If a closed fix did not work, reopen that issue with the new evidence instead
   of filing a duplicate.
 - File one problem per issue with the Bug template. Say whether you saw it in
-  the game or reproduced it in code or tests.
+  the game or reproduced it in code or tests, and set its
+  [priority](CONTRIBUTING.md#priorities) by the bug rule there.
 - Fix it only if asked. If you do, [claim it](CONTRIBUTING.md#claim-an-issue)
   straight away.
 
 ### Fix issues
 
-- Choose from the [agent-ready issues](CONTRIBUTING.md#find-work) and claim one
-  before you start.
+- Choose the highest-priority [agent-ready issue](CONTRIBUTING.md#find-work) and
+  claim it before you start.
 - Open the pull request as a draft while you work, with `Closes` for each issue
   it completes and `Refs` for the rest. Mark it ready for review only when it is
   finished. If the change still needs a hands-on check in the game, add
@@ -61,7 +62,8 @@ different point.
 ### Review and merge
 
 - Review only pull requests you did not write, and follow the
-  [Review and merge](CONTRIBUTING.md#review-and-merge) checklist. Never merge a
+  [Review and merge](CONTRIBUTING.md#review-and-merge) checklist, taking
+  higher-priority pull requests first. Never merge a
   draft, or a pull request someone pushed to after marking it ready.
 - Merge dependent pull requests in their stated order. After each merge, later
   pull requests may need main merged in and CI run again.

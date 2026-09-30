@@ -10,18 +10,21 @@
 //   file is documentation.
 // - A type label from the ticked "Type of change" box in the PR template.
 // - status:needs-review while a PR is open and not a draft.
+// - The highest priority label (priority:p0 to priority:p3) of the open issues
+//   the PR links.
 // - status:has-pr on open issues the PR links as described in CONTRIBUTING
 //   ("Closes #N", "Fixes #N", "Resolves #N" or "Refs #N", one keyword per issue,
-//   or any #N on the template's Closes and Refs lines), replacing status:ready.
+//   or any #N on the template's Closes and Refs lines), replacing status:needs-pr.
 //   Once the PR is ready for review (not a draft), the issue's claim label
 //   status:in-progress is removed too, so the issue shows only status:has-pr.
 //   When the last open PR linking an issue closes, status:has-pr is removed
-//   again; an issue whose PR closed without merging goes back to status:ready
+//   again; an issue whose PR closed without merging goes back to status:needs-pr
 //   if it has no other status.
 
 const NeedsReview = 'status:needs-review';
 const HasPr = 'status:has-pr';
-const Ready = 'status:ready';
+const Ready = 'status:needs-pr';
+const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const InProgress = 'status:in-progress';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
@@ -240,6 +243,7 @@ async function labelPullRequest({ github, context, core }) {
   }
   if (pr.draft) await removeLabel(github, repo, pr.number, NeedsReview);
 
+  let priority = null;
   for (const number of linked) {
     const issue = await openIssue(github, repo, number);
     if (!issue) continue;
@@ -247,6 +251,24 @@ async function labelPullRequest({ github, context, core }) {
     await removeLabel(github, repo, number, Ready);
     if (!pr.draft) await removeLabel(github, repo, number, InProgress);
     core.info(`Marked #${number} as ${HasPr}${pr.draft ? '' : ` and cleared ${InProgress}`}.`);
+    const issueLabels = issue.labels.map(label => (typeof label === 'string' ? label : label.name));
+    for (const name of Priorities) {
+      if (issueLabels.includes(name) && (priority === null || Priorities.indexOf(name) < Priorities.indexOf(priority))) {
+        priority = name;
+      }
+    }
+  }
+
+  // The pull request takes the highest priority of the open issues it links.
+  if (priority !== null) {
+    const prLabels = (pr.labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
+    for (const name of Priorities) {
+      if (name !== priority && prLabels.includes(name)) await removeLabel(github, repo, pr.number, name);
+    }
+    if (!prLabels.includes(priority)) {
+      await github.rest.issues.addLabels({ ...repo, issue_number: pr.number, labels: [priority] });
+      core.info(`Set this pull request to ${priority}.`);
+    }
   }
 
   // An edit that drops a reference releases that issue.
