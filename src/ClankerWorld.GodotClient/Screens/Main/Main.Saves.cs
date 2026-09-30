@@ -100,7 +100,7 @@ public partial class Main
         manualSaveOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.MouseFilter = MouseFilterEnum.Stop;
         manualSaveOverlay.ZIndex = 220;
-        AddChild(manualSaveOverlay);
+        menuLayer.AddChild(manualSaveOverlay);
         var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.78f }, MouseFilter = MouseFilterEnum.Stop };
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.AddChild(shade);
@@ -219,7 +219,7 @@ public partial class Main
         var save = listedManualSaves[selected[0]];
         pendingOverwriteSaveId = save.Id;
         manualSaveOverwriteConfirmation.DialogText = $"Replace ‘{save.Name}’ with the current world? The old version is kept as ‘Before overwriting: {save.Name}’.";
-        manualSaveOverwriteConfirmation.PopupCentered(new Vector2I(520, 190));
+        PopupDialog(manualSaveOverwriteConfirmation, new Vector2I(520, 190));
     }
 
     private async Task OverwriteSelectedManualSaveAsync()
@@ -241,7 +241,7 @@ public partial class Main
         if (!manualSaveLoadMode || manualSaveList.GetSelectedItems() is not { Length: 1 } selected ||
             selected[0] < 0 || selected[0] >= listedManualSaves.Length) return;
         manualSaveLoadConfirmation.DialogText = $"Load ‘{listedManualSaves[selected[0]].Name}’? Your current world is saved first, and the loaded world starts paused.";
-        manualSaveLoadConfirmation.PopupCentered(new Vector2I(480, 180));
+        PopupDialog(manualSaveLoadConfirmation, new Vector2I(480, 180));
     }
 
     private async Task LoadSelectedManualSaveAsync()

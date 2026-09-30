@@ -14,7 +14,7 @@ public sealed record GameDisplayPreferences(
     int RenderWidth = 1280,
     int RenderHeight = 720,
     bool? AutoRenderResolution = null,
-    int UiScalePercent = 100,
+    int UiScalePercent = DisplayUiScalePolicy.Automatic,
     bool? Fullscreen = null,
     string Theme = "light",
     bool CloudHaze = true,
@@ -30,13 +30,30 @@ public sealed record GameDisplayPreferences(
         RenderWidth == 1280 && RenderHeight == 720;
 }
 
+/// <summary>
+/// UI Scale magnifies the whole interface by a whole number, so pixel fonts,
+/// frames and icons stay crisp.
+/// </summary>
 public static class DisplayUiScalePolicy
 {
-    private static readonly ReadOnlyCollection<int> SupportedValues = Array.AsReadOnly(new[] { 100, 125, 150, 175, 200 });
+    /// <summary>Saved as the UI Scale when the game picks it from the screen size.</summary>
+    public const int Automatic = 0;
+
+    /// <summary>The smallest area, in unscaled interface pixels, the menus and panels are laid out for.</summary>
+    public const int MinimumWidth = 960;
+    public const int MinimumHeight = 540;
+
+    private static readonly ReadOnlyCollection<int> SupportedValues = Array.AsReadOnly(new[] { Automatic, 100, 200, 300, 400 });
 
     public static IReadOnlyList<int> SupportedPercentages => SupportedValues;
 
-    public static int NormalizePercent(int percent) => SupportedValues.Contains(percent) ? percent : 100;
+    /// <summary>
+    /// Keeps a supported choice, moves an older in-between step such as 150%
+    /// to the nearest whole one, and treats anything else as Automatic.
+    /// </summary>
+    public static int NormalizePercent(int percent) =>
+        SupportedValues.Contains(percent) ? percent :
+        percent is > 100 and < 400 ? (int)Math.Round(percent / 100.0, MidpointRounding.AwayFromZero) * 100 : Automatic;
 
     public static int IndexOfPercent(int percent)
     {
@@ -46,7 +63,22 @@ public static class DisplayUiScalePolicy
         return 0;
     }
 
-    public static float ScaleFactor(int percent) => NormalizePercent(percent) / 100f;
+    /// <summary>
+    /// The whole-number scale for a choice on a screen this size. Automatic
+    /// keeps the interface near 720 pixels tall: 100% on small screens, 200% at
+    /// 1080p and 1440p, 300% at 4K. Any choice is lowered until the interface
+    /// keeps at least the minimum area.
+    /// </summary>
+    public static int FittingFactor(int percent, float width, float height)
+    {
+        var choice = NormalizePercent(percent);
+        var factor = choice == Automatic
+            ? Math.Max(1, (int)Math.Round(height / 720.0, MidpointRounding.AwayFromZero))
+            : choice / 100;
+        while (factor > 1 && (width / factor < MinimumWidth || height / factor < MinimumHeight))
+            factor--;
+        return factor;
+    }
 }
 
 public readonly record struct DisplayDimensions(int Width, int Height)

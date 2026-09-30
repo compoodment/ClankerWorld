@@ -315,6 +315,14 @@ release yet.
   and titles, headings, section labels, dialog titles and the Main Menu's
   choices use Timber, thin capitals based on the logo's letters. Base text
   sizes use whole multiples of 12 px and are drawn without smoothing.
+- UI Scale now enlarges the whole interface in whole steps (Automatic, 100%,
+  200%, 300% and 400%), so pixel text stays sharp. Panels, padding, buttons,
+  icons, the Quit Game and other confirmations, drop-down lists, tooltips and
+  names on the map all grow together instead of text alone. Automatic is the
+  new default: it picks 200% on 1080p and 1440p screens and 300% on 4K. A
+  saved 125% becomes 100%, and 150% or 175% becomes 200%. Sizes that would not
+  fit the window are greyed out, and on a narrow layout the top bar shows its
+  icons without words.
 - Weather on the map now moves. Rain falls as short drops that land with
   small splash rings, storms darken the sky with heavier slanted rain and a
   soft flash of lightning every several seconds, and snow drifts down. Rain,
@@ -426,6 +434,11 @@ release yet.
 
 - Hovering the Town panel no longer pops up a technical tooltip of world
   ticks, revisions, map digests and internal system counts.
+- Panels opened from the top bar open under their own button. Filters used to
+  appear on the right, and Agents and World Info on the left, far from the
+  buttons that opened them.
+- Scrolling the mouse wheel over a panel no longer zooms the map behind it,
+  including when the panel has nothing left to scroll.
 - The selected-agent card no longer covers the agent it describes: when it
   cannot fit above or below them, it opens beside them. On short screens its
   profile scrolls inside the card, so Speak and Send are no longer cut off

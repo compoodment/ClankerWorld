@@ -342,7 +342,7 @@ public static class UiTheme
         theme.SetIcon("radio_checked", "PopupMenu", Dot(p.Primary, 12));
         theme.SetIcon("radio_unchecked", "PopupMenu", Dot(new Color(0, 0, 0, 0), 12));
         theme.SetStylebox("panel", "PopupPanel", popup);
-        theme.SetStylebox("panel", "TooltipPanel", Box(p.Paper, p.Ink, 1, 8, 5));
+        SetTooltip(theme, p);
         theme.SetColor("font_color", "TooltipLabel", p.Ink);
         theme.SetColor("font_shadow_color", "TooltipLabel", new Color(0, 0, 0, 0));
         theme.SetStylebox("panel", "ItemList", Box(p.Inset, p.InsetEdge, 2, 4, 4));
@@ -404,10 +404,7 @@ public static class UiTheme
         theme.SetStylebox("separator", "VSeparator", Line(p.Separator, true));
 
         // Dialog windows: the frame wraps the title row as well as the body.
-        const int TitleHeight = 30;
-        var window = Frame(p, 28, 2, 7);
-        window.ExpandMarginTop = TitleHeight + 10;
-        window.ExpandMarginLeft = window.ExpandMarginRight = window.ExpandMarginBottom = 10;
+        var window = WindowFrame(p);
         theme.SetStylebox("embedded_border", "Window", window);
         theme.SetStylebox("embedded_unfocused_border", "Window", window);
         theme.SetConstant("title_height", "Window", TitleHeight);
@@ -418,6 +415,54 @@ public static class UiTheme
         theme.SetIcon("close_pressed", "Window", Cross(p.InkMuted));
         theme.SetStylebox("panel", "AcceptDialog", Flat(p.Paper, 16, 12));
         return theme;
+    }
+
+    private static int tooltipScale = 1;
+
+    /// <summary>
+    /// Tooltips are windows the engine creates on demand, so their text and
+    /// frame follow UI Scale through the theme instead.
+    /// </summary>
+    public static void ScaleTooltips(int factor)
+    {
+        tooltipScale = Math.Max(1, factor);
+        SetTooltip(Theme, Current);
+    }
+
+    private static void SetTooltip(Theme theme, UiPalette p)
+    {
+        theme.SetStylebox("panel", "TooltipPanel", Box(p.Paper, p.Ink, 1, 8, 5, tooltipScale));
+        theme.SetFontSize("font_size", "TooltipLabel", UiFonts.Body * tooltipScale);
+    }
+
+    /// <summary>
+    /// Magnifies a separate window's contents, such as a drop-down list, by UI
+    /// Scale. The main interface scales as one layer; windows need their own.
+    /// </summary>
+    public static void ScaleWindow(Window window, int factor)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        window.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+        window.ContentScaleAspect = Window.ContentScaleAspectEnum.Expand;
+        window.ContentScaleFactor = factor;
+        window.CanvasItemDefaultTextureFilter = Viewport.DefaultCanvasItemTextureFilter.Nearest;
+    }
+
+    /// <summary>Scales a dialog's contents and the frame, title and close button drawn around it.</summary>
+    public static void ScaleDialog(Window dialog, int factor)
+    {
+        ArgumentNullException.ThrowIfNull(dialog);
+        ScaleWindow(dialog, factor);
+        var frame = WindowFrame(Current, factor);
+        dialog.AddThemeStyleboxOverride("embedded_border", frame);
+        dialog.AddThemeStyleboxOverride("embedded_unfocused_border", frame);
+        dialog.AddThemeConstantOverride("title_height", TitleHeight * factor);
+        // Set on the dialog itself: a window keeps the title font it looked up
+        // before the game's theme was applied.
+        dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
+        dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading * factor);
+        dialog.AddThemeIconOverride("close", Cross(Current.Ink, factor));
+        dialog.AddThemeIconOverride("close_pressed", Cross(Current.InkMuted, factor));
     }
 
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,
@@ -517,8 +562,18 @@ public static class UiTheme
         return Nine(image, 4, 12, contentVertical);
     }
 
+    private const int TitleHeight = 30;
+
+    private static StyleBoxTexture WindowFrame(UiPalette p, int scale = 1)
+    {
+        var window = Frame(p, 28, 2, 7, scale: scale);
+        window.ExpandMarginTop = (TitleHeight + 10) * scale;
+        window.ExpandMarginLeft = window.ExpandMarginRight = window.ExpandMarginBottom = 10 * scale;
+        return window;
+    }
+
     /// <summary>A wooden frame around a parchment panel.</summary>
-    private static StyleBoxTexture Frame(UiPalette p, int size, int edge, int wood, float? contentMargin = null)
+    private static StyleBoxTexture Frame(UiPalette p, int size, int edge, int wood, float? contentMargin = null, int scale = 1)
     {
         var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
         var border = edge + wood + 1;
@@ -541,11 +596,11 @@ public static class UiTheme
                 else color = p.Paper;
                 image.SetPixel(x, y, color);
             }
-        return Nine(image, border, contentMargin ?? border, contentMargin ?? border);
+        return Nine(image, border, contentMargin ?? border, contentMargin ?? border, scale);
     }
 
     /// <summary>A filled box with a solid pixel border, for fields, insets and tooltips.</summary>
-    private static StyleBoxTexture Box(Color fill, Color edge, int width, float horizontal = -1, float vertical = -1)
+    private static StyleBoxTexture Box(Color fill, Color edge, int width, float horizontal = -1, float vertical = -1, int scale = 1)
     {
         var size = width * 2 + 4;
         var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
@@ -556,7 +611,7 @@ public static class UiTheme
                 var ey = Math.Min(y, size - 1 - y);
                 image.SetPixel(x, y, ex < width || ey < width ? edge : fill);
             }
-        return Nine(image, width, horizontal < 0 ? width : horizontal, vertical < 0 ? width : vertical);
+        return Nine(image, width, horizontal < 0 ? width : horizontal, vertical < 0 ? width : vertical, scale);
     }
 
     private static StyleBoxTexture Box(Color fill, Color edge, int width, float contentMargin) =>
@@ -582,18 +637,21 @@ public static class UiTheme
         return box;
     }
 
-    private static StyleBoxTexture Nine(Image image, int margin, float horizontal, float vertical)
+    /// <summary>A nine-patch box, optionally drawn larger by a whole number with hard pixel edges.</summary>
+    private static StyleBoxTexture Nine(Image image, int margin, float horizontal, float vertical, int scale = 1)
     {
+        if (scale > 1)
+            image.Resize(image.GetWidth() * scale, image.GetHeight() * scale, Image.Interpolation.Nearest);
         var box = new StyleBoxTexture
         {
             Texture = ImageTexture.CreateFromImage(image),
-            TextureMarginLeft = margin,
-            TextureMarginTop = margin,
-            TextureMarginRight = margin,
-            TextureMarginBottom = margin,
+            TextureMarginLeft = margin * scale,
+            TextureMarginTop = margin * scale,
+            TextureMarginRight = margin * scale,
+            TextureMarginBottom = margin * scale,
         };
-        box.ContentMarginLeft = box.ContentMarginRight = horizontal;
-        box.ContentMarginTop = box.ContentMarginBottom = vertical;
+        box.ContentMarginLeft = box.ContentMarginRight = horizontal * scale;
+        box.ContentMarginTop = box.ContentMarginBottom = vertical * scale;
         return box;
     }
 
@@ -606,7 +664,7 @@ public static class UiTheme
         return ImageTexture.CreateFromImage(image);
     }
 
-    private static ImageTexture Cross(Color color)
+    private static ImageTexture Cross(Color color, int scale = 1)
     {
         var image = Image.CreateEmpty(12, 12, false, Image.Format.Rgba8);
         for (var step = 1; step < 11; step++)
@@ -619,6 +677,7 @@ public static class UiTheme
                 image.SetPixel(10 - step, step, color);
             }
         }
+        if (scale > 1) image.Resize(12 * scale, 12 * scale, Image.Interpolation.Nearest);
         return ImageTexture.CreateFromImage(image);
     }
 

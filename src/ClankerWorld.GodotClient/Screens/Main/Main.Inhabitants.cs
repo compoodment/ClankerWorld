@@ -51,9 +51,8 @@ public partial class Main
         inhabitantList.Visible = inhabitantList.ItemCount > 0;
         var rowHeight = inhabitantList.GetThemeFont("font").GetHeight(inhabitantList.GetThemeFontSize("font_size")) +
             inhabitantList.GetThemeConstant("v_separation") + 4;
-        var uiScale = DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent);
         inhabitantList.CustomMinimumSize = new Vector2(inhabitantList.CustomMinimumSize.X,
-            Math.Clamp(inhabitantList.ItemCount * rowHeight + 12, 40, 360 * uiScale));
+            Math.Clamp(inhabitantList.ItemCount * rowHeight + 12, 40, 360));
         rosterPanel.Size = rosterPanel.GetCombinedMinimumSize();
 
         if (!selectionFound)

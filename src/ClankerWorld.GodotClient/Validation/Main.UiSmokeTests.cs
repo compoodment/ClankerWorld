@@ -46,16 +46,12 @@ public partial class Main
 
             VerifyPixelText("at 100% UI Scale");
             var nativeRenderSize = displayWindow.ContentScaleSize;
-            var baseSettingsFontSize = uiScaleChoice.GetThemeFontSize("font_size");
-            var baseHudFontSize = clockLabel.GetThemeFontSize("font_size");
-            var baseTextPanelFontSize = eventLog.GetThemeFontSize("normal_font_size");
-            var baseResumeButtonHeight = menuResumeButton.GetCombinedMinimumSize().Y;
-            var baseHudMinimumWidth = topBar.GetCombinedMinimumSize().X;
-            var baseSettingsPanelWidth = gameMenuPanel.CustomMinimumSize.X;
-            var baseTilePanelWidth = selectedTilePanel.CustomMinimumSize.X;
+            var baseClockHeight = clockLabel.GetGlobalRect().Size.Y;
+            var baseScaleChoiceHeight = uiScaleChoice.GetGlobalRect().Size.Y;
+            var baseSettingsWidth = gameMenuPanel.GetGlobalRect().Size.X;
             var mapStageScale = mapStage.Scale;
-            if (baseSettingsFontSize < 1 || baseHudFontSize < 1 || baseTextPanelFontSize < 1 || baseResumeButtonHeight < 1)
-                throw new InvalidOperationException("UI Scale smoke check could not read the settings font size.");
+            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseScaleChoiceHeight < 1 || baseSettingsWidth < 1)
+                throw new InvalidOperationException("UI Scale smoke check could not read the interface at 100%.");
             if (TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
                 throw new InvalidOperationException("1440p UI Scale map input smoke check could not resolve its reference tile.");
 
@@ -68,15 +64,25 @@ public partial class Main
                 for (var frame = 0; frame < 2; frame++)
                     await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-                var expectedScale = DisplayUiScalePolicy.ScaleFactor(percent);
-                if (percent % 100 == 0)
-                    VerifyPixelText($"at {percent}% UI Scale");
-                if (!Mathf.IsEqualApprox(ThemeDB.FallbackBaseScale, expectedScale))
-                    throw new InvalidOperationException($"UI Scale did not update Godot's fallback base scale to {percent}%.");
-                if (uiScaleChoice.GetThemeFontSize("font_size") <= baseSettingsFontSize ||
-                    clockLabel.GetThemeFontSize("font_size") <= baseHudFontSize ||
-                    eventLog.GetThemeFontSize("normal_font_size") <= baseTextPanelFontSize)
-                    throw new InvalidOperationException($"UI Scale {percent}% did not enlarge settings, HUD, and text-panel text.");
+                // 1440p leaves room for 200%; bigger steps would squeeze the menus below their minimum area.
+                var factor = DisplayUiScalePolicy.FittingFactor(percent, 2560, 1440);
+                if (uiLayer.Factor != factor || menuLayer.Factor != factor ||
+                    uiScaleChoice.IsItemDisabled(scaleIndex) != (factor * 100 != percent))
+                    throw new InvalidOperationException($"UI Scale {percent}% at 1440p must magnify the interface by {factor} and mark steps that do not fit.");
+                VerifyPixelText($"at {percent}% UI Scale");
+                // Text, controls and panels grow together instead of text alone.
+                if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
+                    !Mathf.IsEqualApprox(uiScaleChoice.GetGlobalRect().Size.Y, baseScaleChoiceHeight * factor) ||
+                    !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
+                    throw new InvalidOperationException($"UI Scale {percent}% must enlarge text, controls and panels by the same {factor}×.");
+                // Dialogs are separate windows: their contents, frame and title scale on their own.
+                var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
+                if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
+                    DialogSize(new Vector2I(440, 170)) != new Vector2I(440, 170) * factor || titleSize != UiFonts.Heading * factor ||
+                    quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
+                    !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
+                    UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor)
+                    throw new InvalidOperationException($"Dialogs, drop-down lists and tooltips must grow with UI Scale {percent}%: title {titleSize}.");
                 if (displayWindow.Size != new Vector2I(2560, 1440) ||
                     displayWindow.ContentScaleSize != nativeRenderSize)
                     throw new InvalidOperationException($"UI Scale {percent}% changed the 1440p window or native render size.");
@@ -92,12 +98,6 @@ public partial class Main
                     throw new InvalidOperationException($"Game Settings escaped its usable bounds at 1440p and {percent}% UI Scale.");
                 scaleIndex++;
             }
-
-            if (menuResumeButton.GetCombinedMinimumSize().Y <= baseResumeButtonHeight ||
-                topBar.GetCombinedMinimumSize().X <= baseHudMinimumWidth ||
-                gameMenuPanel.CustomMinimumSize.X <= baseSettingsPanelWidth ||
-                selectedTilePanel.CustomMinimumSize.X <= baseTilePanelWidth)
-                throw new InvalidOperationException("UI Scale did not enlarge controls and panel geometry.");
 
             uiScaleChoice.Select(0);
             SetUiScale(0);
@@ -156,10 +156,10 @@ public partial class Main
         var uneven = new List<string>();
         foreach (var control in FindChildren("*", nameof(Control), recursive: true, owned: false).OfType<Control>())
         {
-            var items = control switch
+            string[] items = control switch
             {
-                RichTextLabel => UiScaleRichTextFontSizeThemeItems,
-                Label or Button or LineEdit or TextEdit or ItemList => UiScaleFontSizeThemeItems,
+                RichTextLabel => ["normal_font_size", "bold_font_size", "italics_font_size", "bold_italics_font_size", "mono_font_size"],
+                Label or Button or LineEdit or TextEdit or ItemList => ["font_size"],
                 _ => [],
             };
             foreach (var item in items)
@@ -1336,7 +1336,38 @@ public partial class Main
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var zoomBeforeWheel = cameraZoom;
+            var overEventLog = eventLog.GetGlobalRect().GetCenter();
+            GetViewport().PushInput(new InputEventMouseMotion { Position = overEventLog, GlobalPosition = overEventLog }, true);
+            for (var turn = 0; turn < 40; turn++)
+                GetViewport().PushInput(new InputEventMouseButton
+                {
+                    Position = overEventLog,
+                    GlobalPosition = overEventLog,
+                    ButtonIndex = MouseButton.WheelDown,
+                    Pressed = true,
+                }, true);
+            if (!Mathf.IsEqualApprox(cameraZoom, zoomBeforeWheel))
+                throw new InvalidOperationException("Scrolling over a panel must not zoom the map behind it.");
             ToggleEvents();
+            // Each top-bar panel opens under the button that opened it, not at the far side of the screen.
+            foreach (var (panel, button, toggle) in new (Control Panel, Button Button, Action Toggle)[]
+            {
+                (filtersPanel, filtersButton, ToggleMapFilters), (rosterPanel, inhabitantsButton, ToggleInhabitants),
+                (worldInfoPanel, worldInfoButton, ToggleWorldInfo), (eventsPanel, eventsButton, ToggleEvents),
+            })
+            {
+                toggle();
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var panelBounds = panel.GetGlobalRect();
+                var buttonBounds = button.GetGlobalRect();
+                if (!panel.Visible || panelBounds.Position.Y < buttonBounds.End.Y ||
+                    panelBounds.Position.X > buttonBounds.End.X || panelBounds.End.X < buttonBounds.Position.X)
+                    throw new InvalidOperationException($"{panel.Name} must open under its {button.Text} button: panel {panelBounds}, button {buttonBounds}.");
+                toggle();
+            }
             knownEvents.Remove(102);
             RenderEventLog();
             var largeTerrain = Enumerable.Range(0, 256 * 128)

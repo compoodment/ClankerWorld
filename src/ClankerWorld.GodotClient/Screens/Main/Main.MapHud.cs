@@ -32,8 +32,8 @@ public partial class Main
     {
         hoverReadout.Size = hoverReadout.GetCombinedMinimumSize();
         hoverReadout.Position = new Vector2(
-            Math.Max(14, mapCanvas.Size.X - hoverReadout.Size.X - 14),
-            Math.Max(14, mapCanvas.Size.Y - hoverReadout.Size.Y - 14));
+            Math.Max(14, UiSize.X - hoverReadout.Size.X - 14),
+            Math.Max(14, UiSize.Y - hoverReadout.Size.Y - 14));
     }
 
     /// <summary>Names the hovered ground in one line; refreshes when the tile or observed world changes.</summary>

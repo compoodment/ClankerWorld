@@ -138,9 +138,19 @@ everything that is available in the current build. See [what works today](../wha
   Pixel 12px**. Titles, panel headings, section labels, dialog titles and the
   Main Menu's choices use **Timber**: thin capitals drawn from the logo's
   letter shapes. Base text sizes are whole multiples of 12 px and are drawn
-  without smoothing. Whole-number UI scales keep letters crisp; the offered
-  125%, 150% and 175% steps still need a UI Scale pass. computment prefers
-  this look over a smoother font chosen for easy reading.
+  without smoothing, and UI Scale uses only whole-number steps, so letters
+  stay crisp. computment prefers this look over a smoother font chosen for
+  easy reading.
+- **Agreed after the September 30 playtest:** UI Scale magnifies the whole
+  interface in whole-number steps (100%, 200%, 300%, 400%) instead of
+  enlarging text alone. Panels, padding, buttons, icons, confirmations,
+  drop-down lists, tooltips and names on the map grow together, while the map
+  keeps its own zoom. Top-bar panels open under the button that opened them,
+  and the mouse wheel over a panel never zooms the map behind it. The current
+  default, **Automatic**, keeps the interface about 720 pixels tall: 200% at
+  1080p and 1440p and 300% at 4K. computment found 100% far too small at
+  1440p. A step that would leave less than 960 × 540 interface pixels is
+  unavailable, and on a narrow layout the top bar shows icons only.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player
