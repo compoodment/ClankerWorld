@@ -75,6 +75,10 @@ everything that is available in the current build. See [what works today](../wha
   Town's assigned buildings, includes spare space around them, and expands
   when new buildings join that Town; exact margin, connected geometry,
   assignment and overlap handling remain open.
+  When its last resident leaves or dies, the Town becomes **abandoned**, not
+  erased. Its identity, buildings, border and infrastructure remain in the
+  world, and later residents can revive that same Town. Exact treatment of
+  abandoned stock and claims still needs its own decision.
 - **Warehouse** replaces Storehouse. It holds actual inspectable resource stock
   at its location for agents/households resident in its Town, within that
   Town's borders. Food belongs at home instead. Residency and border-change
@@ -129,8 +133,11 @@ invented content are not silently approved. In particular:
   **3×4**. These are building/plot footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
-  space along both long sides of that three-tile water section. Exact placement
-  clearance and boat docking/queue rules remain open.
+  space along both long sides of that three-tile water section. A legal land
+  approach and clear docking space are required. Boats are communal Town
+  property, usable by residents or visitors with permission; the first
+  [boat journey](world.md#first-boat-and-port-travel) needs a completed Port at
+  each end. Exact queue and construction-cost rules remain open.
 - Combat gear includes a spear, sword, shield and armor alongside the
   dual-purpose axe. Clothing does not change an agent's map appearance; the
   visual treatment of worn armor remains open.
@@ -205,13 +212,19 @@ without a planned Road. A Road generation pass also builds a bridge immediately
 if its legal route encounters a bridgeable river. Either case excludes a
 redundant nearby bridge over the same crossing/river, not a necessary bridge
 over a different nearby stream.
-Generated Roads **remain after the supporting building is removed or a Town
-is abandoned**. Whether any
-other event can remove a Road—and thus whether the earlier temporary versus
-permanent distinction still means anything—remains open. Exact inter-Town
-route timing, layout, bridge thresholds/radius/materials and rendering remain
-open. Diagonal travel/Roads remain in scope; diagonal moves must not pass
-  through blocked corners. Playable foot movement now uses the strict
+For traffic-created bridges, the initial playtest threshold is **six completed
+crossings by at least two distinct agents within two world-days** at the same
+legal narrow crossing. Only actual traversal counts, not route previews,
+failed attempts or waiting. Keep bounded crossing evidence across saves; the
+threshold can be tuned after playtesting. Generated-Road bridges need not wait
+for this traffic.
+
+**Roads and bridges remain permanently** once built. They do not decay or
+disappear automatically when traffic stops, a building is removed or a Town is
+abandoned. There is one Road type; no temporary-versus-permanent class is
+needed. Exact inter-Town route timing, layout, bridge spacing/materials and
+rendering remain open. Diagonal travel/Roads remain in scope; diagonal moves
+must not pass through blocked corners. Playable foot movement now uses the strict
   two-clear-shoulder rule and a 141% diagonal route cost; diagonal Road
   construction/visuals remain open.
 
@@ -221,7 +234,7 @@ Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, invitation and non-residential access/reservations/queues;
 land claims and disputes; Town borders and governance; currency/land pricing;
-transport progression; Road permanence and bridges, other terrain eligibility,
+transport progression; bridge spacing and materials, other terrain eligibility,
 travel effects and junction/diagonal visuals; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
 economics; and later livestock/wildlife detail.
@@ -289,11 +302,10 @@ These remain open; they are not new decisions.
    land route exists and can remain disconnected otherwise. Bridge spacing
    prevents redundant crossings on the same river but does not block a needed
    bridge on a separate nearby stream. A generated Road may bridge a legal
-   crossing immediately. Decide the actual spacing/traffic
-   thresholds, whether Roads or bridges consume materials, and whether
-   anything besides explicit world edits can remove a Road. Roads remain after
-   buildings or Towns disappear, so a separate temporary/permanent distinction
-   may be unnecessary.
+   crossing immediately. The trial traffic threshold is given above. Decide
+   the exact bridge spacing and whether Roads or bridges consume materials;
+   their permanence, including after building loss or Town abandonment, is
+   already agreed.
 
 - **Home invitations and later membership.** Add Agent placement on household
    land forcibly assigns starting membership, without a consent step. Guests

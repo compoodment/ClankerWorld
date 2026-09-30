@@ -26,4 +26,11 @@ public static partial class ManualWorldSaveTelemetry
         Message = "autosave_settings outcome=changed enabled={Enabled} interval_minutes={IntervalMinutes} rotations={RotationCount} tick={WorldTick}")]
     public static partial void AutosaveConfigured(ILogger logger, bool enabled, int intervalMinutes,
         int rotationCount, long worldTick);
+    [LoggerMessage(EventId = 2260, Level = LogLevel.Warning,
+        Message = "world_deletion kind={Kind} outcome=cleanup_pending error_type={ErrorType}")]
+    public static partial void DeletionPending(ILogger logger, string kind, string errorType);
+
+    [LoggerMessage(EventId = 2261, Level = LogLevel.Information,
+        Message = "world_deletion kind={Kind} outcome=deleted cleanup_complete={Complete}")]
+    public static partial void Deleted(ILogger logger, string kind, bool complete);
 }

@@ -51,7 +51,7 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
             return;
-        if (MaterialSource("iron_ore") is not { } source ||
+        if (MaterialSource("iron_ore", actor) is not { } source ||
             !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(actor, state.Position, source.Position, ResourceInteractionRange).Count == 0)
             return;
@@ -66,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= 2 ||
             PersonalSmithOre(actor) is not null ||
-            MaterialSource("iron_ore") is not { } source)
+            MaterialSource("iron_ore", actor) is not { } source)
             return;
         if (!HasCarriedItem(actor, "wooden_pickaxe") && SharedItem("wooden_pickaxe", actor) is not null)
         {

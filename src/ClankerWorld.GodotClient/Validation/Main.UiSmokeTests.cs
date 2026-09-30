@@ -78,6 +78,8 @@ public partial class Main
                 // Dialogs are separate windows: their contents, frame and title scale on their own.
                 var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
                 if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
+                    !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                    deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
                     DialogSize(new Vector2I(440, 170)) != new Vector2I(440, 170) * factor || titleSize != UiFonts.Heading * factor ||
                     quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
                     !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
@@ -147,7 +149,7 @@ public partial class Main
         foreach (var heading in new Control[] { menuHeadingLabel, selectedActorNameLabel, clockLabel, mainMenuContinueButton })
             if (heading.GetThemeFont("font") != UiFonts.Headings)
                 throw new InvalidOperationException($"{heading.Name} must use the Timber heading lettering.");
-        ConfirmationDialog[] dialogs = [quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation];
+        ConfirmationDialog[] dialogs = [quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation];
         if (dialogs.Any(dialog => dialog.GetThemeFont("title_font") != UiFonts.Headings))
             throw new InvalidOperationException("Dialog titles must use the Timber heading lettering.");
         foreach (var letter in TimberFont.Characters)
@@ -212,6 +214,32 @@ public partial class Main
             mainMenuOverlay.Show();
             UiTheme.Apply(GetTree().Root, originalPalette);
         }
+    }
+
+    private async Task VerifyFirstWorldListAsync()
+    {
+        worldMenuColumns.Hide();
+        worldSelectionList.Show();
+        worldSelectButton.Show();
+        worldMenuOverlay.Show();
+        var response = new TaskCompletionSource<WorldCatalogSnapshot>();
+        var loading = worldListRequest.RefreshAsync(_ => response.Task);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
+            throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
+        response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
+            new CatalogWorld($"world-{index}", $"World {index}", $"world-{index}", "seed",
+                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible")).ToArray()));
+        await loading;
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
+            worldMenuScroll.Size.Y < 300)
+            throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        if (!worldSelectButton.Disabled)
+            throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
+        worldMenuOverlay.Hide();
     }
 
     /// <summary>The logo replaces the old title and slogan, sits above the card and stays crisp.</summary>
@@ -287,6 +315,20 @@ public partial class Main
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
                 manualSaveOverlay.Hide();
+                ResetWorldGenerationOptions();
+                if (CurrentWorldOptions().WaterPercent != 50 || CurrentWorldOptions().ForestCover != "Normal" ||
+                    CurrentWorldOptions().MountainRelief != "Normal" || CurrentWorldOptions().RiverAbundance != "Normal" ||
+                    !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
+                    throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
+                worldAdvancedToggle.ButtonPressed = true;
+                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                    throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
+                var preset = CurrentWorldOptions();
+                worldForestChoice.Select(0);
+                if (SameGeneration(preset, CurrentWorldOptions()))
+                    throw new InvalidOperationException("Changing an advanced setting must invalidate the matching preview.");
+                ResetWorldGenerationOptions();
+                worldAdvancedToggle.ButtonPressed = false;
                 worldMenuHeading.Text = "New World";
                 worldMenuStatus.Text = "Pick a seed and size. After creating the world, choose where your first Town goes and add four founders, then start time.";
                 worldPreviewStatus.Text = "Map preview · you will choose where your first Town goes after creating the world.";
@@ -415,6 +457,7 @@ public partial class Main
             var originalUiScaleChoice = uiScaleChoice.Selected;
             try
             {
+                await VerifyFirstWorldListAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
@@ -493,6 +536,42 @@ public partial class Main
                 quitToMenuConfirmation.GetThemeStylebox("embedded_border", "Window") != UiTheme.Theme.GetStylebox("embedded_border", "Window"))
                 throw new InvalidOperationException("Confirmations must use the game's panel style and name their action instead of OK.");
             quitToMenuConfirmation.Hide();
+            listedSaveWorldId = "smoke-world";
+            listedManualSaves = [new ManualWorldSave("smoke-save", "Selected snapshot", DateTimeOffset.UtcNow, 0, false)];
+            manualSaveList.Clear();
+            manualSaveList.AddItem("Selected snapshot");
+            manualSaveList.Select(0);
+            manualSaveDeleteButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!deletionConfirmation.Visible || pendingDeletion?.Id != "smoke-save" ||
+                !deletionConfirmation.DialogText.Contains("Selected snapshot", StringComparison.Ordinal) ||
+                deletionConfirmation.OkButtonText != "Delete permanently")
+                throw new InvalidOperationException("Save deletion must name the selected snapshot and require permanent confirmation.");
+            deletionConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
+            deletionConfirmation.Hide();
+            if (pendingDeletion is not null || listedManualSaves.Length != 1)
+                throw new InvalidOperationException("Canceling deletion must clear its target without changing saves.");
+            listedManualSaves = [];
+            manualSaveList.Clear();
+            listedSaveWorldId = null;
+            listedActiveWorldId = "active-world";
+            listedWorlds = [new CatalogWorld("active-world", "Active", "active", "seed", DateTimeOffset.UtcNow, [], null),
+                new CatalogWorld("other-world", "Other", "other", "seed-two", DateTimeOffset.UtcNow, [], null)];
+            worldSelectionList.Clear();
+            worldSelectionList.AddItem("Active");
+            worldSelectionList.AddItem("Other");
+            worldSelectionList.Select(0);
+            ConfirmWorldDeletion();
+            if (pendingDeletion is not null || deletionConfirmation.Visible)
+                throw new InvalidOperationException("Deleting the active world must be blocked before confirmation.");
+            worldSelectionList.Select(1);
+            ConfirmWorldDeletion();
+            if (pendingDeletion?.Id != "other-world" || !deletionConfirmation.Visible ||
+                !deletionConfirmation.DialogText.Contains("all of its manual saves and autosaves", StringComparison.Ordinal))
+                throw new InvalidOperationException("World deletion must identify the selected world and all its saves.");
+            deletionConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
+            deletionConfirmation.Hide();
+            listedWorlds = [];
+            worldSelectionList.Clear();
             // The pause receipt can succeed even when the following reconnect
             // fails. Leaving must not require a newer snapshot in that case.
             menuPauseConfirmed = true;

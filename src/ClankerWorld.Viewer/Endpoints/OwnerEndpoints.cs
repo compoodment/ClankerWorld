@@ -16,6 +16,7 @@ internal static partial class OwnerEndpoints
         MapRuntimeControl(app, isPrivateWorld);
         MapWorlds(app, isPrivateWorld);
         MapSaves(app, isPrivateWorld);
+        MapDeletion(app, isPrivateWorld);
         MapSetup(app, isPrivateWorld);
         MapInstructions(app, isPrivateWorld);
         MapContent(app, isPrivateWorld);
@@ -44,10 +45,13 @@ internal static partial class OwnerEndpoints
             !Enum.IsDefined(selectedClimate) ||
             !Enum.TryParse<ResourceAbundance>(action.ResourceAbundance, true, out var abundance) ||
             !Enum.IsDefined(abundance) ||
-            action.WaterPercent is < 10 or > 80)
+            !Enum.TryParse<GenerationAmount>(action.ForestCover, true, out var forest) || !Enum.IsDefined(forest) ||
+            !Enum.TryParse<GenerationAmount>(action.MountainRelief, true, out var mountain) || !Enum.IsDefined(mountain) ||
+            !Enum.TryParse<GenerationAmount>(action.RiverAbundance, true, out var river) || !Enum.IsDefined(river) ||
+            action.WaterPercent is < 20 or > 80)
             return false;
         options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent,
-            climateMode, selectedClimate, action.LatitudeCooling, abundance);
+            climateMode, selectedClimate, action.LatitudeCooling, abundance, GeographyGenerator.CurrentHydrologyVersion, forest, mountain, river);
         return true;
     }
 

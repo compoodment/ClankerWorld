@@ -36,6 +36,7 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\GameDisplayPreferencesStore.cs" Link="GodotClient\ClientState\GameDisplayPreferencesStore.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\OwnerActionGate.cs" Link="GodotClient\ClientState\OwnerActionGate.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\OwnerPendingSubmissionStore.cs" Link="GodotClient\ClientState\OwnerPendingSubmissionStore.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\WorldListRequest.cs" Link="GodotClient\ClientState\WorldListRequest.cs" />
   </ItemGroup>
 
 </Project>

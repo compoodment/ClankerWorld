@@ -14,12 +14,13 @@ public sealed record WorldAutosaveSettings(
 /// </summary>
 public sealed class WorldAutosaveStore
 {
-    private readonly object gate = new();
+    private readonly object gate;
     private readonly string path;
     private WorldAutosaveSettings state;
 
-    public WorldAutosaveStore(string activeSavePath, string worldId, bool allowWorldSwitch = false)
+    public WorldAutosaveStore(string activeSavePath, string worldId, bool allowWorldSwitch = false, object? mutationGate = null)
     {
+        gate = mutationGate ?? new object();
         ArgumentException.ThrowIfNullOrWhiteSpace(activeSavePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(worldId);
         path = Path.GetFullPath(activeSavePath) + ".autosave.json";

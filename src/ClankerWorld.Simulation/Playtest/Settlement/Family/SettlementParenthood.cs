@@ -48,14 +48,16 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || survivalState is null)
+        if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || survivalState is null)
         {
             return;
         }
-        foreach (var child in ChildrenNeedingCare(actor))
+        foreach (var child in ChildrenNeedingCare(actor).Where(child =>
+                     !NeedsUrgentFood(inhabitants[actor]) || IsWithinInteractionRange(inhabitants[actor].Position, child.Position, ResourceInteractionRange)))
         {
             candidates.Add(new("care:" + child.InhabitantId, "Bring food and warmth to your dependent child.", 2));
         }
+        if (!ReadyForLesson(actor)) return;
         foreach (var person in inhabitants.Values.Where(person => ActiveParenthood(person.Parenthood) &&
                      (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)))
         {
@@ -175,14 +177,16 @@ public sealed partial class PrivateWorldRuntime
 
     private void CareForChild(string actor, string childId)
     {
-        if (!ReadyForLesson(actor) || !ChildrenNeedingCare(actor).Any(child => child.InhabitantId == childId))
+        if (!ReadyForBriefInteraction(actor) || !ChildrenNeedingCare(actor).Any(child => child.InhabitantId == childId))
         {
             return;
         }
         var parent = inhabitants[actor];
         var child = inhabitants[childId];
+        if (NeedsUrgentFood(parent) && !IsWithinInteractionRange(parent.Position, child.Position, ResourceInteractionRange)) return;
         if (child.HungerBasisPoints < 7_000 && PreferredFood(actor, actor).FirstOrDefault() is null)
         {
+            if (NeedsUrgentFood(parent)) return;
             if (PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
                     lot.StorageBuildingId is null ||
                     society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) is { } sharedFood)

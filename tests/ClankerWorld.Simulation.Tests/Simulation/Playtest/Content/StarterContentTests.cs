@@ -43,7 +43,7 @@ public sealed class StarterContentTests
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");
         Assert.True(runtime.StageStarterContent());
-        for (var tick = 0; tick < 300; tick++)
+        for (var tick = 0; tick < 900; tick++)
         {
             _ = await runtime.AdvanceOneTickAsync();
         }

@@ -98,6 +98,14 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<OwnerDeletionReceipt> DeleteAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerDeletionAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerDeletionAction, OwnerDeletionReceipt>(
+            serverUri, authority, deviceId, "/api/v1/owner/delete",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Deletion(action),
+            action, deviceKey, cancellationToken);
+
     public Task<ManualWorldSave[]> ListManualSavesAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)

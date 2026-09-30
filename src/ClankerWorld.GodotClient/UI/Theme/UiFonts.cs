@@ -7,7 +7,7 @@ namespace ClankerWorld.GodotClient.UI;
 /// unmodified under the SIL Open Font License (see <c>Fonts/fusion-pixel-OFL.txt</c>).
 /// Headings use <see cref="TimberFont"/>. Text is drawn without smoothing and
 /// base sizes are whole multiples of <see cref="PixelSize"/>. Whole-number UI
-/// scales keep letters crisp; fractional UI scales still need a later pass.
+/// scales keep letters crisp.
 /// </summary>
 public static class UiFonts
 {

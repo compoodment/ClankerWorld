@@ -50,6 +50,13 @@ everything that is available in the current build. See [what works today](../wha
   library reads the latest save for each world rather than silently merging
   their creations.
 
+### Explicit deletion
+
+The owner may permanently remove one selected named save or autosave after a
+confirmation. Whole-world deletion is a separate action covering all of that
+world's snapshots. The active/only world is blocked until the owner opens or
+creates another world. This does not settle automated backup retention.
+
 ### Still to decide
 
 Whether manual saves are checkpoints or divergent branches; restore/rewind

@@ -9,6 +9,9 @@ namespace ClankerWorld.Viewer.Control;
 /// These types intentionally carry no bearer token. Every protected operation
 /// is authorized by consuming a short-lived, one-use signed challenge.
 /// </summary>
+public sealed record OwnerDeletionAction(string Kind, string Id, string WorldId, DateTimeOffset? ExpectedCreatedUtc = null);
+public sealed record OwnerDeletionReceipt(string Id, bool CleanupComplete);
+
 public sealed record StartOwnerPairingHttpRequest(string PublicKeySpkiBase64);
 
 public sealed record ActivateOwnerPairingHttpRequest(
@@ -42,7 +45,8 @@ public sealed record OwnerManualSaveAction(string Operation, string Value);
 public sealed record OwnerWorldCreationAction(string Name, string Seed, string Size,
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
-    string ResourceAbundance = "Normal");
+    string ResourceAbundance = "Normal", string ForestCover = "Normal",
+    string MountainRelief = "Normal", string RiverAbundance = "Normal");
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
@@ -188,6 +192,13 @@ public static class OwnerHttpBinding
         "clankerworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
 
+    public static string Deletion(OwnerDeletionAction action) => string.Join(
+        '\n', "clankerworld.owner-deletion.v1",
+        $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
+        $"id={EncodeRequired(action.Id, nameof(action.Id))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
+
     public static string ManualSavePayload(OwnerManualSaveAction action) => string.Join(
         '\n',
         "clankerworld.owner-manual-save.v1",
@@ -196,7 +207,7 @@ public static class OwnerHttpBinding
 
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-world-creation.v1",
+        "clankerworld.owner-world-creation.v2",
         $"name={EncodeRequired(action.Name, nameof(action.Name))}",
         $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
         $"size={EncodeRequired(action.Size, nameof(action.Size))}",
@@ -205,7 +216,10 @@ public static class OwnerHttpBinding
         $"climate-mode={EncodeRequired(action.ClimateMode, nameof(action.ClimateMode))}",
         $"selected-climate={EncodeRequired(action.SelectedClimate, nameof(action.SelectedClimate))}",
         $"latitude-cooling={action.LatitudeCooling.ToString().ToLowerInvariant()}",
-        $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}");
+        $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
+        $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
+        $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
 
     public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',

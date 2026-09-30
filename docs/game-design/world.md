@@ -232,9 +232,20 @@ playtesting.
 ### River crossings and visible forests and mountains
 
 At default settings, generated worlds should visibly include forests and
-mountain regions rather than relying on rare seeds to reveal them. The
-attainable guarantee for each world size/climate and preview update performance
-remain open.
+mountain regions rather than relying on rare seeds to reveal them. For
+**Balanced Small and Medium**, use initial playtest targets of **20–40% forest**
+and **5–12% mountains**, measured against dry land. These are targets to test
+and tune, not a promise that every climate or world size has the same coverage.
+Uniform Dry and polar regions must not acquire inappropriate trees just to
+meet a forest target. Forest and mountain areas should form readable regions;
+their exact connected-patch minimum remains to be tuned.
+
+Try at most **three deterministic candidates** for the selected seed and
+settings. Identify the chosen candidate in the exact preview so Create World
+uses that same map. If none meets its eligible targets, show what was missed
+and let the player choose another seed or explicitly accept the result; do not
+silently substitute a different map. Larger-size targets and preview latency
+remain subject to measurement and playtesting.
 
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. The world automatically adds bridges at sufficiently used
@@ -243,10 +254,27 @@ route meets a bridgeable river; it need not wait for traffic there. Once a
 bridge is placed, a no-other-bridge radius prevents a
 redundant bridge appearing right next to it on the **same crossing/river**.
 It does not block a needed bridge over a separate nearby stream. Exact radius,
-traffic threshold, bridge
-materials/work, and wider/deeper river crossing rules remain open. Town site
-planning and Road generation must be designed together; Road persistence is
-specified in the building/Town section below.
+bridge materials/work, and wider/deeper river crossing rules remain open. The
+initial traffic threshold and permanent Road/bridge rule are recorded in
+[Towns](towns.md#how-roads-and-bridges-appear). Town site planning and Road
+generation must be designed together.
+
+### First boat and Port travel
+
+The first crafted small boat carries **one agent and the goods that agent is
+carrying**. It cannot move stock remotely. A journey needs a completed,
+reachable Port at **both** ends and a navigable water route between them; an
+agent cannot embark from arbitrary shore. Ports use the agreed 2×4 land/water
+footprint and clear docking space described in [Towns](towns.md). Validate a
+land approach and docking clearance before construction and departure.
+
+Boats belong to a **Town**, not a household. Town residents may use its communal
+boats; visitors need permission. Reserve each physical boat for only one
+journey at a time, and persist the boat, traveler and carried goods together
+across save/load. A blocked destination cannot teleport or duplicate any of
+them. Exact recipes, costs, travel speed, queueing and recovery when a Port
+becomes unavailable remain open for implementation and playtesting. Later
+transport inventions do not silently change this first-stage Port rule.
 
 ### Still to decide
 
@@ -264,9 +292,10 @@ Climate's long-run
 rainfall/moisture is distinct from any individual rain event. The 64×64 chunk
 and preset dimensions need
 benchmarks before becoming implementation promises.
-Exact generator thresholds for the Advanced levels, eligible biome coverage,
-preview performance and failure/retry behavior remain to be measured and
-playtested; the chosen player controls do not settle those numbers.
+Exact generator thresholds for the Advanced levels, coverage for climates and
+sizes beyond Balanced Small/Medium, connected-patch thresholds and preview
+performance remain to be measured and playtested. The initial Balanced
+coverage and bounded retry choices above do not settle those other numbers.
 
 **Suggestion river-generation approach, not yet a locked algorithm:** generate
 elevation and long-run rainfall, route water downhill toward coasts or inland
@@ -325,6 +354,22 @@ protection over discretionary work or long travel, but it is not a rigid rule
 that every other action disappears. These are initial playtest thresholds,
 not proven balance targets. The point at which routine food errands start,
 and how much warmth is needed for a particular outing, remain to be tuned.
+
+The current priority prototype treats these as preferences rather than blanket
+activity gates. Routine food seeking becomes a priority below 45% fullness, carried food
+becomes attractive below 40%, and a new exploration outing asks for a 30%
+food reserve. Food gathering remains an optional lower-priority choice below
+70%; the existing small barter reserve is unchanged. These three routine values are **provisional**, not additional
+owner-approved thresholds. Construction and ongoing projects yield to urgent
+food needs; nearby care and family responses remain possible. Low warmth
+interrupts work only while the agent is still losing warmth, not while safely
+warming in shelter. Recovering agents retain a choice to stay in cover, and new
+scouting trips estimate exposed round-trip warmth needs instead of assuming
+that starting shelter travels with the agent. This estimate uses nearby weather
+and movement costs, not knowledge of the whole map or a guarantee of safety.
+Illness, exposure damage and food production are unchanged. The
+[controlled comparison](../development/survival-priority-prototype.md) reports
+the original regressions and revised measurements; this is not settled balance.
 
 ### Still to decide after playtesting
 
