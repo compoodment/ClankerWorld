@@ -411,6 +411,7 @@ public sealed partial class PrivateWorldRuntime
                     if (decision is not null)
                     {
                         RecordModelCompletion(id, decision.Admission, outcome.Failure);
+                        ApplyPersonalIdentityChoice(id, item.Request, outcome.Response, decision.Admission);
                         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
                             outcome.Response is
                             {

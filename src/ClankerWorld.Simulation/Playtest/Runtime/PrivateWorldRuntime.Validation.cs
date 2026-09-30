@@ -298,6 +298,8 @@ public sealed partial class PrivateWorldRuntime
                  attempt.SetupBlocker is not (null or "unsupported_request") ||
                  attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
                 throw new InvalidDataException("The saved model attempt is invalid.");
+            if (person.IdentityChoicePending && state.SchemaVersion < 28)
+                throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);

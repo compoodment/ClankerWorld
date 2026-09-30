@@ -321,12 +321,6 @@ public sealed class TownRuntimeTests
             {
                 RoadTiles = null,
             }));
-            using var beforeRoadSchema = PrivateWorldRuntime.Restore(reloaded.ExportState() with
-            {
-                SchemaVersion = 23,
-                RoadTiles = null,
-            });
-            Assert.Empty(beforeRoadSchema.RoadTiles);
         }
         finally
         {

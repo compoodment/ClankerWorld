@@ -120,7 +120,9 @@ public sealed record InhabitantObservation(
     IReadOnlyList<CognitionMemoryExcerpt>? RetrievedMemories = null,
     IReadOnlyList<CognitionMemoryCompactionCandidate>? MemoryCompactionCandidates = null,
     IReadOnlyList<CognitionKnowledgeFact>? KnownMapFacts = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionSelfContext? Self = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionSelfContext? Self = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsPersonality = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsAspiration = false)
 {
     public void Validate()
     {
@@ -262,10 +264,20 @@ public sealed record CognitionDecisionResponse(
     CognitionUsage? Usage = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PrivateThought = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenName = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenPersonality = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenAspiration = null)
 {
     public const int MaximumPrivateThoughtLength = 160;
     public const int MaximumChosenNameLength = 48;
+    public const int MaximumIdentityTextLength = 256;
+
+    public static string? NormalizeIdentityText(string? value)
+    {
+        var text = value?.Trim();
+        return text is { Length: > 0 and <= MaximumIdentityTextLength } &&
+            !text.Any(char.IsControl) ? text : null;
+    }
 
     public static string? NormalizePrivateThought(string? value)
     {
@@ -314,6 +326,9 @@ public sealed record CognitionDecisionResponse(
 
         if (ChosenName is not null && NormalizeChosenName(ChosenName) != ChosenName)
             throw new ArgumentOutOfRangeException(nameof(ChosenName));
+        if (ChosenPersonality is not null && NormalizeIdentityText(ChosenPersonality) != ChosenPersonality ||
+            ChosenAspiration is not null && NormalizeIdentityText(ChosenAspiration) != ChosenAspiration)
+            throw new ArgumentOutOfRangeException(nameof(ChosenPersonality));
 
         if (MemoryCompactionScores is { Count: > 12 })
             throw new ArgumentOutOfRangeException(nameof(MemoryCompactionScores));
@@ -761,6 +776,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
+                        "When needs_personality or needs_aspiration is true, you may also include " +
+                        "chosen_personality and chosen_aspiration respectively, in your own words, " +
+                        "each at most 256 characters with no control characters. This is a one-time choice. " +
                         (request.Observation.NeedsName
                             ? $"When naming this agent, prefer a given name starting with {NameInitial(request.Observation.InhabitantId)}; use a natural full name. "
                             : string.Empty) +
@@ -780,6 +798,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         needs_name = request.Observation.NeedsName,
+                        needs_personality = request.Observation.NeedsPersonality,
+                        needs_aspiration = request.Observation.NeedsAspiration,
                         self = request.Observation.Self is { } self ? new
                         {
                             name = self.Name, life_stage = self.LifeStage,
@@ -886,6 +906,12 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 nameProperty.ValueKind == JsonValueKind.String
                     ? CognitionDecisionResponse.NormalizeChosenName(nameProperty.GetString())
                     : null;
+            var chosenPersonality = answerRoot.TryGetProperty("chosen_personality", out var personalityProperty) &&
+                personalityProperty.ValueKind == JsonValueKind.String
+                    ? CognitionDecisionResponse.NormalizeIdentityText(personalityProperty.GetString()) : null;
+            var chosenAspiration = answerRoot.TryGetProperty("chosen_aspiration", out var aspirationProperty) &&
+                aspirationProperty.ValueKind == JsonValueKind.String
+                    ? CognitionDecisionResponse.NormalizeIdentityText(aspirationProperty.GetString()) : null;
 
             var usage = TryParseUsage(root, modelId);
             return new CognitionDecisionResponse(
@@ -901,7 +927,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 probabilities,
                 usage,
                 privateThought,
-                chosenName);
+                chosenName,
+                ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration);
         }
         catch (JsonException exception)
         {

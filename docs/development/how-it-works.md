@@ -117,6 +117,18 @@ private thought. Absent fields remain unknown. Need scales are explained;
 Self context is included in the queued-observation digest. Nearby relationships,
 carried inventory and current activity are not provided.
 
+Newly placed adults get one opportunity to choose personality and aspiration
+in the existing first personal-model action reply. Optional `chosen_personality`
+and `chosen_aspiration` strings are trimmed, limited to 256 characters and
+refused if they contain control characters. An accepted personal reply consumes
+the opportunity even if either field is missing or invalid; the placeholder
+stays without an additional model attempt. Later replies cannot overwrite it.
+The pending opportunity is checkpointed, so pause/reload discards late replies
+and preserves an unconsumed choice. It selects the personal planner rather than
+Jev's routine router. Choice events contain only the agent ID; chosen text stays
+in that agent's saved state and later self context, not runtime logs. Children
+and identity changes later in life remain separate work.
+
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
 *inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the
 clock and run/decision counters; admission uses them on the server. Households
