@@ -88,6 +88,7 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Game Settings controls the display, interface scale, theme, weather effects and
 date/time format. World Settings contains that world's autosaves, Jev and the
 current model-usage controls. Main Menu Settings exposes Game Settings only.
+Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the

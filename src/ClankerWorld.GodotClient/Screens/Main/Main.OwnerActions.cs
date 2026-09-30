@@ -321,6 +321,7 @@ public partial class Main
     {
         RefreshManualSaveAvailability();
         RefreshWorldMenuAvailability();
+        if (!IsCurrentAutosaveSettingsContext()) CancelAutosaveSettingsRead();
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
         worldSettingsCategoryButton.Disabled = !paired || !isInWorld || returnToMainMenu;
         var snapshot = observationSession.Current?.Baseline.Snapshot;

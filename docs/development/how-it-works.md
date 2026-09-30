@@ -380,3 +380,10 @@ selection rather than a row retained across an await.
 
 Client cancellation does not interrupt a host
 assessment that already holds its mutation lock.
+
+World Settings reads autosaves for its current opening, paired device and
+observed world. Closing Settings, choosing Game Settings or changing worlds
+invalidates the read and disables Apply. Late replies and failures cannot
+replace a newer opening's controls. A reply must name the observed world
+before Apply becomes available, and Apply checks that context again before
+sending the displayed interval and rotation.

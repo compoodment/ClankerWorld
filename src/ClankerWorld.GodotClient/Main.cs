@@ -286,6 +286,7 @@ public partial class Main : Control
     {
         CancelManualSaveListRead();
         refreshCancellation?.Cancel();
+        CancelAutosaveSettingsRead();
         worldListRequest.Dispose();
         UiTheme.Changed -= ApplyThemeColors;
         deviceKey?.Dispose();

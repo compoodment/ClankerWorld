@@ -157,6 +157,8 @@ public partial class Main
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
+        public string AutosaveWorldId { get; set; } = "autosave-world-B";
+        public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -206,6 +208,12 @@ public partial class Main
                     Interlocked.Increment(ref saveCreateCount);
                     response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
                         DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case OwnerPairingEndpoints.OwnerAutosaveConfigure:
+                    var configuration = envelope.GetProperty("action").Deserialize<OwnerAutosaveConfigurationAction>(JsonOptions)!;
+                    AutosaveConfigurations.Add(configuration);
+                    response = new WorldAutosaveSettings(AutosaveWorldId, configuration.Enabled,
+                        configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
                     Interlocked.Increment(ref pauseCount);

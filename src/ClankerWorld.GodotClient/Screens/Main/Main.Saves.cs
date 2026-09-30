@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.UI;
 using System.Globalization;
 using Godot;
@@ -32,9 +33,19 @@ public partial class Main
     private readonly Button autosaveApplyButton = new();
     private readonly Label autosaveSettingsStatus = new();
     private bool autosaveSettingsLoaded;
+    private string? autosaveSettingsWorldId;
+    private OwnerDeviceRegistration? autosaveSettingsRegistration;
+    private CancellationTokenSource? autosaveSettingsCancellation;
 
     private void BuildAutosaveSettings()
     {
+        void CancelHiddenSettings()
+        {
+            if (!settingsPanel.IsVisibleInTree() || !worldSettingsContent.IsVisibleInTree())
+                CancelAutosaveSettingsRead();
+        }
+        settingsPanel.VisibilityChanged += CancelHiddenSettings;
+        worldSettingsContent.VisibilityChanged += CancelHiddenSettings;
         var content = new VBoxContainer();
         content.AddThemeConstantOverride("separation", 6);
         autosaveEnabledToggle.Text = "Autosave enabled";
@@ -59,16 +70,47 @@ public partial class Main
         worldSettingsContent.AddChild(NewPanel("Autosave", content));
     }
 
-    private async Task RefreshAutosaveSettingsAsync()
+    private bool IsCurrentAutosaveSettingsContext() =>
+        settingsPanel.IsVisibleInTree() && worldSettingsContent.IsVisibleInTree() &&
+        autosaveSettingsWorldId is not null &&
+        autosaveSettingsWorldId == observationSession.Current?.Baseline.Snapshot.WorldId &&
+        ReferenceEquals(autosaveSettingsRegistration, registration);
+
+    private void CancelAutosaveSettingsRead()
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var previous = autosaveSettingsCancellation;
+        autosaveSettingsCancellation = null;
         autosaveSettingsLoaded = false;
+        autosaveSettingsWorldId = null;
+        autosaveSettingsRegistration = null;
+        autosaveApplyButton.Disabled = true;
+        previous?.Cancel();
+    }
+
+    private async Task RefreshAutosaveSettingsAsync(Func<CancellationToken, Task<WorldAutosaveSettings>>? fetch = null)
+    {
+        CancelAutosaveSettingsRead();
+        if (!settingsPanel.IsVisibleInTree() || !worldSettingsContent.IsVisibleInTree() ||
+            observationSession.Current?.Baseline.Snapshot.WorldId is not { } readWorldId ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        using var read = new CancellationTokenSource();
+        autosaveSettingsCancellation = read;
+        autosaveSettingsWorldId = readWorldId;
+        autosaveSettingsRegistration = registration;
         autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
         RefreshControlAvailability();
+        bool IsCurrentRead() => ReferenceEquals(autosaveSettingsCancellation, read) &&
+            IsCurrentAutosaveSettingsContext();
         try
         {
-            var saved = await ownerApi.GetAutosaveSettingsAsync(ResolveWorldUri(), authority,
-                deviceId, signer, CancellationToken.None);
+            var saved = await (fetch?.Invoke(read.Token) ?? ownerApi.GetAutosaveSettingsAsync(ResolveWorldUri(), authority,
+                deviceId, signer, read.Token));
+            if (!IsCurrentRead()) return;
+            if (saved.WorldId != readWorldId)
+            {
+                autosaveSettingsStatus.Text = "The world changed. Reopen World Settings to read its autosaves.";
+                return;
+            }
             autosaveEnabledToggle.ButtonPressed = saved.Enabled;
             autosaveIntervalChoice.Select(autosaveIntervalChoice.GetItemIndex(saved.IntervalMinutes));
             autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(saved.RotationCount));
@@ -77,16 +119,23 @@ public partial class Main
                 ? "No autosave copy yet. Your world is still saved as you play."
                 : $"Last autosave copy: {DisplayWorldClock(saved.LastWorldTick)}. Your world is saved as you play.";
         }
+        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            autosaveSettingsStatus.Text = "Could not read autosave settings: " + FriendlyFailure(exception);
+            if (IsCurrentRead())
+                autosaveSettingsStatus.Text = "Could not read autosave settings: " + FriendlyFailure(exception);
         }
-        RefreshControlAvailability();
+        finally
+        {
+            if (ReferenceEquals(autosaveSettingsCancellation, read)) autosaveSettingsCancellation = null;
+            RefreshControlAvailability();
+        }
     }
 
     private async Task ApplyAutosaveSettingsAsync()
     {
-        if (!autosaveSettingsLoaded || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!autosaveSettingsLoaded || !IsCurrentAutosaveSettingsContext() ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var action = new OwnerAutosaveConfigurationAction(autosaveEnabledToggle.ButtonPressed,
             autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId());
         await RunOwnerActionAsync(async () =>
