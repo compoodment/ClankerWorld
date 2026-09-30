@@ -1,0 +1,1 @@
+- Buildings show their door on the side that faces their Road, not always on the bottom edge. Saves now use schema 27; older saves still load, and buildings already in them keep their door on the bottom edge.

@@ -194,10 +194,13 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsHouseholdBuildingTag(string tag) => tag is "house" or "farmhouse" or "blacksmith";
 
-    private PlacedBuilding? HouseForHousehold(string householdId) => worldSimulation.Buildings
+    private PlacedBuilding? HouseForHousehold(string householdId) => HouseholdBuildingWithTag(householdId, "house");
+
+    /// <summary>The household's own building of a kind, such as its Farmhouse; first by instance ID.</summary>
+    private PlacedBuilding? HouseholdBuildingWithTag(string householdId, string tag) => worldSimulation.Buildings
         .Where(building => building.HouseholdId == householdId &&
             worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                definition.Tags.Contains("house", StringComparer.Ordinal)))
+                definition.Tags.Contains(tag, StringComparer.Ordinal)))
         .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
 
     private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.StorageBuildingId is { } buildingId

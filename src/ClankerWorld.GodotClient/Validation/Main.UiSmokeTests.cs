@@ -544,6 +544,18 @@ public partial class Main
                 throw new InvalidOperationException("Main Menu Settings must keep the title background and show only Game Settings.");
             if (!gameSettingsCategoryButton.ButtonPressed || gameSettingsCategoryButton.Disabled)
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");
+            if (!apiKeysPanel.IsVisibleInTree() || !gameSettingsContent.IsAncestorOf(apiKeysPanel) || !apiKeyInput.Secret)
+                throw new InvalidOperationException("Main Menu Game Settings must offer API keys with a masked key entry before placing any agents.");
+            apiKeyInput.Text = "test-only-ui-key";
+            apiKeyProviderChoice.Select(1);
+            apiKeyProviderChoice.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
+            if (apiKeyInput.Text.Length != 0)
+                throw new InvalidOperationException("Changing API key provider must clear the pasted key.");
+            apiKeyInput.Text = "test-only-ui-key";
+            apiKeysPanel.Hide();
+            if (apiKeyInput.Text.Length != 0)
+                throw new InvalidOperationException("Hiding API key settings must clear the pasted key.");
+            apiKeysPanel.Show();
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             gameSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
@@ -1052,6 +1064,12 @@ public partial class Main
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
             placingAddedAgent = true;
             founderSetupPanel.Show();
+            ResetAddAgentPlacementHint();
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
+                founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
+            var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
             if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Add Agent must preview recorded household property without inferring Town membership.");
@@ -1061,6 +1079,21 @@ public partial class Main
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (placementFields.Where((field, index) => field.GetGlobalRect() != placementFieldRects[index]).Any())
+                throw new InvalidOperationException("Add Agent fields must stay in place when the introductory hint changes to a placement preview.");
+            var placementPreview = founderSetupHint.Text;
+            UpdateTileHover(mapCanvas.GetGlobalTransform().AffineInverse() *
+                (founderSetupPanel.GetGlobalRect().Position + founderSetupPanel.GetGlobalRect().Size / 2));
+            if (founderSetupHint.Text != placementPreview)
+                throw new InvalidOperationException("A pointer inside Add Agent must keep the last visible placement preview.");
+            founderModelPicker.Choice.GetPopup().Popup();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            if (founderSetupHint.Text != placementPreview)
+                throw new InvalidOperationException("An open model popup must not preview the map behind it.");
+            founderModelPicker.Choice.GetPopup().Hide();
             founderSetupPanel.Hide();
             placingAddedAgent = false;
             householdPropertyFilter.ButtonPressed = false;
@@ -1301,6 +1334,20 @@ public partial class Main
                             !buildingData.Add(Convert.ToBase64String(roof.GetData())))
                             throw new InvalidOperationException($"{kind} buildings must look different from every other building family.");
                     }
+            var doorFootprint = new Rect2I(10, 10, 2, 1);
+            if (BuildingDoor.Facing(doorFootprint, new Vector2I(11, 11)) != new BuildingDoor(DoorSide.South, 1) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(10, 9)) != new BuildingDoor(DoorSide.North, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(12, 10)) != new BuildingDoor(DoorSide.East, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(9, 10)) != new BuildingDoor(DoorSide.West, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(12, 11)) != BuildingDoor.Default ||
+                BuildingDoor.Facing(doorFootprint, null) != BuildingDoor.Default || default(BuildingDoor) != BuildingDoor.Default)
+                throw new InvalidOperationException("A building's door must face the entrance tile beside its footprint.");
+            var northDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(DoorSide.North, 0));
+            var southDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32);
+            if (Enum.GetValues<DoorSide>().Select(side => Convert.ToBase64String(
+                    BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(side, 0)).GetData())).Distinct().Count() != 4 ||
+                northDoor.GetPixel(16, 1).A < 0.5f || southDoor.GetPixel(16, 1).A > 0)
+                throw new InvalidOperationException("A building must show its door on the side it faces.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
