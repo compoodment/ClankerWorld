@@ -12,6 +12,7 @@ public partial class Main
     private readonly Label manualSaveStatus = new();
     private readonly LineEdit manualSaveName = new();
     private readonly Button manualSaveCreateButton = new();
+    private readonly Button manualSaveBackButton = new();
     private readonly ItemList manualSaveList = new();
     private readonly Button manualSaveLoadButton = new();
     private readonly Button manualSaveOverwriteButton = new();
@@ -22,6 +23,7 @@ public partial class Main
     private OwnerDeletionAction? pendingDeletion;
     private string? listedSaveWorldId;
     private string? pendingOverwriteSaveId;
+    private CancellationTokenSource? manualSaveListCancellation;
     private ManualWorldSave[] listedManualSaves = [];
     private bool manualSaveLoadMode;
     private readonly CheckBox autosaveEnabledToggle = new();
@@ -103,6 +105,10 @@ public partial class Main
     {
         manualSaveOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.MouseFilter = MouseFilterEnum.Stop;
+        manualSaveOverlay.VisibilityChanged += () =>
+        {
+            if (!manualSaveOverlay.Visible) CancelManualSaveListRead();
+        };
         manualSaveOverlay.ZIndex = 220;
         menuLayer.AddChild(manualSaveOverlay);
         var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.78f }, MouseFilter = MouseFilterEnum.Stop };
@@ -118,10 +124,10 @@ public partial class Main
         manualSaveHeading.ThemeTypeVariation = "TitleLabel";
         manualSaveHeading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         headingRow.AddChild(manualSaveHeading);
-        var back = new Button { TooltipText = "Back to the Pause Menu" };
-        StyleIconButton(back, PixelGlyph.Back);
-        back.Pressed += () => manualSaveOverlay.Hide();
-        headingRow.AddChild(back);
+        manualSaveBackButton.TooltipText = "Back to the Pause Menu";
+        StyleIconButton(manualSaveBackButton, PixelGlyph.Back);
+        manualSaveBackButton.Pressed += () => manualSaveOverlay.Hide();
+        headingRow.AddChild(manualSaveBackButton);
         body.AddChild(headingRow);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);
@@ -133,13 +139,7 @@ public partial class Main
         manualSaveCreateButton.Pressed += () => _ = CreateManualSaveAsync();
         body.AddChild(manualSaveCreateButton);
         manualSaveList.CustomMinimumSize = new Vector2(0, 250);
-        manualSaveList.ItemSelected += index =>
-        {
-            manualSaveLoadButton.Disabled = false;
-            manualSaveDeleteButton.Disabled = (int)index >= listedManualSaves.Length;
-            manualSaveOverwriteButton.Disabled = (int)index >= listedManualSaves.Length ||
-                listedManualSaves[(int)index].IsAutosave;
-        };
+        manualSaveList.ItemSelected += _ => RefreshManualSaveAvailability();
         body.AddChild(manualSaveList);
         manualSaveLoadButton.Text = "Load selected save";
         StyleButton(manualSaveLoadButton, primary: true);
@@ -169,7 +169,24 @@ public partial class Main
         manualSaveOverlay.Hide();
     }
 
-    private async Task OpenManualSavesAsync(bool loadMode)
+    private void CancelManualSaveListRead()
+    {
+        var previous = manualSaveListCancellation;
+        manualSaveListCancellation = null;
+        previous?.Cancel();
+    }
+
+    private void RefreshManualSaveAvailability()
+    {
+        var selected = manualSaveList.GetSelectedItems();
+        var valid = !isOwnerAction && selected.Length == 1 && selected[0] >= 0 && selected[0] < listedManualSaves.Length;
+        manualSaveLoadButton.Disabled = !manualSaveLoadMode || !valid;
+        manualSaveOverwriteButton.Disabled = manualSaveLoadMode || !valid || listedManualSaves[selected[0]].IsAutosave;
+        manualSaveDeleteButton.Disabled = !valid;
+        manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode;
+    }
+
+    private async Task OpenManualSavesAsync(bool loadMode, Func<CancellationToken, Task<ManualWorldSave[]>>? fetch = null)
     {
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         if (!loadMode && observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused != true)
@@ -177,8 +194,13 @@ public partial class Main
             SetStatus("Wait for the world to pause before saving.", good: false);
             return;
         }
+        CancelManualSaveListRead();
+        using var read = new CancellationTokenSource();
+        manualSaveListCancellation = read;
+        var readWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        var readRegistration = registration;
         pendingDeletion = null;
-        listedSaveWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        listedSaveWorldId = readWorldId;
         listedManualSaves = [];
         manualSaveList.Clear();
         manualSaveDeleteButton.Disabled = true;
@@ -195,11 +217,16 @@ public partial class Main
         manualSaveLoadButton.Disabled = true;
         manualSaveOverwriteButton.Disabled = true;
         manualSaveOverlay.Show();
+        RefreshManualSaveAvailability();
+        bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
+            manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
+            readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
         try
         {
-            listedManualSaves = (await ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
-                deviceId, signer, CancellationToken.None))
-                .Where(save => loadMode || !save.IsAutosave).ToArray();
+            var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
+                deviceId, signer, read.Token));
+            if (!IsCurrentRead()) return;
+            listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
             manualSaveList.Clear();
             foreach (var save in listedManualSaves)
                 manualSaveList.AddItem($"{(save.IsAutosave ? "Autosave" : save.Name)} · world {DisplayWorldClock(save.WorldTick)} · saved {save.CreatedUtc.ToLocalTime():g}");
@@ -207,10 +234,16 @@ public partial class Main
                 manualSaveStatus.Text = loadMode
                     ? "No saves yet. Continue the world and use Pause Menu → Save World."
                     : "No named saves yet. Create New Save to make the first one.";
+            RefreshManualSaveAvailability();
         }
+        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(manualSaveListCancellation, read)) manualSaveListCancellation = null;
         }
     }
 

@@ -65,11 +65,35 @@ authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
+Owner instructions are suggestions (**Suggest** on the agent card,
+`Suggestive`) or orders (**Order**, `MustDo`).
+The model does not receive their text. `InstructionCandidate` reads whole words
+only: *harvest* or *gather* means `harvest_food`; *berry* means `seek_food`;
+*eat*, *food* or *hungry* means `consume_food`; and *go*, *travel* or *move*
+means `seek_food`, so travel always heads toward food. A few plain inflections
+such as *gathering* and *berries* also count.
+
+A MustDo with no recognized action is closed when it is submitted: it is added
+to the completed instructions with an `instruction_not_understood` event
+(`<agent ID>:<instruction ID>`), which the Event Log shows. Each tick repeats
+this check before scheduling, which also closes an order queued under earlier
+matching rules. A closed order requests no decision and no longer blocks later
+instructions to that agent.
+
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses: acquiring food or orchard fruit, eating, or taking a travel
 step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
 including across reload. Travel completion here is one step, not a full-route
-goal; suggestive instructions retain their separate semantics.
+goal. Instructions to one agent apply in submission order, so a pending order
+holds later ones back. A Suggestion completes at the agent's next accepted
+decision, whatever that decision is.
+
+A pending instruction prompts one fresh decision: it schedules cognition only
+until the agent has an accepted intention observed after the submission tick.
+After that, `NeedsCognition` applies its usual rules. For example, active agents
+reevaluate every 30 ticks, and idle agents reevaluate when their legal choices
+change or after 300 ticks. An order that cannot progress therefore cannot
+request a decision, or a paid model call, on every tick.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -127,9 +151,30 @@ Exploration can create a one-site field record or a map of up to nine sites.
 Sharing nearby or bartering teaches only those sites to the recipient, retaining
 the discoverer and source agent. It does not grant access to unrelated knowledge.
 
-If intervening legal movement interrupts an outing, scouting restarts at the
-actual position without inventing the missing path. Visited facts remain
-personal knowledge; an unfinished outing does not create a completed artifact.
+If intervening legal movement interrupts outward scouting, a new outward path
+starts at the actual position without inventing missing steps. On the return
+leg, recorded visited tiles are waypoints: the actor routes from its current
+position around occupants without restarting the outing. Completion requires
+reaching the original start, including after reload. A return that remains
+blocked still ends through the existing bounded wait/abort behavior. Visited
+facts remain personal knowledge.
+
+The owner's model picker shows the game's own list for each provider,
+`ProviderModelCatalog.Curated`: newest generation first and, within a generation,
+larger models first. Add new models there in their place. When a key is known,
+the host checks it against the provider's model-list route (OpenAI
+`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+the saved key, a named key slot, or a key pasted for that check only, which is
+not stored. Keys never return to the client. Listed models the key's route
+doesn't include are marked unavailable; names are compared without Ollama's
+`:cloud`, `-cloud` or `:latest` endings. If the key can't be checked, the whole
+list stays usable and the reason is shown. A new agent starts on the provider's
+default model when the key can use it. If the key can't use a new agent's
+starting model, the picker selects nothing and asks the owner to choose, so no
+other model, possibly a costlier one, is chosen for them. An existing or
+hand-picked model the key can't use stays shown, greyed, with the same request.
+Checks are cached per key for ten minutes, time out after eight seconds and are
+not model calls, so they do not count toward the usage cap below.
 
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and
@@ -172,10 +217,13 @@ Mountains are slower to cross and cannot be built on; peaks are impassable.
 Resources are placed in bounded 16×16 cells with surface/cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
-use the actor's foot-accessible terrain component.
-Immutable map connectivity is cached once per map; temporary occupancy remains
-a movement-time check. Project resource selection still uses accessibility
-from the original camp component. Boat access remains unfinished.
+use the actor's foot-accessible terrain component and skip sites whose current
+occupied routes cannot reach harvesting range. Adjacent food needs no route
+search. Candidate generation searches only when gathering or a food instruction
+needs a source, and stops at the first reachable site. Caregivers use the same
+selection. Immutable map connectivity is cached once per map; movement rechecks
+occupancy before each step. Project resources likewise use the actor's current
+position and reachable harvesting range. Boat access remains unfinished.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -328,6 +376,13 @@ Small and Medium remain the only playable sizes; no continent-count control
 is exposed for them. Existing saved water settings are not rewritten.
 
 ## World-list requests
+
+The manual Save World and Load Save dialog owns one list read per opening.
+Closing it, creating, overwriting or deleting a save, or starting another opening
+cancels the previous read. Late success and failure replies cannot replace current rows,
+selection or status, including across a world or pairing change. Clearing or
+rebuilding rows recomputes Load, Overwrite and Delete availability. Creating a
+new save remains available while listing is slow.
 
 Load World keeps a visible checking state until its signed catalog request
 finishes. Back cancels the client request; a late response cannot overwrite a

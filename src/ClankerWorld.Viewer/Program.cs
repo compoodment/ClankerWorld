@@ -98,6 +98,9 @@ builder.Services.AddSingleton(new ProviderConfigurationStore(
         Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
         configuredOllamaCloudModel,
         Environment.GetEnvironmentVariable("OLLAMA_API_KEY"))));
+builder.Services.AddSingleton(services => new ProviderModelCatalog(
+    services.GetRequiredService<ProviderConfigurationStore>(),
+    services.GetRequiredService<IHttpClientFactory>()));
 builder.Services.AddSingleton<ConfigurableDecisionProvider>();
 builder.Services.AddSingleton<IDecisionProvider>(services =>
     services.GetRequiredService<ConfigurableDecisionProvider>());

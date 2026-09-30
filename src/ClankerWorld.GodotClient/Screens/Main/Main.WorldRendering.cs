@@ -25,6 +25,7 @@ public partial class Main
             knownEvents.Clear();
             familyTreePanel.Hide();
             memoriesPanel.Hide();
+            thoughtsPanel.Hide();
             ClearTileSelection();
         }
         foreach (var worldEvent in appendedEvents)
@@ -42,7 +43,6 @@ public partial class Main
         if (checkUsagePause && registration is not null) _ = ObserveUsagePauseAsync();
         RenderFounderSetup(snapshot);
         RenderWorldInfo(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         if (familyTreePanel.Visible && selectedInhabitantId is { } center)
         {

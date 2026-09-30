@@ -36,6 +36,8 @@ public static class WorldEventText
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
+            "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
+                "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",

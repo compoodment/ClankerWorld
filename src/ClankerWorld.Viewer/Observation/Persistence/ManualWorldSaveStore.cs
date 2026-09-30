@@ -128,10 +128,8 @@ public sealed class ManualWorldSaveStore
         {
             var intent = Path.Combine(directory, id + ".deleting.json");
             var source = File.Exists(intent) ? intent : MetadataPath(id);
-            var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(source))
-                ?? throw new InvalidDataException("The save metadata is invalid.");
-            if (metadata.Save.Id != id || metadata.WorldId != worldId ||
-                metadata.Save.CreatedUtc != expectedCreatedUtc)
+            var metadata = ReadDeletionMetadata(source, id);
+            if (metadata.WorldId != worldId || metadata.Save.CreatedUtc != expectedCreatedUtc)
                 throw new InvalidOperationException("The selected save changed. Refresh the list before deleting.");
             if (source != intent) File.Move(source, intent);
             DeleteCheckpointFiles(id);
@@ -151,8 +149,7 @@ public sealed class ManualWorldSaveStore
                     !name.EndsWith(".deleting.json", StringComparison.Ordinal)) continue;
                 var id = name.Split('.')[0];
                 if (!IsId(id)) continue;
-                var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path))
-                    ?? throw new InvalidDataException("Save ownership cannot be established.");
+                var metadata = ReadDeletionMetadata(path, id);
                 if (metadata.WorldId == worldId)
                     Delete(id, worldId, metadata.Save.CreatedUtc);
             }
@@ -176,13 +173,23 @@ public sealed class ManualWorldSaveStore
             if (!Directory.Exists(directory)) return;
             foreach (var path in Directory.GetFiles(directory, "*.deleting.json"))
             {
-                var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path))
-                    ?? throw new InvalidDataException("The pending save deletion is invalid.");
-                if (Path.GetFileName(path) != metadata.Save.Id + ".deleting.json" || metadata.WorldId is null)
+                var id = Path.GetFileName(path)[..^".deleting.json".Length];
+                var metadata = ReadDeletionMetadata(path, id);
+                if (metadata.WorldId is null)
                     throw new InvalidDataException("The pending save deletion identity is invalid.");
                 Delete(metadata.Save.Id, metadata.WorldId, metadata.Save.CreatedUtc);
             }
         }
+    }
+
+    private static Metadata ReadDeletionMetadata(string path, string id)
+    {
+        var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path));
+        // Deletion needs a verified identity, not playable routing/settings.
+        // Malformed records must enter the existing pending-cleanup path.
+        if (!IsId(id) || metadata?.Save is null || metadata.Save.Id != id)
+            throw new InvalidDataException("The save deletion identity is invalid.");
+        return metadata;
     }
 
     private void DeleteCheckpointFiles(string id)

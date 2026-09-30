@@ -60,6 +60,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerUsageLimit = "/api/v1/owner/usage/limit";
     public const string OwnerProviderConfigure = "/api/v1/owner/providers/configure";
     public const string OwnerCredentialSlotDelete = "/api/v1/owner/providers/slots/delete";
+    public const string OwnerProviderModels = "/api/v1/owner/providers/models";
 }
 
 /// <summary>

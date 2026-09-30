@@ -64,6 +64,7 @@ public sealed partial class PrivateWorldRuntime
                 sequence);
             instructionReceipts.Add(instruction.IdempotencyKey, receipt);
             AppendEvent("instruction_queued", $"{instruction.InstructionId}:{ToWireValue(instruction.Kind)}");
+            CloseOrdersNotUnderstood(targetId);
             return receipt;
         }
         finally
@@ -159,27 +160,79 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(item => item.SubmissionSequence)
             .FirstOrDefault();
 
+    private static readonly HashSet<string> HarvestInstructionWords =
+        new(StringComparer.Ordinal) { "harvest", "harvests", "harvesting", "gather", "gathers", "gathering" };
+    private static readonly HashSet<string> BerryInstructionWords =
+        new(StringComparer.Ordinal) { "berry", "berries" };
+    private static readonly HashSet<string> EatInstructionWords =
+        new(StringComparer.Ordinal) { "eat", "eats", "eating", "food", "hungry" };
+    private static readonly HashSet<string> TravelInstructionWords =
+        new(StringComparer.Ordinal) { "go", "goes", "going", "travel", "travels", "traveling", "travelling", "move", "moves", "moving" };
+
     private static string? InstructionCandidate(string text)
     {
-        var normalized = text.Trim().ToLowerInvariant();
-        if (normalized.Contains("harvest") || normalized.Contains("gather") || normalized.Contains("berry"))
+        // Whole words only, so "heat" is not "eat" and "good" is not "go".
+        var words = InstructionWords(text);
+        if (words.Overlaps(HarvestInstructionWords))
         {
-            return normalized.Contains("harvest") || normalized.Contains("gather")
-                ? "harvest_food"
-                : "seek_food";
+            return "harvest_food";
         }
 
-        if (normalized.Contains("eat") || normalized.Contains("food") || normalized.Contains("hungry"))
+        if (words.Overlaps(BerryInstructionWords))
+        {
+            return "seek_food";
+        }
+
+        if (words.Overlaps(EatInstructionWords))
         {
             return "consume_food";
         }
 
-        if (normalized.Contains("go") || normalized.Contains("travel") || normalized.Contains("move"))
+        if (words.Overlaps(TravelInstructionWords))
         {
             return "seek_food";
         }
 
         return null;
+    }
+
+    private static HashSet<string> InstructionWords(string text)
+    {
+        var words = new HashSet<string>(StringComparer.Ordinal);
+        var start = -1;
+        for (var index = 0; index <= text.Length; index++)
+        {
+            if (index < text.Length && char.IsLetter(text[index]))
+            {
+                if (start < 0) start = index;
+                continue;
+            }
+
+            if (start >= 0)
+            {
+                words.Add(text[start..index].ToLowerInvariant());
+                start = -1;
+            }
+        }
+
+        return words;
+    }
+
+    // A direct order that names no action the game can carry out is closed
+    // at once. It never waits for a decision or holds up later instructions.
+    private void CloseOrdersNotUnderstood(string inhabitantId)
+    {
+        foreach (var order in instructionsByIdempotency.Values
+                     .Where(item => item.TargetInhabitantId == inhabitantId &&
+                         item.Kind == OwnerInstructionKind.MustDo &&
+                         !completedInstructionIds.Contains(item.InstructionId) &&
+                         InstructionCandidate(item.Text) is null)
+                     .OrderBy(item => item.SubmissionSequence)
+                     .ToArray())
+        {
+            completedInstructionIds.Add(order.InstructionId);
+            AppendEvent("instruction_not_understood", $"{inhabitantId}:{order.InstructionId}");
+        }
     }
 
     private static bool Matches(OwnerQueuedInstruction existing, OwnerInstructionRequest request) =>
