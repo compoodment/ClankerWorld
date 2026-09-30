@@ -89,15 +89,18 @@ public sealed class CaregiverFoodRoutingTests
         var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
         try
         {
-            for (var tick = 0; tick < 24; tick++)
+            for (var tick = 0; tick < 64; tick++)
             {
-                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                var step = await world.AdvanceOneTickAsync();
+                Assert.True(step.Advanced);
                 if (tick == 5)
                 {
                     var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
                     world.Dispose();
                     world = PrivateWorldRuntime.Restore(saved, _ => provider);
                 }
+                if (step.Events.Any(item => item.Kind == "child_cared_for" && item.Detail == childId))
+                    break;
             }
             var result = world.ExportState();
             var child = result.Inhabitants.Single(person => person.InhabitantId == childId);

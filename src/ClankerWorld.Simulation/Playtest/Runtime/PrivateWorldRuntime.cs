@@ -130,9 +130,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         this.minimumCognitionConfidence = minimumCognitionConfidence;
         this.maxCognitionDispatchPerCycle = maxCognitionDispatchPerCycle;
-        if (preparedMap is not null && (geographyOptions is null ||
-            !MatchesGeneratedCandidate(preparedMap, geographyOptions)))
-            throw new ArgumentException("The prepared map does not match the selected geography candidate.", nameof(preparedMap));
         contentRegistry = new ContentPackageRegistry();
         worldContent = new DeclarativeWorldContentState([], []);
         worldSimulation = WorldContentSimulationState.Empty;
@@ -176,9 +173,16 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     /// <summary>Creates a world from the already previewed deterministic map.</summary>
     public static PrivateWorldRuntime CreateFromGeneratedGeography(string worldSeed,
         GeographyOptions geographyOptions, SeededMap preparedMap,
-        Func<string, IDecisionProvider>? providerFactory = null) =>
-        new(worldSeed, providerFactory, 64, 4, 0.5, WorldStartPace.FounderSetup,
-            geographyOptions, preparedMap);
+        Func<string, IDecisionProvider>? providerFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(geographyOptions);
+        ArgumentNullException.ThrowIfNull(preparedMap);
+        if (!MatchesGeneratedCandidate(preparedMap, geographyOptions))
+            throw new ArgumentException("The prepared map does not match the selected geography candidate.", nameof(preparedMap));
+
+        return new PrivateWorldRuntime(worldSeed, providerFactory, 64, 4, 0.5,
+            WorldStartPace.FounderSetup, geographyOptions, preparedMap);
+    }
 
     private static bool MatchesGeneratedCandidate(SeededMap map, GeographyOptions options)
     {

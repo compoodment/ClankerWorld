@@ -88,6 +88,26 @@ public sealed class GeographyVisibilityTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void GeneratedGeographyCreationRejectsAMapFromAnotherCandidateAttempt()
+    {
+        var options = new GeographyOptions("issue-409-candidate-identity", WorldSizePreset.Small);
+        var otherAttempt = GeographyCandidateSelector.GenerateCandidate(options with { CandidateAttempt = 1 });
+
+        Assert.Throws<ArgumentException>(() => PrivateWorldRuntime.CreateFromGeneratedGeography(
+            options.Seed, options, otherAttempt));
+    }
+
+    [Fact]
+    public async Task GeographyFreeFixtureCanAdvanceThroughTransactionalPreparedMap()
+    {
+        using var world = new PrivateWorldRuntime("issue-409-geography-free-fixture");
+        Assert.Null(world.ExportState().Geography);
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Null(world.ExportState().Geography);
+    }
+
+    [Fact]
     public void UnsupportedBalancedVisibilityRevisionIsRefused()
     {
         var options = new GeographyOptions("old-balanced-visibility", WorldSizePreset.Small,
