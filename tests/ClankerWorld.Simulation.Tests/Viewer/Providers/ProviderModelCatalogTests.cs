@@ -20,7 +20,9 @@ public sealed class ProviderModelCatalogTests
     private const string OllamaTags = """
         {"models":[
           {"name":"glm-5.3-flash","model":"glm-5.3-flash","modified_at":"2026-09-20T10:00:00Z"},
+          {"name":"deepseek-v4-pro:0813","model":"deepseek-v4-pro:0813","modified_at":"2026-08-13T10:00:00Z"},
           {"name":"kimi-k3:cloud","model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
+          {"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-08-21T10:00:00Z"},
           {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"}
         ]}
         """;
@@ -30,8 +32,8 @@ public sealed class ProviderModelCatalogTests
     {
         Assert.Equal(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
             ProviderModelCatalog.Curated[PlayerDecisionProviders.OpenAi]);
-        Assert.Equal(["glm-5.3-flash:cloud", "glm-5.3:cloud", "deepseek-v4.1-flash:cloud", "deepseek-v4-pro:cloud",
-            "minimax-m3:cloud", "kimi-k3:cloud", "gemma4:cloud"], ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud]);
+        Assert.Equal(["glm-5.3-flash:cloud", "glm-5.3:cloud", "deepseek-v4.1-flash:cloud", "deepseek-v4-pro:0813",
+            "minimax-m3:cloud", "kimi-k3:cloud", "gemma4:31b"], ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud]);
         Assert.Equal("gpt-6-luna", PlayerDecisionProviders.DefaultOpenAiModel);
         Assert.Equal("glm-5.3-flash:cloud", PlayerDecisionProviders.DefaultOllamaCloudModel);
         foreach (var (provider, models) in ProviderModelCatalog.Curated)
@@ -54,7 +56,8 @@ public sealed class ProviderModelCatalogTests
     {
         Assert.Equal(["gpt-6-luna", "gpt-6-sol", "gpt-5.6-terra", "text-embedding-3-small"],
             ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)));
-        Assert.Equal(["glm-5.3-flash", "kimi-k3:cloud", "gpt-oss:120b"], ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
+        Assert.Equal(["glm-5.3-flash", "deepseek-v4-pro:0813", "kimi-k3:cloud", "gemma4:31b", "gpt-oss:120b"],
+            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
         Assert.Throws<InvalidDataException>(() => ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes("""{"items":[]}""")));
     }
 
@@ -94,7 +97,8 @@ public sealed class ProviderModelCatalogTests
         var list = await catalog.ListAsync(new("ollama-cloud", ApiKey: " pasted-secret "), CancellationToken.None);
 
         Assert.Null(list.Error);
-        Assert.Equal(["glm-5.3-flash:cloud", "kimi-k3:cloud"], list.Models.Where(item => item.Available).Select(item => item.Model));
+        Assert.Equal(["glm-5.3-flash:cloud", "deepseek-v4-pro:0813", "kimi-k3:cloud", "gemma4:31b"],
+            list.Models.Where(item => item.Available).Select(item => item.Model));
         Assert.Equal(ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud], list.Models.Select(item => item.Model));
         Assert.Equal("Bearer pasted-secret", handler.Requests.Single().Authorization);
         Assert.Null(store.CaptureRuntimeConfiguration().OllamaCloud.ApiKey);

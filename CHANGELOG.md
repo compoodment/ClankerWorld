@@ -14,6 +14,7 @@ release yet.
 - New World explains when the game and world server need matching updates, keeping valid device pairing instead of asking players to connect the device again.
 
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
+- Ollama Cloud's DeepSeek V4 Pro and Gemma 4 choices use the model IDs returned by its live list, so a valid key does not incorrectly grey them out.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
