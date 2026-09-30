@@ -340,7 +340,7 @@ public sealed class SettlementProjectTests
     }
 
     [Fact]
-    public async Task AChosenProjectAcquiresAndDeliversMissingWoodInsteadOfBeingHidden()
+    public async Task AChosenProjectAcquiresAndUsesCarriedWoodWhenThereIsNoHouse()
     {
         using var seed = new PrivateWorldRuntime("settlement-acquisition");
         var initial = seed.ExportState();
@@ -364,7 +364,10 @@ public sealed class SettlementProjectTests
         }
         Assert.Contains(world.ExportState().Events, item => item.Kind == "project_chosen");
         Assert.Contains(world.ExportState().Events, item => item.Kind == "material_gathered" && item.Detail.Contains(":wood:", StringComparison.Ordinal));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "project_material_delivered");
+        Assert.Contains(world.Society.Inventory.Reservations, reservation =>
+            reservation.Purpose.StartsWith("building:", StringComparison.Ordinal) &&
+            reservation.State == InventoryReservationState.Completed &&
+            world.Society.Inhabitants.Any(person => person.Id == reservation.OwnerId));
         Assert.NotEmpty(world.WorldSimulation.Buildings);
     }
 }

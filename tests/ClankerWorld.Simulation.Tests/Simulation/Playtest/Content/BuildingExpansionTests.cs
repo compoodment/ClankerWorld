@@ -270,8 +270,13 @@ public sealed class BuildingExpansionTests
         state = state with
         {
             Survival = new SettlementSurvivalState(0, []),
+            WorldSimulation = state.WorldSimulation! with
+            {
+                Buildings = state.WorldSimulation.Buildings.Select(item => item.InstanceId == house.InstanceId
+                    ? item with { Footprint = new BuildingFootprintRevision(1, 2, 1) } : item).ToArray(),
+            },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == guest
-                ? person with { Position = house.Position, HungerBasisPoints = 9_000, Survival = new SurvivalCondition(4_000) }
+                ? person with { Position = new GridPoint(house.Position.X, house.Position.Y + 1), HungerBasisPoints = 9_000, Survival = new SurvivalCondition(4_000) }
                 : person.InhabitantId == actor ? person with { Position = new GridPoint(house.Position.X + 1, house.Position.Y) } : person).ToArray(),
             WorldSystems = state.WorldSystems! with
             {
