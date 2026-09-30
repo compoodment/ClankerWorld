@@ -113,7 +113,10 @@ name one living recipient for the whole estate. Interrupted or invalid choices
 use the household path. Per-item bequests, debts, minors and inheritance law
 remain unfinished. Memories do not automatically pass to children.
 
-Town borders and building-site ranking are provisional. Adults placed on an
+Towns grow along their streets. Building sites that can face an existing Road
+rank higher. Each new building's street runs on a few tiles past it, and a
+building away from the Roads gets a new side street. Town borders and
+building-site ranking are provisional. Adults placed on an
 owned building join its household; unclaimed Town placement joins the Town
 without a household; outside a Town it starts an independent household. Finding
 existing suitable housing before proposing a new House is not finished. Agents
@@ -128,9 +131,8 @@ unfinished.
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. The first Town's
-streets take diagonals where the land allows; Roads laid for later buildings
-still step in straight lines, and bridges remain unfinished.
+impassable; mountains and peaks cannot hold construction. Town streets take
+diagonals where the land allows. Bridges remain unfinished.
 
 Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
 fruit trees have fruiting, picked and growing stages. Replanting currently uses a

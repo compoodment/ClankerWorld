@@ -297,17 +297,21 @@ wrapped-seam claim geometry, competing-claim graph or automatic second-Town
 founding. Filters display saved Town and household-building facts, not invented
 general land ownership.
 
-A building that joins a Town later gets a Road from one of the tiles directly
-beside its footprint to the nearest existing Road. That starting tile is saved
-as the building's entrance, and the map draws the door on that side. The first
-Town's planner saves the entrance of each lot it chose. A building without a
-Road has no entrance and shows its door in the middle of its south side.
-
-A building that joins a Town gets a Road from one of the tiles directly beside
-its footprint to the nearest existing Road. That starting tile is saved as the
+A building that joins a Town later is joined to the Road network from one of the
+tiles directly beside its footprint. That starting tile is saved as the
 building's entrance, and the map draws the door on that side. The first Town's
-planner records its buildings' entrances the same way. A building without a
-Road has no entrance and shows its door in the middle of its south side.
+planner saves the entrance of each lot it chose. A building without a Road has
+no entrance and shows its door in the middle of its south side.
+
+Towns grow along their streets. `TownLayoutService` gives a site whose door can
+face an existing Road a `road_frontage` bonus. A building beside a Road needs
+no new Road. Otherwise a new side street runs to the nearest Road. It stays
+inside the (already grown) border where it can, may step diagonally where both
+corner tiles are clear, and pays extra for each tile beside an existing Road,
+so it meets streets rather than running alongside them. Then every dead end
+fewer than three tiles past its nearest door carries on in its own direction
+where the land allows (`town_road_extended`). The border grows around all the
+new Road tiles.
 
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,

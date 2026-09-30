@@ -48,4 +48,31 @@ public sealed class TownLayoutTests
         Assert.Equal(meadow.Position, selected.SitePosition);
         Assert.False(TownConstructionCandidateIds.TryParse(selectedId + ",invalid", out _));
     }
+
+    [Fact]
+    public void SitesWhoseDoorCanFaceARoadRankFirst()
+    {
+        var map = new SeededMap(7, 5, 0,
+            (from y in Enumerable.Range(0, 5)
+             from x in Enumerable.Range(0, 7)
+             select new TerrainTile(new GridPoint(x, y), TerrainKind.Meadow)).ToArray(),
+            [], [], "fixture");
+        var town = new TownRuntimeState("town:test", "Test Town", "founded", 0, [], [],
+            map.Tiles.Select(tile => tile.Position).ToArray());
+        var costs = map.Tiles.ToDictionary(tile => tile.Position, _ => 100);
+        GridPoint[] road = [new(0, 2), new(1, 2), new(2, 2), new(3, 2)];
+        var context = new TownLayoutContext(map, town, road, costs, [], [], road);
+        var building = new BuildingDefinition("sha256:" + new string('b', 64), "test-house",
+            ContentVersion.Parse("1.0.0"), "Test house", 1, 1, 1);
+
+        Assert.True(TownLayoutService.TryEvaluateConstructionSite(context, building, new GridPoint(2, 1), out var onStreet));
+        Assert.True(TownLayoutService.TryEvaluateConstructionSite(context, building, new GridPoint(6, 0), out var offStreet));
+        Assert.NotNull(onStreet);
+        Assert.NotNull(offStreet);
+        Assert.Contains(onStreet.Reasons, reason => reason.Code == TownConstructionSiteReasonCodes.RoadFrontage);
+        Assert.DoesNotContain(offStreet.Reasons, reason => reason.Code == TownConstructionSiteReasonCodes.RoadFrontage);
+        Assert.True(onStreet.Score > offStreet.Score);
+        Assert.All(TownLayoutService.RankConstructionSites(context, building), choice =>
+            Assert.Contains(choice.Reasons, reason => reason.Code == TownConstructionSiteReasonCodes.RoadFrontage));
+    }
 }
