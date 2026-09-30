@@ -59,8 +59,10 @@ everything that is available in the current build. See [what works today](../wha
   but not identical names are allowed, such as two agents called Rowan with
   different surnames. The comparison covers every agent in the world,
   including those who have died. A valid name is kept even when the action in
-  the same reply is rejected. **Still to decide:** why models choose similar
-  names is being investigated, and nothing about it is decided.
+  the same reply is rejected. **Leaning toward (provisional; tuned in
+  playtests):** to make names more varied, each agent's naming request suggests
+  a fixed starting letter for that agent. In a test on one model this raised
+  the number of different first names from 8 to 15 without extra requests.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, culture, and
