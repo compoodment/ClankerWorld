@@ -124,32 +124,38 @@ public sealed class GeographyGeneratorTests
         Assert.Equal(first.ManifestDigest, second.ManifestDigest);
         Assert.True(MapAcceptance.Validate(first, allowEmptyCamp: true).IsValid);
 
-        var trees = first.Resources.Where(resource => resource.TreeKind is not null).ToArray();
+        var treeOptions = new GeographyOptions("object-forest", WorldSizePreset.Small, WrapEastWest: true);
+        var treeMap = GeneratedCampMapGenerator.Generate(treeOptions);
+        var repeatedTreeMap = GeneratedCampMapGenerator.Generate(treeOptions);
+        Assert.Equal(treeMap.Resources, repeatedTreeMap.Resources);
+        Assert.Equal(treeMap.ManifestDigest, repeatedTreeMap.ManifestDigest);
+        Assert.True(MapAcceptance.Validate(treeMap, allowEmptyCamp: true).IsValid);
+        var trees = treeMap.Resources.Where(resource => resource.TreeKind is not null).ToArray();
         Assert.Equal(trees.Length, trees.Select(resource => resource.Position).Distinct().Count());
         var woodTrees = trees.Where(tree => tree.TreeKind is "broadleaf" or "conifer").ToArray();
         var orchards = trees.Where(tree => tree.TreeKind == "orchard").ToArray();
         Assert.True(woodTrees.Length > 20, "A generated forest needs visible individual trees, not only a terrain tint.");
-        Assert.Contains(woodTrees, tree => first.Tiles.Any(tile => tile.Position == tree.Position &&
+        Assert.Contains(woodTrees, tree => treeMap.Tiles.Any(tile => tile.Position == tree.Position &&
             tile.Terrain == TerrainKind.Meadow));
         Assert.All(woodTrees, tree =>
         {
             Assert.Equal("construction", tree.Kind);
             Assert.True(tree.IsRenewable);
             Assert.True(tree.TreeKind is "broadleaf" or "conifer");
-            Assert.Single(first.Resources, resource => resource.Position == tree.Position);
+            Assert.Single(treeMap.Resources, resource => resource.Position == tree.Position);
         });
         Assert.NotEmpty(orchards);
         Assert.All(orchards, orchard =>
         {
             Assert.Equal("fruit", orchard.Kind);
             Assert.True(orchard.IsRenewable);
-            Assert.Single(first.Resources, resource => resource.Position == orchard.Position);
+            Assert.Single(treeMap.Resources, resource => resource.Position == orchard.Position);
         });
         Assert.Equal(woodTrees.Length + orchards.Length,
             trees.Select(tree => tree.Position).Distinct().Count());
-        var overlapping = first with
+        var overlapping = treeMap with
         {
-            Resources = first.Resources.Select(resource =>
+            Resources = treeMap.Resources.Select(resource =>
                 resource.Id == woodTrees[1].Id ? resource with { Position = woodTrees[0].Position } : resource).ToArray(),
         };
         overlapping = overlapping with { ManifestDigest = MapManifestCodec.Digest(overlapping) };
