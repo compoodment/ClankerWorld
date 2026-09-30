@@ -118,10 +118,16 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
-        (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId)) ??
+        (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
+        CanReachSharedItem(actor, lot)) ??
         society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
             lot.ItemKind == kind && kind != "food" && AvailableLotQuantity(lot) > 0 &&
-            lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId);
+            lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId &&
+            CanReachSharedItem(actor, lot));
+
+    private bool CanReachSharedItem(string actor, InventoryLot lot) =>
+        FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+            HouseholdStockInteractionRange(lot)).Count > 0;
 
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
         worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId && definition.Tags.Contains(tag, StringComparer.Ordinal)));

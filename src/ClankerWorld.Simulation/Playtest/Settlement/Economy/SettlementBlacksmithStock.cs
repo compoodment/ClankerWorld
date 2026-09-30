@@ -17,11 +17,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private PlacedBuilding? BlacksmithForHousehold(string householdId) => worldSimulation.Buildings
-        .Where(building => building.HouseholdId == householdId &&
-            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                definition.Tags.Contains("blacksmith", StringComparer.Ordinal)))
-        .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
+    private PlacedBuilding? BlacksmithForHousehold(string householdId) =>
+        HouseholdBuildingWithTag(householdId, "blacksmith");
 
     private int BlacksmithOreStocked(string householdId, string blacksmithId) =>
         society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
