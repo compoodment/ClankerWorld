@@ -251,6 +251,9 @@ public sealed partial class PrivateWorldRuntime
     private void StageSiloContent() =>
         StageBuiltInContent(SiloContent.PackageId, FarmContent.PackageId, SiloContent.Create, "silo_content_staged");
 
+    private void StageTailorContent() =>
+        StageBuiltInContent(TailorContent.PackageId, HouseContent.PackageId, TailorContent.Create, "tailor_content_staged");
+
     /// <summary>
     /// Stages a shipped package once its dependency is active, so worlds that
     /// did not start with it still receive it. It activates on a later tick.
@@ -276,7 +279,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddSettlementResources()
     {
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
-            .Concat(roadTiles)
+            .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
             .ToHashSet();

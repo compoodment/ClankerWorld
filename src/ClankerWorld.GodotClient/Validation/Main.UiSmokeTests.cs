@@ -1063,14 +1063,13 @@ public partial class Main
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Town border filter must update the map and its visible explanation.");
-            HandleMapInput(new InputEventMouseButton
-            {
-                Position = mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f),
-                ButtonIndex = MouseButton.Left,
-                Pressed = true,
-            });
+            selectedTile = new Vector2I(2, 2);
+            selectedTilePanel.Show();
+            RenderTileInspection(ownedMap);
             if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            await VerifyBuildingCardsAsync(ownedMap);
+            RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();
@@ -1404,10 +1403,26 @@ public partial class Main
                 RoadSprites.Render(road | RoadLinks.East, 0, 32, true).GetPixel(16, 23) is var darkEdge &&
                     (darkEdge.A < 0.5f || darkEdge.Luminance >= RoadSprites.WornEdge.Luminance))
                 throw new InvalidOperationException("Roads on sand and snow must take a solid darker edge to stay visible.");
+            var itemLooks = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in ItemIcons.Kinds.Append("crate"))
+            {
+                // Every pixel stays inside a one-pixel margin, so the outline
+                // round the silhouette is never cut off or broken.
+                if (!ItemIcons.FitsGrid(item))
+                    throw new InvalidOperationException($"The {item} icon must be 16 by 16 with an empty edge for its outline.");
+                var icon = ItemIcons.Render(item, 32);
+                if (icon.GetWidth() != 32 || icon.GetPixel(0, 0).A > 0 || icon.GetPixel(31, 31).A > 0 ||
+                    !itemLooks.Add(Convert.ToBase64String(icon.GetData())))
+                    throw new InvalidOperationException($"The {item} icon must sit on a clear square and look different from every other item.");
+            }
+            if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
+                    Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
+                throw new InvalidOperationException("An item without its own icon must show the crate.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
                 BuildingSprites.KindFor(["silo", "farm-storage"]) != BuildingKind.Silo ||
+                BuildingSprites.KindFor(["tailor", "clothing-making"]) != BuildingKind.TailorShop ||
                 BuildingSprites.KindFor(null) != BuildingKind.Generic ||
                 BuildingSprites.KindForObject("campfire") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||
@@ -1970,6 +1985,25 @@ public partial class Main
             UpdateHoverReadout(afterRoad, hoveredCenter);
             if (!hoverReadoutLabel.Text.Contains(" · Road", StringComparison.Ordinal))
                 throw new InvalidOperationException("The hovered tile must reflect a newly observed road without moving the pointer.");
+            var withBridge = beforeRoad with
+            {
+                Bridges =
+                [
+                    new OwnerWorldBridge("bridge-ui-test", "plank_span_1", "traffic", "east_west",
+                        [new OwnerWorldPosition(hoveredCenter.X - 1, hoveredCenter.Y), new OwnerWorldPosition(hoveredCenter.X + 1, hoveredCenter.Y)],
+                        [new OwnerWorldPosition(hoveredCenter.X, hoveredCenter.Y)], 0),
+                ],
+            };
+            // Draw the saved deck, then read it back from the hover readout and World Info.
+            RenderMap(withBridge);
+            RenderWorldInfo(withBridge);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateHoverReadout(withBridge, hoveredCenter);
+            if (!hoverReadoutLabel.Text.Contains(" · Bridge", StringComparison.Ordinal) ||
+                !worldInfoText.Text.Contains("Bridges: 1", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A saved bridge must show in the hover readout and World Info: {hoverReadoutLabel.Text}");
+            RenderMap(largeMap);
+            RenderWorldInfo(largeMap);
             UpdateTileHover(new Vector2(-5, -5));
             if (hoverReadout.Visible)
                 throw new InvalidOperationException("Leaving the map must hide the hover readout.");

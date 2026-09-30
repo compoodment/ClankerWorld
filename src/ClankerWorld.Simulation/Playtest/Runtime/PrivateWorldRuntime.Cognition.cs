@@ -383,6 +383,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
+        {
+            SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
         {
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
@@ -630,6 +635,7 @@ public sealed partial class PrivateWorldRuntime
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
+            AddWorkstationSupplyCandidate(candidates, inhabitantId);
             AddCraftToolCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);

@@ -184,7 +184,7 @@ public static class TreeGrowthRules
         TreePlantingRefusal.Sand => "Trees do not grow on sand.",
         TreePlantingRefusal.UnsuitableGround => "Trees cannot grow on this ground.",
         TreePlantingRefusal.Building => "A building stands on that tile.",
-        TreePlantingRefusal.Road => "A Road runs across that tile.",
+        TreePlantingRefusal.Road => "That tile must stay clear for a Road or bridge entrance.",
         TreePlantingRefusal.Occupied => "That tile already has a tree or another natural site.",
         TreePlantingRefusal.AreaFull => "This part of the map cannot hold another tree yet.",
         _ => throw new ArgumentOutOfRangeException(nameof(refusal)),

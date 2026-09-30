@@ -75,7 +75,9 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GeographyOptions? Geography = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TownRuntimeState>? Towns = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PrivateWorldKnowledgeState? Knowledge = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GridPoint>? RoadTiles = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GridPoint>? RoadTiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BridgeState>? Bridges = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BridgeTrafficState? BridgeTraffic = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

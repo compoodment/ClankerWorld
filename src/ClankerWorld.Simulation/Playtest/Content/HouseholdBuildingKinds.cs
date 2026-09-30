@@ -4,8 +4,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
 /// Building kinds a single household holds, identified by tag, in the order a
-/// household plans them. The Store and Tailor Shop are listed ahead of their
-/// content so that planning and ownership treat them the same way once they exist.
+/// household plans them. The Store is listed ahead of its content so that
+/// planning and ownership treat it the same way once it exists.
 /// </summary>
 public static class HouseholdBuildingKinds
 {

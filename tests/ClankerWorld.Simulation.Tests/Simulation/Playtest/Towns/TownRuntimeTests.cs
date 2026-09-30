@@ -375,11 +375,16 @@ public sealed class TownRuntimeTests
         Assert.All(network, road => Assert.Contains(road, grownTown.BorderTiles));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "town_road_extended");
 
-        // The Town stays one connected street network.
+        // The Town stays one connected street network. A bridge with Road at
+        // both ends joins the streets on its two banks.
+        var bridgeEnds = world.Bridges.Where(bridge => bridge.Entrances.All(network.Contains))
+            .SelectMany(bridge => new[] { (bridge.Entrances[0], bridge.Entrances[1]), (bridge.Entrances[1], bridge.Entrances[0]) })
+            .ToLookup(pair => pair.Item1, pair => pair.Item2);
+        IEnumerable<GridPoint> Linked(GridPoint tile) => TownStreets.Linked(network, tile).Concat(bridgeEnds[tile]);
         var reachable = new HashSet<GridPoint> { world.RoadTiles[0] };
         var pending = new Queue<GridPoint>(reachable);
         while (pending.TryDequeue(out var current))
-            foreach (var next in TownStreets.Linked(network, current))
+            foreach (var next in Linked(current))
                 if (reachable.Add(next)) pending.Enqueue(next);
         Assert.True(network.SetEquals(reachable));
 
@@ -388,10 +393,10 @@ public sealed class TownRuntimeTests
             .Select(item => item.Entrance!.Value).ToHashSet();
         var blocked = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
             .Concat(Footprints()).ToHashSet();
-        foreach (var end in network.Where(road => TownStreets.Linked(network, road).Count() == 1))
+        foreach (var end in network.Where(road => Linked(road).Count() == 1))
         {
-            if (StepsToDoor(network, doors, end) >= TownStreets.RunOnTiles) continue;
-            var from = TownStreets.Linked(network, end).Single();
+            if (StepsToDoor(Linked, doors, end) >= TownStreets.RunOnTiles) continue;
+            var from = Linked(end).Single();
             var ahead = new GridPoint(end.X + (end.X - from.X), end.Y + (end.Y - from.Y));
             Assert.True(!map.IsBuildable(ahead) || blocked.Contains(ahead) || network.Contains(ahead) ||
                 TownStreets.Directions.Any(step => new GridPoint(ahead.X + step.X, ahead.Y + step.Y) is var near &&
@@ -400,14 +405,14 @@ public sealed class TownRuntimeTests
         }
     }
 
-    private static int StepsToDoor(HashSet<GridPoint> roads, HashSet<GridPoint> doors, GridPoint start)
+    private static int StepsToDoor(Func<GridPoint, IEnumerable<GridPoint>> linked, HashSet<GridPoint> doors, GridPoint start)
     {
         var steps = new Dictionary<GridPoint, int> { [start] = 0 };
         var pending = new Queue<GridPoint>([start]);
         while (pending.TryDequeue(out var current))
         {
             if (doors.Contains(current)) return steps[current];
-            foreach (var next in TownStreets.Linked(roads, current))
+            foreach (var next in linked(current))
                 if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
         }
         return int.MaxValue;
