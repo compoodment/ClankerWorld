@@ -61,8 +61,11 @@ check and the listed model names have been tested against recorded sample
 replies, not yet against live provider accounts. Jev can be switched on or off
 for a paused world.
 When a personal model names a new agent, it gets a stable first-letter hint to
-encourage varied names. The hint does not prevent two agents choosing the same
-full name.
+encourage varied names. If the chosen full name matches another agent's name
+after Unicode normalization, case folding and whitespace cleanup, the game
+asks once more without showing the other name. Deceased agents still count.
+If the second answer is unavailable or also taken, the person keeps the
+placeholder name until the player changes it.
 
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and

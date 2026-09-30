@@ -1,12 +1,217 @@
+using System.Collections.Concurrent;
+using System.Text;
+using System.Net;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
+using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class PrivateWorldDeferredCognitionTests
 {
+    private const string NameTargetId = "founder:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string NameOwnerId = "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    [Fact]
+    public async Task DuplicateNameIsRetriedOnceWithCanonicalComparisonAndASeparateProviderRequest()
+    {
+        var provider = new SequencedHostedProvider(
+            new NameReply("e\u0301LODIE   Vale", SelectedCandidateId: "unknown_action"),
+            new NameReply("Maia Vale"));
+        using var world = CreateNameTestWorld("duplicate-name-retry", provider);
+        const string takenName = "  Élodie\u00a0Vale  ";
+        Assert.True(world.RenameAgent(NameOwnerId, takenName));
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var first = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        var rejectedAction = Assert.Single(first.Decisions, item => item.InhabitantId == NameTargetId).Admission;
+        Assert.True(rejectedAction.FellBack);
+        Assert.Equal("candidate_not_legal", rejectedAction.Outcome);
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.True(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "agent_name_retry_requested" && item.Detail == NameTargetId);
+
+        var retry = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.True(Assert.Single(retry.Decisions, item => item.InhabitantId == NameTargetId).Admission.Accepted);
+        Assert.Equal(2, provider.CallCount);
+        Assert.False(provider.ObservedRequests.ElementAt(0).IsNameRetry);
+        Assert.True(provider.ObservedRequests.ElementAt(1).IsNameRetry);
+        Assert.True(provider.ObservedRequests.ElementAt(1).NeedsName);
+        Assert.Equal("Maia Vale", world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.DoesNotContain(world.ExportState().Events, item =>
+            item.Detail.Contains("Élodie", StringComparison.OrdinalIgnoreCase) ||
+            item.Detail.Contains("Maia Vale", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DuplicateNameRetryConsumesASecondConfiguredProviderAllowance()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-name-retry-meter-");
+        try
+        {
+            var configuration = new ProviderConfigurationStore(
+                Path.Combine(directory.FullName, "providers.json"),
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            _ = configuration.Configure(new("routine", "openai", "retry-meter-model", "retry-meter-key", false));
+            _ = configuration.Configure(new("planning", "openai", "retry-meter-model", "retry-meter-key", false));
+            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
+            _ = usage.Configure(new ProviderUsageLimitAction(2));
+            var handler = new SequencedNameResponseHandler("Taken Name", "Maia Vale");
+            var router = new ConfigurableDecisionProvider(configuration,
+                new FixedHttpClientFactory(handler), usageStore: usage);
+            using var world = CreateNameTestWorld("duplicate-name-retry-meter", router);
+            Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+            world.StartWorld();
+
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+            Assert.InRange(handler.RequestCount, 1, 2);
+            Assert.InRange(usage.Capture().Attempts, 1, 2);
+            Assert.True(world.Society.GetInhabitant(NameTargetId).NeedsName);
+
+            _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+            Assert.Equal(2, handler.RequestCount);
+            var metering = usage.Capture();
+            Assert.Equal(2, metering.Attempts);
+            Assert.Equal(2, metering.Completed);
+            Assert.Equal(2, metering.Rows.Sum(row => row.Attempts));
+            Assert.Equal("Maia Vale", world.Society.GetInhabitant(NameTargetId).Name);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UniqueNameSurvivesLowConfidenceActionFallback()
+    {
+        var provider = new SequencedHostedProvider(new NameReply("Aster Vale", 0.2));
+        using var world = CreateNameTestWorld("name-with-fallback", provider, minimumConfidence: 0.8);
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var result = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        var decision = Assert.Single(result.Decisions, item => item.InhabitantId == NameTargetId);
+        Assert.True(decision.Admission.FellBack);
+        Assert.Equal("Aster Vale", world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.NotEqual(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.Equal(1, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task SecondDuplicateKeepsPlaceholderAndDoesNotStartAnotherNamingRequest()
+    {
+        var provider = new SequencedHostedProvider(
+            new NameReply("Taken Name"),
+            new NameReply("taken   name"));
+        using var world = CreateNameTestWorld("duplicate-name-exhausted", provider);
+        Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.Equal(2, provider.CallCount);
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.Contains(world.ExportState().Events,
+            item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(2, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task SameTickDuplicateNamesGoToStableIdWinner()
+    {
+        var firstProvider = new SequencedHostedProvider(new NameReply("Shared Name"));
+        var secondProvider = new SequencedHostedProvider(
+            new NameReply("Shared Name"),
+            new NameReply("Second Name"));
+        using var world = new PrivateWorldRuntime("same-tick-duplicate-names", id => id switch
+        {
+            NameTargetId => firstProvider,
+            NameOwnerId => secondProvider,
+            _ => new DeterministicDecisionProvider(),
+        }, startPace: WorldStartPace.FounderSetup);
+        world.PlaceFounder(NameTargetId, new GridPoint(0, 0));
+        world.PlaceFounder(NameOwnerId, new GridPoint(1, 2));
+        world.PlaceFounder("founder:cccccccccccccccccccccccccccccccc", new GridPoint(2, 2));
+        world.PlaceFounder("founder:dddddddddddddddddddddddddddddddd", new GridPoint(3, 2));
+        var secondPlaceholder = world.Society.GetInhabitant(NameOwnerId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await Task.WhenAll(firstProvider.FirstReturned.Task, secondProvider.FirstReturned.Task)
+            .WaitAsync(TimeSpan.FromSeconds(3));
+        var simultaneous = await world.AdvanceOneTickNonBlockingAsync();
+        Assert.True(simultaneous.Advanced);
+        Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameTargetId && item.Admission.Accepted);
+        Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameOwnerId && item.Admission.Accepted);
+        Assert.Equal("Shared Name", world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.Equal(secondPlaceholder, world.Society.GetInhabitant(NameOwnerId).Name);
+        Assert.True(world.Society.GetInhabitant(NameOwnerId).NeedsName);
+
+        _ = await AdvanceUntilAcceptedAsync(world, NameOwnerId);
+        Assert.True(secondProvider.ObservedRequests.ElementAt(1).IsNameRetry);
+        Assert.Equal("Second Name", world.Society.GetInhabitant(NameOwnerId).Name);
+    }
+
+    [Fact]
+    public async Task DuplicateNameRetryMarkerSurvivesPauseSaveRestoreAndIgnoresCanceledReply()
+    {
+        var provider = new SequencedHostedProvider(
+            [new NameReply("Taken Name"), new NameReply("Restored Name")],
+            holdSecond: true,
+            ignoreSecondCancellation: true);
+        using var world = CreateNameTestWorld("duplicate-name-retry-save", provider);
+        Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(provider.SecondObservation!.IsNameRetry);
+        var completedBeforeCancellation = world.ExportState().Events.Count(item =>
+            item.Kind == "hosted_decision_completed");
+        world.Pause();
+        var savedJson = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var saved = PrivateWorldRuntimeCodec.Decode(savedJson);
+        Assert.Contains(SocietyCognitionScheduler.NameRetryTriggerId,
+            saved.Society.Cognition.Queue.Single(item => item.InhabitantId == NameTargetId).TriggerIds);
+        Assert.False(Encoding.UTF8.GetString(savedJson).Contains("isNameRetry", StringComparison.OrdinalIgnoreCase));
+
+        provider.ReleaseSecond.TrySetResult(true);
+        await provider.SecondReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(completedBeforeCancellation, world.ExportState().Events.Count(item =>
+            item.Kind == "hosted_decision_completed"));
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+
+        var restoredProvider = new SequencedHostedProvider(new NameReply("Restored Name"));
+        using var restored = PrivateWorldRuntime.Restore(saved, id => id == NameTargetId
+            ? restoredProvider
+            : new DeterministicDecisionProvider());
+        restored.Resume();
+        Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await restoredProvider.FirstReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var completed = await AdvanceUntilAcceptedAsync(restored, NameTargetId);
+        Assert.True(Assert.Single(completed.Decisions, item => item.InhabitantId == NameTargetId).Admission.Accepted);
+        Assert.True(Assert.Single(restoredProvider.ObservedRequests).IsNameRetry);
+        Assert.Equal("Restored Name", restored.Society.GetInhabitant(NameTargetId).Name);
+    }
+
     [Fact]
     public async Task ActorEventRetainsItsLocationAcrossSaveAndViewerProjection()
     {
@@ -156,6 +361,129 @@ public sealed class PrivateWorldDeferredCognitionTests
             await Task.Delay(10);
         }
         throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 20 ticks.");
+    }
+
+    private static PrivateWorldRuntime CreateNameTestWorld(
+        string seed,
+        IDecisionProvider provider,
+        double minimumConfidence = 0.5)
+    {
+        var world = new PrivateWorldRuntime(seed, id => id == NameTargetId
+                ? provider
+                : new DeterministicDecisionProvider(),
+            minimumCognitionConfidence: minimumConfidence,
+            startPace: WorldStartPace.FounderSetup);
+        world.PlaceFounder(NameTargetId, new GridPoint(0, 0));
+        world.PlaceFounder(NameOwnerId, new GridPoint(1, 2));
+        world.PlaceFounder("founder:cccccccccccccccccccccccccccccccc", new GridPoint(2, 2));
+        world.PlaceFounder("founder:dddddddddddddddddddddddddddddddd", new GridPoint(3, 2));
+        return world;
+    }
+
+    private sealed record NameReply(
+        string? Name,
+        double Confidence = 1d,
+        string SelectedCandidateId = "safe_idle");
+
+    private sealed class SequencedHostedProvider(
+        IReadOnlyList<NameReply> replies,
+        bool holdSecond = false,
+        bool ignoreSecondCancellation = false) : IDecisionProvider
+    {
+        private int callCount;
+
+        public SequencedHostedProvider(params NameReply[] replies)
+            : this((IReadOnlyList<NameReply>)replies)
+        {
+        }
+
+        public ConcurrentQueue<InhabitantObservation> ObservedRequests { get; } = new();
+        public TaskCompletionSource<bool> FirstReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> SecondStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> SecondReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public InhabitantObservation? SecondObservation { get; private set; }
+        public int CallCount => Volatile.Read(ref callCount);
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var call = Interlocked.Increment(ref callCount);
+            var observation = request.Observation;
+            ObservedRequests.Enqueue(observation);
+            if (call == 2)
+            {
+                SecondObservation = observation;
+                SecondStarted.TrySetResult(true);
+                if (holdSecond)
+                {
+                    if (ignoreSecondCancellation)
+                        await ReleaseSecond.Task;
+                    else
+                        await ReleaseSecond.Task.WaitAsync(cancellationToken);
+                }
+            }
+
+            var reply = replies[Math.Min(call - 1, replies.Count - 1)];
+            var selected = reply.SelectedCandidateId;
+            var probabilities = observation.Candidates.ToDictionary(candidate => candidate.Id,
+                candidate => candidate.Id == selected ? 1d : 0d, StringComparer.Ordinal);
+            var response = new CognitionDecisionResponse(
+                request.RequestId,
+                observation.InhabitantId,
+                Kind,
+                ProviderEpoch,
+                observation.RunEpoch,
+                observation.DecisionGeneration,
+                observation.ObservationDigest,
+                selected,
+                reply.Confidence,
+                probabilities,
+                Usage: new CognitionUsage("test-model", 10, 2),
+                ChosenName: reply.Name);
+            if (call == 1) FirstReturned.TrySetResult(true);
+            if (call == 2) SecondReturned.TrySetResult(true);
+            return response;
+        }
+    }
+
+    private sealed class FixedHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    private sealed class SequencedNameResponseHandler(params string[] names) : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref requestCount);
+            _ = await request.Content!.ReadAsStringAsync(cancellationToken);
+            var answer = JsonSerializer.Serialize(new
+            {
+                selected_candidate_id = "safe_idle",
+                confidence = 1d,
+                chosen_name = names[Math.Min(call - 1, names.Length - 1)],
+            });
+            var body = JsonSerializer.Serialize(new
+            {
+                model = "retry-meter-model",
+                choices = new[] { new { message = new { role = "assistant", content = answer } } },
+                usage = new { prompt_tokens = 10, completion_tokens = 2 },
+            });
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            };
+        }
     }
 
     private sealed class HeldHostedProvider(

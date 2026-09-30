@@ -122,6 +122,11 @@ public sealed record InhabitantObservation(
     IReadOnlyList<CognitionKnowledgeFact>? KnownMapFacts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionSelfContext? Self = null)
 {
+    // Scheduler control metadata is materialized only for a duplicate-name
+    // retry request. It is not stored in the durable queue observation.
+    [JsonIgnore]
+    public bool IsNameRetry { get; init; }
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(InhabitantId);
@@ -760,6 +765,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
+                        (request.Observation.IsNameRetry
+                            ? "The full name you chose is already taken in this world. Choose a different full name. Do not list or ask for anyone else’s name. "
+                            : string.Empty) +
                         (request.Observation.NeedsName
                             ? $"When naming this agent, prefer a given name starting with {NameInitial(request.Observation.InhabitantId)}; use a natural full name. "
                             : string.Empty) +
@@ -779,6 +787,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         needs_name = request.Observation.NeedsName,
+                        name_retry = request.Observation.IsNameRetry,
                         self = request.Observation.Self is { } self ? new
                         {
                             name = self.Name, life_stage = self.LifeStage,
