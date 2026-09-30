@@ -239,7 +239,8 @@ public sealed record OwnerWorldPlacedBuilding(
     int Height = 1,
     string? TownId = null,
     string? HouseholdId = null,
-    IReadOnlyList<OwnerWorldInventoryEntry>? StoredItems = null);
+    IReadOnlyList<OwnerWorldInventoryEntry>? StoredItems = null,
+    OwnerWorldPosition? Entrance = null);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -386,6 +387,8 @@ public sealed record OwnerUsageStatus(long Attempts, long Completed, long Failed
     bool LimitReached, IReadOnlyList<OwnerUsageRow> Rows, string? AccountingError = null);
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
+
+public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, string Provider, string Label, string ApiKey);
 
 /// <summary>
 /// Asks the host for the game's model list for a provider. With

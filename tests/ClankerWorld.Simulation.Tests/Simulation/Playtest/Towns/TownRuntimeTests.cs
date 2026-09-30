@@ -261,12 +261,19 @@ public sealed class TownRuntimeTests
             var grownTown = Assert.Single(world.Towns);
             Assert.Contains(placed.InstanceId, grownTown.AssignedBuildingIds);
             Assert.True(grownTown.BorderTiles.Count > town.BorderTiles.Count);
+            // Town Roads stay inside the border, which grows around the new Road too.
+            Assert.All(world.RoadTiles, road => Assert.Contains(road, grownTown.BorderTiles));
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_building_assigned");
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_border_expanded");
             Assert.NotEmpty(world.RoadTiles);
             Assert.DoesNotContain(position, world.RoadTiles);
             Assert.Contains(world.RoadTiles, road => map.FootNeighbors(position).Contains(road) &&
                 !map.IsDiagonalFootStep(position, road));
+            // The door faces the Road the building was joined to.
+            var entrance = Assert.Single(world.WorldSimulation.Buildings, item => item.InstanceId == result.InstanceId)
+                .Entrance ?? throw new InvalidOperationException("The joined building has no entrance.");
+            Assert.Contains(entrance, world.RoadTiles);
+            Assert.True(WorldContentSimulationRules.IsEntrance(definition, position, entrance));
             Assert.Empty(world.RoadTiles.Intersect(world.WorldSimulation.Buildings.SelectMany(building =>
             {
                 var size = world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
@@ -287,6 +294,8 @@ public sealed class TownRuntimeTests
                 snapshot.RoadTiles.Select(point => (point.X, point.Y)));
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(snapshot.PlacedBuildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal((entrance.X, entrance.Y), Assert.Single(snapshot.PlacedBuildings,
+                item => item.InstanceId == placed.InstanceId).Entrance is { } shown ? (shown.X, shown.Y) : default);
             var godotSnapshot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
                 JsonSerializer.Serialize(snapshot, GodotJsonOptions), GodotJsonOptions);
             var godotTown = Assert.Single(godotSnapshot!.Towns);
@@ -295,6 +304,8 @@ public sealed class TownRuntimeTests
                 godotSnapshot.RoadTiles.Select(point => (point.X, point.Y)));
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(godotSnapshot.PlacedBuildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal((entrance.X, entrance.Y), Assert.Single(godotSnapshot.PlacedBuildings,
+                item => item.InstanceId == placed.InstanceId).Entrance is { } drawn ? (drawn.X, drawn.Y) : default);
 
             file.Save(world);
             using var reloaded = file.LoadOrCreate(geography.Seed);
@@ -304,6 +315,26 @@ public sealed class TownRuntimeTests
             Assert.Equal(world.RoadTiles, reloaded.RoadTiles);
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(reloaded.WorldSimulation.Buildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal(entrance,
+                Assert.Single(reloaded.WorldSimulation.Buildings, item => item.InstanceId == placed.InstanceId).Entrance);
+            // A saved entrance must sit beside its building.
+            var reloadedState = reloaded.ExportState();
+            // A saved border must cover every assigned building.
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
+            {
+                Towns = [restoredTown with { BorderTiles = restoredTown.BorderTiles.Where(tile => tile != position).ToArray() }],
+            }));
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
+            {
+                WorldSimulation = reloadedState.WorldSimulation! with
+                {
+                    Buildings = reloadedState.WorldSimulation.Buildings
+                        .Select(item => item.InstanceId == placed.InstanceId
+                            ? item with { Entrance = new GridPoint(position.X + definition.Width, position.Y + definition.Height) }
+                            : item)
+                        .ToArray(),
+                },
+            }));
             var invalidRoads = reloaded.ExportState() with
             {
                 RoadTiles = reloaded.RoadTiles.Append(reloaded.RoadTiles[0]).ToArray(),

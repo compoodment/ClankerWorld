@@ -3,13 +3,20 @@ using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
+/// <summary>
+/// A building in the world. <see cref="Entrance"/> is the ground tile just
+/// outside its door, beside one edge of the footprint; the door is on that
+/// side. It is set when the building's Road is laid, and is null for a
+/// building without a Road.
+/// </summary>
 public sealed record PlacedBuilding(
     string InstanceId,
     string DefinitionId,
     GridPoint Position,
     long PlacedTick,
     string? TownId = null,
-    string? HouseholdId = null);
+    string? HouseholdId = null,
+    GridPoint? Entrance = null);
 
 public enum WorldProductionJobState
 {
@@ -159,6 +166,12 @@ public static class WorldContentSimulationRules
             {
                 throw new InvalidDataException($"Placed building '{building.InstanceId}' has an invalid footprint.");
             }
+
+            if (building.Entrance is { } entrance &&
+                (!map.IsBuildable(entrance) || !IsEntrance(definition, building.Position, entrance)))
+            {
+                throw new InvalidDataException($"Placed building '{building.InstanceId}' has an invalid entrance.");
+            }
         }
 
         var jobIds = new HashSet<string>(StringComparer.Ordinal);
@@ -250,6 +263,19 @@ public static class WorldContentSimulationRules
         }
 
         return footprint.All(point => !occupied.Contains(point));
+    }
+
+    /// <summary>
+    /// Whether a tile can be a building's entrance: just outside the footprint,
+    /// directly beside one of its edges (not a corner).
+    /// </summary>
+    public static bool IsEntrance(BuildingDefinition definition, GridPoint position, GridPoint entrance)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        var besideColumn = entrance.X >= position.X && entrance.X < position.X + definition.Width;
+        var besideRow = entrance.Y >= position.Y && entrance.Y < position.Y + definition.Height;
+        return besideColumn && (entrance.Y == position.Y - 1 || entrance.Y == position.Y + definition.Height) ||
+            besideRow && (entrance.X == position.X - 1 || entrance.X == position.X + definition.Width);
     }
 
     public static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint position)

@@ -1,0 +1,1 @@
+- A new world's first Town is laid out along a winding main road with side streets that take diagonals where the land allows. Its buildings face those streets, the streets run on a few tiles past the last building, and the Town border keeps about three tiles of spare land around the buildings and Roads, following the Town's shape.

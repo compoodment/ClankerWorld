@@ -135,7 +135,6 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 7);
         founderSetupHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         founderSetupHint.CustomMinimumSize = new Vector2(320, 0);
-        body.AddChild(founderSetupHint);
 
         founderProviderChoice.AddItem("OpenAI");
         founderProviderChoice.SetItemMetadata(0, "openai");
@@ -165,6 +164,9 @@ public partial class Main
         founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
         body.AddChild(founderModelPicker);
+        // Placement hints wrap differently as the pointer crosses the map.
+        // Keep them after the fields so those click targets never move.
+        body.AddChild(founderSetupHint);
 
         AddClosablePanelContents(founderSetupPanel, "Add an agent", body, () =>
         {

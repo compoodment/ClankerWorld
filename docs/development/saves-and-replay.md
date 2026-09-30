@@ -134,6 +134,7 @@ before an upgrade.
 | Schema 24 | World-owned Roads. |
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
+| Schema 27 | Optional building entrances: the tile beside the footprint that the building's door faces. It must be directly beside one edge. Older saves load with no entrances. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -234,7 +235,7 @@ New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
 
 Episode version and bounds are validated, including topology against the saved
-map. Private saves now use schema 26; episode-bearing world systems use schema 2.
+map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
 World-systems schema 1 remains readable, with the absent field omitted when null.
 Older binaries reject the newer schema instead of silently dropping episodes.
 The new code reads old saves; keep backups before testing.

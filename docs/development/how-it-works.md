@@ -227,7 +227,11 @@ use the actor's foot-accessible terrain component and skip sites whose current
 occupied routes cannot reach harvesting range. Adjacent food needs no route
 search. Candidate generation searches only when gathering or a food instruction
 needs a source, and stops at the first reachable site. Caregivers use the same
-selection. Immutable map connectivity is cached once per map; movement rechecks
+selection. When fetching food for an infant, caregivers also skip household
+food stores whose collection point has no currently unoccupied route. They try
+other household food before gathering wild food; inaccessible stock is left
+untouched. This does not change household ownership or food-policy rules.
+Immutable map connectivity is cached once per map; movement rechecks
 occupancy before each step. An agent gathering for its own project, and the check
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
@@ -272,12 +276,38 @@ Later placement inside the saved border establishes residence; walking does
 not change it. Children inherit the resident parent's Town; death removes the
 resident. Owned-building placement establishes household membership.
 
-The current Town is provisional and uses a rectangular border. The chosen
-origin is saved where present; older worlds retain their camp-derived border.
-Assigned buildings expand it with a one-tile margin, clipped at map edges.
-There is no wrapped-seam claim geometry, competing-claim graph or automatic
-second-Town founding. Filters display saved Town and household-building facts,
-not invented general land ownership.
+`FirstTownLayoutPlanner` lays the first Town street first, using
+`TownStreets`. A main road runs both ways from the chosen site along its most
+open line, bending in 45° steps, never more than 45° from the heading it set out
+on. Side streets leave it every three to five tiles, mostly at right angles. A
+street takes a diagonal step only where both corner tiles are clear ground, and
+keeps a one-tile gap from other streets. The five buildings then take the
+nearest lots whose door opens onto a street, with a one-tile gap between
+buildings. Finally every dead end is cut back to three tiles past the last door
+on it, and branches with no door are removed. The same site on the same map
+always gives the same layout.
+
+The Town border is all land within about three tiles of the Town's buildings
+and Roads (three straight out, rounded at the corners). It leaves out water and
+is clipped at map edges. It grows around each building that joins the Town and
+around that building's new Road. The saved border is authoritative: loading
+checks that it lies on the map and covers the Town's origin and every assigned
+building. Older worlds keep their saved rectangular border. There is no
+wrapped-seam claim geometry, competing-claim graph or automatic second-Town
+founding. Filters display saved Town and household-building facts, not invented
+general land ownership.
+
+A building that joins a Town later gets a Road from one of the tiles directly
+beside its footprint to the nearest existing Road. That starting tile is saved
+as the building's entrance, and the map draws the door on that side. The first
+Town's planner saves the entrance of each lot it chose. A building without a
+Road has no entrance and shows its door in the middle of its south side.
+
+A building that joins a Town gets a Road from one of the tiles directly beside
+its footprint to the nearest existing Road. That starting tile is saved as the
+building's entrance, and the map draws the door on that side. The first Town's
+planner records its buildings' entrances the same way. A building without a
+Road has no entrance and shows its door in the middle of its south side.
 
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
@@ -422,6 +452,10 @@ then checks an actual unoccupied route into harvest range. Heating, help with
 another agent's project and Blacksmith ore use this selector; they do not
 require a path to the original map anchor. Gathering for one's own project does
 not use it yet. This does not change fuel duration or harvest yields.
+
+Shared fuel and equipment also require an unoccupied route to their collection
+point. Unreachable stock stays untouched and does not prevent an agent from
+using reachable supplies or gathering local fuel instead.
 
 ## Advanced generation controls
 
