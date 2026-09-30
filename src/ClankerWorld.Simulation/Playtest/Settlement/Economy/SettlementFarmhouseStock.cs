@@ -5,11 +5,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private PlacedBuilding? FarmhouseForHousehold(string householdId) => worldSimulation.Buildings
-        .Where(building => building.HouseholdId == householdId &&
-            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                definition.Tags.Contains("farmhouse", StringComparer.Ordinal)))
-        .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
+    private PlacedBuilding? FarmhouseForHousehold(string householdId) =>
+        HouseholdBuildingWithTag(householdId, "farmhouse");
 
     private InventoryLot? FarmGrainForDelivery(string householdId, string farmhouseId) =>
         society.Checkpoint.Inventory.Lots

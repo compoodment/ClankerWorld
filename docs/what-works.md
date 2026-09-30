@@ -40,7 +40,8 @@ Houses, a Warehouse, Farmhouse and Blacksmith, linked by packed-dirt Roads.
 Each building's door is on the side facing its Road, with a short doorstep
 path to it. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
-founders form two starting households. The player presses Start World explicitly.
+founders form two starting households: the first holds the Farmhouse and the
+second holds the Blacksmith. The player presses Start World explicitly.
 
 World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
@@ -94,8 +95,9 @@ generated memory summaries and full conversations are unfinished.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
-| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. |
-| Building, farming and crafting | Built but not connected to normal play | Building plans, crop growing and recipe-based production are built and pass their own tests, but agents placed the normal way are not offered them. They are offered only to an agent who holds a work role, and a normal game gives agents none ([#441](https://github.com/compoodment/ClankerWorld/issues/441) tracks the fix). An offline check on three generated Small maps saw none of them in five world days ([#437](https://github.com/compoodment/ClankerWorld/issues/437)). It also saw no helping on projects, hauling inputs to the Blacksmith or Farmhouse, mining ore or replanting trees, and some of these may depend on the same limit. Recipes, capacity, wear and logistics remain unfinished. |
+| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
+| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
+| Building new buildings | Built but not connected to normal play | Building plans are still offered only to an agent with the Builder role or an aspiration that mentions building, and a normal game gives agents neither ([#470](https://github.com/compoodment/ClankerWorld/issues/470) tracks the fix). |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |

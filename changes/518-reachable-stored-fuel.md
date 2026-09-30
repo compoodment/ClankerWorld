@@ -1,0 +1,1 @@
+- Cold agents no longer get stuck fetching blocked stored wood when they can gather local fuel. Shared fuel and equipment choices now check the route to their collection point.
