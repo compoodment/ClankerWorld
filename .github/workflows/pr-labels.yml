@@ -22,7 +22,7 @@ jobs:
           sync-labels: false
 
       - name: Add a type label from the ticked template box
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = context.payload.pull_request.body ?? '';
