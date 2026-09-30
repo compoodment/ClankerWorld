@@ -8,6 +8,61 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private static readonly System.Text.Json.JsonSerializerOptions CompatibilitySmokeJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private async Task VerifyNewWorldCompatibilityMessageAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var portProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        portProbe.Start();
+        var port = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
+        portProbe.Stop();
+        var origin = $"http://127.0.0.1:{port}/";
+        using var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add(origin);
+        listener.Start();
+        try
+        {
+            var authority = new OwnerAuthorityIdentity("compatibility-smoke", "compatibility-world");
+            registration = new(authority, "compatibility-device", signer.PublicKeyFingerprint, origin);
+            deviceKey = signer;
+            worldUrlInput.Text = origin;
+            worldNameInput.Text = "Disposable";
+            worldSeedInput.Text = "compatibility-smoke";
+            var response = Task.Run(async () =>
+            {
+                var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
+                    throw new InvalidOperationException("New World must check an authenticated challenge first.");
+                context.Response.ContentType = "application/json";
+                await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
+                    new OwnerChallenge(authority, registration.DeviceId, "challenge-smoke", "nonce-smoke",
+                        DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
+                context.Response.Close();
+            });
+            await PreviewWorldAsync();
+            await response;
+            if (!worldPreviewStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
+                !worldPreviewStatus.Text.Contains("pairing can stay", StringComparison.Ordinal) ||
+                worldPreviewStatus.Text.Contains("not allowed", StringComparison.Ordinal) ||
+                !worldCreateButton.Disabled || worldPreviewButton.Disabled || registration is null)
+                throw new InvalidOperationException("New World must show the update remedy, keep pairing and leave Create unavailable without a preview.");
+        }
+        finally
+        {
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            listener.Stop();
+        }
+    }
+
     private async Task VerifyUiScaleAt1440pAsync(Window displayWindow)
     {
         var originalWindowSize = displayWindow.Size;
@@ -210,16 +265,24 @@ public partial class Main
                 throw new InvalidOperationException($"The model list must keep the game's order and mark models the key can't use: {Items()}.");
             OwnerProviderModelChoice[] noLuna = [new("gpt-6.1-sol", false), new("gpt-6-astra", true), new("gpt-6-sol", true), new("gpt-6-luna", false)];
             const string cantUseLuna = "This key can't use gpt-6-luna. Choose a model it can use.";
-            picker.SetModel("gpt-6-luna");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
             picker.ShowList(noLuna, "gpt-6-luna");
             if (picker.Model.Length > 0 || picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.ChooseText ||
                 !picker.Choice.IsItemDisabled(Index(ModelPicker.ChooseText)) || picker.Problem != cantUseLuna || picker.CanRetry)
-                throw new InvalidOperationException($"When the key can't use the chosen model, no other model may be chosen for the owner: {Items()}.");
+                throw new InvalidOperationException($"When the key can't use a new agent's model, no other model may be chosen for the owner: {Items()}.");
             Pick("gpt-6-sol");
             if (picker.Model != "gpt-6-sol" || picker.Problem.Length > 0)
                 throw new InvalidOperationException("Choosing a model must clear the request to choose one.");
+            picker.SetModel("gpt-6-luna");
+            picker.ShowList(noLuna, "gpt-6-luna");
+            if (picker.Model != "gpt-6-luna" || picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna" + ModelPicker.UnavailableNote ||
+                picker.Problem != cantUseLuna || picker.CanRetry)
+                throw new InvalidOperationException($"An existing agent's model the key can't use must stay shown, with a request to choose another: {Items()}.");
             var fresh = new ModelPicker();
-            fresh.ShowList(noLuna, "gpt-6-luna");
+            fresh.SetModel("gpt-6-luna", isNewAgent: true);
+            fresh.ShowList([new("gpt-6.1-sol", true), new("gpt-6-sol", true), new("gpt-6-luna", true)], "gpt-6-luna",
+                PasteKeyNote, canRetry: false);
+            fresh.ShowList([new("gpt-6.1-sol", false), new("gpt-6-sol", true), new("gpt-6-luna", false)], "gpt-6-luna");
             var (freshModel, freshProblem) = (fresh.Model, fresh.Problem);
             fresh.Free();
             if (freshModel.Length > 0 || freshProblem != cantUseLuna)
@@ -357,6 +420,7 @@ public partial class Main
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        worldSelectionList.Select(6);
         worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
@@ -420,6 +484,7 @@ public partial class Main
     {
         try
         {
+            VerifyEventLogAgentNames();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -583,6 +648,8 @@ public partial class Main
             try
             {
                 await VerifyFirstWorldListAsync();
+                await VerifyWorldActionSelectionAsync();
+                await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
@@ -1351,8 +1418,9 @@ public partial class Main
             if (terrainLayer.TreeStageAt(2, 1) != "growing")
                 throw new InvalidOperationException("Regrowing orchard trees must show their growing stage.");
             var builtMarker = mapObjectVisuals["building:test-hall"];
-            if (!builtMarker.Text.Contains("Test hall", StringComparison.Ordinal) || builtMarker.Size.X <= builtMarker.Size.Y)
-                throw new InvalidOperationException("Built structures must render their name and multi-tile footprint.");
+            if (builtMarker.Text.Length > 0 || !builtMarker.TooltipText.Contains("Test hall", StringComparison.Ordinal) ||
+                builtMarker.Size.X <= builtMarker.Size.Y)
+                throw new InvalidOperationException("Built structures must keep their multi-tile footprint and hover help without a name on the map.");
             var founderPosition = new OwnerWorldPosition(2, 0);
             var founder = new OwnerWorldInhabitant("founder-ui-test", "Rowan", "active", founderPosition,
                 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
@@ -1364,9 +1432,17 @@ public partial class Main
             RenderMap(occupied);
             var founderButton = inhabitantVisuals[founder.Id];
             var founderButtonIdentity = founderButton.GetInstanceId();
-            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || !founderButton.ShowNameTag ||
-                founderButton.Caption.Length == 0)
-                throw new InvalidOperationException("A lone agent on the map must use their stable sprite and show a name tag.");
+            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || founderButton.Caption != "Rowan" ||
+                founderButton.NameShown)
+                throw new InvalidOperationException("An agent on the map must use their stable sprite and keep their name hidden until needed.");
+            founderButton.EmitSignal(Control.SignalName.MouseEntered);
+            var hoverNamed = founderButton.NameShown;
+            founderButton.EmitSignal(Control.SignalName.MouseExited);
+            founderButton.Selected = true;
+            var selectedNamed = founderButton.NameShown;
+            founderButton.Selected = false;
+            if (!hoverNamed || !selectedNamed || founderButton.NameShown)
+                throw new InvalidOperationException("An agent's name must show only while it is hovered or selected.");
             if (terrainLayer.CampResourceSpriteCount == 0 || mapObjectVisuals["resource:wood"].Text.Contains('▰'))
                 throw new InvalidOperationException("Older camp resources such as the wood store must draw as sprites instead of glyphs.");
             if (terrainLayer.BuildingSpriteCount != occupied.PlacedBuildings.Count ||
@@ -1396,7 +1472,38 @@ public partial class Main
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
-            readThoughtsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            var suggestDisabled = instructionSuggestButton.Disabled;
+            var orderDisabled = instructionOrderButton.Disabled;
+            instructionSuggestButton.Disabled = instructionOrderButton.Disabled = false;
+            try
+            {
+                instructionOrderButton.GrabFocus();
+                if (!instructionOrderButton.HasFocus())
+                    throw new InvalidOperationException("Order must be reachable by keyboard in the Profile.");
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!instructionOrderButton.ButtonPressed || instructionSuggestButton.ButtonPressed)
+                    throw new InvalidOperationException("Keyboard activation must switch the instruction kind to Order.");
+                instructionSuggestButton.GrabFocus();
+                if (!instructionSuggestButton.HasFocus())
+                    throw new InvalidOperationException("Suggest must be reachable by keyboard in the Profile.");
+                instructionSuggestButton.ButtonPressed = true;
+            }
+            finally
+            {
+                instructionSuggestButton.Disabled = suggestDisabled;
+                instructionOrderButton.Disabled = orderDisabled;
+            }
+            readThoughtsButton.GrabFocus();
+            if (!readThoughtsButton.HasFocus())
+                throw new InvalidOperationException("Read all must be reachable by keyboard in the Profile.");
+            Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            readThoughtsButton.ReleaseFocus();
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!thoughtsPanel.Visible || !agentProfilePanel.Visible ||
                 thoughtsPanel.Position.X < agentProfilePanel.Position.X + agentProfilePanel.Size.X ||
@@ -2022,7 +2129,7 @@ public partial class Main
             if (inhabitantList.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
-            var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
+            var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
                 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
                 new OwnerWorldRoute("deceased", null, null, [], string.Empty),
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
@@ -2242,4 +2349,64 @@ public partial class Main
         }
     }
 
+    private void VerifyEventLogAgentNames()
+    {
+        const string founderId = "founder:00000000000000000000000000000001";
+        const string agentId = "agent:00000000000000000000000000000099";
+        const string childId = "world:inhabitant:birth:" + founderId + ":" + agentId + ":1";
+        var position = new OwnerWorldPosition(0, 0);
+        OwnerWorldInhabitant Person(string id, string name, string lifecycle = "active") =>
+            new(id, name, lifecycle, position, 8_000, [], [],
+                new("idle", null, null, [], ""), new(position, [], []), false);
+        var snapshot = new OwnerWorldSnapshot("event-name-smoke", 1, "event-name-map",
+            [new(0, 0, "meadow")], [], [], null, 6)
+        {
+            Inhabitants = [Person(founderId, "Rowan"), Person(agentId, "Aster", "dead"),
+                Person(childId, "Mira"), Person("founder-scout", "Scout")],
+            Towns = [new("town:first", "First Town", "founded", 0, [], [], [])],
+        };
+        OwnerWorldEvent[] events =
+        [
+            new(1, 1, "food_harvested", founderId + ":4"),
+            new(2, 1, "food_consumed", "founder-scout"),
+            new(3, 1, "child_born", childId),
+            new(4, 1, "inhabitant_removed", agentId),
+            new(5, 1, "town_resident_joined", "town:first:" + founderId + ":founder_joined:residents:4"),
+            new(6, 1, "town_resident_left", "town:first:" + agentId + ":residents:3"),
+        ];
+        var handshake = new OwnerWorldHandshake(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+             "owner-control.request.v1", "paused-authoring.request.v1"], []);
+        try
+        {
+            var baseline = new OwnerWorldReconnectBaseline(snapshot, new(1, 0, events));
+            if (!observationSession.TryAccept(new(handshake, baseline), 0, out var failure))
+                throw new InvalidOperationException("Event Log name fixture was rejected: " + failure);
+            foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
+            RenderEventLog();
+            string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
+                "Rowan joined the first Town.", "Aster left the first Town."];
+            if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
+                throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
+            snapshot = snapshot with
+            {
+                Inhabitants = snapshot.Inhabitants.Select(person => person.Id == founderId
+                    ? person with { DisplayName = "Renamed Rowan" } : person).ToArray(),
+            };
+            baseline = baseline with { Snapshot = snapshot };
+            if (!observationSession.TryAccept(new(handshake, baseline), 0, out failure))
+                throw new InvalidOperationException("Renamed Event Log fixture was rejected: " + failure);
+            RenderEventLog();
+            if (!eventLog.GetParsedText().Contains("Renamed Rowan gathered food.", StringComparison.Ordinal))
+                throw new InvalidOperationException("An existing Event Log entry must resolve the current agent name after rename.");
+        }
+        finally
+        {
+            observationSession.ResetAfterLoad();
+            knownEvents.Clear();
+            UpdateUnreadEvents(null);
+            renderedEventLog = string.Empty;
+            RenderEventLog();
+        }
+    }
 }

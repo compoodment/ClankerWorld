@@ -1,16 +1,83 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.GodotClient.UI;
 using ClankerWorld.Viewer.Observation;
 using System.Text.Json;
 using GodotOwnerWorldSnapshot = ClankerWorld.GodotClient.UI.OwnerWorldSnapshot;
+using GodotOwnerWorldEvent = ClankerWorld.GodotClient.UI.OwnerWorldEvent;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class TownRuntimeTests
 {
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
+
+    [Fact]
+    public async Task TownDeathRetainsTheArchivedFounderNameAndCompleteTelemetryTownId()
+    {
+        const string founderId = "founder:00000000000000000000000000000001";
+        using var setup = new PrivateWorldRuntime("town-event-names", startPace: WorldStartPace.FounderSetup);
+        setup.PlaceFounder(founderId, new(0, 0));
+        setup.PlaceFounder("founder:00000000000000000000000000000002", new(1, 2));
+        setup.PlaceFounder("founder:00000000000000000000000000000003", new(2, 2));
+        setup.PlaceFounder("founder:00000000000000000000000000000004", new(3, 2));
+        setup.StartWorld();
+        Assert.True(setup.RenameAgent(founderId, "Aster"));
+        var state = setup.ExportState();
+        var society = state.Society.Society;
+        var maximumDay = society.Config.DayLifecycle!.MaximumDay;
+        var birthTick = 1 - maximumDay * society.Config.TicksPerWorldDay;
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == founderId ? person with
+                    {
+                        BirthTick = birthTick,
+                        BirthLifeTick = society.LifeClock is null ? null : birthTick,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = maximumDay - 1,
+                    } : person).ToArray(),
+                },
+            },
+        });
+        var directory = Directory.CreateTempSubdirectory("clankerworld-town-event-names-");
+        try
+        {
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
+            presence.RecordAuthenticatedReconnect("owner");
+            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            using var service = new PrivateWorldRuntimeService(world,
+                new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
+            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Contains(logger.Messages, message => message.Contains(
+                "town=town:first transition=ResidentLeft residents=3", StringComparison.Ordinal));
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+            var store = new OwnerWorldObservationStore(restored);
+            var snapshot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
+                JsonSerializer.Serialize(store.GetSnapshot(), GodotJsonOptions), GodotJsonOptions);
+            Assert.Equal("dead", snapshot!.Inhabitants.Single(person => person.Id == founderId).Lifecycle);
+            foreach (var (kind, expected) in new[]
+                     { ("inhabitant_removed", "Aster died."), ("town_resident_left", "Aster left the first Town."),
+                       ("town_resident_joined", "Aster joined the first Town.") })
+            {
+                var accepted = store.GetEventsAfter(0).Events.First(item => item.Kind == kind && item.Detail.Contains(founderId, StringComparison.Ordinal));
+                var clientEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(JsonSerializer.Serialize(accepted, GodotJsonOptions), GodotJsonOptions);
+                Assert.Equal(expected, WorldEventText.Describe(clientEvent!, snapshot));
+                Assert.Equal(accepted.Detail, clientEvent!.Detail);
+            }
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
 
     [Fact]
     public async Task AddedIslandAdultCanHarvestAdjacentFoodOutsideTheCampComponent()
@@ -21,6 +88,7 @@ public sealed class TownRuntimeTests
         setup.StartWorld();
         var position = new GridPoint(22, 13);
         setup.AddAgent("agent:00000000000000000000000000000099", position);
+        Assert.True(setup.RenameAgent("agent:00000000000000000000000000000099", "Aster"));
         var before = setup.ExportState();
         // Exercise reachable food while the island resident actually needs a food errand.
         using var world = PrivateWorldRuntime.Restore(before with
@@ -38,6 +106,16 @@ public sealed class TownRuntimeTests
             item.Detail.StartsWith("agent:00000000000000000000000000000099:no_route", StringComparison.Ordinal));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
         Assert.True(restored.ExportState().Map.IsReachableOnFoot(position, food.Position));
+        var acceptedHistory = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+        var store = new OwnerWorldObservationStore(restored);
+        var godotSnapshot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
+            JsonSerializer.Serialize(store.GetSnapshot(), GodotJsonOptions), GodotJsonOptions);
+        var harvest = store.GetEventsAfter(0).Events.First(item => item.Kind == "food_harvested" &&
+            item.Detail.StartsWith("agent:00000000000000000000000000000099:", StringComparison.Ordinal));
+        var godotEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(JsonSerializer.Serialize(harvest, GodotJsonOptions), GodotJsonOptions);
+        Assert.Equal("Aster gathered food.", WorldEventText.Describe(godotEvent!, godotSnapshot));
+        Assert.Equal(harvest.Detail, godotEvent!.Detail);
+        Assert.Equal(acceptedHistory, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]

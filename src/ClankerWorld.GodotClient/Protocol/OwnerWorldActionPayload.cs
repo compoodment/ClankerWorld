@@ -44,9 +44,11 @@ public static class OwnerWorldActionPayload
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
+    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-world-creation.v2",
+        WorldCreationPayloadDomain,
         $"name={EncodeRequired(action.Name, nameof(action.Name))}",
         $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
         $"size={EncodeRequired(action.Size, nameof(action.Size))}",

@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Agents, families and social life
@@ -29,7 +29,7 @@ everything that is available in the current build. See [what works today](../wha
   adds and configures **four biologically unrelated starting agents** using
   each agent's model and key setup. They are grouped 2+2 into two
   starting households, not forced couples; family lines develop later through
-  relationships and children. All four begin as agents of the first Town.
+  relationships and children. All four begin as residents of the first Town.
   The simulation cannot begin until this setup is complete. The exact order
   of site choice and agent configuration remains open.
 - Once all four starting agents are configured and placed, the player explicitly
@@ -43,11 +43,31 @@ everything that is available in the current build. See [what works today](../wha
 - Each agent independently has a chosen provider/model, private memory and
   context, goals/personality, call schedule, usage, and failure state. Different
   agents may use the same stored key. Agents choose their own personality,
-  aspirations, skills, and initial identity. The player can add adults freely.
+  aspirations and initial identity. Agents start with no skills; an agent first
+  gains a skill by finishing that kind of work. The player can add adults freely.
+- An agent chooses its personality and aspiration **once, at its first
+  decision**. **Leaning toward (provisional; the moments and the cap are tuned
+  in playtests):** it can change them later only at moments the game names: a
+  midlife point (around day 30 of a life of up to 60 world days), becoming a
+  parent, losing a partner or a parent, and becoming an elder. Revisions are
+  capped per life. The game decides when one of these moments comes; the agent
+  decides what changes.
+- **Two agents in one world cannot share an exact full name.** If a model
+  chooses a name that is already taken, the game asks that agent once more,
+  which costs one extra request that counts toward model usage. If that also
+  fails, the agent keeps a placeholder name that the player can change. Similar
+  but not identical names are allowed, such as two agents called Rowan with
+  different surnames. The comparison covers every agent in the world,
+  including those who have died. A valid name is kept even when the action in
+  the same reply is rejected. **Leaning toward (provisional; tuned in
+  playtests):** to make names more varied, each agent's naming request suggests
+  a fixed starting letter for that agent. In a test on one model this raised
+  the number of different first names from 8 to 15 without extra requests.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
-  as the child's surname. Children inherit tendencies, abilities,
-  culture, and provider/model settings; baby appearance uses baby art. Close
+  as the child's surname. Children inherit tendencies, culture, and
+  provider/model settings, but never skills: like every agent, a child starts
+  with no skills; baby appearance uses baby art. Close
   biological relatives cannot pair.
 - Agents can become a couple and then marry, but **a couple may have a baby
   without marrying first**. Marriage is not a birth requirement. When agents
@@ -75,7 +95,11 @@ everything that is available in the current build. See [what works today](../wha
   choice can be stored at birth, then used when that agent enters the child
   stage. This resolves the earlier open question about *whether* children use
   their own models; initial age-up thresholds are below. Jev must not be
-  required for infant care, because Jev is optional per world.
+  required for infant care, because Jev is optional per world. If the two
+  parents choose different models, the **initiating parent's model** is used,
+  as a disclosed tie-break. If the chosen model has no working key, the child
+  shows "model needs setup" and idles safely. The game never substitutes a
+  different paid model.
 - **Children are real social agents, not silent placeholders.** Their personal
   models can converse, play, learn, form friendships, and choose age-appropriate
   simple helping tasks. Adult-only decisions such as land deals and parenthood
@@ -124,7 +148,7 @@ for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
 generated Roads. If no legal five-building layout fits, explain the problem
 and let the player choose another site without committing a partial Town.
 The player can change the rough site before placing founders; there is no
-separate layout Accept/Redo step. Clothing-making place and Workshop are not
+separate layout Accept/Redo step. Tailor Shop and Workshop are not
 guaranteed starters; agents may develop them later.
 
 The Town automatically assigns the Farmhouse and Blacksmith to the two
@@ -132,13 +156,15 @@ starting households, one productive building each. The player does not choose
 which household gets which business; this assignment does not make the agents
 couples or biological relatives. Each House starts with **eight food portions**,
 and the communal Warehouse starts with at least **one usable wooden axe and
-one usable wooden pickaxe**. The player may choose optional additional supplies
-in New World; their menu and quantities remain open. Exact suitability weights,
-how far to search around the chosen site, site-change controls, and whether a
-nonguaranteed building can appear at start also remain open. The
+one usable wooden pickaxe**. Each starting agent also starts with **one
+garment**, kept in their House. The player may choose optional additional
+supplies in New World; their menu and quantities remain open. Exact
+suitability weights, how far to search around the chosen site, site-change
+controls, and whether a nonguaranteed building can appear at start also remain
+open. The
 [planned game content](content-list.md) records the accepted
 base tool/item/food/object/art set and explicitly marked remaining choices;
-the [what works today](../what-works.md) describes the playable prototype.
+[What works today](../what-works.md) describes the playable prototype.
 
 ### Still to decide
 
@@ -220,8 +246,16 @@ another sprite family at first.
   conversation above is a special case: it must be started even across the
   world, has the four-turn bound described above, and a marriage cannot
   complete with its surname undecided. Ordinary conversations have no agreed
-  numeric turn limit yet. These are intended rules, not a claim that the
+  numeric turn limit yet; a provisional limit is recorded below. These are intended rules, not a claim that the
   marriage conversation is implemented.
+- **Each participant's own model speaks that participant's turns** in a
+  conversation, as in the marriage-surname conversation above.
+- **Leaning toward (provisional; tuned in playtests):** a conversation has at
+  most **six public turns**, three per participant, plus **one wrap-up
+  round**. An agent starts a conversation by choosing a talk action, and each
+  agent has at most two conversations per world day.
+- **Spoken promises are not tracked as commitments in the first version.**
+  Tracking whether promises are kept or broken comes later.
 - Socializing agents display a chat bubble above their sprites. Clicking opens
   a nearby popup with a summary; expanding reveals the complete conversation.
 - Jev may notice social moments, retrieve memories, summarize, or route cheap
@@ -243,25 +277,35 @@ another sprite family at first.
   expose one agent's private memories to another. Jev does not replace the
   agent's personal model or become mandatory for memory to work. With Jev off,
   the game still needs a functioning memory/retrieval path.
+- **Leaning toward (provisional): a lesson teaches a saved skill.** A skill,
+  such as farming or smithing, is saved for the learner and the lesson records
+  who taught it. In the first version a skill does not change what an agent is
+  able to do. Later, skills could speed up work or unlock advanced tools, but
+  that is not decided. Agents start with no skills, and an agent first gains a
+  skill by finishing that kind of work.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 
 ### Still to decide
 
-Conversation frequency and token/turn budgets, group-planning mechanics,
-interrupt/resume behavior, memory importance/retention rules, compaction
-triggers and fallback method without Jev, and Jev's exact role
-need implementation and playtesting. The proposed lifecycle is accepted as a
-direction, not proof that it will feel right in the finished game.
+Real token and turn budgets, conversation frequency beyond the provisional
+limits above, group-planning mechanics, interrupt/resume behavior, memory
+importance/retention rules, compaction triggers and fallback method without
+Jev, and Jev's exact role need implementation and playtesting. The budgets
+stay open until they are measured in play. The proposed lifecycle is accepted
+as a direction, not proof that it will feel right in the finished game.
 The September 29 external code review raised additional **questions, not
-decisions**: whether personality is fixed at creation or changes through
-experience; whether a model sees numeric needs or descriptive bands; how
-routine and dialogue budgets are split; whether each participant's own model
-speaks its own conversation turns; and whether spoken promises become tracked
-commitments whose fulfilment or breach can be observed. Resolve these against
-the accepted per-agent identity, truth, information sources and spending rules
-before specifying a conversation-call protocol. The review's proposed schemas
-and token settings are implementation options, not agreed game design.
+decisions**. On 30 September computment settled or deferred three of them:
+each participant's own model speaks its own conversation turns (agreed above);
+spoken promises are not tracked as commitments in the first version, so that
+question is deferred; and personality is chosen once and, provisionally, can
+change later only at moments the game names, with those moments and the cap
+tuned in playtests (see the agent rules above). Still open: whether a model
+sees numeric needs or descriptive bands, and how routine and dialogue budgets
+are split. Resolve these against the accepted per-agent identity, truth,
+information sources and spending rules before specifying a conversation-call
+protocol. The review's proposed schemas and token settings are implementation
+options, not agreed game design.
 
 ## Combat
 
@@ -271,7 +315,7 @@ and token settings are implementation options, not agreed game design.
   personal feuds, and organized war**. Hunting and sport/duels were not chosen
   in that discussion.
 - Combat can turn lethal, but agents should not be dying constantly. Personal
-  models choose intentions; the game rules resolves reach, movement,
+  models choose intentions; the game rules resolve reach, movement,
   timing, protection, injury, and outcomes. Health already exists in the
   prototype, but the integrated game **does not yet have a combat loop,
   weapons, armor, combat injuries, or combat AI**.

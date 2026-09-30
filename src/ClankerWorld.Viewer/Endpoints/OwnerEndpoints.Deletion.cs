@@ -59,7 +59,7 @@ internal static partial class OwnerEndpoints
                 {
                     return Results.Conflict(new { error = "The selection changed or is active. Reopen the list before deleting." });
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
                 {
                     // Do not claim success: the durable intent may have committed,
                     // but cleanup was interrupted. Repeating the same target is safe.
@@ -69,7 +69,7 @@ internal static partial class OwnerEndpoints
                 }
                 var complete = true;
                 try { stateFile.ReclaimUnreferencedHistory(); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
                 {
                     complete = false;
                     ManualWorldSaveTelemetry.DeletionPending(logger,

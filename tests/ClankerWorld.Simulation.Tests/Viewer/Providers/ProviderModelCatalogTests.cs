@@ -180,6 +180,40 @@ public sealed class ProviderModelCatalogTests
         Assert.Null((await catalog.ListAsync(new("openai", ApiKey: "retry-secret"), CancellationToken.None)).Error);
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("7")]
+    [InlineData("{\"data\":[null]}")]
+    [InlineData("{\"models\":[\"unexpected\"]}")]
+    public async Task MalformedListShapesKeepModelsUsableAndCanBeRetried(string body)
+    {
+        using var directory = new TemporaryDirectory();
+        var broken = true;
+        var handler = new ListHandler(_ => (HttpStatusCode.OK, broken ? body : OpenAiList));
+        var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(handler));
+        var action = new OwnerProviderModelListAction("openai", ApiKey: "shape-secret");
+        var result = await catalog.ListAsync(action, CancellationToken.None);
+        Assert.StartsWith("Couldn't check this key", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("shape-secret", result.Error, StringComparison.Ordinal);
+        Assert.All(result.Models, item => Assert.True(item.Available));
+        broken = false;
+        Assert.Null((await catalog.ListAsync(action, CancellationToken.None)).Error);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task UnknownLengthReplyStopsReadingAtTheBodyLimit()
+    {
+        using var directory = new TemporaryDirectory();
+        using var stream = new CountingReplyStream(new byte[10 * 1024 * 1024]);
+        var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(new ContentHandler(new StreamContent(stream))));
+        var result = await catalog.ListAsync(new("openai", ApiKey: "bounded-secret"), CancellationToken.None);
+        Assert.NotNull(result.Error);
+        Assert.All(result.Models, item => Assert.True(item.Available));
+        Assert.InRange(stream.BytesRead, 1, 2 * 1024 * 1024 + 8192);
+    }
+
     [Fact]
     public async Task OllamaFallsBackToTheOpenAiStyleListWhenTheNativeRouteIsMissing()
     {
@@ -244,6 +278,25 @@ public sealed class ProviderModelCatalogTests
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
+        }
+    }
+
+    private sealed class ContentHandler(HttpContent content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }
+
+    private sealed class CountingReplyStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override bool CanSeek => false;
+        public int BytesRead { get; private set; }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await base.ReadAsync(buffer, cancellationToken);
+            BytesRead += read;
+            return read;
         }
     }
 }

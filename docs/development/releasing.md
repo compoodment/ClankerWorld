@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Releasing
@@ -25,13 +25,30 @@ The current .NET version metadata comes from
 constant. See the [build reference](build-and-test.md) for the selected toolchain.
 A tagged release must report both its game version and source revision.
 
+## Matching client and host builds
+
+When an action's signed format changes, ship or deploy the matching host before
+distributing the client. A bundled local host and client must come from the
+same verified source revision. Record both revisions for a private deployment;
+a successful reconnect alone does not prove that New World or another changed
+action is compatible.
+
+Before distribution, use an approved test device and a disposable world to
+preview and create with the accepted Advanced settings at the real signed HTTP
+boundary. Verify an older host produces the update explanation, preserves the
+pairing and cannot receive a downgraded action. The New World client now requires
+the host's authenticated v2 action advertisement, including on hosts that
+already verified v2 before they advertised it. See [Device pairing](device-pairing.md#client-and-host-updates).
+
 ## Save and content compatibility
 
 The public version does **not** decide whether a saved world loads. The
 existing save/replay envelopes carry their own contract, simulation and schema
 versions; generator, clock, content-lock and asset versions are separate where
-relevant. Change each field only when its semantics change, and cover old-save
-handling, migration and replay in tests. A cosmetic game-version bump is not a
+relevant. Change each field only when its semantics change, and cover replay
+in tests. Once a release promises that older saves load, cover old-save
+handling and migration too; during alpha they are not required (see
+[Saves and replay](saves-and-replay.md)). A cosmetic game-version bump is not a
 save migration.
 
 Content packages have their own versions and compatibility/dependency rules.
@@ -54,8 +71,9 @@ Before publishing:
    `CHANGELOG.md` entries into a dated release section, leaving `Unreleased`.
 2. Run the applicable build, test, Godot-export and Windows playtest gates.
    Check a real player path, not only isolated simulation fixtures.
-3. If compatibility changed, verify migration, old-save handling, replay and
-   rollback from a matching backup.
+3. If compatibility changed, verify replay and rollback from a matching backup.
+   Also verify migration and old-save handling when the release promises that
+   older saves load.
 4. Merge the release changes through the [contribution review process](../../CONTRIBUTING.md#review-and-merge),
    then fetch and verify the intended commit on GitHub's `origin/main`.
 5. Create and push the annotated tag, then verify that GitHub resolves it to

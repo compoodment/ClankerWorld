@@ -180,7 +180,10 @@ internal static partial class OwnerEndpoints
                 return OwnerFailures.ToHttpResult(result.Failure);
             }
 
-            return Results.Ok(result.Value);
+            return Results.Ok(result.Value! with
+            {
+                SupportedActionPayloads = [OwnerHttpBinding.WorldCreationPayloadDomain],
+            });
         });
     }
 }

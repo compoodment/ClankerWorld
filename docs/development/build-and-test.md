@@ -49,7 +49,7 @@ lettering, Timber, is drawn in code in `UI/Theme/TimberFont.cs`.
 | C# behavior | Format the changed code and run relevant tests; include the full Release suite for changes crossing simulation, host or save boundaries. |
 | Godot scripts, scenes or UI | Run the Godot client check and relevant automated tests; inspect the affected controls in the game. |
 | Windows export or device storage | Run the Windows export check and relevant native Windows checks. Test the actual bundle on Windows when claiming player usability. |
-| Saves, events or compatibility | Include old-save handling, migration, replay and rollback checks described in [Saves and replay](saves-and-replay.md). |
+| Saves, events or compatibility | Include the replay and rollback checks described in [Saves and replay](saves-and-replay.md). During alpha, older saves need not keep loading, so no old-save or migration checks are needed; a save that cannot load must still be refused visibly and preserved. |
 | Release | Follow the applicable [release gate](releasing.md#release-gate), including real player-path checks. |
 
 The CI configuration in [.github/workflows/ci.yml](../../.github/workflows/ci.yml)

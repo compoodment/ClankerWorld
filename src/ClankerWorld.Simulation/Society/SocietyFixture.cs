@@ -689,8 +689,8 @@ public static partial class SocietyFixture
         DirectBarterProposal proposal)
     {
         Validate(checkpoint);
-        EnsureLivingParty(checkpoint, proposal.FirstPartyId);
-        EnsureLivingParty(checkpoint, proposal.SecondPartyId);
+        EnsureBarterParty(checkpoint, proposal.FirstPartyId);
+        EnsureBarterParty(checkpoint, proposal.SecondPartyId);
         var inventory = InventoryFixture.CreateDirectBarterOffer(checkpoint.Inventory, proposal);
         return Commit(checkpoint with { Inventory = inventory }, "barter_offer_created", proposal.Id, proposal.Id);
     }
@@ -1573,6 +1573,16 @@ public static partial class SocietyFixture
         if (checkpoint.GetInhabitant(id).Status != SocietyInhabitantStatus.Active)
         {
             throw new InvalidOperationException($"Inhabitant '{id}' is not active.");
+        }
+    }
+
+    private static void EnsureBarterParty(SocietyCheckpoint checkpoint, string id)
+    {
+        EnsureLivingParty(checkpoint, id);
+        var inhabitant = checkpoint.Inhabitants.FirstOrDefault(item => item.Id == id);
+        if (inhabitant is not null && inhabitant.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder))
+        {
+            throw new InvalidOperationException("Only adults and elders can participate in barter offers.");
         }
     }
 

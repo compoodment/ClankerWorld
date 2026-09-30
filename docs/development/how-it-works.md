@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -39,6 +39,9 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 - **Knowledge belongs to each agent.** The player's map and observations are
   not automatically agent knowledge. Preserve ownership, source, confidence
   and correction history. A belief can be wrong without changing world facts.
+  Long descendant identities remain intact in saved discovery provenance;
+  knowledge keys and model-facing discoverer references use stable hashes
+  only when the original identifier exceeds their size limits.
 - **Credentials are installation state.** Keep keys and device authority out
   of saves, exports, observations and telemetry. See
   [device pairing](device-pairing.md) for transport and access rules.
@@ -63,8 +66,8 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Recognized MustDo instructions complete only when their requested legal action
-actually progresses: acquiring/eating food or taking a travel step. An unrelated
-action, blocked movement or unavailable food leaves the instruction pending,
+actually progresses: acquiring food or orchard fruit, eating, or taking a travel
+step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
 including across reload. Travel completion here is one step, not a full-route
 goal; suggestive instructions retain their separate semantics.
 
@@ -103,6 +106,8 @@ invalid response values such as confidence outside 0–1, also completes with
 safe idle instead of repeatedly spending calls on the same decision. A choice
 that was offered but is no longer legal stays stale; request, provider and run
 identity checks still reject late replies without applying fallback.
+A reply for a different request cannot cancel the agent's current pending choice
+or replace its last accepted intention.
 No adapter can turn provider prose directly into a world mutation.
 Jev has a separate, smaller routine payload; it is not a persona/dialogue adapter.
 
@@ -136,9 +141,10 @@ not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
 `:cloud`, `-cloud` or `:latest` endings. If the key can't be checked, the whole
 list stays usable and the reason is shown. A new agent starts on the provider's
-default model when the key can use it. If the key can't use the chosen or
-default model, the picker selects nothing and asks the owner to choose, so no
-other model, possibly a costlier one, is chosen for them.
+default model when the key can use it. If the key can't use a new agent's
+starting model, the picker selects nothing and asks the owner to choose, so no
+other model, possibly a costlier one, is chosen for them. An existing or
+hand-picked model the key can't use stays shown, greyed, with the same request.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
@@ -155,7 +161,6 @@ writes do not increment the in-memory total or dispatch a model call. This does
 not promise directory-fsync power-loss durability or provider-invoice parity.
 
 ## Maps, movement and terrain
-
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply
@@ -184,10 +189,13 @@ Mountains are slower to cross and cannot be built on; peaks are impassable.
 Resources are placed in bounded 16×16 cells with surface/cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
-use the actor's foot-accessible terrain component.
-Immutable map connectivity is cached once per map; temporary occupancy remains
-a movement-time check. Project resource selection still uses accessibility
-from the original camp component. Boat access remains unfinished.
+use the actor's foot-accessible terrain component and skip sites whose current
+occupied routes cannot reach harvesting range. Adjacent food needs no route
+search. Candidate generation searches only when gathering or a food instruction
+needs a source, and stops at the first reachable site. Caregivers use the same
+selection. Immutable map connectivity is cached once per map; movement rechecks
+occupancy before each step. Project resources likewise use the actor's current
+position and reachable harvesting range. Boat access remains unfinished.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -249,10 +257,20 @@ access rules still apply. If no site is reachable, an existing project uses its
 blocked/reconsideration path rather than travelling toward an unreachable tile.
 
 Recipe preparation and production must use the same actor/building owner.
+Direct production requests use the same age restrictions as autonomous choices:
+only adults and elders may start workstation recipes or crops. A request for an
+infant, child or adolescent is refused before reserving inputs or changing jobs.
 Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+Barter choices and offer creation require both agents to be adults or elders.
+Infants, children and adolescents cannot receive an offer that reserves their
+belongings while they have no legal trade response. The society transaction
+checks age before reserving either party's stock. Household and organization
+parties keep their existing inventory rules. Previously saved offers retain
+their normal withdrawal and expiry behavior; loading does not rewrite them.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
@@ -293,6 +311,12 @@ metadata, never private prose or map contents. Logs are derived telemetry, never
 simulation authority or required save state. Observability tests must prove both
 useful signal and absence of representative secrets.
 
+Event descriptions resolve complete agent and Town IDs from the owner snapshot;
+colons inside those IDs are part of the identity. Food yields and Town membership
+fields are read separately. Existing entries use the current saved name, including
+deceased profiles. Hosted-decision and Town telemetry likewise keep complete IDs.
+These readers do not rewrite accepted event details or change save/replay formats.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished
@@ -330,5 +354,11 @@ finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the
 first opening can display them. Compatibility still comes from the host's
 checkpoint/history/configuration assessment; no compatibility cache or unchecked
-"compatible" shortcut was added. Client cancellation does not interrupt a host
+"compatible" shortcut was added. Open captures the chosen world's ID before
+pausing, so a later catalog refresh cannot change its target. Open, Create and
+Delete share the owner-action gate; selecting a different row cannot re-enable
+Open or Delete until the current action finishes. Cleanup checks the current
+selection rather than a row retained across an await.
+
+Client cancellation does not interrupt a host
 assessment that already holds its mutation lock.

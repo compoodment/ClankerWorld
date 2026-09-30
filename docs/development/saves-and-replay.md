@@ -24,6 +24,9 @@ before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.
 An interrupted catalog update is recovered against the active checkpoint before
 the server starts hosted services or accepts requests.
+A corrupt leftover checkpoint encountered during deletion keeps cleanup pending
+without preventing the healthy active world from starting. Unverified files and
+the deletion intent are preserved; later recovery can finish after the file is repaired.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
 
@@ -60,10 +63,24 @@ that recorded events reproduce its expected results and digests.
 - Validate externally loaded state and map identity before accepting it.
 - Reject unsupported, mismatched or corrupt data visibly; preserve the original
   file and valid current world instead of silently substituting content or keys.
-- Include old-save handling, migration and replay coverage when state, events,
-  schemas, generation or replay semantics change.
+- Include replay coverage when state, events, schemas, generation or replay
+  semantics change, so a save in the current format still loads and replays.
+- During alpha, older saves do not have to keep loading, and no migration or
+  old-save handling is written only to keep one working. The rule above still
+  applies: a save that cannot load is refused with a reason and kept. Finished
+  releases promise forward migration later, as described in
+  [Saves](../game-design/saves.md). Old-save code already in the repository
+  stays until it is removed; [issue #487](https://github.com/compoodment/ClankerWorld/issues/487)
+  audits it.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
+
+Checkpoint decoding enforces declared non-null members and required constructor
+fields before runtime validation. A missing society, cognition or inventory
+object is invalid data, not an unexpected null-reference fault. Compatibility
+assessment marks that inactive world incompatible while retaining healthy list
+entries. Selecting it fails before replacing the active world; the damaged file
+stays available for recovery. Optional fields retain their declared defaults.
 
 Signed pause, resume and rename retries persist the requested state before reporting
 success, including when the in-memory value already matches after a failed
@@ -146,6 +163,10 @@ Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
 
+Inventory lot splits leave all actively reserved stock in the original lot,
+including production and barter commitments. Only the unreserved remainder can
+move to the new lot; rejected splits leave state and event history unchanged.
+
 ## Checkpoints, history and backups
 
 The active recovery checkpoint is encoded and fsync-written after every advanced
@@ -158,6 +179,11 @@ same history archive. Overwriting a selected checkpoint retains a recovery copy;
 these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints. Updating autosave
 configuration trims only that configured world, including rotation off.
+
+Load and overwrite validate required manual-save metadata before creating a
+recovery backup or changing the active world. Malformed JSON, missing save
+records or invalid required fields return a controlled conflict and preserve
+the original files. The save list skips these same invalid entries.
 
 Manual overwrite first writes an immutable checkpoint generation, then
 atomically publishes its metadata pointer with the matching model assignments

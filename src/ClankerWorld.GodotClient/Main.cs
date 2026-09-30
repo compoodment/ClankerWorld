@@ -51,6 +51,7 @@ public partial class Main : Control
     private readonly LineEdit worldUrlInput = new();
     private readonly Button connectButton = new();
     private readonly Button pairAgainButton = new();
+    private readonly Label connectionStatusLabel = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();

@@ -31,7 +31,7 @@ automatic draft/merge blocker. Name any explicitly required pre-merge check. -->
 ## Saves and replay
 
 - [ ] Saved world state, events and replay behavior are unchanged.
-- [ ] Compatibility changes are covered by migration, old-save and replay checks.
+- [ ] Compatibility changes are covered by replay checks. During alpha, older saves need not keep loading; say below if one stops.
 - [ ] Only display or other derived information changes.
 
 Explain any compatibility or recovery impact:

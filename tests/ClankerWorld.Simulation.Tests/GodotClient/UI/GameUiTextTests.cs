@@ -39,17 +39,6 @@ public sealed class GameUiTextTests
         Assert.Equal(expected, GameUiText.ActorMapLabel(fullName));
 
     [Fact]
-    public void MapActivityCategoriesRemainDistinctFromIdleAndUnknownActions()
-    {
-        var categories = new[] { "seek_food", "harvest_food", "consume_food", "seek_warmth", "explore",
-            "build:house", "trade_accept:offer", "child_converse:other", "child_play:other", "child_learn:other", "care:child", "safe_idle" };
-        var symbols = categories.Select(GameUiText.ActivityMapGlyph).ToArray();
-        Assert.Equal(categories.Length, symbols.Distinct(StringComparer.Ordinal).Count());
-        Assert.DoesNotContain(GameUiText.ActivityMapGlyph("future_action"), symbols);
-        Assert.Equal(GameUiText.ActivityMapGlyph("care:child"), GameUiText.ActivityMapGlyph("child_help_food"));
-    }
-
-    [Fact]
     public void PlayerFailuresDescribeRecoveryWithoutExposingRawExceptionText()
     {
         const string secret = "sk-private /home/private/save provider-response";

@@ -28,6 +28,7 @@ public partial class ModelPicker : VBoxContainer
     private bool listed;
     private bool typing;
     private bool mustChoose;
+    private bool newAgent;
     private int request;
 
     public ModelPicker()
@@ -42,7 +43,7 @@ public partial class ModelPicker : VBoxContainer
 
         typed.PlaceholderText = "Model name";
         typed.Visible = false;
-        typed.TextChanged += _ => ModelChanged?.Invoke();
+        typed.TextChanged += _ => { newAgent = false; ModelChanged?.Invoke(); };
         AddChild(typed);
 
         problem.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -90,13 +91,16 @@ public partial class ModelPicker : VBoxContainer
 
     /// <summary>
     /// Shows a model as chosen, for example after the provider changes. A model
-    /// that isn't in the game's list is shown as a typed name.
+    /// that isn't in the game's list is shown as a typed name. For a
+    /// <paramref name="isNewAgent"/>, a starting model the key can't use is
+    /// cleared so the owner picks one; an existing agent's model stays shown.
     /// </summary>
-    public void SetModel(string model)
+    public void SetModel(string model, bool isNewAgent = false)
     {
         current = model.Trim();
         typing = false;
         typed.Text = current;
+        newAgent = isNewAgent;
         ChooseWhenEmpty();
         FollowList();
         AskWhenUnusable();
@@ -183,8 +187,9 @@ public partial class ModelPicker : VBoxContainer
             current = defaultModel;
     }
 
-    // A listed model the key can't use is never left chosen, and no other model
-    // is chosen in its place: the owner picks one.
+    // No other model is ever chosen in place of one the key can't use: the
+    // owner picks. A new agent's starting model is cleared so nothing costly is
+    // chosen for them; an existing or hand-picked model stays shown, greyed.
     private void AskWhenUnusable()
     {
         if (mustChoose)
@@ -193,10 +198,11 @@ public partial class ModelPicker : VBoxContainer
             error = null;
         }
         if (typing || models.Count == 0) return;
-        var unusable = models.Any(item => item.Model == current && !item.Available) ? current :
+        var currentUnusable = models.Any(item => item.Model == current && !item.Available);
+        var unusable = currentUnusable ? current :
             current.Length == 0 && models.Any(item => item.Model == defaultModel) ? defaultModel : null;
         if (unusable is null && current.Length > 0) return;
-        current = string.Empty;
+        if (!currentUnusable || newAgent) current = string.Empty;
         mustChoose = true;
         error = unusable is null ? "Choose a model." : $"This key can't use {unusable}. Choose a model it can use.";
     }
@@ -269,6 +275,8 @@ public partial class ModelPicker : VBoxContainer
 
     private void OnItemSelected(long index)
     {
+        // A model the owner picks by hand is theirs, and stays shown later.
+        newAgent = false;
         var id = choice.GetItemMetadata((int)index).AsString();
         if (mustChoose && id.Length > 0)
         {
