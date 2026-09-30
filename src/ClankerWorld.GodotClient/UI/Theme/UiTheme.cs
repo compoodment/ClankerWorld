@@ -559,8 +559,8 @@ public static class UiTheme
         ExpandMarginBottom = 2,
     };
 
-    /// <summary>Padding around an icon button's 12-pixel glyph, so the button is a 28-pixel square.</summary>
-    public const int IconButtonMargin = 8;
+    /// <summary>Padding around an icon button's 12-pixel glyph, so the button is a 32-pixel square.</summary>
+    public const int IconButtonMargin = 10;
 
     /// <summary>A raised pixel button: dark outline with clipped corners, lit top-left, shaded bottom-right.</summary>
     private static StyleBoxTexture Bevel(Color face, Color light, Color dark, Color edge, int contentVertical = 7, int contentHorizontal = 12)

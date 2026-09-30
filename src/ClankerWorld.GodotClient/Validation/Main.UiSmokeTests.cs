@@ -155,9 +155,10 @@ public partial class Main
         if (stray.Length > 0)
             throw new InvalidOperationException($"Close and back must use the shared icon buttons: {string.Join(", ", stray)}");
         var closes = buttons.Where(button => ShowsGlyph(button, PixelGlyph.Close) || ShowsGlyph(button, PixelGlyph.Back)).ToArray();
-        if (closes.Length < 8 || closes.Any(button => button.GetCombinedMinimumSize() != new Vector2(28, 28) ||
+        var square = new Vector2(PixelIcons.Grid + 2 * UiTheme.IconButtonMargin, PixelIcons.Grid + 2 * UiTheme.IconButtonMargin);
+        if (closes.Length < 8 || closes.Any(button => button.GetCombinedMinimumSize() != square ||
                 button.SizeFlagsVertical != Control.SizeFlags.ShrinkCenter || button.SizeFlagsHorizontal.HasFlag(Control.SizeFlags.Expand)))
-            throw new InvalidOperationException($"Close and back buttons must share one 28-pixel square: {string.Join(", ", closes.Select(button => button.GetCombinedMinimumSize()))}");
+            throw new InvalidOperationException($"Close and back buttons must share one {square.X}-pixel square: {string.Join(", ", closes.Select(button => button.GetCombinedMinimumSize()))}");
         Button[] choices = [mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton, mainMenuSettingsButton, quitGameButton,
             menuResumeButton, menuSaveWorldButton, settingsButton, modLibraryButton, menuQuitToMainButton];
         if (choices.Any(button => button.GetThemeFont("font") != UiFonts.Headings || button.GetThemeFontSize("font_size") != UiFonts.Heading ||
