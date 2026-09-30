@@ -33,11 +33,19 @@ public sealed class PrivateWorldAtomicTickTests
         var pending = runtime.AdvanceOneTickAsync().AsTask();
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await Task.Run(runtime.Pause).WaitAsync(TimeSpan.FromSeconds(3));
+        runtime.Pause();
+        Assert.Single(runtime.ExportState().Events, item => item.Kind == "paused");
         var paused = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
         provider.Release.TrySetResult(true);
         Assert.False((await pending).Advanced);
         Assert.Equal(paused, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
         Assert.Equal(0, runtime.WorldTick);
+        var pausedTick = await runtime.AdvanceOneTickAsync();
+        Assert.False(pausedTick.Advanced);
+        Assert.Equal("paused", pausedTick.Outcome);
+        Assert.Equal(paused, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        Assert.False(runtime.StageStarterContent());
+        Assert.Equal(paused, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
         runtime.Resume();
         Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
     }

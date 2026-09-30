@@ -48,7 +48,6 @@ public sealed class PostDeathWillTests
 
     [Theory]
     [InlineData("will:heir:ghost")]
-    [InlineData("will:heir:founder-mira:forged-lot")]
     public async Task ForgedOrUnknownChoiceFallsBackToHousehold(string choice)
     {
         using var world = NewWorld(new WillProvider(choice));

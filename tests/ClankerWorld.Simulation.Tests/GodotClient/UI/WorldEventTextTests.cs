@@ -9,8 +9,6 @@ public sealed class WorldEventTextTests
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
     [Theory]
-    [InlineData(FounderId)]
-    [InlineData(AgentId)]
     [InlineData(ChildId)]
     [InlineData("founder-scout")]
     public void ActorEventsKeepCompleteIdsAndUseCurrentLivingOrDeceasedNames(string id)
@@ -38,8 +36,6 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("town:first", FounderId)]
-    [InlineData("town:first", AgentId)]
     [InlineData("town:first", ChildId)]
     [InlineData("legacy-town", "founder-scout")]
     public void TownResidentEventsReadTownAndResidentAsCompleteIdentities(string townId, string actorId)

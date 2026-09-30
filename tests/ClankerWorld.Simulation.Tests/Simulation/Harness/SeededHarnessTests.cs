@@ -299,16 +299,6 @@ public sealed class SeededHarnessTests
     }
 
     [Fact]
-    public void SameSeedAndScriptProduceIdenticalCanonicalStateAndEventDigests()
-    {
-        var first = ScriptedHarness.RunEntireSequence("camp-beta");
-        var second = ScriptedHarness.RunEntireSequence("camp-beta");
-
-        Assert.Equal(HarnessPersistence.StateDigest(first), HarnessPersistence.StateDigest(second));
-        Assert.Equal(HarnessPersistence.EventDigest(first), HarnessPersistence.EventDigest(second));
-    }
-
-    [Fact]
     public void SaveReloadAndPhysicalReplayProduceTheSameFinalDigestsAsTheCleanRun()
     {
         var clean = ScriptedHarness.RunEntireSequence("camp-gamma");

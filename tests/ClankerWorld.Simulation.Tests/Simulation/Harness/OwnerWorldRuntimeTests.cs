@@ -23,28 +23,6 @@ public sealed class OwnerWorldRuntimeTests
     }
 
     [Fact]
-    public void ValidPausedBatchIsAtomicAndChangesOnlyTheCurrentTopologyDigest()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        var before = runtime.Capture();
-        var water = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
-        Assert.True(runtime.Pause());
-
-        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
-            "turn-water-into-mountain",
-            [new SetTerrainOperation(water, TerrainKind.Mountain)]));
-        var after = runtime.Capture();
-
-        Assert.True(receipt.Applied, receipt.Failure);
-        Assert.Equal(before.Snapshot.InitialMapManifestDigest, after.Snapshot.InitialMapManifestDigest);
-        Assert.Equal(before.Snapshot.World.Identity.InitialMapManifestDigest, after.Snapshot.InitialMapManifestDigest);
-        Assert.NotEqual(before.Snapshot.CurrentMapManifestDigest, after.Snapshot.CurrentMapManifestDigest);
-        Assert.Equal(before.Snapshot.TopologyRevision + 1, after.Snapshot.TopologyRevision);
-        Assert.Equal(before.Snapshot.World.Map.ManifestDigest, after.Snapshot.World.Map.ManifestDigest);
-        Assert.Equal(TerrainKind.Mountain, after.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
-    }
-
-    [Fact]
     public void OwnerCannotAuthorABuildingOnMountainGround()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");

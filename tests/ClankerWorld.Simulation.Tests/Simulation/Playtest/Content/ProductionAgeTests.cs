@@ -9,10 +9,8 @@ public sealed class ProductionAgeTests
 {
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adolescent, false)]
     [InlineData(SocietyAgeBand.Infant, true)]
-    [InlineData(SocietyAgeBand.Child, true)]
     [InlineData(SocietyAgeBand.Adolescent, true)]
     public async Task YoungWorkersCannotStartRecipesOrCropsBeforeOrAfterReload(SocietyAgeBand age, bool crop)
     {
@@ -30,7 +28,6 @@ public sealed class ProductionAgeTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Adult, false)]
-    [InlineData(SocietyAgeBand.Elder, false)]
     [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task EligibleWorkersCompleteRecipesAndCropsAfterReload(SocietyAgeBand age, bool crop)

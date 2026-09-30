@@ -237,6 +237,10 @@ public sealed partial class ViewerHttpTests
         Assert.True(authoringReceipt!.Applied, authoringReceipt.Failure);
         Assert.NotEqual(beforeAuthoring.Snapshot.CurrentMapManifestDigest, afterAuthoring.Snapshot.CurrentMapManifestDigest);
         Assert.Equal(beforeAuthoring.Snapshot.InitialMapManifestDigest, afterAuthoring.Snapshot.InitialMapManifestDigest);
+        Assert.Equal(beforeAuthoring.Snapshot.World.Identity.InitialMapManifestDigest, afterAuthoring.Snapshot.InitialMapManifestDigest);
+        Assert.Equal(beforeAuthoring.Snapshot.TopologyRevision + 1, afterAuthoring.Snapshot.TopologyRevision);
+        Assert.Equal(beforeAuthoring.Snapshot.World.Map.ManifestDigest, afterAuthoring.Snapshot.World.Map.ManifestDigest);
+        Assert.Equal(TerrainKind.Mountain, afterAuthoring.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
         var queued = Assert.Single(afterAuthoring.Snapshot.Instructions);
         Assert.Equal($"owner-device:{pairing.DeviceId}", queued.IssuerId);
         Assert.Contains(

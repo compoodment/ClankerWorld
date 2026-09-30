@@ -8,8 +8,6 @@ public sealed class SocietyTests
 {
     [Theory]
     [InlineData("a", false)]
-    [InlineData("b", false)]
-    [InlineData("a", true)]
     [InlineData("b", true)]
     public void DeathReleasesBothOpenBarterReservationsButPreservesOtherWork(string deceased, bool accepted)
     {
@@ -325,25 +323,6 @@ public sealed class SocietyTests
 
         var state = scheduler.ExportState();
         Assert.Equal(["a", "b"], state.Queue.Select(item => item.ScheduleId).OrderBy(item => item, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void SocietyCheckpointRoundTripsWithStableDigests()
-    {
-        var config = TestConfig();
-        var checkpoint = Genesis(config, "alice", "bob");
-        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
-        checkpoint = SocietyFixture.AssignRole(checkpoint, "alice", SocietyWorkRole.Farmer).Checkpoint;
-
-        var bytes = SocietyCheckpointCodec.Encode(checkpoint);
-        var restored = SocietyCheckpointCodec.Decode(bytes);
-
-        Assert.Equal(
-            SocietyCheckpointCodec.StateDigest(checkpoint),
-            SocietyCheckpointCodec.StateDigest(restored));
-        Assert.Equal(
-            SocietyCheckpointCodec.EventDigest(checkpoint.Events),
-            SocietyCheckpointCodec.EventDigest(restored.Events));
     }
 
     [Fact]

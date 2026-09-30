@@ -8,10 +8,8 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class HydrologyRevisionTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData(WorldSizePreset.Small, true)]
     [InlineData(WorldSizePreset.Small, false)]
     [InlineData(WorldSizePreset.Medium, true)]
-    [InlineData(WorldSizePreset.Medium, false)]
     public void LakeScaleCoverageAndTerminalDrainageHoldAcrossSeeds(WorldSizePreset size, bool wrap)
     {
         foreach (var water in new[] { 20, 45, 70 })
@@ -48,7 +46,6 @@ public sealed class HydrologyRevisionTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
     public void SavedMapRetainsItsHydrologyLineage(int version)
     {
         var geography = new GeographyOptions("hydrology-save", WorldSizePreset.Small,

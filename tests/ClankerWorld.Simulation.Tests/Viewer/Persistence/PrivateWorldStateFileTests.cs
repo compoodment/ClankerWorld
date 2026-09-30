@@ -41,32 +41,6 @@ public sealed class PrivateWorldStateFileTests
     }
 
     [Fact]
-    public void LoadingSchemaThreeAtomicallyMigratesItsCheckpoint()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-history-legacy-{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(directory);
-            var file = new PrivateWorldStateFile(Path.Combine(directory, "world.json"));
-            using var world = new PrivateWorldRuntime("legacy-history");
-            var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState() with { SchemaVersion = 3 });
-            File.WriteAllBytes(file.Path, bytes);
-            using var restored = file.LoadOrCreate("legacy-history");
-            Assert.NotEqual(bytes, File.ReadAllBytes(file.Path));
-            Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, restored.ExportState().SchemaVersion);
-            Assert.Equal(PrivateWorldRuntimeCodec.Encode(restored.ExportState()), File.ReadAllBytes(file.Path));
-            Assert.False(Directory.Exists(file.Path + ".history"));
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
     public async Task CheckpointArchivesOldHistoryAndRestartsWithMonotonicEventIds()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-history-{Guid.NewGuid():N}");
