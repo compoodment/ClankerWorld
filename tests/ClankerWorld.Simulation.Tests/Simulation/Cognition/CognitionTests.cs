@@ -194,7 +194,7 @@ public sealed class CognitionTests
                 SourceAgentId: "friend", SourceEventId: 9, IsCorrected: true,
                 ImportanceBasisPoints: 7_500, ImportanceConfidenceBasisPoints: 8_200)],
             Self: new CognitionSelfContext("actor-scout", "Aster Vale", "Adult", "Curious", "Explore",
-                "household:one", 4_000, 1_000, "I remember the path."));
+                "household:one", 4_000, 1_000, "I remember the path.", "Aster's household", "First Town"));
         var request = new CognitionDecisionRequest("cognition-openai-test", 2, observation);
 
         var response = await provider.DecideAsync(request);
@@ -240,7 +240,11 @@ public sealed class CognitionTests
         Assert.Equal(4_200, memory.GetProperty("confidence_basis_points").GetInt32());
         Assert.Equal(9, memory.GetProperty("source_event_id").GetInt64());
         Assert.True(memory.GetProperty("is_corrected").GetBoolean());
-        Assert.Equal(7_500, memory.GetProperty("jev_importance_basis_points").GetInt32());
+        Assert.False(memory.TryGetProperty("jev_importance_basis_points", out _));
+        Assert.False(memory.TryGetProperty("jev_importance_confidence_basis_points", out _));
+        Assert.Equal("Aster's household", self.GetProperty("household").GetString());
+        Assert.Equal("First Town", self.GetProperty("town").GetString());
+        Assert.False(self.TryGetProperty("household_id", out _));
         Assert.Equal("test-model", response.Usage?.ModelId);
         Assert.Equal(44, response.Usage?.InputTokens);
         Assert.Equal(9, response.Usage?.OutputTokens);

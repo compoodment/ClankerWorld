@@ -29,7 +29,8 @@ public sealed record CognitionCandidate(
     string Id,
     string Description,
     int DeterministicPriority = 0,
-    string? DestinationId = null)
+    string? DestinationId = null,
+    string? DestinationName = null)
 {
     public void Validate()
     {
@@ -99,7 +100,8 @@ public sealed record CognitionKnowledgeFact(
 /// <summary>Actor-owned context only; absent survival data remains unknown, not invented.</summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
-    string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought);
+    string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
+    string? HouseholdName = null, string? TownName = null);
 
 /// <summary>
 /// Compact, provider-neutral state supplied to a decision provider. It is an
@@ -140,6 +142,7 @@ public sealed record InhabitantObservation(
             self.Personality is null || self.Personality.Length > 256 ||
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
+            self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -510,15 +513,14 @@ public sealed class JevDecisionProvider : IDecisionProvider
             new
             {
                 agent_id = request.Observation.InhabitantId,
-                world_tick = request.Observation.WorldTick,
-                run_epoch = request.Observation.RunEpoch,
-                decision_generation = request.Observation.DecisionGeneration,
                 hunger_basis_points = request.Observation.HungerBasisPoints,
+                household = request.Observation.Self?.HouseholdName,
+                town = request.Observation.Self?.TownName,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
                     description = candidate.Description,
-                    destination_id = candidate.DestinationId,
+                    destination = candidate.DestinationName,
                 }).ToArray(),
                 memory_compaction_candidates = (request.Observation.MemoryCompactionCandidates ?? [])
                     .Select((candidate, index) => new
@@ -748,7 +750,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 {
                     role = "system",
                     content = "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
-                        "Self context is your saved identity and condition, not other inhabitants’ private information. " +
+                        "Self context is your saved identity and condition, not other agents' private information. " +
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
                         "Return JSON only, with fields " +
@@ -764,8 +766,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Retrieved memories belong only to this actor. They are remembered experiences or private beliefs, " +
                         "not authoritative current facts; preserve any provenance and confidence exactly as labels, and do not " +
                         "assume another actor knows this information. Confidence values are basis points out of 10000; " +
-                        "a corrected belief is superseded history, not the current account. Jev importance confidence is " +
-                        "confidence in retrieval salience, not in the belief itself. A referenced world event does not itself prove a belief. " +
+                        "a corrected belief is superseded history, not the current account. A referenced world event does not itself prove a belief. " +
                         "Known map facts, when present, are bounded terrain/resource notes this actor has learned; " +
                         "other agents may know different places and these notes are not a complete world map. " +
                         "This is dialogue-like fiction, not an explanation of your reasoning. Do not include reasoning.",
@@ -782,7 +783,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         {
                             name = self.Name, life_stage = self.LifeStage,
                             personality = self.Personality, aspiration = self.Aspiration,
-                            household_id = self.HouseholdId,
+                            household = self.HouseholdName,
+                            town = self.TownName,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -791,7 +793,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         {
                             id = candidate.Id,
                             description = candidate.Description,
-                            destination_id = candidate.DestinationId,
+                            destination = candidate.DestinationName,
                         }).ToArray(),
                         retrieved_memories = request.Observation.RetrievedMemories?.Select(memory => new
                         {
@@ -805,8 +807,6 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             source_agent_id = memory.SourceAgentId,
                             source_event_id = memory.SourceEventId,
                             is_corrected = memory.IsCorrected,
-                            jev_importance_basis_points = memory.ImportanceBasisPoints,
-                            jev_importance_confidence_basis_points = memory.ImportanceConfidenceBasisPoints,
                         }).ToArray(),
                         known_map_facts = request.Observation.KnownMapFacts?.Select(fact => new
                         {
