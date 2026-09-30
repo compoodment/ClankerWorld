@@ -122,9 +122,10 @@ public sealed record OwnerFirstTownLayoutAction(int X, int Y);
 public sealed record OwnerFirstTownLayoutReceipt(int X, int Y, int Buildings, int RoadTiles);
 
 public sealed record OwnerAgentPlacementAction(
-    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition,
+    string? ExpectedHouseholdId, string? ExpectedTownId);
 
-public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId);
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId, string? TownId = null);
 
 public sealed record OwnerAgentRenameAction(string AgentId, string Name);
 
@@ -231,6 +232,7 @@ public static class OwnerHttpBinding
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -384,10 +386,12 @@ public static class OwnerHttpBinding
         var cognition = ProviderConfigurationPayload(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 

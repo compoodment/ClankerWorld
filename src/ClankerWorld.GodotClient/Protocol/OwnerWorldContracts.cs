@@ -438,9 +438,10 @@ public sealed record OwnerFirstTownLayoutAction(int X, int Y);
 public sealed record OwnerFirstTownLayoutReceipt(int X, int Y, int Buildings, int RoadTiles);
 
 public sealed record OwnerAgentPlacementAction(
-    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition,
+    string? ExpectedHouseholdId, string? ExpectedTownId);
 
-public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId);
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId, string? TownId = null);
 
 public sealed record OwnerAgentRenameAction(string AgentId, string Name);
 
