@@ -167,7 +167,9 @@ public sealed class OwnerWorldApi
         return pairing.SendSignedActionAsync<OwnerControlAction, WorldCatalogSnapshot>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldList,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-worlds"),
-            action, deviceKey, cancellationToken);
+            // Listing checks every checkpoint. A cold catalog can take longer
+            // than an ordinary control action; Back still cancels this request.
+            action, deviceKey, cancellationToken, maximumDuration: TimeSpan.FromSeconds(60));
     }
 
     public Task<CatalogWorld> CreateWorldAsync(
