@@ -98,6 +98,7 @@ public sealed record SeededMap(
     // record equality and could be copied into a `with` map with new tiles.
     private static readonly ConditionalWeakTable<SeededMap, byte[]> TerrainIndexes = new();
     private static readonly ConditionalWeakTable<SeededMap, HashSet<GridPoint>> CampReachability = new();
+    private static readonly ConditionalWeakTable<SeededMap, bool[]> HillMasks = new();
 
     public bool Contains(GridPoint point) =>
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
@@ -206,6 +207,19 @@ public sealed record SeededMap(
         ? (SurfaceKind)value : null;
     public VegetationCover? VegetationAt(GridPoint point) => LayerAt(VegetationKinds, point) is { } value
         ? (VegetationCover)value : null;
+
+    /// <summary>
+    /// Whether the tile lies in the hill band at a mountain's base. Hills are a
+    /// visual layer: they walk and build like the ground beneath them. Maps
+    /// without elevation and water layers have no hills.
+    /// </summary>
+    public bool IsHillAt(GridPoint point)
+    {
+        if (!Contains(point) || ElevationLevels?.Length != Width * Height ||
+            HydrologyKinds?.Length != Width * Height) return false;
+        return HillMasks.GetValue(this, static map => TerrainPlacementRules.ClassifyHills(
+            map.ElevationLevels!, map.HydrologyKinds!, map.Width, map.Height, map.WrapsEastWest))[point.Y * Width + point.X];
+    }
 
     public TerrainKind? TerrainKindAt(GridPoint point)
     {
@@ -477,12 +491,16 @@ public static class GeneratedCampMapGenerator
         var elevationLevels = new byte[tiles.Length];
         var hydrologyKinds = new byte[tiles.Length];
         var surfaceKinds = new byte[tiles.Length];
-        var legacySurfaceKinds = new byte[tiles.Length];
         var vegetationKinds = new byte[tiles.Length];
+        var forestPotential = new bool[tiles.Length];
+        var forestRainfall = options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 };
+        // Pass 1, elevation and water, comes from the geography. The flattened
+        // terrain summary and the forest potential are read from it directly.
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
                 var tile = geography.At(x, y);
+                var forested = tile.Rainfall >= forestRainfall && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate;
                 var kind = tile.Water switch
                 {
                     WaterKind.Ocean => TerrainKind.Ocean,
@@ -492,7 +510,7 @@ public static class GeneratedCampMapGenerator
                     _ when tile.Elevation >= SeededMap.MountainElevationThreshold => TerrainKind.Mountain,
                     _ when tile.Climate is ClimateZone.Polar or ClimateZone.Cold => TerrainKind.Snow,
                     _ when tile.Climate == ClimateZone.Dry => TerrainKind.Sand,
-                    _ when tile.Rainfall >= (options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 }) && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate => TerrainKind.Forest,
+                    _ when forested => TerrainKind.Forest,
                     _ => TerrainKind.Meadow,
                 };
                 var index = y * width + x;
@@ -500,31 +518,28 @@ public static class GeneratedCampMapGenerator
                 climateZones[index] = (byte)tile.Climate;
                 elevationLevels[index] = tile.Elevation;
                 hydrologyKinds[index] = (byte)tile.Water;
-                legacySurfaceKinds[index] = (byte)(tile.Water != WaterKind.Land ? SurfaceKind.Water :
-                    tile.Elevation >= SeededMap.MountainElevationThreshold ? SurfaceKind.Rock :
-                    tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? SurfaceKind.Snow :
-                    tile.Climate == ClimateZone.Dry ? SurfaceKind.Sand : SurfaceKind.Grass);
-                // Final surface classification is a separate pass because
-                // shore/beach choices depend on neighboring hydrology.
-                surfaceKinds[index] = legacySurfaceKinds[index];
-                vegetationKinds[index] = (byte)(tile.Water != WaterKind.Land ||
-                    tile.Elevation >= SeededMap.MountainElevationThreshold
-                    ? VegetationCover.None :
-                    tile.Climate == ClimateZone.Dry && tile.Rainfall <= 46 && tile.Temperature >= 92
-                        ? VegetationCover.Cactus :
-                    tile.Climate == ClimateZone.Dry ? VegetationCover.Scrub :
-                    tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? VegetationCover.Tundra :
-                    tile.Rainfall >= (options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 }) && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate
-                        ? VegetationCover.Forest : VegetationCover.Grass);
+                forestPotential[index] = kind == TerrainKind.Forest;
                 tiles[index] = new TerrainTile(new GridPoint(x, y), kind);
             }
 
-        ClassifySurfaces(geography, surfaceKinds, vegetationKinds, width, height, options.WrapEastWest);
-
+        // Pass 2, surface: sand comes only from the explicit desert and beach
+        // rules, never from simply touching a river or lake.
+        ClassifySurfaces(options, geography, surfaceKinds, width, height);
+        var template = BaseCampMapGenerator.Generate(options.Seed, includeLegacyBedroll);
         var origin = legacyLayout
             ? FindLegacyCampOrigin(kinds, width, height)
-            : FindCampOrigin(hydrologyKinds, elevationLevels, legacySurfaceKinds, width, height);
-        var template = BaseCampMapGenerator.Generate(options.Seed, includeLegacyBedroll);
+            : FindCampOrigin(hydrologyKinds, elevationLevels, surfaceKinds, width, height,
+                template.Resources.Select(item => item.Position).ToArray());
+        // Forest floor marks the groves that object placement fills with trees,
+        // outside the starting clearing so the first Town keeps open ground.
+        if (!legacyLayout)
+            MarkForestGroves(options, surfaceKinds, forestPotential, origin, width, height);
+        // Pass 3, vegetation eligibility: cover follows climate and the surface
+        // beneath it, so an open beach carries no forest or grass cover.
+        ClassifyVegetation(geography, surfaceKinds, forestPotential, vegetationKinds, width, height);
+
+        // Pass 4, object placement, checks every tree and plant against the
+        // surface and vegetation chosen above.
         var objects = (retainLegacyCamp ? template.CampObjects : []).Select(item => item with
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
@@ -541,24 +556,28 @@ public static class GeneratedCampMapGenerator
                 _ => null,
             },
         }).ToArray();
+        // Grove trees come straight after the starter sites so every
+        // forest-floor tile gets its tree before other sites use the budget.
+        List<MapResource> groves = legacyLayout ? [] : PlaceGroveTrees(options, geography, surfaceKinds,
+            width, objects, resources);
+        var placed = resources.Concat(groves).ToArray();
         var distributed = legacyLayout
             ? GenerateLegacyResourceSites(options, kinds, width, height, objects, resources)
             : GenerateResourceSites(options, geography, hydrologyKinds, elevationLevels,
-            legacySurfaceKinds, vegetationKinds, objects, resources);
-        List<MapResource> trees = legacyLayout ? [] : GenerateTrees(options, geography, vegetationKinds, width, height, objects,
-            resources.Concat(distributed).ToArray());
-        List<MapResource> orchards = legacyLayout ? [] : GenerateOrchards(options, geography, legacySurfaceKinds, vegetationKinds, width, height, objects,
-            resources.Concat(distributed).Concat(trees).ToArray());
-        List<MapResource> geology = [];
+            surfaceKinds, vegetationKinds, objects, placed);
+        // Rare deposits come before the scattered filler trees so that a
+        // forested chunk cannot crowd out the map's only iron or gold.
+        List<MapResource> geology = legacyLayout ? [] : GenerateGeologySites(options, geography, objects,
+            placed.Concat(distributed).ToArray());
+        List<MapResource> trees = legacyLayout ? [] : GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
+            width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
+        List<MapResource> orchards = legacyLayout ? [] : GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
+            placed.Concat(distributed).Concat(geology).Concat(trees).ToArray());
         if (!legacyLayout)
-        {
-            geology = GenerateGeologySites(options, geography, objects,
-                resources.Concat(distributed).Concat(trees).Concat(orchards).ToArray());
             MarkFertileSoilSites(surfaceKinds,
-                resources.Concat(distributed).Concat(trees).Concat(orchards).Concat(geology), width, height);
-        }
+                placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards), width, height);
         var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
-            resources.Concat(distributed).Concat(trees).Concat(orchards).Concat(geology).ToArray(), string.Empty)
+            placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards).ToArray(), string.Empty)
         {
             ClimateZones = climateZones,
             ElevationLevels = elevationLevels,
@@ -657,49 +676,104 @@ public static class GeneratedCampMapGenerator
         return true;
     }
 
-    private static void ClassifySurfaces(GeneratedGeography geography, byte[] surfaces, byte[] vegetation,
-        int width, int height, bool wrap)
+    private static void ClassifySurfaces(GeographyOptions options, GeneratedGeography geography, byte[] surfaces,
+        int width, int height)
+    {
+        // Beaches form in stretches along the ocean rather than outlining
+        // every shore. Rivers and lakes keep grass banks.
+        var beach = GeographyGenerator.LayerNoise(options.Seed, "beach", TerrainPlacementRules.BeachNoiseFrequency,
+            width, options.WrapEastWest);
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var tile = geography.At(x, y);
+                surfaces[y * width + x] = (byte)(
+                    tile.Water != WaterKind.Land ? SurfaceKind.Water :
+                    tile.Elevation >= SeededMap.MountainElevationThreshold ? SurfaceKind.Rock :
+                    tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? SurfaceKind.Snow :
+                    tile.Climate == ClimateZone.Dry && tile.Rainfall <= TerrainPlacementRules.DesertMaximumRainfall
+                        ? SurfaceKind.Sand :
+                    tile.Elevation < TerrainPlacementRules.BeachMaximumElevation &&
+                        HasCardinalNeighbor(geography, x, y, options.WrapEastWest, water => water == WaterKind.Ocean) &&
+                        beach(x, y) >= TerrainPlacementRules.BeachNoiseThreshold ? SurfaceKind.Sand :
+                    tile.Climate == ClimateZone.Dry ? SurfaceKind.DryScrub :
+                    // Forest floor is marked later, only where a grove's trees
+                    // will stand. FertileSoil is assigned only at a saved
+                    // fertile-land site; rainfall is not a fertility model.
+                    SurfaceKind.Grass);
+            }
+    }
+
+    private static void MarkForestGroves(GeographyOptions options, byte[] surfaces, bool[] forestPotential,
+        GridPoint camp, int width, int height)
+    {
+        var grove = GeographyGenerator.LayerNoise(options.Seed, "forest-grove", TerrainPlacementRules.GroveNoiseFrequency,
+            width, options.WrapEastWest);
+        var columns = (width + GeographyGenerator.ChunkSize - 1) / GeographyGenerator.ChunkSize;
+        var rows = (height + GeographyGenerator.ChunkSize - 1) / GeographyGenerator.ChunkSize;
+        var candidates = new List<(float Score, int Index)>[columns * rows];
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var index = y * width + x;
+                if (!forestPotential[index] || surfaces[index] != (byte)SurfaceKind.Grass ||
+                    x >= camp.X && x < camp.X + CampWidth && y >= camp.Y && y < camp.Y + CampHeight)
+                    continue;
+                var score = grove(x, y);
+                if (score < TerrainPlacementRules.GroveNoiseThreshold) continue;
+                var chunk = y / GeographyGenerator.ChunkSize * columns + x / GeographyGenerator.ChunkSize;
+                (candidates[chunk] ??= []).Add((score, index));
+            }
+        // The strongest grove cores in each chunk become forest floor, capped
+        // so that each one can hold a tree within the chunk resource budget.
+        foreach (var chunk in candidates)
+            if (chunk is not null)
+                foreach (var (_, index) in chunk.OrderByDescending(item => item.Score).ThenBy(item => item.Index)
+                             .Take(TerrainPlacementRules.MaximumForestFloorTilesPerChunk))
+                    surfaces[index] = (byte)SurfaceKind.ForestFloor;
+    }
+
+    private static void ClassifyVegetation(GeneratedGeography geography, byte[] surfaces, bool[] forestPotential,
+        byte[] vegetation, int width, int height)
     {
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
                 var index = y * width + x;
                 var tile = geography.At(x, y);
-                if (tile.Water != WaterKind.Land)
-                {
-                    surfaces[index] = (byte)SurfaceKind.Water;
-                    continue;
-                }
-                if (tile.Elevation >= SeededMap.MountainElevationThreshold)
-                {
-                    surfaces[index] = (byte)SurfaceKind.Rock;
-                    continue;
-                }
-                if (tile.Climate is ClimateZone.Polar or ClimateZone.Cold)
-                {
-                    surfaces[index] = (byte)SurfaceKind.Snow;
-                    continue;
-                }
-                if (IsAdjacentToWater(geography, x, y, wrap) && tile.Elevation < 175)
-                {
-                    surfaces[index] = (byte)SurfaceKind.Sand;
-                    continue;
-                }
-                if (tile.Climate == ClimateZone.Dry)
-                {
-                    surfaces[index] = (byte)(tile.Rainfall <= 42
-                        ? SurfaceKind.Sand : SurfaceKind.DryScrub);
-                    continue;
-                }
-                if (vegetation[index] == (byte)VegetationCover.Forest && tile.Rainfall >= 185)
-                {
-                    surfaces[index] = (byte)SurfaceKind.ForestFloor;
-                    continue;
-                }
-                // FertileSoil is assigned only at a saved fertile-land site;
-                // climate and rainfall are not a per-tile fertility model.
-                surfaces[index] = (byte)SurfaceKind.Grass;
+                vegetation[index] = (byte)(
+                    tile.Water != WaterKind.Land || tile.Elevation >= SeededMap.MountainElevationThreshold
+                        ? VegetationCover.None :
+                    tile.Climate == ClimateZone.Dry && tile.Rainfall <= 46 && tile.Temperature >= 92
+                        ? VegetationCover.Cactus :
+                    tile.Climate == ClimateZone.Dry ? VegetationCover.Scrub :
+                    tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? VegetationCover.Tundra :
+                    // An open beach is bare sand, not a strip of forest or meadow.
+                    !TerrainPlacementRules.CanHoldOrdinaryVegetation((SurfaceKind)surfaces[index])
+                        ? VegetationCover.None :
+                    forestPotential[index] ? VegetationCover.Forest : VegetationCover.Grass);
             }
+    }
+
+    private static List<MapResource> PlaceGroveTrees(GeographyOptions options, GeneratedGeography geography,
+        byte[] surfaceKinds, int width, IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> existing)
+    {
+        var occupied = camp.Select(item => item.Position)
+            .Concat(existing.Select(item => item.Position)).ToHashSet();
+        var trees = new List<MapResource>();
+        for (var index = 0; index < surfaceKinds.Length; index++)
+        {
+            if (surfaceKinds[index] != (byte)SurfaceKind.ForestFloor) continue;
+            var position = new GridPoint(index % width, index / width);
+            if (occupied.Contains(position)) continue;
+            // Temperate groves mix in some conifers, as scattered trees do.
+            var random = Pcg32XshRrV1.Create(options.Seed, $"grove-tree:{position.X},{position.Y}");
+            var treeKind = geography.At(position.X, position.Y).Climate == ClimateZone.Temperate &&
+                random.NextUInt() % 3 == 0 ? "conifer" : "broadleaf";
+            trees.Add(new MapResource($"grove-tree-{position.X}-{position.Y}", "construction", position, true, treeKind));
+            occupied.Add(position);
+        }
+        return trees;
     }
 
     private static void MarkFertileSoilSites(byte[] surfaces, IEnumerable<MapResource> resources,
@@ -714,7 +788,11 @@ public static class GeneratedCampMapGenerator
         }
     }
 
-    private static bool IsAdjacentToWater(GeneratedGeography geography, int x, int y, bool wrap)
+    private static bool IsAdjacentToWater(GeneratedGeography geography, int x, int y, bool wrap) =>
+        HasCardinalNeighbor(geography, x, y, wrap, water => water != WaterKind.Land);
+
+    private static bool HasCardinalNeighbor(GeneratedGeography geography, int x, int y, bool wrap,
+        Func<WaterKind, bool> matches)
     {
         foreach (var (dx, dy) in new (int X, int Y)[] { (0, -1), (1, 0), (0, 1), (-1, 0) })
         {
@@ -722,7 +800,7 @@ public static class GeneratedCampMapGenerator
             var nextY = y + dy;
             if (wrap) nextX = (nextX % geography.Width + geography.Width) % geography.Width;
             if (nextX >= 0 && nextX < geography.Width && nextY >= 0 && nextY < geography.Height &&
-                geography.At(nextX, nextY).Water != WaterKind.Land)
+                matches(geography.At(nextX, nextY).Water))
                 return true;
         }
         return false;
@@ -730,13 +808,16 @@ public static class GeneratedCampMapGenerator
 
     private static List<MapResource> GenerateResourceSites(GeographyOptions options, GeneratedGeography geography,
         byte[] hydrologyKinds, byte[] elevationLevels, byte[] surfaceKinds, byte[] vegetationKinds,
-        IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> starter)
+        IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> existing)
     {
         const int spacing = 16;
         var width = geography.Width;
         var height = geography.Height;
         var occupied = camp.Select(item => item.Position)
-            .Concat(starter.Select(item => item.Position)).ToHashSet();
+            .Concat(existing.Select(item => item.Position)).ToHashSet();
+        var perChunk = existing.GroupBy(item =>
+                (item.Position.X / GeographyGenerator.ChunkSize, item.Position.Y / GeographyGenerator.ChunkSize))
+            .ToDictionary(group => group.Key, group => group.Count());
         var sites = new List<MapResource>();
         for (var top = 0; top < height; top += spacing)
             for (var left = 0; left < width; left += spacing)
@@ -749,9 +830,11 @@ public static class GeneratedCampMapGenerator
                     _ => throw new ArgumentOutOfRangeException(nameof(options)),
                 };
                 var random = Pcg32XshRrV1.Create(options.Seed, $"resource-site:{left},{top}");
+                var chunk = (left / GeographyGenerator.ChunkSize, top / GeographyGenerator.ChunkSize);
                 // A few candidates let coast and mountains leave some cells
                 // empty without ever placing a site on water or high ground.
-                for (var site = 0; site < sitesInCell; site++)
+                for (var site = 0; site < sitesInCell &&
+                     perChunk.GetValueOrDefault(chunk) < TerrainPlacementRules.GeneratedResourcesPerChunk; site++)
                 {
                     for (var attempt = 0; attempt < 12; attempt++)
                     {
@@ -764,10 +847,13 @@ public static class GeneratedCampMapGenerator
                         if (!IsGeneratedBuildable(hydrologyKinds[index], elevationLevels[index], surface) ||
                             occupied.Contains(position)) continue;
                         var selection = random.NextUInt() % 4;
-                        var resourceKind = vegetation == VegetationCover.Forest ? "construction" : surface switch
+                        var tile = geography.At(x, y);
+                        // The kind of site follows the climate; dry and cold
+                        // lands lean towards stone.
+                        var resourceKind = vegetation == VegetationCover.Forest ? "construction" : tile.Climate switch
                         {
-                            SurfaceKind.Sand => selection == 0 ? "fiber" : "stone",
-                            SurfaceKind.Snow => selection == 0 ? "food" : "stone",
+                            ClimateZone.Dry => selection == 0 ? "fiber" : "stone",
+                            ClimateZone.Polar or ClimateZone.Cold => selection == 0 ? "food" : "stone",
                             _ => selection switch
                             {
                                 0 => "fertile_land",
@@ -776,13 +862,17 @@ public static class GeneratedCampMapGenerator
                                 _ => "seed",
                             },
                         };
+                        // Everything but a stone outcrop grows from the soil,
+                        // so it looks for another tile instead of standing on sand.
+                        if (resourceKind != "stone" && !TerrainPlacementRules.CanHoldOrdinaryVegetation(surface))
+                            continue;
                         var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
                         var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
-                        var tile = geography.At(x, y);
                         sites.Add(new MapResource(id, resourceKind, position, renewable,
                             resourceKind == "construction" ? TreeKindFor(tile.Climate) : null,
                             NaturalObjectFor(resourceKind, tile, x, y, geography, options.WrapEastWest)));
                         occupied.Add(position);
+                        perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
                         break;
                     }
                 }
@@ -791,11 +881,12 @@ public static class GeneratedCampMapGenerator
     }
 
     private static List<MapResource> GenerateTrees(GeographyOptions options, GeneratedGeography geography,
-        byte[] vegetationKinds,
+        byte[] surfaceKinds, byte[] vegetationKinds,
         int width, int height, IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> existing)
     {
-        // Bounded, individually harvestable trees share the chunk resource
-        // budget. They are objects, not a second meaning of forest ground.
+        // Scattered, individually harvestable trees on forest grass and
+        // meadows share the chunk resource budget with the grove trees placed
+        // earlier. They are objects, not a second meaning of forest ground.
         const int cellSize = 8;
         const int maximumGeneratedTreesPerChunk = 32;
         var occupied = camp.Select(item => item.Position)
@@ -810,7 +901,7 @@ public static class GeneratedCampMapGenerator
             for (var left = 0; left < width; left += cellSize)
             {
                 var chunk = (left / GeographyGenerator.ChunkSize, top / GeographyGenerator.ChunkSize);
-                if (perChunk.GetValueOrDefault(chunk) >= WorldSystemsConfig.Default.MaxResourcesPerChunk ||
+                if (perChunk.GetValueOrDefault(chunk) >= TerrainPlacementRules.GeneratedResourcesPerChunk ||
                     treesPerChunk.GetValueOrDefault(chunk) >= maximumGeneratedTreesPerChunk)
                     continue;
                 var random = Pcg32XshRrV1.Create(options.Seed, $"tree:{left},{top}");
@@ -820,7 +911,8 @@ public static class GeneratedCampMapGenerator
                     var y = top + (int)(random.NextUInt() % (uint)Math.Min(cellSize, height - top));
                     var position = new GridPoint(x, y);
                     var vegetation = (VegetationCover)vegetationKinds[y * width + x];
-                    if (occupied.Contains(position) || vegetation is not (VegetationCover.Forest or VegetationCover.Grass))
+                    if (occupied.Contains(position) || vegetation is not (VegetationCover.Forest or VegetationCover.Grass) ||
+                        !TerrainPlacementRules.CanHoldOrdinaryVegetation((SurfaceKind)surfaceKinds[y * width + x]))
                         continue;
                     // Meadows carry scattered trees; forest cover remains denser.
                     if (vegetation == VegetationCover.Grass && random.NextUInt() % 4 != 0)
@@ -871,7 +963,7 @@ public static class GeneratedCampMapGenerator
             for (var left = 0; left < width; left += GeographyGenerator.ChunkSize)
             {
                 var chunk = (left / GeographyGenerator.ChunkSize, top / GeographyGenerator.ChunkSize);
-                if (perChunk.GetValueOrDefault(chunk) >= WorldSystemsConfig.Default.MaxResourcesPerChunk)
+                if (perChunk.GetValueOrDefault(chunk) >= TerrainPlacementRules.GeneratedResourcesPerChunk)
                     continue;
                 var random = Pcg32XshRrV1.Create(options.Seed, $"orchard:{left},{top}");
                 for (var attempt = 0; attempt < 96; attempt++)
@@ -970,7 +1062,7 @@ public static class GeneratedCampMapGenerator
             Func<GeographyTile, int, int, bool> suitable, int chunkX, int chunkY, int generationIndex)
         {
             var chunk = (chunkX, chunkY);
-            if (resourcesByChunk.GetValueOrDefault(chunk) >= WorldSystemsConfig.Default.MaxResourcesPerChunk)
+            if (resourcesByChunk.GetValueOrDefault(chunk) >= TerrainPlacementRules.GeneratedResourcesPerChunk)
                 return false;
             var left = chunkX * GeographyGenerator.ChunkSize;
             var top = chunkY * GeographyGenerator.ChunkSize;
@@ -1010,7 +1102,7 @@ public static class GeneratedCampMapGenerator
     }
 
     private static GridPoint FindCampOrigin(byte[] hydrologyKinds, byte[] elevationLevels,
-        byte[] surfaceKinds, int width, int height)
+        byte[] surfaceKinds, int width, int height, IReadOnlyList<GridPoint> starterSites)
     {
         var centerX = (width - CampWidth) / 2;
         var centerY = (height - CampHeight) / 2;
@@ -1020,17 +1112,17 @@ public static class GeneratedCampMapGenerator
             {
                 var offsetY = radius - Math.Abs(offsetX);
                 if (TrySite(centerX + offsetX, centerY + offsetY, hydrologyKinds, elevationLevels,
-                    surfaceKinds, width, height))
+                    surfaceKinds, width, height, starterSites))
                     return new GridPoint(centerX + offsetX, centerY + offsetY);
                 if (offsetY > 0 && TrySite(centerX + offsetX, centerY - offsetY, hydrologyKinds,
-                    elevationLevels, surfaceKinds, width, height))
+                    elevationLevels, surfaceKinds, width, height, starterSites))
                     return new GridPoint(centerX + offsetX, centerY - offsetY);
             }
         throw new InvalidOperationException("The generated geography has no suitable base-camp clearing.");
     }
 
     private static bool TrySite(int left, int top, byte[] hydrologyKinds, byte[] elevationLevels,
-        byte[] surfaceKinds, int width, int height)
+        byte[] surfaceKinds, int width, int height, IReadOnlyList<GridPoint> starterSites)
     {
         if (left < 0 || top < 0 || left + CampWidth > width || top + CampHeight > height)
             return false;
@@ -1044,7 +1136,10 @@ public static class GeneratedCampMapGenerator
                 if (!IsGeneratedBuildable(hydrologyKinds[index], elevationLevels[index],
                     (SurfaceKind)surfaceKinds[index])) return false;
             }
-        return true;
+        // The starter berry bush, tree and fertile patch grow from the soil,
+        // so none of them may land on a beach or desert sand.
+        return starterSites.All(site => TerrainPlacementRules.CanHoldOrdinaryVegetation(
+            (SurfaceKind)surfaceKinds[(top + site.Y) * width + left + site.X]));
     }
 
     private static bool IsGeneratedBuildable(byte hydrology, byte elevation, SurfaceKind surface) =>
@@ -1235,6 +1330,11 @@ public static class MapAcceptance
         {
             return MapValidationResult.Invalid("Resource placements are invalid.");
         }
+
+        if (map.Resources.Any(resource => TerrainPlacementRules.IsOrdinaryVegetation(resource) &&
+                map.SurfaceAt(resource.Position) is { } surface &&
+                !TerrainPlacementRules.CanHoldOrdinaryVegetation(surface)))
+            return MapValidationResult.Invalid("A tree or plant stands on sand or other ground that cannot hold it.");
 
         if (!map.Resources.Any(resource => resource.IsRenewable &&
                 string.Equals(resource.Kind, "food", StringComparison.Ordinal)) ||

@@ -376,6 +376,7 @@ public partial class WorldTerrainLayer : Control
             var edges = TerrainTransitions.Atlas(atlasSize);
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
+            var hills = TerrainTextures.HillAtlas(atlasSize);
             for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             {
                 for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
@@ -400,6 +401,11 @@ public partial class WorldTerrainLayer : Control
                     TerrainTransitions.Collect(world, mapX, y, wrapsEastWest, transitionPieces);
                     foreach (var (over, piece) in transitionPieces)
                         DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
+                    // Hills are relief over the tile's own ground, not a
+                    // separate surface, so grass or snow still shows through.
+                    if (world.IsHillAt(mapX, y))
+                        DrawTextureRectRegion(hills, tile, TerrainTextures.HillRegion(
+                            (int)(PixelArt.Hash(mapX, y, 61) % TerrainTextures.VariantCount), atlasSize));
                 }
             }
         }

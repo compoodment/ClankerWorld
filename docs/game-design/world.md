@@ -321,6 +321,11 @@ Exact generator thresholds for the Advanced levels, coverage for climates and
 sizes beyond Balanced Small/Medium, connected-patch thresholds and preview
 performance remain to be measured and playtested. The initial Balanced
 coverage and bounded retry choices above do not settle those other numbers.
+The same goes for how much ocean shore becomes beach, how large and dense forest
+groves are, and how far and how high the hill band around mountains reaches.
+The generator uses provisional values for these
+([How it works](../development/how-it-works.md#terrain-layers-sand-groves-and-hills));
+they become decisions only after computment reviews generated maps.
 
 **Suggestion river-generation approach, not yet a locked algorithm:** generate
 elevation and long-run rainfall, route water downhill toward coasts or inland

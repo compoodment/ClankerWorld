@@ -42,9 +42,9 @@ public sealed class GeographyGeneratorTests
         }
         var forest = map.Tiles.First(tile => map.VegetationAt(tile.Position) == VegetationCover.Forest &&
             map.SurfaceAt(tile.Position) != SurfaceKind.FertileSoil);
-        // A coastal forest tile can carry a beach surface while its
-        // independent vegetation fact remains Forest.
-        Assert.True(map.SurfaceAt(forest.Position) is SurfaceKind.Grass or SurfaceKind.ForestFloor or SurfaceKind.Sand);
+        // Forest cover sits on forest grass or on the forest floor of a grove,
+        // never on a beach.
+        Assert.True(map.SurfaceAt(forest.Position) is SurfaceKind.Grass or SurfaceKind.ForestFloor);
         Assert.Equal(VegetationCover.Forest, map.VegetationAt(forest.Position));
         var river = map.Tiles.First(tile => map.HydrologyAt(tile.Position) == WaterKind.River);
         Assert.Equal(SurfaceKind.Water, map.SurfaceAt(river.Position));
