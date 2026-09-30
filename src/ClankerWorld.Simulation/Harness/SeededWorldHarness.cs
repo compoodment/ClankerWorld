@@ -190,6 +190,9 @@ public sealed record SeededMap(
         }
     }
 
+    /// <summary>Whether a tile is dry land of any kind, including mountains.</summary>
+    public bool IsLand(GridPoint point) => Contains(point) && IsLandAt(point);
+
     // Construction eligibility is separate from travel: future mountain
     // paths must not silently become build sites when traversal is expanded.
     public bool IsBuildable(GridPoint point) => Contains(point) && IsOpenGroundAt(point) &&
