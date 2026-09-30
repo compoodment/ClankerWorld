@@ -30,9 +30,10 @@ public enum DoorSide : byte
 
 /// <summary>
 /// Where a building's door is: its side, and the footprint tile along that
-/// side (counted from the left or top), or -1 for the middle of the side.
+/// side (counted from the left or top), or null for the middle of the side.
+/// The default is the middle of the south side.
 /// </summary>
-public readonly record struct BuildingDoor(DoorSide Side, int Tile = -1)
+public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 {
     /// <summary>A building without a recorded entrance: the middle of the south side.</summary>
     public static BuildingDoor Default => new(DoorSide.South);
@@ -284,7 +285,7 @@ public static class BuildingSprites
         var horizontal = door.Side is DoorSide.South or DoorSide.North;
         var from = horizontal ? roof.Position.X : roof.Position.Y;
         var length = horizontal ? roof.Size.X : roof.Size.Y;
-        var middle = door.Tile < 0 ? from + length / 2f : door.Tile * 32 + 16;
+        var middle = door.Tile is { } tile ? tile * 32 + 16 : from + length / 2f;
         return Math.Clamp(middle, from + 5, from + length - 5);
     }
 

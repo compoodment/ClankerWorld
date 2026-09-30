@@ -1307,7 +1307,7 @@ public partial class Main
                 BuildingDoor.Facing(doorFootprint, new Vector2I(12, 10)) != new BuildingDoor(DoorSide.East, 0) ||
                 BuildingDoor.Facing(doorFootprint, new Vector2I(9, 10)) != new BuildingDoor(DoorSide.West, 0) ||
                 BuildingDoor.Facing(doorFootprint, new Vector2I(12, 11)) != BuildingDoor.Default ||
-                BuildingDoor.Facing(doorFootprint, null) != BuildingDoor.Default)
+                BuildingDoor.Facing(doorFootprint, null) != BuildingDoor.Default || default(BuildingDoor) != BuildingDoor.Default)
                 throw new InvalidOperationException("A building's door must face the entrance tile beside its footprint.");
             var northDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(DoorSide.North, 0));
             var southDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32);
