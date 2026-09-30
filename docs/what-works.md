@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # What works today
@@ -73,9 +73,10 @@ generated memory summaries and full conversations are unfinished.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
-| Gathering, building and production | Available in the game | House cooking/storage, Warehouse materials, Farmhouse grain/flour and Blacksmith tools/iron have prototype rules. Recipes, capacity, wear and logistics remain unfinished. |
+| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. |
+| Building, farming and crafting | Built but not connected to normal play | Building plans, crop growing and recipe-based production are built and pass their own tests, but agents placed the normal way are not offered them. They are offered only to an agent who holds a work role, and a normal game gives agents none ([#441](https://github.com/compoodment/ClankerWorld/issues/441) tracks the fix). An offline check on three generated Small maps saw none of them in five world days ([#437](https://github.com/compoodment/ClankerWorld/issues/437)). It also saw no helping on projects, hauling inputs to the Blacksmith or Farmhouse, mining ore or replanting trees, and some of these may depend on the same limit. Recipes, capacity, wear and logistics remain unfinished. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
-| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships and practical lessons. Pricing, currency, conflict and rich dialogue remain unfinished. |
+| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#439](https://github.com/compoodment/ClankerWorld/issues/439) asks what lessons should teach). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores and shared-food council. Multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
