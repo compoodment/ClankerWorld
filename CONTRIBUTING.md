@@ -37,25 +37,98 @@ Keep each issue to one topic; a playtest report can collect observations from
 one session. Link related issues instead of copying the same progress notes.
 When a playtest finding needs its own fix, link the follow-up issue.
 
-Use an `area:` label when one fits, `accessibility` for accessibility barriers,
-and `gate:blocker` only for work that must finish before the current milestone.
-Keep implementation, decision and prototype labels consistent with the templates.
+The templates add the kind label: `bug`, `type:implementation`,
+`type:decision` or `type:prototype`. Add these when they apply:
+
+| Label | Meaning |
+| --- | --- |
+| `area:…` | The part of the game it concerns, such as `area:kernel` or `area:worldgen` |
+| `accessibility` | A barrier for people with disabilities |
+| `gate:blocker` | Must finish before the current milestone |
+| `status:in-progress` | Someone has [claimed it](#claim-an-issue) and is working on it |
+| `status:blocked` | Waiting on a decision or another issue; a comment says which |
+| `status:needs-playtest` | The change is merged, but computment still wants to check it in the game |
+| `owner-task` | Only computment can do it, such as a Windows playtest |
 
 A routine fix does not need a new design decision. Follow the agreed design and
 existing behavior. If a change would settle an open game choice, use a Decision
 issue or an explicit owner decision; a draft pull request does not make a
 suggestion agreed.
 
-Do not close a gameplay issue merely because an isolated test passes. State
-what was checked and whether the normal game path still needs testing.
 Never include keys, pairing codes, private saves or raw model-service payloads.
+
+## Work on an issue
+
+Several people and agents work at the same time, often from the same GitHub
+account. These steps stop two of them fixing the same thing and make sure an
+issue closes when its work lands.
+
+### Find work
+
+Issues ready for an agent are open bugs, implementation issues and, when asked,
+prototypes that nobody has claimed and that are not blocked or owner-only:
+
+```text
+is:issue is:open -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -linked:pr
+```
+
+Read the issue's comments and its **Development** panel before starting. If the
+problem is already fixed on main, say which commit fixed it and close the issue.
+
+### Claim an issue
+
+Before you start, add `status:in-progress` and comment with who is working on
+it and the branch name. Assignment alone does not show which agent took the
+issue when several agents share one account.
+
+- Do not start a second fix for a claimed issue. If you think the claimed
+  approach is wrong, say so on the issue.
+- If you stop, remove the label and comment with what you learned.
+- A claim with no pull request and no update for 12 hours is stale. Say on the
+  issue that you are taking it over, then claim it again.
+
+### Link issues from the pull request
+
+GitHub closes an issue when a merged pull request's description names it with
+a closing keyword. Only exact wording works.
+
+- Write `Closes #123` for each issue the pull request completes. Use one keyword
+  per issue: `Closes #12, closes #13`. `Fixes` and `Resolves` work the same way.
+- Write `Refs #123` for an issue the pull request relates to or only partly
+  completes.
+- Other words close nothing: `Implements #123`, `Addresses #123` and
+  `Part of #123` only mention the issue. `Fixes #12 and #13` closes only #12.
+- GitHub also reads a keyword inside a negative sentence, so
+  "this does not fix #123" closes #123. Write `Refs #123` instead.
+
+### Close issues when the work merges
+
+An issue is done when the pull request that makes its requested change merges.
+Closing it does not claim the change was playtested; the pull request records
+what was and was not checked.
+
+- **Playtesting after merge.** Routine hands-on checks by computment do not keep
+  an issue open. If the change still needs one, add `status:needs-playtest` to
+  the issue. Remove the label after the check. If the same failure is still
+  there, reopen the issue; if something else is wrong, open a new bug that
+  links back.
+- **Partial work.** Use `Refs`, and comment on the issue with what the pull
+  request did and what remains. If the remainder is really a separate piece of
+  work, open a new issue for it and close the original.
+- **Replaced issues.** When you open an issue that covers an older one, carry
+  over anything useful and close the older issue as a duplicate of the new one.
+- **Decisions.** The pull request that records the owner's answer in the game
+  design closes the Decision issue, and links or opens the implementation
+  issues for the agreed work.
+- **Not needed.** Close it as *not planned* with a one-line reason.
 
 ## Organize the work
 
 For work with several steps, keep a short plan and work through it in a clear
 order. Keep related code, docs and checks together. Avoid mixing unrelated
-changes, starting competing fixes for the same issue, or leaving unexplained
-files and temporary notes in the repository.
+changes, starting competing fixes for the same issue (see
+[Claim an issue](#claim-an-issue)), or leaving unexplained files and temporary
+notes in the repository.
 
 Use the related issue and PR to record progress, decisions and remaining work.
 Before handing work over, state what changed, what was checked and what still
@@ -64,7 +137,9 @@ tracker in Markdown.
 
 ## Prepare a pull request
 
-1. Link the issue, or explain the purpose if no issue is needed.
+1. Link each issue with `Closes` or `Refs` as described in
+   [Link issues from the pull request](#link-issues-from-the-pull-request).
+   If no issue is needed, such as for a direct owner request, say so.
 2. Read the relevant game-design, current-feature and developer pages.
 3. Check open pull requests for overlapping work. Name any overlap in your
    description and agree an integration order before stacking on an unmerged
@@ -89,6 +164,7 @@ Routine hands-on playtesting by computment can happen after merge during this
 private alpha. Missing a native Windows playtest, in-game tuning session or
 preview-latency measurement is not by itself a reason to keep completed work
 in draft or block its merge. Record what was and was not checked in the PR,
+add `status:needs-playtest` to the issue when a hands-on check is still wanted,
 and track problems found during playtesting in Issues. Do not claim that
 unperformed checks passed.
 
@@ -140,12 +216,34 @@ other PRs' entries when resolving conflicts.
 
 ### Review and merge
 
-- CI must be green.
-- Have someone other than the branch author review the exact diff before merging.
-- Squash-merge with the PR title as the commit subject.
-- Delete the branch after merging.
-- Versions and tags follow the [release policy](docs/development/releasing.md).
-  A merged change does not automatically need a release.
+The reviewer must not be the pull request's author, and the reviewer normally
+merges. An author merges only when the owner explicitly asks and someone else
+has already reviewed the current head.
+
+Before merging, check that:
+
+1. CI is green on the pull request's current head. If main was merged in or
+   the branch changed after review, review and check the new head.
+2. Someone other than the author reviewed that exact head. Record who reviewed
+   which commit and what they checked, in the squash commit body or a comment.
+3. The description links its issues with `Closes` and `Refs` as described in
+   [Link issues from the pull request](#link-issues-from-the-pull-request).
+   Correct the description first if it does not.
+4. Any integration order named by this or another pull request is respected.
+
+Squash-merge with the PR title as the commit subject. After merging:
+
+- Delete the branch.
+- Fetch main and confirm the squash commit is there.
+- Check that every `Closes` issue is closed. The
+  [Close fixed issues](.github/workflows/close-fixed-issues.yml) workflow closes
+  any that GitHub missed; if one is still open, close it with a comment naming
+  the pull request and commit.
+- For each `Refs` issue, check that a comment says what remains. Remove
+  `status:in-progress` if nobody is still working on it.
+
+Versions and tags follow the [release policy](docs/development/releasing.md).
+A merged change does not automatically need a release.
 
 ## Writing clearly
 
@@ -192,8 +290,10 @@ and what the player can do.
 ## Commits, security and conduct
 
 Use an imperative commit summary of about 70 characters or fewer. Explain why
-in the body when needed, and use `Fixes #123` only when the issue is actually
-resolved; otherwise use `Refs #123`.
+in the body when needed. Link issues in the pull request description as
+described in [Link issues from the pull request](#link-issues-from-the-pull-request).
+A closing keyword in a commit that reaches main also closes the issue, so do
+not write one for an issue the change does not complete.
 
 Report vulnerabilities privately to the repository owner. Never include
 credentials, pairing material or private saves in a report.
