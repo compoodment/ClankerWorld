@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -233,6 +233,9 @@ access rules still apply. If no site is reachable, an existing project uses its
 blocked/reconsideration path rather than travelling toward an unreachable tile.
 
 Recipe preparation and production must use the same actor/building owner.
+Direct production requests use the same age restrictions as autonomous choices:
+only adults and elders may start workstation recipes or crops. A request for an
+infant, child or adolescent is refused before reserving inputs or changing jobs.
 Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
