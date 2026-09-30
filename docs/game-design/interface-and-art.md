@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # The interface, art and audio
@@ -53,10 +53,8 @@ everything that is available in the current build. See [what works today](../wha
   readability/performance limit. After the September 29 playtest, the cap must
   also keep black space beyond the north/south map edges out of view on Small
   maps, and maximum zoom-in should feel consistent across render resolutions.
-  Computment suggested Small/Medium zoom-out around 70% of map-fit scale and
-  a shared performance cap for Large/Huge/Mega; that exact percentage and
-  visible-tile budget remain preferred starting points for tuning, not fixed
-  finished-game numbers.
+  How far the zoom-out limit should go, and when it is tuned, is under
+  [Leaning toward](#leaning-toward) below.
 - Hovering a ground tile shows a square tile highlight. When an agent overlaps
   that pointer location, **agent hover/selection takes priority** over the
   ground tile. This is pointer hit-testing priority, distinct from making the
@@ -84,6 +82,11 @@ everything that is available in the current build. See [what works today](../wha
   world information. Filters should reveal established Town land claims,
   household use areas and property, Town borders, and similar world facts.
   The UI must not invent ownership or borders that agents have not established.
+- **Agreed on September 30:** World Info lists discovered capabilities from
+  recorded discoveries only. When nothing has been discovered it says
+  **No recorded discoveries**, rather than listing every built-in recipe as
+  known. Opening World Info never gives any agent knowledge. Experimental or
+  unvalidated proposals are shown separately from usable discoveries.
 - The top-right menu button opens the **Pause Menu** and pauses the world. It
   contains **Save World**, **Settings**, **Mod Library**, then **Quit to Menu**
   at the bottom. There is **no Quit Game action in the Pause Menu**; Quit Game
@@ -174,6 +177,16 @@ everything that is available in the current build. See [what works today](../wha
   agent choose again; similar but distinct names are allowed. Exact duplicate
   matching, retries/failure fallback, player renaming collisions and cultural
   naming context remain open.
+- **Agreed on September 30:** before the player confirms, Add Agent shows which
+  household and which Town the new agent will belong to. One shared rule
+  decides this, checked in this order: household property first, then
+  unclaimed land inside a Town, then land outside both. The preview is not a
+  reservation: when the player confirms, the game checks the same map again and
+  tells the player if the placement changed. If claims or Towns overlap so that
+  the answer is ambiguous, the placement is refused and the game explains why.
+  It is never decided by list order or distance. How claims and use rights
+  work is in
+  [Town land and household use rights](towns.md#town-land-and-household-use-rights).
 - Selecting an agent opens an **interactive info popup near that agent**. The
   player can change that agent's provider and model there, including choosing
   an appropriate stored/new credential when needed. Agent inspection does not
@@ -195,6 +208,12 @@ everything that is available in the current build. See [what works today](../wha
 
 ### Leaning toward
 
+Provisionally, the zoom-out floor stays as it is until Large worlds have been
+measured, and is then tuned. Computment suggested Small/Medium zoom-out around
+70% of map-fit scale and a shared performance cap for Large/Huge/Mega; that
+exact percentage and visible-tile budget remain preferred starting points for
+tuning, not fixed finished-game numbers.
+
 Game Settings apply across worlds/on this installation:
 UI date and time display formats, graphics/display preferences, and stored
 provider credentials. The Main Menu's Settings entry opens
@@ -211,26 +230,26 @@ opening Main Menu settings must never enter a world.
 
 In the **Add Agent** placement view, show exclusive household use areas and
 Town borders so computment can see the new agent's initial affiliation.
-Placement on a tile assigned exclusively to one household **forces the new
-agent into that household**
+Within the agreed placement order above, placement on a tile assigned
+exclusively to one household **forces the new agent into that household**
 (and its enclosing Town, if any); this player setup action does not seek
 household consent. Placement elsewhere within a
 Town joins the Town but no household; placement on unclaimed land
 outside both starts an independent agent. Location establishes **starting
 social membership**, not biological ancestry or permanent membership based on
 where the agent later walks. A player-added adult could be a new unrelated
-family line even when placed inside an existing household. Exact overlap,
-invalid-placement rules, and later voluntary household changes remain open.
+family line even when placed inside an existing household. Other
+invalid-placement rules and later voluntary household changes remain open.
 This forced Add Agent membership is distinct from inviting a nonmember to
 visit a House. The agreed first-Town household setup below is separate from
 this later Add Agent placement rule.
 
 ### Still to decide
 
-Exact top-bar layout on small screens; the final zoom-out/visible-tile cap;
-which overview and filter layers ship first; display of disputed or overlapping
-claims; the precise event categories, filter UI,
-event retention, and handling of events without a single map location; custom
+Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
+which waits for measurements of Large worlds; which overview and filter layers
+ship first; display of disputed or overlapping claims; the precise event
+categories, filter UI, event retention, and handling of events without a single map location; custom
 month/season names and date presentation; and the detailed player-control/
 observer boundary beyond adding and renaming agents. Computment may provide a
 UI drawing.

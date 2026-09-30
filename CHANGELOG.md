@@ -6,7 +6,7 @@ release yet.
 
 ## Unreleased
 
-- Retrying an accepted instruction still confirms its original receipt after the agent dies or the host restarts. Instruction keys with surrounding spaces no longer fail on an exact retry or skip a sequence number.
+- A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
@@ -47,6 +47,7 @@ release yet.
 - Death cancels unfinished barter through the normal two-sided release, immediately freeing the survivor’s stock without cancelling completed exchanges.
 - Resume keeps the world paused until its running checkpoint is saved, and retries cannot report success while saving still fails—even when an earlier request left memory running.
 - Successful pause and rename retries now persist the acknowledged state even when a failed earlier save already changed it in memory.
+- Retrying an accepted instruction still confirms its original receipt after the agent dies or the host restarts. Instruction keys with surrounding spaces no longer fail on an exact retry or skip a sequence number.
 
 - Starting households are named First household and Second household instead of
   Camp Alpha/Beta. Existing default camp names display the new wording without
