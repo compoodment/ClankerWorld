@@ -1236,6 +1236,8 @@ public partial class Main
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
                 eventsBadgeLabel.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
                 throw new InvalidOperationException($"A new event must show an unread count on the Event Log button: {unreadEvents} after {readBefore}.");
+            if (eventsBadge.ZIndex < 1 || !eventsBadge.ZAsRelative)
+                throw new InvalidOperationException("The unread count must draw over the HUD button next to Events instead of being covered by it.");
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");

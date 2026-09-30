@@ -399,6 +399,9 @@ release yet.
 
 ### Fixed
 
+- The unread count on the Events button is no longer half hidden under the
+  button next to it.
+
 - A damaged named-save entry no longer hides other saves or stops autosave
   rotation. Damaged files are preserved, with a safe diagnostic for recovery.
 
