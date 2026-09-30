@@ -37,9 +37,10 @@ test alone does not make it available in the game.
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
-Blacksmith along them, each with its door facing its Road. Streets run on a few
-tiles past the last building, and the Town border keeps about three tiles of
-spare land around the buildings and Roads. The Houses hold
+Blacksmith along them, each with its door facing its packed-dirt Road and a short
+doorstep path joining it. Streets run on a few tiles past the last building,
+and the Town border keeps about three tiles of spare land around buildings
+and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.
@@ -113,7 +114,10 @@ name one living recipient for the whole estate. Interrupted or invalid choices
 use the household path. Per-item bequests, debts, minors and inheritance law
 remain unfinished. Memories do not automatically pass to children.
 
-Town borders and building-site ranking are provisional. Adults placed on an
+Towns grow along their streets. Building sites that can face an existing Road
+rank higher. Each new building's street runs on a few tiles past it, and a
+building away from the Roads gets a new side street. Town borders and
+building-site ranking are provisional. Adults placed on an
 owned building join its household; unclaimed Town placement joins the Town
 without a household; outside a Town it starts an independent household. Finding
 existing suitable housing before proposing a new House is not finished. Agents
@@ -128,9 +132,20 @@ unfinished.
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. The first Town's
-streets take diagonals where the land allows; Roads laid for later buildings
-still step in straight lines, and bridges remain unfinished.
+impassable; mountains and peaks cannot hold construction. Town streets take
+diagonals where the land allows. Bridges remain unfinished.
+
+In newly generated worlds, sand forms deserts and stretches of ocean beach
+only; rivers and lakes keep grass banks, and trees and plants never grow on
+sand. Forests show small groves on darker forest floor, where every tile holds
+a tree, among scattered trees on forest grass. A band of hills rings each
+mountain area. Hills are drawn over the ground and cost the same to walk and
+build on as grass. These are the first version of the September 29 terrain
+direction: their numbers are provisional until computment reviews generated
+maps, and they have not been checked by hand in the Windows game yet
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)). Worlds
+generated before this change no longer load; they are refused and their saves
+are kept.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
 have sapling, mature and stump stages. Felling one for wood also gives the agent

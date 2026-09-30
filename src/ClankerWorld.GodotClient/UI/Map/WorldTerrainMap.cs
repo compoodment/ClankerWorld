@@ -12,13 +12,21 @@ public sealed class WorldTerrainMap
     private readonly byte[]? surface;
     private readonly byte[]? vegetation;
     private TerrainStyle[]? styles;
+    private bool[]? hills;
+
+    // Mirrors the simulation's TerrainPlacementRules hill band and mountain
+    // height, which this client project cannot reference directly.
+    private const byte MountainElevation = 215;
+    private const byte HillMinimumElevation = 190;
+    private const int HillReach = 3;
 
     private WorldTerrainMap(int width, int height, byte[] terrain, byte[]? climate = null,
         byte[]? elevation = null, byte[]? hydrology = null, byte[]? surface = null,
-        byte[]? vegetation = null)
+        byte[]? vegetation = null, bool wrapsEastWest = false)
     {
         Width = width;
         Height = height;
+        WrapsEastWest = wrapsEastWest;
         this.terrain = terrain;
         this.climate = climate;
         this.elevation = elevation;
@@ -29,10 +37,11 @@ public sealed class WorldTerrainMap
 
     public int Width { get; }
     public int Height { get; }
+    public bool WrapsEastWest { get; }
     public bool HasMapLayers => climate is not null;
 
     public static WorldTerrainMap FromTiles(IReadOnlyList<OwnerWorldTile> tiles, int width, int height,
-        OwnerWorldPackedMapLayers? layers = null)
+        OwnerWorldPackedMapLayers? layers = null, bool wrapsEastWest = false)
     {
         ArgumentNullException.ThrowIfNull(tiles);
         if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width));
@@ -55,11 +64,11 @@ public sealed class WorldTerrainMap
                 _ => 0,
             };
         }
-        return WithLayers(width, height, terrain, layers);
+        return WithLayers(width, height, terrain, layers, wrapsEastWest);
     }
 
     public static WorldTerrainMap FromPacked(OwnerWorldPackedTerrain packed,
-        OwnerWorldPackedMapLayers? layers = null)
+        OwnerWorldPackedMapLayers? layers = null, bool wrapsEastWest = false)
     {
         ArgumentNullException.ThrowIfNull(packed);
         if (packed.Encoding != "terrain-kind-v1" || packed.Width <= 0 || packed.Height <= 0)
@@ -83,7 +92,7 @@ public sealed class WorldTerrainMap
                 9 => 9, // snow
                 _ => throw new InvalidDataException("The packed world terrain contains an unknown kind."),
             };
-        return WithLayers(packed.Width, packed.Height, terrain, layers);
+        return WithLayers(packed.Width, packed.Height, terrain, layers, wrapsEastWest);
     }
 
     public byte At(int x, int y) => terrain[y * Width + x];
@@ -135,8 +144,60 @@ public sealed class WorldTerrainMap
         return mask;
     }
 
-    /// <summary>Flat overview color: the base of the tile's pixel-art ground style.</summary>
-    public Color DisplayColorAt(int x, int y) => TerrainTextures.BaseColor(StyleAt(x, y));
+    /// <summary>Flat overview color: the base of the tile's pixel-art ground style, warmed on hills.</summary>
+    public Color DisplayColorAt(int x, int y) => IsHillAt(x, y)
+        ? TerrainTextures.HillColor(TerrainTextures.BaseColor(StyleAt(x, y)))
+        : TerrainTextures.BaseColor(StyleAt(x, y));
+
+    /// <summary>
+    /// Whether the tile is in the hill band at a mountain's base: dry land
+    /// below mountain height but at least 190 high, within three tiles of a
+    /// mountain or peak. Hills are drawn over the ground; they walk like grass.
+    /// </summary>
+    public bool IsHillAt(int x, int y)
+    {
+        if (!HasMapLayers || x < 0 || y < 0 || x >= Width || y >= Height) return false;
+        hills ??= ComputeHills();
+        return hills[y * Width + x];
+    }
+
+    private bool[] ComputeHills()
+    {
+        // Breadth-first distance, in eight-direction steps, from every
+        // mountain or peak, stopping at the hill band's reach.
+        var length = Width * Height;
+        var distance = new int[length];
+        Array.Fill(distance, int.MaxValue);
+        var queue = new Queue<int>();
+        for (var index = 0; index < length; index++)
+            if (hydrology![index] == 0 && elevation![index] >= MountainElevation)
+            {
+                distance[index] = 0;
+                queue.Enqueue(index);
+            }
+        var result = new bool[length];
+        while (queue.TryDequeue(out var current))
+        {
+            var next = distance[current] + 1;
+            if (next > HillReach) continue;
+            for (var dy = -1; dy <= 1; dy++)
+                for (var dx = -1; dx <= 1; dx++)
+                {
+                    var nearY = current / Width + dy;
+                    var nearX = current % Width + dx;
+                    if ((dx == 0 && dy == 0) || nearY < 0 || nearY >= Height) continue;
+                    if (WrapsEastWest) nearX = (nearX % Width + Width) % Width;
+                    else if (nearX < 0 || nearX >= Width) continue;
+                    var near = nearY * Width + nearX;
+                    if (distance[near] <= next) continue;
+                    distance[near] = next;
+                    queue.Enqueue(near);
+                    result[near] = hydrology![near] == 0 &&
+                        elevation![near] is >= HillMinimumElevation and < MountainElevation;
+                }
+        }
+        return result;
+    }
 
     /// <summary>
     /// Ground style from independent surface/cover facts, falling back to the
@@ -219,9 +280,9 @@ public sealed class WorldTerrainMap
             ? layer[y * Width + x] : null;
 
     private static WorldTerrainMap WithLayers(int width, int height, byte[] terrain,
-        OwnerWorldPackedMapLayers? layers)
+        OwnerWorldPackedMapLayers? layers, bool wrapsEastWest)
     {
-        if (layers is null) return new WorldTerrainMap(width, height, terrain);
+        if (layers is null) return new WorldTerrainMap(width, height, terrain, wrapsEastWest: wrapsEastWest);
         if (layers.Width != width || layers.Height != height ||
             layers.Encoding is not ("map-layers-v1" or "map-layers-v2"))
             throw new InvalidDataException("The packed world map layers have an unsupported encoding or dimensions.");
@@ -231,7 +292,8 @@ public sealed class WorldTerrainMap
         var hydrology = DecodeLayer(layers.Hydrology, length, 3, "hydrology");
         var surface = DecodeLayer(layers.Surface, length, 7, "surface");
         var vegetation = DecodeLayer(layers.Vegetation, length, 5, "vegetation");
-        return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation);
+        return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation,
+            wrapsEastWest);
     }
 
     private static byte[] DecodeLayer(string encoded, int expectedLength, int? maximumValue, string name)

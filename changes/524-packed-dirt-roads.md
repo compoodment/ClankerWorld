@@ -1,0 +1,1 @@
+- Roads draw as joined packed-dirt tracks with rounded bends, smooth diagonals and a doorstep path to each building's door, with a darker edge on sand and snow.

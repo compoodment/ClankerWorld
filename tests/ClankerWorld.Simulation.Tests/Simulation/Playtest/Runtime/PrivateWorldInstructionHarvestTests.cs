@@ -106,7 +106,7 @@ public sealed partial class PrivateWorldRuntimeTests
         for (var index = 0; index < startingTiles.Length; index++)
             world.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), startingTiles[index]);
         world.StartWorld();
-        world.AddAgent(HarvestInstructionActor, orchard ? new GridPoint(29, 53) : new GridPoint(126, 66));
+        world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : new GridPoint(126, 66));
         if (!orchard) return world;
         // Orchard trees fruit only in autumn; put them in season for this check.
         var state = world.ExportState();
@@ -126,5 +126,20 @@ public sealed partial class PrivateWorldRuntimeTests
                 },
             },
         }, _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+    }
+
+    // An empty tile beside an orchard tree with no other food within reach,
+    // found from the generated map so terrain tuning cannot strand the test.
+    private static GridPoint OrchardStand(PrivateWorldRuntime world)
+    {
+        var map = world.ExportState().Map;
+        var occupied = world.Inhabitants.Select(person => person.Position).ToHashSet();
+        var food = map.Resources.Where(item => item.Kind == "food").Select(item => item.Position).ToArray();
+        return map.Resources.Where(item => item.TreeKind == "orchard")
+            .SelectMany(item => map.FootNeighbors(item.Position))
+            .First(point => map.IsBuildable(point) && !occupied.Contains(point) &&
+                map.Resources.All(item => item.Position != point) &&
+                world.Towns.All(town => !town.BorderTiles.Contains(point)) &&
+                food.All(site => map.FootDistance(point, site) > 3));
     }
 }
