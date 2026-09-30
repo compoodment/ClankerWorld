@@ -227,7 +227,11 @@ use the actor's foot-accessible terrain component and skip sites whose current
 occupied routes cannot reach harvesting range. Adjacent food needs no route
 search. Candidate generation searches only when gathering or a food instruction
 needs a source, and stops at the first reachable site. Caregivers use the same
-selection. Immutable map connectivity is cached once per map; movement rechecks
+selection. When fetching food for an infant, caregivers also skip household
+food stores whose collection point has no currently unoccupied route. They try
+other household food before gathering wild food; inaccessible stock is left
+untouched. This does not change household ownership or food-policy rules.
+Immutable map connectivity is cached once per map; movement rechecks
 occupancy before each step. An agent gathering for its own project, and the check
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
