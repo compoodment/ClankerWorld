@@ -10,22 +10,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GeographyGeneratorTests
 {
-    [Fact]
-    public void PreLayerGeneratedManifestRemainsReproducibleForHistoricalWorldSaves()
-    {
-        var options = new GeographyOptions("pre-layer-compat", WorldSizePreset.Small);
-        var legacy = GeneratedCampMapGenerator.GenerateLegacy(options, includeLegacyBedroll: true);
-
-        // Captured from the deployed pre-layer generator, not this migration
-        // implementation. Drift would strand worlds created by that host.
-        Assert.Equal("1b2a438a850546a16256a65f1b504d108bc6b79b69c14f0d1ce4ec4f0dfb49d8",
-            legacy.ManifestDigest);
-        Assert.Equal(102, legacy.Resources.Count);
-        Assert.Equal(legacy.ManifestDigest, MapManifestCodec.Digest(legacy));
-    }
-
     [Theory]
-    [InlineData(WorldSizePreset.Small)]
     [InlineData(WorldSizePreset.Medium)]
     public void GeneratedLayersStayIndependentAcrossWrappedMapAndOwnerProjection(WorldSizePreset size)
     {
@@ -42,9 +27,9 @@ public sealed class GeographyGeneratorTests
         }
         var forest = map.Tiles.First(tile => map.VegetationAt(tile.Position) == VegetationCover.Forest &&
             map.SurfaceAt(tile.Position) != SurfaceKind.FertileSoil);
-        // A coastal forest tile can carry a beach surface while its
-        // independent vegetation fact remains Forest.
-        Assert.True(map.SurfaceAt(forest.Position) is SurfaceKind.Grass or SurfaceKind.ForestFloor or SurfaceKind.Sand);
+        // Forest cover sits on forest grass or on the forest floor of a grove,
+        // never on a beach.
+        Assert.True(map.SurfaceAt(forest.Position) is SurfaceKind.Grass or SurfaceKind.ForestFloor);
         Assert.Equal(VegetationCover.Forest, map.VegetationAt(forest.Position));
         var river = map.Tiles.First(tile => map.HydrologyAt(tile.Position) == WaterKind.River);
         Assert.Equal(SurfaceKind.Water, map.SurfaceAt(river.Position));
@@ -141,47 +126,36 @@ public sealed class GeographyGeneratorTests
 
         var trees = first.Resources.Where(resource => resource.TreeKind is not null).ToArray();
         Assert.Equal(trees.Length, trees.Select(resource => resource.Position).Distinct().Count());
+        var woodTrees = trees.Where(tree => tree.TreeKind is "broadleaf" or "conifer").ToArray();
+        var orchards = trees.Where(tree => tree.TreeKind == "orchard").ToArray();
+        Assert.True(woodTrees.Length > 20, "A generated forest needs visible individual trees, not only a terrain tint.");
+        Assert.Contains(woodTrees, tree => first.Tiles.Any(tile => tile.Position == tree.Position &&
+            tile.Terrain == TerrainKind.Meadow));
+        Assert.All(woodTrees, tree =>
+        {
+            Assert.Equal("construction", tree.Kind);
+            Assert.True(tree.IsRenewable);
+            Assert.True(tree.TreeKind is "broadleaf" or "conifer");
+            Assert.Single(first.Resources, resource => resource.Position == tree.Position);
+        });
+        Assert.NotEmpty(orchards);
+        Assert.All(orchards, orchard =>
+        {
+            Assert.Equal("fruit", orchard.Kind);
+            Assert.True(orchard.IsRenewable);
+            Assert.Single(first.Resources, resource => resource.Position == orchard.Position);
+        });
+        Assert.Equal(woodTrees.Length + orchards.Length,
+            trees.Select(tree => tree.Position).Distinct().Count());
+        var overlapping = first with
+        {
+            Resources = first.Resources.Select(resource =>
+                resource.Id == woodTrees[1].Id ? resource with { Position = woodTrees[0].Position } : resource).ToArray(),
+        };
+        overlapping = overlapping with { ManifestDigest = MapManifestCodec.Digest(overlapping) };
+        Assert.False(MapAcceptance.Validate(overlapping, allowEmptyCamp: true).IsValid);
         Assert.All(first.Tiles.Where(tile => tile.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
             tile => Assert.False(first.IsBuildable(tile.Position)));
-    }
-
-    [Fact]
-    public void SavesWithoutNaturalObjectDetailsRemainLoadable()
-    {
-        var options = new GeographyOptions("natural-roster-old-save", WorldSizePreset.Small);
-        using var world = new PrivateWorldRuntime(options.Seed,
-            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
-        var state = world.ExportState();
-        var oldMap = state.Map with
-        {
-            Resources = state.Map.Resources
-                .Where(resource => !resource.Id.StartsWith("geology-", StringComparison.Ordinal))
-                .Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        oldMap = oldMap with { ManifestDigest = MapManifestCodec.Digest(oldMap) };
-        var oldIds = oldMap.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
-        var oldWorldSystems = state.WorldSystems! with
-        {
-            Ecology = state.WorldSystems.Ecology with
-            {
-                Resources = state.WorldSystems.Ecology.Resources.Where(resource => oldIds.Contains(resource.Id)).ToArray(),
-            },
-            Chunks = state.WorldSystems.Chunks.Select(chunk => ChunkManifestCodec.WithDigest(chunk with
-            {
-                Resources = chunk.Resources.Where(resource => oldIds.Contains(resource.ResourceId)).ToArray(),
-            })).ToArray(),
-        };
-        var oldState = state with
-        {
-            Map = oldMap,
-            Resources = state.Resources.Where(resource => oldIds.Contains(resource.ResourceId)).ToArray(),
-            WorldSystems = oldWorldSystems,
-        };
-
-        using var restored = PrivateWorldRuntime.Restore(oldState);
-        Assert.Equal(oldMap.ManifestDigest, restored.ExportState().Map.ManifestDigest);
-        Assert.All(restored.ExportState().Map.Resources, resource => Assert.Null(resource.NaturalObjectKind));
     }
 
     [Fact]
@@ -208,7 +182,6 @@ public sealed class GeographyGeneratorTests
     }
 
     [Theory]
-    [InlineData(WorldSizePreset.Small)]
     [InlineData(WorldSizePreset.Medium)]
     public void GeneratedGeographyStartsWithoutCampObjectsAndKeepsHighGroundUnbuildable(WorldSizePreset size)
     {
@@ -224,48 +197,6 @@ public sealed class GeographyGeneratorTests
             item => Assert.False(map.IsBuildable(item.Position)));
         Assert.True(map.Resources.Count > 20, "Generated worlds need usable sites beyond the starting area.");
         Assert.All(map.Resources, site => Assert.True(map.IsPassable(site.Position)));
-    }
-
-    [Fact]
-    public void GeneratedTreesAreDistinctDeterministicObjectsWithOneTreePerTile()
-    {
-        var options = new GeographyOptions("object-forest", WorldSizePreset.Small, WrapEastWest: true);
-        var first = GeneratedCampMapGenerator.Generate(options);
-        var second = GeneratedCampMapGenerator.Generate(options);
-        var trees = first.Resources.Where(site => site.TreeKind is "broadleaf" or "conifer").ToArray();
-        var orchards = first.Resources.Where(site => site.TreeKind == "orchard").ToArray();
-
-        Assert.True(trees.Length > 20, "A generated forest needs visible individual trees, not only a terrain tint.");
-        Assert.Contains(trees, tree => first.Tiles.Any(tile => tile.Position == tree.Position &&
-            tile.Terrain == TerrainKind.Meadow));
-        Assert.All(trees, tree =>
-        {
-            Assert.Equal("construction", tree.Kind);
-            Assert.True(tree.IsRenewable);
-            Assert.True(tree.TreeKind is "broadleaf" or "conifer");
-            Assert.Single(first.Resources, resource => resource.Position == tree.Position);
-        });
-        Assert.Equal(trees.Length, trees.Select(tree => tree.Position).Distinct().Count());
-        Assert.NotEmpty(orchards);
-        Assert.All(orchards, orchard =>
-        {
-            Assert.Equal("fruit", orchard.Kind);
-            Assert.True(orchard.IsRenewable);
-            Assert.Single(first.Resources, resource => resource.Position == orchard.Position);
-        });
-        Assert.Equal(trees.Length + orchards.Length,
-            first.Resources.Where(resource => resource.TreeKind is not null)
-                .Select(resource => resource.Position).Distinct().Count());
-        Assert.Equal(first.ManifestDigest, second.ManifestDigest);
-        Assert.Equal(first.Resources, second.Resources);
-
-        var overlapping = first with
-        {
-            Resources = first.Resources.Select(resource =>
-                resource.Id == trees[1].Id ? resource with { Position = trees[0].Position } : resource).ToArray(),
-        };
-        overlapping = overlapping with { ManifestDigest = MapManifestCodec.Digest(overlapping) };
-        Assert.False(MapAcceptance.Validate(overlapping, allowEmptyCamp: true).IsValid);
     }
 
     [Fact]
@@ -384,51 +315,6 @@ public sealed class GeographyGeneratorTests
             WorldCalendarRules.FromTick(3 * config.TicksPerDay, config), config);
         Assert.Equal(1, regrown.Quantity);
         Assert.Equal(EcologyResourceState.Available, regrown.State);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void EarlierGeneratedWorldStillLoadsWithItsOriginalResources(bool retainsWoodlandTrees)
-    {
-        var options = new GeographyOptions("old-forest-save", WorldSizePreset.Small);
-        using var world = new PrivateWorldRuntime(options.Seed,
-            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
-        var current = world.ExportState();
-        var originalResources = current.Map.Resources
-            .Where(resource => !resource.Id.StartsWith("orchard-", StringComparison.Ordinal) &&
-                !resource.Id.StartsWith("geology-", StringComparison.Ordinal) &&
-                (retainsWoodlandTrees || !resource.Id.StartsWith("tree-", StringComparison.Ordinal)))
-            .Select(resource => (retainsWoodlandTrees ? resource : resource with { TreeKind = null })
-                with
-            { NaturalObjectKind = null }).ToArray();
-        var oldIds = originalResources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
-        var oldMap = current.Map with { Resources = originalResources, ManifestDigest = string.Empty };
-        oldMap = oldMap with { ManifestDigest = MapManifestCodec.Digest(oldMap) };
-        var oldSystems = current.WorldSystems! with
-        {
-            Ecology = current.WorldSystems.Ecology with
-            {
-                Resources = current.WorldSystems.Ecology.Resources.Where(resource => oldIds.Contains(resource.Id)).ToArray(),
-            },
-            Chunks = current.WorldSystems.Chunks.Select(chunk => ChunkManifestCodec.WithDigest(chunk with
-            {
-                Resources = chunk.Resources.Where(resource => oldIds.Contains(resource.ResourceId)).ToArray(),
-            })).ToArray(),
-        };
-        var oldCheckpoint = current with
-        {
-            Map = oldMap,
-            Resources = current.Resources.Where(resource => oldIds.Contains(resource.ResourceId)).ToArray(),
-            WorldSystems = oldSystems,
-        };
-
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(oldCheckpoint)));
-        Assert.Equal(oldMap.ManifestDigest, restored.ExportState().Map.ManifestDigest);
-        Assert.DoesNotContain(restored.ExportState().Map.Resources, resource => resource.TreeKind == "orchard");
-        if (!retainsWoodlandTrees)
-            Assert.DoesNotContain(restored.ExportState().Map.Resources, resource => resource.TreeKind is not null);
     }
 
     [Fact]

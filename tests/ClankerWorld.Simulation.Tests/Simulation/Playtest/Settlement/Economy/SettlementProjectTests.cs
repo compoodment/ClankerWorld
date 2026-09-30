@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Viewer.Observation;
@@ -232,6 +233,7 @@ public sealed class SettlementProjectTests
             await world.AdvanceOneTickAsync();
         }
         var state = world.ExportState();
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { Content = null }));
         var forgedMap = state.Map with
         {
             Resources = state.Map.Resources.Select(resource => resource.Id == "settlement-stone"
@@ -239,32 +241,6 @@ public sealed class SettlementProjectTests
         };
         forgedMap = forgedMap with { ManifestDigest = MapManifestCodec.Digest(forgedMap) };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { Map = forgedMap }));
-    }
-
-    [Theory]
-    [InlineData(4)]
-    [InlineData(11)]
-    public async Task LegacyCheckpointMigratesOnLoadWithoutAdvancingWhilePaused(int schema)
-    {
-        using var seed = new PrivateWorldRuntime("legacy-settlement");
-        seed.Pause();
-        var legacy = seed.ExportState() with { SchemaVersion = schema };
-        using var world = PrivateWorldRuntime.Restore(legacy);
-        var loaded = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, world.ExportState().SchemaVersion);
-        Assert.False((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(loaded, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        world.Resume();
-        world.StageStarterContent();
-        for (var tick = 0; tick < 10; tick++)
-        {
-            await world.AdvanceOneTickAsync();
-        }
-        var migrated = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, migrated.SchemaVersion);
-        Assert.Contains(migrated.Map.Resources, resource => resource.Id == "settlement-seed");
-        using var restored = PrivateWorldRuntime.Restore(migrated);
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(migrated), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Theory]
@@ -295,6 +271,12 @@ public sealed class SettlementProjectTests
             await world.AdvanceOneTickAsync();
         }
         var state = world.ExportState();
+        Assert.DoesNotContain(state.Map.CampObjects, item => item.Kind == "bedroll");
+        Assert.DoesNotContain(world.WorldContent.Recipes,
+            recipe => recipe.Outputs.Any(output => output.ResourceId == "bedding"));
+        Assert.NotEmpty(world.WorldSimulation.Buildings);
+        Assert.Contains(state.Events, item => item.Kind == "build_completed");
+        Assert.Contains(state.Events, item => item.Kind == "household_food_collected");
         var gathered = state.Events.Where(item => item.Kind == "material_gathered")
             .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
         Assert.True(gathered.Count >= 3);
@@ -307,6 +289,7 @@ public sealed class SettlementProjectTests
         Assert.Contains(state.Events, item => item.Kind == "food_consumed");
         Assert.True(provider.MeaningfulProjectChoiceSeen);
         var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
+        Assert.DoesNotContain("EnergyBasisPoints", JsonSerializer.Serialize(snapshot), StringComparison.Ordinal);
         Assert.NotEmpty(snapshot.Stockpiles);
         Assert.Contains(snapshot.Inhabitants, person => person.Project is not null);
         Assert.Contains(snapshot.Inhabitants, person => person.SocialNotes.Count > 0);

@@ -270,6 +270,7 @@ public partial class Main
         if (surface is not null) lines.Add($"Surface: {surface}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
+        if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");
         if ((region?.Weather ?? snapshot.Authoring?.Weather) is { } weather)
             lines.Add($"Weather: {Pretty(weather)}");
         if (region?.SoilMoisture is { } moisture)

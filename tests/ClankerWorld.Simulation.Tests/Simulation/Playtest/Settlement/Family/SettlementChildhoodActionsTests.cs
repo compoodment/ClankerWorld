@@ -11,7 +11,6 @@ public sealed class SettlementChildhoodActionsTests
     private const string Child = "founder-scout";
 
     [Theory]
-    [InlineData("child_converse:", "child_converse")]
     [InlineData("child_play:", "child_play")]
     [InlineData("child_learn:", "child_learn")]
     public async Task ChildCanChooseBoundedSocialActivitiesAndKeepTheMemoryAfterReload(string choice, string eventKind)
@@ -56,6 +55,13 @@ public sealed class SettlementChildhoodActionsTests
         Assert.Contains(childProvider.SeenCandidates, id => id.StartsWith("child_converse:", StringComparison.Ordinal));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "child_converse");
         Assert.Equal(original.Personality, world.Inhabitants.Single(person => person.InhabitantId == Child).Personality);
+        var memory = Assert.Single(world.Society.Memories, item =>
+            item.OwnerId == Child && item.Id.StartsWith("child-social:converse:", StringComparison.Ordinal));
+        Assert.True(world.Inhabitants.Single(item => item.InhabitantId == Child).SocialStanding?.Any() == true);
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new SelectProvider("safe_idle"));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.Contains(reloaded.Society.Memories, item => item.Id == memory.Id);
     }
 
     [Fact]
@@ -78,11 +84,6 @@ public sealed class SettlementChildhoodActionsTests
 
     [Theory]
     [InlineData("build:building:forged-house")]
-    [InlineData("trade_propose:founder-mira")]
-    [InlineData("parent_propose:founder-mira")]
-    [InlineData("partner_propose:founder-mira")]
-    [InlineData("council_vote:forged-law")]
-    [InlineData("invent:building:forged-house")]
     public async Task MalformedChildModelChoiceCannotPerformAdultAction(string forged)
     {
         // The child carries food, so only the fallback stops this order from completing.

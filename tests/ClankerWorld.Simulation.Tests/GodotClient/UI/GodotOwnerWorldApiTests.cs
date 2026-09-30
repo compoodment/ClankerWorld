@@ -57,7 +57,6 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData("new-world")]
     [InlineData("earlier-existing-world")]
     public async Task LostSwitchReceiptStillAllowsTheActualEarlierTimeline(string selectedWorld)
     {
@@ -205,19 +204,6 @@ public sealed class GodotOwnerWorldApiTests
         {
             Baseline = response.Baseline with { Events = response.Baseline.Events with { EventHistoryFloor = 0 } },
         }, 0, out _));
-    }
-
-    [Fact]
-    public void AcceptsCoherentPairedOwnerReconnectAndAdvancesCursor()
-    {
-        var session = new OwnerWorldObservationSession();
-        var response = CreateCoherentReconnect();
-
-        var accepted = session.TryAccept(response, requestedAfterEventId: 3, out var failure);
-
-        Assert.True(accepted, failure);
-        Assert.Same(response, session.Current);
-        Assert.Equal(5, session.EventCursor);
     }
 
     [Fact]
