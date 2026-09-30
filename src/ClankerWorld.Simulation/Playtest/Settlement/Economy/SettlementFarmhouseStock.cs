@@ -66,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is not { } farmhouse ||
-            HouseForHousehold(householdId) is not { } house ||
+            HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
             FarmFlourForHouse(householdId, farmhouse.InstanceId) is null)
             return;
         if ((!IsWithinInteractionRange(state.Position, farmhouse.Position, 0) &&
@@ -82,7 +82,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is not { } farmhouse ||
-            HouseForHousehold(householdId) is not { } house ||
+            HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
             FarmFlourForHouse(householdId, farmhouse.InstanceId) is not { } flour)
             return;
         if (state.Position != farmhouse.Position)
@@ -90,7 +90,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, farmhouse.Position, "farm_flour", 0);
             return;
         }
-        var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(flour)));
+        var inbound = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        var quantity = Math.Min(CarryingRoom(actor), Math.Min(Math.Max(0, StorageRoom(house.InstanceId) - inbound), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(flour))));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-flour-pickup:{WorldTick}:{actor}", householdId, actor, flour.Id,

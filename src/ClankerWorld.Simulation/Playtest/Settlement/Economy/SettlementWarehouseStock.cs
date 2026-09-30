@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddWarehouseStockCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
-        if (WarehouseForResident(actor) is not { } warehouse || PersonalWarehouseSurplus(actor) is not { } surplus ||
+        if (WarehouseForResident(actor) is not { } warehouse || StorageRoom(warehouse.InstanceId) == 0 || PersonalWarehouseSurplus(actor) is not { } surplus ||
             state.Position != warehouse.Position &&
             FindUnoccupiedRoute(actor, state.Position, warehouse.Position, 0).Count == 0)
             return;
@@ -49,7 +49,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, warehouse.Position, "town_warehouse", 0);
             return;
         }
-        var quantity = Math.Min(WarehouseLoadQuantity, AvailableLotQuantity(surplus) - WarehouseLoadQuantity);
+        var quantity = Math.Min(StorageRoom(warehouse.InstanceId), Math.Min(WarehouseLoadQuantity, AvailableLotQuantity(surplus) - WarehouseLoadQuantity));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"warehouse-stock:{WorldTick}:{actor}", actor, warehouse.TownId!, surplus.Id,
             quantity, "town_resources_stored", warehouse.InstanceId));

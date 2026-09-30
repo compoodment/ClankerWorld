@@ -391,6 +391,7 @@ public sealed partial class PrivateWorldRuntime
                     package.Lifecycle == ContentPackageLifecycle.Active && package.ActivationTick == 0))
                 AddSettlementResources();
             CancelUnavailableWorkers();
+            ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 

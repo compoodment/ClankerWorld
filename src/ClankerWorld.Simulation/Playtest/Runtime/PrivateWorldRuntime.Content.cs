@@ -273,7 +273,7 @@ public sealed partial class PrivateWorldRuntime
                     .ToArray(),
                 worldSimulation.ProductionJobs,
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
             if (assignedTownId is not null)
                 AssignBuildingToTown(placed, definition);
             AppendEvent(eventKind, $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}" +
@@ -397,6 +397,10 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The worker must be standing at the build site.");
             }
 
+            if (placed is not null && BuildingStorageRules.Capacity(workstation!, placed) is not null &&
+                Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > StorageRoom(placed.InstanceId))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "There is no storage room for this recipe's finished output.");
+
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var preparation = recipe.Tags.Any(tag => tag is "cooking" or "house-cooking" or "clothing" or "cloth")
                 ? UseTool(normalizedWorkerId, ToolKind.Knife) : null;
@@ -434,7 +438,7 @@ public sealed partial class PrivateWorldRuntime
                 worldSimulation.Buildings,
                 productionJobs,
                 checked(worldSimulation.NextProductionJobSequence + 1),
-                cropBuilds);
+                cropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
             AppendEvent(eventKind == "recipe_started" && isFertileLandBuild ? "build_started" : eventKind,
                 $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
             return ProductionStartResult.Success(job);

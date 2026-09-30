@@ -36,7 +36,9 @@ everything that is available in the current build. See [what works today](../wha
   cooking, storm refuge, childcare and household property functions. Agents
   outside the household may enter **when invited**; invitation does not grant
   access to the household's private inventory. Invited guests may shelter from
-  storms but get no access to the House's stock or cooking. **There is no
+  storms but get no access to the House's stock or cooking. Any adult member of
+  the household may invite a named guest and revoke that invitation later.
+  Invitations are saved and last until revoked. **There is no
   fixed occupant limit for a House**, including invited visitors; prior
   capacity and crowding ideas are superseded. It has no bed or sleep-recovery
   role. A selected building exposes inspectable occupants, stock and ownership in a panel
