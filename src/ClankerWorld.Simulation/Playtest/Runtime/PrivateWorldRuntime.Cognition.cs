@@ -571,7 +571,7 @@ public sealed partial class PrivateWorldRuntime
                 "build_completed",
                 TownForResident(inhabitantId),
                 houseOwner,
-                society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : null);
+                BuildingConstructionOwner(inhabitantId, definition));
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");

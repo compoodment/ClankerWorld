@@ -54,6 +54,8 @@ public sealed partial class PrivateWorldRuntime
                 var lot = reservation is null ? null : society.Inventory.Lots.SingleOrDefault(item => item.Id == reservation.LotId);
                 if (reservation is null || lot is null || reservation.Purpose != job.JobId ||
                     reservation.OwnerId != lot.OwnerId || lot.OwnerId != job.OwnerId && lot.OwnerId != job.WorkerId ||
+                    (lot.OwnerId == job.OwnerId ? lot.StorageBuildingId != building.InstanceId :
+                        lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null) ||
                     reservation.State != InventoryReservationState.Reserved || reservation.ExpiryTick != job.CompletionTick)
                     throw new InvalidDataException("The expansion is missing its reserved materials.");
                 reserved[lot.ItemKind] = reserved.GetValueOrDefault(lot.ItemKind) + reservation.Quantity;
