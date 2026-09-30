@@ -248,6 +248,12 @@ Signed deletion binds the target kind, exact ID, world ID and (for snapshots)
 creation timestamp. It shares the installation mutation gate with world
 selection and snapshot writes. The active world cannot be deleted.
 
+Deletion reads verify the metadata's save identity against its filename before
+using it. A missing save record or mismatched identity keeps cleanup pending
+instead of preventing the healthy host from starting. These checks do not
+require playable model settings or a valid display name just to remove an
+otherwise identifiable checkpoint.
+
 Snapshot metadata is renamed to a deletion intent before owned generations
 are removed. World removal first moves its catalog entry into pending deletion,
 then removes its snapshots and archived checkpoint. Pending targets are not

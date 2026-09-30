@@ -319,7 +319,9 @@ public partial class Main
 
     private void RefreshControlAvailability()
     {
+        RefreshManualSaveAvailability();
         RefreshWorldMenuAvailability();
+        if (!IsCurrentAutosaveSettingsContext()) CancelAutosaveSettingsRead();
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
         worldSettingsCategoryButton.Disabled = !paired || !isInWorld || returnToMainMenu;
         var snapshot = observationSession.Current?.Baseline.Snapshot;
@@ -364,7 +366,7 @@ public partial class Main
         startWorldButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false, Placed: 4 };
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
-        founderModelInput.Editable = !actionDisabled;
+        founderModelPicker.Editable = !actionDisabled;
         founderApiKeyInput.Editable = !actionDisabled;
         founderKeyLabelInput.Editable = !actionDisabled;
         var infantSelected = selected?.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant") == true;
@@ -394,7 +396,7 @@ public partial class Main
         cognitionRoleChoice.Disabled = actionDisabled;
         cognitionProviderChoice.Disabled = actionDisabled;
         cognitionCredentialChoice.Disabled = actionDisabled;
-        cognitionModelInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        cognitionModelPicker.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionCredentialLabelInput.Editable = !actionDisabled;
         refreshCognitionProviderButton.Disabled = actionDisabled;

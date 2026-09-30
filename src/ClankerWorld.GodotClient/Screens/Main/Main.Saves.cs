@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.UI;
 using System.Globalization;
 using Godot;
@@ -12,6 +13,7 @@ public partial class Main
     private readonly Label manualSaveStatus = new();
     private readonly LineEdit manualSaveName = new();
     private readonly Button manualSaveCreateButton = new();
+    private readonly Button manualSaveBackButton = new();
     private readonly ItemList manualSaveList = new();
     private readonly Button manualSaveLoadButton = new();
     private readonly Button manualSaveOverwriteButton = new();
@@ -22,6 +24,7 @@ public partial class Main
     private OwnerDeletionAction? pendingDeletion;
     private string? listedSaveWorldId;
     private string? pendingOverwriteSaveId;
+    private CancellationTokenSource? manualSaveListCancellation;
     private ManualWorldSave[] listedManualSaves = [];
     private bool manualSaveLoadMode;
     private readonly CheckBox autosaveEnabledToggle = new();
@@ -30,9 +33,19 @@ public partial class Main
     private readonly Button autosaveApplyButton = new();
     private readonly Label autosaveSettingsStatus = new();
     private bool autosaveSettingsLoaded;
+    private string? autosaveSettingsWorldId;
+    private OwnerDeviceRegistration? autosaveSettingsRegistration;
+    private CancellationTokenSource? autosaveSettingsCancellation;
 
     private void BuildAutosaveSettings()
     {
+        void CancelHiddenSettings()
+        {
+            if (!settingsPanel.IsVisibleInTree() || !worldSettingsContent.IsVisibleInTree())
+                CancelAutosaveSettingsRead();
+        }
+        settingsPanel.VisibilityChanged += CancelHiddenSettings;
+        worldSettingsContent.VisibilityChanged += CancelHiddenSettings;
         var content = new VBoxContainer();
         content.AddThemeConstantOverride("separation", 6);
         autosaveEnabledToggle.Text = "Autosave enabled";
@@ -57,16 +70,47 @@ public partial class Main
         worldSettingsContent.AddChild(NewPanel("Autosave", content));
     }
 
-    private async Task RefreshAutosaveSettingsAsync()
+    private bool IsCurrentAutosaveSettingsContext() =>
+        settingsPanel.IsVisibleInTree() && worldSettingsContent.IsVisibleInTree() &&
+        autosaveSettingsWorldId is not null &&
+        autosaveSettingsWorldId == observationSession.Current?.Baseline.Snapshot.WorldId &&
+        ReferenceEquals(autosaveSettingsRegistration, registration);
+
+    private void CancelAutosaveSettingsRead()
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var previous = autosaveSettingsCancellation;
+        autosaveSettingsCancellation = null;
         autosaveSettingsLoaded = false;
+        autosaveSettingsWorldId = null;
+        autosaveSettingsRegistration = null;
+        autosaveApplyButton.Disabled = true;
+        previous?.Cancel();
+    }
+
+    private async Task RefreshAutosaveSettingsAsync(Func<CancellationToken, Task<WorldAutosaveSettings>>? fetch = null)
+    {
+        CancelAutosaveSettingsRead();
+        if (!settingsPanel.IsVisibleInTree() || !worldSettingsContent.IsVisibleInTree() ||
+            observationSession.Current?.Baseline.Snapshot.WorldId is not { } readWorldId ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        using var read = new CancellationTokenSource();
+        autosaveSettingsCancellation = read;
+        autosaveSettingsWorldId = readWorldId;
+        autosaveSettingsRegistration = registration;
         autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
         RefreshControlAvailability();
+        bool IsCurrentRead() => ReferenceEquals(autosaveSettingsCancellation, read) &&
+            IsCurrentAutosaveSettingsContext();
         try
         {
-            var saved = await ownerApi.GetAutosaveSettingsAsync(ResolveWorldUri(), authority,
-                deviceId, signer, CancellationToken.None);
+            var saved = await (fetch?.Invoke(read.Token) ?? ownerApi.GetAutosaveSettingsAsync(ResolveWorldUri(), authority,
+                deviceId, signer, read.Token));
+            if (!IsCurrentRead()) return;
+            if (saved.WorldId != readWorldId)
+            {
+                autosaveSettingsStatus.Text = "The world changed. Reopen World Settings to read its autosaves.";
+                return;
+            }
             autosaveEnabledToggle.ButtonPressed = saved.Enabled;
             autosaveIntervalChoice.Select(autosaveIntervalChoice.GetItemIndex(saved.IntervalMinutes));
             autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(saved.RotationCount));
@@ -75,16 +119,23 @@ public partial class Main
                 ? "No autosave copy yet. Your world is still saved as you play."
                 : $"Last autosave copy: {DisplayWorldClock(saved.LastWorldTick)}. Your world is saved as you play.";
         }
+        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            autosaveSettingsStatus.Text = "Could not read autosave settings: " + FriendlyFailure(exception);
+            if (IsCurrentRead())
+                autosaveSettingsStatus.Text = "Could not read autosave settings: " + FriendlyFailure(exception);
         }
-        RefreshControlAvailability();
+        finally
+        {
+            if (ReferenceEquals(autosaveSettingsCancellation, read)) autosaveSettingsCancellation = null;
+            RefreshControlAvailability();
+        }
     }
 
     private async Task ApplyAutosaveSettingsAsync()
     {
-        if (!autosaveSettingsLoaded || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!autosaveSettingsLoaded || !IsCurrentAutosaveSettingsContext() ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var action = new OwnerAutosaveConfigurationAction(autosaveEnabledToggle.ButtonPressed,
             autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId());
         await RunOwnerActionAsync(async () =>
@@ -103,6 +154,10 @@ public partial class Main
     {
         manualSaveOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.MouseFilter = MouseFilterEnum.Stop;
+        manualSaveOverlay.VisibilityChanged += () =>
+        {
+            if (!manualSaveOverlay.Visible) CancelManualSaveListRead();
+        };
         manualSaveOverlay.ZIndex = 220;
         menuLayer.AddChild(manualSaveOverlay);
         var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.78f }, MouseFilter = MouseFilterEnum.Stop };
@@ -118,10 +173,10 @@ public partial class Main
         manualSaveHeading.ThemeTypeVariation = "TitleLabel";
         manualSaveHeading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         headingRow.AddChild(manualSaveHeading);
-        var back = new Button { TooltipText = "Back to the Pause Menu" };
-        StyleIconButton(back, PixelGlyph.Back);
-        back.Pressed += () => manualSaveOverlay.Hide();
-        headingRow.AddChild(back);
+        manualSaveBackButton.TooltipText = "Back to the Pause Menu";
+        StyleIconButton(manualSaveBackButton, PixelGlyph.Back);
+        manualSaveBackButton.Pressed += () => manualSaveOverlay.Hide();
+        headingRow.AddChild(manualSaveBackButton);
         body.AddChild(headingRow);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);
@@ -133,13 +188,7 @@ public partial class Main
         manualSaveCreateButton.Pressed += () => _ = CreateManualSaveAsync();
         body.AddChild(manualSaveCreateButton);
         manualSaveList.CustomMinimumSize = new Vector2(0, 250);
-        manualSaveList.ItemSelected += index =>
-        {
-            manualSaveLoadButton.Disabled = false;
-            manualSaveDeleteButton.Disabled = (int)index >= listedManualSaves.Length;
-            manualSaveOverwriteButton.Disabled = (int)index >= listedManualSaves.Length ||
-                listedManualSaves[(int)index].IsAutosave;
-        };
+        manualSaveList.ItemSelected += _ => RefreshManualSaveAvailability();
         body.AddChild(manualSaveList);
         manualSaveLoadButton.Text = "Load selected save";
         StyleButton(manualSaveLoadButton, primary: true);
@@ -169,7 +218,24 @@ public partial class Main
         manualSaveOverlay.Hide();
     }
 
-    private async Task OpenManualSavesAsync(bool loadMode)
+    private void CancelManualSaveListRead()
+    {
+        var previous = manualSaveListCancellation;
+        manualSaveListCancellation = null;
+        previous?.Cancel();
+    }
+
+    private void RefreshManualSaveAvailability()
+    {
+        var selected = manualSaveList.GetSelectedItems();
+        var valid = !isOwnerAction && selected.Length == 1 && selected[0] >= 0 && selected[0] < listedManualSaves.Length;
+        manualSaveLoadButton.Disabled = !manualSaveLoadMode || !valid;
+        manualSaveOverwriteButton.Disabled = manualSaveLoadMode || !valid || listedManualSaves[selected[0]].IsAutosave;
+        manualSaveDeleteButton.Disabled = !valid;
+        manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode;
+    }
+
+    private async Task OpenManualSavesAsync(bool loadMode, Func<CancellationToken, Task<ManualWorldSave[]>>? fetch = null)
     {
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         if (!loadMode && observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused != true)
@@ -177,8 +243,13 @@ public partial class Main
             SetStatus("Wait for the world to pause before saving.", good: false);
             return;
         }
+        CancelManualSaveListRead();
+        using var read = new CancellationTokenSource();
+        manualSaveListCancellation = read;
+        var readWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        var readRegistration = registration;
         pendingDeletion = null;
-        listedSaveWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        listedSaveWorldId = readWorldId;
         listedManualSaves = [];
         manualSaveList.Clear();
         manualSaveDeleteButton.Disabled = true;
@@ -195,11 +266,16 @@ public partial class Main
         manualSaveLoadButton.Disabled = true;
         manualSaveOverwriteButton.Disabled = true;
         manualSaveOverlay.Show();
+        RefreshManualSaveAvailability();
+        bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
+            manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
+            readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
         try
         {
-            listedManualSaves = (await ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
-                deviceId, signer, CancellationToken.None))
-                .Where(save => loadMode || !save.IsAutosave).ToArray();
+            var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
+                deviceId, signer, read.Token));
+            if (!IsCurrentRead()) return;
+            listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
             manualSaveList.Clear();
             foreach (var save in listedManualSaves)
                 manualSaveList.AddItem($"{(save.IsAutosave ? "Autosave" : save.Name)} · world {DisplayWorldClock(save.WorldTick)} · saved {save.CreatedUtc.ToLocalTime():g}");
@@ -207,10 +283,16 @@ public partial class Main
                 manualSaveStatus.Text = loadMode
                     ? "No saves yet. Continue the world and use Pause Menu → Save World."
                     : "No named saves yet. Create New Save to make the first one.";
+            RefreshManualSaveAvailability();
         }
+        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(manualSaveListCancellation, read)) manualSaveListCancellation = null;
         }
     }
 

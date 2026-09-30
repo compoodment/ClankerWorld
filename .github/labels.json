@@ -19,6 +19,8 @@
     { "name": "status:needs-playtest", "color": "006b75", "description": "Built; waiting for the owner's hands-on check.", "aliases": [] },
     { "name": "status:blocked", "color": "6e7781", "description": "Waiting on another issue or pull request.", "aliases": [] },
     { "name": "status:ready", "color": "2cbe4e", "description": "Agreed and unblocked; ready to be picked up.", "aliases": [] },
+    { "name": "status:in-progress", "color": "fbca04", "description": "Claimed by someone working on an issue or pull request.", "aliases": [] },
+    { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a hands-on Windows playtest.", "aliases": [] },
     { "name": "priority:blocker", "color": "b60205", "description": "Must be done before the current milestone or playtest.", "aliases": ["gate:blocker"] },
     { "name": "accessibility", "color": "f143ab", "description": "A barrier for players with disabilities.", "aliases": [] }
   ],

@@ -91,9 +91,9 @@ public partial class Main
 
     private async Task RefreshWorldSettingsAsync()
     {
+        await RefreshAutosaveSettingsAsync();
         await RefreshProviderConfigurationAsync();
         await RefreshUsageAsync();
-        await RefreshAutosaveSettingsAsync();
     }
 
     private void BuildPairingPanel()

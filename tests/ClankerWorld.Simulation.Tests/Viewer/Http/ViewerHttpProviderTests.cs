@@ -327,4 +327,47 @@ public sealed partial class ViewerHttpTests
             directory.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public async Task OnlySignedOwnerCanListProviderModelsAndThePastedKeyIsBoundByDigest()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-model-list-http-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true);
+            using var client = host.CreateClient();
+            var device = await StartAndActivateAsync(host, client, key);
+            const string endpoint = "/api/v1/owner/providers/models";
+
+            var pasted = new OwnerProviderModelListAction("openai", ApiKey: "pasted-list-secret");
+            Assert.DoesNotContain("pasted-list-secret", OwnerHttpBinding.ProviderModelListPayload(pasted), StringComparison.Ordinal);
+            using var tampered = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, pasted,
+                OwnerHttpBinding.ProviderModelListPayload(pasted with { ApiKey = "other-secret" }));
+            Assert.Equal(HttpStatusCode.Unauthorized, tampered.StatusCode);
+
+            var saved = new OwnerProviderModelListAction("ollama-cloud");
+            using var missing = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, saved,
+                OwnerHttpBinding.ProviderModelListPayload(saved));
+            Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
+            var list = await missing.Content.ReadFromJsonAsync<OwnerProviderModelList>();
+            Assert.Equal("Add an API key for Ollama Cloud first.", list!.Error);
+            Assert.Equal(PlayerDecisionProviders.DefaultOllamaCloudModel, list.DefaultModel);
+            Assert.Equal(ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud], list.Models.Select(item => item.Model));
+
+            var listOnly = saved with { CheckKey = false };
+            using var tamperedCheck = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, listOnly,
+                OwnerHttpBinding.ProviderModelListPayload(saved));
+            Assert.Equal(HttpStatusCode.Unauthorized, tamperedCheck.StatusCode);
+
+            var jev = new OwnerProviderModelListAction("jev");
+            using var unsupported = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, jev,
+                OwnerHttpBinding.ProviderModelListPayload(jev));
+            Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
 }

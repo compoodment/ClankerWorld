@@ -144,6 +144,7 @@ public partial class Main
         private readonly string publicKey;
         private int pauseCount;
         private int deleteCount;
+        private int saveCreateCount;
         public OwnerAuthorityIdentity Authority { get; } = new("smoke-server", "smoke-authority");
         public string Address { get; }
         public WorldCatalogSnapshot Catalog { get; set; } = WorldActionSmokeCatalog([]);
@@ -155,6 +156,9 @@ public partial class Main
         public TaskCompletionSource ReleaseDelete { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
+        public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
+        public string AutosaveWorldId { get; set; } = "autosave-world-B";
+        public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -199,6 +203,17 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveCreate:
+                    Interlocked.Increment(ref saveCreateCount);
+                    response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
+                        DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case OwnerPairingEndpoints.OwnerAutosaveConfigure:
+                    var configuration = envelope.GetProperty("action").Deserialize<OwnerAutosaveConfigurationAction>(JsonOptions)!;
+                    AutosaveConfigurations.Add(configuration);
+                    response = new WorldAutosaveSettings(AutosaveWorldId, configuration.Enabled,
+                        configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
                     Interlocked.Increment(ref pauseCount);

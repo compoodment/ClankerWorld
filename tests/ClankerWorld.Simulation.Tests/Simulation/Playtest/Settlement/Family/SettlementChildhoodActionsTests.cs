@@ -85,11 +85,12 @@ public sealed class SettlementChildhoodActionsTests
     [InlineData("invent:building:forged-house")]
     public async Task MalformedChildModelChoiceCannotPerformAdultAction(string forged)
     {
-        var state = await ChildState();
+        // The child carries food, so only the fallback stops this order from completing.
+        var state = await ChildState(withCarriedFood: true);
         var provider = new SelectProvider(forged, forge: true);
         using var world = PrivateWorldRuntime.Restore(state, id => id == Child ? provider : new SelectProvider("safe_idle"));
         var instruction = world.SubmitInstruction(new("child-order", "owner", Child, OwnerInstructionKind.MustDo,
-            "build a house and make a land deal"));
+            "eat food"));
         var admissions = new List<SocietyCognitionDispatchResult>();
         for (var tick = 0; tick < 4; tick++)
             admissions.AddRange((await world.AdvanceOneTickAsync()).Decisions.Where(item => item.InhabitantId == Child));

@@ -59,7 +59,9 @@ public sealed partial class PrivateWorldRuntime
     private void Explore(string actor, PlaytestInhabitantState person)
     {
         var exploration = person.Exploration ?? new SettlementExploration([], [], WorldTick, false);
-        if (exploration.OutingPath.Count > 0 && exploration.OutingPath[^1] != person.Position)
+        // A return path holds remaining waypoints, not each intermediate detour.
+        // Only the outward path must end at the actor's current position.
+        if (!exploration.Returning && exploration.OutingPath.Count > 0 && exploration.OutingPath[^1] != person.Position)
         {
             // Another legal intention moved the actor. Never splice that move
             // into a stale scouting path or pretend its intermediate tiles were visited.
@@ -137,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void ReturnFromExploration(string actor, PlaytestInhabitantState person, SettlementExploration exploration)
     {
-        if (exploration.OutingPath.Count == 1)
+        if (exploration.OutingPath.Count == 1 && person.Position == exploration.OutingPath[0])
         {
             CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = person with
@@ -153,11 +155,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var destination = exploration.OutingPath[^2];
+        var destination = exploration.OutingPath.Count == 1 ? exploration.OutingPath[0] : exploration.OutingPath[^2];
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], destination, "explore_return");
         var moved = inhabitants[actor];
-        if (moved.Position == destination)
+        if (moved.Position == destination && exploration.OutingPath.Count > 1)
             inhabitants[actor] = moved with
             {
                 Exploration = exploration with

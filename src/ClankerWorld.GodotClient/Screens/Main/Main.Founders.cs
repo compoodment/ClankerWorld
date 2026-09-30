@@ -15,7 +15,7 @@ public partial class Main
     private readonly Label founderSetupHint = new();
     private readonly OptionButton founderProviderChoice = new();
     private readonly OptionButton founderCredentialChoice = new();
-    private readonly LineEdit founderModelInput = new();
+    private readonly ModelPicker founderModelPicker = new();
     private readonly LineEdit founderKeyLabelInput = new();
     private readonly LineEdit founderApiKeyInput = new();
     private bool placingAddedAgent;
@@ -143,22 +143,28 @@ public partial class Main
         founderProviderChoice.SetItemMetadata(1, "ollama-cloud");
         founderProviderChoice.ItemSelected += _ =>
         {
-            founderModelInput.Text = DefaultProviderModel(SelectedFounderProvider());
+            founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
             PopulateFounderCredentials();
         };
         body.AddChild(founderProviderChoice);
 
-        founderModelInput.PlaceholderText = "Model name for this agent";
-        founderModelInput.Text = DefaultProviderModel("openai");
-        body.AddChild(founderModelInput);
-
-        founderCredentialChoice.ItemSelected += _ => RenderFounderCredentialInputs();
+        // The key comes before the model, since the key decides which models are offered.
+        founderCredentialChoice.ItemSelected += _ =>
+        {
+            RenderFounderCredentialInputs();
+            RequestFounderModels();
+        };
         body.AddChild(founderCredentialChoice);
         founderKeyLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
         body.AddChild(founderKeyLabelInput);
         founderApiKeyInput.Secret = true;
         founderApiKeyInput.PlaceholderText = "Paste API key";
+        founderApiKeyInput.TextChanged += _ => OnFounderKeyEdited();
         body.AddChild(founderApiKeyInput);
+
+        founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
+        founderModelPicker.RetryRequested += RequestFounderModels;
+        body.AddChild(founderModelPicker);
 
         AddClosablePanelContents(founderSetupPanel, "Add an agent", body, () =>
         {
@@ -194,6 +200,7 @@ public partial class Main
             option.Provider == SelectedFounderProvider() && option.HasCredential) == true;
         founderCredentialChoice.Select(founderCredentialChoice.ItemCount > 2 ? 1 : defaultAvailable ? 0 : founderCredentialChoice.ItemCount - 1);
         RenderFounderCredentialInputs();
+        RequestFounderModels();
     }
 
     private void RenderFounderCredentialInputs()
@@ -226,9 +233,9 @@ public partial class Main
         {
             providerConfiguration = await ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            PopulateFounderCredentials();
             founderSetupPanel.Show();
-            return "Pick a model and key, then click an empty spot to place the founder.";
+            PopulateFounderCredentials();
+            return "Pick a key and model, then click an empty spot to place the founder.";
         });
     }
 
@@ -247,12 +254,12 @@ public partial class Main
         {
             providerConfiguration = await ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            PopulateFounderCredentials();
             placingAddedAgent = true;
             townBorderFilter.ButtonPressed = true;
             householdPropertyFilter.ButtonPressed = true;
             ResetAddAgentPlacementHint();
             founderSetupPanel.Show();
+            PopulateFounderCredentials();
             return "Click empty land or a House to place the new agent.";
         });
     }
@@ -272,7 +279,7 @@ public partial class Main
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var provider = SelectedFounderProvider();
-        var model = founderModelInput.Text.Trim();
+        var model = founderModelPicker.Model;
         var choice = SelectedFounderCredential();
         var newKey = choice == "new";
         if (model.Length == 0)
@@ -333,7 +340,7 @@ public partial class Main
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var provider = SelectedFounderProvider();
-        var model = founderModelInput.Text.Trim();
+        var model = founderModelPicker.Model;
         var choice = SelectedFounderCredential();
         var newKey = choice == "new";
         if (model.Length == 0)

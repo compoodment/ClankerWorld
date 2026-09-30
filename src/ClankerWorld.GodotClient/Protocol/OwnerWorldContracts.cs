@@ -387,6 +387,28 @@ public sealed record OwnerUsageStatus(long Attempts, long Completed, long Failed
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+/// <summary>
+/// Asks the host for the game's model list for a provider. With
+/// <see cref="CheckKey"/>, the host also asks the provider which of those
+/// models a key can use. <see cref="ApiKey"/> is a key the owner has just
+/// pasted and not saved yet; it is used for this check only. Without it, the
+/// named key slot or the provider's saved key is used.
+/// </summary>
+public sealed record OwnerProviderModelListAction(
+    string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
+
+/// <summary>One listed model, and whether the checked key can use it.</summary>
+public sealed record OwnerProviderModelChoice(string Model, bool Available);
+
+/// <summary>
+/// The game's models for a provider, in display order. <see cref="DefaultModel"/>
+/// is the game's default for this provider, chosen for a new agent when the
+/// key can use it. <see cref="Error"/> explains, in plain words, a key that
+/// couldn't be checked; the models are then all shown as usable.
+/// </summary>
+public sealed record OwnerProviderModelList(
+    string Provider, IReadOnlyList<OwnerProviderModelChoice> Models, string DefaultModel, string? Error);
+
 public sealed record OwnerProviderConfigurationAction(
     string Role,
     string Provider,

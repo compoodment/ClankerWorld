@@ -49,7 +49,15 @@ pace, subject to model/server load.
 
 Each starting agent has a provider, model and key assignment. Stored keys can
 be shared or selected independently. An agent's Profile lets you change these
-choices and rename the person. Jev can be switched on or off for a paused world.
+choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
+from the game's own short list, newest at the top, or typed by name. The host checks
+the chosen key with the provider and greys out listed models it can't use. That
+check and the listed model names have been tested against recorded sample
+replies, not yet against live provider accounts. Jev can be switched on or off
+for a paused world.
+When a personal model names a new agent, it gets a stable first-letter hint to
+encourage varied names. The hint does not prevent two agents choosing the same
+full name.
 
 Personal models choose from legal actions. They receive some saved self
 information, need values, a recent private thought, relevant personal memories
@@ -62,6 +70,13 @@ One slow model can wait while other agents and the world continue. A failed or
 low-confidence response uses only the explicit safe fallback; it does not invent
 an important choice or complete a firm instruction. The paired Windows/model-wait
 check remains in [the playtest checklist](https://github.com/compoodment/ClankerWorld/issues/285).
+
+The agent card's **Speak to them** box sends a message as a **Suggest** or an
+**Order**. This is a basic version. The game understands only orders to gather
+food, eat or go toward food. The agent's model does not see the words. An order
+the game can't act on closes at once, and the Event Log says the agent didn't
+understand it. An order that can't be carried out yet waits without extra model
+requests. The card does not yet show which orders are still waiting.
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can

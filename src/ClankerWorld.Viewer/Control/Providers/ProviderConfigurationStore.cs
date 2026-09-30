@@ -16,8 +16,8 @@ public static class PlayerDecisionProviders
     public const string OllamaCloud = "ollama-cloud";
 
     public const string DefaultJevModel = "jev-1.13.0";
-    public const string DefaultOpenAiModel = "gpt-5-mini";
-    public const string DefaultOllamaCloudModel = "gpt-oss:120b-cloud";
+    public const string DefaultOpenAiModel = "gpt-6-luna";
+    public const string DefaultOllamaCloudModel = "glm-5.3-flash:cloud";
 
     public static readonly Uri JevEndpoint = new("https://api.typesafe.ai/v1/systemone", UriKind.Absolute);
     public static readonly Uri OpenAiEndpoint = new("https://api.openai.com/v1/chat/completions", UriKind.Absolute);

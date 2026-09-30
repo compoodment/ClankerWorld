@@ -6,11 +6,13 @@ release yet.
 
 ## Unreleased
 
+- An agent-card **Order** the game can't act on, such as "build a house", now closes at once, and the Event Log says the agent didn't understand it. Before, it never finished, asked the agent's model for a new decision about once a second and held up later instructions to that agent. An order that can't be carried out yet, such as "eat" with no food, still waits, but without the extra requests. Orders are now read as whole words, so "heat" no longer counts as "eat" and "good" no longer counts as "go".
 - A damaged inactive checkpoint with missing required state no longer breaks the entire Load World list. It is marked incompatible and cannot replace the healthy active world.
 - Loading or overwriting a damaged manual save reports a recoverable conflict before creating backups or changing the active world, instead of returning a server error or accepting invalid metadata.
 
 - Keep descendants able to explore and save even when their inherited identities are long.
 - New World explains when the game and world server need matching updates, keeping valid device pairing instead of asking players to connect the device again.
+- New agents choosing names receive a stable first-letter suggestion to encourage variety without adding a model call.
 
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
@@ -21,11 +23,12 @@ release yet.
 
 - Prototype survival priorities leave more room for ordinary activities below comfortable fullness and warmth. Urgent food or continuing cold exposure still interrupts discretionary work, while safe nearby care remains possible. Routine food and outing reserves remain provisional for playtesting.
 - Add confirmed permanent deletion of one selected save, or an inactive world and all its saves. The active world and other worlds stay intact.
-- Damaged leftover saves no longer stop host startup during pending deletion cleanup; failed cleanup stays pending and preserves unverified files.
+- Damaged leftover saves no longer stop host startup during pending deletion cleanup; failed cleanup stays pending and preserves unverified files. Missing save identities in deletion metadata are handled the same way.
 - New World adds a compact Advanced section with 20–80% water (50% default), Low/Normal/High forest, mountains, rivers and resources, climate choices, wrapping and latitude cooling. Reset restores the full supported preset; preview and creation use the same saved settings.
 
 - New worlds keep inland lakes smaller and route rivers into lakes instead of around their shores, while preserving the selected open-water area. Existing worlds retain their saved geography.
 - Load World shows saved-world checks in progress, displays delayed results on the first opening, and ignores replies from closed or superseded lists.
+- Save World ignores replies from closed or earlier openings, preserving the current selection and keeping Overwrite working when an older list arrives late.
 - Opening a world keeps the chosen world even if its list refreshes, and Open and Delete wait for the current world action to finish.
 
 - Remove the redundant Load World tooltip from the Main Menu.
@@ -52,6 +55,7 @@ release yet.
 - Manual overwrite atomically publishes a complete checkpoint/model/settings generation; a failed metadata replacement keeps the prior selected save and its recovery backup.
 
 - Scouting safely starts a new local path after another action moves the agent away, instead of joining nonadjacent steps and breaking saves.
+- Returning explorers keep their destination and discoveries when detouring around a resident, including after save/reload, instead of starting another outing away from home.
 - Inherited physical maps and field records keep their lot identity, preserving the knowledge artifact link and saveability without broadcasting their contents.
 - Start World keeps time paused until its checkpoint is saved; a failed write leaves setup retryable instead of running an unsaved world.
 - Failed founder checkpoint writes roll back the founder and provider configuration. World selection and founder setup share one transaction gate so successful placements keep their model assignments.
@@ -76,6 +80,7 @@ release yet.
 - The Event Log and unread badge now select explicitly supported player events, including public partnership, care, trade and Town policy milestones; new internal event kinds no longer appear automatically as humanized diagnostics.
 - The Event Log keeps agent names for food, births, deaths and Town membership, including renamed and deceased agents whose IDs contain colons.
 - Changing autosave rotation trims only the selected world, including Rotation off; other worlds’ checkpoint files remain untouched.
+- A delayed autosave reply from an earlier world or Settings opening can no longer replace the current world's choices or enable Apply.
 
 - Invalid hosted choices and out-of-range confidence complete with safe idle instead of repeatedly consuming model calls for the same decision.
 - A late model reply no longer cancels the agent's newer pending choice; the current reply can still be accepted.
@@ -330,6 +335,24 @@ release yet.
 
 ### Changed
 
+- Choosing an agent's model no longer means typing its exact name. In Add an
+  agent and in an agent's Model settings, the key is chosen first, and the
+  model comes from the game's own short list, newest at the top: GPT-6.1 Sol,
+  GPT-6 Astra, GPT-6 Sol and GPT-6 Luna for OpenAI, and GLM 5.3 Flash,
+  GLM 5.3, DeepSeek V4.1 Flash, DeepSeek V4 Pro, MiniMax M3, Kimi K3 and
+  Gemma 4 for Ollama Cloud. Models the key can't use are greyed out. If the
+  key can't use a new agent's model, no other model is chosen for you: the
+  picker asks you to choose one first. An existing agent's model stays shown,
+  greyed, with the same request.
+  **Type a model name…** covers any other model, and an agent already on an
+  unlisted model keeps it as a typed name. If the key can't be checked, the
+  reason is shown with **Retry** and the list stays usable. The host checks
+  keys, so they never leave it, and a newly pasted key is not saved until the
+  agent is placed or the change applied.
+- New OpenAI agents now start on GPT-6 Luna (`gpt-6-luna`) instead of
+  `gpt-5-mini`, and new Ollama Cloud agents on GLM 5.3 Flash
+  (`glm-5.3-flash:cloud`) instead of `gpt-oss:120b-cloud`. Agents and saved
+  settings that already name a model keep it.
 - The map is quieter. An agent's name appears only while you hover over or
   select them, as outlined pixel letters without a dark box (gold for the
   selected agent), and no longer carries an activity symbol. Buildings no
