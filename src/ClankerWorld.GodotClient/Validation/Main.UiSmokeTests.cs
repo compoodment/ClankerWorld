@@ -1356,7 +1356,7 @@ public partial class Main
             foreach (var (panel, button, toggle) in new (Control Panel, Button Button, Action Toggle)[]
             {
                 (filtersPanel, filtersButton, ToggleMapFilters), (rosterPanel, inhabitantsButton, ToggleInhabitants),
-                (worldInfoPanel, worldInfoButton, ToggleWorldInfo), (eventsPanel, eventsButton, ToggleEvents),
+                (worldInfoPanel, worldInfoButton, ToggleWorldInfo),
             })
             {
                 toggle();
@@ -1368,6 +1368,14 @@ public partial class Main
                     throw new InvalidOperationException($"{panel.Name} must open under its {button.Text} button: panel {panelBounds}, button {buttonBounds}.");
                 toggle();
             }
+            // The Event Log sits flush with the right edge of the screen instead.
+            ToggleEvents();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var logRight = eventsPanel.GetGlobalRect().End.X;
+            var screenRight = uiLayer.GetGlobalRect().End.X - 14 * uiLayer.Factor;
+            ToggleEvents();
+            if (Math.Abs(logRight - screenRight) > 1)
+                throw new InvalidOperationException($"The Event Log must open at the right edge of the screen: ends at {logRight}, edge {screenRight}.");
             knownEvents.Remove(102);
             RenderEventLog();
             var largeTerrain = Enumerable.Range(0, 256 * 128)

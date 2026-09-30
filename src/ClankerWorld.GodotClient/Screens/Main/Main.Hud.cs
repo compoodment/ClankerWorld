@@ -264,7 +264,10 @@ public partial class Main
         PlaceUnderButton(filtersPanel, filtersButton);
         PlaceUnderButton(rosterPanel, inhabitantsButton);
         PlaceUnderButton(worldInfoPanel, worldInfoButton);
-        PlaceUnderButton(eventsPanel, eventsButton);
+        // The Event Log often stays open while playing, so it sits flush with the right edge.
+        if (eventsPanel.Visible)
+            eventsPanel.Position = new Vector2(
+                Math.Max(14, UiSize.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14), HudTop);
         PlaceUnderButton(founderSetupPanel, placingAddedAgent && addAgentButton.IsVisibleInTree() ? addAgentButton : founderSetupButton);
     }
 
