@@ -255,6 +255,9 @@ public static class UiTheme
         theme.SetStylebox("panel", "HudPanel", Frame(p, 16, 2, 2, contentMargin: 7));
         theme.SetTypeVariation("InsetPanel", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanel", Box(p.Inset, p.InsetEdge, 2, contentMargin: 8));
+        // An inset that opens something when clicked, under the pointer.
+        theme.SetTypeVariation("InsetPanelHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetPanelHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 8));
         theme.SetTypeVariation("TopBar", "PanelContainer");
         theme.SetStylebox("panel", "TopBar", TopBar(p));
         // A wax-seal count on a button's corner, and a small warning dot.

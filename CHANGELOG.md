@@ -327,6 +327,8 @@ release yet.
   the left of the screen: a portrait, a pencil to rename, age, diet, belongings,
   work and learning, private thoughts, people, Memories, Family and Model, and a
   message box with a **Suggest** or **Order** choice instead of a drop-down.
+  Click the thoughts, or **Read all**, to read every recent thought in a larger
+  panel beside the Profile, grouped by day; Memories opens beside it too.
   Back, or Escape, returns to the small card. The card no longer repeats what
   the agent wants to do, no longer shows an always-open rename box, and no
   longer leaves empty gaps. A deceased agent opens straight to their historical

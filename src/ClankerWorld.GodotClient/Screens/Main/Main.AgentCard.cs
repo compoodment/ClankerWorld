@@ -14,6 +14,7 @@ public partial class Main
 {
     private const int QuickCardWidth = 206;
     private const int AgentProfileWidth = 300;
+    private const int ReaderWidth = 560;
 
     private readonly PanelContainer agentProfilePanel = new();
     private readonly Label quickCardNameLabel = new();
@@ -40,6 +41,12 @@ public partial class Main
     private readonly VBoxContainer speakSection = new();
     private readonly Button instructionSuggestButton = new();
     private readonly Button instructionOrderButton = new();
+    private readonly PanelContainer thoughtsInset = new() { ThemeTypeVariation = "InsetPanel" };
+    private readonly Button readThoughtsButton = new();
+    private readonly PanelContainer thoughtsPanel = new();
+    private readonly Label thoughtsReaderTitle = new();
+    private readonly RichTextLabel thoughtsReaderText = new();
+    private string? renderedThoughtsReader;
     private bool agentProfileRequested;
     private OwnerWorldSnapshot? agentCardSnapshot;
 
@@ -47,8 +54,10 @@ public partial class Main
     {
         BuildQuickCard();
         BuildAgentProfile();
+        BuildThoughtsReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
+        uiLayer.AddChild(thoughtsPanel);
     }
 
     private void BuildQuickCard()
@@ -177,12 +186,30 @@ public partial class Main
         ConfigureTextPanel(inhabitantDetails, 90);
         selectedAgentOverview.AddChild(inhabitantDetails);
 
-        selectedAgentOverview.AddChild(thoughtsHeading);
-        var thoughts = new PanelContainer { ThemeTypeVariation = "InsetPanel" };
+        // The Profile shows the latest thoughts; clicking them, or Read all,
+        // opens every recent one in a larger reader beside it.
+        var thoughtsRow = new HBoxContainer();
+        thoughtsHeading.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        thoughtsHeading.VerticalAlignment = VerticalAlignment.Center;
+        thoughtsRow.AddChild(thoughtsHeading);
+        readThoughtsButton.Text = "Read all";
+        readThoughtsButton.TooltipText = "Open all of their recent thoughts in a larger reader.";
+        StyleCompactToggle(readThoughtsButton);
+        readThoughtsButton.Pressed += OpenThoughtsReader;
+        thoughtsRow.AddChild(readThoughtsButton);
+        selectedAgentOverview.AddChild(thoughtsRow);
         ConfigureTextPanel(privateThoughtHistory, 180);
-        privateThoughtHistory.TooltipText = "Only you can see these thoughts. Other agents don't know them unless they are told.";
-        thoughts.AddChild(privateThoughtHistory);
-        selectedAgentOverview.AddChild(thoughts);
+        privateThoughtHistory.TooltipText = "Click to read all of their thoughts. Only you can see these; other agents don't know them unless they are told.";
+        privateThoughtHistory.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+        privateThoughtHistory.GuiInput += input =>
+        {
+            if (input is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+                OpenThoughtsReader();
+        };
+        privateThoughtHistory.MouseEntered += () => thoughtsInset.ThemeTypeVariation = "InsetPanelHover";
+        privateThoughtHistory.MouseExited += () => thoughtsInset.ThemeTypeVariation = "InsetPanel";
+        thoughtsInset.AddChild(privateThoughtHistory);
+        selectedAgentOverview.AddChild(thoughtsInset);
 
         selectedAgentOverview.AddChild(new Label { Text = "PEOPLE", ThemeTypeVariation = "SectionLabel" });
         ConfigureTextPanel(inhabitantSocialDetails, 90);
@@ -228,14 +255,7 @@ public partial class Main
             button.TooltipText = tip;
             button.ToggleMode = true;
             button.ButtonGroup = kind;
-            button.ThemeTypeVariation = "TabButton";
-            button.FocusMode = Control.FocusModeEnum.None;
-            foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
-            {
-                var box = (StyleBox)UiTheme.Theme.GetStylebox(state, "TabButton").Duplicate();
-                box.ContentMarginTop = box.ContentMarginBottom = 3;
-                button.AddThemeStyleboxOverride(state, box);
-            }
+            StyleCompactToggle(button);
             speakHeading.AddChild(button);
         }
         instructionSuggestButton.ButtonPressed = true;
@@ -264,6 +284,114 @@ public partial class Main
         // Top-bar panels such as Filters open over the Profile while in use.
         agentProfilePanel.ZIndex = 75;
         agentProfilePanel.Hide();
+    }
+
+    /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
+    private static void StyleCompactToggle(Button button)
+    {
+        button.ThemeTypeVariation = "TabButton";
+        button.FocusMode = Control.FocusModeEnum.None;
+        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
+        {
+            var box = (StyleBox)UiTheme.Theme.GetStylebox(state, "TabButton").Duplicate();
+            box.ContentMarginTop = box.ContentMarginBottom = 3;
+            button.AddThemeStyleboxOverride(state, box);
+        }
+    }
+
+    private void BuildThoughtsReader()
+    {
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
+        var heading = new HBoxContainer();
+        thoughtsReaderTitle.ThemeTypeVariation = "HeadingLabel";
+        thoughtsReaderTitle.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        heading.AddChild(thoughtsReaderTitle);
+        var close = CloseButton("Close thoughts (Esc)");
+        close.Pressed += () => thoughtsPanel.Hide();
+        heading.AddChild(close);
+        body.AddChild(heading);
+        body.AddChild(new Label
+        {
+            Text = "Only you can read these. Other agents don't know them unless they are told.",
+            ThemeTypeVariation = "DimLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        });
+        ConfigureTextPanel(thoughtsReaderText, 1000);
+        thoughtsReaderText.AddThemeConstantOverride("paragraph_separation", 4);
+        body.AddChild(thoughtsReaderText);
+        AddPanelContents(thoughtsPanel, body);
+        thoughtsPanel.ZIndex = 85;
+        thoughtsPanel.Resized += () => PlaceReaderPanel(thoughtsPanel);
+        thoughtsPanel.Hide();
+    }
+
+    private void OpenThoughtsReader()
+    {
+        if (SelectedInhabitant() is not { } inhabitant || agentCardSnapshot is not { } snapshot) return;
+        memoriesPanel.Hide();
+        familyTreePanel.Hide();
+        rosterPanel.Hide();
+        eventsPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Hide();
+        RenderThoughtsReader(snapshot, inhabitant);
+        thoughtsPanel.Show();
+        ApplyResponsiveLayout();
+    }
+
+    /// <summary>Every recent private thought, newest first, under a heading for each day.</summary>
+    private void RenderThoughtsReader(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
+    {
+        thoughtsReaderTitle.Text = IsDeceased(inhabitant) ? $"{inhabitant.DisplayName} · thoughts, historical" : $"{inhabitant.DisplayName} · thoughts";
+        var thoughts = inhabitant.RecentPrivateThoughts.Reverse()
+            .Select(thought => (Clock: SplitClock(DisplayWorldClock(thought.WorldTick)), thought.Text)).ToArray();
+        var signature = inhabitant.Id + "|" + UiTheme.Current.Name + "\n" +
+            string.Join("\n", thoughts.Select(item => $"{item.Clock.Date}|{item.Clock.Time}|{item.Text}"));
+        if (renderedThoughtsReader == signature) return;
+        renderedThoughtsReader = signature;
+        thoughtsReaderText.Clear();
+        if (thoughts.Length == 0)
+        {
+            thoughtsReaderText.PushColor(DimText);
+            thoughtsReaderText.AddText("None recorded yet.");
+            thoughtsReaderText.Pop();
+        }
+        string? day = null;
+        foreach (var (clock, text) in thoughts)
+        {
+            if (day is not null) thoughtsReaderText.Newline();
+            if (clock.Date != day)
+            {
+                if (day is not null) thoughtsReaderText.Newline();
+                thoughtsReaderText.PushFont(UiFonts.Headings, thoughtsReaderText.GetThemeFontSize("normal_font_size"));
+                thoughtsReaderText.PushColor(HeadingText);
+                thoughtsReaderText.AddText(clock.Date);
+                thoughtsReaderText.Pop();
+                thoughtsReaderText.Pop();
+                thoughtsReaderText.Newline();
+                day = clock.Date;
+            }
+            thoughtsReaderText.PushColor(DimText);
+            thoughtsReaderText.AddText(clock.Time + "  ");
+            thoughtsReaderText.Pop();
+            thoughtsReaderText.AddText(text);
+        }
+        FitTextPanel(thoughtsReaderText);
+    }
+
+    /// <summary>
+    /// Readers such as Memories and thoughts open beside the Profile when there
+    /// is room, so both stay in view, and in the middle of the screen otherwise.
+    /// </summary>
+    private void PlaceReaderPanel(PanelContainer panel)
+    {
+        var size = panel.GetCombinedMinimumSize();
+        panel.Size = size;
+        var beside = agentProfilePanel.Position.X + agentProfilePanel.Size.X + 12;
+        panel.Position = agentProfilePanel.Visible && beside + size.X <= UiSize.X - 14
+            ? new Vector2(beside, HudTop)
+            : new Vector2(Math.Max(14, (UiSize.X - size.X) / 2), Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
     /// <summary>Profile, Speak and card buttons carry pixel icons in the current theme.</summary>
@@ -384,6 +512,7 @@ public partial class Main
             SetPanelText(privateThoughtHistory, string.Empty);
             SetPanelText(memoryHistory, string.Empty);
             memoriesPanel.Hide();
+            thoughtsPanel.Hide();
             selectedInhabitantCard.Hide();
             agentProfilePanel.Hide();
             return;
@@ -505,6 +634,7 @@ public partial class Main
             .ToArray();
         SetPanelText(inhabitantSocialDetails, people.Length == 0 ? "No close relationships yet." : string.Join("\n", people));
         RenderMemoryHistory(snapshot, inhabitant);
+        RenderThoughtsReader(snapshot, inhabitant);
 
         modelSettingsButton.Disabled = isDeceased || registration is null;
         findAgentButton.Visible = !isDeceased;

@@ -181,6 +181,7 @@ public partial class Main
         CloseAgentModelEditor();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
         selectedInhabitantId = null;
         inhabitantList.DeselectAll();
         selectedInhabitantCard.Hide();

@@ -236,7 +236,7 @@ public partial class Main
         memoriesBody.AddChild(memoryHistory);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
-        memoriesPanel.Resized += CenterMemoriesPanel;
+        memoriesPanel.Resized += () => PlaceReaderPanel(memoriesPanel);
         memoriesPanel.Hide();
         content.AddChild(memoriesPanel);
 
@@ -633,9 +633,13 @@ public partial class Main
         // Text that has to scroll shows whole lines rather than a sliced last one.
         var line = label.GetThemeFont("normal_font").GetHeight(label.GetThemeFontSize("normal_font_size")) +
             label.GetThemeConstant("line_separation");
+        var minimum = (float)UiFonts.Body * 2;
         if (height < label.GetContentHeight() && line > 0)
+        {
             height = Math.Max(line, Mathf.Floor(height / line) * line);
-        height = Mathf.Ceil(Math.Max(UiFonts.Body * 2, height));
+            minimum = line;
+        }
+        height = Mathf.Ceil(Math.Max(minimum, height));
         if (Math.Abs(label.CustomMinimumSize.Y - height) >= 1)
             label.CustomMinimumSize = new Vector2(label.CustomMinimumSize.X, height);
     }
@@ -646,7 +650,7 @@ public partial class Main
     /// </summary>
     private void FitFloatingPanelsToContents()
     {
-        foreach (var panel in HudPanels().Append(memoriesPanel).Append(selectedTilePanel).Append(agentProfilePanel))
+        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(selectedTilePanel).Append(agentProfilePanel))
             panel.MinimumSizeChanged += () => panel.Size = panel.GetCombinedMinimumSize();
     }
 

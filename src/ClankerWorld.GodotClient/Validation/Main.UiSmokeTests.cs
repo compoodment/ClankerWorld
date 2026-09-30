@@ -1304,6 +1304,19 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
+            readThoughtsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!thoughtsPanel.Visible || !agentProfilePanel.Visible ||
+                thoughtsPanel.Position.X < agentProfilePanel.Position.X + agentProfilePanel.Size.X ||
+                !mapCanvas.GetGlobalRect().Grow(1).Encloses(thoughtsPanel.GetGlobalRect()) ||
+                !thoughtsReaderText.GetParsedText().Contains("None recorded yet.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Read all must open the thoughts reader beside the Profile: reader={thoughtsPanel.GetGlobalRect()} profile={agentProfilePanel.GetGlobalRect()}.");
+            thoughtsPanel.Hide();
+            privateThoughtHistory.EmitSignal(Control.SignalName.GuiInput, new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true });
+            if (!thoughtsPanel.Visible || privateThoughtHistory.MouseDefaultCursorShape != Control.CursorShape.PointingHand)
+                throw new InvalidOperationException("Clicking the Profile's thoughts must open the thoughts reader.");
+            thoughtsPanel.Hide();
             profileCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (agentProfilePanel.Visible || !selectedInhabitantCard.Visible || selectedInhabitantId != founder.Id)
                 throw new InvalidOperationException("Back on the Profile must return to the quick card with the agent still selected.");
@@ -1951,7 +1964,9 @@ public partial class Main
                 !ShowsGlyph(profileCloseButton, PixelGlyph.Close) || renameAgentInput.Text != "Mira")
                 throw new InvalidOperationException("A deceased inhabitant must open straight to a historical Profile without appearing as a living map actor.");
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
-                !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal))
+                !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal) ||
+                !thoughtsReaderText.GetParsedText().Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
+                !thoughtsReaderTitle.Text.Contains("historical", StringComparison.Ordinal))
                 throw new InvalidOperationException("Deceased profiles must retain their saved private thoughts without generating new ones.");
             memoriesButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!memoriesPanel.Visible ||
@@ -2088,6 +2103,10 @@ public partial class Main
             // Escape steps back from the Profile to the quick card, then clears the selection.
             RenderSelectedInhabitantCard(renderedMapSnapshot!);
             OpenAgentProfile(speak: false);
+            OpenThoughtsReader();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (thoughtsPanel.Visible || !agentProfilePanel.Visible)
+                throw new InvalidOperationException("Escape must close the thoughts reader before the Profile.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (agentProfilePanel.Visible || !selectedInhabitantCard.Visible)
                 throw new InvalidOperationException("Escape must step back from the Profile to the quick card.");

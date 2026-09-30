@@ -25,6 +25,7 @@ public partial class Main
             knownEvents.Clear();
             familyTreePanel.Hide();
             memoriesPanel.Hide();
+            thoughtsPanel.Hide();
             ClearTileSelection();
         }
         foreach (var worldEvent in appendedEvents)

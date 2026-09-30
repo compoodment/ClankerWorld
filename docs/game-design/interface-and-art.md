@@ -162,10 +162,12 @@ everything that is available in the current build. See [what works today](../wha
   **Profile** docks a larger panel on the left of the screen: portrait, a
   pencil to rename, age, diet and the other bars, belongings, work and
   learning, private thoughts, people, **Memories**, **Family** and **Model**,
-  and a message box with a **Suggest** or **Order** choice. Its back button
-  returns to the quick card; a deceased agent's historical Profile opens
-  directly and simply closes. This refines the selected-agent popup described
-  further down this list.
+  and a message box with a **Suggest** or **Order** choice. Clicking the
+  thoughts, or **Read all**, opens every recent thought in a larger reader
+  beside the Profile, grouped by day; Memories opens beside it too. The
+  Profile's back button returns to the quick card; a deceased agent's
+  historical Profile opens directly and simply closes. This refines the
+  selected-agent popup described further down this list.
 - **Agreed on September 30:** buttons are consistent across the whole game.
   Every panel closes with one small square button showing a pixel ×. A screen
   reached from another shows a pixel back chevron in that same place, instead

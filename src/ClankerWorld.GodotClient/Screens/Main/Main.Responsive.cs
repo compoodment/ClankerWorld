@@ -64,8 +64,11 @@ public partial class Main
         familyTreePanel.Position = new Vector2(
             Math.Max(14, (viewport.X - familySize.X) / 2),
             Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
-        memoriesPanel.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600), 0);
-        CenterMemoriesPanel();
+        foreach (var reader in new[] { memoriesPanel, thoughtsPanel })
+        {
+            reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
+            PlaceReaderPanel(reader);
+        }
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
@@ -74,16 +77,6 @@ public partial class Main
         statusToast.Position = new Vector2(
             Math.Max(14, (viewport.X - toastSize.X) / 2),
             Math.Max(14, viewport.Y - toastSize.Y - 18));
-    }
-
-    /// <summary>Memories fit their text and sit in the middle of the screen, below the top bar.</summary>
-    private void CenterMemoriesPanel()
-    {
-        var size = memoriesPanel.GetCombinedMinimumSize();
-        memoriesPanel.Size = size;
-        memoriesPanel.Position = new Vector2(
-            Math.Max(14, (UiSize.X - size.X) / 2),
-            Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
     private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
