@@ -21,14 +21,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Add area labels from the changed files
-        if: github.event.action != 'closed'
-        uses: actions/labeler@v5
-        with:
-          dot: true
-          sync-labels: false
-
-      - name: Update type, review and linked-issue labels
+      - name: Update area, type, review and linked-issue labels
         uses: actions/github-script@v8
         with:
           script: |
