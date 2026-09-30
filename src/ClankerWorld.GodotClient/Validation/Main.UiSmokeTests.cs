@@ -860,12 +860,31 @@ public partial class Main
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
             };
-            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
-            if (clockLabel.Text != "01-02-0001 · 00:00" ||
-                !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
-                !TownListText().Contains("First Town", StringComparison.Ordinal) ||
-                !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
-                throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+            // A smoke run may load an existing installation's 12-hour or date
+            // preference. Check explicit formats without saving over that choice.
+            var installedClockPreferences = displayPreferences;
+            try
+            {
+                foreach (var (twelveHour, expectedClock) in new[]
+                         { (false, "01-02-0001 · 00:00"), (true, "01-02-0001 · 12:00 AM") })
+                {
+                    displayPreferences = installedClockPreferences with
+                    {
+                        UseTwelveHourClock = twelveHour,
+                        DateFormat = "dmy",
+                    };
+                    Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
+                    if (clockLabel.Text != expectedClock ||
+                        !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
+                        !TownListText().Contains("First Town", StringComparison.Ordinal) ||
+                        !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
+                        throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+                }
+            }
+            finally
+            {
+                displayPreferences = installedClockPreferences;
+            }
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
