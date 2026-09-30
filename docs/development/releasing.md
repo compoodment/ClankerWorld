@@ -67,8 +67,10 @@ reset. Do not use that one exception as permission to discard later saves.
 Prepare a release when the owner requests it; do not tag every merged change.
 Before publishing:
 
-1. Choose the version, update runtime/package metadata and move relevant
-   `CHANGELOG.md` entries into a dated release section, leaving `Unreleased`.
+1. Choose the version and update runtime/package metadata. Run
+   `bash scripts/collect-changes.sh` to move the entries waiting in `changes/`
+   into `CHANGELOG.md`, then move the relevant entries into a dated release
+   section, leaving `Unreleased`.
 2. Run the applicable build, test, Godot-export and Windows playtest gates.
    Check a real player path, not only isolated simulation fixtures.
 3. If compatibility changed, verify replay and rollback from a matching backup.
@@ -80,7 +82,8 @@ Before publishing:
    the intended commit. Publish a GitHub release when there is a distributable
    artifact or useful release note.
 
-Update `CHANGELOG.md` under `Unreleased` in the same commit as player-visible
+Add a changelog entry in `changes/` in the same commit as player-visible
 gameplay/UI, world-runtime, save-compatibility, deployment, packaging or
-security changes. Documentation-only and test-only edits need no changelog
-entry unless they alter an explicit supported promise.
+security changes; see [the contribution rules](../../CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
+Documentation-only and test-only edits need no changelog entry unless they
+alter an explicit supported promise.

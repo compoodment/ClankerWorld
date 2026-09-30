@@ -132,11 +132,17 @@ private-world and Godot play path. A data type, test fixture or passing unit
 test can support a technical claim, but cannot establish playability. State
 when deployment or hands-on verification is still pending.
 
-Add a plain-English entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md)
-for player-visible gameplay, UI, world-runtime, save-compatibility, deployment,
-packaging or security changes. Skip refactors, tests and docs-only edits unless
-they change an explicit supported behavior or operational promise. Preserve
-other PRs' entries when resolving conflicts.
+Add a plain-English changelog entry for player-visible gameplay, UI,
+world-runtime, save-compatibility, deployment, packaging or security changes.
+Skip refactors, tests and docs-only edits unless they change an explicit
+supported behavior or operational promise.
+
+Put the entry in a new file in [changes/](changes/README.md) rather than editing
+[CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Name
+the file after the issue number and the change, such as
+`431-orchard-harvest.md`, or after your branch when there is no issue.
+`scripts/collect-changes.sh` moves the entries into CHANGELOG.md when a release
+is prepared, or whenever the changelog should catch up.
 
 ### Review and merge
 

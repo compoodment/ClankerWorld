@@ -2,7 +2,8 @@
 
 All notable player-facing, world-simulation, save-compatibility, deployment,
 and security changes are documented here. ClankerWorld has not published a
-release yet.
+release yet. Newer changes that are not collected here yet are in
+[changes/](changes/README.md).
 
 ## Unreleased
 
