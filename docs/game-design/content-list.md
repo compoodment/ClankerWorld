@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Planned game content
@@ -16,7 +16,10 @@ numbered list is its detailed content list. The
 prototype.
 These numbers are review handles, not implementation IDs. Acceptance of an
 asset family does **not** set its recipe, cost, storage capacity, art file or
-development order unless stated explicitly. It is not a claim of implementation.
+development order unless stated explicitly. The owner approved the complete
+[item and resource pipelines](towns.md#item-and-resource-pipelines) on October 1,
+including their sources, work sites, uses and ownership. Their numbers remain
+provisional. Approval is not a claim of implementation.
 
 **Status key:** **Agreed** = accepted for the finished-game base roster (not
 necessarily built yet). **Leaning toward** = a provisional choice inside an
@@ -71,30 +74,33 @@ large circular weather overlays are rejected, not accepted asset references.
 | 2.7.1 | Agreed | Iron-bearing outcrop: intact, depleted | An above-ground rock with **visible iron material in it**, not a ground vein; yields iron ore. Distinct world sprite and item icon. |
 | 2.7.2 | Agreed | Gold-bearing outcrop: intact, depleted | An above-ground rock with **visible gold material in it**, distinct from ordinary stone and iron outcrops. Distinct world sprite and item icon. |
 | 2.7.3 | Agreed | Diamond-bearing outcrop: intact, depleted | An above-ground rock with **visible diamond material in it**, distinct from ordinary stone/other ore outcrops. Distinct world sprite and item icon. |
-| 2.8 | Agreed | Clay bank | Clay for the accepted pottery family; exact pottery uses and recipes open. |
+| 2.8 | Agreed | Clay bank | Clay for reusable storage pots and water jugs, made at a House. |
 | 2.9 | Agreed | Universal-grain field: prepared soil, seeded, sprout, mature, harvested | **Grain**, with no species-specific wheat/barley/etc. item; grain seed. |
 | 2.10 | Agreed | Potato field: same functional stages | **Potatoes** and potato planting stock; not generic roots or carrots. |
 | 2.11 | Agreed | Cultivated leafy-green field: same functional stages | Farmed greens, a **different, more filling food** than wild greens. |
-| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit; the orchard tree also obeys **one tree per tile**. **Leaning toward** (provisional, tuned in playtests): one species that fruits in autumn. The prototype starts with fruit ripening only in autumn and falling when autumn ends, a picked tree fruiting again after 3 days while autumn lasts, and 4 fruit per picking. Those numbers, orchard propagation and longer orchard cycles remain open. |
+| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit and distinct orchard seed; **one tree per tile**. One autumn-fruiting species initially. Ripening in autumn, falling at autumn end, a 3-day repicking interval and 4 fruit per picking are provisional. Maturation, propagation yields and longer cycles are tuned in playtests. |
 
 The accepted compact base-food set is berries, wild greens, universal grain,
 potatoes, cultivated greens and orchard fruit. It avoids dozens of crops that
-would differ only in icon. Crop yield, seasonality, seed rules, soil moisture,
-spoilage and farm count still need design.
+would differ only in icon. Crop yield, seasonality, soil moisture and spoilage
+are provisional. Farm planning responds to population, yield and stored reserves as agreed in the
+[approved pipelines](towns.md#item-and-resource-pipelines).
 
 ## 3. Raw materials and processed goods
 
 | # | Status | Carryable item/icon | Source → use |
 | --- | --- | --- | --- |
-| 3.1 | Agreed | Wood | Trees → tools, buildings, cooking fuel and transport. Whether logs/planks are separate items is open. |
+| 3.1 | Agreed | Wood | Trees and hand-gathered fallen wood → tools, buildings, fuel, carts and boats. One wood item initially; split logs/planks only when useful. |
 | 3.2 | Agreed | Stone | Outcrops → stone tools and construction. |
-| 3.3 | Agreed | Iron ore / refined iron | Iron outcrop → separate ore item → Blacksmith refines it into a separate usable metal item → tools and other crafts. Selling refined metal to others is proposed and awaiting final confirmation. |
-| 3.4 | Agreed | Gold / diamond | Named rarer materials. No assumed mining tier, currency role or automatic weapon upgrade. |
+| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). Offering refined metal directly from the Blacksmith remains a separate business-catalogue choice. |
+| 3.4 | Agreed | Gold / diamond / ornament | Iron pickaxe extracts rare deposits. The Blacksmith makes gold ornaments, optionally set with a diamond, for wearing, gifts and trade; no gold standard or diamond tool tier. |
 | 3.5 | Agreed | Plant fiber / cloth | Fiber plants → the Tailor Shop turns plant fiber into a real **cloth intermediate** → the Tailor Shop turns cloth into clothing; cloth can be held and traded as its own stock. Recipe numbers are provisional (see 6.8). |
-| 3.6 | Agreed | Seeds | Tree seed, universal-grain seed, potato planting stock and cultivated-green seed. Exact item split and orchard propagation remain open; the prototype's generic `seed` need not remain universal. |
-| 3.7 | Agreed | Rope | Fiber → rope for boat/building/transport use; exact recipe and function open. |
-| 3.8 | Agreed | Clay / pottery | Clay bank → pottery; storage vessel/trade-good roles and recipe open. Not a required technological age. |
-| 3.9 | Agreed | Leather / wool | Accepted animal products, staged with **late-development** husbandry; no starting livestock or early supply is implied. Leather source without slaughter remains open. |
+| 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
+| 3.7 | Agreed | Rope | House-crafted from fiber; baskets, sacks, carts, boats and later construction. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). |
+| 3.8 | Agreed | Clay / pottery | Clay bank → House-made reusable storage pot or water jug, with distinct item icons. Pots slow food spoilage within limited capacity; jugs hold fresh water. |
+| 3.9 | Agreed | Hide / leather / wool | **Late-development** animal products: naturally deceased livestock provide hides, Tailor Shop processes leather; sheep are sheared for wool. No starting livestock is implied. |
+| 3.10 | Agreed | Fresh water | Collect from rivers/lakes into a reusable jug, carry to cooking, medicine-making or animal care. No remote water supply. |
+| 3.11 | Agreed | Paper | Fiber and water → paper for physical maps, records and books containing actually learned knowledge. |
 
 Use a **specific icon for each actual item**, including a generic fallback for
 valid agent-invented materials. Do not commit to copper, bronze, coal, steel or
@@ -104,23 +110,24 @@ an endless ore ladder merely because they are conventional crafting-game items.
 
 | # | Status | Item family | Jobs and representation |
 | --- | --- | --- | --- |
-| 4.1 | Agreed | Axe | Wood gathering and tree work; wooden starter version, then stone and iron versions if they meaningfully improve work. Can also be a weapon under the combat design. |
-| 4.2 | Agreed | Pickaxe | Stone and ore extraction; wood → stone → iron progression. Gate advanced deposits by actual tool capability, not just icon color. |
-| 4.3 | Agreed | Hoe | Preparing and tending farm fields; wooden and iron versions only if both have meaningful differences. |
-| 4.4 | Agreed | Hammer | Building and Blacksmith work; share a basic form where possible rather than multiplying tiers. |
-| 4.5 | Agreed | Sickle | Crop harvest; exact advantage over hand harvesting open. |
-| 4.6 | Agreed | Knife | Food preparation and general craft; optional dual-use combat item. |
+| 4.1 | Agreed | Axe | Wood gathering: wooden, stone and iron versions with improving speed and durability. Wear, Blacksmith repair and replacement; also a work weapon under the combat design. |
+| 4.2 | Agreed | Pickaxe | Wooden pickaxe extracts stone, stone pickaxe extracts iron ore, iron pickaxe extracts gold/diamond. Improved speed and durability, wear and repair. |
+| 4.3 | Agreed | Hoe | Wooden hoe prepares and tends fields; iron hoe works faster. |
+| 4.4 | Agreed | Hammer | Wood-and-stone tool for construction and repairs. |
+| 4.5 | Agreed | Sickle | Wood-and-iron tool speeds crop harvesting; exact advantage is provisional. |
+| 4.6 | Agreed | Knife | Iron tool speeds food preparation and suitable crafting; any combat use follows the combat design. |
 | 4.7 | Agreed | Everyday clothing | Basic, cold-protective and wet-protective clothing are gameplay equipment. Agents **keep the same map sprite appearance regardless of worn clothing**; separate worn-outfit sprite sets are not needed. Clothing has item icons/effects. |
-| 4.8 | Agreed | Carry aid | Basket/sack/handcart family for physical stock transport; exact members, capacities and whether a cart is a distinct vehicle remain open. |
+| 4.8 | Agreed | Carry aid | House-made fiber/rope basket and Tailor-made cloth/rope sack share one equipped carrying slot. Blacksmith-made wood/iron-fittings/rope handcart is a visible vehicle that can be pulled, parked, repaired and transferred. Capacities are provisional. |
 
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
 Blacksmith, plus **eight food portions in each House** and **at least one
 usable wooden axe and one usable wooden pickaxe** in the communal Warehouse,
 and **one garment** for each starting agent, kept in their House.
 The game automatically assigns the Farmhouse and Blacksmith to the two
-starting households, one productive building each. Optional extra supplies,
-later ownership transfers and replacement recipes are **open**. The Blacksmith can
-support the bootstrap; the Workshop is not required at start.
+starting households, one productive building each. Optional extra supplies
+and later ownership transfers remain **open**. Wooden replacement tools come
+from wood at the Blacksmith; fallen wood can be gathered by hand if the last
+axe is lost. The Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
@@ -129,11 +136,12 @@ support the bootstrap; the Workshop is not required at start.
 | 5.1 | Agreed | Wild berries; wild greens | Gathered food; distinct fresh-food icons. |
 | 5.2 | Agreed | Raw universal grain; potatoes; cultivated greens; orchard fruit | Harvested farm foods, each with its own item/icon; farmed greens satisfy more hunger than wild greens. |
 | 5.3 | Agreed | Flour | Farmhouse-processed grain; real intermediate that can be sold directly, including at the Market. |
-| 5.4 | Agreed | Simple cooked meal | House-cooked from available food; a generic meal icon avoids requiring a bespoke recipe for every ingredient mix. |
-| 5.5 | Agreed | Porridge; bread; vegetable stew | Three concrete advanced foods to give grain/vegetables and Farmhouse/Restaurant distinctive uses. Exact ingredients, nutrition and quality are open. |
-| 5.6 | Agreed | Restaurant meal | Prepared and sold on site, potentially better than a basic House meal. A plated-meal icon is enough until menu variety matters. |
+| 5.4 | Agreed | Simple cooked meal | House-cooked potatoes, wild greens or cultivated greens with wood fuel; one specific meal item with a generic icon. |
+| 5.5 | Agreed | Porridge; bread; vegetable stew | Grain/water/fuel porridge; flour/water/fuel bread; potato/cultivated-greens/water/fuel stew. House or Restaurant; quantities and nutrition are provisional in the [approved pipelines](towns.md#item-and-resource-pipelines). |
+| 5.6 | Agreed | Restaurant meal | Bread, cultivated greens and wood fuel at the Restaurant give better nourishment and variety; sold from actual on-site stock. |
 | 5.7 | Agreed | Milk; eggs | Products of accepted cows/chickens, **late-development** with livestock. No meat or hunting loop is assumed. |
-| 5.8 | Agreed | Bandage; medicine | Two accepted care goods with distinct icons. Ingredients, healing/care rules and whether herbs are a separate item remain open. |
+| 5.8 | Agreed | Bandage; medicine | Cut cloth into bandages at a House/Tailor Shop; Clinic turns medicinal herbs, water and fuel into medicine. Treat injuries or support illness recovery with physically carried supplies. No instant full-health restoration. |
+| 5.9 | Agreed | Medicinal herbs | Gather from a wild herb patch, carry to a Clinic and make medicine. |
 
 Food is physically stored in **Houses** or a business's own stock, not the
 Town's resource Warehouse. Stores cannot sell food from a remote House. The
@@ -161,7 +169,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
-| 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Accepted care business for illness/injury treatment. Exact name, recipes and care actions open. |
+| 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Stocks bandages and medicine and sells care. Patients visit or caregivers deliver supplies; treatment consumes goods. Exact name, quantities and recovery rates remain open or provisional. |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
 | 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
 
@@ -190,12 +198,12 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | One small crafted boat and an occupied/cargo state for water travel through ports; improved craft can be agent inventions. Boats are communal Town property, and a journey needs a completed Port at each end (see [The world](world.md#first-boat-and-port-travel)). Exact recipes, costs, speed and queueing open. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports (see [The world](world.md#first-boat-and-port-travel)). Quantities and speed are provisional; queueing/recovery details remain open. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
-| 7.6 | Agreed | Weapon | Axe is also a work tool; **spear and simple sword** are accepted additional combat items. Materials, crafting and lethality remain open. |
-| 7.7 | Agreed | Protection | **Shield and basic armor** accepted. Armor has item art and gameplay effects; prompting new armor art is the intended later direction, not a solved asset pipeline. Whether worn armor also changes the agent's map sprite remains open. |
-| 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; accepted **bandage and medicine** items. Separate herbs remain open. No hostile predator sprites in the current plan. |
+| 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
+| 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
+| 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. No hostile predators. Recovery rates remain to be tuned. |
 
 Animal slaughter, hunting, cavalry/war specialization, and named armor tiers
 are **not** assumed. Combat exists for interpersonal self-defense, crime, feuds
@@ -253,19 +261,22 @@ scope**; this roster therefore has no audio production list.
   to the same actual item or object. Pixel art does not make a fixture-only
   capability playable.
 
-## Remaining design details after roster acceptance
+## Remaining design details after pipeline approval
 
-The base entries are accepted, including the formerly proposed crop/food set,
-clay/pottery, rope, orchard, carry aid, species, weapons, armor and Clinic.
-Still open: **(a)** starter food/tool counts beyond the decided minima and
-replacement recipes;
-**(b)** whether Blacksmiths sell refined metal to other crafters; **(c)**
-recipes, production sites, item balance and storage capacities; **(d)** the
-Port's precise clearance and Market stall-reservation behavior; **(e)**
-animal-care, injury and combat mechanics; and **(f)** late-development
-invention/mod art generation and fallback rules.
+The [approved pipelines](towns.md#item-and-resource-pipelines) now give the
+accepted items their sources, processing sites, uses and physical trade rules.
+Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
+wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
+are also agreed additions.
 
-The next pass can give each accepted item/building a production row:
-**source or recipe, tool gate, work site, use, location/ownership, trade role,
-icon/world sprite, functional states, and current implementation status**.
-Those values are intentionally not fabricated in this first visual pass.
+Still open: optional starter supplies beyond the guaranteed minima; whether a
+Blacksmith offers refined metal directly in its business catalogue; exact Port
+clearance and blocked-arrival recovery; Market stall reservation; currency and
+governance rules; detailed animal breeding/mortality, injury and combat rules;
+and late-development invention/mod art generation and fallback. Recipe
+quantities, yields, work times, storage capacities, spoilage, wear and recovery
+effects are provisional playtest balance.
+
+Use the agreed pipelines when building each item. Keep its icon, functional
+states and ownership facts consistent with the actual simulation, and update
+[what works today](../what-works.md) only when the normal game path works.

@@ -2,7 +2,7 @@
 title: Game design
 type: game-design-index
 status: active
-updated: 2026-09-29
+updated: 2026-10-01
 ---
 
 # Game design
@@ -51,7 +51,10 @@ alongside agreed social rules.
 Each chapter owns its design choices. The content list supplies the detailed
 agreed catalogue; accepting an item or building does not also decide its recipe,
 price, storage capacity or development order. Reconcile conflicting summaries
-against the owner's actual decision.
+against the owner's actual decision. The October 1 approval of complete
+[item and resource pipelines](towns.md#item-and-resource-pipelines) settles
+those sources, work sites, uses and physical stock/trade rules; balance remains
+provisional.
 
 Still-open topics include the player's normal role and intervention limits,
 knowledge across generations, government and the economy, medicine and
