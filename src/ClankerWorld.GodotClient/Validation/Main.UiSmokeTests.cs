@@ -1094,6 +1094,10 @@ public partial class Main
             if (founderSetupHint.Text != placementPreview)
                 throw new InvalidOperationException("An open model popup must not preview the map behind it.");
             founderModelPicker.Choice.GetPopup().Hide();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
             householdPropertyFilter.ButtonPressed = false;

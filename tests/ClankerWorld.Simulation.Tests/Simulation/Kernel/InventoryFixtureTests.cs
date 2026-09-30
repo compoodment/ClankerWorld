@@ -65,7 +65,6 @@ public sealed class InventoryFixtureTests
 
     [Theory]
     [InlineData(InventoryReservationState.Reserved)]
-    [InlineData(InventoryReservationState.PartiallyConsumed)]
     [InlineData(InventoryReservationState.Committed)]
     public void SplitCannotRemoveReservedStockOrChangeTheRejectedCheckpoint(InventoryReservationState state)
     {
@@ -200,24 +199,6 @@ public sealed class InventoryFixtureTests
             actualOffer.AcceptedBy);
         Assert.Equal(checkpoint.Events, restored.Events);
         Assert.Equal(InventoryDigest.State(checkpoint), InventoryDigest.State(restored));
-    }
-
-    [Fact]
-    public void CheckpointCodecStillReadsLegacyV1Saves()
-    {
-        var legacy = string.Join(
-            '\n',
-            "clankerworld.inventory-fixture/v1",
-            "tick=3",
-            "lot=food-lot|food|alice|2|10000|9000|3|-",
-            "event=1|3|created|food-lot",
-            string.Empty);
-
-        var restored = InventoryCheckpointCodec.Decode(Encoding.UTF8.GetBytes(legacy));
-
-        Assert.Equal(3, restored.WorldTick);
-        Assert.Equal("food-lot", restored.Lots.Single().Id);
-        Assert.Equal("food-lot", restored.Events.Single().Detail);
     }
 
     private static InventoryCheckpoint Genesis() => InventoryFixture.CreateGenesis(

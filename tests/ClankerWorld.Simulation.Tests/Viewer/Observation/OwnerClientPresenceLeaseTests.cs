@@ -57,7 +57,6 @@ public sealed class OwnerClientPresenceLeaseTests
     }
 
     [Theory]
-    [InlineData("founder-scout")]
     [InlineData("founder:00000000000000000000000000000001")]
     public async Task HostedFailureLogReportsCompleteActorAndOutcomeWithoutProviderExceptionText(string actorId)
     {

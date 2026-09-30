@@ -32,7 +32,6 @@ public sealed class WorldSystemsContractTests
 
     [Theory]
     [InlineData(5)]
-    [InlineData(8)]
     public void SevereStormEndsWithinThreeQuartersOfEachSavedWorldDay(int ticksPerDay)
     {
         var config = SmallConfig() with

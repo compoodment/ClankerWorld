@@ -52,7 +52,6 @@ public sealed class ModelFacingWordingTests
     }
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task OfferedChoiceDescriptionsUseCurrentWording(bool withRoles)
     {

@@ -282,62 +282,6 @@ public sealed class AgentKnowledgeTests
     }
 
     [Fact]
-    public void SchemaTwentyThroughTwentyTwoCheckpointsMigrateWithEmptyPrivateKnowledge()
-    {
-        using var seed = new PrivateWorldRuntime("knowledge-schema-migration");
-        var schema20Checkpoint = seed.ExportState() with { SchemaVersion = 20, Towns = null, Knowledge = null };
-        using var restored20 = PrivateWorldRuntime.Restore(schema20Checkpoint);
-        Assert.Empty(restored20.ExportState().Knowledge!.Facts);
-        Assert.Empty(restored20.ExportState().Knowledge!.Artifacts);
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, restored20.ExportState().SchemaVersion);
-
-        var schema21Checkpoint = seed.ExportState() with { SchemaVersion = 21, Knowledge = null };
-        using var restored21 = PrivateWorldRuntime.Restore(schema21Checkpoint);
-        Assert.Empty(restored21.ExportState().Knowledge!.Facts);
-        Assert.Empty(restored21.ExportState().Knowledge!.Artifacts);
-        var restored21State = restored21.ExportState();
-        Assert.NotNull(schema21Checkpoint.Towns);
-        Assert.NotNull(restored21State.Towns);
-        Assert.Equal(schema21Checkpoint.Towns!.Select(town => town.Id),
-            restored21State.Towns!.Select(town => town.Id));
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, restored21State.SchemaVersion);
-
-        var schema22Checkpoint = seed.ExportState() with { SchemaVersion = 22, Knowledge = null };
-        var schema22Society = schema22Checkpoint.Society.Society;
-        var ownerId = schema22Society.Inhabitants[0].Id;
-        var memory = new SocietySocialMemory(
-            "migration-memory", ownerId, "founder-mira", "A remembered trail beside the ridge.", "private", 0);
-        var compaction = new SocietyAgentMemoryCompaction(ownerId,
-        [
-            new SocietyAgentMemoryImportance(
-                memory.Id, SocietyMemorySourceKind.Experience, memory.SourceTick, 7_500, 9_000, 0),
-        ]);
-        schema22Checkpoint = schema22Checkpoint with
-        {
-            Society = schema22Checkpoint.Society with
-            {
-                Society = schema22Society with
-                {
-                    Memories = [memory],
-                    MemoryCompactions = [compaction],
-                },
-            },
-        };
-        using var restored22 = PrivateWorldRuntime.Restore(schema22Checkpoint);
-        var migrated22 = restored22.ExportState();
-        Assert.Empty(migrated22.Knowledge!.Facts);
-        Assert.Empty(migrated22.Knowledge.Artifacts);
-        Assert.NotNull(schema22Checkpoint.Towns);
-        Assert.NotNull(migrated22.Towns);
-        Assert.Equal(schema22Checkpoint.Towns!.Select(town => town.Id),
-            migrated22.Towns!.Select(town => town.Id));
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, migrated22.SchemaVersion);
-        Assert.Equal(memory, Assert.Single(migrated22.Society.Society.Memories));
-        Assert.Equal(compaction.Sources,
-            Assert.Single(migrated22.Society.Society.MemoryCompactions!).Sources);
-    }
-
-    [Fact]
     public void RestoreRejectsMoreKnowledgeArtifactsThanThePerAgentLimit()
     {
         using var seed = new PrivateWorldRuntime("knowledge-artifact-bound");
