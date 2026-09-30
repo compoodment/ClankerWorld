@@ -117,7 +117,8 @@ everything that is available in the current build. See [what works today](../wha
   outright as soon as the Tailor Shop works, with no legacy transition; old
   alpha saves are not kept (see [Saves](saves.md)). **Leaning toward:** the
   recipe numbers, costs and work time are provisional and will be tuned in
-  playtests; this chapter does not fix them. Its sales workflow remains open.
+  playtests; this chapter does not fix them. The holding household sells clothing
+  directly from the building, as the Blacksmith does, and does not need a Store.
 - **Roads and bridges:** the world system generates infrastructure, not the
   player or individual agent. The full agreed road rule is below; the starter
   Path becomes a Road in intended content.
