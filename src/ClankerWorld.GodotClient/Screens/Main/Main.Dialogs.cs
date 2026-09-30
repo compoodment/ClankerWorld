@@ -1,4 +1,3 @@
-using ClankerWorld.GodotClient.UI;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -12,10 +11,6 @@ public partial class Main
     /// </summary>
     private static void StyleConfirmation(ConfirmationDialog dialog, string title, string confirm)
     {
-        // Set on the dialog itself: a window keeps the title font it looked up
-        // before the game's theme was applied.
-        dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
-        dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading);
         dialog.Title = title;
         dialog.OkButtonText = confirm;
         dialog.CancelButtonText = "Cancel";

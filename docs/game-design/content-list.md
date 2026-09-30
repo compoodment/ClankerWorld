@@ -111,11 +111,11 @@ an endless ore ladder merely because they are conventional crafting-game items.
 | 4.8 | Agreed | Carry aid | Basket/sack/handcart family for physical stock transport; exact members, capacities and whether a cart is a distinct vehicle remain open. |
 
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
-Blacksmith, plus minimum food portions stored in the Houses and **at least one
-usable wooden axe and one usable wooden pickaxe** available to the four
-starting agents. The two households can claim the Farmhouse and Blacksmith as
-initial productive roles. Exact food/tool counts beyond that minimum,
-ownership, placement and replacement recipes are **open**. The Blacksmith can
+Blacksmith, plus **eight food portions in each House** and **at least one
+usable wooden axe and one usable wooden pickaxe** in the communal Warehouse.
+The game automatically assigns the Farmhouse and Blacksmith to the two
+starting households, one productive building each. Optional extra supplies,
+later ownership transfers and replacement recipes are **open**. The Blacksmith can
 support the bootstrap; the Workshop is not required at start.
 
 ## 5. Food, cooking, and care
@@ -216,7 +216,7 @@ list as a cap on invention, or fabricate every possible invented sprite now.
 
 | # | Status | Visual family | Must cover |
 | --- | --- | --- | --- |
-| 9.1 | Agreed | Main Menu and New World | Background, buttons for Continue/New World/Load World/Settings/Mod Library/Quit Game; seed preview, size/climate/advanced controls, rough first-Town site and layout accept/redo, four-agent setup and Start World progress. |
+| 9.1 | Agreed | Main Menu and New World | Background, buttons for Continue/New World/Load World/Settings/Mod Library/Quit Game; seed preview, size/climate/advanced controls, highlighted suitable first-Town areas with free rough-site choice and automatic layout, four-agent setup and Start World progress. |
 | 9.2 | Agreed | World HUD | Top-bar Map, pause/resume, date/time, population, World Info, Filters, Event Log, Add Agent and Pause Menu; tile/agent hover/selection markers. |
 | 9.3 | Agreed | Overview and filters | Map frame/camera rectangle; biome/terrain and local weather legend; established Town/household boundaries, property and similar fact overlays. No player fog-of-war texture is needed. |
 | 9.4 | Agreed | Inspection panels | Tile facts; agent profile, private thoughts, Memories, inventory, relationships, model/provider controls, deceased profile and Family Tree; building occupants/stock/ownership. |

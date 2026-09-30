@@ -33,7 +33,7 @@ test alone does not make it available in the game.
 | Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance, layout review and player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts and household/Town filters. General land claims are not recorded. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
-| Display and interface settings | Available in the game | Themes, window/render sizes, UI scale, weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
+| Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic or 100–400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town places two
 Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads. The Houses hold
@@ -156,3 +156,16 @@ experiments and open decisions. [The Windows and paired-world checklist](https:/
 records tests still needed for source fixes. Code, tests and exports are evidence
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
+
+New World includes relative Advanced terrain controls and a resettable 50%-water
+preset for Small and Medium. All settings feed the matching preview and saved
+generation options. See [Advanced New World settings](playing.md#advanced-new-world-settings);
+Windows interaction and real preview latency still need playtesting.
+
+## Permanent deletion
+
+The save list offers confirmed deletion of one snapshot; Load World offers
+separate deletion of an inactive world and all its saves. Other worlds, provider
+credentials and pairing remain unchanged. Interrupted deletion stays hidden
+from loading and is retried on host startup. Native Windows interaction still
+needs playtesting. See [save controls](playing.md#save-and-return).

@@ -17,16 +17,17 @@ public sealed class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
         WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null);
-    private readonly object gate = new();
+    private readonly object gate;
     private readonly string directory;
     private readonly ILogger<ManualWorldSaveStore>? logger;
     private readonly HashSet<string> reportedInvalidMetadata = new(StringComparer.Ordinal);
 
-    public ManualWorldSaveStore(string activeSavePath, ILogger<ManualWorldSaveStore>? logger = null)
+    public ManualWorldSaveStore(string activeSavePath, ILogger<ManualWorldSaveStore>? logger = null, object? mutationGate = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(activeSavePath);
         directory = Path.GetFullPath(activeSavePath) + ".manual";
         this.logger = logger;
+        gate = mutationGate ?? new object();
     }
 
     public static string NormalizeName(string? name)
@@ -52,11 +53,11 @@ public sealed class ManualWorldSaveStore
         if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assignments);
-        var state = runtime.ExportState();
-        if (!state.Society.Society.IsPaused)
-            throw new InvalidOperationException("Pause the world before overwriting a manual save.");
         lock (gate)
         {
+            var state = runtime.ExportState();
+            if (!state.Society.Society.IsPaused)
+                throw new InvalidOperationException("Pause the world before overwriting a manual save.");
             if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The selected manual save no longer exists.");
             var previousMetadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))
@@ -102,20 +103,96 @@ public sealed class ManualWorldSaveStore
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assignments);
         name = NormalizeName(name);
-        var state = runtime.ExportState();
-        if (!isAutosave && !state.Society.Society.IsPaused)
-            throw new InvalidOperationException("Pause the world before making a manual save.");
-        var entry = new ManualWorldSave(Guid.NewGuid().ToString("N"), name, DateTimeOffset.UtcNow,
-            state.Society.Society.WorldTick, isAutosave);
         lock (gate)
         {
+            var state = runtime.ExportState();
+            if (!isAutosave && !state.Society.Society.IsPaused)
+                throw new InvalidOperationException("Pause the world before making a manual save.");
+            var entry = new ManualWorldSave(Guid.NewGuid().ToString("N"), name, DateTimeOffset.UtcNow,
+                state.Society.Society.WorldTick, isAutosave);
             Directory.CreateDirectory(directory);
             RestrictDirectory();
             WriteAtomic(StatePath(entry.Id), PrivateWorldRuntimeCodec.Encode(state));
             WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
                 new Metadata(entry, assignments, autosaveSettings, state.Society.Society.WorldId)));
+            return entry;
         }
-        return entry;
+    }
+
+    // The metadata rename is the durable point of deletion. A partial cleanup
+    // stays hidden from List/Read and can be resumed without reviving the save.
+    public void Delete(string id, string worldId, DateTimeOffset expectedCreatedUtc)
+    {
+        if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
+        lock (gate)
+        {
+            var intent = Path.Combine(directory, id + ".deleting.json");
+            var source = File.Exists(intent) ? intent : MetadataPath(id);
+            var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(source))
+                ?? throw new InvalidDataException("The save metadata is invalid.");
+            if (metadata.Save.Id != id || metadata.WorldId != worldId ||
+                metadata.Save.CreatedUtc != expectedCreatedUtc)
+                throw new InvalidOperationException("The selected save changed. Refresh the list before deleting.");
+            if (source != intent) File.Move(source, intent);
+            DeleteCheckpointFiles(id);
+            File.Delete(intent);
+        }
+    }
+
+    public void DeleteWorldSnapshots(string worldId)
+    {
+        lock (gate)
+        {
+            if (!Directory.Exists(directory)) return;
+            foreach (var path in Directory.GetFiles(directory, "*.json"))
+            {
+                var name = Path.GetFileName(path);
+                if (!name.EndsWith(".meta.json", StringComparison.Ordinal) &&
+                    !name.EndsWith(".deleting.json", StringComparison.Ordinal)) continue;
+                var id = name.Split('.')[0];
+                if (!IsId(id)) continue;
+                var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path))
+                    ?? throw new InvalidDataException("Save ownership cannot be established.");
+                if (metadata.WorldId == worldId)
+                    Delete(id, worldId, metadata.Save.CreatedUtc);
+            }
+            // A failed create/overwrite may leave unpublished generations. Decode
+            // ownership before removal; never guess from a filename or seed.
+            foreach (var path in Directory.GetFiles(directory, "*.save"))
+            {
+                var parts = Path.GetFileName(path).Split('.');
+                if (parts.Length is not (2 or 3) || !IsId(parts[0]) ||
+                    parts.Length == 3 && !IsId(parts[1])) continue;
+                var state = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(path));
+                if (state.Society.Society.WorldId == worldId) File.Delete(path);
+            }
+        }
+    }
+
+    public void RecoverDeletions()
+    {
+        lock (gate)
+        {
+            if (!Directory.Exists(directory)) return;
+            foreach (var path in Directory.GetFiles(directory, "*.deleting.json"))
+            {
+                var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path))
+                    ?? throw new InvalidDataException("The pending save deletion is invalid.");
+                if (Path.GetFileName(path) != metadata.Save.Id + ".deleting.json" || metadata.WorldId is null)
+                    throw new InvalidDataException("The pending save deletion identity is invalid.");
+                Delete(metadata.Save.Id, metadata.WorldId, metadata.Save.CreatedUtc);
+            }
+        }
+    }
+
+    private void DeleteCheckpointFiles(string id)
+    {
+        File.Delete(StatePath(id));
+        foreach (var path in Directory.GetFiles(directory, id + ".*.save"))
+        {
+            var parts = Path.GetFileName(path).Split('.');
+            if (parts.Length == 3 && IsId(parts[1])) File.Delete(path);
+        }
     }
 
     public IReadOnlyList<ManualWorldSave> List(string? worldId = null)

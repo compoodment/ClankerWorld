@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Build and test
@@ -56,6 +56,12 @@ The CI configuration in [.github/workflows/ci.yml](../../.github/workflows/ci.ym
 is the source for current automated gates. A PR needs green CI before merge;
 local checks should fit the change. List checks you could not run and why.
 
+Hands-on checks above describe useful verification, not a blanket pre-merge
+playtest gate. Routine owner playtesting may follow merge under
+[Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
+playtests explicit; do not equate a passing automated check with actual play.
+The separate release gates still apply when preparing a release.
+
 ## Full build and test commands
 
 From the repository root with the selected SDK:
@@ -95,3 +101,44 @@ These checks cover the required pages, front matter, local links and linked
 headings. The Windows documentation CI job also checks LF and CRLF line
 endings. It is separate from a Windows game playtest and from the native
 provider-storage checks.
+
+## Windows paired-world verification record
+
+Use this protocol for [#285](https://github.com/compoodment/ClankerWorld/issues/285).
+It is a checklist for collecting evidence, **not a report of completed playtests**.
+Source and headless checks do not fill the Windows result column. Do not deploy,
+repair accounting, alter credentials or modify the active playtest save merely
+to run this checklist: obtain the separate operational authorization first.
+Use a disposable world for setup, placement and damaged-save cases.
+
+Record client commit/export digest, host commit, Windows build, date, viewport,
+render resolution and UI scale. For each case record Pass/Fail/Blocked, exact
+steps, observed result, and a screenshot or bounded diagnostic reference with
+private keys, pairing codes, thoughts and raw provider payloads excluded. Keep
+failures linked to their focused issue; a successful unrelated case cannot close
+an entire multi-case report. Keep live operational evidence separate from client
+presentation evidence when the deployed server predates the client.
+
+| Case | Reproduction and pass condition |
+| --- | --- |
+| Hosted decisions and accounting | After the separately authorized meter migration, explicitly resume with an authenticated client. Confirm each configured founder can receive an accepted model choice and a new private thought; note waiting, limit or provider errors without claiming every idle action is a failure. Pause afterward. Reconcile the known phantom reservations separately; do not count them as paid calls or erase them as part of this UI check. |
+| Fresh Town, no legacy camp | Create a disposable fresh world, inspect before site choice, accept a Town site and inspect again. No legacy camp objects or camp-derived border should appear; exactly the accepted generated layout should remain. |
+| Stable Town and agent text | Pause, open Town, wait across several refreshes, switch agents and reselect the first. Contents, relationships and existing thought/memory text stay visible; an unchanged refresh must not clear them. |
+| Agent card at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible and Speak/Send controls are reachable by scrolling, without controls extending off-screen. |
+| Status lifetime | Enter Town-site and founder-move modes and wait through refreshes. Instructions remain while the mode is active; submit a refused request and confirm its explanation remains readable without a false disconnect. |
+| Initial camera | Open a new unset world and a saved Town near a wrapping seam. The initial view shows relevant dry land/Town/agents, not an arbitrary open-sea center or the wrong side of a seam. |
+| Tile card and short labels | Select ground near the bottom edge; inspect at several zooms. The complete card fits, absent facts are omitted, and tiny marker labels disappear rather than render fragments. |
+| Modal input | Open Pause Menu and try top-bar Start/Pause/founder actions. The modal blocks them. In Town-site mode confirm Cancel is visible; inspect pairing/back controls and Settings caption alignment. |
+| Keyboard focus | Click a top-bar button, then pan with arrow keys and use Space. Arrows pan rather than cycle focus, Space toggles pause once, Tab/Enter still reach controls. Evaluate diagonal movement while held, and compare the F1 list with actual shortcuts. |
+| Disconnected land | In a disposable world add an adult on land without a food route to the Town, then reconnect. Observation remains available and reports the missing route; Main Menu still accepts pause even if a later refresh fails. |
+| Preview while running | With a disposable current world running, request New World preview. Preview succeeds without changing current-world identity/state; Create still performs its separate pause/switch flow. |
+| Main Menu Settings pointer | From Main Menu open Settings and change an installation preference with the mouse. The overlay must not swallow input. Restore the preference after recording the result. |
+| Hover and marker priority | At several zooms hover bare ground and multiple same-tile agents. Ground outline is visible, each agent is individually selectable, and nearby tiles do not activate its marker. |
+| No Main Menu World Settings | With no loaded world, open Main Menu Settings. No World Settings category or hidden navigation path enters a world. |
+| Terrain seams | Inspect contiguous terrain at representative zooms. No black tile-gap grid appears; this does not approve provisional textures as final art. |
+| Hover and condition stability | Hold the pointer over an agent through several observations while its card is open. Tooltip and warmth/illness/diet/equipment stay visible without per-refresh flicker. |
+| Slow provider | Using a separately authorized controlled delay or an unavailable test endpoint, keep the client connected while a model remains pending. Other agents/world systems continue; pause and reload must reject the old reply. Never prolong real paid calls solely to create this test. |
+
+**Exit criterion:** each applicable row has evidence against the stated builds.
+Blocked live migration or missing Windows access remains Blocked, not Pass. The
+owner's review of this protocol does not approve a deployment or certify the build.

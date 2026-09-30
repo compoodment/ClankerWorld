@@ -78,6 +78,31 @@ tracker in Markdown.
 Use a short title about the effect, such as
 `Show fullness instead of hunger on the agent panel`.
 
+### Drafts and readiness
+
+Open completed implementation PRs ready for review. Use draft status only for
+unfinished work, proposals awaiting a design decision, or an explicit request
+for a draft. Say what needs to happen before each draft becomes ready, and
+mark it ready when that work is complete.
+
+Routine hands-on playtesting by computment can happen after merge during this
+private alpha. Missing a native Windows playtest, in-game tuning session or
+preview-latency measurement is not by itself a reason to keep completed work
+in draft or block its merge. Record what was and was not checked in the PR,
+and track problems found during playtesting in Issues. Do not claim that
+unperformed checks passed.
+
+This does not waive green CI, independent review, relevant automated safety
+and compatibility checks, or a specific pre-merge check explicitly required
+by the owner or reviewer. Known correctness, security or data-loss problems
+introduced by the change must still be resolved before merge. Release gates
+remain separate.
+
+Waiting for review is normal ready-for-review status, not a reason for a
+draft. For dependent PRs, name the integration order and hold the dependent
+merge until its prerequisite lands; a completed dependent PR can still be
+ready for review.
+
 ### Change and verification rules
 
 - Follow the [code boundaries](docs/development/how-it-works.md#core-rules).

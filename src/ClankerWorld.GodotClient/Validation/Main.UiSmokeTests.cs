@@ -46,16 +46,12 @@ public partial class Main
 
             VerifyPixelText("at 100% UI Scale");
             var nativeRenderSize = displayWindow.ContentScaleSize;
-            var baseSettingsFontSize = uiScaleChoice.GetThemeFontSize("font_size");
-            var baseHudFontSize = clockLabel.GetThemeFontSize("font_size");
-            var baseTextPanelFontSize = eventLog.GetThemeFontSize("normal_font_size");
-            var baseResumeButtonHeight = menuResumeButton.GetCombinedMinimumSize().Y;
-            var baseHudMinimumWidth = topBar.GetCombinedMinimumSize().X;
-            var baseSettingsPanelWidth = gameMenuPanel.CustomMinimumSize.X;
-            var baseTilePanelWidth = selectedTilePanel.CustomMinimumSize.X;
+            var baseClockHeight = clockLabel.GetGlobalRect().Size.Y;
+            var baseScaleChoiceHeight = uiScaleChoice.GetGlobalRect().Size.Y;
+            var baseSettingsWidth = gameMenuPanel.GetGlobalRect().Size.X;
             var mapStageScale = mapStage.Scale;
-            if (baseSettingsFontSize < 1 || baseHudFontSize < 1 || baseTextPanelFontSize < 1 || baseResumeButtonHeight < 1)
-                throw new InvalidOperationException("UI Scale smoke check could not read the settings font size.");
+            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseScaleChoiceHeight < 1 || baseSettingsWidth < 1)
+                throw new InvalidOperationException("UI Scale smoke check could not read the interface at 100%.");
             if (TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
                 throw new InvalidOperationException("1440p UI Scale map input smoke check could not resolve its reference tile.");
 
@@ -68,15 +64,27 @@ public partial class Main
                 for (var frame = 0; frame < 2; frame++)
                     await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-                var expectedScale = DisplayUiScalePolicy.ScaleFactor(percent);
-                if (percent % 100 == 0)
-                    VerifyPixelText($"at {percent}% UI Scale");
-                if (!Mathf.IsEqualApprox(ThemeDB.FallbackBaseScale, expectedScale))
-                    throw new InvalidOperationException($"UI Scale did not update Godot's fallback base scale to {percent}%.");
-                if (uiScaleChoice.GetThemeFontSize("font_size") <= baseSettingsFontSize ||
-                    clockLabel.GetThemeFontSize("font_size") <= baseHudFontSize ||
-                    eventLog.GetThemeFontSize("normal_font_size") <= baseTextPanelFontSize)
-                    throw new InvalidOperationException($"UI Scale {percent}% did not enlarge settings, HUD, and text-panel text.");
+                // 1440p leaves room for 200%; bigger steps would squeeze the menus below their minimum area.
+                var factor = DisplayUiScalePolicy.FittingFactor(percent, 2560, 1440);
+                if (uiLayer.Factor != factor || menuLayer.Factor != factor ||
+                    uiScaleChoice.IsItemDisabled(scaleIndex) != (factor * 100 != percent))
+                    throw new InvalidOperationException($"UI Scale {percent}% at 1440p must magnify the interface by {factor} and mark steps that do not fit.");
+                VerifyPixelText($"at {percent}% UI Scale");
+                // Text, controls and panels grow together instead of text alone.
+                if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
+                    !Mathf.IsEqualApprox(uiScaleChoice.GetGlobalRect().Size.Y, baseScaleChoiceHeight * factor) ||
+                    !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
+                    throw new InvalidOperationException($"UI Scale {percent}% must enlarge text, controls and panels by the same {factor}×.");
+                // Dialogs are separate windows: their contents, frame and title scale on their own.
+                var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
+                if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
+                    !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                    deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
+                    DialogSize(new Vector2I(440, 170)) != new Vector2I(440, 170) * factor || titleSize != UiFonts.Heading * factor ||
+                    quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
+                    !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
+                    UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor)
+                    throw new InvalidOperationException($"Dialogs, drop-down lists and tooltips must grow with UI Scale {percent}%: title {titleSize}.");
                 if (displayWindow.Size != new Vector2I(2560, 1440) ||
                     displayWindow.ContentScaleSize != nativeRenderSize)
                     throw new InvalidOperationException($"UI Scale {percent}% changed the 1440p window or native render size.");
@@ -92,12 +100,6 @@ public partial class Main
                     throw new InvalidOperationException($"Game Settings escaped its usable bounds at 1440p and {percent}% UI Scale.");
                 scaleIndex++;
             }
-
-            if (menuResumeButton.GetCombinedMinimumSize().Y <= baseResumeButtonHeight ||
-                topBar.GetCombinedMinimumSize().X <= baseHudMinimumWidth ||
-                gameMenuPanel.CustomMinimumSize.X <= baseSettingsPanelWidth ||
-                selectedTilePanel.CustomMinimumSize.X <= baseTilePanelWidth)
-                throw new InvalidOperationException("UI Scale did not enlarge controls and panel geometry.");
 
             uiScaleChoice.Select(0);
             SetUiScale(0);
@@ -147,7 +149,7 @@ public partial class Main
         foreach (var heading in new Control[] { menuHeadingLabel, selectedActorNameLabel, clockLabel, mainMenuContinueButton })
             if (heading.GetThemeFont("font") != UiFonts.Headings)
                 throw new InvalidOperationException($"{heading.Name} must use the Timber heading lettering.");
-        ConfirmationDialog[] dialogs = [quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation];
+        ConfirmationDialog[] dialogs = [quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation];
         if (dialogs.Any(dialog => dialog.GetThemeFont("title_font") != UiFonts.Headings))
             throw new InvalidOperationException("Dialog titles must use the Timber heading lettering.");
         foreach (var letter in TimberFont.Characters)
@@ -156,10 +158,10 @@ public partial class Main
         var uneven = new List<string>();
         foreach (var control in FindChildren("*", nameof(Control), recursive: true, owned: false).OfType<Control>())
         {
-            var items = control switch
+            string[] items = control switch
             {
-                RichTextLabel => UiScaleRichTextFontSizeThemeItems,
-                Label or Button or LineEdit or TextEdit or ItemList => UiScaleFontSizeThemeItems,
+                RichTextLabel => ["normal_font_size", "bold_font_size", "italics_font_size", "bold_italics_font_size", "mono_font_size"],
+                Label or Button or LineEdit or TextEdit or ItemList => ["font_size"],
                 _ => [],
             };
             foreach (var item in items)
@@ -212,6 +214,32 @@ public partial class Main
             mainMenuOverlay.Show();
             UiTheme.Apply(GetTree().Root, originalPalette);
         }
+    }
+
+    private async Task VerifyFirstWorldListAsync()
+    {
+        worldMenuColumns.Hide();
+        worldSelectionList.Show();
+        worldSelectButton.Show();
+        worldMenuOverlay.Show();
+        var response = new TaskCompletionSource<WorldCatalogSnapshot>();
+        var loading = worldListRequest.RefreshAsync(_ => response.Task);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
+            throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
+        response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
+            new CatalogWorld($"world-{index}", $"World {index}", $"world-{index}", "seed",
+                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible")).ToArray()));
+        await loading;
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
+            worldMenuScroll.Size.Y < 300)
+            throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        if (!worldSelectButton.Disabled)
+            throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
+        worldMenuOverlay.Hide();
     }
 
     /// <summary>The logo replaces the old title and slogan, sits above the card and stays crisp.</summary>
@@ -272,6 +300,10 @@ public partial class Main
         try
         {
             await VerifyMenuBackdropAsync();
+            // Tooltips and other windows the engine creates on demand follow the root's filter,
+            // so pixel frames must not be smoothed there either.
+            if (GetTree().Root.CanvasItemDefaultTextureFilter != Viewport.DefaultCanvasItemTextureFilter.Nearest)
+                throw new InvalidOperationException("Tooltips and other windows must draw pixel frames without smoothing.");
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 768) })
             {
                 GetWindow().Size = size;
@@ -287,6 +319,20 @@ public partial class Main
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
                 manualSaveOverlay.Hide();
+                ResetWorldGenerationOptions();
+                if (CurrentWorldOptions().WaterPercent != 50 || CurrentWorldOptions().ForestCover != "Normal" ||
+                    CurrentWorldOptions().MountainRelief != "Normal" || CurrentWorldOptions().RiverAbundance != "Normal" ||
+                    !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
+                    throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
+                worldAdvancedToggle.ButtonPressed = true;
+                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                    throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
+                var preset = CurrentWorldOptions();
+                worldForestChoice.Select(0);
+                if (SameGeneration(preset, CurrentWorldOptions()))
+                    throw new InvalidOperationException("Changing an advanced setting must invalidate the matching preview.");
+                ResetWorldGenerationOptions();
+                worldAdvancedToggle.ButtonPressed = false;
                 worldMenuHeading.Text = "New World";
                 worldMenuStatus.Text = "Pick a seed and size. After creating the world, choose where your first Town goes and add four founders, then start time.";
                 worldPreviewStatus.Text = "Map preview · you will choose where your first Town goes after creating the world.";
@@ -415,6 +461,7 @@ public partial class Main
             var originalUiScaleChoice = uiScaleChoice.Selected;
             try
             {
+                await VerifyFirstWorldListAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
@@ -493,6 +540,42 @@ public partial class Main
                 quitToMenuConfirmation.GetThemeStylebox("embedded_border", "Window") != UiTheme.Theme.GetStylebox("embedded_border", "Window"))
                 throw new InvalidOperationException("Confirmations must use the game's panel style and name their action instead of OK.");
             quitToMenuConfirmation.Hide();
+            listedSaveWorldId = "smoke-world";
+            listedManualSaves = [new ManualWorldSave("smoke-save", "Selected snapshot", DateTimeOffset.UtcNow, 0, false)];
+            manualSaveList.Clear();
+            manualSaveList.AddItem("Selected snapshot");
+            manualSaveList.Select(0);
+            manualSaveDeleteButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!deletionConfirmation.Visible || pendingDeletion?.Id != "smoke-save" ||
+                !deletionConfirmation.DialogText.Contains("Selected snapshot", StringComparison.Ordinal) ||
+                deletionConfirmation.OkButtonText != "Delete permanently")
+                throw new InvalidOperationException("Save deletion must name the selected snapshot and require permanent confirmation.");
+            deletionConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
+            deletionConfirmation.Hide();
+            if (pendingDeletion is not null || listedManualSaves.Length != 1)
+                throw new InvalidOperationException("Canceling deletion must clear its target without changing saves.");
+            listedManualSaves = [];
+            manualSaveList.Clear();
+            listedSaveWorldId = null;
+            listedActiveWorldId = "active-world";
+            listedWorlds = [new CatalogWorld("active-world", "Active", "active", "seed", DateTimeOffset.UtcNow, [], null),
+                new CatalogWorld("other-world", "Other", "other", "seed-two", DateTimeOffset.UtcNow, [], null)];
+            worldSelectionList.Clear();
+            worldSelectionList.AddItem("Active");
+            worldSelectionList.AddItem("Other");
+            worldSelectionList.Select(0);
+            ConfirmWorldDeletion();
+            if (pendingDeletion is not null || deletionConfirmation.Visible)
+                throw new InvalidOperationException("Deleting the active world must be blocked before confirmation.");
+            worldSelectionList.Select(1);
+            ConfirmWorldDeletion();
+            if (pendingDeletion?.Id != "other-world" || !deletionConfirmation.Visible ||
+                !deletionConfirmation.DialogText.Contains("all of its manual saves and autosaves", StringComparison.Ordinal))
+                throw new InvalidOperationException("World deletion must identify the selected world and all its saves.");
+            deletionConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
+            deletionConfirmation.Hide();
+            listedWorlds = [];
+            worldSelectionList.Clear();
             // The pause receipt can succeed even when the following reconnect
             // fails. Leaving must not require a newer snapshot in that case.
             menuPauseConfirmed = true;
@@ -1336,7 +1419,46 @@ public partial class Main
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var zoomBeforeWheel = cameraZoom;
+            var overEventLog = eventLog.GetGlobalRect().GetCenter();
+            GetViewport().PushInput(new InputEventMouseMotion { Position = overEventLog, GlobalPosition = overEventLog }, true);
+            for (var turn = 0; turn < 40; turn++)
+                GetViewport().PushInput(new InputEventMouseButton
+                {
+                    Position = overEventLog,
+                    GlobalPosition = overEventLog,
+                    ButtonIndex = MouseButton.WheelDown,
+                    Pressed = true,
+                }, true);
+            if (!Mathf.IsEqualApprox(cameraZoom, zoomBeforeWheel))
+                throw new InvalidOperationException("Scrolling over a panel must not zoom the map behind it.");
             ToggleEvents();
+            // Each top-bar panel opens under the button that opened it, not at the far side of the screen.
+            foreach (var (panel, button, toggle) in new (Control Panel, Button Button, Action Toggle)[]
+            {
+                (filtersPanel, filtersButton, ToggleMapFilters), (rosterPanel, inhabitantsButton, ToggleInhabitants),
+                (worldInfoPanel, worldInfoButton, ToggleWorldInfo),
+            })
+            {
+                toggle();
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var panelBounds = panel.GetGlobalRect();
+                var buttonBounds = button.GetGlobalRect();
+                if (!panel.Visible || panelBounds.Position.Y < buttonBounds.End.Y ||
+                    panelBounds.Position.X > buttonBounds.End.X || panelBounds.End.X < buttonBounds.Position.X)
+                    throw new InvalidOperationException($"{panel.Name} must open under its {button.Text} button: panel {panelBounds}, button {buttonBounds}.");
+                toggle();
+            }
+            // The Event Log sits flush with the right edge of the screen instead.
+            ToggleEvents();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var logRight = eventsPanel.GetGlobalRect().End.X;
+            var screenRight = uiLayer.GetGlobalRect().End.X - 14 * uiLayer.Factor;
+            ToggleEvents();
+            if (Math.Abs(logRight - screenRight) > 1)
+                throw new InvalidOperationException($"The Event Log must open at the right edge of the screen: ends at {logRight}, edge {screenRight}.");
             knownEvents.Remove(102);
             RenderEventLog();
             var largeTerrain = Enumerable.Range(0, 256 * 128)

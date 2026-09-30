@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Net;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
@@ -113,7 +114,8 @@ builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorl
     WorldStartPace.FounderSetup,
     allowDifferentSavedSeed: isPrivateWorld));
 builder.Services.AddSingleton(services => new ManualWorldSaveStore(privateRuntimeStatePath,
-    services.GetRequiredService<ILogger<ManualWorldSaveStore>>()));
+    services.GetRequiredService<ILogger<ManualWorldSaveStore>>(),
+    services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate));
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
@@ -122,7 +124,8 @@ builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 });
 builder.Services.AddSingleton<WorldAutosaveStore>(services => new WorldAutosaveStore(
     privateRuntimeStatePath, services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId,
-    allowWorldSwitch: isPrivateWorld));
+    allowWorldSwitch: isPrivateWorld,
+    mutationGate: services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate));
 if (isPrivateWorld)
 {
     builder.Services.AddSingleton<WorldCatalogStore>(services =>
@@ -131,7 +134,7 @@ if (isPrivateWorld)
         var autosave = services.GetRequiredService<WorldAutosaveStore>();
         var catalog = new WorldCatalogStore(privateRuntimeStatePath,
             services.GetRequiredService<PrivateWorldRuntime>().ExportState(),
-            providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+            providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture(), providers.WorldMutationGate);
         var active = catalog.Active();
         if (catalog.RecoveredSelection)
         {
@@ -140,6 +143,20 @@ if (isPrivateWorld)
                 providers.RestoreWorldAssignments(active.Assignments);
             if (active.AutosaveSettings is { } settings && autosave.Capture() != settings)
                 autosave.SelectWorld(active.WorldId, settings);
+        }
+        lock (providers.WorldMutationGate)
+        {
+            try
+            {
+                var saves = services.GetRequiredService<ManualWorldSaveStore>();
+                saves.RecoverDeletions();
+                catalog.RecoverDeletions(saves.DeleteWorldSnapshots);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                ManualWorldSaveTelemetry.DeletionPending(services.GetRequiredService<ILogger<WorldCatalogStore>>(),
+                    "startup", exception.GetType().Name);
+            }
         }
         return catalog;
     });

@@ -140,7 +140,16 @@ merely a separate primitive. Large/Huge/Mega generator outputs do not imply
 playable storage, observation or performance support.
 
 Generation saves climate zone, elevation, hydrology, surface and vegetation
-cover separately beside the stable terrain summary. Individual trees are
+cover separately beside the stable terrain summary. New World preview and
+creation select saved hydrology revision 1: inland lakes retain a connected
+low basin of at most 0.5% of map area, with displaced open-water area added
+along ocean shores. This is provisional visual tuning, not a new player slider.
+Rivers terminate at lakes or oceans; this revision does not invent lake outlets.
+The [Small/Medium comparison](assets/inland-water-comparison.png) shows seed
+`inland-water-0` at 45% water with wrapping (historical left, revised right).
+It is a generator-layer rendering, not a Godot screenshot or native playtest.
+Revision 0 (including absent revision fields) retains the historical generator;
+unsupported revisions are rejected rather than substituted. Individual trees are
 objects/resources. Old generated worlds recover missing layers from saved
 deterministic options and retain their original resource layout.
 
@@ -268,3 +277,36 @@ Development currently uses the private server. The intended first finished
 release runs the same authoritative simulation on the player's Windows PC,
 with local saves and keys. Embedded host versus companion process remains open.
 See [where the game runs](../game-design/world.md#where-the-game-runs).
+
+## Material gathering
+
+Material gathering selects available resources reachable from the acting agent,
+then checks an actual unoccupied route into harvest range. Heating, project
+assistance and Blacksmith ore use this selector; they do not require a path to
+the original map anchor. This does not change fuel duration or harvest yields.
+
+## Advanced generation controls
+
+New World defaults to 50% water with a 20–80% range. `GenerationAmount`
+controls forest cover, mountain relief and river abundance independently;
+Normal is zero and omitted from saved JSON, preserving historical default
+settings. Low/High adjust the forest rainfall threshold (175/125), upper
+elevation relief, and river catchment threshold (288/72). Normal keeps
+150 and 144 respectively. These are relative presets, not promises of exact
+forest or mountain percentages. Resource abundance retains its existing
+Sparse/Normal/Abundant saved values; the UI labels them Low/Normal/High.
+
+Owner world-creation signing uses payload v2 to bind all settings. Preview and
+Create use the same validated options and digest; old clients need an update.
+Small and Medium remain the only playable sizes; no continent-count control
+is exposed for them. Existing saved water settings are not rewritten.
+
+## World-list requests
+
+Load World keeps a visible checking state until its signed catalog request
+finishes. Back cancels the client request; a late response cannot overwrite a
+newer list or New World screen. Results trigger layout after population so the
+first opening can display them. Compatibility still comes from the host's
+checkpoint/history/configuration assessment; no compatibility cache or unchecked
+"compatible" shortcut was added. Client cancellation does not interrupt a host
+assessment that already holds its mutation lock.

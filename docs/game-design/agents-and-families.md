@@ -31,14 +31,14 @@ everything that is available in the current build. See [what works today](../wha
   starting households, not forced couples; family lines develop later through
   relationships and children. All four begin as agents of the first Town.
   The simulation cannot begin until this setup is complete. The exact order
-  of site/layout acceptance and agent configuration remains open.
+  of site choice and agent configuration remains open.
 - Once all four starting agents are configured and placed, the player explicitly
   presses **Start World**; the simulation must not begin automatically on the
   fourth placement. An incomplete starting-agent setup is saved so the player can
   quit and finish it later. Before Start World, the game should clearly show
   progress toward the required four agents. During this paused setup, agent
   placement can be moved or undone. They should start near the first Town's
-  buildings; exact clustering, layout-editing controls, and prior 8/12-tile
+  buildings; exact clustering, site-change controls, and prior 8/12-tile
   playtest radii must be revisited with the generated layout.
 - Each agent independently has a chosen provider/model, private memory and
   context, goals/personality, call schedule, usage, and failure state. Different
@@ -109,18 +109,27 @@ everything that is available in the current build. See [what works today](../wha
 ### Agreed starter Town and remaining choices
 
 The player chooses a **rough site for the first Town** in New World, with the
-best suitable areas shown. Town-generation rules place its starting buildings
-and Roads; the player can accept that layout or remove it and redo it. The guaranteed starter buildings are **two Houses, a Warehouse, a Farmhouse, and a
-Blacksmith**, connected by generated Roads. The two starting households can
-claim the Farmhouse and Blacksmith so each has a productive role. How those
-initial claims are offered/assigned is open. Clothing-making place and Workshop
-are not guaranteed starters; agents may develop them later.
-The player chooses starter supplies during New World setup, but **food portions
-in the Houses, at least one usable wooden axe and one usable wooden pickaxe**
-are guaranteed so the first Town can begin. Exact counts beyond these minima,
-other items, suitability scoring, placement controls, what
-a redo preserves, available supply choices, and whether any nonguaranteed
-building can appear at start remain open. The
+best suitable areas shown as **guidance, not the only allowed locations**.
+Fertile land, reachable wood and stone, and short connected Roads make a site
+more suitable; lack of an ideal score does not forbid the player's choice.
+Water or another physically impossible location cannot hold the Town. Within
+the chosen rough site, Town generation automatically picks a feasible layout
+for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
+generated Roads. If no legal five-building layout fits, explain the problem
+and let the player choose another site without committing a partial Town.
+The player can change the rough site before placing founders; there is no
+separate layout Accept/Redo step. Clothing-making place and Workshop are not
+guaranteed starters; agents may develop them later.
+
+The Town automatically assigns the Farmhouse and Blacksmith to the two
+starting households, one productive building each. The player does not choose
+which household gets which business; this assignment does not make the agents
+couples or biological relatives. Each House starts with **eight food portions**,
+and the communal Warehouse starts with at least **one usable wooden axe and
+one usable wooden pickaxe**. The player may choose optional additional supplies
+in New World; their menu and quantities remain open. Exact suitability weights,
+how far to search around the chosen site, site-change controls, and whether a
+nonguaranteed building can appear at start also remain open. The
 [planned game content](content-list.md) records the accepted
 base tool/item/food/object/art set and explicitly marked remaining choices;
 the [what works today](../what-works.md) describes the playable prototype.
@@ -134,11 +143,11 @@ older childhood needs a separate phase, age display, relationship and
 inheritance mechanics, continuity threshold and exit conditions,
 pregnancy/birth and childcare rules, care/resource eligibility, Jev's
 optional role in childhood, and the identity implications of player renaming.
-First-Town placement rules and interface remain open: its order relative to
-agent placement, physically valid terrain and footprints, how fertile land
-is ensured or assessed, the placement boundary's exact distance measurement
-near tile/footprint edges, whether geometric proximity also requires a walkable
-route, and how redo affects assigned starting households and configuration.
+First-Town placement details remain open: its order relative to agent
+placement, the local search extent, the placement boundary's exact distance
+measurement near tile/footprint edges, whether geometric proximity also
+requires a walkable route, and how changing site revalidates any positions or
+claims tied to the previous layout without clearing model/provider choices.
 Warehouse details remain open: formal ownership, how Town residency is
 determined, access when the building is outside all Town borders or borders
 change, and how its hard access gate relates to any future crime system. The

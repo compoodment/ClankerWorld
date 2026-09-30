@@ -174,6 +174,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "blacksmith-1x2");
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
+                Assert.Equal(GeographyGenerator.CurrentHydrologyVersion, runtime.ExportState().Geography!.HydrologyVersion);
                 Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
                 Assert.Equal(preview.MapLayersDigest, MapLayerManifestCodec.Digest(runtime.ExportState().Map));
                 Assert.Equal(preview.ResourceSites, runtime.ExportState().Map.Resources.Count);

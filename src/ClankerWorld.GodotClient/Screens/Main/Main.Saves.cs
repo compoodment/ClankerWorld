@@ -17,6 +17,10 @@ public partial class Main
     private readonly Button manualSaveOverwriteButton = new();
     private readonly ConfirmationDialog manualSaveLoadConfirmation = new();
     private readonly ConfirmationDialog manualSaveOverwriteConfirmation = new();
+    private readonly Button manualSaveDeleteButton = new();
+    private readonly ConfirmationDialog deletionConfirmation = new();
+    private OwnerDeletionAction? pendingDeletion;
+    private string? listedSaveWorldId;
     private string? pendingOverwriteSaveId;
     private ManualWorldSave[] listedManualSaves = [];
     private bool manualSaveLoadMode;
@@ -100,7 +104,7 @@ public partial class Main
         manualSaveOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.MouseFilter = MouseFilterEnum.Stop;
         manualSaveOverlay.ZIndex = 220;
-        AddChild(manualSaveOverlay);
+        menuLayer.AddChild(manualSaveOverlay);
         var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.78f }, MouseFilter = MouseFilterEnum.Stop };
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         manualSaveOverlay.AddChild(shade);
@@ -125,6 +129,7 @@ public partial class Main
         manualSaveList.ItemSelected += index =>
         {
             manualSaveLoadButton.Disabled = false;
+            manualSaveDeleteButton.Disabled = (int)index >= listedManualSaves.Length;
             manualSaveOverwriteButton.Disabled = (int)index >= listedManualSaves.Length ||
                 listedManualSaves[(int)index].IsAutosave;
         };
@@ -137,6 +142,14 @@ public partial class Main
         StyleButton(manualSaveOverwriteButton);
         manualSaveOverwriteButton.Pressed += ConfirmManualSaveOverwrite;
         body.AddChild(manualSaveOverwriteButton);
+        manualSaveDeleteButton.Text = "Delete selected save";
+        StyleButton(manualSaveDeleteButton);
+        manualSaveDeleteButton.Pressed += ConfirmSaveDeletion;
+        body.AddChild(manualSaveDeleteButton);
+        StyleConfirmation(deletionConfirmation, "Permanently delete?", "Delete permanently");
+        deletionConfirmation.Confirmed += () => _ = DeleteConfirmedAsync();
+        deletionConfirmation.Canceled += () => pendingDeletion = null;
+        AddChild(deletionConfirmation);
         var close = new Button { Text = "Back" };
         StyleButton(close);
         close.Pressed += () => manualSaveOverlay.Hide();
@@ -160,6 +173,11 @@ public partial class Main
             SetStatus("Wait for the world to pause before saving.", good: false);
             return;
         }
+        pendingDeletion = null;
+        listedSaveWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        listedManualSaves = [];
+        manualSaveList.Clear();
+        manualSaveDeleteButton.Disabled = true;
         manualSaveLoadMode = loadMode;
         manualSaveHeading.Text = loadMode ? "Load Save" : "Save World";
         manualSaveStatus.Text = loadMode
@@ -219,7 +237,7 @@ public partial class Main
         var save = listedManualSaves[selected[0]];
         pendingOverwriteSaveId = save.Id;
         manualSaveOverwriteConfirmation.DialogText = $"Replace ‘{save.Name}’ with the current world? The old version is kept as ‘Before overwriting: {save.Name}’.";
-        manualSaveOverwriteConfirmation.PopupCentered(new Vector2I(520, 190));
+        PopupDialog(manualSaveOverwriteConfirmation, new Vector2I(520, 190));
     }
 
     private async Task OverwriteSelectedManualSaveAsync()
@@ -241,7 +259,7 @@ public partial class Main
         if (!manualSaveLoadMode || manualSaveList.GetSelectedItems() is not { Length: 1 } selected ||
             selected[0] < 0 || selected[0] >= listedManualSaves.Length) return;
         manualSaveLoadConfirmation.DialogText = $"Load ‘{listedManualSaves[selected[0]].Name}’? Your current world is saved first, and the loaded world starts paused.";
-        manualSaveLoadConfirmation.PopupCentered(new Vector2I(480, 180));
+        PopupDialog(manualSaveLoadConfirmation, new Vector2I(480, 180));
     }
 
     private async Task LoadSelectedManualSaveAsync()
@@ -271,4 +289,47 @@ public partial class Main
             return $"Loaded {save.Name}. Your previous world is saved too.";
         });
     }
+    private void ConfirmSaveDeletion()
+    {
+        if (manualSaveList.GetSelectedItems() is not { Length: 1 } selected ||
+            selected[0] < 0 || selected[0] >= listedManualSaves.Length || listedSaveWorldId is null) return;
+        var save = listedManualSaves[selected[0]];
+        pendingDeletion = new OwnerDeletionAction("save", save.Id, listedSaveWorldId, save.CreatedUtc);
+        deletionConfirmation.DialogText = $"Permanently delete ‘{save.Name}’ (saved {save.CreatedUtc.ToLocalTime():g})? This removes only this snapshot, not the world or its other saves. There is no undo.";
+        PopupDialog(deletionConfirmation, new Vector2I(540, 210));
+    }
+
+    private void ConfirmWorldDeletion()
+    {
+        if (worldMenuBusy || worldSelectionList.GetSelectedItems() is not { Length: 1 } selected ||
+            selected[0] < 0 || selected[0] >= listedWorlds.Length) return;
+        var world = listedWorlds[selected[0]];
+        if (world.Id == listedActiveWorldId)
+        {
+            worldMenuStatus.Text = "Open or create another world before deleting this one.";
+            return;
+        }
+        pendingDeletion = new OwnerDeletionAction("world", world.Id, world.WorldId);
+        deletionConfirmation.DialogText = $"Permanently delete ‘{world.Name}’ and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
+        PopupDialog(deletionConfirmation, new Vector2I(540, 210));
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        var action = pendingDeletion;
+        pendingDeletion = null;
+        if (action is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        manualSaveDeleteButton.Disabled = true;
+        worldDeleteButton.Disabled = true;
+        await RunOwnerActionAsync(async () =>
+        {
+            var receipt = await ownerApi.DeleteAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None);
+            if (action.Kind == "save") await OpenManualSavesAsync(manualSaveLoadMode);
+            else await RefreshWorldListAsync();
+            return receipt.CleanupComplete ? "Permanently deleted." :
+                "Deleted. Some history could not be cleaned up; other saves were preserved.";
+        });
+    }
+
 }

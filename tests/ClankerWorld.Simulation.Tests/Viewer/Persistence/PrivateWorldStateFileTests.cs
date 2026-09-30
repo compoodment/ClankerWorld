@@ -73,7 +73,12 @@ public sealed class PrivateWorldStateFileTests
         try
         {
             var file = new PrivateWorldStateFile(Path.Combine(directory, "world.json"));
-            using var seed = new PrivateWorldRuntime("history-test");
+            using var setup = new PrivateWorldRuntime("history-test");
+            var hungry = setup.ExportState();
+            using var seed = PrivateWorldRuntime.Restore(hungry with
+            {
+                Inhabitants = hungry.Inhabitants.Select(person => person with { HungerBasisPoints = 3_000 }).ToArray(),
+            });
             await seed.AdvanceOneTickAsync();
             var initial = seed.ExportState();
             const int count = 4096;

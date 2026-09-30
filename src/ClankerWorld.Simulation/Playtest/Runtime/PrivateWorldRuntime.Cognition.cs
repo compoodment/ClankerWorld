@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
             }
             var physical = inhabitants[inhabitant.Id];
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
-                (physical.HungerBasisPoints < 3_500 || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
+                (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
                 physical = inhabitants[inhabitant.Id];
@@ -164,8 +164,8 @@ public sealed partial class PrivateWorldRuntime
         return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
     }
 
-    private static string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
-        $"{state.HungerBasisPoints < 2_500}:{NeedsUrgentWarmth(state)}:" +
+    private string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
+        $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
         string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
 
     private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
@@ -215,7 +215,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
         {
             if (!inhabitants.TryGetValue(id, out var state)) continue;
-            if (state.HungerBasisPoints >= 3_500 && !NeedsUrgentWarmth(state))
+            if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
                 continue;
             var candidate = CreateCandidates(id, state)
                 .Where(item => safe.Contains(item.Id))
@@ -530,7 +530,7 @@ public sealed partial class PrivateWorldRuntime
 
         var hasFood = society.Checkpoint.Inventory.Lots.Any(item =>
             item.OwnerId == inhabitantId && IsEdibleFood(item.ItemKind) && AvailableLotQuantity(item) > 0);
-        if (hasFood && state.HungerBasisPoints < 8_500)
+        if (hasFood && state.HungerBasisPoints < ComfortableFullness)
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
         }
@@ -541,7 +541,8 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var foodSource = AvailableFoodSource(state.Position);
-        var foodPriority = state.HungerBasisPoints < 2_500 ? 2 : 5;
+        var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
+        // An optional reserve remains selectable without outranking ordinary activities.
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
@@ -585,11 +586,17 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
-        if (state.HungerBasisPoints >= 3_500 && !NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
+        if (AdultResident(inhabitantId))
+        {
+            AddKnowledgeCandidates(candidates, inhabitantId, state);
+            AddFamilyCandidates(candidates, inhabitantId);
+            AddParenthoodCandidates(candidates, inhabitantId);
+        }
+        if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
             AddChildCandidates(candidates, inhabitantId, state);
         }
-        if (state.HungerBasisPoints >= 2_500 && AdultResident(inhabitantId))
+        if (!NeedsUrgentFood(state) && AdultResident(inhabitantId))
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
@@ -603,11 +610,8 @@ public sealed partial class PrivateWorldRuntime
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
-            AddKnowledgeCandidates(candidates, inhabitantId, state);
             AddCouncilCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
-            AddFamilyCandidates(candidates, inhabitantId);
-            AddParenthoodCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
@@ -702,8 +706,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private static int PriorityFor(PlaytestInhabitantState state) =>
-        state.HungerBasisPoints < 2_500 || NeedsUrgentWarmth(state) ? 20 : 0;
+    private int PriorityFor(PlaytestInhabitantState state) =>
+        NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ? 20 : 0;
 
     private static string ObservationDigest(
         string inhabitantId,

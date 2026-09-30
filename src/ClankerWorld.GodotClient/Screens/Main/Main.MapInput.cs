@@ -167,6 +167,13 @@ public partial class Main
             }
             else if (mouse.Pressed && mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown)
             {
+                // Panels pass the wheel on when they have nothing (left) to
+                // scroll; the map behind them must not zoom.
+                if (GetViewport().GuiGetHoveredControl() is { } hovered && uiLayer.IsAncestorOf(hovered))
+                {
+                    mapCanvas.AcceptEvent();
+                    return;
+                }
                 // Zooming in moves toward what the player points at.
                 ZoomAt(mouse.Position, mouse.ButtonIndex == MouseButton.WheelUp);
                 mapCanvas.AcceptEvent();
@@ -280,7 +287,7 @@ public partial class Main
     {
         if (selectedTileText.Size.X >= 64)
         {
-            var height = Math.Min(Math.Max(64, mapCanvas.Size.Y - 96),
+            var height = Math.Min(Math.Max(64, UiSize.Y - 96),
                 Math.Max(64, selectedTileText.GetContentHeight() + 4));
             if (Math.Abs(selectedTileText.CustomMinimumSize.Y - height) >= 1)
                 selectedTileText.CustomMinimumSize = new Vector2(0, height);
@@ -291,7 +298,7 @@ public partial class Main
 
     private void PositionSelectedTilePanel() =>
         selectedTilePanel.Position = new Vector2(14,
-            Math.Max(14, mapCanvas.Size.Y - Math.Max(selectedTilePanel.Size.Y,
+            Math.Max(14, UiSize.Y - Math.Max(selectedTilePanel.Size.Y,
                 selectedTilePanel.CustomMinimumSize.Y) - 14));
 
     private void UpdateTileHover(Vector2 canvasPosition)

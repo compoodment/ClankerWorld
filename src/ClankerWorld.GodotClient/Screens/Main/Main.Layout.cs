@@ -22,15 +22,22 @@ public partial class Main
         AddChild(root);
 
         BuildWorldColumn(root);
-        BuildTopBar(mapCanvas);
-        BuildFounderSetupPanel(mapCanvas);
-        BuildInspectorColumn(mapCanvas);
-        BuildOwnerColumn(mapCanvas);
-        BuildStatusToast(mapCanvas);
+        BuildTopBar(uiLayer);
+        BuildFounderSetupPanel(uiLayer);
+        BuildInspectorColumn(uiLayer);
+        BuildOwnerColumn(uiLayer);
+        BuildStatusToast(uiLayer);
+        AddChild(menuLayer);
         BuildMainMenu();
         BuildManualSavesPanel();
 
-        Resized += ApplyResponsiveLayout;
+        // A smaller window can lower the UI Scale that fits, as well as re-lay the panels.
+        Resized += () => ApplyUiScale(displayPreferences.UiScalePercent);
+        foreach (var panel in HudPanels())
+        {
+            panel.VisibilityChanged += PlaceHudPanels;
+            panel.Resized += PlaceHudPanels;
+        }
         ApplyResponsiveLayout();
     }
 
@@ -126,6 +133,7 @@ public partial class Main
 
         mapStage.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapCanvas.AddChild(mapStage);
+        mapCanvas.AddChild(uiLayer);
 
         mapStage.AddChild(terrainLayer);
 
@@ -145,14 +153,14 @@ public partial class Main
         mapStage.AddChild(weatherLayer);
 
         BuildSelectedInhabitantCard();
-        mapCanvas.AddChild(selectedInhabitantCard);
+        uiLayer.AddChild(selectedInhabitantCard);
 
         worldOverview.CenterRequested += CenterCameraAt;
         AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
         worldOverviewPanel.Position = new Vector2(14, 14);
         worldOverviewPanel.ZIndex = 80;
         worldOverviewPanel.Hide();
-        mapCanvas.AddChild(worldOverviewPanel);
+        uiLayer.AddChild(worldOverviewPanel);
         mapCanvas.GuiInput += HandleMapInput;
         mapCanvas.MouseExited += () =>
         {
@@ -321,7 +329,7 @@ public partial class Main
         menuActions.AddChild(menuQuitSeparator);
         menuQuitToMainButton.Text = "Quit to Menu";
         StyleButton(menuQuitToMainButton);
-        menuQuitToMainButton.Pressed += () => quitToMenuConfirmation.PopupCentered(new Vector2I(470, 180));
+        menuQuitToMainButton.Pressed += () => PopupDialog(quitToMenuConfirmation, new Vector2I(470, 180));
         menuActions.AddChild(menuQuitToMainButton);
 
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
@@ -343,9 +351,9 @@ public partial class Main
         gameSettingsContent.AddChild(DisplaySettingRow("Theme", themeChoice));
 
         foreach (var percentage in DisplayUiScalePolicy.SupportedPercentages)
-            uiScaleChoice.AddItem($"{percentage}%");
+            uiScaleChoice.AddItem(percentage == DisplayUiScalePolicy.Automatic ? "Automatic" : $"{percentage}%");
         uiScaleChoice.Selected = DisplayUiScalePolicy.IndexOfPercent(displayPreferences.UiScalePercent);
-        uiScaleChoice.TooltipText = "Makes menus and text bigger or smaller.";
+        uiScaleChoice.TooltipText = "Makes all menus, panels and text bigger or smaller. Automatic picks a size for your screen. Bigger sizes need a bigger window.";
         uiScaleChoice.ItemSelected += SetUiScale;
         gameSettingsContent.AddChild(DisplaySettingRow("UI Scale", uiScaleChoice));
 
