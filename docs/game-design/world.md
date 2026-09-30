@@ -355,6 +355,22 @@ that every other action disappears. These are initial playtest thresholds,
 not proven balance targets. The point at which routine food errands start,
 and how much warmth is needed for a particular outing, remain to be tuned.
 
+The current priority prototype treats these as preferences rather than blanket
+activity gates. Routine food seeking becomes a priority below 45% fullness, carried food
+becomes attractive below 40%, and a new exploration outing asks for a 30%
+food reserve. Food gathering remains an optional lower-priority choice below
+70%; the existing small barter reserve is unchanged. These three routine values are **provisional**, not additional
+owner-approved thresholds. Construction and ongoing projects yield to urgent
+food needs; nearby care and family responses remain possible. Low warmth
+interrupts work only while the agent is still losing warmth, not while safely
+warming in shelter. Recovering agents retain a choice to stay in cover, and new
+scouting trips estimate exposed round-trip warmth needs instead of assuming
+that starting shelter travels with the agent. This estimate uses nearby weather
+and movement costs, not knowledge of the whole map or a guarantee of safety.
+Illness, exposure damage and food production are unchanged. The
+[controlled comparison](../development/survival-priority-prototype.md) reports
+the original regressions and revised measurements; this is not settled balance.
+
 ### Still to decide after playtesting
 
 Earlier playtesting found agents spent too much time seeking food, rest and

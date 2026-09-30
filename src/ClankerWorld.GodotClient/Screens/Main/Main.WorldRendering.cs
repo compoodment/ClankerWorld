@@ -342,7 +342,7 @@ public partial class Main
                 ZIndex = 5,
                 ClipText = true,
             };
-            visual.AddThemeFontSizeOverride("font_size", UiFonts.Body);
+            visual.AddThemeFontSizeOverride("font_size", UiFonts.Body * uiLayer.Factor);
             visual.AddThemeColorOverride("font_color", new Color("E8F0D8"));
             visual.AddThemeColorOverride("font_shadow_color", new Color("18211D"));
             visual.AddThemeConstantOverride("shadow_offset_x", 1);

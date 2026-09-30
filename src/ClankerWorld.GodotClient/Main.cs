@@ -19,16 +19,6 @@ public partial class Main : Control
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
     private const string AppIconPath = "res://icon.ico";
-    private const string UiScaleBaseFontSizeMetaPrefix = "clanker_ui_scale_base_font_size_";
-    private static readonly string[] UiScaleFontSizeThemeItems = ["font_size"];
-    private static readonly string[] UiScaleRichTextFontSizeThemeItems =
-    [
-        "normal_font_size",
-        "bold_font_size",
-        "italics_font_size",
-        "bold_italics_font_size",
-        "mono_font_size",
-    ];
 
     private readonly System.Net.Http.HttpClient httpClient = new();
     private readonly OwnerWorldApi ownerApi;
@@ -43,7 +33,9 @@ public partial class Main : Control
     private readonly Dictionary<string, Label> mapObjectVisuals = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> inhabitantCanonicalXs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> mapObjectCanonicalXs = new(StringComparer.Ordinal);
-    private readonly HashSet<ulong> uiScaleWatchedNodes = [];
+    // Panels over the map, and the full-screen menus, both drawn at UI Scale.
+    private readonly ScaledLayer uiLayer = new() { Name = "Interface" };
+    private readonly ScaledLayer menuLayer = new() { Name = "Menus" };
     private readonly List<Label> settingCaptionLabels = [];
 
     private readonly Label statusLabel = new();
@@ -239,7 +231,6 @@ public partial class Main : Control
     private bool draggingMap;
     private GameDisplayPreferences displayPreferences = new();
     private OwnerWorldCalendarPace? observedCalendarPace;
-    private bool uiScaleTreeReady;
     private string? renderedEventLog;
     private StatusToastKind statusToastKind;
     private long statusToastShownAtMsec;
@@ -271,8 +262,6 @@ public partial class Main : Control
         BuildLayout();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
-        uiScaleTreeReady = true;
-        WatchUiScaleTree(this);
         ApplyUiScale(displayPreferences.UiScalePercent);
         GetWindow().SizeChanged += RefreshAutomaticRenderResolution;
         ShowMainMenu();

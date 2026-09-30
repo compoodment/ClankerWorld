@@ -46,6 +46,8 @@ public sealed partial class PrivateWorldRuntime
                  .OrderBy(id => map.FootDistance(state.Position, inhabitants[id].Position))
                  .ThenBy(id => id, StringComparer.Ordinal))
         {
+            if (NeedsUrgentFood(state) && !IsWithinInteractionRange(state.Position, inhabitants[target].Position, ResourceInteractionRange))
+                continue;
             if (FindUnoccupiedRoute(actor, state.Position, inhabitants[target].Position, ResourceInteractionRange).Count == 0)
                 continue;
             if (ChildSocialAvailable(actor, target, "converse"))
@@ -68,7 +70,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void ApplyChildCandidate(string actor, PlaytestInhabitantState state, string candidate)
     {
-        if (!ChildResident(actor) || state.HungerBasisPoints < 3_500 || NeedsUrgentWarmth(state)) return;
+        if (!ChildResident(actor) || NeedsUrgentWarmth(state)) return;
         if (candidate == "child_help_food")
         {
             if (state.HungerBasisPoints < 6_000 ||

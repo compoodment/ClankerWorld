@@ -6,6 +6,10 @@ release yet.
 
 ## Unreleased
 
+- Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
+- Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.
+
+- Prototype survival priorities leave more room for ordinary activities below comfortable fullness and warmth. Urgent food or continuing cold exposure still interrupts discretionary work, while safe nearby care remains possible. Routine food and outing reserves remain provisional for playtesting.
 - Add confirmed permanent deletion of one selected save, or an inactive world and all its saves. The active world and other worlds stay intact.
 - New World adds a compact Advanced section with 20–80% water (50% default), Low/Normal/High forest, mountains, rivers and resources, climate choices, wrapping and latitude cooling. Reset restores the full supported preset; preview and creation use the same saved settings.
 
@@ -321,6 +325,14 @@ release yet.
   and titles, headings, section labels, dialog titles and the Main Menu's
   choices use Timber, thin capitals based on the logo's letters. Base text
   sizes use whole multiples of 12 px and are drawn without smoothing.
+- UI Scale now enlarges the whole interface in whole steps (Automatic, 100%,
+  200%, 300% and 400%), so pixel text stays sharp. Panels, padding, buttons,
+  icons, the Quit Game and other confirmations, drop-down lists, tooltips and
+  names on the map all grow together instead of text alone. Automatic is the
+  new default: it picks 200% on 1080p and 1440p screens and 300% on 4K. A
+  saved 125% becomes 100%, and 150% or 175% becomes 200%. Sizes that would not
+  fit the window are greyed out, and on a narrow layout the top bar shows its
+  icons without words.
 - Weather on the map now moves. Rain falls as short drops that land with
   small splash rings, storms darken the sky with heavier slanted rain and a
   soft flash of lightning every several seconds, and snow drifts down. Rain,
@@ -434,6 +446,11 @@ release yet.
   ticks, revisions, map digests and internal system counts.
 - Tooltips no longer fade from dark edges into a lighter middle; their
   parchment and border are drawn as crisp pixels like the rest of the interface.
+- Panels opened from the top bar open under their own button. Filters used to
+  appear on the right, and Agents and World Info on the left, far from the
+  buttons that opened them.
+- Scrolling the mouse wheel over a panel no longer zooms the map behind it,
+  including when the panel has nothing left to scroll.
 - The selected-agent card no longer covers the agent it describes: when it
   cannot fit above or below them, it opens beside them. On short screens its
   profile scrolls inside the card, so Speak and Send are no longer cut off

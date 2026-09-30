@@ -76,7 +76,7 @@ public partial class Main
         mainMenuOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
         mainMenuOverlay.ZIndex = 180;
-        AddChild(mainMenuOverlay);
+        menuLayer.AddChild(mainMenuOverlay);
 
         mainMenuBackground.Color = UiTheme.Current.Backdrop;
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
@@ -132,7 +132,7 @@ public partial class Main
 
         quitGameButton.Text = "Quit Game";
         StyleButton(quitGameButton);
-        quitGameButton.Pressed += () => quitGameConfirmation.PopupCentered(new Vector2I(440, 170));
+        quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation, new Vector2I(440, 170));
         body.AddChild(quitGameButton);
 
         // The Main Menu's choices use the Timber heading lettering.
@@ -189,7 +189,7 @@ public partial class Main
     private void FitMainMenuLogo()
     {
         var area = mainMenuOverlay.Size;
-        if (area.X <= 0 || area.Y <= 0) area = GetViewportRect().Size;
+        if (area.X <= 0 || area.Y <= 0) area = GetViewportRect().Size / menuLayer.Factor;
         var scale = Math.Clamp((int)Math.Min(area.X * 0.62f / MenuLogo.Width, area.Y * 0.24f / MenuLogo.Height), 1, 8);
         mainMenuLogo.CustomMinimumSize = new Vector2(MenuLogo.Width, MenuLogo.Height) * scale;
     }
@@ -294,7 +294,7 @@ public partial class Main
         worldMenuOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         worldMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
         worldMenuOverlay.ZIndex = 210;
-        AddChild(worldMenuOverlay);
+        menuLayer.AddChild(worldMenuOverlay);
         var shade = new ColorRect { Color = UiTheme.Current.Shade with { A = 0.88f }, MouseFilter = MouseFilterEnum.Stop };
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         worldMenuOverlay.AddChild(shade);
@@ -506,11 +506,10 @@ public partial class Main
     {
         // Hidden containers report no minimum size, so this runs once shown.
         if (!worldMenuOverlay.Visible) return;
-        var viewport = GetViewportRect().Size;
-        var uiScale = DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent);
+        var viewport = menuLayer.Size;
         const float margins = 20;
-        var optionsWidth = WorldOptionsWidth * uiScale;
-        var previewWidth = WorldPreviewWidth * uiScale;
+        float optionsWidth = WorldOptionsWidth;
+        float previewWidth = WorldPreviewWidth;
         // The slack keeps both columns side by side even if a scrollbar shows.
         var width = Math.Min(optionsWidth + previewWidth + 20 + 16, Math.Max(280, viewport.X - 40 - margins));
         previewWidth = Math.Min(previewWidth, width);

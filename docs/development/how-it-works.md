@@ -278,6 +278,13 @@ release runs the same authoritative simulation on the player's Windows PC,
 with local saves and keys. Embedded host versus companion process remains open.
 See [where the game runs](../game-design/world.md#where-the-game-runs).
 
+## Material gathering
+
+Material gathering selects available resources reachable from the acting agent,
+then checks an actual unoccupied route into harvest range. Heating, project
+assistance and Blacksmith ore use this selector; they do not require a path to
+the original map anchor. This does not change fuel duration or harvest yields.
+
 ## Advanced generation controls
 
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`

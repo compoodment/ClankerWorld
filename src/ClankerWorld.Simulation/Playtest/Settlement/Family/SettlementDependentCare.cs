@@ -31,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
         !society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.ProposerId == adult && edge.TargetId == child && WorldTick - Math.Max(edge.ProposedTick, edge.EffectiveTick) < worldSystems.Config.TicksPerDay);
 
-    private bool HasDependentCareDecision(string actor) => ReadyForLesson(actor) &&
+    private bool HasDependentCareDecision(string actor) => ReadyForBriefInteraction(actor) &&
         (CareProposals().Any(edge => edge.TargetId == actor) ||
          inhabitants.Keys.Any(child => CanOfferCare(actor, child)));
 
@@ -49,14 +49,15 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddDependentCareCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!ReadyForLesson(actor)) return;
+        if (!ReadyForBriefInteraction(actor)) return;
         foreach (var edge in society.Checkpoint.Relationships.Where(edge => edge.Type == SocietyRelationshipType.Caregiver &&
                      (edge.ProposerId == actor || edge.TargetId == actor) &&
                      (edge.State == SocietyRelationshipState.Accepted || edge.State == SocietyRelationshipState.Proposed && edge.ProposerId == actor)))
         {
             candidates.Add(new("guardian_end:" + edge.Id, "Withdraw from this caregiving relationship or proposal.", 110));
         }
-        foreach (var dependent in IllDependentsNeedingCare(actor))
+        foreach (var dependent in IllDependentsNeedingCare(actor).Where(dependent =>
+                     !NeedsUrgentFood(inhabitants[actor]) || IsWithinInteractionRange(inhabitants[actor].Position, inhabitants[dependent].Position, ResourceInteractionRange)))
         {
             candidates.Add(new("guardian_tend:" + dependent,
                 "Offer warmth and practical care to your ill dependent.", 75));
@@ -127,9 +128,10 @@ public sealed partial class PrivateWorldRuntime
 
     private void TendToIllDependent(string adult, string dependent)
     {
-        if (!ReadyForLesson(adult) || !CanTendToIllDependent(adult, dependent)) return;
+        if (!ReadyForBriefInteraction(adult) || !CanTendToIllDependent(adult, dependent)) return;
         var caregiver = inhabitants[adult];
         var recipient = inhabitants[dependent];
+        if (NeedsUrgentFood(caregiver) && !IsWithinInteractionRange(caregiver.Position, recipient.Position, ResourceInteractionRange)) return;
         if (!IsWithinInteractionRange(caregiver.Position, recipient.Position, ResourceInteractionRange))
         {
             MoveToward(adult, caregiver, recipient.Position, "care", ResourceInteractionRange);

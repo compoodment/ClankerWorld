@@ -39,11 +39,12 @@ public partial class Main
     private long lastSeenEventId = long.MinValue;
     private long newEventsAfter = long.MaxValue;
     private int unreadEvents;
+    private readonly Dictionary<Button, string> hudButtonLabels = [];
 
     /// <summary>Top of the map area left free by the floating HUD.</summary>
     private float HudTop => hudBar.Visible && hudBar.Size.Y > 0 ? hudBar.Position.Y + hudBar.Size.Y + 8 : 14;
 
-    private int HudIconScale => Math.Max(2, (int)MathF.Round(2 * DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent)));
+    private const int HudIconScale = 2;
 
     private void BuildTopBar(Control canvas)
     {
@@ -152,11 +153,13 @@ public partial class Main
         hudFounders.AddChild(startWorldButton);
 
         addAgentButton.Text = "Add Agent";
+        addAgentButton.TooltipText = "Add an agent to the world.";
         StyleButton(addAgentButton);
         addAgentButton.Pressed += () => _ = ToggleAddAgentAsync();
         hudRight.AddChild(addAgentButton);
 
         menuButton.Text = "Menu";
+        menuButton.TooltipText = "Pause Menu (Esc)";
         StyleButton(menuButton);
         menuButton.Pressed += () => _ = ToggleGameMenuAsync();
         hudRight.AddChild(menuButton);
@@ -221,6 +224,55 @@ public partial class Main
         button.AddChild(marker);
         button.Resized += () => marker.Position = new Vector2(button.Size.X + offset.X, offset.Y);
     }
+
+    /// <summary>
+    /// On a narrow interface the top bar keeps its icons and drops the words
+    /// that would push it off screen; each tooltip still names its button.
+    /// </summary>
+    private void CompactHud(bool compact)
+    {
+        if (hudButtonLabels.Count == 0)
+            foreach (var button in new[] { mapButton, filtersButton, worldInfoButton, eventsButton, addAgentButton, menuButton })
+                hudButtonLabels[button] = button.Text;
+        foreach (var (button, label) in hudButtonLabels)
+            button.Text = compact ? string.Empty : label;
+    }
+
+    /// <summary>
+    /// Opens a top-bar panel just under the button that opened it, lined up
+    /// with the button's outer edge, so it appears where the player is looking.
+    /// </summary>
+    private void PlaceUnderButton(Control panel, Control button)
+    {
+        if (!panel.Visible) return;
+        if (!button.IsVisibleInTree())
+        {
+            panel.Position = new Vector2(panel.Position.X, Math.Max(panel.Position.Y, HudTop));
+            return;
+        }
+        var ui = UiSize;
+        var width = Math.Max(panel.Size.X, panel.CustomMinimumSize.X);
+        var origin = (button.GlobalPosition - uiLayer.GlobalPosition) / uiLayer.Factor;
+        var x = origin.X + button.Size.X / 2 < ui.X / 2 ? origin.X : origin.X + button.Size.X - width;
+        panel.Position = new Vector2(Math.Clamp(x, 14, Math.Max(14, ui.X - width - 14)),
+            Math.Max(HudTop, origin.Y + button.Size.Y + 8));
+    }
+
+    private void PlaceHudPanels()
+    {
+        PlaceUnderButton(worldOverviewPanel, mapButton);
+        PlaceUnderButton(filtersPanel, filtersButton);
+        PlaceUnderButton(rosterPanel, inhabitantsButton);
+        PlaceUnderButton(worldInfoPanel, worldInfoButton);
+        // The Event Log often stays open while playing, so it sits flush with the right edge.
+        if (eventsPanel.Visible)
+            eventsPanel.Position = new Vector2(
+                Math.Max(14, UiSize.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14), HudTop);
+        PlaceUnderButton(founderSetupPanel, placingAddedAgent && addAgentButton.IsVisibleInTree() ? addAgentButton : founderSetupButton);
+    }
+
+    /// <summary>Panels opened from the top bar; the agent card keeps clear of them.</summary>
+    private Control[] HudPanels() => [worldOverviewPanel, filtersPanel, rosterPanel, worldInfoPanel, eventsPanel, founderSetupPanel];
 
     private IEnumerable<Button> HudButtons() =>
         new[] { hudLeft, hudTime, hudRight, hudFounders }.SelectMany(row => row.GetChildren().OfType<Button>());

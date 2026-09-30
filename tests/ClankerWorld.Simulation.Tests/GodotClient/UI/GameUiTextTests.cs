@@ -25,7 +25,7 @@ public sealed class GameUiTextTests
         Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));
     }
 
-    private static readonly int[] UiScalePercentages = [100, 125, 150, 175, 200];
+    private static readonly int[] UiScalePercentages = [DisplayUiScalePolicy.Automatic, 100, 200, 300, 400];
 
     [Theory]
     [InlineData("Alexandria Smith", "Alexandria")]
@@ -169,19 +169,19 @@ public sealed class GameUiTextTests
             Assert.False(store.Load().UseTwelveHourClock);
             store.Save(new GameDisplayPreferences(UseTwelveHourClock: true,
                 WindowWidth: 1600, WindowHeight: 900, RenderWidth: 1920, RenderHeight: 1080,
-                UiScalePercent: 150, Fullscreen: false));
+                UiScalePercent: 200, Fullscreen: false));
             var restored = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load();
             Assert.True(restored.UseTwelveHourClock);
             Assert.Equal((1600, 900), (restored.WindowWidth, restored.WindowHeight));
             Assert.Equal((1920, 1080), (restored.RenderWidth, restored.RenderHeight));
             Assert.False(restored.UsesAutomaticRenderResolution);
-            Assert.Equal(150, restored.UiScalePercent);
+            Assert.Equal(200, restored.UiScalePercent);
             Assert.False(restored.UsesFullscreen);
             store.Save(restored with { DateFormat = "ymd" });
             Assert.Equal("ymd", store.Load().DateFormat);
             Assert.Equal((1600, 900), (store.Load().WindowWidth, store.Load().WindowHeight));
             Assert.Equal((1920, 1080), (store.Load().RenderWidth, store.Load().RenderHeight));
-            Assert.Equal(150, store.Load().UiScalePercent);
+            Assert.Equal(200, store.Load().UiScalePercent);
             Assert.False(store.Load().UsesFullscreen);
         }
         finally
@@ -191,31 +191,52 @@ public sealed class GameUiTextTests
     }
 
     [Fact]
-    public void UiScaleOffersAccessiblePercentagesAndNormalizesUnsupportedSavedValues()
+    public void UiScaleOffersWholeStepsAndMovesOlderSavedValuesToThem()
     {
         Assert.Equal(UiScalePercentages, DisplayUiScalePolicy.SupportedPercentages);
-        Assert.Equal(1f, DisplayUiScalePolicy.ScaleFactor(100));
-        Assert.Equal(1.5f, DisplayUiScalePolicy.ScaleFactor(150));
-        Assert.Equal(2f, DisplayUiScalePolicy.ScaleFactor(200));
         Assert.Equal(100, DisplayUiScalePolicy.NormalizePercent(123));
-        Assert.Equal(100, new GameDisplayPreferences().UiScalePercent);
+        Assert.Equal(200, DisplayUiScalePolicy.NormalizePercent(150));
+        Assert.Equal(200, DisplayUiScalePolicy.NormalizePercent(175));
+        Assert.Equal(DisplayUiScalePolicy.Automatic, DisplayUiScalePolicy.NormalizePercent(500));
+        Assert.Equal(DisplayUiScalePolicy.Automatic, new GameDisplayPreferences().UiScalePercent);
         Assert.True(new GameDisplayPreferences().UsesFullscreen);
 
         var directory = Directory.CreateTempSubdirectory("clanker-display-ui-scale-");
         try
         {
             var path = Path.Combine(directory.FullName, "game-settings.json");
-            File.WriteAllText(path, "{\"UiScalePercent\":300}");
+            File.WriteAllText(path, "{\"UiScalePercent\":150}");
             var store = new GameDisplayPreferencesStore(path);
-            Assert.Equal(100, store.Load().UiScalePercent);
-
-            store.Save(store.Load() with { UiScalePercent = 200 });
             Assert.Equal(200, store.Load().UiScalePercent);
+            File.WriteAllText(path, "{\"UiScalePercent\":500}");
+            Assert.Equal(DisplayUiScalePolicy.Automatic, store.Load().UiScalePercent);
+
+            store.Save(store.Load() with { UiScalePercent = 300 });
+            Assert.Equal(300, store.Load().UiScalePercent);
         }
         finally
         {
             directory.Delete(recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData(1280, 720, 1)]
+    [InlineData(1600, 900, 1)]
+    [InlineData(1920, 1080, 2)]
+    [InlineData(2560, 1440, 2)]
+    [InlineData(3840, 2160, 3)]
+    public void AutomaticUiScaleKeepsTheInterfaceNear720PixelsTall(int width, int height, int factor) =>
+        Assert.Equal(factor, DisplayUiScalePolicy.FittingFactor(DisplayUiScalePolicy.Automatic, width, height));
+
+    [Fact]
+    public void ChosenUiScaleDropsToTheLargestStepThatLeavesTheMenusRoom()
+    {
+        Assert.Equal(2, DisplayUiScalePolicy.FittingFactor(200, 1920, 1080));
+        Assert.Equal(1, DisplayUiScalePolicy.FittingFactor(200, 1280, 720));
+        Assert.Equal(2, DisplayUiScalePolicy.FittingFactor(400, 2560, 1440));
+        Assert.Equal(4, DisplayUiScalePolicy.FittingFactor(400, 3840, 2160));
+        Assert.Equal(1, DisplayUiScalePolicy.FittingFactor(100, 3840, 2160));
     }
 
     [Fact]

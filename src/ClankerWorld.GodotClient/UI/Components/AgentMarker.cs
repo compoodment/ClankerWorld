@@ -17,6 +17,9 @@ public partial class AgentMarker : Control
 
     public event Action? Activated;
 
+    /// <summary>Name tags grow with UI Scale, in whole steps so the pixel font stays crisp.</summary>
+    public static int TextScale { get; set; } = 1;
+
     public string Caption
     {
         get => caption;
@@ -103,13 +106,13 @@ public partial class AgentMarker : Control
         var named = selected || hovered ? drawn >= 20 : showNameTag && drawn >= NameTagMinimum;
         if (!named || caption.Length == 0) return;
         var font = UiFonts.Text;
-        const int fontSize = UiFonts.Body;
+        var fontSize = UiFonts.Body * TextScale;
         var text = caption.Length > 14 ? caption[..13] + "…" : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
-        var tag = new Rect2(new Vector2(center.X - textSize.X / 2 - 4, sprite.Position.Y + drawn * 0.86f),
-            new Vector2(textSize.X + 8, textSize.Y + 2));
+        var tag = new Rect2(new Vector2(center.X - textSize.X / 2 - 4 * TextScale, sprite.Position.Y + drawn * 0.86f),
+            new Vector2(textSize.X + 8 * TextScale, textSize.Y + 2 * TextScale));
         DrawRect(tag, new Color(0.06f, 0.09f, 0.11f, 0.78f));
-        DrawString(font, new Vector2(tag.Position.X + 4, tag.Position.Y + font.GetAscent(fontSize) + 1),
+        DrawString(font, new Vector2(tag.Position.X + 4 * TextScale, tag.Position.Y + font.GetAscent(fontSize) + TextScale),
             text, fontSize: fontSize, modulate: Colors.White);
     }
 }

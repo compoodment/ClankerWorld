@@ -16,12 +16,17 @@ public sealed class TownRuntimeTests
     public async Task AddedIslandAdultCanHarvestAdjacentFoodOutsideTheCampComponent()
     {
         var geography = new GeographyOptions("island-food-review-0", WorldSizePreset.Small);
-        using var world = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
-        PlaceFourFounders(world);
-        world.StartWorld();
+        using var setup = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        PlaceFourFounders(setup);
+        setup.StartWorld();
         var position = new GridPoint(22, 13);
-        world.AddAgent("agent:00000000000000000000000000000099", position);
-        var before = world.ExportState();
+        setup.AddAgent("agent:00000000000000000000000000000099", position);
+        var before = setup.ExportState();
+        // Exercise reachable food while the island resident actually needs a food errand.
+        using var world = PrivateWorldRuntime.Restore(before with
+        {
+            Inhabitants = before.Inhabitants.Select(person => person with { HungerBasisPoints = 4_000 }).ToArray(),
+        });
         var food = before.Map.Resources.Single(item => item.Id == "wild-16-0");
         Assert.False(before.Map.IsReachableFromCampOnFoot(food.Position));
         Assert.True(before.Map.IsReachableOnFoot(position, food.Position));

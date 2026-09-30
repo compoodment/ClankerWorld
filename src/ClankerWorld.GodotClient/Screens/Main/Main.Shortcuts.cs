@@ -56,8 +56,8 @@ public partial class Main
     {
         controlsPanel.Size = controlsPanel.GetCombinedMinimumSize();
         controlsPanel.Position = new Vector2(
-            Math.Max(14, (mapCanvas.Size.X - controlsPanel.Size.X) / 2),
-            Math.Max(14, (mapCanvas.Size.Y - controlsPanel.Size.Y) / 2));
+            Math.Max(14, (UiSize.X - controlsPanel.Size.X) / 2),
+            Math.Max(14, (UiSize.Y - controlsPanel.Size.Y) / 2));
     }
 
     private void ToggleControlsPanel()

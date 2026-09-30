@@ -42,66 +42,50 @@ public partial class Main
 
     private void ApplyUiScale(int percent)
     {
-        var factor = DisplayUiScalePolicy.ScaleFactor(percent);
-        // The fallback base scale helps theme-aware controls, while this
-        // client's explicit font-size overrides also need direct scaling.
-        ThemeDB.FallbackBaseScale = factor;
-        RefreshHudIcons();
-        if (uiScaleTreeReady)
+        var area = Size.X > 0 && Size.Y > 0 ? Size : GetViewportRect().Size;
+        var factor = DisplayUiScalePolicy.FittingFactor(percent, area.X, area.Y);
+        uiLayer.Factor = factor;
+        menuLayer.Factor = factor;
+        ScaleWindows(factor);
+        ScaleMapText(factor);
+        // Automatic names the size it picked; sizes that would leave too little room are unavailable.
+        for (var index = 0; index < uiScaleChoice.ItemCount; index++)
         {
-            ApplyUiScaleFontOverrides(this, factor);
-            ApplyResponsiveLayout();
+            var choice = DisplayUiScalePolicy.SupportedPercentages[index];
+            var fitting = DisplayUiScalePolicy.FittingFactor(choice, area.X, area.Y) * 100;
+            if (choice == DisplayUiScalePolicy.Automatic)
+                uiScaleChoice.SetItemText(index, $"Automatic ({fitting}%)");
+            else
+                uiScaleChoice.SetItemDisabled(index, fitting != choice);
         }
+        ApplyResponsiveLayout();
     }
 
-    private void WatchUiScaleTree(Node node)
+    /// <summary>Dialogs, drop-down lists and tooltips are separate windows, so they scale on their own.</summary>
+    private void ScaleWindows(int factor)
     {
-        if (IsMapRenderNode(node) || !uiScaleWatchedNodes.Add(node.GetInstanceId())) return;
-        node.ChildEnteredTree += OnUiScaleChildEnteredTree;
-        foreach (var child in node.GetChildren())
-            WatchUiScaleTree(child);
+        foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation })
+            UiTheme.ScaleDialog(dialog, factor);
+        foreach (var node in FindChildren("*", nameof(OptionButton), recursive: true, owned: false))
+            UiTheme.ScaleWindow(((OptionButton)node).GetPopup(), factor);
+        UiTheme.ScaleTooltips(factor);
     }
 
-    private void OnUiScaleChildEnteredTree(Node child)
+    /// <summary>Names on the map grow with the interface; the map itself keeps its own zoom.</summary>
+    private void ScaleMapText(int factor)
     {
-        if (IsMapRenderNode(child)) return;
-        WatchUiScaleTree(child);
-        ApplyUiScaleFontOverrides(child, DisplayUiScalePolicy.ScaleFactor(displayPreferences.UiScalePercent));
+        AgentMarker.TextScale = factor;
+        foreach (var marker in inhabitantVisuals.Values)
+            marker.QueueRedraw();
+        foreach (var label in mapObjectVisuals.Values)
+            label.AddThemeFontSizeOverride("font_size", UiFonts.Body * factor);
     }
 
-    private bool IsMapRenderNode(Node node) =>
-        node.GetInstanceId() == mapStage.GetInstanceId() || mapStage.IsAncestorOf(node);
+    /// <summary>Opens a confirmation at its size in interface pixels.</summary>
+    private void PopupDialog(ConfirmationDialog dialog, Vector2I size) =>
+        dialog.PopupCentered(DialogSize(size));
 
-    private void ApplyUiScaleFontOverrides(Node node, float factor)
-    {
-        // Map terrain, object labels, and fixed-size agent hit targets stay in
-        // their native map-space geometry; only the surrounding GUI is scaled.
-        if (IsMapRenderNode(node)) return;
-        // A control still entering the tree cannot see the game's theme yet and
-        // would record Godot's default size; it is handled once it arrives.
-        if (node is Control control && control.IsInsideTree())
-        {
-            // RichTextLabel has separate sizes for each style; ordinary controls use font_size.
-            var themeFontSizeItems = control is RichTextLabel
-                ? UiScaleRichTextFontSizeThemeItems
-                : UiScaleFontSizeThemeItems;
-            foreach (var themeFontSizeItem in themeFontSizeItems)
-            {
-                // Cache each original resolved size so changes never compound.
-                var metadataKey = UiScaleBaseFontSizeMetaPrefix + themeFontSizeItem;
-                var baseFontSize = control.HasMeta(metadataKey)
-                    ? (int)control.GetMeta(metadataKey)
-                    : control.GetThemeFontSize(themeFontSizeItem);
-                if (!control.HasMeta(metadataKey))
-                    control.SetMeta(metadataKey, baseFontSize);
-                var scaledFontSize = Math.Max(1, (int)Math.Round(baseFontSize * factor, MidpointRounding.AwayFromZero));
-                control.AddThemeFontSizeOverride(themeFontSizeItem, scaledFontSize);
-            }
-        }
-
-        foreach (var child in node.GetChildren())
-            ApplyUiScaleFontOverrides(child, factor);
-    }
+    private Vector2I DialogSize(Vector2I size) => size * uiLayer.Factor;
 
     private static Vector2I CurrentMonitorSize() =>
         DisplayServer.ScreenGetSize(DisplayServer.WindowGetCurrentScreen());
@@ -247,6 +231,8 @@ public partial class Main
         worldBackdrop.Color = palette.Backdrop;
         mainMenuBackground.Color = palette.Backdrop;
         mainMenuBackdrop.Night = ReferenceEquals(palette, UiTheme.Dark);
+        // Dialog frames are drawn per scale in the current palette.
+        ScaleWindows(uiLayer.Factor);
         menuShade.Color = palette.Shade;
         familyTreeView.QueueRedraw();
         RefreshHudIcons();

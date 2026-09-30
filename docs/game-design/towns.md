@@ -52,10 +52,13 @@ everything that is available in the current build. See [what works today](../wha
   goal for later retry. The simulation owns that memory; Jev can help choose an
   alternative but is not responsible for remembering the task.
 - Building sites should come from understandable legal options considering
-  access, terrain, resources, ownership, and Town context. Land can first
-  be claimed, shared, granted, or disputed. Monetary land values and purchase
-  prices become meaningful after currencies exist. Agents can later buy/sell
-  property. Roads help travel and influence site choice.
+  access, terrain, resources, land-use rights, and Town context. A Town holds
+  title to its formally claimed land; households can receive recorded rights
+  to use particular sites without owning the land itself. Land rights can be
+  disputed; sharing and grant terms still need definition. Monetary land
+  values and purchase prices become meaningful after currencies exist. Agents
+  can later buy/sell transferable property or rights through valid processes.
+  Roads help travel and influence site choice.
 - The world system must validate hard physical building constraints such as
   terrain, footprint and overlap with existing objects/resources/buildings.
   Access, ownership/claims and Town context also matter, without turning
@@ -196,6 +199,25 @@ impossible footprints, rank sites by purpose/access/terrain/resources/Town
 shape/future growth, and generate a connected Road layout with each accepted
 building. The generator should not preselect a fixed lifetime building count.
 
+### Town land and household use rights
+
+The **Town holds formal title** to land it claims; households hold inspectable
+**use rights** for homes, farms and businesses rather than household land title.
+The Town border alone does not silently take over another claim or transfer a
+building, its stock or a household's private goods. Physical occupation or
+model text cannot rewrite these records. A later mayor, once that role exists,
+reviews land rights; how that office is created and what changes it may make
+remain open. The first Town begins with a council, not an assumed mayor.
+
+Competing requests are visible as **pending disputes**. While one is pending,
+conflicting formal rights transfers pause; residents are not evicted, goods
+are not seized and ordinary physical movement is not stopped by the dispute
+record. Resolution needs an adjudicator authorized by Town law, with the
+authority, evidence and exact change recorded. With no such law or adjudicator,
+the dispute remains pending; there is no automatic first-claimer winner.
+Plot boundaries, ordinary shared-use grants, expiry and transfer procedures,
+and the future mayor's precise powers still need decisions.
+
 ### How Roads and bridges appear
 
 The baseline has **one Road type**, with no extra categories required yet.
@@ -233,7 +255,8 @@ must not pass through blocked corners. Playable foot movement now uses the stric
 Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, invitation and non-residential access/reservations/queues;
-land claims and disputes; Town borders and governance; currency/land pricing;
+claim boundaries, shared-use grants and mayoral powers; Town borders and
+governance; currency/land pricing;
 transport progression; bridge spacing and materials, other terrain eligibility,
 travel effects and junction/diagonal visuals; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
@@ -275,8 +298,8 @@ adult residents should retain a vote in those elections.
 What qualifies an adult as a Town resident, elected council size,
 election timing/terms, vote threshold/quorum, proposal/repeal procedure, and
 how governments may change; which laws apply to whom and where; how a
-violation is witnessed, investigated, enforced, or punished; claims and land
-disputes;
+violation is witnessed, investigated, enforced, or punished; specific land
+rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
 

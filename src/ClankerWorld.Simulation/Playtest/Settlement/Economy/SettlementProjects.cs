@@ -324,7 +324,7 @@ public sealed partial class PrivateWorldRuntime
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
-        state.HungerBasisPoints >= 3_500 &&
+        !NeedsUrgentFood(state) &&
         !HasTradeResponse(state.InhabitantId) &&
         !HasCouncilDecision(state.InhabitantId) &&
         !HasFamilyDecision(state.InhabitantId) &&
@@ -709,10 +709,15 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private MapResource? MaterialSource(string itemKind) => map.Resources.FirstOrDefault(resource =>
-        (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
-        resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-        map.IsReachableFromCampOnFoot(resource.Position));
+    private MapResource? MaterialSource(string itemKind, string actor) => map.Resources
+        .Where(resource =>
+            (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
+            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
+            map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position))
+        .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
+        .ThenBy(resource => resource.Id, StringComparer.Ordinal)
+        .FirstOrDefault(resource => IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
+            FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0);
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
         string? residentId = null) => inputs.All(input =>
@@ -739,7 +744,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var request in ProjectRequests(helperId).DistinctBy(request => request.Input.ResourceId))
         {
             var itemKind = request.Input.ResourceId;
-            if (MaterialSource(itemKind) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
+            if (MaterialSource(itemKind, helperId) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
                     lot.OwnerId == helperId && lot.ItemKind == itemKind && AvailableLotQuantity(lot) > 0))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
@@ -759,7 +764,7 @@ public sealed partial class PrivateWorldRuntime
             lot.ItemKind == itemKind && AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
-            if (MaterialSource(itemKind) is { } source)
+            if (MaterialSource(itemKind, helperId) is { } source)
             {
                 GatherProjectMaterial(helperId, state, itemKind, source);
             }
