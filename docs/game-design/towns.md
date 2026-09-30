@@ -80,8 +80,11 @@ everything that is available in the current build. See [what works today](../wha
   are Town residents with access to its Warehouse. Towns have generated,
   inspectable borders with room to grow. The border follows the
   Town's assigned buildings, includes spare space around them, and expands
-  when new buildings join that Town; exact margin, connected geometry,
-  assignment and overlap handling remain open.
+  when new buildings join that Town. **Agreed after the September 30 road
+  review:** the border keeps about **three tiles** of spare land beyond every
+  building and road (tuned in playtests) and follows the Town's shape rather
+  than a rectangle, so there is room, and a reason, to build inside it.
+  Assignment and overlap handling remain open.
   When its last resident leaves or dies, the Town becomes **abandoned**, not
   erased. Its identity, buildings, border and infrastructure remain in the
   world, and later residents can revive that same Town. Exact treatment of
@@ -274,6 +277,30 @@ project. Agents and player do not paint Road tiles. Roads speed up travel.
 Roads connect to adjacent building entrances and must not occupy a building's
 footprint. The player's September 29 sketch indicates a connected spine with
 short branches as a useful layout direction, not a mandatory fixed street map.
+
+**Agreed after the September 30 road review:**
+
+- **Street first.** A Town grows along a main road that winds with the land,
+  bending in 45° steps around water, trees and slopes. Side streets branch
+  off it at uneven spacing, angles and lengths. The result should look grown,
+  not gridded; an evenly spaced fishbone was rejected as too uniform.
+- **Diagonal Roads.** A street, or a Road towards another Town, takes the
+  diagonal where the land allows instead of stepping in right angles. Agents
+  walk diagonally, so a zigzag Road would be slower than the grass beside it.
+  Diagonal Road steps follow the same clear-corner rule as diagonal walking.
+- **Every building faces a Road.** A building has one entrance, on the side
+  facing its Road, and its sprite shows the door on that side; doors are not
+  limited to the bottom edge. A short doorstep path joins the door to the Road.
+- **Roads run on past the last building** on them, by about three tiles, so
+  there is visible free frontage for the next building (tuned in playtests).
+- **Roads grow with the Town.** Each new building extends the Road network:
+  its street continues past it, and when a street's free frontage runs out a
+  new side street branches off. New buildings prefer free Road frontage inside
+  the border. Town Roads stay inside the border, which grows with the Town.
+- **Look:** packed dirt with worn, feathered edges and pebbles, drawn as Road
+  pieces joined only along the Road, with diagonal pieces, rounded bends and
+  ends. On sand and snow it may take a darker edge to stay visible.
+
 **Bridge placement responds to traffic** at narrow river crossings, even
 without a planned Road. A Road generation pass also builds a bridge immediately
 if its legal route encounters a bridgeable river. A river is **bridgeable up to
@@ -296,7 +323,7 @@ needed. Exact inter-Town route timing, layout and rendering remain open.
 Diagonal travel/Roads remain in scope; diagonal moves
 must not pass through blocked corners. Playable foot movement now uses the strict
   two-clear-shoulder rule and a 141% diagonal route cost; diagonal Road
-  construction/visuals remain open.
+  construction and visuals are agreed above but not built yet.
 
 ### Still to decide
 
@@ -307,7 +334,7 @@ buildings, reservations and queues;
 claim boundaries, shared-use grants and mayoral powers; Town borders and
 governance; currency/land pricing;
 transport progression; other terrain eligibility,
-travel effects and junction/diagonal visuals; advanced resource/tool tiers,
+travel effects; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
 economics; and later livestock/wildlife detail.
 
