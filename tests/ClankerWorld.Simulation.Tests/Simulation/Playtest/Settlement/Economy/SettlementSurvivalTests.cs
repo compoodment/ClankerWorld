@@ -281,9 +281,14 @@ public sealed class SettlementSurvivalTests
         var initial = WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        for (var tick = 0; tick < 600; tick++)
+        // Expansion changes travel and work timing. Require the actual clothing
+        // recovery chain within a bounded run rather than at one exact tick.
+        for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
+            if (tick >= 599 && world.ExportState().Events.Any(item =>
+                    item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal)))
+                break;
         }
         var state = world.ExportState();
         Assert.NotNull(state.Survival);

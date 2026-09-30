@@ -9,6 +9,10 @@ public static class WorldEventText
         string ThingAt(int index) => index < parts.Length
             ? GameUiText.HumanizeIdentifier(parts[index])
             : "something new";
+        var buildingName = snapshot?.PlacedBuildings.FirstOrDefault(building =>
+            IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "Building";
+        var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
+            worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
 
         return worldEvent.Kind switch
         {
@@ -16,6 +20,11 @@ public static class WorldEventText
             "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
             "building_placed" => $"{ThingAt(1)} was built.",
+            "building_expansion_started" => $"{buildingName} expansion has begun.",
+            "building_expanded" => $"{buildingName} storage was expanded.",
+            "building_expansion_cancelled" => $"{buildingName} expansion stopped; reserved materials were released.",
+            "house_guest_invited" => $"{guestName} may shelter in the {buildingName} during storms.",
+            "house_guest_revoked" => $"{guestName}'s storm shelter invitation ended.",
             "build_started" => $"Work began on {ThingAt(1)}.",
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
