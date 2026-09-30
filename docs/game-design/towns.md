@@ -291,10 +291,12 @@ These remain open; they are not new decisions.
    and illegal occupation—without granting models authority over engine facts.
 
 - **Starter economy and tool bootstrap.** The first Town guarantees two
-   Houses, a Warehouse, Farmhouse and Blacksmith, plus food at the Houses and
-   at least one usable wooden axe and wooden pickaxe. Decide the remaining
-   starter quantities/items, initial business-claim flow,
-   and how first-tier tools are made when the Blacksmith is unavailable.
+   Houses, a Warehouse, Farmhouse and Blacksmith. Each House starts with eight
+   food portions; the communal Warehouse holds at least one usable wooden axe
+   and one usable wooden pickaxe. The Farmhouse and Blacksmith are assigned
+   automatically to the two starting households, one each, without player
+   selection. Decide optional extra starter supplies and how first-tier tools
+   are made when the Blacksmith is unavailable.
    More farms may answer food shortages when
    yields fall; the population-and-yield planning rule remains open.
 
