@@ -44,7 +44,8 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
                 .Where(next => !map.IsDiagonalFootStep(point, next)))
-            .Where(point => !occupied.Contains(point) && map.IsBuildable(point))
+            .Where(point => !occupied.Contains(point) && map.IsBuildable(point) &&
+                WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
         {
@@ -80,6 +81,9 @@ public sealed partial class PrivateWorldRuntime
                     if (!predecessor.TryGetValue(current, out var previous)) break;
                     current = previous;
                 }
+                // The route starts at the entrance it was laid from, so the
+                // door faces this Road.
+                SetBuildingEntrance(building.InstanceId, current);
                 if (added > 0)
                     AppendEvent("town_road_generated", $"{building.TownId}:{building.InstanceId}:tiles:{added}");
                 return;
@@ -98,6 +102,16 @@ public sealed partial class PrivateWorldRuntime
             }
         }
         AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:land_route_unavailable");
+    }
+
+    private void SetBuildingEntrance(string instanceId, GridPoint entrance)
+    {
+        worldSimulation = worldSimulation with
+        {
+            Buildings = worldSimulation.Buildings
+                .Select(item => item.InstanceId == instanceId ? item with { Entrance = entrance } : item)
+                .ToArray(),
+        };
     }
 
     private static void ValidateRoads(IReadOnlyList<GridPoint> roads, SeededMap map, FounderSetupState? setup)

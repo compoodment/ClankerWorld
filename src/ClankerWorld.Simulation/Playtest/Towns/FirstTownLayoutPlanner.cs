@@ -9,8 +9,9 @@ public sealed record FirstTownLayout(
     IReadOnlyList<FirstTownLayoutBuilding> Buildings,
     IReadOnlyList<GridPoint> RoadTiles);
 
+/// <summary>A planned building; <see cref="Entrance"/> is the Road tile its door faces.</summary>
 public sealed record FirstTownLayoutBuilding(string Role, string DefinitionId,
-    GridPoint Position, int Width, int Height);
+    GridPoint Position, int Width, int Height, GridPoint Entrance);
 
 /// <summary>
 /// Finds a deterministic dry-land starting footprint near a rough site. This
@@ -43,10 +44,10 @@ public static class FirstTownLayoutPlanner
         {
             var placed = new List<FirstTownLayoutBuilding>();
             var occupied = new HashSet<GridPoint>(unavailable);
-            AddBuilding(definitions[0], warehouse, placed, occupied);
             var warehouseEntrances = Entrances(definitions[0].Definition, warehouse)
-                .Where(point => map.IsBuildable(point) && !occupied.Contains(point)).ToArray();
+                .Where(point => map.IsBuildable(point) && !unavailable.Contains(point)).ToArray();
             if (warehouseEntrances.Length == 0) continue;
+            AddBuilding(definitions[0], warehouse, warehouseEntrances[0], placed, occupied);
             var roads = new HashSet<GridPoint> { warehouseEntrances[0] };
             var complete = true;
             foreach (var definition in definitions.Skip(1))
@@ -62,7 +63,8 @@ public static class FirstTownLayoutPlanner
                         .Select(entrance => RoadPath(map, roughSite, entrance, roads, occupied, ownFootprint))
                         .FirstOrDefault(route => route is not null);
                     if (path is null) continue;
-                    AddBuilding(definition, candidate, placed, occupied);
+                    // The path runs from the chosen entrance to the network.
+                    AddBuilding(definition, candidate, path[^1], placed, occupied);
                     roads.UnionWith(path);
                     found = true;
                     break;
@@ -113,10 +115,10 @@ public static class FirstTownLayoutPlanner
         Footprint(definition, anchor).All(point => map.IsBuildable(point) && !occupied.Contains(point));
 
     private static void AddBuilding((string Role, BuildingDefinition Definition) item, GridPoint anchor,
-        List<FirstTownLayoutBuilding> placed, HashSet<GridPoint> occupied)
+        GridPoint entrance, List<FirstTownLayoutBuilding> placed, HashSet<GridPoint> occupied)
     {
         placed.Add(new FirstTownLayoutBuilding(item.Role, item.Definition.CanonicalId, anchor,
-            item.Definition.Width, item.Definition.Height));
+            item.Definition.Width, item.Definition.Height, entrance));
         occupied.UnionWith(Footprint(item.Definition, anchor));
     }
 
