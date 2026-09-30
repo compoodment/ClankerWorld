@@ -432,6 +432,8 @@ release yet.
 
 - Hovering the Town panel no longer pops up a technical tooltip of world
   ticks, revisions, map digests and internal system counts.
+- Tooltips no longer fade from dark edges into a lighter middle; their
+  parchment and border are drawn as crisp pixels like the rest of the interface.
 - The selected-agent card no longer covers the agent it describes: when it
   cannot fit above or below them, it opens beside them. On short screens its
   profile scrolls inside the card, so Speak and Send are no longer cut off

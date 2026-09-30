@@ -298,6 +298,10 @@ public partial class Main
         try
         {
             await VerifyMenuBackdropAsync();
+            // Tooltips and other windows the engine creates on demand follow the root's filter,
+            // so pixel frames must not be smoothed there either.
+            if (GetTree().Root.CanvasItemDefaultTextureFilter != Viewport.DefaultCanvasItemTextureFilter.Nearest)
+                throw new InvalidOperationException("Tooltips and other windows must draw pixel frames without smoothing.");
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 768) })
             {
                 GetWindow().Size = size;
