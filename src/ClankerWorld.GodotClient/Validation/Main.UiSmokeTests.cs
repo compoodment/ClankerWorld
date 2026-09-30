@@ -1046,14 +1046,23 @@ public partial class Main
                 Stockpiles = [new("household:one", "Founder's household", [])],
             };
             RenderMap(ownedMap);
+            if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+                throw new InvalidOperationException("Map Filters must start off, with no Town borders or property drawn.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!filtersPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(filtersPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Map Filters must open inside the world view: map={mapCanvas.GetGlobalRect()} filters={filtersPanel.GetGlobalRect()} site_visible={townSiteButton.Visible}.");
+            townBorderFilter.ButtonPressed = true;
+            if (terrainLayer.TownBorderTileCount == 0 ||
+                !townBorderHint.Text.Contains("dashed line", StringComparison.Ordinal))
+                throw new InvalidOperationException("Turning on Town borders must draw them and explain the dashed line.");
             townBorderFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
-            if (!townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
-                throw new InvalidOperationException("The Town border filter must update the visible map explanation.");
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
+                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Town border filter must update the map and its visible explanation.");
             HandleMapInput(new InputEventMouseButton
             {
                 Position = mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f),
@@ -1062,8 +1071,12 @@ public partial class Main
             });
             if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();
+            if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0)
+                throw new InvalidOperationException("Add Agent placement must show Town borders and property without switching Filters on.");
             ResetAddAgentPlacementHint();
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1094,10 +1107,14 @@ public partial class Main
             if (founderSetupHint.Text != placementPreview)
                 throw new InvalidOperationException("An open model popup must not preview the map behind it.");
             founderModelPicker.Choice.GetPopup().Hide();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-            householdPropertyFilter.ButtonPressed = false;
-            townBorderFilter.ButtonPressed = true;
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0)
+                throw new InvalidOperationException("Leaving Add Agent placement must hide overlays the Filters leave off.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             RenderMap(sample);
             selectedTile = new Vector2I(1, 1);
