@@ -48,10 +48,11 @@ one, and a workflow updates the repository.
 | Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
 - **Automatic:** the templates set the type and `priority:p2`. A pull request
-  gets the highest priority of the issues it links; at most two areas from the
-  code it changes, set when it opens and again when it is marked ready (fix
-  them by hand if they are wrong); a type from its ticked **Type of change**
-  box; and `status:needs-review` while it is ready. An issue it links with
+  gets the highest priority of the issues it links, and at least P1 if it
+  changes [how we work](#priorities); at most two areas from the code it
+  changes, set when it opens and again when it is marked ready (fix them by
+  hand if they are wrong); a type from its ticked **Type of change** box; and
+  `status:needs-review` while it is ready. An issue it links with
   `Closes` or `Refs` gets `status:has-pr`; once the pull request is ready for
   review, the issue's `status:in-progress` claim is removed. `status:has-pr` is
   removed when the last such pull request closes; if none merged, the issue
@@ -74,7 +75,9 @@ one, and a workflow updates the repository.
   used to work, goes one level higher.
 - **Features, experiments and decisions** start at P2. The owner moves them;
   anyone else who thinks one is wrong says so in a comment instead of changing it.
-- **At most 5 open P0 and 7 open P1 issues.** When a level is full, give the
+- **How we work:** changes to CI, labels, templates, CONTRIBUTING or AGENTS
+  affect every agent, so they are at least P1.
+- **At most 5 open P0 and 10 open P1 issues.** When a level is full, give the
   new issue the level below and comment asking the owner whether it should
   replace one; do not move other issues down to make room.
 

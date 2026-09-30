@@ -11,7 +11,8 @@
 // - A type label from the ticked "Type of change" box in the PR template.
 // - status:needs-review while a PR is open and not a draft.
 // - The highest priority label (priority:p0 to priority:p3) of the open issues
-//   the PR links.
+//   the PR links, and at least priority:p1 when it changes how everyone works
+//   on the repository (.github/, CONTRIBUTING.md or AGENTS.md).
 // - status:has-pr on open issues the PR links as described in CONTRIBUTING
 //   ("Closes #N", "Fixes #N", "Resolves #N" or "Refs #N", one keyword per issue,
 //   or any #N on the template's Closes and Refs lines), replacing status:needs-pr.
@@ -26,6 +27,10 @@ const HasPr = 'status:has-pr';
 const Ready = 'status:needs-pr';
 const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const InProgress = 'status:in-progress';
+// Changes to CI, labels, templates or the contribution rules affect every
+// agent, so they are at least P1.
+const WorkflowPaths = ['.github/', 'CONTRIBUTING.md', 'AGENTS.md'];
+const WorkflowPriority = 'priority:p1';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
 // ignoring HTML comments and code. Refs links an issue without closing it.
@@ -149,10 +154,13 @@ function isDocumentation(file) {
   return file.endsWith('.md') || file.startsWith('docs/');
 }
 
-async function setAreaLabels({ github, core, repo, pr }) {
-  const files = (await github.paginate(github.rest.pulls.listFiles, {
-    ...repo, pull_number: pr.number, per_page: 100,
-  })).map(file => file.filename);
+function higherPriority(a, b) {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Priorities.indexOf(a) <= Priorities.indexOf(b) ? a : b;
+}
+
+async function setAreaLabels({ github, core, repo, pr, files }) {
   const wanted = areaLabels(files);
   const current = (pr.labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
   for (const name of current) {
@@ -230,8 +238,11 @@ async function labelPullRequest({ github, context, core }) {
     return;
   }
 
+  const files = (await github.paginate(github.rest.pulls.listFiles, {
+    ...repo, pull_number: pr.number, per_page: 100,
+  })).map(file => file.filename);
   if (['opened', 'reopened', 'ready_for_review'].includes(action)) {
-    await setAreaLabels({ github, core, repo, pr });
+    await setAreaLabels({ github, core, repo, pr, files });
   }
 
   const types = typeLabels(pr.body);
@@ -243,7 +254,7 @@ async function labelPullRequest({ github, context, core }) {
   }
   if (pr.draft) await removeLabel(github, repo, pr.number, NeedsReview);
 
-  let priority = null;
+  let priority = files.some(file => WorkflowPaths.some(path => file.startsWith(path))) ? WorkflowPriority : null;
   for (const number of linked) {
     const issue = await openIssue(github, repo, number);
     if (!issue) continue;
@@ -253,13 +264,12 @@ async function labelPullRequest({ github, context, core }) {
     core.info(`Marked #${number} as ${HasPr}${pr.draft ? '' : ` and cleared ${InProgress}`}.`);
     const issueLabels = issue.labels.map(label => (typeof label === 'string' ? label : label.name));
     for (const name of Priorities) {
-      if (issueLabels.includes(name) && (priority === null || Priorities.indexOf(name) < Priorities.indexOf(priority))) {
-        priority = name;
-      }
+      if (issueLabels.includes(name)) priority = higherPriority(priority, name);
     }
   }
 
-  // The pull request takes the highest priority of the open issues it links.
+  // The pull request takes the highest priority of the open issues it links,
+  // and at least P1 if it changes the repository's workflow.
   if (priority !== null) {
     const prLabels = (pr.labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
     for (const name of Priorities) {
