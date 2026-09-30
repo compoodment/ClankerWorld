@@ -19,18 +19,7 @@ public sealed partial class PrivateWorldRuntime
         var config = WorldStartPaceRules.WorldSystems(startPace);
         var resources = map.Resources
             .Select(resource => resource.TreeKind is not null
-                ? new EcologyResource(
-                    resource.Id,
-                    resource.Kind,
-                    resource.Position,
-                    resource.IsRenewable,
-                    1,
-                    1,
-                    resource.IsRenewable ? 1 : 0,
-                    resource.IsRenewable ? resource.TreeKind == "orchard" ? 3 : 6 : 0,
-                    SeasonKind.Spring,
-                    resource.TreeKind == "orchard" ? 3 : 6,
-                    EcologyResourceState.Available)
+                ? TreeGrowthRules.GeneratedTree(resource)
                 : resource.IsRenewable
                 ? new EcologyResource(
                     resource.Id,

@@ -21,6 +21,8 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
     public const int StateSchemaVersion = 28;
+    // Trees planted on new tiles are saved as map resources from this schema.
+    private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string SecondHouseholdId = "household:camp-beta";
@@ -161,6 +163,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             resources.Add(resource.Id, ResourceState.Available);
         }
+        // Out-of-season orchard trees start without fruit.
+        SyncEcologyResourceStates();
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);

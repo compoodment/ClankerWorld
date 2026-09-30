@@ -73,6 +73,7 @@ public sealed partial class PrivateWorldRuntime
             society.Checkpoint, inhabitants.Values);
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
+        ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
 
@@ -239,6 +240,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
+        if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
+            throw new InvalidDataException(
+                $"Trees planted on new tiles require private-world schema {PlantedTreeSchemaVersion}.");
         if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0 ||
             state.SchemaVersion < 15 && (state.JevEnabled is not null || state.JevPolicyRevision != 0))
             throw new InvalidDataException("The saved Jev routing policy is invalid.");

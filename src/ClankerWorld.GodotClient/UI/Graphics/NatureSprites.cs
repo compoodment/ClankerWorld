@@ -44,20 +44,8 @@ public static class NatureSprites
     private static readonly Dictionary<int, ImageTexture> Textures = [];
     private static readonly Color Shadow = new(0.05f, 0.08f, 0.05f, 0.28f);
 
-    /// <summary>Tree codes used by the terrain layer: 1/2 mature, 3/4 stump, 5/6 sapling, 7–9 orchard stages.</summary>
-    public static NatureSprite? ForTree(byte code) => code switch
-    {
-        1 => NatureSprite.Broadleaf,
-        2 => NatureSprite.Conifer,
-        3 => NatureSprite.BroadleafStump,
-        4 => NatureSprite.ConiferStump,
-        5 => NatureSprite.BroadleafSapling,
-        6 => NatureSprite.ConiferSapling,
-        7 => NatureSprite.OrchardFruiting,
-        8 => NatureSprite.OrchardPicked,
-        9 => NatureSprite.OrchardGrowing,
-        _ => null,
-    };
+    /// <summary>The sprite for a terrain-layer tree code, as listed in <see cref="TreeArtManifest"/>.</summary>
+    public static NatureSprite? ForTree(byte code) => TreeArtManifest.ForCode(code)?.Sprite;
 
     /// <summary>Natural-object codes and stages used by the terrain layer; stage 1 is depleted, 2 regrowing.</summary>
     public static NatureSprite? ForNaturalObject(byte kind, byte stage) => stage switch

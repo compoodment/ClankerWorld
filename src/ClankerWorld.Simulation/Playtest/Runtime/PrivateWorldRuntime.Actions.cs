@@ -175,17 +175,18 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
+        var harvestYield = source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
             inventory,
             $"food:harvest:{WorldTick:D10}:{inhabitantId}",
             source.Kind == "fruit" ? "fruit" : "food",
             inhabitantId,
-            HarvestFoodYield,
+            harvestYield,
             WorldTick));
 
-        AppendEvent("food_harvested", $"{inhabitantId}:{HarvestFoodYield}");
-        if (source.TreeKind == "orchard")
-            AppendEvent("fruit_harvested", $"{inhabitantId}:{source.Id}:{HarvestFoodYield}:picked");
+        AppendEvent("food_harvested", $"{inhabitantId}:{harvestYield}");
+        if (source.TreeKind == TreeGrowthRules.Orchard)
+            AppendEvent("fruit_harvested", $"{inhabitantId}:{source.Id}:{harvestYield}:picked");
     }
 
     private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? actor;

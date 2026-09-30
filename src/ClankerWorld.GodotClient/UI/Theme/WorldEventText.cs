@@ -25,6 +25,8 @@ public static class WorldEventText
                 : "Dry soil reduced a crop harvest.",
             "food_harvested" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} gathered food.",
             "food_consumed" => $"{Name(snapshot, worldEvent.Detail)} ate.",
+            "tree_planted" => $"{LeadingName(snapshot, worldEvent.Detail)} planted a tree.",
+            "tree_replanted" => $"{LeadingName(snapshot, worldEvent.Detail)} replanted a tree.",
             "inhabitant_slept" => $"{Name(snapshot, worldEvent.Detail)} slept.",
             "child_born" => $"{Name(snapshot, worldEvent.Detail)} was born.",
             "inhabitant_removed" => $"{Name(snapshot, worldEvent.Detail)} died.",

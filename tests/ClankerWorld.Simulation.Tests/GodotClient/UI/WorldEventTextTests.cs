@@ -18,6 +18,8 @@ public sealed class WorldEventTextTests
         {
             ("food_harvested", id + ":4", "gathered food"),
             ("food_consumed", id, "ate"),
+            ("tree_planted", id + ":planted-tree-12-7:broadleaf", "planted a tree"),
+            ("tree_replanted", id + ":tree-8-16:conifer", "replanted a tree"),
             ("inhabitant_slept", id, "slept"),
             ("child_born", id, "was born"),
             ("inhabitant_removed", id, "died"),
