@@ -58,6 +58,12 @@ Keys stay on the server installation, separately from world saves. Cloud
 providers charge you for usage. Jev is an optional helper for the world; change
 its on/off setting while the world is paused.
 
+To save keys before placing any agents, open **Settings → Game → API keys**.
+Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
+You can save both providers' keys from Main Menu Settings once this device is
+connected and paired. Saving a key does not run a model or place an agent.
+Choose the saved key later in **Add Agent** or an agent's **Model** panel.
+
 ## Look around
 
 Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;

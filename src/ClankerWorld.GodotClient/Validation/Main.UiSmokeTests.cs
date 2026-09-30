@@ -544,6 +544,18 @@ public partial class Main
                 throw new InvalidOperationException("Main Menu Settings must keep the title background and show only Game Settings.");
             if (!gameSettingsCategoryButton.ButtonPressed || gameSettingsCategoryButton.Disabled)
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");
+            if (!apiKeysPanel.IsVisibleInTree() || !gameSettingsContent.IsAncestorOf(apiKeysPanel) || !apiKeyInput.Secret)
+                throw new InvalidOperationException("Main Menu Game Settings must offer API keys with a masked key entry before placing any agents.");
+            apiKeyInput.Text = "test-only-ui-key";
+            apiKeyProviderChoice.Select(1);
+            apiKeyProviderChoice.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
+            if (apiKeyInput.Text.Length != 0)
+                throw new InvalidOperationException("Changing API key provider must clear the pasted key.");
+            apiKeyInput.Text = "test-only-ui-key";
+            apiKeysPanel.Hide();
+            if (apiKeyInput.Text.Length != 0)
+                throw new InvalidOperationException("Hiding API key settings must clear the pasted key.");
+            apiKeysPanel.Show();
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             gameSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
