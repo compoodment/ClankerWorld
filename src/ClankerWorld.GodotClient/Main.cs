@@ -57,7 +57,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
-    private readonly LineEdit cognitionModelInput = new();
+    private readonly ModelPicker cognitionModelPicker = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -284,6 +284,7 @@ public partial class Main : Control
 
     public override void _ExitTree()
     {
+        CancelManualSaveListRead();
         refreshCancellation?.Cancel();
         worldListRequest.Dispose();
         UiTheme.Changed -= ApplyThemeColors;

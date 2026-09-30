@@ -189,7 +189,10 @@ everything that is available in the current build. See [what works today](../wha
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player
   may also add another key for the **same provider** and choose which key that
-  agent uses; there is no single-key-per-provider restriction. The agent
+  agent uses; there is no single-key-per-provider restriction. The model is
+  chosen from the game's own short list for that provider, newest at the top.
+  Listed models the selected key can't use are shown greyed out, and the
+  player can always type any other model name. The agent
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
@@ -227,6 +230,16 @@ everything that is available in the current build. See [what works today](../wha
   parent-child ancestry and partnerships; household membership is displayed
   separately, never as proof of biological family. Unrelated starter
   housemates must not be drawn as relatives.
+- **Agreed on September 30:** the agent card's **Speak to them** box sends a
+  message as a **Suggest** or an **Order**. An order that asks for nothing
+  the game can act on, such as "build a house", is accepted and closed at
+  once, and the Event Log says the agent did not understand it. It uses no
+  model request and does not hold up later suggestions or orders to that
+  agent. An order the game understands but that cannot be carried out yet,
+  such as "eat" while the agent carries no food, keeps waiting, including
+  across saves. It is checked again only when the agent next makes one of its
+  usual decisions, never on every tick. Which orders the game understands is
+  covered under **Still to decide** below.
 
 ### Leaning toward
 
@@ -279,8 +292,9 @@ which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
 month/season names and date presentation; and the detailed player-control/
-observer boundary beyond adding and renaming agents. Computment may provide a
-UI drawing.
+observer boundary beyond adding and renaming agents. That boundary includes
+which orders the game should understand and whether an agent's own model reads
+the words of a suggestion or order. Computment may provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
 retention count, how memories are grouped/searched/labeled, family-tree

@@ -110,6 +110,19 @@ public static class OwnerWorldActionPayload
             $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}");
     }
 
+    public static string ProviderModelList(OwnerProviderModelListAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-models.v1",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}",
+            $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
+    }
+
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
     {
         ArgumentNullException.ThrowIfNull(action);

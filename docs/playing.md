@@ -43,9 +43,12 @@ that version mismatch. You can still reconnect to the existing world.
    the game places two Houses, a Warehouse, Farmhouse, Blacksmith and Roads.
    You can choose another site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
-   model and key. A saved key can be reused, or you can add another for the same
-   provider. The agents start in two households, not two forced couples or
-   biological families.
+   key and model. A saved key can be reused, or you can add another for the same
+   provider. Then pick the model from the game's short list for that
+   provider, newest at the top. Models your key can't use are greyed out; if
+   it can't use the model shown, the picker asks you to choose another.
+   **Type a model name…** covers any other model. The agents start in two
+   households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
    undone; incomplete setup can be saved and resumed later.

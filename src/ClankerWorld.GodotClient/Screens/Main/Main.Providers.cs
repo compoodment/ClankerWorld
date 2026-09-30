@@ -144,10 +144,15 @@ public partial class Main
             SetStatus("Give the new key a name and paste the key.", good: false);
             return;
         }
+        if (HasModelList(provider) && cognitionModelPicker.Model.Length == 0)
+        {
+            SetStatus("Pick a model first.", good: false);
+            return;
+        }
         var action = new OwnerProviderConfigurationAction(
             role,
             provider,
-            provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionModelInput.Text),
+            provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionModelPicker.Model),
             provider is "deterministic" or "inherit" || hostedAgent && !creatingSlot
                 ? null : EmptyToNull(cognitionApiKeyInput.Text),
             ForgetCredential: false,
@@ -191,7 +196,7 @@ public partial class Main
         var action = new OwnerProviderConfigurationAction(
             role,
             provider,
-            EmptyToNull(cognitionModelInput.Text),
+            EmptyToNull(cognitionModelPicker.Model),
             null,
             ForgetCredential: true);
         await RunOwnerActionAsync(async () =>
@@ -356,7 +361,7 @@ public partial class Main
         cognitionRoleChoice.Visible = SelectedCognitionTarget() is null;
         var agentCredential = hosted && SelectedCognitionTarget() is not null && provider is ("openai" or "ollama-cloud");
         var newCredential = agentCredential && SelectedCredentialChoice() == "new";
-        cognitionModelInput.Visible = hosted;
+        cognitionModelPicker.Visible = hosted;
         cognitionCredentialChoice.Visible = agentCredential;
         cognitionCredentialLabelInput.Visible = newCredential;
         cognitionApiKeyInput.Visible = hosted && (!agentCredential || newCredential);
@@ -364,11 +369,7 @@ public partial class Main
         forgetCognitionCredentialButton.Visible = hosted && SelectedCognitionTarget() is null;
         deleteCognitionCredentialSlotButton.Visible = agentCredential &&
             SelectedCredentialChoice() is not ("default" or "new");
-        if (hosted && option is not null && !cognitionModelInput.HasFocus())
-        {
-            cognitionModelInput.Text = SelectedAssignment() is { } assignment && assignment.Provider == provider
-                ? assignment.Model ?? option.Model : option.Model;
-        }
+        if (hosted) SyncCognitionModelPicker();
 
         cognitionApiKeyInput.PlaceholderText = newCredential ? "New API key" : option?.HasCredential == true
             ? "Leave blank to keep saved key"
@@ -407,8 +408,8 @@ public partial class Main
     private static string DefaultProviderModel(string provider) => provider switch
     {
         "jev" => "jev-1.13.0",
-        "openai" => "gpt-5-mini",
-        "ollama-cloud" => "gpt-oss:120b-cloud",
+        "openai" => "gpt-6-luna",
+        "ollama-cloud" => "glm-5.3-flash:cloud",
         _ => string.Empty,
     };
 
@@ -434,9 +435,6 @@ public partial class Main
         {
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
-            var selected = SelectedProviderId();
-            var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
-            cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
             PopulateCredentialChoices();
             RenderProviderConfiguration();
         };
@@ -449,9 +447,6 @@ public partial class Main
         cognitionProviderChoice.ItemSelected += _ =>
         {
             cognitionApiKeyInput.Text = string.Empty;
-            var selected = SelectedProviderId();
-            var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
-            cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
             PopulateCredentialChoices();
             RenderProviderConfiguration();
         };
@@ -469,12 +464,13 @@ public partial class Main
         cognitionCredentialLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
         body.AddChild(cognitionCredentialLabelInput);
 
-        cognitionModelInput.PlaceholderText = "Model ID";
-        body.AddChild(cognitionModelInput);
-
         cognitionApiKeyInput.Secret = true;
         cognitionApiKeyInput.PlaceholderText = "Paste API key";
+        cognitionApiKeyInput.TextChanged += _ => OnCognitionKeyEdited();
         body.AddChild(cognitionApiKeyInput);
+
+        cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
+        body.AddChild(cognitionModelPicker);
 
         cognitionCredentialHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         cognitionCredentialHint.ThemeTypeVariation = "DimLabel";
