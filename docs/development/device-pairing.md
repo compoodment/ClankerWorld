@@ -116,6 +116,20 @@ record. It is bound to the authority identity, device ID, public-key
 fingerprint, and canonical server origin, and preserves the exact instruction
 idempotency key or authoring batch ID.
 
+Instructions additionally retain the observed simulation world ID (not the
+installation's pairing identity). Their signed `owner-instruction.v2` payload
+requires that ID. The host checks it under the same mutation gate as selection
+and manual loading, through the instruction's durable save. Selecting another
+world refuses the retry without discarding its local record; returning to the
+original world recovers the original receipt. The client disables Retry while
+another world, or no confirmed world, is observed. Authoring payloads are unchanged.
+
+Client and host must both use this instruction payload. Older requests without
+a simulation world ID are refused rather than guessed into the current world.
+Unscoped local retry records remain on disk but cannot be sent; explicitly
+forget them after checking the original world. There is no saved-world schema
+change or old-save migration.
+
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
 returns the original receipt rather than creating a duplicate. Private-world

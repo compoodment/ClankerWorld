@@ -21,13 +21,15 @@ public sealed partial class ViewerHttpTests
         {
             using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             const string path = "/api/v1/owner/instructions";
-            var action = new OwnerInstructionAction(idempotencyKey, "founder-mira", "suggestive", "wait safely");
+            OwnerInstructionAction action;
             string deviceId;
             OwnerInstructionReceipt receipt;
             using (var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true))
             using (var client = host.CreateClient())
             {
                 deviceId = (await StartAndActivateAsync(host, client, key)).DeviceId;
+                action = new OwnerInstructionAction(idempotencyKey, "founder-mira", "suggestive", "wait safely",
+                    host.Services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId);
                 using var accepted = await SendSignedAsync(host, client, key, deviceId, path, action,
                     OwnerHttpBinding.InstructionPayload(action));
                 Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);

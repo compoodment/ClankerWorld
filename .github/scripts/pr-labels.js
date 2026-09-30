@@ -53,10 +53,10 @@ async function removeLabel(github, repo, number, name) {
   }
 }
 
-async function openIssue(github, repo, number) {
+async function openIssue(github, repo, number, includeClosed = false) {
   try {
     const { data } = await github.rest.issues.get({ ...repo, issue_number: number });
-    return data.pull_request || data.state !== 'open' ? null : data;
+    return data.pull_request || (!includeClosed && data.state !== 'open') ? null : data;
   } catch (error) {
     if (error.status === 404) return null;
     throw error;
@@ -69,13 +69,14 @@ async function otherOpenPrLinks(github, repo, number, exceptPr) {
 }
 
 async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
-  const issue = await openIssue(github, repo, number);
-  if (!issue || await otherOpenPrLinks(github, repo, number, prNumber)) return;
+  const issue = await openIssue(github, repo, number, true);
+  if (!issue || issue.state === 'open' && await otherOpenPrLinks(github, repo, number, prNumber)) return;
   const names = issue.labels.map(label => (typeof label === 'string' ? label : label.name));
   if (names.includes(HasPr)) {
     await removeLabel(github, repo, number, HasPr);
     core.info(`Removed ${HasPr} from #${number}.`);
   }
+  if (issue.state !== 'open') return;
   const hasOtherStatus = names.some(name => name.startsWith('status:') && name !== HasPr);
   if (!merged && !hasOtherStatus) {
     await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [Ready] });

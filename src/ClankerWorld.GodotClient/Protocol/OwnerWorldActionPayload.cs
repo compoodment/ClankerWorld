@@ -199,7 +199,8 @@ public static class OwnerWorldActionPayload
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v1",
+        "clankerworld.owner-instruction.v2",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",

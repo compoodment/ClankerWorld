@@ -95,15 +95,19 @@ public sealed record OwnerPendingInstructionSubmission(
     string IdempotencyKey,
     string TargetInhabitantId,
     string Kind,
-    string Text)
+    string Text,
+    string WorldId)
 {
     internal bool IsValid =>
+        !string.IsNullOrWhiteSpace(WorldId) &&
         !string.IsNullOrWhiteSpace(IdempotencyKey) &&
         !string.IsNullOrWhiteSpace(TargetInhabitantId) &&
         !string.IsNullOrWhiteSpace(Kind) &&
         !string.IsNullOrWhiteSpace(Text);
 
-    public OwnerInstructionAction ToAction() => new(IdempotencyKey, TargetInhabitantId, Kind, Text);
+    public bool CanRetryIn(string? worldId) => !string.IsNullOrWhiteSpace(WorldId) && WorldId == worldId;
+
+    public OwnerInstructionAction ToAction() => new(IdempotencyKey, TargetInhabitantId, Kind, Text, WorldId);
 
     public static OwnerPendingInstructionSubmission FromAction(OwnerInstructionAction action)
     {
@@ -112,7 +116,8 @@ public sealed record OwnerPendingInstructionSubmission(
             action.IdempotencyKey,
             action.TargetInhabitantId,
             action.Kind,
-            action.Text);
+            action.Text,
+            action.WorldId);
     }
 }
 

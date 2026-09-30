@@ -196,7 +196,8 @@ public sealed partial class ViewerHttpTests
             "instruction-http-1",
             "actor-scout",
             "must_do",
-            "Gather food.");
+            "Gather food.",
+            reconnect.Baseline.Snapshot.WorldId);
         using var instruction = await SendSignedAsync(
             client,
             key,

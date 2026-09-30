@@ -48,6 +48,6 @@ Explain any compatibility or recovery impact:
 
 - [ ] Changed docs and game text follow [Writing clearly](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#writing-clearly), or no text changed.
 - [ ] Affected docs are updated in their proper home, or no docs are affected.
-- [ ] CHANGELOG.md has an Unreleased entry, or this change does not need one under [the contribution rules](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
+- [ ] A changelog entry is added as a new file in `changes/`, or this change does not need one under [the contribution rules](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
 
 <!-- Bug reports and repair progress belong in Issues. Link to them rather than maintaining a second bug list. -->

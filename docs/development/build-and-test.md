@@ -98,9 +98,9 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 ```
 
 These checks cover the required pages, front matter, local links and linked
-headings. The Windows documentation CI job also checks LF and CRLF line
-endings. It is separate from a Windows game playtest and from the native
-provider-storage checks.
+headings. The documentation test reads each page with both LF and CRLF line
+endings, and CI also runs it on a Windows checkout. That job is separate from a
+Windows game playtest and from the native provider-storage checks.
 
 ## Windows paired-world verification record
 
@@ -123,8 +123,8 @@ presentation evidence when the deployed server predates the client.
 | --- | --- |
 | Hosted decisions and accounting | After the separately authorized meter migration, explicitly resume with an authenticated client. Confirm each configured founder can receive an accepted model choice and a new private thought; note waiting, limit or provider errors without claiming every idle action is a failure. Pause afterward. Reconcile the known phantom reservations separately; do not count them as paid calls or erase them as part of this UI check. |
 | Fresh Town, no legacy camp | Create a disposable fresh world, inspect before site choice, accept a Town site and inspect again. No legacy camp objects or camp-derived border should appear; exactly the accepted generated layout should remain. |
-| Stable Town and agent text | Pause, open Town, wait across several refreshes, switch agents and reselect the first. Contents, relationships and existing thought/memory text stay visible; an unchanged refresh must not clear them. |
-| Agent card at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible and Speak/Send controls are reachable by scrolling, without controls extending off-screen. |
+| Stable Town and agent text | Pause, open World Info's Towns page (T), wait across several refreshes, switch agents and reselect the first. Contents, relationships and existing thought/memory text stay visible; an unchanged refresh must not clear them. |
+| Agent card and Profile at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible; Suggest, Order, Profile and Send stay reachable, with scrolling where needed and no controls extending off-screen. |
 | Status lifetime | Enter Town-site and founder-move modes and wait through refreshes. Instructions remain while the mode is active; submit a refused request and confirm its explanation remains readable without a false disconnect. |
 | Initial camera | Open a new unset world and a saved Town near a wrapping seam. The initial view shows relevant dry land/Town/agents, not an arbitrary open-sea center or the wrong side of a seam. |
 | Tile card and short labels | Select ground near the bottom edge; inspect at several zooms. The complete card fits, absent facts are omitted, and tiny marker labels disappear rather than render fragments. |
@@ -138,6 +138,19 @@ presentation evidence when the deployed server predates the client.
 | Terrain seams | Inspect contiguous terrain at representative zooms. No black tile-gap grid appears; this does not approve provisional textures as final art. |
 | Hover and condition stability | Hold the pointer over an agent through several observations while its card is open. Tooltip and warmth/illness/diet/equipment stay visible without per-refresh flicker. |
 | Slow provider | Using a separately authorized controlled delay or an unavailable test endpoint, keep the client connected while a model remains pending. Other agents/world systems continue; pause and reload must reject the old reply. Never prolong real paid calls solely to create this test. |
+| Delete while opening worlds | In Load World with disposable worlds, start deleting an inactive world. Open and Delete stay disabled until it finishes and the list refreshes; then opening a chosen world opens that same world (#445). |
+| Event Log names | Let agents gather food, join or leave the Town and, if practical, die. Entries show agent names, never "Agent" or "Founder"; after a rename, older entries show the new name (#448). |
+| Connect result | From Settings, press Connect with the paired host up, then down, then with an invalid address. Each case shows a checking message and then a clear result (#452). |
+| Lakes and rivers | In the New World preview for Small and Medium, wrapped and unwrapped, inland lakes look clearly smaller than seas, rivers end where they meet a lake instead of running along its shore, and Create World shows the same map (#391, #392). |
+| Harvest order, then the next | Give an adult next to an orchard a Direct order to harvest food, then queue a second instruction. After the fruit is gathered the first shows as done and the second becomes current, also after Save and Load (#431). |
+| Zoom limits | On Small and Medium maps, full zoom-out shows no black space beyond the north or south edge, and full zoom-in shows about 14 rows at both 1280×720 and 2560×1440 (#127). |
+| Roads | In a fresh world, the first Town's Roads draw on the map and overview, join building entrances without crossing footprints, show in tile inspection and remain after save and reload (#158). |
+| Map filters | Toggle the Town border and household property filters. Unclaimed land stays uncolored, a Town border is never shown as household property, overlays update after a border or ownership change, and nothing stale remains after a world switch or reconnect (#143, #467). |
+| House and Warehouse stock | Inspect a starter House: it shows only the stock stored there. A household member cooks with it and shelters there in a storm. Inspect the Warehouse: the starter axe and pickaxe show, a resident can collect one, and both buildings' stock survives save and reload (#161, #162). A household that has a House is not offered a second one (#163). |
+| Add Agent preview | Place adults on a House footprint, on unclaimed Town land and outside any Town. The preview matches the household and Town the agent actually gets, also after save and reload (#195, #467). |
+| Stalled refresh and Pause | With a disposable world running, delay or block the host connection for more than four seconds, without paid calls. Within about four seconds the client keeps the last view and says the connection was lost; Pause and Quit to Menu stay usable and retry instead of freezing; when the connection returns, an older snapshot never overwrites a newer action (#263). |
+| Map names and captions | At several zooms, hover and select agents with short, long (over 12 letters) and non-English names. Names are readable on every terrain and very long first names show an initial. Resource captions appear only at 32 px tiles or larger and every resource glyph renders (#268). |
+| UI Scale and fullscreen | At 1920×1080 or larger, 200% enlarges buttons, panels and click targets, not just text, across Settings, Add Agent, Filters, World Info and agent inspection; content that does not fit scrolls inside its panel and no bottom action is unreachable. At 1280×720 only 100% is offered, and a saved 200% falls back cleanly. Note whether the text-field right-click menu is usable at 200%. A new installation starts fullscreen; a saved windowed choice stays windowed across restart, save and load (#281, #467). |
 
 **Exit criterion:** each applicable row has evidence against the stated builds.
 Blocked live migration or missing Windows access remains Blocked, not Pass. The

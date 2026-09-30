@@ -61,7 +61,8 @@ public partial class Main
             $"instruction_{OwnerPairingProtocol.CreateRequestId()}",
             selected.Id,
             instructionOrderButton.ButtonPressed ? "must_do" : "suggestive",
-            text);
+            text,
+            current.Baseline.Snapshot.WorldId);
         if (!TryBeginPendingInstruction(action, out var pending))
         {
             return;
@@ -385,7 +386,9 @@ public partial class Main
         instructionSuggestButton.Disabled = actionDisabled || deceasedSelected;
         instructionOrderButton.Disabled = actionDisabled || deceasedSelected;
         instructionText.Editable = !actionDisabled && !deceasedSelected;
-        retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null;
+        RenderPendingSubmission();
+        retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null ||
+            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId);
         forgetPendingSubmissionButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pairingApprovalId.Editable = !actionDisabled;
         pairingApprovalCode.Editable = !actionDisabled;

@@ -276,12 +276,14 @@ public sealed class GodotOwnerWorldApiTests
             IdempotencyKey: "instruction-01",
             TargetInhabitantId: "camp-alpha",
             Kind: "must-do",
-            Text: "Gather wood before dusk.");
+            Text: "Gather wood before dusk.",
+            WorldId: "world-A");
         var serverAction = new ServerInstructionAction(
             clientAction.IdempotencyKey,
             clientAction.TargetInhabitantId,
             clientAction.Kind,
-            clientAction.Text);
+            clientAction.Text,
+            clientAction.WorldId);
 
         var clientPayload = OwnerWorldActionPayload.Instruction(clientAction);
         var serverPayload = OwnerHttpBinding.InstructionPayload(serverAction);

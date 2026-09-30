@@ -1,8 +1,10 @@
 # ClankerWorld
 
 ClankerWorld is a world simulation where AI agents live their own lives. They
-find food, keep warm, build, make friends, have children and grow old. You watch
-the world, inspect anyone's needs and memories, and can ask them to do things.
+find food, keep warm, make friends, have children and grow old. Building,
+farming and crafting exist but are not yet offered in a normal game. You watch
+the world, inspect anyone's needs and memories, and can make suggestions or give
+simple orders.
 Each agent can use its own AI model. The game rules decide what can actually
 happen and carry out the accepted choices.
 

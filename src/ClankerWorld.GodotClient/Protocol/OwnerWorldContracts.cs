@@ -460,7 +460,8 @@ public sealed record OwnerInstructionAction(
     string IdempotencyKey,
     string TargetInhabitantId,
     string Kind,
-    string Text);
+    string Text,
+    string WorldId);
 
 public sealed record OwnerAuthoringOperationAction(
     string Kind,

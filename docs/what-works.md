@@ -30,10 +30,10 @@ test alone does not make it available in the game.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
-| Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance, layout review and player-chosen supplies are unfinished. |
+| Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance and player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts and household/Town filters. General land claims are not recorded. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
-| Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic or 100–400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
+| Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town places two
 Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads. The Houses hold
@@ -59,12 +59,16 @@ When a personal model names a new agent, it gets a stable first-letter hint to
 encourage varied names. The hint does not prevent two agents choosing the same
 full name.
 
-Personal models choose from legal actions. They receive some saved self
-information, need values, a recent private thought, relevant personal memories
-and known map facts. Recent work added name, life stage, personality, aspiration,
-household and warmth/illness context where available. Nearby relationships,
-carried inventory and current activity are not all supplied yet. Better pacing
-or thought quality from this change has not been proven in live play.
+Personal models choose from legal actions. Each request gives the agent's
+name, life stage, personality, aspiration, household, hunger, and warmth and
+illness where known. It also gives their latest private thought, a few relevant
+memories and some places they know. Agents placed the normal way still start
+with the placeholder personality "undecided" and aspiration "find a purpose"
+([#442](https://github.com/compoodment/ClankerWorld/issues/442)). The household
+is sent as an internal code, not its name. Models are not told about nearby
+people, relationships, what the agent carries or what it is doing now
+([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
+or thought quality from these changes has not been proven in live play.
 
 One slow model can wait while other agents and the world continue. A failed or
 low-confidence response uses only the explicit safe fallback; it does not invent
@@ -87,11 +91,11 @@ generated memory summaries and full conversations are unfinished.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
+| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. |
 | Building, farming and crafting | Built but not connected to normal play | Building plans, crop growing and recipe-based production are built and pass their own tests, but agents placed the normal way are not offered them. They are offered only to an agent who holds a work role, and a normal game gives agents none ([#441](https://github.com/compoodment/ClankerWorld/issues/441) tracks the fix). An offline check on three generated Small maps saw none of them in five world days ([#437](https://github.com/compoodment/ClankerWorld/issues/437)). It also saw no helping on projects, hauling inputs to the Blacksmith or Farmhouse, mining ore or replanting trees, and some of these may depend on the same limit. Recipes, capacity, wear and logistics remain unfinished. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
-| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#439](https://github.com/compoodment/ClankerWorld/issues/439) asks what lessons should teach). Pricing, currency, conflict and rich dialogue remain unfinished. |
+| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores and shared-food council. Multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
@@ -127,8 +131,12 @@ fruit trees have fruiting, picked and growing stages. Replanting currently uses 
 generic seed at an existing depleted wood-tree site. Species-specific seeds,
 new-tile planting and full managed orchards are unfinished.
 
-Weather varies by region and affects local survival and crops. Recent rain gives
-a modest soil-moisture estimate. The map shows rain, snow, storms and optional
+Weather varies by region and affects local survival and crops. Each 32×32-tile
+region keeps its weather for a spell of a quarter of a day to a full day. A
+storm lasts at most three-quarters of a day, and that region then gets at least
+half a day without another. Rain nearby makes rain a little more likely. These
+values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
+Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
 haze/flashes. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
@@ -153,8 +161,10 @@ inspection. The detailed recovery screen is unfinished; preserve unsaved
 in-memory progress before restarting the server.
 
 Named saves can be overwritten after choosing one and confirming. Unusable list
-metadata is isolated so sound saves remain reachable. Broader cross-release/mod
-compatibility and history retention remain design questions. Technical rules
+metadata is isolated so sound saves remain reachable. During the alpha, a save
+from an older build may stop loading after an update; the game refuses it with a
+reason and keeps the file. Mod compatibility and history retention remain design
+questions. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only. Previously recorded

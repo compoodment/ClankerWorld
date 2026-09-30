@@ -35,8 +35,9 @@ that version mismatch. You can still reconnect to the existing world.
 
 ## Create your first Town
 
-1. Choose **New World**. Select a Small or Medium map, a seed and the available
-   climate, water, wrapping and resource options.
+1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
+   map options are under **Advanced** (see
+   [Advanced New World settings](#advanced-new-world-settings)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
 3. Create the world. It opens paused. Choose a rough site for its first Town;
@@ -73,6 +74,11 @@ where you choose **Suggest** or **Order**. The crosshair centers the camera on
 them, and back (or **Escape**) returns from the Profile to the small card.
 Inspection does not pause time, and reading private thoughts does not tell
 other agents.
+
+**Suggest** opens a **Suggestion** and **Order** opens a **Direct order**. Their
+model does not read your words yet. A direct order works only when it asks them to gather
+or harvest food, eat, or go somewhere, and "go" currently means walking toward
+food. [What works today](what-works.md#agents-and-their-models) has the details.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;

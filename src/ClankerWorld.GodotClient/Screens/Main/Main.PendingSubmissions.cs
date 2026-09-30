@@ -112,6 +112,13 @@ public partial class Main
             return;
         }
 
+        if (pending.Instruction is { } retainedInstruction &&
+            !retainedInstruction.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId))
+        {
+            SetStatus("Return to the world where this instruction was sent before retrying. The request is still retained.", good: false);
+            return;
+        }
+
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
@@ -178,7 +185,9 @@ public partial class Main
         pendingSubmissionLabel.Text = pendingSubmission switch
         {
             { Instruction: { } instruction } =>
-                $"Retained instruction retry · {instruction.Kind} for {instruction.TargetInhabitantId} · ID {instruction.IdempotencyKey}",
+                $"Retained instruction retry · {instruction.Kind} for {instruction.TargetInhabitantId} · ID {instruction.IdempotencyKey}" +
+                (instruction.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId)
+                    ? string.Empty : " · Return to its original world before retrying."),
             { Authoring: { } authoring } =>
                 $"Retained paused-authoring retry · batch {authoring.BatchId}",
             _ => "No retained owner request. A network failure keeps one instruction or authoring batch here for an exact retry.",

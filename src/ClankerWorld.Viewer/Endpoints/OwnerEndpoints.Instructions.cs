@@ -49,14 +49,22 @@ internal static partial class OwnerEndpoints
                 var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
                 try
                 {
-                    var receipt = privateRuntime.SubmitInstruction(new OwnerInstructionRequest(
-                        request.Action.IdempotencyKey,
-                        $"owner-device:{authorization.Value!.DeviceId}",
-                        request.Action.TargetInhabitantId,
-                        kind,
-                        request.Action.Text));
-                    privateStateFile.Save(privateRuntime);
-                    return Results.Ok(receipt);
+                    // Selection and load use this same gate. Keep the world check,
+                    // mutation and durable save together so selection cannot retarget a retry.
+                    lock (services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate)
+                    {
+                        if (request.Action.WorldId != privateRuntime.Society.WorldId)
+                            return Results.Conflict(new OwnerControlFailure("world_mismatch",
+                                "Return to the world where this instruction was sent before retrying."));
+                        var receipt = privateRuntime.SubmitInstruction(new OwnerInstructionRequest(
+                            request.Action.IdempotencyKey,
+                            $"owner-device:{authorization.Value!.DeviceId}",
+                            request.Action.TargetInhabitantId,
+                            kind,
+                            request.Action.Text));
+                        privateStateFile.Save(privateRuntime);
+                        return Results.Ok(receipt);
+                    }
                 }
                 catch (ArgumentException exception)
                 {
@@ -75,6 +83,9 @@ internal static partial class OwnerEndpoints
             {
                 var runtime = services.GetRequiredService<OwnerWorldRuntime>();
                 var stateFile = services.GetRequiredService<OwnerWorldStateFile>();
+                if (request.Action.WorldId != runtime.Capture().Snapshot.World.Identity.WorldId)
+                    return Results.Conflict(new OwnerControlFailure("world_mismatch",
+                        "This instruction belongs to another world."));
                 // The transport has no issuer field. This value is minted from the
                 // authenticated server-side device identity rather than accepted from
                 // a client payload.

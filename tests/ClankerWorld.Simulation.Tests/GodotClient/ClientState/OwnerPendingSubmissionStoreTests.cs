@@ -11,7 +11,7 @@ public sealed class OwnerPendingSubmissionStoreTests
     {
         using var fixture = new PendingStoreFixture();
         var binding = PendingStoreFixture.CreateBinding();
-        var action = new OwnerInstructionAction("instruction_exact", "camp-alpha", "must_do", "Gather wood before dusk.");
+        var action = new OwnerInstructionAction("instruction_exact", "camp-alpha", "must_do", "Gather wood before dusk.", "world-A");
         var pending = OwnerPendingSubmission.ForInstruction(binding, action);
 
         Assert.True(fixture.Store.TrySave(pending));
@@ -29,6 +29,9 @@ public sealed class OwnerPendingSubmissionStoreTests
         Assert.False(loaded.IsAuthoring);
         Assert.Equal("instruction_exact", loaded.LogicalId);
         Assert.Equal(action, loaded.Instruction!.ToAction());
+        Assert.True(loaded.Instruction.CanRetryIn("world-A"));
+        Assert.False(loaded.Instruction.CanRetryIn("world-B"));
+        Assert.False(loaded.Instruction.CanRetryIn(null));
         Assert.True(fixture.Store.TryClear(loaded));
         Assert.Null(fixture.Store.TryLoad(binding));
     }
@@ -65,7 +68,7 @@ public sealed class OwnerPendingSubmissionStoreTests
         var binding = PendingStoreFixture.CreateBinding();
         var pending = OwnerPendingSubmission.ForInstruction(
             binding,
-            new OwnerInstructionAction("instruction-01", "camp-alpha", "suggestive", "Rest."));
+            new OwnerInstructionAction("instruction-01", "camp-alpha", "suggestive", "Rest.", "world-A"));
         Assert.True(fixture.Store.TrySave(pending));
 
         var changed = pending with
@@ -84,7 +87,7 @@ public sealed class OwnerPendingSubmissionStoreTests
         var binding = PendingStoreFixture.CreateBinding();
         Assert.True(fixture.Store.TrySave(OwnerPendingSubmission.ForInstruction(
             binding,
-            new OwnerInstructionAction("instruction-01", "camp-alpha", "suggestive", "Rest."))));
+            new OwnerInstructionAction("instruction-01", "camp-alpha", "suggestive", "Rest.", "world-A"))));
 
         var differentAuthority = OwnerPendingSubmissionBinding.Create(
             new OwnerAuthorityIdentity("other-authority", binding.Authority.WorldId),
@@ -121,10 +124,10 @@ public sealed class OwnerPendingSubmissionStoreTests
         var binding = PendingStoreFixture.CreateBinding();
         var first = OwnerPendingSubmission.ForInstruction(
             binding,
-            new OwnerInstructionAction("instruction-first", "camp-alpha", "suggestive", "Rest."));
+            new OwnerInstructionAction("instruction-first", "camp-alpha", "suggestive", "Rest.", "world-A"));
         var second = OwnerPendingSubmission.ForInstruction(
             binding,
-            new OwnerInstructionAction("instruction-second", "camp-alpha", "must_do", "Work."));
+            new OwnerInstructionAction("instruction-second", "camp-alpha", "must_do", "Work.", "world-A"));
 
         Assert.True(fixture.Store.TrySave(first));
         Assert.False(fixture.Store.TrySave(second));

@@ -38,10 +38,10 @@ public sealed class ProviderModelCatalog(
                 "glm-5.3-flash:cloud",
                 "glm-5.3:cloud",
                 "deepseek-v4.1-flash:cloud",
-                "deepseek-v4-pro:cloud",
+                "deepseek-v4-pro:0813",
                 "minimax-m3:cloud",
                 "kimi-k3:cloud",
-                "gemma4:cloud",
+                "gemma4:31b",
             ],
         };
 
