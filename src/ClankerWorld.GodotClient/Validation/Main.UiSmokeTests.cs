@@ -1390,6 +1390,21 @@ public partial class Main
                 RoadSprites.Render(road | RoadLinks.East, 0, 32, true).GetPixel(16, 23) is var darkEdge &&
                     (darkEdge.A < 0.5f || darkEdge.Luminance >= RoadSprites.WornEdge.Luminance))
                 throw new InvalidOperationException("Roads on sand and snow must take a solid darker edge to stay visible.");
+            var itemLooks = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in ItemIcons.Kinds.Append("crate"))
+            {
+                // Every pixel stays inside a one-pixel margin, so the outline
+                // round the silhouette is never cut off or broken.
+                if (!ItemIcons.FitsGrid(item))
+                    throw new InvalidOperationException($"The {item} icon must be 16 by 16 with an empty edge for its outline.");
+                var icon = ItemIcons.Render(item, 32);
+                if (icon.GetWidth() != 32 || icon.GetPixel(0, 0).A > 0 || icon.GetPixel(31, 31).A > 0 ||
+                    !itemLooks.Add(Convert.ToBase64String(icon.GetData())))
+                    throw new InvalidOperationException($"The {item} icon must sit on a clear square and look different from every other item.");
+            }
+            if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
+                    Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
+                throw new InvalidOperationException("An item without its own icon must show the crate.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
