@@ -186,6 +186,34 @@ public sealed class ProviderConfigurationStore
         }
     }
 
+    /// <summary>Save a named key without creating an agent or changing any model assignment.</summary>
+    public OwnerProviderConfigurationStatus CreateCredentialSlot(OwnerCredentialSlotCreationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (!Guid.TryParseExact(action.CredentialSlotId, "N", out _))
+            throw new ArgumentException("Choose a valid named credential slot.", nameof(action));
+        var provider = PlayerDecisionProviders.Normalize(action.Provider);
+        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+            throw new ArgumentException("Choose OpenAI or Ollama Cloud for this key.", nameof(action));
+        var label = NormalizeSlotLabel(action.Label);
+        var key = NormalizeRequiredApiKey(action.ApiKey);
+        lock (gate)
+        {
+            var slots = state.CredentialSlots ?? [];
+            if (slots.Any(slot => slot.Id == action.CredentialSlotId) ||
+                (state.DeletedCredentialSlotIds ?? []).Contains(action.CredentialSlotId))
+                throw new ArgumentException("That credential slot ID has already been used.", nameof(action));
+            var next = state with
+            {
+                CredentialSlots = [.. slots, new ProviderCredentialSlot(action.CredentialSlotId, provider, label, key)],
+                Revision = checked(state.Revision + 1),
+            };
+            SaveUnsafe(next);
+            state = next;
+            return ToStatus(next);
+        }
+    }
+
     /// <summary>Delete an unused named key from installation-local provider storage.</summary>
     public OwnerProviderConfigurationStatus DeleteCredentialSlot(string slotId)
     {

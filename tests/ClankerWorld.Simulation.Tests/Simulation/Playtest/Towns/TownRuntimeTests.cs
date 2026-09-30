@@ -238,6 +238,8 @@ public sealed class TownRuntimeTests
             var grownTown = Assert.Single(world.Towns);
             Assert.Contains(placed.InstanceId, grownTown.AssignedBuildingIds);
             Assert.True(grownTown.BorderTiles.Count > town.BorderTiles.Count);
+            // Town Roads stay inside the border, which grows around the new Road too.
+            Assert.All(world.RoadTiles, road => Assert.Contains(road, grownTown.BorderTiles));
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_building_assigned");
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_border_expanded");
             Assert.NotEmpty(world.RoadTiles);
@@ -294,6 +296,11 @@ public sealed class TownRuntimeTests
                 Assert.Single(reloaded.WorldSimulation.Buildings, item => item.InstanceId == placed.InstanceId).Entrance);
             // A saved entrance must sit beside its building.
             var reloadedState = reloaded.ExportState();
+            // A saved border must cover every assigned building.
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
+            {
+                Towns = [restoredTown with { BorderTiles = restoredTown.BorderTiles.Where(tile => tile != position).ToArray() }],
+            }));
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
             {
                 WorldSimulation = reloadedState.WorldSimulation! with

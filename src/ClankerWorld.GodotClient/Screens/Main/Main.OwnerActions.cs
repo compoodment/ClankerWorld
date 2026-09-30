@@ -330,6 +330,10 @@ public partial class Main
         var selected = snapshot?.Inhabitants.FirstOrDefault(item =>
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
+        saveApiKeyButton.Disabled = actionDisabled;
+        apiKeyProviderChoice.Disabled = actionDisabled;
+        apiKeyLabelInput.Editable = !actionDisabled;
+        apiKeyInput.Editable = !actionDisabled;
         autosaveApplyButton.Disabled = actionDisabled || !paused || !autosaveSettingsLoaded;
         var supportsLifePace = snapshot?.LifePaceRate is not null;
         var supportsJevAssistance = snapshot?.JevEnabled is not null &&

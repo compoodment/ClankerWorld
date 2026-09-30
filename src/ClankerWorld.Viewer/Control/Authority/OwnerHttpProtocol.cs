@@ -72,6 +72,8 @@ public sealed record OwnerUsageStatusAction;
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, string Provider, string Label, string ApiKey);
+
 /// <summary>
 /// Asks the host for the game's model list for a provider. With
 /// <see cref="CheckKey"/>, the host also asks the provider which of those
@@ -285,6 +287,17 @@ public static class OwnerHttpBinding
         return string.Join('\n', "clankerworld.owner-usage-limit.v1",
             $"attempt-limit={action.AttemptLimit?.ToString(CultureInfo.InvariantCulture) ?? "off"}",
             $"additional-calls={action.AdditionalCalls.ToString(CultureInfo.InvariantCulture)}");
+    }
+
+    public static string CredentialSlotCreationPayload(OwnerCredentialSlotCreationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.ApiKey);
+        return string.Join('\n', "clankerworld.owner-credential-slot-creation.v1",
+            $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"label={EncodeRequired(action.Label, nameof(action.Label))}",
+            $"api-key-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)))}");
     }
 
     public static string CredentialSlotDeletionPayload(OwnerCredentialSlotDeletionAction action)

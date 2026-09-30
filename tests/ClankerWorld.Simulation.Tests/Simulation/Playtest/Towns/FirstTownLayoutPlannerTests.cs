@@ -87,7 +87,12 @@ public sealed class FirstTownLayoutPlannerTests
 
     [Theory]
     [InlineData("starter-layout-one")]
-    public void StartingPlanHasFiveLegalBuildingsAndAConnectedRoadNetwork(string seed)
+    [InlineData("starter-layout-two")]
+    [InlineData("starter-layout-three")]
+    [InlineData("starter-layout-four")]
+    [InlineData("starter-layout-five")]
+    [InlineData("starter-layout-six")]
+    public void StartingPlanLaysStreetsFirstWithEveryDoorFacingARoad(string seed)
     {
         var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small));
         var roughSite = map.Resources.Single(item => item.Id == "berry-patch").Position;
@@ -100,41 +105,47 @@ public sealed class FirstTownLayoutPlannerTests
         Assert.Equal(["warehouse", "house-a", "house-b", "farmhouse", "blacksmith"],
             plan.Buildings.Select(building => building.Role).ToArray());
 
-        var occupied = map.CampObjects.Select(item => item.Position)
+        var blocked = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position)).ToHashSet();
+        var footprints = new HashSet<GridPoint>();
         foreach (var building in plan.Buildings)
         {
-            for (var dy = 0; dy < building.Height; dy++)
-            {
-                for (var dx = 0; dx < building.Width; dx++)
-                {
-                    var tile = new GridPoint(building.Position.X + dx, building.Position.Y + dy);
-                    Assert.True(map.IsBuildable(tile));
-                    Assert.True(occupied.Add(tile));
-                }
-            }
+            var own = Footprint(building).ToArray();
+            // Footprints are clear, buildable and keep a one-tile gap from each other.
+            Assert.All(own, tile => Assert.True(map.IsBuildable(tile) && !blocked.Contains(tile)));
+            Assert.DoesNotContain(own.SelectMany(tile => TownStreets.Directions
+                .Select(step => new GridPoint(tile.X + step.X, tile.Y + step.Y)).Append(tile)), footprints.Contains);
+            footprints.UnionWith(own);
         }
 
         var roads = plan.RoadTiles.ToHashSet();
-        Assert.Empty(roads.Intersect(occupied));
-        Assert.NotEmpty(plan.RoadTiles);
-        var firstRoad = plan.RoadTiles[0];
-        var reachable = new HashSet<GridPoint> { firstRoad };
-        var pending = new Queue<GridPoint>();
-        pending.Enqueue(firstRoad);
+        Assert.NotEmpty(roads);
+        Assert.Empty(roads.Intersect(footprints));
+        Assert.All(plan.RoadTiles, point => Assert.True(map.IsBuildable(point) && !blocked.Contains(point)));
+
+        // One connected network, where a diagonal step joins two Roads only
+        // when both corner tiles are clear ground.
+        var reachable = new HashSet<GridPoint> { plan.RoadTiles[0] };
+        var pending = new Queue<GridPoint>(reachable);
         while (pending.TryDequeue(out var current))
         {
-            foreach (var next in map.FootNeighbors(current).Where(point => roads.Contains(point) &&
-                         !map.IsDiagonalFootStep(current, point)))
+            foreach (var next in TownStreets.Linked(roads, current))
+            {
+                if (next.X != current.X && next.Y != current.Y)
+                {
+                    Assert.True(map.CanFootStep(current, next));
+                    Assert.DoesNotContain(new GridPoint(next.X, current.Y), blocked);
+                    Assert.DoesNotContain(new GridPoint(current.X, next.Y), blocked);
+                }
                 if (reachable.Add(next)) pending.Enqueue(next);
+            }
         }
         Assert.True(roads.SetEquals(reachable));
-        Assert.All(plan.Buildings, building =>
-            Assert.Contains(roads, road => Enumerable.Range(0, building.Height)
-                .SelectMany(dy => Enumerable.Range(0, building.Width)
-                    .Select(dx => new GridPoint(building.Position.X + dx, building.Position.Y + dy)))
-                .Any(tile => Math.Abs(road.X - tile.X) + Math.Abs(road.Y - tile.Y) == 1)));
-        Assert.All(plan.RoadTiles, point => Assert.True(map.IsBuildable(point)));
+
+        // Streets never run side by side: no two-by-two block of Road.
+        Assert.DoesNotContain(roads, road => roads.Contains(new GridPoint(road.X + 1, road.Y)) &&
+            roads.Contains(new GridPoint(road.X, road.Y + 1)) && roads.Contains(new GridPoint(road.X + 1, road.Y + 1)));
+
         // Each building's door faces a Road tile directly beside one edge.
         Assert.All(plan.Buildings, building =>
         {
@@ -148,5 +159,53 @@ public sealed class FirstTownLayoutPlannerTests
                 besideRow && (building.Entrance.X == building.Position.X - 1 ||
                     building.Entrance.X == building.Position.X + building.Width));
         });
+
+        // Every dead end runs on at most a few tiles past the nearest door.
+        var entrances = plan.Buildings.Select(building => building.Entrance).ToHashSet();
+        Assert.All(roads.Where(road => TownStreets.Linked(roads, road).Count() == 1 && !entrances.Contains(road)),
+            end => Assert.InRange(StepsToDoor(roads, entrances, end), 1, TownStreets.RunOnTiles));
+    }
+
+    [Fact]
+    public void AcceptedTownBorderKeepsThreeTilesOfLandAroundBuildingsAndRoads()
+    {
+        var geography = new GeographyOptions("starter-layout-border", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        var map = world.ExportState().Map;
+        var plan = world.AcceptFirstTownLayout(map.Resources.Single(item => item.Id == "berry-patch").Position);
+        var border = Assert.Single(world.Towns).BorderTiles.ToHashSet();
+        var core = plan.Buildings.SelectMany(Footprint).Concat(plan.RoadTiles).ToArray();
+
+        // Every land tile up to three tiles straight out from the Town is inside.
+        foreach (var tile in core)
+            for (var reach = -TownBorderRules.SpareTileMargin; reach <= TownBorderRules.SpareTileMargin; reach++)
+                foreach (var near in new[] { new GridPoint(tile.X + reach, tile.Y), new GridPoint(tile.X, tile.Y + reach) })
+                    if (map.IsLand(near)) Assert.Contains(near, border);
+        // It follows the Town's shape: no water, and nothing far from a building or Road.
+        Assert.All(border, tile =>
+        {
+            Assert.True(map.IsLand(tile));
+            Assert.Contains(core, near => Math.Abs(near.X - tile.X) + Math.Abs(near.Y - tile.Y) <= TownBorderRules.SpareTileMargin + 1);
+        });
+        world.Validate();
+    }
+
+    private static IEnumerable<GridPoint> Footprint(FirstTownLayoutBuilding building) =>
+        Enumerable.Range(0, building.Height).SelectMany(dy => Enumerable.Range(0, building.Width)
+            .Select(dx => new GridPoint(building.Position.X + dx, building.Position.Y + dy)));
+
+    private static int StepsToDoor(HashSet<GridPoint> roads, HashSet<GridPoint> entrances, GridPoint start)
+    {
+        var steps = new Dictionary<GridPoint, int> { [start] = 0 };
+        var pending = new Queue<GridPoint>([start]);
+        while (pending.TryDequeue(out var current))
+        {
+            if (entrances.Contains(current)) return steps[current];
+            foreach (var next in TownStreets.Linked(roads, current))
+                if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
+        }
+        return int.MaxValue;
     }
 }
