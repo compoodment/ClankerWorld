@@ -6,7 +6,8 @@ release yet.
 
 ## Unreleased
 
-- Production requests now refuse workers who are too young, before taking materials or creating a job, using the same age limits as agents' own choices.
+- A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
+
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
 - Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.
@@ -35,6 +36,7 @@ release yet.
 - A mandatory instruction stays pending when its requested action is unavailable or makes no progress; unrelated accepted idling no longer counts as completion.
 - Food choices use the acting inhabitant’s connected ground, so an adult on another island can harvest its reachable local food instead of seeking an unreachable camp resource.
 - Crop planning and preparation use the worker’s actual household stock. Household cooking rechecks on-site ingredients, and failed production starts enter a recoverable blocked state instead of remaining stuck at completed preparation.
+- Production requests now refuse workers who are too young, before taking materials or creating a job, using the same age limits as agents' own choices.
 - Loading a save and switching worlds can no longer archive a mixture of one checkpoint and another set of model/autosave settings.
 - Manual overwrite atomically publishes a complete checkpoint/model/settings generation; a failed metadata replacement keeps the prior selected save and its recovery backup.
 
