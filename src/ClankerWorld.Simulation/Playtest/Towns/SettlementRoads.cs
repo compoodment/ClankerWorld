@@ -28,9 +28,11 @@ public sealed partial class PrivateWorldRuntime
             ? Math.Max(1, cost * 70 / 100) : cost;
     }
 
-    private void GenerateRoadToBuilding(PlacedBuilding building)
+    /// <summary>Lays a Road from the building's best entrance to the network and returns the new Road tiles.</summary>
+    private List<GridPoint> GenerateRoadToBuilding(PlacedBuilding building)
     {
-        if (building.TownId is null) return;
+        var laid = new List<GridPoint>();
+        if (building.TownId is null) return laid;
         var buildingDesign = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         var footprint = WorldContentSimulationRules.Footprint(buildingDesign, building.Position).ToHashSet();
         var occupied = map.Resources.Select(item => item.Position)
@@ -44,12 +46,13 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
                 .Where(next => !map.IsDiagonalFootStep(point, next)))
-            .Where(point => !occupied.Contains(point) && map.IsBuildable(point))
+            .Where(point => !occupied.Contains(point) && map.IsBuildable(point) &&
+                WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
         {
             AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:no_entrance");
-            return;
+            return laid;
         }
         var network = roadTiles.Count > 0 ? roadTiles.ToHashSet() : map.CampObjects
             .Where(item => item.Id == "storage")
@@ -73,16 +76,18 @@ public sealed partial class PrivateWorldRuntime
             if (priority.Cost != best[current]) continue;
             if (network.Contains(current))
             {
-                var added = 0;
                 while (true)
                 {
-                    if (roadTiles.Add(current)) added++;
+                    if (roadTiles.Add(current)) laid.Add(current);
                     if (!predecessor.TryGetValue(current, out var previous)) break;
                     current = previous;
                 }
-                if (added > 0)
-                    AppendEvent("town_road_generated", $"{building.TownId}:{building.InstanceId}:tiles:{added}");
-                return;
+                // The route starts at the entrance it was laid from, so the
+                // door faces this Road.
+                SetBuildingEntrance(building.InstanceId, current);
+                if (laid.Count > 0)
+                    AppendEvent("town_road_generated", $"{building.TownId}:{building.InstanceId}:tiles:{laid.Count}");
+                return laid;
             }
 
             foreach (var next in map.FootNeighbors(current))
@@ -98,7 +103,19 @@ public sealed partial class PrivateWorldRuntime
             }
         }
         AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:land_route_unavailable");
+        return laid;
     }
+
+    private void SetBuildingEntrance(string instanceId, GridPoint entrance)
+    {
+        worldSimulation = worldSimulation with
+        {
+            Buildings = worldSimulation.Buildings
+                .Select(item => item.InstanceId == instanceId ? item with { Entrance = entrance } : item)
+                .ToArray(),
+        };
+    }
+
 
     private static void ValidateRoads(IReadOnlyList<GridPoint> roads, SeededMap map, FounderSetupState? setup)
     {

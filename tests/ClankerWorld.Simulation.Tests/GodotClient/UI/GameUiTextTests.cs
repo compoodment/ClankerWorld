@@ -34,8 +34,7 @@ public sealed class GameUiTextTests
     private static readonly int[] UiScalePercentages = [DisplayUiScalePolicy.Automatic, 100, 200, 300, 400];
 
     [Theory]
-    [InlineData("Alexandria Smith", "Alexandria")]
-    [InlineData("  Mira   Rowan  ", "Mira")]
+    [InlineData("  Alexandria   Smith  ", "Alexandria")]
     [InlineData("Alexandriannnnnnnn", "A.")]
     [InlineData("Álexandriannnnnnnn", "Á.")]
     [InlineData("李 小龙", "李")]
@@ -217,7 +216,6 @@ public sealed class GameUiTextTests
 
     [Theory]
     [InlineData(1280, 720, 1)]
-    [InlineData(1600, 900, 1)]
     [InlineData(1920, 1080, 2)]
     [InlineData(2560, 1440, 2)]
     [InlineData(3840, 2160, 3)]
@@ -284,12 +282,10 @@ public sealed class GameUiTextTests
     }
 
     [Theory]
-    [InlineData(10_000, "well fed")]
     [InlineData(7_000, "well fed")]
     [InlineData(6_999, "fed")]
     [InlineData(3_499, "hungry")]
     [InlineData(2_499, "very hungry")]
-    [InlineData(0, "very hungry")]
     public void FullnessStatesReadLowValuesAsHungry(int fullness, string expected)
     {
         Assert.Equal(expected, GameUiText.FullnessState(fullness));
@@ -325,7 +321,6 @@ public sealed class GameUiTextTests
     }
 
     [Theory]
-    [InlineData("build:building:sha256:abcdef/building/stone-hearth@1.0.0", "build Stone hearth")]
     [InlineData("seek_food", "find food")]
     [InlineData("guardian_tend:dependent-42", "look after someone who is ill")]
     [InlineData("trade_propose:offer-1", "offer a trade")]

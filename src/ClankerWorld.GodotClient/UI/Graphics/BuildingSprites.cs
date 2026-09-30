@@ -19,15 +19,49 @@ public enum BuildingKind : byte
     Generic,
 }
 
+/// <summary>The edge of a building's footprint that its door is on.</summary>
+public enum DoorSide : byte
+{
+    South,
+    North,
+    East,
+    West,
+}
+
+/// <summary>
+/// Where a building's door is: its side, and the footprint tile along that
+/// side (counted from the left or top), or null for the middle of the side.
+/// The default is the middle of the south side.
+/// </summary>
+public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
+{
+    /// <summary>A building without a recorded entrance: the middle of the south side.</summary>
+    public static BuildingDoor Default => new(DoorSide.South);
+
+    /// <summary>The door facing an entrance tile beside the footprint.</summary>
+    public static BuildingDoor Facing(Rect2I footprint, Vector2I? entrance)
+    {
+        if (entrance is not { } tile) return Default;
+        var column = tile.X >= footprint.Position.X && tile.X < footprint.End.X;
+        var row = tile.Y >= footprint.Position.Y && tile.Y < footprint.End.Y;
+        if (column && tile.Y == footprint.End.Y) return new(DoorSide.South, tile.X - footprint.Position.X);
+        if (column && tile.Y == footprint.Position.Y - 1) return new(DoorSide.North, tile.X - footprint.Position.X);
+        if (row && tile.X == footprint.End.X) return new(DoorSide.East, tile.Y - footprint.Position.Y);
+        if (row && tile.X == footprint.Position.X - 1) return new(DoorSide.West, tile.Y - footprint.Position.Y);
+        return Default;
+    }
+}
+
 /// <summary>
 /// Provisional top-down pixel-art roofs for placed buildings, generated at
 /// their footprint size (32 or 16 px per tile). Each design has one standard
 /// appearance, per the vision ledger: roofs show the building's family, the
-/// ridge follows its long side, and a small doorstep marks the south side.
+/// ridge follows its long side, and a door or doorstep marks the side the
+/// building faces its Road from.
 /// </summary>
 public static class BuildingSprites
 {
-    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile), ImageTexture> Cache = [];
+    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door), ImageTexture> Cache = [];
     private static readonly Color Shadow = new(0.04f, 0.06f, 0.05f, 0.30f);
 
     /// <summary>Chooses a family from building tags, most specific first.</summary>
@@ -64,23 +98,23 @@ public static class BuildingSprites
 
     public static int AtlasTileSize(int drawnTileSize) => drawnTileSize >= 24 ? 32 : 16;
 
-    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels)
+    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
     {
         width = Math.Clamp(width, 1, 8);
         height = Math.Clamp(height, 1, 8);
-        var key = (kind, width, height, tilePixels);
+        var key = (kind, width, height, tilePixels, door);
         if (Cache.TryGetValue(key, out var cached)) return cached;
-        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels));
+        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels, door));
         Cache[key] = texture;
         return texture;
     }
 
-    public static Image Render(BuildingKind kind, int width, int height, int tilePixels)
+    public static Image Render(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
     {
         var image = Image.CreateEmpty(width * tilePixels, height * tilePixels, false, Image.Format.Rgba8);
         image.Fill(Colors.Transparent);
         Paint(new PixelCanvas(image, new Rect2I(0, 0, width * tilePixels, height * tilePixels), tilePixels / 32f),
-            kind, width * 32, height * 32);
+            kind, width * 32, height * 32, door);
         return image;
     }
 
@@ -98,7 +132,7 @@ public static class BuildingSprites
         _ => (new Color("8D8577"), new Color("6E675C"), new Color("3F3A33"), new Color("AAA293")),
     };
 
-    private static void Paint(PixelCanvas canvas, BuildingKind kind, int width, int height)
+    private static void Paint(PixelCanvas canvas, BuildingKind kind, int width, int height, BuildingDoor door)
     {
         switch (kind)
         {
@@ -151,42 +185,42 @@ public static class BuildingSprites
             canvas.Rect(ridge - 1, inset + 1, 1, roofHeight - 2, palette.Ridge);
         }
 
+        var roof = new Rect2(inset, inset, roofWidth, roofHeight);
         switch (kind)
         {
             case BuildingKind.House:
                 Chimney(canvas, inset + roofWidth - 9, inset + 3, new Color("7B756E"), new Color("3A3632"));
-                Doorstep(canvas, width, height, inset, roofHeight);
+                Doorstep(canvas, roof, door);
                 break;
             case BuildingKind.Warehouse:
-                // Wide loading doors on the south side.
-                var doorWidth = Math.Min(16, roofWidth - 8);
-                canvas.Rect(width / 2f - doorWidth / 2f, inset + roofHeight - 1, doorWidth, 3, new Color("5A3E28"));
-                canvas.Rect(width / 2f - 0.5f, inset + roofHeight - 1, 1, 3, new Color("C9A36B"));
+                // Wide loading doors, split down the middle.
+                var doorWidth = Math.Min(16, (door.Side is DoorSide.South or DoorSide.North ? roofWidth : roofHeight) - 8);
+                DoorBand(canvas, roof, door, doorWidth, 0, new Color("5A3E28"));
+                DoorBand(canvas, roof, door, 1, 0, new Color("C9A36B"));
                 break;
             case BuildingKind.Farmhouse:
                 Thatch(canvas, inset, roofWidth, roofHeight, palette.Edge with { A = 0.35f });
-                Doorstep(canvas, width, height, inset, roofHeight);
+                Doorstep(canvas, roof, door);
                 break;
             case BuildingKind.Blacksmith:
                 // A forge chimney with a glowing ember marks metalworking.
                 Chimney(canvas, inset + 3, inset + 3, new Color("5A5550"), new Color("2A2622"));
                 canvas.Disc(inset + 6, inset + 6, 1.6f, new Color("F0732A"));
                 canvas.Dot(inset + 6, inset + 6, new Color("FFD27A"));
-                Doorstep(canvas, width, height, inset, roofHeight);
+                Doorstep(canvas, roof, door);
                 break;
             case BuildingKind.Storehouse:
-                canvas.Rect(width / 2f - 3, inset + roofHeight - 1, 6, 3, new Color("4A3321"));
+                DoorBand(canvas, roof, door, 6, 0, new Color("4A3321"));
                 break;
             case BuildingKind.Workshop:
                 // A hammer sign over the door marks a place for making things.
-                var signX = width / 2f;
-                var signY = inset + roofHeight - 9;
+                var (signX, signY) = Inward(roof, door, 9);
                 canvas.Rect(signX - 5, signY - 4, 10, 9, palette.Edge);
                 canvas.Rect(signX - 4, signY - 3, 8, 7, new Color("B99A6B"));
                 canvas.Line(signX - 2, signY + 2, signX + 1.5f, signY - 1.5f, new Color("5A3E28"));
                 canvas.Rect(signX, signY - 3, 3, 2, new Color("6E737A"));
                 canvas.Rect(signX + 1, signY - 1, 2, 1, new Color("6E737A"));
-                Doorstep(canvas, width, height, inset, roofHeight);
+                Doorstep(canvas, roof, door);
                 break;
         }
     }
@@ -210,12 +244,62 @@ public static class BuildingSprites
             }
     }
 
-    private static void Doorstep(PixelCanvas canvas, int width, int height, float inset, float roofHeight)
+    /// <summary>A small stone doorstep with a darker outer edge.</summary>
+    private static void Doorstep(PixelCanvas canvas, Rect2 roof, BuildingDoor door)
     {
-        var y = inset + roofHeight - 1;
-        if (y + 3 > height) return;
-        canvas.Rect(width / 2f - 3, y, 6, 3, new Color("B9AB8E"));
-        canvas.Rect(width / 2f - 3, y + 2, 6, 1, new Color("8C7F66"));
+        DoorBand(canvas, roof, door, 6, 0, new Color("B9AB8E"));
+        DoorBand(canvas, roof, door, 6, 2, new Color("8C7F66"), 1);
+    }
+
+    /// <summary>
+    /// A strip across the door, <paramref name="across"/> pixels wide, that
+    /// overlaps the roof edge by one pixel and reaches two beyond it.
+    /// <paramref name="outward"/> and <paramref name="depth"/> pick rows of it,
+    /// counted out from the roof edge.
+    /// </summary>
+    private static void DoorBand(PixelCanvas canvas, Rect2 roof, BuildingDoor door, float across, float outward,
+        Color color, float depth = 3)
+    {
+        var middle = DoorMiddle(roof, door);
+        var start = middle - across / 2f;
+        switch (door.Side)
+        {
+            case DoorSide.South:
+                canvas.Rect(start, roof.End.Y - 1 + outward, across, depth, color);
+                break;
+            case DoorSide.North:
+                canvas.Rect(start, roof.Position.Y - 2 + (2 - outward - depth + 1), across, depth, color);
+                break;
+            case DoorSide.East:
+                canvas.Rect(roof.End.X - 1 + outward, start, depth, across, color);
+                break;
+            case DoorSide.West:
+                canvas.Rect(roof.Position.X - 2 + (2 - outward - depth + 1), start, depth, across, color);
+                break;
+        }
+    }
+
+    /// <summary>The door's position along its side, kept clear of the roof corners.</summary>
+    private static float DoorMiddle(Rect2 roof, BuildingDoor door)
+    {
+        var horizontal = door.Side is DoorSide.South or DoorSide.North;
+        var from = horizontal ? roof.Position.X : roof.Position.Y;
+        var length = horizontal ? roof.Size.X : roof.Size.Y;
+        var middle = door.Tile is { } tile ? tile * 32 + 16 : from + length / 2f;
+        return Math.Clamp(middle, from + 5, from + length - 5);
+    }
+
+    /// <summary>A point inside the roof, <paramref name="distance"/> pixels in from the door.</summary>
+    private static (float X, float Y) Inward(Rect2 roof, BuildingDoor door, float distance)
+    {
+        var middle = DoorMiddle(roof, door);
+        return door.Side switch
+        {
+            DoorSide.North => (middle, roof.Position.Y + distance),
+            DoorSide.East => (roof.End.X - distance, middle),
+            DoorSide.West => (roof.Position.X + distance, middle),
+            _ => (middle, roof.End.Y - distance),
+        };
     }
 
     private static void PaintHearth(PixelCanvas canvas, int width, int height)

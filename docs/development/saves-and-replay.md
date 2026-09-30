@@ -134,7 +134,7 @@ before an upgrade.
 | Schema 24 | World-owned Roads. |
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
-| Schema 27 | Trees planted on new tiles, saved as `planted-tree-{x}-{y}` map resources with their growth record. A load accepts them only when each is a legal planting (see [Trees and planting](how-it-works.md#trees-and-planting)); anything else is refused with a reason and the file is kept. Older builds refuse schema 27 saves. |
+| Schema 27 | Optional building entrances and trees planted on new tiles. An entrance must lie directly beside a footprint edge. Planted trees are saved as `planted-tree-{x}-{y}` map resources with their growth record and must be legal plantings (see [Trees and planting](how-it-works.md#trees-and-planting)). Invalid state is refused and the file is kept. Older builds refuse schema 27 saves. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -235,7 +235,7 @@ New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
 
 Episode version and bounds are validated, including topology against the saved
-map. Private saves now use schema 26; episode-bearing world systems use schema 2.
+map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
 World-systems schema 1 remains readable, with the absent field omitted when null.
 Older binaries reject the newer schema instead of silently dropping episodes.
 The new code reads old saves; keep backups before testing.

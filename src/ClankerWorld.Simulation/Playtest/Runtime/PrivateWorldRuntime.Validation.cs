@@ -159,11 +159,14 @@ public sealed partial class PrivateWorldRuntime
         foreach (var buildingId in town.AssignedBuildingIds)
             if (!byInstance.ContainsKey(buildingId))
                 throw new InvalidDataException("A Town references a building that is not placed.");
-        var expected = TownBorderRules.ExpectedBorder(map, town, simulation.Buildings, definitions);
-        if (!town.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
-            .SequenceEqual(expected.OrderBy(point => point.Y).ThenBy(point => point.X)) ||
-            town.BorderTiles.Any(point => !map.Contains(point)))
-            throw new InvalidDataException("The saved Town border does not match its founding area and assigned buildings.");
+        // The saved border is authoritative; it must lie on the map and cover
+        // the Town's origin and every assigned building.
+        var border = town.BorderTiles.ToHashSet();
+        if (town.BorderTiles.Any(point => !map.Contains(point)) ||
+            town.OriginSite is { } site && !border.Contains(site) ||
+            town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
+                WorldContentSimulationRules.Footprint(definition, byInstance[id].Position).Any(tile => !border.Contains(tile))))
+            throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
     }
 
     private static void ValidateFounderSetup(FounderSetupState? setup, SocietyCheckpoint society)

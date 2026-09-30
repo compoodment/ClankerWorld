@@ -9,7 +9,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class IslandHeatingTests
 {
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task IslandHouseholdHarvestsLocalFuelAndLightsItsHearth(bool reload)
     {

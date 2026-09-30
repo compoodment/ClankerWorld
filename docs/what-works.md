@@ -35,10 +35,14 @@ test alone does not make it available in the game.
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
-New worlds open paused with no old camp. Choosing the first Town places two
-Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads. The Houses hold
+New worlds open paused with no old camp. Choosing the first Town lays a winding
+main road with side streets, then places two Houses, a Warehouse, Farmhouse and
+Blacksmith along them, each with its door facing its Road. Streets run on a few
+tiles past the last building, and the Town border keeps about three tiles of
+spare land around the buildings and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
-founders form two starting households. The player presses Start World explicitly.
+founders form two starting households: the first holds the Farmhouse and the
+second holds the Blacksmith. The player presses Start World explicitly.
 
 World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
@@ -92,8 +96,9 @@ generated memory summaries and full conversations are unfinished.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
-| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. |
-| Building, farming and crafting | Built but not connected to normal play | Building plans, crop growing and recipe-based production are built and pass their own tests, but agents placed the normal way are not offered them. They are offered only to an agent who holds a work role, and a normal game gives agents none ([#441](https://github.com/compoodment/ClankerWorld/issues/441) tracks the fix). An offline check on three generated Small maps saw none of them in five world days ([#437](https://github.com/compoodment/ClankerWorld/issues/437)). It also saw no helping on projects, hauling inputs to the Blacksmith or Farmhouse, mining ore or replanting trees, and some of these may depend on the same limit. Recipes, capacity, wear and logistics remain unfinished. |
+| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
+| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
+| Building new buildings | Built but not connected to normal play | Building plans are still offered only to an agent with the Builder role or an aspiration that mentions building, and a normal game gives agents neither ([#470](https://github.com/compoodment/ClankerWorld/issues/470) tracks the fix). |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
@@ -123,8 +128,9 @@ unfinished.
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. Diagonal Roads and
-bridges remain unfinished.
+impassable; mountains and peaks cannot hold construction. The first Town's
+streets take diagonals where the land allows; Roads laid for later buildings
+still step in straight lines, and bridges remain unfinished.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
 have sapling, mature and stump stages. Felling one for wood also gives the agent

@@ -27,6 +27,11 @@ A tagged release must report both its game version and source revision.
 
 ## Matching client and host builds
 
+For an owner-authorized private-server update, follow the
+[deployment checklist](private-server-deployment.md). It covers staging,
+paused backups, accounting, credentials and rollback; a private update does
+not require a public release or tag.
+
 When an action's signed format changes, ship or deploy the matching host before
 distributing the client. A bundled local host and client must come from the
 same verified source revision. Record both revisions for a private deployment;

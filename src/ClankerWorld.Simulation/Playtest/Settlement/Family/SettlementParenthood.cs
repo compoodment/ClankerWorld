@@ -188,8 +188,10 @@ public sealed partial class PrivateWorldRuntime
         {
             if (NeedsUrgentFood(parent)) return;
             if (PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
-                    lot.StorageBuildingId is null ||
-                    society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) is { } sharedFood)
+                    (lot.StorageBuildingId is null ||
+                     society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
+                    FindUnoccupiedRoute(actor, parent.Position, HouseholdStockPosition(lot),
+                        HouseholdStockInteractionRange(lot)).Count > 0) is { } sharedFood)
             {
                 var camp = HouseholdStockPosition(sharedFood);
                 var interactionRange = HouseholdStockInteractionRange(sharedFood);
