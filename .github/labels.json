@@ -22,5 +22,5 @@
     { "name": "priority:blocker", "color": "b60205", "description": "Must be done before the current milestone or playtest.", "aliases": ["gate:blocker"] },
     { "name": "accessibility", "color": "f143ab", "description": "A barrier for players with disabilities.", "aliases": [] }
   ],
-  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate"]
+  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel"]
 }
