@@ -399,14 +399,13 @@ release yet.
 
 ### Fixed
 
-- The unread count on the Events button is no longer half hidden under the
-  button next to it.
-
 - A damaged named-save entry no longer hides other saves or stops autosave
   rotation. Damaged files are preserved, with a safe diagnostic for recovery.
 
 - Hovering the Town panel no longer pops up a technical tooltip of world
   ticks, revisions, map digests and internal system counts.
+- The unread count on the Events button is no longer half hidden under the
+  button next to it.
 - The selected-agent card no longer covers the agent it describes: when it
   cannot fit above or below them, it opens beside them. On short screens its
   profile scrolls inside the card, so Speak and Send are no longer cut off
