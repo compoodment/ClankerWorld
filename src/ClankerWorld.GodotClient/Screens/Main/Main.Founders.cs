@@ -174,6 +174,7 @@ public partial class Main
         });
         founderSetupPanel.Position = new Vector2(350, 14);
         founderSetupPanel.ZIndex = 90;
+        founderSetupPanel.VisibilityChanged += ApplyMapFiltersFromCurrentSnapshot;
         founderSetupPanel.Hide();
         canvas.AddChild(founderSetupPanel);
         PopulateFounderCredentials();
@@ -255,8 +256,6 @@ public partial class Main
             providerConfiguration = await ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
             placingAddedAgent = true;
-            townBorderFilter.ButtonPressed = true;
-            householdPropertyFilter.ButtonPressed = true;
             ResetAddAgentPlacementHint();
             founderSetupPanel.Show();
             PopulateFounderCredentials();

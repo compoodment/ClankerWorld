@@ -62,7 +62,9 @@ its on/off setting while the world is paused.
 
 Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
 click it or drag its view rectangle to move the camera. **Filters** controls the
-saved Town border and household-owned building overlays.
+saved Town border and household-owned building overlays. Both start off. Town
+borders show as a pale dashed line. While you place a founder or an added
+agent, the map shows both without turning Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
