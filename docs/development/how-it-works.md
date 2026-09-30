@@ -329,6 +329,13 @@ is exposed for them. Existing saved water settings are not rewritten.
 
 ## World-list requests
 
+The manual Save World and Load Save dialog owns one list read per opening.
+Closing it, creating, overwriting or deleting a save, or starting another opening
+cancels the previous read. Late success and failure replies cannot replace current rows,
+selection or status, including across a world or pairing change. Clearing or
+rebuilding rows recomputes Load, Overwrite and Delete availability. Creating a
+new save remains available while listing is slow.
+
 Load World keeps a visible checking state until its signed catalog request
 finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the

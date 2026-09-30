@@ -553,6 +553,7 @@ public partial class Main
                 await VerifyWorldActionSelectionAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
+                await VerifyManualSaveListOwnershipAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

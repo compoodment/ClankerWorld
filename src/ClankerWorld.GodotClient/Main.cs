@@ -286,6 +286,7 @@ public partial class Main : Control
 
     public override void _ExitTree()
     {
+        CancelManualSaveListRead();
         refreshCancellation?.Cancel();
         worldListRequest.Dispose();
         UiTheme.Changed -= ApplyThemeColors;
