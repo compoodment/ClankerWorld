@@ -57,7 +57,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
-    private readonly LineEdit cognitionModelInput = new();
+    private readonly ModelPicker cognitionModelPicker = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -102,7 +102,6 @@ public partial class Main : Control
     private readonly Label rosterSummaryLabel = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly VBoxContainer selectedAgentOverview = new();
-    private readonly ScrollContainer selectedAgentOverviewScroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
     private readonly ScrollContainer selectedAgentModelScroll = new();
     private readonly VBoxContainer selectedAgentModelContent = new();
     private readonly Button modelSettingsButton = new();
@@ -166,7 +165,6 @@ public partial class Main : Control
     private string? lastLifePaceWorldId;
 
     private readonly Button pauseButton = new();
-    private readonly OptionButton instructionKind = new();
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
     private readonly Label pendingSubmissionLabel = new();
@@ -286,7 +284,9 @@ public partial class Main : Control
 
     public override void _ExitTree()
     {
+        CancelManualSaveListRead();
         refreshCancellation?.Cancel();
+        CancelAutosaveSettingsRead();
         worldListRequest.Dispose();
         UiTheme.Changed -= ApplyThemeColors;
         deviceKey?.Dispose();

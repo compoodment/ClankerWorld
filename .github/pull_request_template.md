@@ -12,10 +12,18 @@
 
 ## Scope and related work
 
-- Related issue, or reason no issue is needed:
+<!-- GitHub only closes an issue written as "Closes #<number>", with one keyword
+before each number. "Implements" does not close anything, and "Fixes" followed
+by two numbers closes only the first. See
+https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#link-issues-from-the-pull-request -->
+
+- Closes (each issue this completes):
+- Refs (related or partly completed issues, and what remains):
+- Reason no issue is needed, if none:
 - Agreed design or existing behavior this follows:
 - Other open PRs that overlap:
-- Work left for later:
+- Work left for later, and where it is tracked:
+- Needs a hands-on check after merge (`status:needs-playtest` added to the issue):
 - If draft, unfinished work or decision needed before marking ready:
 
 ## Checks

@@ -2,7 +2,7 @@
 title: Saving and recovery
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Saving and recovery
@@ -56,6 +56,13 @@ everything that is available in the current build. See [what works today](../wha
   library reads the latest save for each world rather than silently merging
   their creations.
 
+**Agreed development playtest policy:** computment does not require old
+playtest worlds to remain loadable as the New World flow and save format change;
+they expect to create fresh worlds to test new features. No migration code is
+written only to keep an alpha save loading. A save that cannot load is still
+refused with a reason and kept; this is not permission to delete or overwrite a
+save. Finished stable releases follow the migration rule above.
+
 ### Explicit deletion
 
 The owner may permanently remove one selected named save or autosave after a
@@ -76,12 +83,6 @@ behavior; disk-space warnings and the opt-in recovery-history budget; exactly
 when autosave occurs relative to model/conversation work; crash-recovery
 guarantees; and compatibility outside the preceding supported stable format
 or across changed mod requirements.
-
-**Agreed development playtest policy:** computment does not require old
-playtest worlds to remain loadable as the New World flow and save format change;
-they expect to create fresh worlds to test new features. This is not permission
-to delete or overwrite an active save and does not settle finished-release
-compatibility policy.
 
 ## Questions linking these systems
 

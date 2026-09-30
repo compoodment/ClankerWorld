@@ -37,6 +37,37 @@ internal static partial class OwnerEndpoints
             return Results.Ok(providers.CaptureStatus());
         });
 
+        // Lists the chat models a key can use so the owner can pick one. The
+        // key never leaves the host, and a pasted key is used without saving it.
+        app.MapPost("/api/v1/owner/providers/models", async (
+            OwnerSignedHttpRequest<OwnerProviderModelListAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderModelCatalog catalog,
+            CancellationToken cancellationToken) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A model-list action is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.ProviderModelListPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/providers/models", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            try
+            {
+                return Results.Ok(await catalog.ListAsync(request.Action, cancellationToken).ConfigureAwait(false));
+            }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+        });
+
         app.MapPost("/api/v1/owner/usage/status", (
             OwnerSignedHttpRequest<OwnerUsageStatusAction> request,
             OwnerRequestAuthorizer authorizer,

@@ -52,7 +52,11 @@ public sealed record UiPalette(
     Color Good,
     Color Bad,
     Color Partner,
-    Color Selection);
+    Color Selection,
+    Color MeterFullness,
+    Color MeterWarmth,
+    Color MeterDiet,
+    Color MeterIllness);
 
 /// <summary>Which palette the player chose in Settings.</summary>
 public enum UiThemeChoice
@@ -120,7 +124,11 @@ public static class UiTheme
         Good: new Color("386126"),
         Bad: new Color("A4331F"),
         Partner: new Color("B8457A"),
-        Selection: new Color(0.33f, 0.5f, 0.23f, 0.35f));
+        Selection: new Color(0.33f, 0.5f, 0.23f, 0.35f),
+        MeterFullness: new Color("B77C10"),
+        MeterWarmth: new Color("C8502A"),
+        MeterDiet: new Color("4A7033"),
+        MeterIllness: new Color("7A4A96"));
 
     public static readonly UiPalette Dark = new(
         Name: "dark",
@@ -171,7 +179,11 @@ public static class UiTheme
         Good: new Color("9CCB7A"),
         Bad: new Color("F0A08C"),
         Partner: new Color("E88AAE"),
-        Selection: new Color(0.55f, 0.73f, 0.42f, 0.35f));
+        Selection: new Color(0.55f, 0.73f, 0.42f, 0.35f),
+        MeterFullness: new Color("E8B04A"),
+        MeterWarmth: new Color("F08A5A"),
+        MeterDiet: new Color("8DBA6A"),
+        MeterIllness: new Color("C08AD8"));
 
     /// <summary>The palette currently applied to the window.</summary>
     public static UiPalette Current { get; private set; } = Light;
@@ -243,6 +255,9 @@ public static class UiTheme
         theme.SetStylebox("panel", "HudPanel", Frame(p, 16, 2, 2, contentMargin: 7));
         theme.SetTypeVariation("InsetPanel", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanel", Box(p.Inset, p.InsetEdge, 2, contentMargin: 8));
+        // An inset that opens something when clicked, under the pointer.
+        theme.SetTypeVariation("InsetPanelHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetPanelHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 8));
         theme.SetTypeVariation("TopBar", "PanelContainer");
         theme.SetStylebox("panel", "TopBar", TopBar(p));
         // A wax-seal count on a button's corner, and a small warning dot.

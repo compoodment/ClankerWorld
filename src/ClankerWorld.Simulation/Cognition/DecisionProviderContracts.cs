@@ -1,6 +1,7 @@
 using System.Net;
 using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -687,6 +688,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
 /// </summary>
 public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 {
+    private const string CommonNameInitials = "ABCDEFGHJKLMNPRSTVW";
     private readonly HttpClient httpClient;
     private readonly Func<string?> apiKeyAccessor;
     private readonly Uri endpoint;
@@ -756,6 +758,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
+                        (request.Observation.NeedsName
+                            ? $"When naming this agent, prefer a given name starting with {NameInitial(request.Observation.InhabitantId)}; use a natural full name. "
+                            : string.Empty) +
                         "Retrieved memories belong only to this actor. They are remembered experiences or private beliefs, " +
                         "not authoritative current facts; preserve any provenance and confidence exactly as labels, and do not " +
                         "assume another actor knows this information. Confidence values are basis points out of 10000; " +
@@ -910,6 +915,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
     }
+
+    private static char NameInitial(string agentId) =>
+        CommonNameInitials[SHA256.HashData(Encoding.UTF8.GetBytes(agentId))[0] % CommonNameInitials.Length];
 
     private static CognitionUsage? TryParseUsage(JsonElement root, string? modelId)
     {

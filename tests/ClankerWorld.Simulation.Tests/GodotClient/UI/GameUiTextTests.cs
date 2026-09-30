@@ -21,6 +21,8 @@ public sealed class GameUiTextTests
     [InlineData("council_policy_adopted", true)]
     [InlineData("settlement_trade_completed", true)]
     [InlineData("paused", true)]
+    [InlineData("instruction_not_understood", true)]
+    [InlineData("instruction_applied", false)]
     public void EventLogSelectsKnownPlayerEventsInsteadOfPublishingUnknownDiagnostics(string kind, bool visible)
     {
         Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));

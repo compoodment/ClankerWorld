@@ -99,8 +99,8 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 
 These checks cover the required pages, front matter, local links and linked
 headings. The documentation test reads each page with both LF and CRLF line
-endings, and CI also runs it on a Windows checkout. That job is separate from a Windows game playtest and from the native
-provider-storage checks.
+endings, and CI also runs it on a Windows checkout. That job is separate from a
+Windows game playtest and from the native provider-storage checks.
 
 ## Windows paired-world verification record
 
@@ -124,7 +124,7 @@ presentation evidence when the deployed server predates the client.
 | Hosted decisions and accounting | After the separately authorized meter migration, explicitly resume with an authenticated client. Confirm each configured founder can receive an accepted model choice and a new private thought; note waiting, limit or provider errors without claiming every idle action is a failure. Pause afterward. Reconcile the known phantom reservations separately; do not count them as paid calls or erase them as part of this UI check. |
 | Fresh Town, no legacy camp | Create a disposable fresh world, inspect before site choice, accept a Town site and inspect again. No legacy camp objects or camp-derived border should appear; exactly the accepted generated layout should remain. |
 | Stable Town and agent text | Pause, open World Info's Towns page (T), wait across several refreshes, switch agents and reselect the first. Contents, relationships and existing thought/memory text stay visible; an unchanged refresh must not clear them. |
-| Agent card at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible and Speak/Send controls are reachable by scrolling, without controls extending off-screen. |
+| Agent card and Profile at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible; Suggest, Order, Profile and Send stay reachable, with scrolling where needed and no controls extending off-screen. |
 | Status lifetime | Enter Town-site and founder-move modes and wait through refreshes. Instructions remain while the mode is active; submit a refused request and confirm its explanation remains readable without a false disconnect. |
 | Initial camera | Open a new unset world and a saved Town near a wrapping seam. The initial view shows relevant dry land/Town/agents, not an arbitrary open-sea center or the wrong side of a seam. |
 | Tile card and short labels | Select ground near the bottom edge; inspect at several zooms. The complete card fits, absent facts are omitted, and tiny marker labels disappear rather than render fragments. |

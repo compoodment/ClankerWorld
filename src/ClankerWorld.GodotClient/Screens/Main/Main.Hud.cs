@@ -301,6 +301,7 @@ public partial class Main
             weatherIcon.Texture = PixelIcons.Weather(WeatherAtCamera(renderedMapSnapshot), scale);
         }
         RefreshMenuIcons();
+        RefreshAgentCardIcons();
     }
 
     /// <summary>Pause control, agent count and warning, climate and the unread count.</summary>

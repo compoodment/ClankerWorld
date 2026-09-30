@@ -44,9 +44,12 @@ that version mismatch. You can still reconnect to the existing world.
    the game places two Houses, a Warehouse, Farmhouse, Blacksmith and Roads.
    You can choose another site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
-   model and key. A saved key can be reused, or you can add another for the same
-   provider. The agents start in two households, not two forced couples or
-   biological families.
+   key and model. A saved key can be reused, or you can add another for the same
+   provider. Then pick the model from the game's short list for that
+   provider, newest at the top. Models your key can't use are greyed out; if
+   it can't use the model shown, the picker asks you to choose another.
+   **Type a model name…** covers any other model. The agents start in two
+   households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
    undone; incomplete setup can be saved and resumed later.
@@ -61,13 +64,19 @@ Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview
 click it or drag its view rectangle to move the camera. **Filters** controls the
 saved Town border and household-owned building overlays.
 
-Click an agent to inspect their needs, activity, belongings, relationships,
-thoughts and memories. **Find** centers the camera on them. You can rename them,
-change their model settings or open their family tree. Inspection does not
-pause time, and reading private thoughts does not tell other agents.
+Click an agent to open a small card beside them: what they are doing and bars
+for fullness, warmth and illness. **Profile** opens everything else on the left
+of the screen: diet, belongings, work, private thoughts, relationships and the
+Memories, Family and Model buttons. Click their thoughts, or **Read all**, to
+read every recent thought in a larger panel beside the Profile. The pencil
+beside their name renames them, and **Speak** goes straight to the message box,
+where you choose **Suggest** or **Order**. The crosshair centers the camera on
+them, and back (or **Escape**) returns from the Profile to the small card.
+Inspection does not pause time, and reading private thoughts does not tell
+other agents.
 
-**Speak to them** sends a **Suggestion** or a **Direct order**. Their model does
-not read your words yet. A direct order works only when it asks them to gather
+**Suggest** opens a **Suggestion** and **Order** opens a **Direct order**. Their
+model does not read your words yet. A direct order works only when it asks them to gather
 or harvest food, eat, or go somewhere, and "go" currently means walking toward
 food. [What works today](what-works.md#agents-and-their-models) has the details.
 
@@ -88,6 +97,7 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Game Settings controls the display, interface scale, theme, weather effects and
 date/time format. World Settings contains that world's autosaves, Jev and the
 current model-usage controls. Main Menu Settings exposes Game Settings only.
+Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the

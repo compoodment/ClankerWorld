@@ -45,7 +45,8 @@ everything that is available in the current build. See [what works today](../wha
   This increases storage, not its unlimited occupant count. A Warehouse starts
   at **2×2** and can expand to **2×3** for more storage. A Store may be **1×1**
   or **1×2**, likewise tied to storage. Exact capacity per footprint, costs,
-  expansion triggers and other building footprints belong in the full content
+  expansion triggers other than the agreed Warehouse rule (any Town resident may
+  plan its expansion once its stock is nearly full), and other building footprints belong in the full content
   catalogue; do not invent those values yet.
 - Non-residential buildings have distinct physical occupancy, workstation,
   storage, and other type-specific limits. Agents can reserve space when
@@ -66,7 +67,7 @@ everything that is available in the current build. See [what works today](../wha
   every agent-created law into an unbreakable physical rule. Agents request a
   building; Town planning ranks legal sites; agents accept or reject rather
   than choosing tiles.
-- **Housing priority for a newly added adult (decided):** when the adult has no
+- **Housing priority for a newly added adult:** when the adult has no
   home, seek suitable existing household housing first; start a new House
   project only if none is suitable. Moving into another household's House
   after setup needs that household's agreement, while placing an agent with Add
@@ -115,7 +116,8 @@ everything that is available in the current build. See [what works today](../wha
   fiber into cloth and cloth into clothing, and cloth is a real item that can be
   held and traded. The Weaving frame and its "Woven clothing" are removed
   outright as soon as the Tailor Shop works, with no legacy transition; old
-  alpha saves are not kept (see [Saves](saves.md)). **Leaning toward:** the
+  alpha saves need not keep loading, and no migration code is written for them
+  (see [Saves](saves.md)). **Leaning toward:** the
   recipe numbers, costs and work time are provisional and will be tuned in
   playtests; this chapter does not fix them. The holding household sells clothing
   directly from the building, as the Blacksmith does, and does not need a Store.
@@ -319,7 +321,7 @@ economics; and later livestock/wildlife detail.
   the act for discovery, dispute, and consequences. The game should not simply
   refuse every illegal action, because crime and enforcement belong to the
   simulation.
-- The the game rules still protects fixed world facts and action
+- The game rules still protect fixed world facts and action
   rules: agents cannot create goods, erase physical constraints, or silently
   rewrite formal ownership by declaring a new law. Unlawful use or occupation
   can be represented as an action/dispute without automatically changing the
@@ -363,7 +365,8 @@ These remain open; they are not new decisions.
 - **Starter economy and tool bootstrap.** The first Town guarantees two
    Houses, a Warehouse, Farmhouse and Blacksmith. Each House starts with eight
    food portions; the communal Warehouse holds at least one usable wooden axe
-   and one usable wooden pickaxe. The Farmhouse and Blacksmith are assigned
+   and one usable wooden pickaxe, and each starting agent has one garment kept
+   in their House. The Farmhouse and Blacksmith are assigned
    automatically to the two starting households, one each, without player
    selection. Decide optional extra starter supplies and how first-tier tools
    are made when the Blacksmith is unavailable.
@@ -394,4 +397,4 @@ These remain open; they are not new decisions.
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
     choices raise storage, not House occupancy. The other chosen building
     footprints are in the accepted roster above. Decide capacities, costs,
-    expansion triggers, Market reservation behavior and Port clearance details.
+    other expansion triggers, Market reservation behavior and Port clearance details.
