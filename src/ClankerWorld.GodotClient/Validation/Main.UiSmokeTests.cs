@@ -1052,6 +1052,12 @@ public partial class Main
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
             placingAddedAgent = true;
             founderSetupPanel.Show();
+            ResetAddAgentPlacementHint();
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
+                founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
+            var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
             if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Add Agent must preview recorded household property without inferring Town membership.");
@@ -1061,6 +1067,21 @@ public partial class Main
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (placementFields.Where((field, index) => field.GetGlobalRect() != placementFieldRects[index]).Any())
+                throw new InvalidOperationException("Add Agent fields must stay in place when the introductory hint changes to a placement preview.");
+            var placementPreview = founderSetupHint.Text;
+            UpdateTileHover(mapCanvas.GetGlobalTransform().AffineInverse() *
+                (founderSetupPanel.GetGlobalRect().Position + founderSetupPanel.GetGlobalRect().Size / 2));
+            if (founderSetupHint.Text != placementPreview)
+                throw new InvalidOperationException("A pointer inside Add Agent must keep the last visible placement preview.");
+            founderModelPicker.Choice.GetPopup().Popup();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            if (founderSetupHint.Text != placementPreview)
+                throw new InvalidOperationException("An open model popup must not preview the map behind it.");
+            founderModelPicker.Choice.GetPopup().Hide();
             founderSetupPanel.Hide();
             placingAddedAgent = false;
             householdPropertyFilter.ButtonPressed = false;

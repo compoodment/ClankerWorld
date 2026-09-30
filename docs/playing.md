@@ -86,7 +86,9 @@ when they overlap the pointer. **World Info** includes Towns and their residents
 moves the camera there. Opening the log marks its new entries read.
 
 **Add Agent** configures and places another adult after starting. Placement
-shows the Town and household-owned buildings. Starting membership follows the
+shows the Town and household-owned buildings. Choose the model and key, then
+point at land to see the Town and household preview below those fields.
+Starting membership follows the
 place you choose; it does not make the adult biologically related to anyone.
 
 ## Pause, settings and controls
