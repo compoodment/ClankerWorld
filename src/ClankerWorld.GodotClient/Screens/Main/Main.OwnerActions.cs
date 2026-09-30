@@ -24,7 +24,7 @@ public partial class Main
             return receipt.Changed
                 ? paused ? "World paused" : "World resumed"
                 : $"The world was already {(paused ? "paused" : "running")}";
-        });
+        }, waitForTurn: true);
         return accepted;
     }
 

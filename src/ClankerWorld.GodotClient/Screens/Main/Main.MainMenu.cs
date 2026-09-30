@@ -10,6 +10,15 @@ public partial class Main
     private readonly Control mainMenuOverlay = new();
     private readonly ColorRect mainMenuBackground = new();
     private readonly MenuBackdrop mainMenuBackdrop = new();
+    private readonly VBoxContainer mainMenuStack = new() { Alignment = BoxContainer.AlignmentMode.Center };
+    private readonly TextureRect mainMenuLogo = new()
+    {
+        ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+        StretchMode = TextureRect.StretchModeEnum.Scale,
+        TextureFilter = TextureFilterEnum.Nearest,
+        SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
+        MouseFilter = MouseFilterEnum.Ignore,
+    };
     private readonly CenterContainer mainMenuCenter = new();
     private readonly PanelContainer mainMenuCard = new();
     private readonly Label mainMenuStatus = new();
@@ -71,20 +80,18 @@ public partial class Main
 
         mainMenuCenter.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         mainMenuOverlay.AddChild(mainMenuCenter);
-        mainMenuCenter.AddChild(mainMenuCard);
+        // The logo floats over the valley above a card that holds only the menu.
+        mainMenuStack.AddThemeConstantOverride("separation", 18);
+        mainMenuCenter.AddChild(mainMenuStack);
+        mainMenuLogo.Texture = ImageTexture.CreateFromImage(MenuLogo.Create());
+        mainMenuStack.AddChild(mainMenuLogo);
+        mainMenuCard.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+        mainMenuStack.AddChild(mainMenuCard);
+        mainMenuOverlay.Resized += FitMainMenuLogo;
+        FitMainMenuLogo();
 
         var body = new VBoxContainer { CustomMinimumSize = new Vector2(400, 0) };
         body.AddThemeConstantOverride("separation", 12);
-        var title = new Label { Text = "CLANKERWORLD", HorizontalAlignment = HorizontalAlignment.Center };
-        title.AddThemeFontSizeOverride("font_size", 35);
-        title.ThemeTypeVariation = "HeadingLabel";
-        body.AddChild(title);
-        body.AddChild(new Label
-        {
-            Text = "A world shaped by the people who live in it",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            ThemeTypeVariation = "SoftLabel",
-        });
 
         mainMenuStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         mainMenuStatus.HorizontalAlignment = HorizontalAlignment.Center;
@@ -101,7 +108,6 @@ public partial class Main
         body.AddChild(mainMenuNewButton);
 
         mainMenuLoadButton.Text = "Load World";
-        mainMenuLoadButton.TooltipText = "Choose a world to play. Named saves are in each world's Pause Menu.";
         StyleButton(mainMenuLoadButton);
         mainMenuLoadButton.Pressed += () => OpenWorldMenu(create: false);
         body.AddChild(mainMenuLoadButton);
@@ -139,6 +145,7 @@ public partial class Main
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
         mainMenuCenter.MouseFilter = MouseFilterEnum.Pass;
         mainMenuCard.Show();
+        mainMenuLogo.Show();
         menuShade.ZIndex = 90;
         gameMenuPanel.ZIndex = 100;
         mainMenuOverlay.Show();
@@ -152,9 +159,23 @@ public partial class Main
         mainMenuNewButton.Disabled = !paired;
         mainMenuLoadButton.Disabled = !paired;
         mainMenuConnectButton.Visible = !paired;
-        mainMenuStatus.Text = paired
-            ? "Continue your current world, create another, or load a different world."
-            : "Connect this device to your world first. You do not need a model key to open the game.";
+        SetMainMenuStatus(paired ? null : "Connect this device to your world to play.");
+    }
+
+    /// <summary>The Main Menu only shows a line when something needs the player's attention.</summary>
+    private void SetMainMenuStatus(string? text)
+    {
+        mainMenuStatus.Text = text ?? string.Empty;
+        mainMenuStatus.Visible = !string.IsNullOrEmpty(text);
+    }
+
+    /// <summary>Whole-number scale so the logo's pixels match the valley's and stay crisp.</summary>
+    private void FitMainMenuLogo()
+    {
+        var area = mainMenuOverlay.Size;
+        if (area.X <= 0 || area.Y <= 0) area = GetViewportRect().Size;
+        var scale = Math.Clamp((int)Math.Min(area.X * 0.62f / MenuLogo.Width, area.Y * 0.24f / MenuLogo.Height), 1, 8);
+        mainMenuLogo.CustomMinimumSize = new Vector2(MenuLogo.Width, MenuLogo.Height) * scale;
     }
 
     private async Task EnterWorldAsync()
@@ -166,7 +187,7 @@ public partial class Main
         if (successfulRefreshCount == previousRefreshCount)
         {
             RefreshMainMenuAvailability();
-            mainMenuStatus.Text = "Could not reach your world. Check your connection and try Continue again.";
+            SetMainMenuStatus("Could not reach your world. Check your connection and try Continue again.");
             return;
         }
 
@@ -186,6 +207,7 @@ public partial class Main
         returnToMainMenu = true;
         mainMenuOverlay.Show();
         mainMenuCard.Hide();
+        mainMenuLogo.Hide();
         // Keep the title backdrop visible, but let the Settings panel behind
         // this later-added overlay receive pointer input.
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Ignore;
@@ -211,19 +233,31 @@ public partial class Main
             await StartPairingAsync();
     }
 
-    private void QuitToMainMenu()
+    private bool isQuittingToMenu;
+
+    private async void QuitToMainMenu()
     {
-        // Opening the pause menu already committed a pause on the host. Stop
-        // owner polling while the title screen is open, so no model work runs.
-        if (observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused != true &&
-            !menuPauseConfirmed)
+        if (isQuittingToMenu) return;
+        isQuittingToMenu = true;
+        try
         {
-            SetStatus("Wait a moment for the world to pause before leaving.", good: false);
-            return;
+            // Require a confirmed pause before stopping owner polling on the title screen.
+            if (!menuPauseConfirmed)
+            {
+                menuPauseConfirmed = await SetPausedAsync(paused: true);
+                if (!menuPauseConfirmed)
+                {
+                    SetStatus("Could not confirm the pause. Try Quit to Menu again when the host is reachable.", good: false);
+                    return;
+                }
+                // The owner may have closed the menu while this request waited.
+                if (!gameMenuPanel.Visible) return;
+            }
+            resumeWorldOnContinue = menuPausedWorld;
+            CloseGameMenu();
+            ShowMainMenu();
         }
-        resumeWorldOnContinue = menuPausedWorld;
-        CloseGameMenu();
-        ShowMainMenu();
+        finally { isQuittingToMenu = false; }
     }
 
     private void SetWorldMenuActionsVisible(bool visible)

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Saves and replay
@@ -27,12 +27,21 @@ the server starts hosted services or accepts requests.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
 
+Manual load shares the world-mutation lock with world selection. Its pause/world
+checks, checkpoint restore, routing/autosave restore and rollback finish before
+selection can archive the active world. This serializes concurrent operations; it
+does not add a cross-file crash journal.
+
 Founder placement restores the prior in-memory world and provider configuration
 if its checkpoint commit fails. World selection and founder/add-agent setup
 share a transaction lock while restoring checkpoint and model routing. This
 handles ordinary operation failures; process termination between separate
 files and a second failure during rollback still require operator recovery.
 It does not make every owner endpoint a multi-file transaction.
+
+Start World persists its completed setup while time is still paused, then resumes.
+A failed checkpoint write restores the paused pre-start setup so a fresh signed
+retry can succeed after storage recovers.
 
 Windows provider configuration uses current-user DPAPI. Validated legacy JSON
 migrates atomically to the protected envelope; damaged or wrong-user data is
@@ -56,9 +65,14 @@ that recorded events reproduce its expected results and digests.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
-Signed pause and rename retries persist the requested state before reporting
+Signed pause, resume and rename retries persist the requested state before reporting
 success, including when the in-memory value already matches after a failed
-write. Storage failure remains an error; recovery does not resume time.
+write. Storage failure remains an error. A paused world's Resume stages the
+running checkpoint under the runtime gate, saves it, and only then commits the
+running state in memory. A failed write leaves the original pause, epoch and
+events untouched; a fresh signed retry can recover without relying on a later
+tick. Resume still requires a started world and valid usage allowance. Other
+recovery paths do not resume time implicitly.
 
 Before a potentially committed create/select/rewind request, the client clears
 its held observation timeline. If the receipt is lost, reconnect starts from a
@@ -172,3 +186,20 @@ history, old calendars and rejected restores as relevant to the change. Record
 real Windows/server verification separately from fixture and CI results.
 The full check commands are in [build and test](build-and-test.md).
 Long-term save support and retention remain [design questions](../game-design/saves.md#still-to-decide).
+
+## Regional weather episodes
+
+The prototype adds optional `RegionalWeather` data to world systems: topology,
+local climate, condition, start/end ticks and each region's earliest next storm.
+Absent data stays absent on load, preserving visible daily weather. The first resumed tick imports that weather; a current
+storm retains its original daily start so migration cannot extend its duration.
+Ordinary imported conditions reserve a conservative half-day storm-free window.
+New worlds start with episode data. Saved episodes resume without rerolling;
+all transitions use the same prior neighbor snapshot.
+
+Episode version and bounds are validated, including topology against the saved
+map. Private saves now use schema 26; episode-bearing world systems use schema 2.
+World-systems schema 1 remains readable, with the absent field omitted when null.
+Older binaries reject the newer schema instead of silently dropping episodes.
+The new code reads old saves; keep backups before testing.
+This prototype changes future weather/events, not past recorded history.

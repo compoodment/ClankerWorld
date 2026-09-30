@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 25;
+    public const int StateSchemaVersion = 26;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string SecondHouseholdId = "household:camp-beta";
@@ -278,9 +278,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.council = state.Council;
         runtime.worldSystems = state.WorldSystems is null
             ? AdvanceWorldSystemsTo(
-                CreateWorldSystems(state.WorldSeed, state.Map),
+                CreateWorldSystems(state.WorldSeed, state.Map, regionalWeather: false),
                 state.Society.Society.WorldTick)
             : state.WorldSystems;
+        RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)
         {
@@ -349,12 +350,28 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         tickGate.Dispose();
     }
 
-    public void PersistCheckpoint(Func<PrivateWorldRuntimeState, PrivateWorldRuntimeState> persist)
+    public void PersistCheckpoint(Func<PrivateWorldRuntimeState, PrivateWorldRuntimeState> persist, bool resumeOnSuccess = false)
     {
         ArgumentNullException.ThrowIfNull(persist);
         gate.Wait();
         try
         {
+            if (resumeOnSuccess && society.Checkpoint.IsPaused)
+            {
+                // Keep the live world paused throughout the write. A failed write
+                // discards this proposal, including its resume event and epoch.
+                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle,
+                    minimumCognitionConfidence, trustedPreparedState: true);
+                proposed.Resume();
+                var persisted = persist(proposed.CaptureState());
+                if (persisted.HistoryArchiveHead != proposed.historyArchiveHead)
+                {
+                    using var compacted = Restore(persisted, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    CommitPreparedTick(compacted);
+                }
+                else CommitPreparedTick(proposed);
+                return;
+            }
             var saved = persist(CaptureState());
             if (saved.HistoryArchiveHead != historyArchiveHead)
             {

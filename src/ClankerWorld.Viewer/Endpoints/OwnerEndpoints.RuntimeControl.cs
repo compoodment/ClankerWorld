@@ -153,12 +153,10 @@ internal static partial class OwnerEndpoints
                     return Results.Conflict(new { message = "The paid-call limit is reached. Grant more calls or turn off the limit in World Settings before resuming." });
                 var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
                 var wasPaused = privateRuntime.Society.IsPaused;
-                privateRuntime.Resume();
+                // Persist every acknowledgement, including an already-running
+                // retry. A paused live world resumes only after the write succeeds.
+                privateStateFile.Save(privateRuntime, resumeOnSuccess: true);
                 var changed = wasPaused && !privateRuntime.Society.IsPaused;
-                if (changed)
-                {
-                    privateStateFile.Save(privateRuntime);
-                }
 
                 return Results.Ok(OwnerControlReceipt.From("resume", changed, privateRuntime.ExportState()));
             }

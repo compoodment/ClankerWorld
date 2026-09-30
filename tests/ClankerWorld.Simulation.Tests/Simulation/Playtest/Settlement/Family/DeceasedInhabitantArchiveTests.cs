@@ -41,6 +41,7 @@ public sealed class DeceasedInhabitantArchiveTests
             Society = state.Society with { Society = society },
             WorldSystems = state.WorldSystems! with
             {
+                RegionalWeather = null,
                 Config = state.WorldSystems!.Config with
                 {
                     TicksPerDay = 1,

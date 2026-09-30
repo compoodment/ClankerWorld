@@ -322,8 +322,19 @@ internal static partial class OwnerEndpoints
                             : !providerStatus.Providers.Any(option => option.Provider == item.Provider && option.HasCredential)))
                         return Results.Conflict(new { message = "Every founder needs one configured personal model and credential." });
                 }
-                runtime.StartWorld();
-                services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+                var beforeStart = runtime.ExportState();
+                try
+                {
+                    // Do not permit background advancement before the start is durable.
+                    runtime.StartWorld(resume: false);
+                    services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+                }
+                catch
+                {
+                    runtime.SwitchPausedWorld(beforeStart);
+                    throw;
+                }
+                runtime.Resume();
                 var town = runtime.Towns.Single(item => item.Id == TownBorderRules.FirstTownId);
                 TownTelemetry.Transition(loggerFactory.CreateLogger("ClankerWorld.Town"), runtime.WorldTick,
                     town.Id, TownTransitionKind.Founded, town.ResidentIds.Count,

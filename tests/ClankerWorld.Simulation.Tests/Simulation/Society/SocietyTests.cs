@@ -271,6 +271,40 @@ public sealed class SocietyTests
     }
 
     [Fact]
+    public void PreviouslyOfferedButNowIllegalDeferredChoiceRemainsQueuedWithoutFallback()
+    {
+        var scheduler = new SocietyCognitionScheduler(
+            [SocietyFixture.CreateFounder("alice", "Alice", config: TestConfig())],
+            _ => new PreviewOnlyHostedProvider());
+        var entry = Entry("a", "alice", 1, 0);
+        entry = entry with
+        {
+            Observation = entry.Observation with
+            {
+                Candidates =
+            [new CognitionCandidate("safe_idle", "Wait safely.", 0), new CognitionCandidate("seek_food", "Seek food.", 1)]
+            }
+        };
+        Assert.True(scheduler.Enqueue(entry));
+        var request = Assert.Single(scheduler.PreviewHostedRequests(new HashSet<string>())).Request;
+        var response = new CognitionDecisionResponse(request.RequestId, "alice", DecisionProviderKind.LargeLanguageModel,
+            request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
+            request.Observation.ObservationDigest, "seek_food", 1,
+            new Dictionary<string, double> { ["seek_food"] = 1 });
+        Assert.Null(scheduler.CompleteDeferred(request, response, null, 0, new HashSet<string> { "safe_idle" }));
+        Assert.Single(scheduler.ExportState().Queue);
+        Assert.Null(scheduler.CaptureRuntime("alice").CurrentIntention);
+    }
+
+    private sealed class PreviewOnlyHostedProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException("Preview only.");
+    }
+
+    [Fact]
     public async Task CancellationLeavesSelectedAndUnprocessedCognitionEntriesQueued()
     {
         var config = TestConfig();

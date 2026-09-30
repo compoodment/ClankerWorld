@@ -341,12 +341,13 @@ public sealed partial class PrivateWorldRuntime
             society.AdvanceTo(targetTick);
             if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
             var previousClimate = worldSystems.Climate;
+            var campPosition = WeatherAnchor;
+            var previousCampWeather = WeatherAt(campPosition);
+            // Old saves retain their exact active daily weather until the first
+            // resumed tick imports it into an episode. Loading alone changes nothing.
+            worldSystems = RegionalWeatherRules.Initialize(worldSystems, map);
             worldSystems = WorldSystemsRules.AdvanceOneTick(worldSystems);
             SyncEcologyResourceStates();
-            var campPosition = WeatherAnchor;
-            var previousCampWeather = WeatherRules.At(worldSystems with
-            { WorldTick = previousClimate.WorldTick, Climate = previousClimate },
-                campPosition, map.Height, WeatherRules.RegionClimate(map, campPosition));
             var campWeather = WeatherAt(campPosition);
             if (previousClimate.Season != worldSystems.Climate.Season || previousCampWeather != campWeather)
             {

@@ -18,6 +18,7 @@ public partial class Main : Control
     private const int RefreshSeconds = 1;
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
+    private const string AppIconPath = "res://icon.ico";
     private const string UiScaleBaseFontSizeMetaPrefix = "clanker_ui_scale_base_font_size_";
     private static readonly string[] UiScaleFontSizeThemeItems = ["font_size"];
     private static readonly string[] UiScaleRichTextFontSizeThemeItems =
@@ -199,7 +200,17 @@ public partial class Main : Control
     private readonly VBoxContainer developerBody = new();
 
     private OwnerDeviceKey? deviceKey;
-    private OwnerDeviceRegistration? registration;
+    private OwnerDeviceRegistration? registration
+    {
+        get => observationSession.Registration;
+        set
+        {
+            // Applies to load, forget, ordinary activation and recovered activation.
+            refreshCancellation?.Cancel();
+            observationSession.ReplaceRegistration(value);
+            knownEvents.Clear();
+        }
+    }
     private OwnerPairingStart? pendingPairing;
     private Uri? pendingPairingOrigin;
     private OwnerDevice[] pairedDevices = [];
@@ -240,8 +251,18 @@ public partial class Main : Control
 
     public override void _Ready()
     {
+        // Developer command: rewrite the Windows program icon from the logo art.
+        if (OS.HasFeature("editor") && OS.GetCmdlineUserArgs().Contains("--write-app-icon", StringComparer.Ordinal))
+        {
+            File.WriteAllBytes(ProjectSettings.GlobalizePath(AppIconPath), MenuLogo.IconFile());
+            GetTree().Quit();
+            return;
+        }
         displayPreferences = displayPreferencesStore.Load();
         ApplySavedDisplaySettings();
+        // The logo's robot and planet are the window and taskbar icon.
+        if (DisplayServer.GetName() != "headless")
+            DisplayServer.SetIcon(MenuLogo.Icon(64));
         // Pixel frames, buttons and icons stay crisp when the picture is scaled.
         TextureFilter = TextureFilterEnum.Nearest;
         UiTheme.Apply(GetTree().Root, UiTheme.Resolve(UiTheme.Parse(displayPreferences.Theme)));

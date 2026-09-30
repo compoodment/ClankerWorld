@@ -344,6 +344,13 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
         where TResponse : class
     {
+        // ResponseHeadersRead ends HttpClient's timeout at the headers. Keep
+        // a deadline alive across both JSON bodies and the complete signed flow.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var maximum = TimeSpan.FromSeconds(15);
+        deadline.CancelAfter(httpClient.Timeout == Timeout.InfiniteTimeSpan || httpClient.Timeout > maximum
+            ? maximum : httpClient.Timeout);
+        cancellationToken = deadline.Token;
         var challenge = await IssueChallengeAsync(
             serverBaseUri,
             authority,

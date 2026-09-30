@@ -92,7 +92,12 @@ carried inventory and current activity are not all provided by this slice.
 
 The response must select a legal candidate. Confidence below 0.5 permits only
 the safe-idle fallback; probabilities are validated/retained but do not select
-the action. No adapter can turn provider prose directly into a world mutation.
+the action. A current reply that names a candidate never offered to it, or has
+invalid response values such as confidence outside 0–1, also completes with
+safe idle instead of repeatedly spending calls on the same decision. A choice
+that was offered but is no longer legal stays stale; request, provider and run
+identity checks still reject late replies without applying fallback.
+No adapter can turn provider prose directly into a world mutation.
 Jev has a separate, smaller routine payload; it is not a persona/dialogue adapter.
 
 Each agent retains up to eight private thoughts and exposes up to sixteen recent
@@ -160,11 +165,22 @@ unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
 
-Weather is deterministic by 32×32 region and world day using the saved climate
-at the region center. Local survival, travel and crop work use local conditions.
-Crop soil moisture is a modest derived estimate from the last three local days;
-there is no saved mutable moisture grid. Visual drifting edges are not moving
-weather fronts. The original fixture retains its saved reference weather.
+The regional-weather prototype saves an episode for each 32×32 region. Ordinary
+episodes last one-quarter to one saved day; storms last at most three-quarters
+of a day and allow no new storm for at least half a day afterward. Small fixture
+calendars round durations to whole ticks. Conditions use the region-center
+climate, previous condition, seed and a shared pre-transition neighbor snapshot.
+No model call or camera state participates; drifting visuals are not fronts.
+
+Weights are provisional for [the episode experiment](https://github.com/compoodment/ClankerWorld/issues/375),
+not approved rain balance. Wet neighbors add at most four rain-weight points;
+a reduction to base precipitation weights offsets that bonus. The fixed-seed
+comparison is recorded in [the prototype report](weather-episode-prototype.md).
+Local survival and crop exposure use the active episode. Soil moisture retains
+the older three-day daily-weather estimate in this first experiment; it is not
+a saved moisture grid or an episode-integrated rainfall model. Existing saves
+keep their active weather when loaded; the first resumed tick imports it into
+an episode. See [save handling](saves-and-replay.md#regional-weather-episodes).
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
@@ -194,6 +210,12 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+
+For workstation recipes, site selection checks the actor’s current walking route as well as
+ownership and unused production capacity. An occupied or inaccessible workstation
+does not hide another reachable one. Movement’s existing diagonal and household
+access rules still apply. If no site is reachable, an existing project uses its
+blocked/reconsideration path rather than travelling toward an unreachable tile.
 
 Recipe preparation and production must use the same actor/building owner.
 Household workstation inputs must be present at the actual building; stock

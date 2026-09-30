@@ -176,67 +176,70 @@ internal static partial class OwnerEndpoints
             var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/load", payload);
             if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
             if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
-            if (!runtime.Society.IsPaused)
+            lock (providers.WorldMutationGate)
             {
-                ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
-                return Results.Conflict(new { error = "Pause the world before loading." });
-            }
-            try
-            {
-                var committed = saves.ReadCommitted(action.Value);
-                var checkpoint = committed.Checkpoint;
-                stateFile.VerifyRequiredHistory(checkpoint);
-                var assignments = committed.Assignments;
-                var autosaveSettings = committed.AutosaveSettings;
-                if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+                if (!runtime.Society.IsPaused)
                 {
-                    ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
-                    return Results.Conflict(new { error = "This save belongs to a different world." });
+                    ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
+                    return Results.Conflict(new { error = "Pause the world before loading." });
                 }
-                // A rewind must never destroy the current timeline. The backup is a
-                // normal named checkpoint, visible in Load Saves immediately.
-                var backup = saves.Create("Before loading", runtime,
-                    providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
                 try
                 {
-                    runtime.LoadPausedCheckpoint(checkpoint);
-                    stateFile.Save(runtime);
-                    providers.RestoreWorldAssignments(assignments);
-                    if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
-                    jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                    var committed = saves.ReadCommitted(action.Value);
+                    var checkpoint = committed.Checkpoint;
+                    stateFile.VerifyRequiredHistory(checkpoint);
+                    var assignments = committed.Assignments;
+                    var autosaveSettings = committed.AutosaveSettings;
+                    if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+                    {
+                        ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
+                        return Results.Conflict(new { error = "This save belongs to a different world." });
+                    }
+                    // A rewind must never destroy the current timeline. The backup is a
+                    // normal named checkpoint, visible in Load Saves immediately.
+                    var backup = saves.Create("Before loading", runtime,
+                        providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+                    try
+                    {
+                        runtime.LoadPausedCheckpoint(checkpoint);
+                        stateFile.Save(runtime);
+                        providers.RestoreWorldAssignments(assignments);
+                        if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                    }
+                    catch
+                    {
+                        runtime.LoadPausedCheckpoint(saves.Read(backup.Id));
+                        stateFile.Save(runtime);
+                        providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
+                        if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
+                            autosave.RestoreFromCheckpoint(previousAutosave);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        throw;
+                    }
+                    ManualWorldSaveTelemetry.Loaded(logger, action.Value, backup.Id, runtime.WorldTick);
+                    return Results.Ok(new { loadedId = action.Value, backupId = backup.Id, worldTick = runtime.WorldTick });
                 }
-                catch
+                catch (FileNotFoundException)
                 {
-                    runtime.LoadPausedCheckpoint(saves.Read(backup.Id));
-                    stateFile.Save(runtime);
-                    providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
-                    if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
-                        autosave.RestoreFromCheckpoint(previousAutosave);
-                    jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
-                    throw;
+                    ManualWorldSaveTelemetry.Rejected(logger, "load", "missing");
+                    return Results.NotFound(new { error = "The manual save no longer exists." });
                 }
-                ManualWorldSaveTelemetry.Loaded(logger, action.Value, backup.Id, runtime.WorldTick);
-                return Results.Ok(new { loadedId = action.Value, backupId = backup.Id, worldTick = runtime.WorldTick });
-            }
-            catch (FileNotFoundException)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "load", "missing");
-                return Results.NotFound(new { error = "The manual save no longer exists." });
-            }
-            catch (ArgumentException)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_id");
-                return Results.BadRequest(new { error = "Invalid save ID." });
-            }
-            catch (InvalidDataException)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_checkpoint_or_credential");
-                return Results.Conflict(new { error = "The save is invalid or its credential slot is unavailable." });
-            }
-            catch (InvalidOperationException)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
-                return Results.Conflict(new { error = "Pause the world before loading." });
+                catch (ArgumentException)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_id");
+                    return Results.BadRequest(new { error = "Invalid save ID." });
+                }
+                catch (InvalidDataException)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_checkpoint_or_credential");
+                    return Results.Conflict(new { error = "The save is invalid or its credential slot is unavailable." });
+                }
+                catch (InvalidOperationException)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
+                    return Results.Conflict(new { error = "Pause the world before loading." });
+                }
             }
         });
     }

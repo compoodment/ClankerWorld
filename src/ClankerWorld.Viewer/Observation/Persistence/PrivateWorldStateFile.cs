@@ -59,7 +59,7 @@ public sealed class PrivateWorldStateFile
         }
     }
 
-    public bool Save(PrivateWorldRuntime runtime)
+    public bool Save(PrivateWorldRuntime runtime, bool resumeOnSuccess = false)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         lock (gate)
@@ -70,7 +70,7 @@ public sealed class PrivateWorldStateFile
                 var saved = SaveUnsafe(state, compactHistory: true);
                 compacted = saved.HistoryArchiveHead != state.HistoryArchiveHead;
                 return saved;
-            });
+            }, resumeOnSuccess);
             return compacted;
         }
     }

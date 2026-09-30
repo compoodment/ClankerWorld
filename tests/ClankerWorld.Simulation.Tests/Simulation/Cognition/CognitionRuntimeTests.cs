@@ -79,6 +79,23 @@ public sealed class CognitionRuntimeTests
         Assert.Equal(CognitionRequestState.Rejected, runtime.Capture().Requests.Single().State);
     }
 
+    [Theory]
+    [InlineData("safe_idle", 1.2)]
+    [InlineData("never_offered", 1)]
+    public void InvalidAnswerWithStaleIdentityCannotApplyFallback(string candidate, double confidence)
+    {
+        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));
+        var request = runtime.IssueRequest(CreateObservation());
+        var result = runtime.ApplyResponse(ResponseFor(request, DecisionProviderKind.Jev, 0, candidate, confidence) with
+        {
+            ObservationDigest = "sha256:old-observation",
+        });
+        Assert.False(result.Accepted);
+        Assert.False(result.FellBack);
+        Assert.Equal("observation_digest", result.Outcome);
+        Assert.Null(runtime.Capture().CurrentIntention);
+    }
+
     [Fact]
     public void DuplicateResponseAfterAdmissionCannotApplyTwice()
     {

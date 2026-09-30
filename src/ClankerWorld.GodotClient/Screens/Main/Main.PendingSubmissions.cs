@@ -185,46 +185,46 @@ public partial class Main
         };
     }
 
-    private async Task RunOwnerActionAsync(Func<Task<string>> action)
-    {
-        if (isOwnerAction)
-        {
-            return;
-        }
+    private readonly OwnerActionGate ownerActionGate = new();
 
-        isOwnerAction = true;
-        refreshCancellation?.Cancel();
-        RefreshControlAvailability();
-        try
+    private async Task RunOwnerActionAsync(Func<Task<string>> action, bool waitForTurn = false)
+    {
+        await ownerActionGate.RunAsync(async () =>
         {
-            SetStatus("Sending…", good: true);
-            var detail = await action();
-            SetStatus(detail, good: true);
-            await RefreshAsync();
-        }
-        catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
-        {
-            // The host answered and refused this one action; the connection
-            // and the displayed world remain current.
-            SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
-        }
-        catch (System.Net.Http.HttpRequestException exception)
-        {
-            ShowHeldState($"could not reach the world host · {FriendlyFailure(exception)}");
-        }
-        catch (TaskCanceledException exception)
-        {
-            ShowHeldState($"the world host did not respond · {FriendlyFailure(exception)}");
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"Could not complete that action · {FriendlyFailure(exception)}", good: false);
-        }
-        finally
-        {
-            isOwnerAction = false;
+            isOwnerAction = true;
+            refreshCancellation?.Cancel();
             RefreshControlAvailability();
-        }
+            try
+            {
+                SetStatus("Sending…", good: true);
+                var detail = await action();
+                SetStatus(detail, good: true);
+                await RefreshAsync();
+            }
+            catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
+            {
+                // The host answered and refused this one action; the connection
+                // and the displayed world remain current.
+                SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
+            }
+            catch (System.Net.Http.HttpRequestException exception)
+            {
+                ShowHeldState($"could not reach the world host · {FriendlyFailure(exception)}");
+            }
+            catch (OperationCanceledException exception)
+            {
+                ShowHeldState($"the world host did not respond · {FriendlyFailure(exception)}");
+            }
+            catch (Exception exception)
+            {
+                SetStatus($"Could not complete that action · {FriendlyFailure(exception)}", good: false);
+            }
+            finally
+            {
+                isOwnerAction = false;
+                RefreshControlAvailability();
+            }
+        }, waitForTurn);
     }
 
 }

@@ -364,6 +364,7 @@ public sealed class HouseContentTests
         {
             WorldSystems = snowy with
             {
+                RegionalWeather = null,
                 Config = snowy.Config with { WeatherProfiles = profiles },
                 Climate = snowy.Climate with { Weather = WeatherKind.Snow },
             },
