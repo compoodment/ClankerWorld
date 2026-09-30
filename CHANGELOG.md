@@ -6,7 +6,7 @@ release yet.
 
 ## Unreleased
 
-- A late model reply no longer cancels the agent's newer pending choice; the current reply can still be accepted.
+- A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
@@ -63,6 +63,7 @@ release yet.
 - Changing autosave rotation trims only the selected world, including Rotation off; other worlds’ checkpoint files remain untouched.
 
 - Invalid hosted choices and out-of-range confidence complete with safe idle instead of repeatedly consuming model calls for the same decision.
+- A late model reply no longer cancels the agent's newer pending choice; the current reply can still be accepted.
 - A damaged model-call meter no longer prevents the host from starting. Paid
   calls stay blocked, and World Settings explains how to restore accounting
   without losing spent calls. Meter writes flush before replacing the file.
