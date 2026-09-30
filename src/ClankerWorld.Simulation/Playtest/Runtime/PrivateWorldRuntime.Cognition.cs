@@ -35,7 +35,9 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
                 physical = inhabitants[inhabitant.Id];
             }
-            var candidates = CreateCandidates(inhabitant.Id, physical);
+            var candidates = CreateCandidates(inhabitant.Id, physical)
+                .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
+                .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!NeedsCognition(inhabitant.Id, current, candidates))
             {
@@ -58,7 +60,9 @@ public sealed partial class PrivateWorldRuntime
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
                 physical.Personality, physical.Aspiration, inhabitant.HouseholdId,
                 physical.Survival?.WarmthBasisPoints, physical.Survival?.IllnessBasisPoints,
-                physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null);
+                physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
+                checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
+                towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name);
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -677,6 +681,15 @@ public sealed partial class PrivateWorldRuntime
                 recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
+    }
+
+    private string? DestinationNameForModel(string? id)
+    {
+        if (id is null) return null;
+        return society.Checkpoint.Households.SingleOrDefault(item => item.Id == id)?.Name ??
+            towns.SingleOrDefault(item => item.Id == id)?.Name ??
+            society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == id)?.Name ??
+            map.Resources.SingleOrDefault(item => item.Id == id)?.Kind.Replace('_', ' ');
     }
 
     private int PriorityFor(PlaytestInhabitantState state) =>

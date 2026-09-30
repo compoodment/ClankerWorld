@@ -33,8 +33,8 @@ the repository. Search before opening one, and use the matching template:
 
 ### Labels
 
-Every open issue has **one type**, **one or two areas** and, while it waits on
-something, **a status**. Whoever changes an issue's situation updates its
+Every open issue has **one type**, **one or two areas**, **a priority** and,
+while it waits on something, **a status**. Whoever changes an issue's situation updates its
 labels in the same step. Labels are defined in
 [`.github/labels.json`](.github/labels.json); edit that file to add or rename
 one, and a workflow updates the repository.
@@ -43,17 +43,47 @@ one, and a workflow updates the repository.
 | --- | --- |
 | Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs` |
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build) |
-| Status | `status:ready` (agreed, unblocked, needs a pull request), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:needs-playtest` (merged; waiting for a hands-on check), `status:parked` (closed for a later stage) |
-| Other | `owner-task` (only computment can do it), `priority:blocker` (must finish before the current milestone), `severity:data-loss`, `regression`, `from:playtest`, `accessibility` |
+| Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
+| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions, owner tasks or playtest checklists), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:needs-playtest` (merged; waiting for a hands-on check), `status:parked` (closed for a later stage) |
+| Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
-- **Automatic:** the templates set the type. A pull request gets areas from the
-  files it changes, a type from its ticked **Type of change** box and
-  `status:needs-review` while it is ready. An issue it links with `Closes` or
-  `Refs` gets `status:has-pr`, which is removed when the last such pull request
-  closes; if none merged, the issue goes back to `status:ready`.
-- **By hand:** areas and a status on new issues; `status:ready` only when
-  nothing is left to decide; the other statuses when they become true; and
-  `status:parked` when closing agreed work for later.
+- **Automatic:** the templates set the type and `priority:p2`. A pull request
+  gets the highest priority of the issues it links, and at least P1 if it
+  changes [how we work](#priorities); at most two areas from the code it
+  changes, set when it opens and again when it is marked ready (fix them by
+  hand if they are wrong); a type from its ticked **Type of change** box; and
+  `status:needs-review` while it is ready. An issue it links with
+  `Closes` or `Refs` gets `status:has-pr`; once the pull request is ready for
+  review, the issue's `status:in-progress` claim is removed. `status:has-pr` is
+  removed when the last such pull request closes; if none merged, the issue
+  goes back to `status:needs-pr`.
+- **By hand:** areas, a priority and a status on new issues; `status:needs-pr`
+  only when nothing is left to decide; the other statuses when they become
+  true; and `status:parked` when closing agreed work for later.
+
+### Priorities
+
+| Priority | Means | Agents |
+| --- | --- | --- |
+| `priority:p0` | Broken now: a crash, lost or damaged saves or keys, a security problem, or the game can't be played or playtested | Drop other work and fix it first |
+| `priority:p1` | Next up: hurts normal play, or needed for the next playtest | Take before any P2 or P3 |
+| `priority:p2` | Normal: agreed features and ordinary bugs. The default | In order, oldest first |
+| `priority:p3` | Polish: cosmetic issues, edge cases, nice-to-haves | Only when nothing higher is ready |
+
+- **Bugs:** a crash, data loss or unplayable game is P0; wrong in normal play
+  is P1; an edge case is P2; cosmetic is P3. A `regression`, something that
+  used to work, goes one level higher.
+- **Features, experiments and decisions** start at P2, and move to P1 when the
+  next playtest needs them.
+- **How we work:** changes to CI, labels, templates, CONTRIBUTING or AGENTS
+  affect every agent, so they are at least P1.
+- **At most 5 open P0 and 10 open P1 issues.** When a level is full, the least
+  urgent issue there, counting the new one, goes down a level; between equals,
+  the newest goes down.
+- **Anyone may set or change a priority by these rules without asking the
+  owner.** Change one only when the rules call for it, and add a one-line
+  comment saying why. When the owner picks a priority, say so in that comment;
+  nobody else moves it afterwards, even to make room.
 
 ## Work on an issue
 
@@ -66,10 +96,12 @@ when their work lands.
 Ready work is agreed, unblocked, unclaimed and not waiting on the owner:
 
 ```text
-is:issue is:open label:"status:ready" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" -label:"status:needs-playtest" -label:"status:has-pr" -linked:pr
+is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" -label:"status:needs-playtest" -label:"status:has-pr" -linked:pr
 ```
 
-Read the issue's comments and **Development** panel first. If main already
+Take the highest priority first: add `label:"priority:p0"` to the search, then
+p1, p2 and p3, and within a level take the oldest issue. Read the issue's
+comments and **Development** panel first. If main already
 fixes it, name the commit and close the issue.
 
 ### Claim an issue
@@ -80,6 +112,8 @@ it and the branch name; assignment alone does not show which agent took it.
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
 - If you stop, remove the label and comment with what you learned.
+- You don't remove it when you open the pull request: once the pull request is
+  ready for review, the issue switches to `status:has-pr` automatically.
 - A claim with no pull request and no update for 12 hours is stale: say you are
   taking it over, then claim it again.
 
@@ -140,10 +174,15 @@ Use a short title about the effect, such as
 
 ### Drafts and readiness
 
-Open completed work ready for review. Use a draft only for unfinished work, a
-proposal awaiting a decision, or when asked for one, and say what must happen
-before it is ready. Waiting for review, or for a prerequisite pull request to
-merge, is not a reason for a draft.
+Open a pull request as a **draft** and keep it there while anyone is still
+working on it. Mark it **ready for review** only when it is finished: every
+change pushed, the checks run and the description final. To change a ready pull
+request, whether for a review comment, a CI failure or something you forgot,
+convert it back to draft first, push, recheck, and mark it ready again. That way
+nobody merges it halfway through. A proposal awaiting a decision also stays a
+draft; say what must happen before it is ready. Once the work is finished,
+waiting for review or for a prerequisite pull request to merge is not a reason
+to stay in draft.
 
 Routine playtesting by computment can happen after merge during the alpha, so a
 missing Windows playtest, tuning session or latency measurement does not by
@@ -190,17 +229,20 @@ is prepared, or whenever the changelog should catch up.
 
 ### Review and merge
 
-The reviewer is not the pull request's author and normally merges. An author
+Review and merge higher-priority pull requests first. The reviewer is not the
+pull request's author and normally merges. An author
 merges only when the owner explicitly asks and someone else has already
 reviewed the current head. Before merging, check that:
 
-1. CI is green on the current head. If main was merged in or the branch changed
+1. The pull request is ready for review, not a draft, and nobody has pushed to
+   it since it was marked ready, other than your own merge of main.
+2. CI is green on the current head. If main was merged in or the branch changed
    after review, review and check the new head.
-2. Someone other than the author reviewed that exact head. Record who reviewed
+3. Someone other than the author reviewed that exact head. Record who reviewed
    which commit and what they checked, in the squash commit body or a comment.
-3. The description links its issues correctly
+4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
-4. Any integration order named by this or another pull request is respected.
+5. Any integration order named by this or another pull request is respected.
 
 Squash-merge with the PR title as the commit subject, delete the branch, then:
 

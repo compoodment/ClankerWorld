@@ -70,7 +70,7 @@ illness where known. It also gives their latest private thought, a few relevant
 memories and some places they know. Agents placed the normal way still start
 with the placeholder personality "undecided" and aspiration "find a purpose"
 ([#442](https://github.com/compoodment/ClankerWorld/issues/442)). The household
-is sent as an internal code, not its name. Models are not told about nearby
+and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.

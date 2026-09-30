@@ -26,7 +26,7 @@ public partial class Main
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
             RenderProviderConfiguration();
-            return "loaded inhabitant cognition settings";
+            return "Loaded Agent model settings";
         });
     }
 
@@ -166,7 +166,7 @@ public partial class Main
                 providerConfiguration = await ownerApi.ConfigureProviderAsync(
                     ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
                 PopulateCredentialChoices();
-                return $"{ProviderDisplayName(provider)} will handle {RoleDisplayName(role).ToLowerInvariant()} at the next cognition boundary";
+                return $"{ProviderDisplayName(provider)} will handle {RoleDisplayName(role).ToLowerInvariant()} at the agent's next model choice";
             });
         }
         finally
