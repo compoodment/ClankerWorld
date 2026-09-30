@@ -451,6 +451,12 @@ release yet.
   buttons that opened them.
 - Scrolling the mouse wheel over a panel no longer zooms the map behind it,
   including when the panel has nothing left to scroll.
+- Panels and confirmations fit what they hold instead of keeping a fixed size.
+  Quit Game, Quit to Menu and the save and delete confirmations are no taller
+  than their message and buttons, and long messages wrap at a readable width.
+  Agents, World Info, the Event Log, Memories and the agent card no longer
+  leave empty space below short text, and a panel with long text scrolls
+  instead of running off the bottom of the screen.
 - The selected-agent card no longer covers the agent it describes: when it
   cannot fit above or below them, it opens beside them. On short screens its
   profile scrolls inside the card, so Speak and Send are no longer cut off

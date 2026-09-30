@@ -80,7 +80,7 @@ public partial class Main
                 if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
                     !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
                     deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
-                    DialogSize(new Vector2I(440, 170)) != new Vector2I(440, 170) * factor || titleSize != UiFonts.Heading * factor ||
+                    DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
                     quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
                     !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
                     UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor)
@@ -704,6 +704,19 @@ public partial class Main
                 worldDetails.GetParsedText().Contains("revision", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderWorldDetails(sample);
+            // Top-bar panels hug their contents, and short text leaves no empty space below it.
+            foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
+            {
+                panel.Show();
+                for (var frame = 0; frame < 3; frame++)
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (Math.Abs(panel.Size.Y - panel.GetCombinedMinimumSize().Y) > 1)
+                    throw new InvalidOperationException($"{panel.Name} must fit its contents: size={panel.Size} contents={panel.GetCombinedMinimumSize()}.");
+                foreach (var text in panel.FindChildren("*", nameof(RichTextLabel), recursive: true, owned: false).OfType<RichTextLabel>())
+                    if (text.IsVisibleInTree() && text.CustomMinimumSize.Y > Math.Max(UiFonts.Body * 2, text.GetContentHeight()) + 1)
+                        throw new InvalidOperationException($"{panel.Name} must not reserve empty space below its text: height={text.CustomMinimumSize.Y} text={text.GetContentHeight()}.");
+                panel.Hide();
+            }
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
             {
                 panel.Show();
@@ -2038,6 +2051,16 @@ public partial class Main
             if (!quitGameConfirmation.Visible)
                 throw new InvalidOperationException("Quit Game must ask for confirmation before exiting.");
             quitGameConfirmation.Hide();
+            // Confirmations hug their message: a short one leaves no empty space
+            // and a long one wraps at a readable width instead of stretching.
+            var shortDialog = FitDialog(quitGameConfirmation);
+            var dialogMargins = quitGameConfirmation.GetThemeStylebox("panel").GetMinimumSize();
+            deletionConfirmation.DialogText = "Permanently delete ‘A world with quite a long name’ and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
+            var longDialog = FitDialog(deletionConfirmation);
+            if (shortDialog.Y >= 120 || quitGameConfirmation.GetLabel().GetLineCount() != 1 ||
+                longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
+                longDialog.Y <= shortDialog.Y)
+                throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
             GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, bounded marker hitboxes at zoom, building footprints, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection and family tree.");
             GetTree().Quit();
         }

@@ -26,6 +26,7 @@ public partial class Main
         BuildFounderSetupPanel(uiLayer);
         BuildInspectorColumn(uiLayer);
         BuildOwnerColumn(uiLayer);
+        FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
         AddChild(menuLayer);
         BuildMainMenu();
@@ -195,7 +196,7 @@ public partial class Main
         eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
         AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
-        eventsPanel.CustomMinimumSize = new Vector2(390, 360);
+        eventsPanel.CustomMinimumSize = new Vector2(390, 0);
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
@@ -233,11 +234,12 @@ public partial class Main
         closeMemories.Pressed += () => memoriesPanel.Hide();
         memoriesHeading.AddChild(closeMemories);
         memoriesBody.AddChild(memoriesHeading);
-        ConfigureTextPanel(memoryHistory, 300);
+        ConfigureTextPanel(memoryHistory, 360);
         memoryHistory.TooltipText = "What this agent remembers and believes, plus the maps they know. This is their view, not the full world log.";
         memoriesBody.AddChild(memoryHistory);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
+        memoriesPanel.Resized += CenterMemoriesPanel;
         memoriesPanel.Hide();
         content.AddChild(memoriesPanel);
 
@@ -252,8 +254,7 @@ public partial class Main
         closeTile.Pressed += ClearTileSelection;
         tileHeading.AddChild(closeTile);
         tileBody.AddChild(tileHeading);
-        ConfigureTextPanel(selectedTileText, 64);
-        selectedTileText.Resized += FitSelectedTileText;
+        ConfigureTextPanel(selectedTileText, float.MaxValue);
         tileBody.AddChild(selectedTileText);
         AddPanelContents(selectedTilePanel, tileBody);
         selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
@@ -329,7 +330,7 @@ public partial class Main
         menuActions.AddChild(menuQuitSeparator);
         menuQuitToMainButton.Text = "Quit to Menu";
         StyleButton(menuQuitToMainButton);
-        menuQuitToMainButton.Pressed += () => PopupDialog(quitToMenuConfirmation, new Vector2I(470, 180));
+        menuQuitToMainButton.Pressed += () => PopupDialog(quitToMenuConfirmation);
         menuActions.AddChild(menuQuitToMainButton);
 
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
@@ -703,17 +704,69 @@ public partial class Main
     // RichTextLabel ignores assigning its current non-empty text, even after
     // Clear() emptied the display, so text panels are only ever replaced.
     // Skipping unchanged text also keeps the reader's scroll position.
-    private static void SetPanelText(RichTextLabel label, string text)
+    private void SetPanelText(RichTextLabel label, string text)
     {
-        if (label.Text != text) label.Text = text;
+        if (label.Text == text) return;
+        label.Text = text;
+        FitTextPanel(label);
     }
 
-    private static void ConfigureTextPanel(RichTextLabel label, float minimumHeight)
+    private const string TextPanelLimit = "text_panel_limit";
+
+    /// <summary>A text panel as tall as its text, up to <paramref name="maximumHeight"/>; longer text scrolls.</summary>
+    private void ConfigureTextPanel(RichTextLabel label, float maximumHeight)
     {
         label.BbcodeEnabled = false;
         label.FitContent = false;
-        label.CustomMinimumSize = new Vector2(0, minimumHeight);
         label.ScrollActive = true;
+        label.SetMeta(TextPanelLimit, maximumHeight);
+        // A new width rewraps the text, but only after the resized signal, so
+        // measure it once this frame's layout is done.
+        label.Resized += () => Callable.From(() => FitTextPanel(label)).CallDeferred();
+    }
+
+    /// <summary>
+    /// Sizes a text panel to its text, so short text leaves no empty space. A
+    /// floating panel around it stays between the top bar and the bottom of
+    /// the screen; the text scrolls for the rest.
+    /// </summary>
+    private void FitTextPanel(RichTextLabel label)
+    {
+        if (label.Size.X < 1 || !label.HasMeta(TextPanelLimit)) return;
+        var height = Math.Min((float)label.GetMeta(TextPanelLimit), label.GetContentHeight());
+        var panel = FloatingPanel(label);
+        if (panel is not null)
+        {
+            var rest = panel.GetCombinedMinimumSize().Y - label.CustomMinimumSize.Y;
+            height = Math.Min(height, UiSize.Y - HudTop - 12 - rest);
+        }
+        height = Mathf.Ceil(Math.Max(UiFonts.Body * 2, height));
+        if (Math.Abs(label.CustomMinimumSize.Y - height) >= 1)
+            label.CustomMinimumSize = new Vector2(label.CustomMinimumSize.X, height);
+    }
+
+    /// <summary>
+    /// Panels placed by hand grow with their contents but never shrink by
+    /// themselves; these follow their contents both ways.
+    /// </summary>
+    private void FitFloatingPanelsToContents()
+    {
+        foreach (var panel in HudPanels().Append(memoriesPanel).Append(selectedTilePanel))
+            panel.MinimumSizeChanged += () => panel.Size = panel.GetCombinedMinimumSize();
+    }
+
+    /// <summary>
+    /// The panel a text panel floats in, placed by hand rather than by a
+    /// container. Text inside a scrolling area is left to that area.
+    /// </summary>
+    private static PanelContainer? FloatingPanel(Control control)
+    {
+        for (var node = control.GetParent(); node is Control parent; node = parent.GetParent())
+        {
+            if (parent is ScrollContainer) return null;
+            if (parent is PanelContainer panel && panel.GetParent() is not Container) return panel;
+        }
+        return null;
     }
 
     private static PanelContainer NewPanel(string title, Control content)

@@ -132,7 +132,7 @@ public partial class Main
 
         quitGameButton.Text = "Quit Game";
         StyleButton(quitGameButton);
-        quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation, new Vector2I(440, 170));
+        quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation);
         body.AddChild(quitGameButton);
 
         // The Main Menu's choices use the Timber heading lettering.
