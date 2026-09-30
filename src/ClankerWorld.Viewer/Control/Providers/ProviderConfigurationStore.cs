@@ -977,6 +977,7 @@ public sealed partial class ConfigurableDecisionProvider(
         configuration.Assignments?.FirstOrDefault(item => item.InhabitantId == inhabitantId && item.Role == role);
 
     private static bool IsRoutine(InhabitantObservation observation) =>
+        !observation.NeedsPersonality && !observation.NeedsAspiration &&
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 
     private static StoredProviderCredential CredentialFor(
