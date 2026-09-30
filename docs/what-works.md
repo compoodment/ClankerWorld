@@ -36,7 +36,8 @@ test alone does not make it available in the game.
 | Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town places two
-Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads. The Houses hold
+Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads, with each
+building's door on the side facing its Road. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.

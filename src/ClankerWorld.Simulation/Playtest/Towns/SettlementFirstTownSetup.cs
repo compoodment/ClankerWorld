@@ -35,7 +35,7 @@ public sealed partial class PrivateWorldRuntime
                     "house-a" or "farmhouse" => HouseholdId,
                     "house-b" or "blacksmith" => SecondHouseholdId,
                     _ => null,
-                })).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
+                }, building.Entrance)).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
             var town = TownBorderRules.CreateFirstTown(map, originSite: roughSite);
             foreach (var building in placed)
             {
