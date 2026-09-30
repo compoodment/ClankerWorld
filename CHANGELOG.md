@@ -6,6 +6,9 @@ release yet.
 
 ## Unreleased
 
+- Remove the redundant Load World tooltip from the Main Menu.
+- Crafting agents can choose a reachable free Workshop instead of repeatedly trying to enter an occupied one.
+
 - Personal models receive their own saved name, life stage, personality, aspiration, household, survival condition and most recent private thought; unknown conditions stay unknown.
 - A failed active recovery write holds the in-memory world paused and retries saving without advancing or resuming paid work; other tick faults halt for inspection.
 
@@ -14,18 +17,22 @@ release yet.
 - The Main Menu now opens on a pixel-art valley instead of a plain brown screen: snowy mountains, patchwork fields, a winding river and two small Towns with a Farmhouse, Warehouse, Blacksmith and Houses. Clouds drift, chimney smoke curls up, birds fly past and the river sparkles. With the Dark theme it becomes dusk, with twinkling stars, glowing windows and lanterns, a flickering forge, fireflies and the moon on the river. The scene stays behind Main Menu Settings, New World and Load World, and holds still once you are in a world.
 - World selection and named checkpoint loading verify required history segments before replacing the healthy active world. Missing or corrupted archive chains remain recoverable without becoming the active save.
 - Simultaneous lesson refusal and student cancellation safely preserve the terminal lesson instead of halting world advancement.
+- Forgetting registration or activating a new pairing clears the previous host’s observation and terrain cache, so Continue can enter a younger world without restarting the game. Recovered activation follows the same rule.
 - Create/Load World resets the observation timeline before sending the switch, so a lost response cannot trap reconnect on the old world’s event cursor.
 - Interrupted world selection restores routing and autosave settings during startup, before Resume or owner mutations can be acknowledged.
 - A mandatory instruction stays pending when its requested action is unavailable or makes no progress; unrelated accepted idling no longer counts as completion.
 - Food choices use the acting inhabitant’s connected ground, so an adult on another island can harvest its reachable local food instead of seeking an unreachable camp resource.
 - Crop planning and preparation use the worker’s actual household stock. Household cooking rechecks on-site ingredients, and failed production starts enter a recoverable blocked state instead of remaining stuck at completed preparation.
+- Loading a save and switching worlds can no longer archive a mixture of one checkpoint and another set of model/autosave settings.
 - Manual overwrite atomically publishes a complete checkpoint/model/settings generation; a failed metadata replacement keeps the prior selected save and its recovery backup.
 
 - Scouting safely starts a new local path after another action moves the agent away, instead of joining nonadjacent steps and breaking saves.
 - Inherited physical maps and field records keep their lot identity, preserving the knowledge artifact link and saveability without broadcasting their contents.
+- Start World keeps time paused until its checkpoint is saved; a failed write leaves setup retryable instead of running an unsaved world.
 - Failed founder checkpoint writes roll back the founder and provider configuration. World selection and founder setup share one transaction gate so successful placements keep their model assignments.
 
 - Death cancels unfinished barter through the normal two-sided release, immediately freeing the survivor’s stock without cancelling completed exchanges.
+- Resume keeps the world paused until its running checkpoint is saved, and retries cannot report success while saving still fails—even when an earlier request left memory running.
 - Successful pause and rename retries now persist the acknowledged state even when a failed earlier save already changed it in memory.
 
 - Starting households are named First household and Second household instead of
@@ -42,9 +49,11 @@ release yet.
 - The Event Log and unread badge now select explicitly supported player events, including public partnership, care, trade and Town policy milestones; new internal event kinds no longer appear automatically as humanized diagnostics.
 - Changing autosave rotation trims only the selected world, including Rotation off; other worlds’ checkpoint files remain untouched.
 
+- Invalid hosted choices and out-of-range confidence complete with safe idle instead of repeatedly consuming model calls for the same decision.
 - A damaged model-call meter no longer prevents the host from starting. Paid
   calls stay blocked, and World Settings explains how to restore accounting
   without losing spent calls. Meter writes flush before replacing the file.
+- Pause/resume waits for a pending owner action instead of disappearing; Quit to Menu requires a saved pause receipt and can retry a failed pause instead of trusting an unsaved paused observation. Signed owner operations time out across challenge and response bodies so stalled reads release the controls.
 - A stalled world refresh stops after four seconds instead of holding the
   client for the default network timeout. Owner actions cancel an older refresh
   so it cannot overwrite their result; Pause remains available during polling.
@@ -292,6 +301,7 @@ release yet.
 
 ### Changed
 
+- The Main Menu now shows the ClankerWorld logo instead of a plain text title and slogan: wood-grain letters either side of a friendly robot waving in front of a little planet, floating over the valley above the menu buttons. The line of text in the menu only appears when something needs your attention, such as connecting this device or reaching your world. The robot and planet are also the game window's icon and the Windows program's icon.
 - Agents no longer start Shelters, Storehouses, Cooking fires or Stone
   hearths. A household's House now provides shelter, cooking, warmth from its
   fire and food storage, and a Town's Warehouse holds shared supplies.
@@ -303,8 +313,8 @@ release yet.
   their only protection from cold.
 - Text now uses pixel fonts that match the art. Body text is Fusion Pixel,
   and titles, headings, section labels, dialog titles and the Main Menu's
-  choices use Timber, thin capitals based on the logo's letters. Text sizes
-  snap to whole pixels, so letters stay sharp instead of blurry.
+  choices use Timber, thin capitals based on the logo's letters. Base text
+  sizes use whole multiples of 12 px and are drawn without smoothing.
 - Weather on the map now moves. Rain falls as short drops that land with
   small splash rings, storms darken the sky with heavier slanted rain and a
   soft flash of lightning every several seconds, and snow drifts down. Rain,
@@ -403,8 +413,16 @@ release yet.
 
 ### Fixed
 
+- The Quit Game icon shows its whole arrow; the tip was cut off at the edge.
+- The unread count on the Events button is no longer half hidden under the
+  button next to it.
+
 - A damaged named-save entry no longer hides other saves or stops autosave
   rotation. Damaged files are preserved, with a safe diagnostic for recovery.
+
+- The Main Menu's Quit Game confirmation now just says the game will close,
+  instead of telling you your progress is saved after you have already left
+  your world.
 
 - Hovering the Town panel no longer pops up a technical tooltip of world
   ticks, revisions, map digests and internal system counts.
@@ -614,6 +632,7 @@ release yet.
   shows the moisture estimate near the camera, and affected harvests explain
   the change in the event log.
 
+- Prototype saved regional weather episodes with bounded storms and recovery intervals; rain weights remain provisional pending comparison and owner playtesting.
 - Generated worlds now have 32×32-tile weather regions instead of one weather
   condition across the whole map. Agents' warmth, clothing/fire choices and
   travel fatigue use weather where they stand or travel; crops use weather at

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.Pairing;
 
 namespace ClankerWorld.GodotClient.UI;
@@ -22,6 +23,15 @@ public sealed class OwnerWorldObservationSession
     ];
 
     public OwnerWorldReconnect? Current { get; private set; }
+
+    public OwnerDeviceRegistration? Registration { get; private set; }
+
+    /// <summary>Explicit registration replacement starts a fresh host observation timeline.</summary>
+    public void ReplaceRegistration(OwnerDeviceRegistration? registration)
+    {
+        Registration = registration;
+        ResetAfterLoad();
+    }
 
     public long EventCursor => Current?.Baseline.Snapshot.LatestEventId ?? 0;
 

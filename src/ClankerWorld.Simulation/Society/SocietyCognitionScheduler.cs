@@ -234,7 +234,9 @@ public sealed class SocietyCognitionScheduler
         var currentRequest = runtime.PreviewRequest(entry.Observation);
         if (currentRequest.RequestId != originalRequest.RequestId ||
             currentRequest.Observation.RunEpoch != currentRunEpoch ||
-            response is not null && !legalCandidateIds.Contains(response.SelectedCandidateId))
+            response is not null &&
+                originalRequest.Observation.Candidates.Any(candidate => candidate.Id == response.SelectedCandidateId) &&
+                !legalCandidateIds.Contains(response.SelectedCandidateId))
             return null;
 
         var issued = runtime.IssueRequest(originalRequest.Observation);

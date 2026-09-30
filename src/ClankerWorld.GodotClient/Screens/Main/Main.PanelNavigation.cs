@@ -123,8 +123,10 @@ public partial class Main
 
         var paused = observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused == true;
         menuPausedWorld = observationSession.Current is not null && !paused;
-        menuPauseConfirmed = paused;
-        if (menuPausedWorld)
+        // A paused observation may follow a failed checkpoint write. Only a
+        // successful pause receipt proves the menu's durable exit boundary.
+        menuPauseConfirmed = false;
+        if (observationSession.Current is not null)
         {
             menuPauseConfirmed = await SetPausedAsync(paused: true);
         }

@@ -127,13 +127,20 @@ everything that is available in the current build. See [what works today](../wha
   the game's own building types. It animates gently (drifting clouds, chimney
   smoke, birds, river sparkle). The Light theme shows a clear morning and the
   Dark theme a dusk with lit windows, lanterns, stars and fireflies.
+- **Agreed after the September 29 logo review:** the Main Menu shows a logo
+  and no slogan. Chosen from five options, it has wood-grain letters (without
+  angled 3D) either side of a friendly robot waving in front of a small
+  planet; the robot and planet also serve as the app icon. A status line
+  appears only when something needs attention; pairing is expected to be a
+  development-only step once the game hosts worlds on the player's own PC.
 - **Agreed after the September 30 font review:** text uses pixel fonts,
   chosen from six options shown on real game screens. Body text is **Fusion
   Pixel 12px**. Titles, panel headings, section labels, dialog titles and the
   Main Menu's choices use **Timber**: thin capitals drawn from the logo's
-  letter shapes. Text is drawn without smoothing and only at whole multiples
-  of its 12 px size, so letters stay crisp. computment prefers this look over
-  a smoother font chosen for easy reading.
+  letter shapes. Base text sizes are whole multiples of 12 px and are drawn
+  without smoothing. Whole-number UI scales keep letters crisp; the offered
+  125%, 150% and 175% steps still need a UI Scale pass. computment prefers
+  this look over a smoother font chosen for easy reading.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

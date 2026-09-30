@@ -159,7 +159,8 @@ public sealed partial class PrivateWorldRuntime
             var definition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
             var activeJobs = worldSimulation.ProductionJobs.Count(item =>
                 item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
-            if (activeJobs < definition.Capacity)
+            if (activeJobs < definition.Capacity &&
+                (actorId is null || FindUnoccupiedRoute(actorId, inhabitants[actorId].Position, placed.Position, 0).Count > 0))
             {
                 siteId = placed.InstanceId;
                 position = placed.Position;

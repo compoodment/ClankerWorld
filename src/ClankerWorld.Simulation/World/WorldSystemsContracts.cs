@@ -246,6 +246,12 @@ public static class WeatherRules
         ArgumentOutOfRangeException.ThrowIfNegative(position.Y);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapHeight);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(position.Y, mapHeight, nameof(position));
+        if (state.RegionalWeather is { } regions)
+        {
+            var episode = regions.Episodes.FirstOrDefault(item =>
+                item.X == position.X / RegionSize && item.Y == position.Y / RegionSize);
+            if (episode is not null) return episode.Weather;
+        }
         var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);
         var weather = mapHeight <= RegionSize ? state.Climate.Weather : WeatherForRegion(state.WorldSeed,
             calendar.DayIndex, state.Climate.Season, state.Config,
@@ -312,6 +318,21 @@ public static class WeatherRules
         if (climate is { } selected && !Enum.IsDefined(selected))
             throw new ArgumentOutOfRangeException(nameof(climate));
 
+        var weights = RegionalWeights(season, config, regionY, regionRows, climate);
+        var random = Pcg32XshRrV1.Create(worldSeed,
+            $"weather/day:{dayIndex.ToString(CultureInfo.InvariantCulture)}/region:{regionX.ToString(CultureInfo.InvariantCulture)},{regionY.ToString(CultureInfo.InvariantCulture)}");
+        var roll = (int)(random.NextUInt() % (uint)weights.Sum());
+        foreach (var weather in Enum.GetValues<WeatherKind>())
+        {
+            roll -= weights[(int)weather];
+            if (roll < 0) return weather;
+        }
+        throw new InvalidOperationException("The regional weather profile did not select a weather value.");
+    }
+
+    internal static int[] RegionalWeights(SeasonKind season, WorldSystemsConfig config,
+        int regionY, int regionRows, ClimateZone? climate)
+    {
         var profile = config.GetWeatherProfile(season);
         // Snow is confined to cold latitudes. This is a coarse first climate
         // rule; long-run rainfall and individual weather events remain distinct.
@@ -344,22 +365,7 @@ public static class WeatherRules
             rainWeight -= shifted;
             snowWeight += shifted;
         }
-        var random = Pcg32XshRrV1.Create(worldSeed,
-            $"weather/day:{dayIndex.ToString(CultureInfo.InvariantCulture)}/region:{regionX.ToString(CultureInfo.InvariantCulture)},{regionY.ToString(CultureInfo.InvariantCulture)}");
-        var roll = (int)(random.NextUInt() % (uint)profile.TotalWeight);
-        foreach (var weather in Enum.GetValues<WeatherKind>())
-        {
-            roll -= weather switch
-            {
-                WeatherKind.Rain => rainWeight,
-                WeatherKind.Snow => snowWeight,
-                WeatherKind.Clear => clearWeight,
-                WeatherKind.Storm => stormWeight,
-                _ => profile.WeightFor(weather),
-            };
-            if (roll < 0) return weather;
-        }
-        throw new InvalidOperationException("The regional weather profile did not select a weather value.");
+        return [clearWeight, profile.CloudyWeight, rainWeight, stormWeight, snowWeight];
     }
 
     public static ClimateZone? RegionClimate(SeededMap map, GridPoint position)
@@ -1405,7 +1411,8 @@ public sealed record WorldSystemsState(
     FactionState Factions,
     CurrencyState Currency,
     CultureState Culture,
-    IReadOnlyList<ChunkManifest> Chunks);
+    IReadOnlyList<ChunkManifest> Chunks,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RegionalWeatherState? RegionalWeather = null);
 
 /// <summary>
 /// Pure composition boundary for a later PrivateWorldRuntime integration.
@@ -1414,7 +1421,7 @@ public sealed record WorldSystemsState(
 /// </summary>
 public static class WorldSystemsRules
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     public static WorldSystemsState CreateGenesis(
         string worldSeed,
@@ -1456,6 +1463,7 @@ public static class WorldSystemsRules
         {
             WorldTick = nextTick,
             Climate = WeatherRules.Advance(state.Climate, nextTick, state.WorldSeed, state.Config),
+            RegionalWeather = RegionalWeatherRules.Advance(state, nextTick),
             Ecology = EcologyRules.Advance(state.Ecology, calendar, state.Config),
         };
         Validate(next);
@@ -1465,13 +1473,16 @@ public static class WorldSystemsRules
     public static void Validate(WorldSystemsState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion != SchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed) || state.WorldTick < 0)
+        if (state.SchemaVersion is < 1 or > SchemaVersion ||
+            state.SchemaVersion < 2 && state.RegionalWeather is not null ||
+            string.IsNullOrWhiteSpace(state.WorldSeed) || state.WorldTick < 0)
         {
             throw new InvalidDataException("The world-systems schema, seed, or tick is invalid.");
         }
 
         ArgumentNullException.ThrowIfNull(state.Config);
         state.Config.Validate();
+        RegionalWeatherRules.Validate(state.RegionalWeather, state.WorldTick, state.Config);
         ArgumentNullException.ThrowIfNull(state.Climate);
         var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);
         if (state.Climate.WorldTick != state.WorldTick || state.Climate.Season != calendar.Season ||

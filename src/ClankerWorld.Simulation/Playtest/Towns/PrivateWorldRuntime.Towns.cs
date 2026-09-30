@@ -194,7 +194,9 @@ public sealed partial class PrivateWorldRuntime
         finally { gate.Release(); }
     }
 
-    public void StartWorld()
+    public void StartWorld() => StartWorld(resume: true);
+
+    public void StartWorld(bool resume)
     {
         gate.Wait();
         try
@@ -208,7 +210,7 @@ public sealed partial class PrivateWorldRuntime
                 SetTown(firstTown with { FoundingState = "founded" });
                 AppendEvent("town_founded", $"{firstTown.Id}:residents:{firstTown.ResidentIds.Count}");
             }
-            society.Resume();
+            if (resume) society.Resume();
             AppendEvent("world_started", "four_founders_ready");
         }
         finally

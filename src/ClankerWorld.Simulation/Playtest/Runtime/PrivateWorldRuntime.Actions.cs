@@ -65,6 +65,10 @@ public sealed partial class PrivateWorldRuntime
                 building.HouseholdId is not null &&
                 building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId))
             occupied.Remove(destination);
+        // An occupied exact destination cannot be reached. Keep the household
+        // sharing exception above, and avoid searching an entire map for it.
+        if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
+            return [];
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int> { [origin] = 0 };
         var predecessor = new Dictionary<GridPoint, GridPoint>();

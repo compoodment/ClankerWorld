@@ -479,6 +479,7 @@ public sealed class SettlementSurvivalTests
         {
             WorldSystems = systems with
             {
+                RegionalWeather = null,
                 Config = systems.Config with { WeatherProfiles = profiles },
                 Climate = systems.Climate with { Weather = weather },
             }

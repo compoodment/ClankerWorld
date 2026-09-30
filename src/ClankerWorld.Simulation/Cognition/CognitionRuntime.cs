@@ -242,6 +242,10 @@ public sealed class CognitionRuntime
             var rejection = ValidateResponse(request, response);
             if (rejection is not null)
             {
+                // An unusable answer to this decision is terminal, not a reason
+                // to spend another hosted call on the same queued decision.
+                if (rejection is "malformed_response" or "candidate_not_legal")
+                    return ApplyFallbackLocked(request, rejection);
                 RetireInFlight(CognitionRequestState.Rejected, rejection, null);
                 AppendEvent(request.Observation.WorldTick, "cognition_response_rejected", $"{request.RequestId}:{rejection}");
                 return Rejected(rejection);
@@ -442,15 +446,6 @@ public sealed class CognitionRuntime
         CognitionDecisionRequest request,
         CognitionDecisionResponse response)
     {
-        try
-        {
-            response.Validate();
-        }
-        catch (ArgumentException)
-        {
-            return "malformed_response";
-        }
-
         if (!string.Equals(response.RequestId, request.RequestId, StringComparison.Ordinal))
         {
             return "request_id";
@@ -485,6 +480,15 @@ public sealed class CognitionRuntime
         if (!string.Equals(response.ObservationDigest, request.Observation.ObservationDigest, StringComparison.Ordinal))
         {
             return "observation_digest";
+        }
+
+        try
+        {
+            response.Validate();
+        }
+        catch (ArgumentException)
+        {
+            return "malformed_response";
         }
 
         if (!request.Observation.Candidates.Any(candidate =>

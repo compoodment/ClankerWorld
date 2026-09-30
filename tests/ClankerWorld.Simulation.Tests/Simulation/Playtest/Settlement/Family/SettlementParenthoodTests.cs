@@ -280,6 +280,7 @@ public sealed partial class SettlementParenthoodTests
             Inhabitants = state.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray(),
             WorldSystems = state.WorldSystems! with
             {
+                RegionalWeather = null,
                 Config = state.WorldSystems.Config with
                 {
                     WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 1, 0, 0, 0, 0)).ToArray(),

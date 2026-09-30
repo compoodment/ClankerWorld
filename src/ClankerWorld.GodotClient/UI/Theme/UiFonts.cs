@@ -6,7 +6,8 @@ namespace ClankerWorld.GodotClient.UI;
 /// The game's pixel lettering. Body text is Fusion Pixel 12px, bundled
 /// unmodified under the SIL Open Font License (see <c>Fonts/fusion-pixel-OFL.txt</c>).
 /// Headings use <see cref="TimberFont"/>. Text is drawn without smoothing and
-/// only at whole multiples of <see cref="PixelSize"/>, so letters stay crisp.
+/// base sizes are whole multiples of <see cref="PixelSize"/>. Whole-number UI
+/// scales keep letters crisp; fractional UI scales still need a later pass.
 /// </summary>
 public static class UiFonts
 {

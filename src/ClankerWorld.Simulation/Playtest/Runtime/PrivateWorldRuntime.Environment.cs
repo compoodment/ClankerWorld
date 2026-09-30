@@ -14,7 +14,7 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map,
-        WorldStartPace startPace = WorldStartPace.Legacy)
+        WorldStartPace startPace = WorldStartPace.Legacy, bool regionalWeather = true)
     {
         var config = WorldStartPaceRules.WorldSystems(startPace);
         var resources = map.Resources
@@ -105,7 +105,7 @@ public sealed partial class PrivateWorldRuntime
                             new GridPoint(resource.Position.X - left, resource.Position.Y - top),
                             resource.IsRenewable)).ToArray())));
             }
-        return WorldSystemsRules.CreateGenesis(
+        var state = WorldSystemsRules.CreateGenesis(
             worldSeed,
             config,
             resources,
@@ -113,6 +113,7 @@ public sealed partial class PrivateWorldRuntime
             currency,
             culture,
             chunks);
+        return regionalWeather ? RegionalWeatherRules.Initialize(state, map) : state;
     }
 
     private static WorldSystemsState AdvanceWorldSystemsTo(WorldSystemsState state, long targetTick)

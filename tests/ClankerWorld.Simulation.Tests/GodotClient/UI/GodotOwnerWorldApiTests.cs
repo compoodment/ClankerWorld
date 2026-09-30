@@ -11,6 +11,51 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class GodotOwnerWorldApiTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RegistrationReplacementAcceptsYoungerHostWithoutReusingOldTerrain(bool forgetFirst)
+    {
+        var session = new OwnerWorldObservationSession();
+        var priorRegistration = new ClankerWorld.GodotClient.ClientState.OwnerDeviceRegistration(
+            new("old-server", "old-authority"), "old-device", "fixture-key", "http://127.0.0.1:5188/");
+        session.ReplaceRegistration(priorRegistration);
+        var old = CreateCoherentReconnect();
+        Assert.True(session.TryAccept(old, 3, out _));
+        Assert.Equal(5, session.EventCursor);
+        if (forgetFirst)
+        {
+            session.ReplaceRegistration(null);
+            Assert.Null(session.Current);
+            Assert.Null(session.Registration);
+            Assert.Equal(0, session.EventCursor);
+        }
+        var nextRegistration = priorRegistration with { Authority = new("new-server", "new-authority"), WorldUrl = "http://127.0.0.1:5189/" };
+        session.ReplaceRegistration(nextRegistration);
+        Assert.Same(nextRegistration, session.Registration);
+        Assert.Null(session.Current);
+        Assert.Equal(0, session.EventCursor);
+        var fresh = old with
+        {
+            Baseline = new OwnerWorldReconnectBaseline(
+                old.Baseline.Snapshot with { WorldId = "new-host-world", WorldTick = 0, LatestEventId = 0 },
+                new OwnerWorldEventSlice(0, 0, []))
+        };
+        Assert.False(session.TryAccept(fresh with
+        {
+            Baseline = fresh.Baseline with
+            { Snapshot = fresh.Baseline.Snapshot with { Tiles = [], PackedTerrain = null } }
+        }, 0, out _));
+        Assert.True(session.TryAccept(fresh, session.EventCursor, out var failure), failure);
+        var advanced = fresh with
+        {
+            Baseline = old.Baseline with
+            { Snapshot = old.Baseline.Snapshot with { WorldId = "new-host-world" } }
+        };
+        Assert.True(session.TryAccept(advanced, 3, out _));
+        Assert.False(session.TryAccept(fresh, 0, out _)); // Same-timeline regression remains invalid.
+    }
+
+    [Theory]
     [InlineData("new-world")]
     [InlineData("earlier-existing-world")]
     public async Task LostSwitchReceiptStillAllowsTheActualEarlierTimeline(string selectedWorld)

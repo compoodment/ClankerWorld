@@ -96,8 +96,14 @@ public sealed class SettlementChildhoodActionsTests
 
         Assert.True(provider.Calls > 0);
         Assert.DoesNotContain(forged, provider.SeenCandidates);
-        Assert.Contains(admissions, item => !item.Admission.Accepted &&
-            item.Admission.Outcome == "candidate_not_legal");
+        Assert.NotEmpty(admissions);
+        Assert.All(admissions, item =>
+        {
+            Assert.True(item.Admission.Accepted);
+            Assert.True(item.Admission.FellBack);
+            Assert.Equal("candidate_not_legal", item.Admission.Outcome);
+            Assert.Equal("safe_idle", item.Admission.Intention?.CandidateId);
+        });
         Assert.Null(world.Inhabitants.Single(item => item.InhabitantId == Child).Project);
         Assert.Empty(world.Society.Births);
         Assert.Empty(world.Society.Inventory.Offers);
