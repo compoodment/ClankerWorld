@@ -322,6 +322,16 @@ release yet.
   suggested earlier stay in the Mod Library. An adult without a household
   cannot build a House yet, so in a new world clothing and natural cover are
   their only protection from cold.
+- Buttons are consistent across the game. Every panel closes with the same
+  small square button showing a pixel ×, and a screen reached from another
+  (Main Menu Settings, New World, Load World, Save World and an agent's model
+  settings) has a pixel back chevron in that same place instead of a Back
+  button elsewhere. The Pause Menu's choices match the Main Menu's, the agent
+  card's Find is a crosshair icon, dialogs close with the same pixel ×, and
+  confirming a permanent deletion uses a red button. Ordinary buttons share
+  one height.
+- The hover readout at the bottom of the map names what is under the pointer
+  without its map coordinates.
 - Text now uses pixel fonts that match the art. Body text is Fusion Pixel,
   and titles, headings, section labels, dialog titles and the Main Menu's
   choices use Timber, thin capitals based on the logo's letters. Base text

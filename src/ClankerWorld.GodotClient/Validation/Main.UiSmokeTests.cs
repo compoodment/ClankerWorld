@@ -138,6 +138,37 @@ public partial class Main
         }
     }
 
+    /// <summary>Whether a button is the square icon button showing <paramref name="glyph"/>.</summary>
+    private static bool ShowsGlyph(Button button, PixelGlyph glyph) =>
+        button.ThemeTypeVariation == "IconButton" && button.Text.Length == 0 &&
+        button.Icon == PixelIcons.Texture(glyph, Colors.White, Colors.White, 1);
+
+    /// <summary>
+    /// Every close and back control is the same small icon button, both menus
+    /// use the same choice buttons, and permanent deletion is drawn in red.
+    /// </summary>
+    private void VerifyConsistentButtons()
+    {
+        var buttons = FindChildren("*", nameof(Button), recursive: true, owned: false).OfType<Button>().ToArray();
+        var stray = buttons.Where(button => button.Text.Trim() is "×" or "<" or "‹" or "Back" or "Close" ||
+            button.Text.StartsWith('←')).Select(button => $"{button.GetPath()} '{button.Text}'").ToArray();
+        if (stray.Length > 0)
+            throw new InvalidOperationException($"Close and back must use the shared icon buttons: {string.Join(", ", stray)}");
+        var closes = buttons.Where(button => ShowsGlyph(button, PixelGlyph.Close) || ShowsGlyph(button, PixelGlyph.Back)).ToArray();
+        var square = new Vector2(PixelIcons.Grid + 2 * UiTheme.IconButtonMargin, PixelIcons.Grid + 2 * UiTheme.IconButtonMargin);
+        if (closes.Length < 8 || closes.Any(button => button.GetCombinedMinimumSize() != square ||
+                button.SizeFlagsVertical != Control.SizeFlags.ShrinkCenter || button.SizeFlagsHorizontal.HasFlag(Control.SizeFlags.Expand)))
+            throw new InvalidOperationException($"Close and back buttons must share one {square.X}-pixel square: {string.Join(", ", closes.Select(button => button.GetCombinedMinimumSize()))}");
+        Button[] choices = [mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton, mainMenuSettingsButton, quitGameButton,
+            menuResumeButton, menuSaveWorldButton, settingsButton, modLibraryButton, menuQuitToMainButton];
+        if (choices.Any(button => button.GetThemeFont("font") != UiFonts.Headings || button.GetThemeFontSize("font_size") != UiFonts.Heading ||
+                button.Alignment != HorizontalAlignment.Left))
+            throw new InvalidOperationException("The Main Menu and Pause Menu choices must share one button style.");
+        if (deletionConfirmation.GetOkButton().ThemeTypeVariation != "DangerButton" ||
+            quitGameConfirmation.GetOkButton().ThemeTypeVariation != "PrimaryButton")
+            throw new InvalidOperationException("Permanent deletion must be the red action; other confirmations stay green.");
+    }
+
     /// <summary>Pixel lettering stays crisp only at whole multiples of its pixel size.</summary>
     private void VerifyPixelText(string when)
     {
@@ -354,7 +385,7 @@ public partial class Main
             OpenMainMenuSettings();
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
-                menuCloseButton.Text != "<" || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
+                !ShowsGlyph(menuCloseButton, PixelGlyph.Back) || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
                 throw new InvalidOperationException("Main Menu Settings must keep the title background and show only Game Settings.");
             if (!gameSettingsCategoryButton.ButtonPressed || gameSettingsCategoryButton.Disabled)
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");
@@ -446,7 +477,7 @@ public partial class Main
                 throw new InvalidOperationException($"Clicking Back in Main Menu Settings must return to the Main Menu. Back={menuCloseButton.GetGlobalRect()}, pointer={backPoint}, hovered={hoveredBackControl?.GetPath()}");
             OpenMenuForSetup();
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || menuResumeButton.Visible ||
-                menuCloseButton.Text != "<" || menuHeadingLabel.Text != "Connect this device" || !topBarShade.Visible)
+                !ShowsGlyph(menuCloseButton, PixelGlyph.Back) || menuHeadingLabel.Text != "Connect this device" || !topBarShade.Visible)
                 throw new InvalidOperationException("Connect/pair setup must keep the title backdrop with a single compact back button.");
             menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!mainMenuCard.Visible || gameMenuPanel.Visible || topBarShade.Visible)
@@ -666,6 +697,7 @@ public partial class Main
                 throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
+            VerifyConsistentButtons();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
@@ -721,7 +753,7 @@ public partial class Main
             {
                 panel.Show();
                 var close = panel.FindChildren("*", nameof(Button), recursive: true, owned: false)
-                    .OfType<Button>().FirstOrDefault(button => button.Text == "×");
+                    .OfType<Button>().FirstOrDefault(button => ShowsGlyph(button, PixelGlyph.Close));
                 if (close is null || close.FocusMode == Control.FocusModeEnum.None)
                     throw new InvalidOperationException($"{panel.Name} must have a keyboard-reachable close button in its heading.");
                 close.GrabFocus();
@@ -1549,9 +1581,9 @@ public partial class Main
             RenderWorldHud(largeMap);
             UpdateTileHover(mapCanvas.Size / 2);
             var hoveredCenter = TileAtCanvas(mapCanvas.Size / 2, largeMap);
-            if (!hoverReadout.Visible || !hoverReadoutLabel.Text.EndsWith($"{hoveredCenter.X}, {hoveredCenter.Y}", StringComparison.Ordinal) ||
-                hoverReadout.MouseFilter != Control.MouseFilterEnum.Ignore)
-                throw new InvalidOperationException($"Hovering ground must show a click-through readout ending in the tile position: {hoverReadoutLabel.Text}");
+            if (!hoverReadout.Visible || hoverReadoutLabel.Text.Contains($"{hoveredCenter.X}, {hoveredCenter.Y}", StringComparison.Ordinal) ||
+                hoverReadoutLabel.Text.Any(char.IsDigit) || hoverReadout.MouseFilter != Control.MouseFilterEnum.Ignore)
+                throw new InvalidOperationException($"Hovering ground must show a click-through readout of what is there, without map coordinates: {hoverReadoutLabel.Text}");
             var beforeRoad = largeMap with { RoadTiles = [] };
             UpdateHoverReadout(beforeRoad, hoveredCenter);
             var afterRoad = beforeRoad with { RoadTiles = [new OwnerWorldPosition(hoveredCenter.X, hoveredCenter.Y)] };

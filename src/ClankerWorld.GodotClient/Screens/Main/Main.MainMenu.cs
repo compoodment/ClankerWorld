@@ -106,42 +106,34 @@ public partial class Main
         body.AddChild(mainMenuStatus);
 
         mainMenuContinueButton.Text = "Continue";
-        StyleButton(mainMenuContinueButton, primary: true);
+        StyleMenuChoice(mainMenuContinueButton, primary: true);
         mainMenuContinueButton.Pressed += () => _ = EnterWorldAsync();
         body.AddChild(mainMenuContinueButton);
 
         mainMenuNewButton.Text = "New World";
-        StyleButton(mainMenuNewButton);
+        StyleMenuChoice(mainMenuNewButton);
         mainMenuNewButton.Pressed += () => OpenWorldMenu(create: true);
         body.AddChild(mainMenuNewButton);
 
         mainMenuLoadButton.Text = "Load World";
-        StyleButton(mainMenuLoadButton);
+        StyleMenuChoice(mainMenuLoadButton);
         mainMenuLoadButton.Pressed += () => OpenWorldMenu(create: false);
         body.AddChild(mainMenuLoadButton);
 
         mainMenuSettingsButton.Text = "Settings";
-        StyleButton(mainMenuSettingsButton);
+        StyleMenuChoice(mainMenuSettingsButton);
         mainMenuSettingsButton.Pressed += OpenMainMenuSettings;
         body.AddChild(mainMenuSettingsButton);
 
         mainMenuConnectButton.Text = "Connect / Pair development host";
-        StyleButton(mainMenuConnectButton);
+        StyleMenuChoice(mainMenuConnectButton);
         mainMenuConnectButton.Pressed += () => _ = OpenMainMenuConnectionAsync();
         body.AddChild(mainMenuConnectButton);
 
         quitGameButton.Text = "Quit Game";
-        StyleButton(quitGameButton);
+        StyleMenuChoice(quitGameButton);
         quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation);
         body.AddChild(quitGameButton);
-
-        // The Main Menu's choices use the Timber heading lettering.
-        foreach (var button in new[] { mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton,
-            mainMenuSettingsButton, mainMenuConnectButton, quitGameButton })
-        {
-            button.AddThemeFontOverride("font", UiFonts.Headings);
-            button.AddThemeFontSizeOverride("font_size", UiFonts.Heading);
-        }
 
         AddPanelContents(mainMenuCard, body);
         mainMenuCard.CustomMinimumSize = new Vector2(440, 0);
@@ -232,7 +224,7 @@ public partial class Main
         menuShade.ZIndex = 190;
         gameMenuPanel.ZIndex = 200;
         menuHeadingLabel.Text = "Game Settings";
-        menuCloseButton.Text = "<";
+        StyleIconButton(menuCloseButton, PixelGlyph.Back);
         menuCloseButton.TooltipText = "Back to Main Menu";
         SetWorldMenuActionsVisible(false);
         menuResumeButton.Hide();
@@ -307,8 +299,16 @@ public partial class Main
         // the actions that act on it. Narrow or scaled-up screens wrap the
         // preview under the options and the card scrolls instead of clipping.
         worldMenuBody.AddThemeConstantOverride("separation", 10);
+        // Like Main Menu Settings, the one way back sits where a close button would.
+        var headingRow = new HBoxContainer();
         worldMenuHeading.ThemeTypeVariation = "TitleLabel";
-        worldMenuBody.AddChild(worldMenuHeading);
+        worldMenuHeading.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        headingRow.AddChild(worldMenuHeading);
+        StyleIconButton(worldBackButton, PixelGlyph.Back);
+        worldBackButton.TooltipText = "Back to Main Menu";
+        worldBackButton.Pressed += () => { if (!worldMenuBusy) worldMenuOverlay.Hide(); };
+        headingRow.AddChild(worldBackButton);
+        worldMenuBody.AddChild(headingRow);
         worldMenuStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         worldMenuBody.AddChild(worldMenuStatus);
 
@@ -439,27 +439,21 @@ public partial class Main
 
         var actions = new HBoxContainer();
         actions.AddThemeConstantOverride("separation", 8);
-        worldBackButton.Text = "Back";
-        StyleButton(worldBackButton);
-        worldBackButton.CustomMinimumSize = new Vector2(110, 38);
-        worldBackButton.Pressed += () => { if (!worldMenuBusy) worldMenuOverlay.Hide(); };
-        actions.AddChild(worldBackButton);
         actions.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         worldPreviewButton.Text = "Preview again";
         worldPreviewButton.TooltipText = "The preview updates by itself when you change an option. Use this if it failed.";
         StyleButton(worldPreviewButton);
-        worldPreviewButton.CustomMinimumSize = new Vector2(0, 38);
         worldPreviewButton.Pressed += () => _ = PreviewWorldAsync();
         actions.AddChild(worldPreviewButton);
         worldCreateButton.Text = "Create World";
         StyleButton(worldCreateButton, primary: true);
-        worldCreateButton.CustomMinimumSize = new Vector2(170, 38);
+        worldCreateButton.CustomMinimumSize = new Vector2(170, 34);
         worldCreateButton.Pressed += () => _ = CreateSelectedWorldAsync();
         worldCreateButton.Disabled = true;
         actions.AddChild(worldCreateButton);
         worldSelectButton.Text = "Open World";
         StyleButton(worldSelectButton, primary: true);
-        worldSelectButton.CustomMinimumSize = new Vector2(170, 38);
+        worldSelectButton.CustomMinimumSize = new Vector2(170, 34);
         worldSelectButton.Pressed += () => _ = SelectListedWorldAsync();
         worldSelectButton.Hide();
         actions.AddChild(worldSelectButton);
@@ -788,10 +782,6 @@ public partial class Main
     /// <summary>Menu buttons carry the same pixel icons as the HUD, redrawn for the current theme.</summary>
     private void RefreshMenuIcons()
     {
-        foreach (var button in new[] { mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton, mainMenuSettingsButton,
-                     mainMenuConnectButton, quitGameButton, menuResumeButton, menuSaveWorldButton, settingsButton,
-                     modLibraryButton, menuQuitToMainButton })
-            button.Alignment = HorizontalAlignment.Left;
         var palette = UiTheme.Current;
         var scale = HudIconScale;
         var dark = palette.Name == "dark";
@@ -811,6 +801,5 @@ public partial class Main
         var door = PixelIcons.Themed(PixelGlyph.Door, palette.Bad, scale);
         menuQuitToMainButton.Icon = door;
         quitGameButton.Icon = door;
-        worldBackButton.Icon = PixelIcons.Themed(PixelGlyph.Back, palette.Ink, scale);
     }
 }

@@ -155,6 +155,13 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
+- **Agreed on September 30:** buttons are consistent across the whole game.
+  Every panel closes with one small square button showing a pixel ×. A screen
+  reached from another shows a pixel back chevron in that same place, instead
+  of a separate Back button. The Main Menu and Pause Menu use the same choice
+  buttons, other buttons share one height, and confirming something that
+  cannot be undone uses a red button. The hover readout names what is under
+  the pointer without map coordinates.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

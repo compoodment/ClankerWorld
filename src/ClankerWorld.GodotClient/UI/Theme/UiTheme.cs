@@ -263,6 +263,25 @@ public static class UiTheme
             Bevel(p.PrimaryLight, p.PrimaryLight, p.PrimaryDark, p.PrimaryEdge),
             Bevel(p.PrimaryDark, p.PrimaryEdge, p.Primary, p.PrimaryEdge),
             disabled, p.PrimaryInk, p.InkFaint, Focus(p));
+        // Square icon buttons: close (×), back (‹) and other one-glyph actions.
+        // Their white icons take the ink color, so they follow the theme.
+        theme.SetTypeVariation("IconButton", "Button");
+        SetButton(theme, "IconButton",
+            Bevel(p.Button, p.ButtonLight, p.ButtonDark, p.ButtonEdge, IconButtonMargin, IconButtonMargin),
+            Bevel(p.ButtonHover, p.ButtonLight, p.ButtonDark, p.ButtonEdge, IconButtonMargin, IconButtonMargin),
+            Bevel(p.Pressed, p.PressedDark, p.PressedLight, p.ButtonEdge, IconButtonMargin, IconButtonMargin),
+            Bevel(p.FieldDisabled, p.FieldDisabled, p.FieldDisabled, p.PaperEdge, IconButtonMargin, IconButtonMargin),
+            p.Ink, p.InkFaint, Focus(p));
+        foreach (var item in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color" })
+            theme.SetColor(item, "IconButton", p.Ink);
+        theme.SetColor("icon_disabled_color", "IconButton", p.InkFaint);
+        // Actions that cannot be undone, such as permanent deletion.
+        theme.SetTypeVariation("DangerButton", "Button");
+        SetButton(theme, "DangerButton",
+            Bevel(p.Seal, p.SealRing, p.Seal.Darkened(0.3f), p.ButtonEdge),
+            Bevel(p.SealRing, p.SealRing, p.Seal.Darkened(0.3f), p.ButtonEdge),
+            Bevel(p.Seal.Darkened(0.3f), p.ButtonEdge, p.Seal, p.ButtonEdge),
+            disabled, p.SealInk, p.InkFaint, Focus(p));
         theme.SetTypeVariation("EmberButton", "Button");
         SetButton(theme, "EmberButton",
             Bevel(p.Ember, p.EmberLight, p.EmberDark, p.EmberEdge),
@@ -411,8 +430,8 @@ public static class UiTheme
         theme.SetColor("title_color", "Window", p.Ink);
         theme.SetFont("title_font", "Window", UiFonts.Headings);
         theme.SetFontSize("title_font_size", "Window", UiFonts.Heading);
-        theme.SetIcon("close", "Window", Cross(p.Ink));
-        theme.SetIcon("close_pressed", "Window", Cross(p.InkMuted));
+        theme.SetIcon("close", "Window", PixelIcons.Texture(PixelGlyph.Close, p.Ink, p.Ink, 1));
+        theme.SetIcon("close_pressed", "Window", PixelIcons.Texture(PixelGlyph.Close, p.InkMuted, p.InkMuted, 1));
         theme.SetStylebox("panel", "AcceptDialog", Flat(p.Paper, 16, 12));
         return theme;
     }
@@ -461,8 +480,8 @@ public static class UiTheme
         // before the game's theme was applied.
         dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
         dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading * factor);
-        dialog.AddThemeIconOverride("close", Cross(Current.Ink, factor));
-        dialog.AddThemeIconOverride("close_pressed", Cross(Current.InkMuted, factor));
+        dialog.AddThemeIconOverride("close", PixelIcons.Texture(PixelGlyph.Close, Current.Ink, Current.Ink, factor));
+        dialog.AddThemeIconOverride("close_pressed", PixelIcons.Texture(PixelGlyph.Close, Current.InkMuted, Current.InkMuted, factor));
     }
 
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,
@@ -540,8 +559,11 @@ public static class UiTheme
         ExpandMarginBottom = 2,
     };
 
+    /// <summary>Padding around an icon button's 12-pixel glyph, so the button is a 32-pixel square.</summary>
+    public const int IconButtonMargin = 10;
+
     /// <summary>A raised pixel button: dark outline with clipped corners, lit top-left, shaded bottom-right.</summary>
-    private static StyleBoxTexture Bevel(Color face, Color light, Color dark, Color edge, int contentVertical = 7)
+    private static StyleBoxTexture Bevel(Color face, Color light, Color dark, Color edge, int contentVertical = 7, int contentHorizontal = 12)
     {
         const int Size = 12;
         var image = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
@@ -559,7 +581,7 @@ public static class UiTheme
                 else color = face;
                 image.SetPixel(x, y, color);
             }
-        return Nine(image, 4, 12, contentVertical);
+        return Nine(image, 4, contentHorizontal, contentVertical);
     }
 
     private const int TitleHeight = 30;
@@ -661,23 +683,6 @@ public static class UiTheme
         for (var y = 0; y < 5; y++)
             for (var x = y; x < 10 - y; x++)
                 image.SetPixel(x, y + 1, color);
-        return ImageTexture.CreateFromImage(image);
-    }
-
-    private static ImageTexture Cross(Color color, int scale = 1)
-    {
-        var image = Image.CreateEmpty(12, 12, false, Image.Format.Rgba8);
-        for (var step = 1; step < 11; step++)
-        {
-            image.SetPixel(step, step, color);
-            image.SetPixel(step, 11 - step, color);
-            if (step < 10)
-            {
-                image.SetPixel(step + 1, step, color);
-                image.SetPixel(10 - step, step, color);
-            }
-        }
-        if (scale > 1) image.Resize(12 * scale, 12 * scale, Image.Interpolation.Nearest);
         return ImageTexture.CreateFromImage(image);
     }
 

@@ -205,8 +205,7 @@ public partial class Main
         var familyHeading = new HBoxContainer();
         var familyTitle = new Label { Text = "Family Tree", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         familyHeading.AddChild(familyTitle);
-        var closeFamily = new Button { Text = "×", TooltipText = "Close family tree" };
-        StyleButton(closeFamily);
+        var closeFamily = CloseButton("Close family tree");
         closeFamily.Pressed += () => familyTreePanel.Hide();
         familyHeading.AddChild(closeFamily);
         familyBody.AddChild(familyHeading);
@@ -229,8 +228,7 @@ public partial class Main
         var memoriesHeading = new HBoxContainer();
         var memoriesTitle = new Label { Text = "Memories and maps", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         memoriesHeading.AddChild(memoriesTitle);
-        var closeMemories = new Button { Text = "×", TooltipText = "Close memories" };
-        StyleButton(closeMemories);
+        var closeMemories = CloseButton("Close memories");
         closeMemories.Pressed += () => memoriesPanel.Hide();
         memoriesHeading.AddChild(closeMemories);
         memoriesBody.AddChild(memoriesHeading);
@@ -249,8 +247,7 @@ public partial class Main
         var tileBody = new VBoxContainer();
         var tileHeading = new HBoxContainer();
         tileHeading.AddChild(new Label { Text = "Selected tile", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-        var closeTile = new Button { Text = "×", TooltipText = "Close tile inspection" };
-        StyleButton(closeTile);
+        var closeTile = CloseButton("Close tile inspection");
         closeTile.Pressed += ClearTileSelection;
         tileHeading.AddChild(closeTile);
         tileBody.AddChild(tileHeading);
@@ -287,9 +284,8 @@ public partial class Main
         menuHeadingLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         menuHeadingLabel.ThemeTypeVariation = "TitleLabel";
         menuHeading.AddChild(menuHeadingLabel);
-        menuCloseButton.Text = "×";
+        StyleIconButton(menuCloseButton, PixelGlyph.Close);
         menuCloseButton.TooltipText = "Return to the world";
-        StyleButton(menuCloseButton);
         menuCloseButton.Pressed += () => _ = CloseGameMenuAsync();
         menuHeading.AddChild(menuCloseButton);
         body.AddChild(menuHeading);
@@ -297,23 +293,23 @@ public partial class Main
         var menuActions = new VBoxContainer();
         menuActions.AddThemeConstantOverride("separation", 6);
         menuResumeButton.Text = "Resume";
-        StyleButton(menuResumeButton, primary: true);
+        StyleMenuChoice(menuResumeButton, primary: true);
         menuResumeButton.Pressed += () => _ = CloseGameMenuAsync();
         menuResumeButton.Hide();
         menuActions.AddChild(menuResumeButton);
 
         menuSaveWorldButton.Text = "Save World";
-        StyleButton(menuSaveWorldButton);
+        StyleMenuChoice(menuSaveWorldButton);
         menuSaveWorldButton.Pressed += () => _ = OpenManualSavesAsync(loadMode: false);
         menuActions.AddChild(menuSaveWorldButton);
 
         settingsButton.Text = "Settings";
-        StyleButton(settingsButton);
+        StyleMenuChoice(settingsButton);
         settingsButton.Pressed += () => ShowSettingsSection(worldSpecific: false);
         menuActions.AddChild(settingsButton);
 
         modLibraryButton.Text = "Mod Library";
-        StyleButton(modLibraryButton);
+        StyleMenuChoice(modLibraryButton);
         modLibraryButton.Pressed += ShowModLibrary;
         menuActions.AddChild(modLibraryButton);
 
@@ -329,7 +325,7 @@ public partial class Main
 
         menuActions.AddChild(menuQuitSeparator);
         menuQuitToMainButton.Text = "Quit to Menu";
-        StyleButton(menuQuitToMainButton);
+        StyleMenuChoice(menuQuitToMainButton);
         menuQuitToMainButton.Pressed += () => PopupDialog(quitToMenuConfirmation);
         menuActions.AddChild(menuQuitToMainButton);
 
@@ -576,13 +572,16 @@ public partial class Main
         selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
         selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         heading.AddChild(selectedActorNameLabel);
-        clearSelectionButton.Text = "×";
+        StyleIconButton(clearSelectionButton, PixelGlyph.Close);
         clearSelectionButton.TooltipText = "Close";
-        StyleButton(clearSelectionButton);
-        clearSelectionButton.Pressed += ClearInhabitantSelection;
-        findAgentButton.Text = "Find";
-        findAgentButton.TooltipText = "Center the map on this agent.";
-        StyleButton(findAgentButton);
+        // While the model editor is open this is its back button.
+        clearSelectionButton.Pressed += () =>
+        {
+            if (selectedAgentModelScroll.Visible) CloseAgentModelEditor();
+            else ClearInhabitantSelection();
+        };
+        StyleIconButton(findAgentButton, PixelGlyph.Find);
+        findAgentButton.TooltipText = "Center the map on this agent (C).";
         findAgentButton.Pressed += () =>
         {
             if (selectedInhabitantId is { } id) CenterOnInhabitant(id);
@@ -596,10 +595,6 @@ public partial class Main
         body.AddChild(selectedAgentOverviewScroll);
         selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
         selectedAgentModelScroll.AddChild(selectedAgentModelContent);
-        var backToProfile = new Button { Text = "← Agent profile" };
-        StyleButton(backToProfile);
-        backToProfile.Pressed += CloseAgentModelEditor;
-        selectedAgentModelContent.AddChild(backToProfile);
         body.AddChild(selectedAgentModelScroll);
         selectedAgentModelScroll.Hide();
 
@@ -779,11 +774,14 @@ public partial class Main
 
     private static void AddPanelContents(PanelContainer panel, Control content) => AddPanelContents(panel, string.Empty, content);
 
-    /// <summary>A titled world panel whose heading carries a × that hides it, like Escape does.</summary>
-    private static void AddClosablePanelContents(PanelContainer panel, string title, Control content) =>
-        AddPanelContents(panel, title, content, closable: true);
+    /// <summary>
+    /// A titled world panel whose heading carries the close button. It hides
+    /// the panel, like Escape does, unless the panel needs its own way to close.
+    /// </summary>
+    private static void AddClosablePanelContents(PanelContainer panel, string title, Control content, Action? close = null) =>
+        AddPanelContents(panel, title, content, closable: true, close);
 
-    private static void AddPanelContents(PanelContainer panel, string title, Control content, bool closable = false)
+    private static void AddPanelContents(PanelContainer panel, string title, Control content, bool closable = false, Action? onClose = null)
     {
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 10);
@@ -798,17 +796,12 @@ public partial class Main
             var heading = new Label { Text = title, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             heading.ThemeTypeVariation = "HeadingLabel";
             headingRow.AddChild(heading);
-            var close = new Button
-            {
-                Text = "×",
-                TooltipText = $"Close {title}",
-                CustomMinimumSize = new Vector2(34, 0),
-            };
-            StyleButton(close);
+            var close = CloseButton($"Close {title}");
             close.Pressed += () =>
             {
                 close.ReleaseFocus();
-                panel.Hide();
+                if (onClose is null) panel.Hide();
+                else onClose();
             };
             headingRow.AddChild(close);
             body.AddChild(headingRow);
@@ -839,6 +832,42 @@ public partial class Main
         value.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         row.AddChild(value);
         return row;
+    }
+
+    /// <summary>
+    /// The one close button: a small square with the pixel × at the right end
+    /// of a panel's heading. A screen reached from another shows the back
+    /// chevron in the same place instead.
+    /// </summary>
+    private static Button CloseButton(string tooltip)
+    {
+        var button = new Button { TooltipText = tooltip };
+        StyleIconButton(button, PixelGlyph.Close);
+        return button;
+    }
+
+    /// <summary>A square button showing one pixel glyph, drawn in the theme's ink.</summary>
+    private static void StyleIconButton(Button button, PixelGlyph glyph)
+    {
+        button.Text = string.Empty;
+        button.ThemeTypeVariation = "IconButton";
+        button.Icon = PixelIcons.Texture(glyph, Colors.White, Colors.White, 1);
+        button.IconAlignment = HorizontalAlignment.Center;
+        button.CustomMinimumSize = Vector2.Zero;
+        // Stay square beside a tall title instead of stretching to its height.
+        button.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+    }
+
+    /// <summary>
+    /// A choice in the Main Menu or Pause Menu: full width, with an icon and
+    /// the Timber heading lettering, so both menus read alike.
+    /// </summary>
+    private static void StyleMenuChoice(Button button, bool primary = false)
+    {
+        StyleButton(button, primary);
+        button.Alignment = HorizontalAlignment.Left;
+        button.AddThemeFontOverride("font", UiFonts.Headings);
+        button.AddThemeFontSizeOverride("font_size", UiFonts.Heading);
     }
 
     /// <summary>Buttons take their look from the current theme; primary ones are the green action.</summary>

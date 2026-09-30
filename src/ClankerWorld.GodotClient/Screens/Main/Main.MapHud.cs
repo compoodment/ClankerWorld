@@ -73,6 +73,6 @@ public partial class Main
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) parts.Add("Road");
         if (snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } owner)
             parts.Add(owner.Name);
-        return $"{string.Join(" · ", parts)}   {tile.X}, {tile.Y}";
+        return string.Join(" · ", parts);
     }
 }
