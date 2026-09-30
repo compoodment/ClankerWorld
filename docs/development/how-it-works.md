@@ -91,10 +91,11 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not all provided by this slice.
+carried inventory and current activity are not provided.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
-*inhabitant*, *settlement* and *camp*. The personal-model request does not send
+*inhabitant*, *settlement* and *camp*. One phrase in the system prompt still says
+"inhabitants" ([#443](https://github.com/compoodment/ClankerWorld/issues/443)). The personal-model request does not send
 the clock or the run and decision counters; admission uses them on the server.
 The request still names households by their internal ID, and the Jev request
 still carries those counters, because Jev's live service cannot be checked offline.
@@ -174,8 +175,10 @@ recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
 use the actor's foot-accessible terrain component.
 Immutable map connectivity is cached once per map; temporary occupancy remains
-a movement-time check. Project resource selection still uses accessibility
-from the original camp component. Boat access remains unfinished.
+a movement-time check. An agent gathering for its own project, and the check that
+a project's inputs exist, still need a route from the original camp; helping
+another agent's project uses the agent's own reachable area (see
+[Material gathering](#material-gathering)). Boat access remains unfinished.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -191,7 +194,7 @@ calendars round durations to whole ticks. Conditions use the region-center
 climate, previous condition, seed and a shared pre-transition neighbor snapshot.
 No model call or camera state participates; drifting visuals are not fronts.
 
-Weights are provisional for [the episode experiment](https://github.com/compoodment/ClankerWorld/issues/375),
+Weights are provisional, pending tuning in [#204](https://github.com/compoodment/ClankerWorld/issues/204),
 not approved rain balance. Wet neighbors add at most four rain-weight points;
 a reduction to base precipitation weights offsets that bonus. The fixed-seed
 comparison is recorded in [the prototype report](weather-episode-prototype.md).
@@ -229,6 +232,9 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+Building plans are offered only to an agent with the Builder role or an
+aspiration that mentions building. A normal game gives agents neither, so these
+choices are not offered yet ([#441](https://github.com/compoodment/ClankerWorld/issues/441)).
 
 For workstation recipes, site selection checks the actor’s current walking route as well as
 ownership and unused production capacity. An occupied or inaccessible workstation
@@ -301,15 +307,17 @@ These readers do not rewrite accepted event details or change save/replay format
 
 Development currently uses the private server. The intended first finished
 release runs the same authoritative simulation on the player's Windows PC,
-with local saves and keys. Embedded host versus companion process remains open.
+with local saves and keys, using a bundled companion host process
+([#468](https://github.com/compoodment/ClankerWorld/issues/468)).
 See [where the game runs](../game-design/world.md#where-the-game-runs).
 
 ## Material gathering
 
 Material gathering selects available resources reachable from the acting agent,
-then checks an actual unoccupied route into harvest range. Heating, project
-assistance and Blacksmith ore use this selector; they do not require a path to
-the original map anchor. This does not change fuel duration or harvest yields.
+then checks an actual unoccupied route into harvest range. Heating, help with
+another agent's project and Blacksmith ore use this selector; they do not
+require a path to the original map anchor. Gathering for one's own project does
+not use it yet. This does not change fuel duration or harvest yields.
 
 ## Advanced generation controls
 

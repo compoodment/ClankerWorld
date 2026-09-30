@@ -60,7 +60,8 @@ notes remain in Git history rather than a growing checklist here.
 
 [Saves and replay](saves-and-replay.md) owns backup requirements, matching
 application/save rollback and the explicitly approved pre-release identifier
-reset. Do not use that one exception as permission to discard later saves.
+reset. That exception never permits deleting saves. During alpha an older save
+may stop loading, but it is refused with a reason and kept.
 
 ## Release gate
 

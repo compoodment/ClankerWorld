@@ -2,7 +2,7 @@
 title: Developer guide
 type: development-index
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Developer guide
@@ -18,6 +18,7 @@ For the game itself, start with [playing](../playing.md),
 | Approve devices or understand request security | [Device pairing](device-pairing.md) |
 | Change saves, recovery or replay | [Saves and replay](saves-and-replay.md) |
 | Choose versions and publish a release | [Releasing](releasing.md) |
+| See measurements from merged prototypes | [Survival priorities](survival-priority-prototype.md), [Weather episodes](weather-episode-prototype.md) |
 
 [CONTRIBUTING.md](../../CONTRIBUTING.md) owns the contribution workflow and shared
 writing rules. [AGENTS.md](../../AGENTS.md) adds coding-agent instructions and

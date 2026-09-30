@@ -127,11 +127,13 @@ before an upgrade.
 | --- | --- |
 | Schema 18 | Removes persisted energy/sleep state. Legacy bedding can remain inert compatibility data; recipes cannot restart sleep gameplay. |
 | Schema 19 and checkpoint v2 | Compact verified terrain chunks rather than per-tile checkpoint JSON. |
+| Schema 20 | Agent-owned beliefs. |
 | Schema 21 | First-Town identity, founding state, membership, assigned buildings and borders. Older setup worlds reconstruct only known founding facts. |
 | Schema 22 | Optional agent-owned Jev memory-ranking indexes. Older saves do not invent indexes. |
 | Schema 23 | Personal map facts and physical map/record artifacts. Earlier compatible saves start with empty personal knowledge. |
 | Schema 24 | World-owned Roads. |
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
+| Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -209,8 +211,9 @@ report the damaged file rather than silently removing it.
 For an incompatible rollback, restore the matching older application and
 pre-upgrade save/history. An older host is not expected to read a newer schema.
 The September 2026 internal-identifier reset was an explicitly approved
-pre-release fresh-save/new-pairing exception; it is not a future permission to
-discard players' saves.
+pre-release fresh-save/new-pairing exception. It never permits deleting saves.
+During alpha an older save may stop loading, but it is refused with a reason and
+kept. Finished releases follow the migration promise in [Saves](../game-design/saves.md).
 
 ## Validation boundaries
 
