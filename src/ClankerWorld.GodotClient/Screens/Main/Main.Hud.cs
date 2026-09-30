@@ -217,6 +217,8 @@ public partial class Main
         marker.CustomMinimumSize = size;
         marker.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         marker.Position = new Vector2(offset.X, offset.Y);
+        // A marker can reach past the button's edge; draw it over the next button.
+        marker.ZIndex = 1;
         marker.Hide();
         button.AddChild(marker);
         button.Resized += () => marker.Position = new Vector2(button.Size.X + offset.X, offset.Y);

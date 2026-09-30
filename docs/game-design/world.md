@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # The world, time and survival
@@ -206,6 +206,24 @@ accounting details need design and playtesting.
   orthogonal shoulder tiles to be passable; occupied shoulders also block a
   live diagonal move. Diagonal Roads remain unimplemented.
 
+### Weather over time
+
+Computment is **leaning toward regional weather episodes** rather than a new,
+independent weather roll every day. A region's next condition should depend on
+its climate and previous condition. The first version should not simulate
+storms physically travelling between regions; drifting visual effects do not
+mean a weather front has moved.
+
+For this direction, ordinary weather should last a variable **one-quarter to
+one in-game day** before changing. This is a starting range to tune through
+playtesting, not a fixed probability or a promise that every condition occurs
+equally often. A severe episode lasts **no more than three-quarters of a game
+day** and is followed by at least **half a game day without severe weather** in
+that region. When an episode changes, wet neighboring regions should make rain
+somewhat more likely, without forcing the same weather across the map. The
+strength of that influence and the overall rain frequency are still open for
+playtesting.
+
 ### River crossings and visible forests and mountains
 
 At default settings, generated worlds should visibly include forests and
@@ -233,8 +251,9 @@ formulas, map topology at polar edges, biome transitions, water and elevation
 rules, resource distributions, continent-count variation and incidental islands,
 travel times, world-size performance, and limits
 on agent-caused terrain changes. **Regional weather details remain open:**
-how large/coherent weather regions are, how events move or change, how long
-they last, and the exact strength/mechanics of the agreed initial effects.
+region size and coherence, exact transition probabilities and effect strengths,
+and whether moving fronts belong in a later version. Episode durations and rain
+frequency need playtesting before their numerical targets are final.
 Climate's long-run
 rainfall/moisture is distinct from any individual rain event. The 64×64 chunk
 and preset dimensions need
@@ -283,16 +302,35 @@ call for each weather change.
   books that agents can trade; individual agents do not automatically know
   the player's fully visible map.
 
+### Starting survival balance for playtesting
+
+Computment chose **40% fullness and 60% warmth** as a comfortable reference,
+not a requirement to meet before socializing, building or exploring. Below
+those levels, food or warmth can become more appealing without automatically
+removing other safe choices. Agents should still be able to respond to nearby
+people and care for dependents when doing so is physically safe.
+
+Food becomes **urgent below 20% fullness**. Warmth becomes **urgent below 35%**
+while dangerous exposure continues. Urgency should favor finding food or
+protection over discretionary work or long travel, but it is not a rigid rule
+that every other action disappears. These are initial playtest thresholds,
+not proven balance targets. The point at which routine food errands start,
+and how much warmth is needed for a particular outing, remain to be tuned.
+
 ### Still to decide after playtesting
 
-Computment finds that agents spend too much time seeking food, rest and warmth
-or trying to feel safe, and wants more room for exploration, social life,
-building and invention. Define food scarcity and routine upkeep so a daily
-food economy matters without monopolizing action selection. Decide what an
+Earlier playtesting found agents spent too much time seeking food, rest and
+warmth or trying to feel safe. Rest is now removed; food and warmth still need
+to leave room for exploration, social life, building and invention. Define food
+scarcity and routine upkeep so a daily food economy matters without
+monopolizing action selection. Decide what an
 agent without any House does during a storm, how much natural cover protects,
 and which illness penalties and care/recovery rates work well without
-recreating an energy meter. Exploration, knowledge recording and trade need
-actual actions and information boundaries rather than an idle-label change.
+recreating an energy meter. Measure the share of time spent on survival against
+socializing, building and exploration, as well as food shortages and illness,
+before treating the starting thresholds as final. Exploration, knowledge
+recording and trade need actual actions and information boundaries rather than
+an idle-label change.
 
 ## Questions linking these systems
 

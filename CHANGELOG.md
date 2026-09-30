@@ -6,6 +6,8 @@ release yet.
 
 ## Unreleased
 
+- Crafting agents can choose a reachable free Workshop instead of repeatedly trying to enter an occupied one.
+
 - Personal models receive their own saved name, life stage, personality, aspiration, household, survival condition and most recent private thought; unknown conditions stay unknown.
 - A failed active recovery write holds the in-memory world paused and retries saving without advancing or resuming paid work; other tick faults halt for inspection.
 
@@ -401,6 +403,9 @@ release yet.
 ### Fixed
 
 - The Quit Game icon shows its whole arrow; the tip was cut off at the edge.
+- The unread count on the Events button is no longer half hidden under the
+  button next to it.
+
 - A damaged named-save entry no longer hides other saves or stops autosave
   rotation. Damaged files are preserved, with a safe diagnostic for recovery.
 

@@ -195,6 +195,12 @@ their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 
+For workstation recipes, site selection checks the actor’s current walking route as well as
+ownership and unused production capacity. An occupied or inaccessible workstation
+does not hide another reachable one. Movement’s existing diagonal and household
+access rules still apply. If no site is reachable, an existing project uses its
+blocked/reconsideration path rather than travelling toward an unreachable tile.
+
 Recipe preparation and production must use the same actor/building owner.
 Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
