@@ -1,0 +1,1 @@
+- Add Agent's provider, key and model controls stay in place as the placement preview changes. Moving into the panel or opening a picker or text menu keeps the last visible placement preview instead of showing land hidden behind the interface.

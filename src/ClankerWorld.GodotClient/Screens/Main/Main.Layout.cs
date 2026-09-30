@@ -85,6 +85,7 @@ public partial class Main
         {
             _ = RefreshWorldSettingsAsync();
         }
+        if (!worldSpecific) _ = RefreshApiKeysAsync();
 
         ApplyResponsiveLayout();
     }
@@ -441,6 +442,7 @@ public partial class Main
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
 
+        BuildApiKeysPanel();
         BuildConnectionPanel();
         gameSettingsContent.AddChild(connectionPanel);
         BuildPairingPanel();
