@@ -77,7 +77,6 @@ public partial class Main
         if (observationSession.Current is not { } current) return;
         var snapshot = current.Baseline.Snapshot;
         RenderInhabitantList(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderMap(snapshot);
     }
@@ -280,9 +279,9 @@ public partial class Main
             foreach (var panel in overlays) panel.Hide();
             return true;
         }
-        if (selectedAgentModelScroll.Visible)
+        if (agentProfilePanel.Visible)
         {
-            CloseAgentModelEditor();
+            AgentProfileBack();
             return true;
         }
         if (selectedInhabitantCard.Visible)

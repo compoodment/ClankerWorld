@@ -52,6 +52,7 @@ public partial class Main
         }
 
         if (controlsPanel.Visible) PositionControlsPanel();
+        PositionAgentProfile();
         PositionMapHud();
         // Panels open just below the floating HUD, under the button that opened them.
         var hudTop = HudTop;
@@ -85,16 +86,6 @@ public partial class Main
             Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
-    /// <summary>The card's profile scrolls when the whole card would not fit below the top bar.</summary>
-    private void FitSelectedCardHeight()
-    {
-        var profileHeight = selectedAgentOverview.GetCombinedMinimumSize().Y;
-        selectedAgentOverviewScroll.CustomMinimumSize = new Vector2(0, profileHeight);
-        var excess = selectedInhabitantCard.GetCombinedMinimumSize().Y - (UiSize.Y - HudTop - 12);
-        if (excess > 0)
-            selectedAgentOverviewScroll.CustomMinimumSize = new Vector2(0, Math.Max(120, profileHeight - excess));
-    }
-
     private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
     {
         var ui = UiSize;
@@ -110,16 +101,10 @@ public partial class Main
             return;
         }
 
-        var cardWidth = Math.Min(370, Math.Max(300, ui.X - 24));
-        selectedInhabitantCard.CustomMinimumSize = new Vector2(cardWidth, 0);
-        FitSelectedCardHeight();
+        selectedInhabitantCard.CustomMinimumSize = new Vector2(Math.Min(QuickCardWidth, Math.Max(1, ui.X - 24)), 0);
         var cardSize = selectedInhabitantCard.GetCombinedMinimumSize();
+        var cardWidth = cardSize.X;
         selectedInhabitantCard.Size = cardSize;
-        if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
-        {
-            selectedInhabitantCard.Position = new Vector2(Math.Max(12, ui.X - cardWidth - 12), CardTop(cardSize.Y));
-            return;
-        }
         // The map is drawn at screen resolution; the card lives in interface pixels.
         var stride = currentTileSize + TileGap;
         var tile = currentTileSize / (float)uiLayer.Factor;

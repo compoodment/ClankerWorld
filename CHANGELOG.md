@@ -321,6 +321,16 @@ release yet.
   suggested earlier stay in the Mod Library. An adult without a household
   cannot build a House yet, so in a new world clothing and natural cover are
   their only protection from cold.
+- Selecting an agent now opens a small card beside them instead of one tall
+  card: their name, what they are doing, pixel bars for fullness, warmth and
+  illness, and **Profile** and **Speak** buttons. **Profile** docks the rest on
+  the left of the screen: a portrait, a pencil to rename, age, diet, belongings,
+  work and learning, private thoughts, people, Memories, Family and Model, and a
+  message box with a **Suggest** or **Order** choice instead of a drop-down.
+  Back, or Escape, returns to the small card. The card no longer repeats what
+  the agent wants to do, no longer shows an always-open rename box, and no
+  longer leaves empty gaps. A deceased agent opens straight to their historical
+  Profile.
 - Buttons are consistent across the game. Every panel closes with the same
   small square button showing a pixel ×, and a screen reached from another
   (Main Menu Settings, New World, Load World, Save World and an agent's model

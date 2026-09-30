@@ -42,7 +42,6 @@ public partial class Main
         if (checkUsagePause && registration is not null) _ = ObserveUsagePauseAsync();
         RenderFounderSetup(snapshot);
         RenderWorldInfo(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         if (familyTreePanel.Visible && selectedInhabitantId is { } center)
         {

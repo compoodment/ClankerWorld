@@ -155,6 +155,17 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
+- **Agreed after the September 30 agent card review:** computment chose the
+  two-step card (option D of four mockups). Selecting an agent opens a small
+  **quick card** beside them with their name, what they are doing, bars for
+  fullness, warmth and illness, and **Profile** and **Speak** buttons.
+  **Profile** docks a larger panel on the left of the screen: portrait, a
+  pencil to rename, age, diet and the other bars, belongings, work and
+  learning, private thoughts, people, **Memories**, **Family** and **Model**,
+  and a message box with a **Suggest** or **Order** choice. Its back button
+  returns to the quick card; a deceased agent's historical Profile opens
+  directly and simply closes. This refines the selected-agent popup described
+  further down this list.
 - **Agreed on September 30:** buttons are consistent across the whole game.
   Every panel closes with one small square button showing a pixel ×. A screen
   reached from another shows a pixel back chevron in that same place, instead

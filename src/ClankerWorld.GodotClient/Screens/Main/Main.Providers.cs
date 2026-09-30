@@ -552,10 +552,10 @@ public partial class Main
             PopulateCredentialChoices();
             cognitionTargetChoice.Hide();
             cognitionSettingsPanel.Reparent(selectedAgentModelContent, keepGlobalTransform: false);
-            selectedAgentOverviewScroll.Hide();
+            selectedAgentOverview.Hide();
+            renameRow.Hide();
             selectedAgentModelScroll.Show();
-            StyleIconButton(clearSelectionButton, PixelGlyph.Back);
-            clearSelectionButton.TooltipText = "Back to the agent's profile";
+            UpdateAgentProfileCloseButton(living: true);
             RenderProviderConfiguration();
             PositionSelectedInhabitantCard(current.Baseline.Snapshot);
             _ = RefreshProviderConfigurationAsync();
@@ -570,9 +570,7 @@ public partial class Main
         selectedAgentModelScroll.Hide();
         cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
         cognitionTargetChoice.Show();
-        selectedAgentOverviewScroll.Show();
-        StyleIconButton(clearSelectionButton, PixelGlyph.Close);
-        clearSelectionButton.TooltipText = "Close";
+        selectedAgentOverview.Show();
         cognitionApiKeyInput.Text = string.Empty;
         cognitionCredentialLabelInput.Text = string.Empty;
     }

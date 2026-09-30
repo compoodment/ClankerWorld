@@ -48,7 +48,7 @@ pace, subject to model/server load.
 ## Agents and their models
 
 Each starting agent has a provider, model and key assignment. Stored keys can
-be shared or selected independently. The agent card lets you change these
+be shared or selected independently. An agent's Profile lets you change these
 choices and rename the person. Jev can be switched on or off for a paused world.
 
 Personal models choose from legal actions. They receive some saved self
