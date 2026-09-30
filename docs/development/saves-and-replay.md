@@ -146,6 +146,10 @@ Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
 
+Inventory lot splits leave all actively reserved stock in the original lot,
+including production and barter commitments. Only the unreserved remainder can
+move to the new lot; rejected splits leave state and event history unchanged.
+
 ## Checkpoints, history and backups
 
 The active recovery checkpoint is encoded and fsync-written after every advanced

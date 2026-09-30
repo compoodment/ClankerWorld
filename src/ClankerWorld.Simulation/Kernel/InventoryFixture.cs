@@ -125,6 +125,7 @@ public static class InventoryFixture
             throw new InvalidOperationException("A lot split requires a unique ID and a strict positive subquantity.");
         }
 
+        EnsureUnreservedQuantity(checkpoint, source, splitQuantity);
         var split = source with { Id = splitLotId, Quantity = splitQuantity, ProvenanceLotId = source.Id };
         var lots = checkpoint.Lots.Select(lot => string.Equals(lot.Id, source.Id, StringComparison.Ordinal)
                 ? lot with { Quantity = lot.Quantity - splitQuantity }
@@ -565,7 +566,11 @@ public static class InventoryFixture
         int requestedQuantity)
     {
         EnsureOwnerAndExactQuantity(lot, expectedOwnerId, requestedQuantity);
+        EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
+    }
 
+    private static void EnsureUnreservedQuantity(InventoryCheckpoint checkpoint, InventoryLot lot, int requestedQuantity)
+    {
         var reserved = checkpoint.Reservations.Where(reservation => reservation.LotId == lot.Id &&
                 reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
             .Sum(reservation => reservation.Quantity);
