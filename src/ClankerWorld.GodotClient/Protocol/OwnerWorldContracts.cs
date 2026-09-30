@@ -388,6 +388,8 @@ public sealed record OwnerUsageStatus(long Attempts, long Completed, long Failed
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, string Provider, string Label, string ApiKey);
+
 /// <summary>
 /// Asks the host for the game's model list for a provider. With
 /// <see cref="CheckKey"/>, the host also asks the provider which of those

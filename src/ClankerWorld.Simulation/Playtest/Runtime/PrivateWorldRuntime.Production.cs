@@ -158,6 +158,9 @@ public sealed partial class PrivateWorldRuntime
             }
 
             var definition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
+            // A household building nobody holds is not anyone's to use.
+            if (placed.HouseholdId is null && definition.Tags.Any(IsHouseholdBuildingTag))
+                continue;
             var activeJobs = worldSimulation.ProductionJobs.Count(item =>
                 item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
             if (activeJobs < definition.Capacity &&
