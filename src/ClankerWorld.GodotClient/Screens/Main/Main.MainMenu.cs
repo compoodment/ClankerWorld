@@ -721,7 +721,7 @@ public partial class Main
                 return;
             }
             worldPreview.MarkerTile = null;
-            worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain, result.PackedMapLayers));
+            worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain, result.PackedMapLayers, action.WrapEastWest));
             worldPreview.Show();
             previewedWorldOptions = action;
             worldCreateButton.Disabled = false;

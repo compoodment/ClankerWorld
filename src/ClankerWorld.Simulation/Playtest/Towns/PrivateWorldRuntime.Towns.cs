@@ -264,7 +264,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("town_building_assigned", $"{town.Id}:{building.InstanceId}:buildings:{updated.AssignedBuildingIds.Count}");
         if (!town.BorderTiles.SequenceEqual(border))
             AppendEvent("town_border_expanded", $"{town.Id}:{building.InstanceId}:tiles:{border.Count}");
-        var laid = GenerateRoadToBuilding(building);
+        var laid = GenerateRoadToBuilding(building, updated.BorderTiles.ToHashSet());
         if (laid.Count == 0) return;
         // Town Roads stay inside the border, so it grows around the new Road too.
         var withRoad = TownBorderRules.Expand(map, updated, laid);

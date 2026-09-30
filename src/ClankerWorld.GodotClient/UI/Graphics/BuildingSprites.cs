@@ -228,6 +228,36 @@ public static class BuildingSprites
                 canvas.Rect(signX + 1, signY - 1, 2, 1, new Color("6E737A"));
                 Doorstep(canvas, roof, door);
                 break;
+            case BuildingKind.Generic:
+                Doorstep(canvas, roof, door);
+                break;
+        }
+        // A building that faces a Road gets the start of its doorstep path,
+        // which the Road's own doorstep path continues.
+        if (door.Tile is not null && kind != BuildingKind.Shelter)
+            PathToEdge(canvas, roof, door, width, height);
+    }
+
+    private static void PathToEdge(PixelCanvas canvas, Rect2 roof, BuildingDoor door, int width, int height)
+    {
+        var middle = DoorMiddle(roof, door);
+        var (from, to) = door.Side switch
+        {
+            DoorSide.North => (0f, roof.Position.Y - 2),
+            DoorSide.East => (roof.End.X + 2, (float)width),
+            DoorSide.West => (0f, roof.Position.X - 2),
+            _ => (roof.End.Y + 2, (float)height),
+        };
+        if (to <= from) return;
+        if (door.Side is DoorSide.North or DoorSide.South)
+        {
+            canvas.Rect(middle - 3.5f, from, 7, to - from, RoadSprites.WornEdge);
+            canvas.Rect(middle - 2.5f, from, 5, to - from, RoadSprites.Dirt);
+        }
+        else
+        {
+            canvas.Rect(from, middle - 3.5f, to - from, 7, RoadSprites.WornEdge);
+            canvas.Rect(from, middle - 2.5f, to - from, 5, RoadSprites.Dirt);
         }
     }
 

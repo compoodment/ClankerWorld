@@ -1,0 +1,1 @@
+- Towns grow along their streets: building sites that can face a Road rank higher, each new building's street runs on a few tiles past it, and a building away from the Roads gets a new side street that can take diagonals.

@@ -433,7 +433,7 @@ public partial class Main
             "|" + displayPreferences.DateFormat + "|" + UiTheme.Current.Name;
         townBorderHint.Visible = snapshot.Towns.Count > 0;
         townBorderHint.Text = townBorderFilter.ButtonPressed
-            ? "Town borders are outlined in amber on the map."
+            ? "Town borders show as a dashed line on the map."
             : "Town borders are hidden. Turn them on in Filters.";
         if (renderedTownList == signature) return;
         renderedTownList = signature;

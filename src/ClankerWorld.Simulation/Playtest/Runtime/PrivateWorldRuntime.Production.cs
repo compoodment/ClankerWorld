@@ -44,7 +44,8 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite),
             resourcesForLayout,
             buildingsForLayout,
-            building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
+            roadTiles: roadTiles,
+            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>

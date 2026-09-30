@@ -220,7 +220,7 @@ to be passable, including clear occupancy during a move. One-tile rivers allow
 bank-to-bank crossing at half dry-ground speed, not travel along the river.
 Mountains are slower to cross and cannot be built on; peaks are impassable.
 
-Resources are placed in bounded 16×16 cells with surface/cover biases, then
+Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
 use the actor's foot-accessible terrain component and skip sites whose current
@@ -268,6 +268,60 @@ Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames
 [Mapgen4](https://github.com/redblobgames/mapgen4/blob/master/map.ts). These sources
 explain the approach; they do not settle open terrain design or performance.
 
+### Terrain layers, sand, groves and hills
+
+`GeneratedCampMapGenerator` builds a map in four separate, deterministic passes,
+so each can be checked on its own
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)):
+
+1. **Elevation and water** come from the geography generator.
+2. **Surface.** Sand comes from two explicit rules, never from simply touching
+   water: *desert* (dry climate, rainfall 42 or less) and *beach* (land below
+   elevation 175, beside the ocean, where a seeded beach-noise field reaches
+   0.1). Rivers and lakes keep grass banks. *Forest floor* marks groves: forest
+   tiles whose seeded grove noise reaches 0.15, keeping only the 24 strongest in
+   each 64×64 chunk and none in the 6×5 starting clearing.
+3. **Vegetation eligibility.** Cover follows climate and the surface beneath
+   it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
+   on desert sand are unchanged.
+4. **Object placement.** The starter berry bush, tree and fertile patch must
+   stand off sand. Every forest-floor tile then gets a tree. Wild sites come
+   next, then rare deposits, scattered trees and orchards. A tree or plant
+   picks another tile rather than stand on sand, water or mountain rock, and
+   map acceptance refuses one that does. Stone outcrops and clay banks are not
+   plants and may stand on sand.
+
+Generated sites use at most 56 of a chunk's 64 resource slots. The rest stays
+free for sites the running world adds, such as the three settlement sites
+beside the first Town. That budget is why groves are small: denser forests
+would need a larger chunk budget, which is a separate performance choice.
+
+**Hills** are dry land below mountain height (215), at least 190 high and within
+three tiles (counting diagonal steps as one) of a mountain or peak. They are a
+visual layer only: nothing is saved for them, they keep their own surface, and
+they cost the same to walk and build on as grass. `SeededMap.IsHillAt` and the
+Godot client's `WorldTerrainMap` apply the same rule to the saved elevation and
+water layers. The client draws a relief overlay on hill tiles, warms their
+overview color and shows "Landform: Hills" in tile inspection. Hill travel cost
+and passability are not decided.
+
+All of these numbers are **provisional**. They were chosen from fixed-seed
+measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
+Over the test worlds, beaches cover about a quarter to a half of low ocean
+shore, every forest-floor tile holds a tree, about 2–3% of forest-grass tiles
+hold one, and hills are about 0.3–2% of dry land at Normal mountain relief.
+`TerrainPlacementTests` prints these measurements, including shoreline,
+inland-river, wrap-seam and mountain-edge cases. Generation takes roughly 10–20%
+longer than before (a Medium map about 250 ms on a shared test machine).
+
+The [terrain comparison](assets/terrain-placement-comparison.png) shows a
+90×50-tile area of seed `river-world-a` (Small, 50% water, wrapped): the
+previous generator on the left, these rules on the right. Dark green is forest
+grass, the darker patches with dots are groves, beige is sand, brown is dry
+scrub, grey is mountain and the warm band around it is hills. Dark dots are
+trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
+screenshot or native playtest.
+
 ## Towns, building sites and death
 
 Paused founder setup creates one First Town when the owner accepts its five-building
@@ -297,17 +351,21 @@ wrapped-seam claim geometry, competing-claim graph or automatic second-Town
 founding. Filters display saved Town and household-building facts, not invented
 general land ownership.
 
-A building that joins a Town later gets a Road from one of the tiles directly
-beside its footprint to the nearest existing Road. That starting tile is saved
-as the building's entrance, and the map draws the door on that side. The first
-Town's planner saves the entrance of each lot it chose. A building without a
-Road has no entrance and shows its door in the middle of its south side.
-
-A building that joins a Town gets a Road from one of the tiles directly beside
-its footprint to the nearest existing Road. That starting tile is saved as the
+A building that joins a Town later is joined to the Road network from one of the
+tiles directly beside its footprint. That starting tile is saved as the
 building's entrance, and the map draws the door on that side. The first Town's
-planner records its buildings' entrances the same way. A building without a
-Road has no entrance and shows its door in the middle of its south side.
+planner saves the entrance of each lot it chose. A building without a Road has
+no entrance and shows its door in the middle of its south side.
+
+Towns grow along their streets. `TownLayoutService` gives a site whose door can
+face an existing Road a `road_frontage` bonus. A building beside a Road needs
+no new Road. Otherwise a new side street runs to the nearest Road. It stays
+inside the (already grown) border where it can, may step diagonally where both
+corner tiles are clear, and pays extra for each tile beside an existing Road,
+so it meets streets rather than running alongside them. Then every dead end
+fewer than three tiles past its nearest door carries on in its own direction
+where the land allows (`town_road_extended`). The border grows around all the
+new Road tiles.
 
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
