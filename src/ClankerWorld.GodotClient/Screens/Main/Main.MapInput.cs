@@ -302,6 +302,14 @@ public partial class Main
             return;
         }
 
+        // Popups have their own viewport, so the main viewport can report no
+        // hovered control. Keep the last placement preview while a menu is
+        // open, or while the pointer is inside the scaled Add Agent panel.
+        if (GetViewport().GetEmbeddedSubwindows().Count > 0 ||
+            founderSetupPanel.IsVisibleInTree() && founderSetupPanel.GetGlobalRect()
+                .HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition))
+            return;
+
         var stagePosition = canvasPosition - mapStage.Position;
         var tile = TileAtCanvas(canvasPosition, snapshot);
         UpdateHoverReadout(snapshot, tile);
