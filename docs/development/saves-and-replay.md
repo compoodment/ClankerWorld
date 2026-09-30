@@ -263,9 +263,15 @@ The new code reads old saves; keep backups before testing.
 This prototype changes future weather/events, not past recorded history.
 
 Advanced generation saves optional forest, mountain and river presets. Missing
-fields mean Normal and preserve the historical default generator. New-world
-water defaults do not alter saved water values. Non-default maps require a
-build that understands their options and validates their generated identity.
+fields mean Normal. New-world water defaults do not alter saved water values.
+Non-default maps require a build that understands their options and validates
+their generated identity. Balanced Small/Medium worlds save the visibility
+algorithm version and, when trial targets apply, the selected candidate attempt.
+Restore regenerates that exact attempt, checks the saved map manifest, and does
+not rerun candidate selection or silently change the saved map. The attempt
+defaults to 0 for historical saves. A save whose map no longer matches
+deterministic regeneration is refused for load; restore leaves the source save
+file available for recovery or an explicit future migration.
 
 ## Explicit permanent deletion
 

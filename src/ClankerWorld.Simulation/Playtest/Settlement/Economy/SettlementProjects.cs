@@ -35,8 +35,8 @@ public sealed partial class PrivateWorldRuntime
             return false;
         }
         var baseline = state.Geography is { } savedGeography && state.Map.CampObjects.Count > 0
-            ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(savedGeography,
-                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
+            ? GeographyCandidateSelector.GenerateCandidate(savedGeography, retainLegacyCamp: true,
+                includeLegacyBedroll: state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
             : generated;
         if (baseline.ManifestDigest == state.Map.ManifestDigest)
             return true;

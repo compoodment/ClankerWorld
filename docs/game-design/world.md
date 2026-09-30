@@ -256,21 +256,28 @@ playtesting.
 
 ### River crossings and visible forests and mountains
 
-At default settings, generated worlds should visibly include forests and
-mountain regions rather than relying on rare seeds to reveal them. For
-**Balanced Small and Medium**, use initial playtest targets of **20–40% forest**
-and **5–12% mountains**, measured against dry land. These are targets to test
-and tune, not a promise that every climate or world size has the same coverage.
-Uniform Dry and polar regions must not acquire inappropriate trees just to
-meet a forest target. Forest and mountain areas should form readable regions;
-their exact connected-patch minimum remains to be tuned.
+At the default **Balanced Small and Medium** settings, with forest cover and
+mountain relief both set to **Normal**, generated worlds should visibly include
+forests and mountain regions rather than relying on rare seeds to reveal them.
+The initial playtest targets are **20–40% forest** and **5–12% mountains**,
+measured against dry land. These are targets to test and tune, not a promise
+that every climate or world size has the same coverage. Uniform Dry and
+polar-only choices do not receive these targets. Low and High forest/mountain
+settings remain distinct choices and are not forced into the Normal bands.
 
-Try at most **three deterministic candidates** for the selected seed and
-settings. Identify the chosen candidate in the exact preview so Create World
-uses that same map. If none meets its eligible targets, show what was missed
-and let the player choose another seed or explicitly accept the result; do not
-silently substitute a different map. Larger-size targets and preview latency
-remain subject to measurement and playtesting.
+Try at most **three deterministic candidates** when at least one Normal trial
+target applies; otherwise use one map. Identify the chosen candidate in the
+exact preview so Create World uses that same map. If none meets its eligible
+targets, show the selected coverage and all candidate results, then let the
+player choose another seed or explicitly accept the misses; do not silently
+substitute a different map. Larger-size targets and preview latency remain
+subject to measurement and playtesting.
+
+Forest and mountain areas should form readable regions. The generator uses
+connected-region size only to break ties between equally good candidates; it
+does not impose a minimum patch size. Region measurement joins diagonal
+neighbors and wraps east/west only when the selected map wraps, never across
+the north or south map edge.
 
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. The world automatically adds bridges at sufficiently used

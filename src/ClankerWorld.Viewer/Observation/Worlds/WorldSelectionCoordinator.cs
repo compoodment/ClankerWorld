@@ -78,7 +78,8 @@ public sealed class WorldSelectionCoordinator(
             // Preview is read-only. The title screen can preview a new map while
             // the currently selected world is running or waiting for a client;
             // Create and Select still require a confirmed pause.
-            var map = GeneratedCampMapGenerator.Generate(geography);
+            var selection = GeographyCandidateSelector.Select(geography);
+            var map = selection.Map;
             // The preview contract retains a suggested passable area for older
             // clients, but fresh maps have no placed camp or Town at this site.
             var camp = map.Resources.First(item => item.Id == "berry-patch").Position;
@@ -88,11 +89,14 @@ public sealed class WorldSelectionCoordinator(
             {
                 PackedMapLayers = OwnerWorldObservationStore.PackMapLayers(map),
                 MapLayersDigest = MapLayerManifestCodec.Digest(map),
+                Coverage = selection.Selected,
+                Candidates = selection.Candidates,
             };
         }
     }
 
-    public CatalogWorld Create(string name, GeographyOptions geography)
+    public CatalogWorld Create(string name, GeographyOptions geography, int candidateAttempt,
+        string expectedManifestDigest, string expectedMapLayersDigest, bool acceptUnmetTargets)
     {
         ArgumentNullException.ThrowIfNull(geography);
         if (geography.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
@@ -100,8 +104,19 @@ public sealed class WorldSelectionCoordinator(
         lock (gate)
         {
             RequirePaused();
-            using var created = new PrivateWorldRuntime(geography.Seed, providerFactory,
-                startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+            // Regenerate the bounded selection once so the signed create action
+            // can be checked against the exact preview identity.
+            var selection = GeographyCandidateSelector.Select(geography with { CandidateAttempt = 0 });
+            if (candidateAttempt != selection.Map.GenerationAttempt ||
+                !string.Equals(expectedManifestDigest, selection.Map.ManifestDigest, StringComparison.Ordinal) ||
+                !string.Equals(expectedMapLayersDigest, MapLayerManifestCodec.Digest(selection.Map), StringComparison.Ordinal))
+                throw new InvalidOperationException("The preview is out of date. Preview the map again before creating it.");
+            if (!selection.Selected.MeetsTargets && !acceptUnmetTargets)
+                throw new InvalidOperationException("The selected map misses the displayed trial targets. Accept its coverage explicitly or choose a new seed.");
+
+            var chosenOptions = geography with { CandidateAttempt = candidateAttempt };
+            using var created = PrivateWorldRuntime.CreateFromGeneratedGeography(geography.Seed,
+                chosenOptions, selection.Map, providerFactory);
             created.InitializeFirstTownContent();
             var entry = catalog.Add(name, created.ExportState());
             SelectCore(entry, created.ExportState());

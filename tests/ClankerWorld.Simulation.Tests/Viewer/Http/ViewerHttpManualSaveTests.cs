@@ -78,9 +78,15 @@ public sealed partial class ViewerHttpTests
             Assert.False(runtime.Society.IsPaused);
             Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
 
+            var createAction = options with
+            {
+                CandidateAttempt = preview.Coverage!.Attempt,
+                ExpectedManifestDigest = preview.ManifestDigest,
+                ExpectedMapLayersDigest = preview.MapLayersDigest,
+            };
             using var refusedCreation = await SendSignedAsync(host, client, key, device.DeviceId,
-                "/api/v1/owner/worlds/create", options,
-                OwnerHttpBinding.WorldCreationPayload(options));
+                "/api/v1/owner/worlds/create", createAction,
+                OwnerHttpBinding.WorldCreationPayload(createAction));
             Assert.Equal(HttpStatusCode.Conflict, refusedCreation.StatusCode);
             Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
         }
@@ -152,12 +158,19 @@ public sealed partial class ViewerHttpTests
                 Assert.True(preview.ResourceSites > 20);
                 Assert.NotNull(preview.PackedMapLayers);
                 Assert.NotNull(preview.MapLayersDigest);
+                Assert.NotNull(preview.Coverage);
                 Assert.Contains(selectionLog.Messages, message => message.Contains(
                     "world_preview outcome=generated width=256", StringComparison.Ordinal));
                 Assert.Null(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState().Geography);
                 Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
+                var createAction = create with
+                {
+                    CandidateAttempt = preview.Coverage!.Attempt,
+                    ExpectedManifestDigest = preview.ManifestDigest,
+                    ExpectedMapLayersDigest = preview.MapLayersDigest,
+                };
                 using var created = await SendSignedAsync(host, client, key, device.DeviceId,
-                    createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
+                    createPath, createAction, OwnerHttpBinding.WorldCreationPayload(createAction));
                 Assert.Equal(HttpStatusCode.OK, created.StatusCode);
                 var entry = (await created.Content.ReadFromJsonAsync<CatalogWorld>())!;
                 generatedId = entry.Id;

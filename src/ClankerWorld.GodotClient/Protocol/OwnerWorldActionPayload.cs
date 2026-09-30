@@ -44,7 +44,7 @@ public static class OwnerWorldActionPayload
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
-    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
 
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -60,7 +60,11 @@ public static class OwnerWorldActionPayload
         $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
         $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
         $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
-        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}",
+        $"candidate-attempt={action.CandidateAttempt?.ToString(CultureInfo.InvariantCulture) ?? "-"}",
+        $"expected-manifest-digest={EncodeOptional(action.ExpectedManifestDigest)}",
+        $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
+        $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
 
     public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
