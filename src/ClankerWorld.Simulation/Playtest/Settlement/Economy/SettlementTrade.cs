@@ -54,7 +54,8 @@ public sealed partial class PrivateWorldRuntime
 
     private (InventoryLot Give, InventoryLot Take)? TradeOpportunity(string actor, string other)
     {
-        if (actor == other || NeedsUrgentWarmth(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[other]) ||
+        if (actor == other || !AdultResident(actor) || !AdultResident(other) ||
+            NeedsUrgentWarmth(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[other]) ||
             society.Checkpoint.Inventory.Offers.Any(offer =>
                 offer.State == DirectBarterState.Open &&
                 (offer.FirstPartyId == actor || offer.SecondPartyId == actor || offer.FirstPartyId == other || offer.SecondPartyId == other) ||

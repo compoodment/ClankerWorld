@@ -144,7 +144,6 @@ writes do not increment the in-memory total or dispatch a model call. This does
 not promise directory-fsync power-loss durability or provider-invoice parity.
 
 ## Maps, movement and terrain
-
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply
@@ -245,6 +244,13 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+Barter choices and offer creation require both agents to be adults or elders.
+Infants, children and adolescents cannot receive an offer that reserves their
+belongings while they have no legal trade response. The society transaction
+checks age before reserving either party's stock. Household and organization
+parties keep their existing inventory rules. Previously saved offers retain
+their normal withdrawal and expiry behavior; loading does not rewrite them.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
