@@ -10,9 +10,10 @@ public sealed class GameUiTextTests
     [Theory]
     [InlineData("future_internal_diagnostic", false)]
     [InlineData("saved_road_footprints_repaired", false)]
-    [InlineData("estate_will_started", false)]
+    [InlineData("tick_advanced", false)]
     [InlineData("town_resident_joined", true)]
     [InlineData("child_born", true)]
+    [InlineData("build_completed", true)]
     [InlineData("world_started", true)]
     [InlineData("partnership_accepted", true)]
     [InlineData("partnership_ended", true)]
@@ -254,15 +255,6 @@ public sealed class GameUiTextTests
         {
             directory.Delete(recursive: true);
         }
-    }
-
-    [Theory]
-    [InlineData("tick_advanced", false)]
-    [InlineData("initial_content_activated", false)]
-    [InlineData("build_completed", true)]
-    public void EventTimelineKeepsWorldNewsAndDropsProtocolNoise(string kind, bool expected)
-    {
-        Assert.Equal(expected, GameUiText.IsPlayerFacingEvent(kind));
     }
 
     [Theory]

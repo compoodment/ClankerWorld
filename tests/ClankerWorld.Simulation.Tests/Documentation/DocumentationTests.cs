@@ -54,12 +54,14 @@ public sealed partial class DocumentationTests
         var documentationRoot = Path.Combine(root, "docs");
         foreach (var path in Directory.EnumerateFiles(documentationRoot, "*.md", SearchOption.AllDirectories))
         {
-            // Exercise checkout conversion, then compare metadata independent of newline style.
-            var text = File.ReadAllText(path).ReplaceLineEndings(checkoutNewline).ReplaceLineEndings("\n");
-            Assert.StartsWith("---\n", text, StringComparison.Ordinal);
-            var closingDelimiter = text.IndexOf("\n---\n", 4, StringComparison.Ordinal);
+            // Parse each checkout newline variant before normalizing anything.
+            var text = File.ReadAllText(path).ReplaceLineEndings(checkoutNewline);
+            Assert.StartsWith("---" + checkoutNewline, text, StringComparison.Ordinal);
+            var frontMatterStart = 3 + checkoutNewline.Length;
+            var closingDelimiter = text.IndexOf(checkoutNewline + "---" + checkoutNewline,
+                frontMatterStart, StringComparison.Ordinal);
             Assert.True(closingDelimiter > 0, $"Front matter is not closed: {Relative(root, path)}");
-            var frontMatter = text[4..closingDelimiter];
+            var frontMatter = text[frontMatterStart..closingDelimiter];
             Assert.Contains("title:", frontMatter, StringComparison.Ordinal);
             Assert.Contains("type:", frontMatter, StringComparison.Ordinal);
             Assert.Contains("status:", frontMatter, StringComparison.Ordinal);
