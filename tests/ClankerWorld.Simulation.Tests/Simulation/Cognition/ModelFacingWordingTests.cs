@@ -15,7 +15,7 @@ namespace ClankerWorld.Simulation.Tests;
 /// </summary>
 internal static class RetiredWording
 {
-    private static readonly string[] Words = ["inhabitant", "settlement", "camp"];
+    private static readonly string[] Words = ["inhabitants", "inhabitant", "settlements", "settlement", "camps", "camp"];
 
     public static string? Find(string text)
     {
@@ -44,6 +44,9 @@ public sealed class ModelFacingWordingTests
     public void RetiredWordingFinderMatchesWholeWordsOnly()
     {
         Assert.Equal("inhabitant", RetiredWording.Find("one inhabitant of a town"));
+        Assert.Equal("inhabitants", RetiredWording.Find("other inhabitants’ private information"));
+        Assert.Equal("settlements", RetiredWording.Find("several settlements"));
+        Assert.Equal("camps", RetiredWording.Find("two camps"));
         Assert.Equal("inhabitant", RetiredWording.Find("{\"inhabitant_id\":\"a\"}"));
         Assert.Equal("settlement", RetiredWording.Find("A settlement."));
         Assert.Equal("camp", RetiredWording.Find("household:camp-alpha"));
