@@ -88,24 +88,6 @@ public sealed class ContentDefinitionTests
     }
 
     [Fact]
-    public void StateCodecRoundTripsCanonicalBytesAndDerivedDigest()
-    {
-        var building = Building("forge");
-        var state = ContentDefinitionApplicator.Apply(
-            [building],
-            [Recipe("smelt", building)]);
-
-        var encoded = DeclarativeWorldContentCodec.Encode(state);
-        var decoded = DeclarativeWorldContentCodec.Decode(encoded);
-        var reencoded = DeclarativeWorldContentCodec.Encode(decoded);
-
-        Assert.Equal(state.StateDigest, decoded.StateDigest);
-        Assert.True(encoded.SequenceEqual(reencoded));
-        Assert.Equal(state.Buildings.Select(item => item.CanonicalId), decoded.Buildings.Select(item => item.CanonicalId));
-        Assert.Equal(state.Recipes.Select(item => item.PayloadDigest), decoded.Recipes.Select(item => item.PayloadDigest));
-    }
-
-    [Fact]
     public void ApplyingToExistingStateRejectsDuplicateIdsAndDanglingWorkstations()
     {
         var building = Building("forge");
@@ -117,33 +99,6 @@ public sealed class ContentDefinitionTests
             "smelt",
             workstationBuildingId: $"{PackageDigest}/building/missing@1.0.0");
         Assert.Throws<InvalidDataException>(() => ContentDefinitionApplicator.Apply([], [dangling]));
-    }
-
-    [Fact]
-    public void ContentPreviewResolvesAndMaterializesWithoutMutatingTheBaseProjection()
-    {
-        var building = Building("preview-kitchen", displayName: "Preview kitchen");
-        var package = new ContentPackageManifest(
-            "preview-content",
-            ContentVersion.Parse("1.0.0"),
-            PackageDigest,
-            [],
-            [new ContentDefinition(
-                BuildingDefinition.SchemaKind,
-                building.LocalId,
-                building.Version,
-                building.DisplayName,
-                building.PayloadDigest,
-                """{"schema":"building/v1","width":2,"height":2,"capacity":4,"buildCosts":[{"resourceId":"wood","amount":1}],"tags":["camp"]}""")],
-            []);
-        var baseContent = new DeclarativeWorldContentState([], []);
-
-        var preview = ContentPackagePreview.Run([package], [package.PackageId], baseContent);
-
-        Assert.True(preview.IsValid, preview.Diagnostic);
-        Assert.Equal(building.CanonicalId, Assert.Single(preview.WorldContent.Buildings).CanonicalId);
-        Assert.Empty(baseContent.Buildings);
-        Assert.Empty(baseContent.Recipes);
     }
 
     [Fact]

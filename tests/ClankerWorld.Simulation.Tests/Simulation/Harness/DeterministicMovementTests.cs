@@ -45,11 +45,13 @@ public sealed class DeterministicMovementTests
         };
         var target = new GridPoint(1, 1);
         var contested = DeterministicMovementResolver.Resolve(map,
-            [new MovementActor("bravo", new GridPoint(2, 0), 0),
-             new MovementActor("alpha", new GridPoint(0, 0), 0)],
+            [new MovementActor("bravo", new GridPoint(2, 0), 2),
+             new MovementActor("alpha", new GridPoint(0, 0), 2)],
             [new MovementIntent("bravo", target), new MovementIntent("alpha", target)]);
         Assert.Equal(target, contested.GetActor("alpha").Position);
         Assert.Equal(new GridPoint(2, 0), contested.GetActor("bravo").Position);
+        Assert.Equal(0, contested.GetActor("alpha").MoveWaitTicks);
+        Assert.Equal(3, contested.GetActor("bravo").MoveWaitTicks);
         Assert.Equal("destination_reserved", contested.Events.Single(item => item.ActorId == "bravo").Reason);
 
         var wrapped = map with { WrapsEastWest = true };
@@ -84,25 +86,6 @@ public sealed class DeterministicMovementTests
         Assert.Equal("destination_reserved", first.Events.Single(worldEvent => worldEvent.ActorId == "alpha").Reason);
         Assert.Equal(MovementDigest.State(first.Actors), MovementDigest.State(reversed.Actors));
         Assert.Equal(MovementDigest.Events(first.Events), MovementDigest.Events(reversed.Events));
-    }
-
-    [Fact]
-    public void EqualWaitContentionUsesActorIdAsTheFinalTieBreak()
-    {
-        var resolution = DeterministicMovementResolver.Resolve(
-            Map(),
-            [
-                new MovementActor("bravo", new GridPoint(1, 1), 2),
-                new MovementActor("alpha", new GridPoint(0, 0), 2),
-            ],
-            [
-                new MovementIntent("bravo", new GridPoint(1, 0)),
-                new MovementIntent("alpha", new GridPoint(1, 0)),
-            ]);
-
-        Assert.Equal(new GridPoint(1, 0), resolution.GetActor("alpha").Position);
-        Assert.Equal(new GridPoint(1, 1), resolution.GetActor("bravo").Position);
-        Assert.Equal(3, resolution.GetActor("bravo").MoveWaitTicks);
     }
 
     [Fact]

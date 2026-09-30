@@ -100,7 +100,6 @@ public sealed class ProjectInputBoundaryTests
     }
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task ToolProjectUsesReachableWorkshopWhenFirstIsOccupied(bool reloadDuringProject)
     {

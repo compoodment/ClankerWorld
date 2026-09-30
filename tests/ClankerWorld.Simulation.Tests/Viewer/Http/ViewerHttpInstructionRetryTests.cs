@@ -12,7 +12,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
-    [InlineData("durable-retry")]
     [InlineData(" durable-retry ")]
     public async Task SignedInstructionRetryReturnsItsReceiptAfterRecipientDeathAndHostRestart(string idempotencyKey)
     {

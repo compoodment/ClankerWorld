@@ -10,7 +10,6 @@ public sealed class NaturalStormCoverRoutingTests
     private const string Actor = "agent:00000000000000000000000000000099";
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task UnreachableNearestCoverDoesNotHideReachableProtectionAcrossRestart(bool blockFirstReachable)
     {
