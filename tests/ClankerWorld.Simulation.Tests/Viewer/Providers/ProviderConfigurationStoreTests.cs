@@ -7,6 +7,26 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ProviderConfigurationStoreTests
 {
+    [Fact]
+    public async Task FirstIdentityChoiceUsesPersonalPlannerEvenWithOnlyRoutineCandidates()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-identity-provider-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "routine-secret", false));
+            _ = store.Configure(new("planning", "openai", "personal-model", "personal-secret", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var observation = Request(router.ProviderEpoch).Observation with { NeedsPersonality = true, NeedsAspiration = true };
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(observation));
+            _ = await router.DecideAsync(new("first-identity", router.ProviderEpoch, observation));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("personal-model", handler.LastModel);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [WindowsCredentialFact]
     public void WindowsProtectionMigratesLegacyKeysAndPreservesUnreadableProtectedBytes()
     {

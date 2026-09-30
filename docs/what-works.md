@@ -70,9 +70,11 @@ placeholder name until the player changes it.
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant
-memories and some places they know. Agents placed the normal way still start
-with the placeholder personality "undecided" and aspiration "find a purpose"
-([#442](https://github.com/compoodment/ClankerWorld/issues/442)). The household
+memories and some places they know. Newly placed adults can choose their own
+personality and aspiration in their first personal-model reply. The choice is
+saved and shown on their profile. A missing or invalid choice keeps "undecided"
+and "find a purpose" without an extra call; later replies cannot overwrite it.
+Children's initial identity and later life changes are still unfinished. The household
 and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
