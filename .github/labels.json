@@ -1,0 +1,34 @@
+{
+  "labels": [
+    { "name": "type:bug", "color": "d73a4a", "description": "Something is broken.", "aliases": ["bug"] },
+    { "name": "type:feature", "color": "0e8a16", "description": "Agreed work to build or change.", "aliases": ["type:implementation", "enhancement"] },
+    { "name": "type:decision", "color": "7057ff", "description": "A choice the owner needs to make before work can go ahead.", "aliases": [] },
+    { "name": "type:experiment", "color": "fbca04", "description": "Try something small and measure it before committing.", "aliases": ["type:prototype"] },
+    { "name": "type:playtest", "color": "1d76db", "description": "A playtest report or the hands-on playtest checklist.", "aliases": [] },
+    { "name": "type:docs", "color": "c5def5", "description": "Documentation only.", "aliases": ["documentation"] },
+
+    { "name": "area:agents", "color": "f9d0c4", "description": "Models, prompts, memories, personality, skills, families and conversations.", "aliases": [] },
+    { "name": "area:towns", "color": "fef2c0", "description": "Buildings, households, land, work, trade and crafting.", "aliases": [] },
+    { "name": "area:world", "color": "c2e0c6", "description": "Map generation, terrain, weather, plants, survival and time.", "aliases": ["area:worldgen"] },
+    { "name": "area:saves", "color": "d4c5f9", "description": "Saving, loading, replay and recovery.", "aliases": ["area:persistence"] },
+    { "name": "area:interface", "color": "bfd4f2", "description": "Godot screens, controls and art.", "aliases": [] },
+    { "name": "area:server", "color": "bfdadc", "description": "Host, pairing, keys, deployment and the Windows package.", "aliases": [] },
+    { "name": "area:tooling", "color": "ededed", "description": "CI, tests, build scripts and repository setup.", "aliases": [] },
+
+    { "name": "status:needs-decision", "color": "d876e3", "description": "Waiting on the owner's answer.", "aliases": [] },
+    { "name": "status:needs-playtest", "color": "006b75", "description": "Built; waiting for the owner's hands-on check.", "aliases": [] },
+    { "name": "status:blocked", "color": "6e7781", "description": "Waiting on another issue or pull request.", "aliases": [] },
+    { "name": "status:ready", "color": "2cbe4e", "description": "Agreed and unblocked; ready to be picked up.", "aliases": [] },
+    { "name": "status:in-progress", "color": "fbca04", "description": "Claimed by someone working on an issue or pull request.", "aliases": [] },
+    { "name": "status:has-pr", "color": "0052cc", "description": "A pull request links this issue with Closes or Refs. Added automatically.", "aliases": [] },
+    { "name": "status:needs-review", "color": "e4b429", "description": "Pull request is ready and waiting for review. Added automatically.", "aliases": [] },
+    { "name": "status:parked", "color": "cfd3d7", "description": "Closed for now; agreed work for a later stage. Search closed issues to find it again.", "aliases": [] },
+    { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a hands-on Windows playtest.", "aliases": [] },
+    { "name": "priority:blocker", "color": "b60205", "description": "Must be done before the current milestone or playtest.", "aliases": ["gate:blocker"] },
+    { "name": "accessibility", "color": "f143ab", "description": "A barrier for players with disabilities.", "aliases": [] },
+    { "name": "regression", "color": "e11d21", "description": "Something that used to work broke.", "aliases": [] },
+    { "name": "severity:data-loss", "color": "d93f0b", "description": "Can lose or damage saves, keys or other player data. Fix before other work.", "aliases": [] },
+    { "name": "from:playtest", "color": "5ebeff", "description": "Found while playing the game.", "aliases": [] }
+  ],
+  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel"]
+}

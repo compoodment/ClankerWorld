@@ -1,0 +1,36 @@
+name: Label pull requests
+
+# pull_request_target runs this file from main, so pull requests from forks can
+# be labeled too. The checkout below is main's own copy (for the label script);
+# the pull request's code is never checked out or run. Only the changed-file
+# list and the description text are read.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft, closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Add area labels from the changed files
+        if: github.event.action != 'closed'
+        uses: actions/labeler@v5
+        with:
+          dot: true
+          sync-labels: false
+
+      - name: Update type, review and linked-issue labels
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const labelPullRequest = require('./.github/scripts/pr-labels.js');
+            await labelPullRequest({ github, context, core });

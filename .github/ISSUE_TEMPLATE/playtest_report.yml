@@ -1,5 +1,6 @@
 name: Playtest report
 description: You played and noticed things. Rough notes are fine.
+labels: ["type:playtest"]
 body:
   - type: markdown
     attributes:

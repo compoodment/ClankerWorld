@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in the game or server behaves wrongly.
-labels: ["bug"]
+labels: ["type:bug"]
 body:
   - type: markdown
     attributes:

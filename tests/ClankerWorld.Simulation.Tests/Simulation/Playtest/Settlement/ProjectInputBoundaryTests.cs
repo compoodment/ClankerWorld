@@ -112,7 +112,9 @@ public sealed class ProjectInputBoundaryTests
         var adults = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-alpha").ToArray();
         var actor = adults[0].Id;
         var blocker = adults[1].Id;
-        var society = SocietyFixture.AssignRole(state.Society.Society, actor, SocietyWorkRole.Trader).Checkpoint;
+        // No role: a communal Workshop serves any Town resident.
+        var society = state.Society.Society;
+        Assert.Equal(SocietyWorkRole.Unassigned, society.GetInhabitant(actor).CurrentRole);
         var inventory = society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.ItemKind == "tool" && lot.Quantity > 0).ToArray())
         {

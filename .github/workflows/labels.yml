@@ -1,0 +1,52 @@
+name: Labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.json
+      - .github/scripts/sync-labels.js
+      - .github/workflows/labels.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/labels.json
+      - .github/scripts/sync-labels.js
+      - .github/workflows/labels.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # On a pull request, only print what would change.
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Show the label changes this would make
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const syncLabels = require('./.github/scripts/sync-labels.js');
+            await syncLabels({ github, context, core, dryRun: true });
+
+  sync:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create, rename and update labels
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const syncLabels = require('./.github/scripts/sync-labels.js');
+            await syncLabels({ github, context, core, dryRun: false });

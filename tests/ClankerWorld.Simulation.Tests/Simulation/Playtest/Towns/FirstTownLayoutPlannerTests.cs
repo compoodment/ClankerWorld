@@ -28,6 +28,9 @@ public sealed class FirstTownLayoutPlannerTests
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
         Assert.Equal(first.RoadTiles, restored.RoadTiles);
+        Assert.Equal(first.Buildings.OrderBy(building => "first-town-" + building.Role, StringComparer.Ordinal)
+                .Select(building => (GridPoint?)building.Entrance),
+            restored.WorldSimulation.Buildings.Select(building => building.Entrance));
         var newSite = restored.ExportState().Map.FootNeighbors(initialSite)
             .First(point => point != initialSite &&
                 FirstTownLayoutPlanner.Plan(restored.ExportState().Map, point) is not null);
@@ -132,5 +135,18 @@ public sealed class FirstTownLayoutPlannerTests
                     .Select(dx => new GridPoint(building.Position.X + dx, building.Position.Y + dy)))
                 .Any(tile => Math.Abs(road.X - tile.X) + Math.Abs(road.Y - tile.Y) == 1)));
         Assert.All(plan.RoadTiles, point => Assert.True(map.IsBuildable(point)));
+        // Each building's door faces a Road tile directly beside one edge.
+        Assert.All(plan.Buildings, building =>
+        {
+            Assert.Contains(building.Entrance, roads);
+            var besideColumn = building.Entrance.X >= building.Position.X &&
+                building.Entrance.X < building.Position.X + building.Width;
+            var besideRow = building.Entrance.Y >= building.Position.Y &&
+                building.Entrance.Y < building.Position.Y + building.Height;
+            Assert.True(besideColumn && (building.Entrance.Y == building.Position.Y - 1 ||
+                    building.Entrance.Y == building.Position.Y + building.Height) ||
+                besideRow && (building.Entrance.X == building.Position.X - 1 ||
+                    building.Entrance.X == building.Position.X + building.Width));
+        });
     }
 }

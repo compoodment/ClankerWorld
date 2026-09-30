@@ -1,0 +1,104 @@
+# Area labels added to pull requests from the files they change.
+# Used by .github/workflows/pr-labels.yml (actions/labeler). A pull request can get several.
+
+'area:agents':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.Simulation/Cognition/**'
+          - 'src/ClankerWorld.Simulation/Society/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Knowledge/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Settlement/Community/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Settlement/Family/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Cognition.cs'
+          - 'src/ClankerWorld.Viewer/Control/Providers/**'
+          - 'tests/**/Simulation/Cognition/**'
+          - 'tests/**/Simulation/Society/**'
+          - 'tests/**/Playtest/Knowledge/**'
+          - 'tests/**/Playtest/Settlement/Community/**'
+          - 'tests/**/Playtest/Settlement/Family/**'
+          - 'tests/**/Viewer/Providers/**'
+          - 'docs/game-design/agents-and-families.md'
+
+'area:towns':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.Simulation/Content/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Content/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Towns/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Settlement/Economy/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementCouncil.cs'
+          - 'src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Production.cs'
+          - 'tests/**/Simulation/Content/**'
+          - 'tests/**/Playtest/Content/**'
+          - 'tests/**/Playtest/Towns/**'
+          - 'tests/**/Playtest/Settlement/Economy/**'
+          - 'docs/game-design/towns.md'
+          - 'docs/game-design/content-list.md'
+          - 'docs/game-design/inventions-and-mods.md'
+
+'area:world':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.Simulation/World/**'
+          - 'src/ClankerWorld.Simulation/Kernel/**'
+          - 'src/ClankerWorld.Simulation/Harness/**'
+          - 'src/ClankerWorld.Simulation/ThirdParty/**'
+          - 'src/ClankerWorld.Simulation/Playtest/Settlement/SettlementSurvival.cs'
+          - 'src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementExploration.cs'
+          - 'src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs'
+          - 'tests/**/Simulation/World/**'
+          - 'tests/**/Simulation/Kernel/**'
+          - 'tests/**/Simulation/Harness/**'
+          - 'docs/game-design/world.md'
+
+'area:saves':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.Simulation/Persistence/**'
+          - 'src/**/*Codec.cs'
+          - 'src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldHistory.cs'
+          - 'src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Validation.cs'
+          - 'src/ClankerWorld.Viewer/Observation/Persistence/**'
+          - 'src/ClankerWorld.Viewer/Observation/Worlds/**'
+          - 'tests/**/Persistence/**'
+          - 'tests/**/*Codec*'
+          - 'docs/development/saves-and-replay.md'
+          - 'docs/game-design/saves.md'
+
+'area:interface':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.GodotClient/**'
+          - 'tests/**/GodotClient/**'
+          - 'scripts/verify-godot-client.sh'
+          - 'docs/game-design/interface-and-art.md'
+          - 'docs/playing.md'
+
+'area:server':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ClankerWorld.Viewer/**'
+          - 'deploy/**'
+          - 'scripts/verify-godot-windows-export.sh'
+          - 'tests/**/Viewer/**'
+          - 'docs/development/device-pairing.md'
+
+'area:tooling':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'global.json'
+          - 'Directory.Build.props'
+          - '*.sln'
+          - '**/*.csproj'
+          - '**/packages.lock.json'
+          - 'tests/**/Architecture/**'
+          - 'tests/**/Documentation/**'
+          - 'tests/**/TestSupport/**'
+
+# Only when every changed file is documentation.
+'type:docs':
+  - changed-files:
+      - any-glob-to-all-files:
+          - '**/*.md'
+          - 'docs/**'

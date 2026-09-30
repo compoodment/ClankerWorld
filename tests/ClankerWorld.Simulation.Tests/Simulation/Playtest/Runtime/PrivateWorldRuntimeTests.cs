@@ -229,10 +229,15 @@ public sealed partial class PrivateWorldRuntimeTests
         using var runtime = new PrivateWorldRuntime(
             "playtest-alpha",
             _ => new BuildSelectingProvider());
-        var (package, recipe) = CropPackage();
+        var (package, farmhouse, recipe) = CropPackage();
         Activate(runtime, package);
+        var decisions = new List<SocietyCognitionDispatchResult>((await runtime.AdvanceOneTickAsync()).Decisions);
+        // Crops belong to a household that holds a Farmhouse, not to a role.
+        var farmhousePlaced = runtime.ExportState().Map.Tiles.Select(tile => tile.Position)
+            .Where(point => point != new GridPoint(2, 3))
+            .Any(point => runtime.PlaceBuilding("camp-farmhouse", farmhouse.CanonicalId, point, "household:camp-alpha").Applied);
+        Assert.True(farmhousePlaced);
 
-        var decisions = new List<SocietyCognitionDispatchResult>();
         for (var tick = 0; tick < 60 && !(runtime.WorldSimulation.CropBuilds ?? []).Any(job => job.State == WorldProductionJobState.Completed); tick++)
         {
             var result = await runtime.AdvanceOneTickAsync();
@@ -244,7 +249,7 @@ public sealed partial class PrivateWorldRuntimeTests
             runtime.ExportState().Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position);
         Assert.Contains(
             decisions,
-            decision => decision.InhabitantId == "founder-mira" &&
+            decision => runtime.Society.GetInhabitant(decision.InhabitantId).HouseholdId == "household:camp-alpha" &&
                 decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
         var build = Assert.Single(
             runtime.WorldSimulation.CropBuilds ?? [],
@@ -385,10 +390,12 @@ public sealed partial class PrivateWorldRuntimeTests
             []), building, recipe);
     }
 
-    private static (ContentPackageManifest Package, RecipeDefinition Recipe) CropPackage()
+    private static (ContentPackageManifest Package, BuildingDefinition Farmhouse, RecipeDefinition Recipe) CropPackage()
     {
         var packageDigest = "sha256:" + new string('f', 64);
         var version = ContentVersion.Parse("1.0.0");
+        var farmhouse = new BuildingDefinition(packageDigest, "test-farmhouse", version, "Test farmhouse", 1, 1, 1,
+            [], ["farmhouse"]);
         var recipe = new RecipeDefinition(
             packageDigest,
             "carrots",
@@ -404,14 +411,23 @@ public sealed partial class PrivateWorldRuntimeTests
             version,
             packageDigest,
             [],
-            [new ContentDefinition(
-                RecipeDefinition.SchemaKind,
-                recipe.LocalId,
-                recipe.Version,
-                recipe.DisplayName,
-                recipe.PayloadDigest,
-                """{"schema":"recipe/v1","inputs":[],"outputs":[{"resourceId":"carrot","amount":1}],"durationTicks":2,"workstationBuildingId":null,"tags":["crop"]}""")],
-            []), recipe);
+            [
+                new ContentDefinition(
+                    BuildingDefinition.SchemaKind,
+                    farmhouse.LocalId,
+                    farmhouse.Version,
+                    farmhouse.DisplayName,
+                    farmhouse.PayloadDigest,
+                    """{"schema":"building/v1","width":1,"height":1,"capacity":1,"buildCosts":[],"tags":["farmhouse"]}"""),
+                new ContentDefinition(
+                    RecipeDefinition.SchemaKind,
+                    recipe.LocalId,
+                    recipe.Version,
+                    recipe.DisplayName,
+                    recipe.PayloadDigest,
+                    """{"schema":"recipe/v1","inputs":[],"outputs":[{"resourceId":"carrot","amount":1}],"durationTicks":2,"workstationBuildingId":null,"tags":["crop"]}"""),
+            ],
+            []), farmhouse, recipe);
     }
 
     private static void Activate(PrivateWorldRuntime runtime, ContentPackageManifest package)

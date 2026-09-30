@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 26;
+    public const int StateSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string SecondHouseholdId = "household:camp-beta";
