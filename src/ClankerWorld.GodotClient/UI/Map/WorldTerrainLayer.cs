@@ -29,7 +29,7 @@ public partial class WorldTerrainLayer : Control
     private readonly HashSet<Vector2I> townBorderTiles = [];
     private readonly HashSet<Vector2I> roadTiles = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
-    private readonly List<(Rect2I Footprint, BuildingKind Kind)> buildings = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     private static readonly Color[] HouseholdPropertyColors =
     [
         new("4DC7B9"), new("9D89DF"), new("6AA6E8"), new("E69D70"),
@@ -153,10 +153,16 @@ public partial class WorldTerrainLayer : Control
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
-        var next = placed.Select(building => (new Rect2I(building.Position.X, building.Position.Y,
-                Math.Max(1, building.Width), Math.Max(1, building.Height)), BuildingSprites.KindFor(building.Tags)))
+        var next = placed.Select(building =>
+            {
+                var footprint = new Rect2I(building.Position.X, building.Position.Y,
+                    Math.Max(1, building.Width), Math.Max(1, building.Height));
+                var entrance = building.Entrance is { } tile ? new Vector2I(tile.X, tile.Y) : (Vector2I?)null;
+                return (footprint, BuildingSprites.KindFor(building.Tags), BuildingDoor.Facing(footprint, entrance));
+            })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
-                .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value)))
+                .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
+                    BuildingDoor.Default)))
             .ToList();
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
@@ -668,7 +674,7 @@ public partial class WorldTerrainLayer : Control
         if (world is null || buildings.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
-        foreach (var (footprint, kind) in buildings)
+        foreach (var (footprint, kind, door) in buildings)
         {
             foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
             {
@@ -679,7 +685,7 @@ public partial class WorldTerrainLayer : Control
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
-                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize), rect, false);
+                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door), rect, false);
             }
         }
     }

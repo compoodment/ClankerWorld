@@ -58,6 +58,12 @@ Keys stay on the server installation, separately from world saves. Cloud
 providers charge you for usage. Jev is an optional helper for the world; change
 its on/off setting while the world is paused.
 
+To save keys before placing any agents, open **Settings → Game → API keys**.
+Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
+You can save both providers' keys from Main Menu Settings once this device is
+connected and paired. Saving a key does not run a model or place an agent.
+Choose the saved key later in **Add Agent** or an agent's **Model** panel.
+
 ## Look around
 
 Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
@@ -88,7 +94,9 @@ when they overlap the pointer. **World Info** includes Towns and their residents
 moves the camera there. Opening the log marks its new entries read.
 
 **Add Agent** configures and places another adult after starting. Placement
-shows the Town and household-owned buildings. Starting membership follows the
+shows the Town and household-owned buildings. Choose the model and key, then
+point at land to see the Town and household preview below those fields.
+Starting membership follows the
 place you choose; it does not make the adult biologically related to anyone.
 
 ## Pause, settings and controls

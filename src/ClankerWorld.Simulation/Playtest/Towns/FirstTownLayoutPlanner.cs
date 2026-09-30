@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -9,153 +10,145 @@ public sealed record FirstTownLayout(
     IReadOnlyList<FirstTownLayoutBuilding> Buildings,
     IReadOnlyList<GridPoint> RoadTiles);
 
+/// <summary>A planned building; <see cref="Entrance"/> is the Road tile its door faces.</summary>
 public sealed record FirstTownLayoutBuilding(string Role, string DefinitionId,
-    GridPoint Position, int Width, int Height);
+    GridPoint Position, int Width, int Height, GridPoint Entrance);
 
 /// <summary>
-/// Finds a deterministic dry-land starting footprint near a rough site. This
-/// does not assign household claims or alter the world; paused setup remains
-/// the authority for accepting a plan and its starter supplies.
+/// Lays out the first Town street first: a main road that winds with the land
+/// through the chosen site, side streets branching off it at uneven spacing,
+/// angles and lengths, then the five starting buildings on lots whose doors
+/// face those streets. Streets are cut back to run a few tiles past the last
+/// door on them. The same site on the same map always gives the same layout.
+/// This does not alter the world; paused setup remains the authority for
+/// accepting a plan and its starter supplies.
 /// </summary>
 public static class FirstTownLayoutPlanner
 {
-    private const int BuildingSearchRadius = 9;
-    private const int RoadSearchRadius = 12;
-    private const int MaximumWarehouseCandidates = 24;
+    private const int StartSearchRadius = 3;
+    private const int AttemptsPerStart = 4;
+    private const int MaximumStarts = 12;
+
+    private static readonly (string Role, BuildingDefinition Definition)[] Starters =
+    [
+        ("warehouse", WarehouseContent.Warehouse2x2()),
+        ("house-a", HouseContent.House1x1()),
+        ("house-b", HouseContent.House1x1()),
+        ("farmhouse", FarmContent.Farmhouse1x1()),
+        ("blacksmith", BlacksmithContent.Blacksmith1x2()),
+    ];
+
+    // The Warehouse is the largest and the Town's centre, so it chooses first.
+    private static readonly string[] PlacementOrder = ["warehouse", "blacksmith", "farmhouse", "house-a", "house-b"];
 
     public static FirstTownLayout? Plan(SeededMap map, GridPoint roughSite)
     {
         ArgumentNullException.ThrowIfNull(map);
         if (!map.IsBuildable(roughSite)) return null;
-        var unavailable = map.CampObjects.Select(item => item.Position)
+        var blocked = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position)).ToHashSet();
-        var definitions = new (string Role, BuildingDefinition Definition)[]
+        var random = Pcg32XshRrV1.Create(string.IsNullOrWhiteSpace(map.ManifestDigest) ? "first-town" : map.ManifestDigest,
+            $"first-town-layout/{roughSite.X},{roughSite.Y}");
+        foreach (var start in StartTiles(map, roughSite, blocked))
+            for (var attempt = 0; attempt < AttemptsPerStart; attempt++)
+                if (TryPlan(map, roughSite, start, blocked, random) is { } layout)
+                    return layout;
+        return null;
+    }
+
+    /// <summary>The site itself, then the nearest clear tiles around it.</summary>
+    private static IEnumerable<GridPoint> StartTiles(SeededMap map, GridPoint site, HashSet<GridPoint> blocked) =>
+        Enumerable.Range(-StartSearchRadius, StartSearchRadius * 2 + 1)
+            .SelectMany(dy => Enumerable.Range(-StartSearchRadius, StartSearchRadius * 2 + 1)
+                .Select(dx => new GridPoint(site.X + dx, site.Y + dy)))
+            .Where(point => map.IsBuildable(point) && !blocked.Contains(point))
+            .OrderBy(point => Math.Abs(point.X - site.X) + Math.Abs(point.Y - site.Y))
+            .ThenBy(point => point.Y).ThenBy(point => point.X)
+            .Take(MaximumStarts);
+
+    private static FirstTownLayout? TryPlan(SeededMap map, GridPoint site, GridPoint start,
+        HashSet<GridPoint> blocked, Pcg32XshRrV1 random)
+    {
+        var streets = new TownStreets(map, blocked, [start]);
+        var mainRoad = LayMainRoad(streets, start, random);
+        LaySideStreets(streets, mainRoad, random);
+
+        var lots = new Dictionary<string, (GridPoint Anchor, GridPoint Entrance)>(StringComparer.Ordinal);
+        var footprints = new HashSet<GridPoint>();
+        foreach (var role in PlacementOrder)
         {
-            ("warehouse", WarehouseContent.Warehouse2x2()),
-            ("house-a", HouseContent.House1x1()),
-            ("house-b", HouseContent.House1x1()),
-            ("farmhouse", FarmContent.Farmhouse1x1()),
-            ("blacksmith", BlacksmithContent.Blacksmith1x2()),
-        };
-        foreach (var warehouse in CandidateAnchors(map, roughSite, 4)
-                     .Where(point => Fits(map, definitions[0].Definition, point, unavailable))
-                     .Take(MaximumWarehouseCandidates))
+            var definition = Starters.Single(item => item.Role == role).Definition;
+            if (BestLot(map, streets, blocked, footprints, definition, site, role == "warehouse", random) is not { } lot)
+                return null;
+            lots[role] = lot;
+            footprints.UnionWith(WorldContentSimulationRules.Footprint(definition, lot.Anchor));
+        }
+
+        var entrances = lots.Values.Select(lot => lot.Entrance).ToHashSet();
+        var roads = TownStreets.TrimToDoors(streets.Tiles, entrances);
+        return new FirstTownLayout(site,
+            Starters.Select(item => new FirstTownLayoutBuilding(item.Role, item.Definition.CanonicalId,
+                lots[item.Role].Anchor, item.Definition.Width, item.Definition.Height, lots[item.Role].Entrance)).ToArray(),
+            roads.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray());
+    }
+
+    /// <summary>
+    /// The main road runs both ways from the start along the most open line
+    /// through it, bending with the land.
+    /// </summary>
+    private static List<GridPoint> LayMainRoad(TownStreets streets, GridPoint start, Pcg32XshRrV1 random)
+    {
+        var heading = Enumerable.Range(0, 4)
+            .Select(direction => (direction, open: streets.OpenRun(start, direction) +
+                streets.OpenRun(start, TownStreets.Turn(direction, 4)) + (int)(random.NextUInt() % 3)))
+            .OrderByDescending(item => item.open).ThenBy(item => item.direction).First().direction;
+        var ahead = streets.Wander(start, heading, 14, 0.22, random);
+        var behind = streets.Wander(start, TownStreets.Turn(heading, 4), 11, 0.22, random);
+        behind.Reverse();
+        return [.. behind, start, .. ahead];
+    }
+
+    /// <summary>
+    /// Side streets leave the main road every three to five tiles, mostly at
+    /// right angles and sometimes at 45°, usually alternating sides.
+    /// </summary>
+    private static void LaySideStreets(TownStreets streets, List<GridPoint> mainRoad, Pcg32XshRrV1 random)
+    {
+        var side = TownStreets.Chance(random, 0.5) ? 1 : -1;
+        for (var index = TownStreets.Between(random, 2, 3); index < mainRoad.Count - 2; index += TownStreets.Between(random, 3, 5))
         {
-            var placed = new List<FirstTownLayoutBuilding>();
-            var occupied = new HashSet<GridPoint>(unavailable);
-            AddBuilding(definitions[0], warehouse, placed, occupied);
-            var warehouseEntrances = Entrances(definitions[0].Definition, warehouse)
-                .Where(point => map.IsBuildable(point) && !occupied.Contains(point)).ToArray();
-            if (warehouseEntrances.Length == 0) continue;
-            var roads = new HashSet<GridPoint> { warehouseEntrances[0] };
-            var complete = true;
-            foreach (var definition in definitions.Skip(1))
-            {
-                var found = false;
-                foreach (var candidate in CandidateAnchors(map, roughSite, BuildingSearchRadius))
+            var along = TownStreets.DirectionBetween(mainRoad[index], mainRoad[index + 1]);
+            var angle = (random.NextUInt() % 5) switch { 3 => 1, 4 => 3, _ => 2 };
+            streets.Wander(mainRoad[index], TownStreets.Turn(along, side * angle),
+                TownStreets.Between(random, 4, 8), 0.15, random, minimum: 3);
+            if (TownStreets.Chance(random, 0.8)) side = -side;
+        }
+    }
+
+    /// <summary>
+    /// The best lot for a building: its door opens onto a street, and its
+    /// footprint is clear and keeps a one-tile gap from other buildings.
+    /// Nearer the site is better; the Warehouse keeps closest to it.
+    /// </summary>
+    private static (GridPoint Anchor, GridPoint Entrance)? BestLot(SeededMap map, TownStreets streets,
+        HashSet<GridPoint> blocked, HashSet<GridPoint> footprints, BuildingDefinition definition, GridPoint site, bool central, Pcg32XshRrV1 random)
+    {
+        (GridPoint Anchor, GridPoint Entrance, double Score)? best = null;
+        foreach (var entrance in streets.Tiles)
+            for (var side = 0; side < 4; side++)
+                for (var along = 0; along < (side < 2 ? definition.Width : definition.Height); along++)
                 {
-                    if (!Fits(map, definition.Definition, candidate, occupied) || roads.Contains(candidate) ||
-                        Footprint(definition.Definition, candidate).Any(roads.Contains))
+                    var anchor = TownStreets.AnchorFacing(entrance, side, along, definition.Width, definition.Height);
+                    var footprint = WorldContentSimulationRules.Footprint(definition, anchor).ToArray();
+                    if (footprint.Any(tile => !map.IsBuildable(tile) || blocked.Contains(tile) ||
+                            streets.Contains(tile) || footprints.Contains(tile)) ||
+                        footprint.Any(tile => TownStreets.Directions.Any(step =>
+                            footprints.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y)))))
                         continue;
-                    var ownFootprint = Footprint(definition.Definition, candidate).ToHashSet();
-                    var path = Entrances(definition.Definition, candidate)
-                        .Select(entrance => RoadPath(map, roughSite, entrance, roads, occupied, ownFootprint))
-                        .FirstOrDefault(route => route is not null);
-                    if (path is null) continue;
-                    AddBuilding(definition, candidate, placed, occupied);
-                    roads.UnionWith(path);
-                    found = true;
-                    break;
+                    var distance = Math.Abs(anchor.X - site.X) + Math.Abs(anchor.Y - site.Y);
+                    var score = distance * (central ? 3 : 1) + random.NextUInt() % 250 / 100.0;
+                    if (best is null || score < best.Value.Score) best = (anchor, entrance, score);
                 }
-                if (found) continue;
-                complete = false;
-                break;
-            }
-            if (complete)
-                return new FirstTownLayout(roughSite, placed,
-                    roads.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray());
-        }
-        return null;
-    }
-
-    private static GridPoint[] CandidateAnchors(SeededMap map, GridPoint center, int radius)
-    {
-        var minX = Math.Max(0, center.X - radius);
-        var maxX = Math.Min(map.Width - 1, center.X + radius);
-        var minY = Math.Max(0, center.Y - radius);
-        var maxY = Math.Min(map.Height - 1, center.Y + radius);
-        return Enumerable.Range(minY, maxY - minY + 1)
-            .SelectMany(y => Enumerable.Range(minX, maxX - minX + 1).Select(x => new GridPoint(x, y)))
-            .OrderBy(point => Math.Abs(point.X - center.X) + Math.Abs(point.Y - center.Y))
-            .ThenBy(point => point.Y).ThenBy(point => point.X).ToArray();
-    }
-
-    private static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint anchor) =>
-        Enumerable.Range(0, definition.Height).SelectMany(dy =>
-            Enumerable.Range(0, definition.Width).Select(dx => new GridPoint(anchor.X + dx, anchor.Y + dy)));
-
-    private static GridPoint[] Entrances(BuildingDefinition definition, GridPoint anchor) =>
-        Footprint(definition, anchor)
-            .SelectMany(point => new[]
-            {
-                new GridPoint(point.X, point.Y - 1),
-                new GridPoint(point.X + 1, point.Y),
-                new GridPoint(point.X, point.Y + 1),
-                new GridPoint(point.X - 1, point.Y),
-            })
-            .Where(point => point.X < anchor.X || point.X >= anchor.X + definition.Width ||
-                point.Y < anchor.Y || point.Y >= anchor.Y + definition.Height)
-            .Distinct()
-            .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
-
-    private static bool Fits(SeededMap map, BuildingDefinition definition, GridPoint anchor,
-        HashSet<GridPoint> occupied) =>
-        Footprint(definition, anchor).All(point => map.IsBuildable(point) && !occupied.Contains(point));
-
-    private static void AddBuilding((string Role, BuildingDefinition Definition) item, GridPoint anchor,
-        List<FirstTownLayoutBuilding> placed, HashSet<GridPoint> occupied)
-    {
-        placed.Add(new FirstTownLayoutBuilding(item.Role, item.Definition.CanonicalId, anchor,
-            item.Definition.Width, item.Definition.Height));
-        occupied.UnionWith(Footprint(item.Definition, anchor));
-    }
-
-    private static List<GridPoint>? RoadPath(SeededMap map, GridPoint center,
-        GridPoint start, HashSet<GridPoint> network, HashSet<GridPoint> occupied,
-        HashSet<GridPoint> ownFootprint)
-    {
-        if (!RoadGround(start)) return null;
-        var queue = new Queue<GridPoint>();
-        var predecessor = new Dictionary<GridPoint, GridPoint>();
-        var visited = new HashSet<GridPoint> { start };
-        queue.Enqueue(start);
-        while (queue.TryDequeue(out var current))
-        {
-            if (network.Contains(current))
-            {
-                var path = new List<GridPoint> { current };
-                while (current != start)
-                {
-                    current = predecessor[current];
-                    path.Add(current);
-                }
-                return path;
-            }
-            foreach (var next in map.FootNeighbors(current))
-            {
-                if (map.IsDiagonalFootStep(current, next) ||
-                    Math.Abs(next.X - center.X) > RoadSearchRadius ||
-                    Math.Abs(next.Y - center.Y) > RoadSearchRadius || visited.Contains(next) ||
-                    !RoadGround(next))
-                    continue;
-                visited.Add(next);
-                predecessor[next] = current;
-                queue.Enqueue(next);
-            }
-        }
-        return null;
-
-        bool RoadGround(GridPoint point) => map.IsBuildable(point) && !ownFootprint.Contains(point) &&
-            !occupied.Contains(point);
+        return best is { } found ? (found.Anchor, found.Entrance) : null;
     }
 }
