@@ -12,7 +12,9 @@ public sealed partial class PrivateWorldRuntime
         CognitionAdmissionResult admission)
     {
         if (response.Provider != DecisionProviderKind.LargeLanguageModel ||
-            !admission.Accepted)
+            !admission.Accepted ||
+            admission.FellBack && admission.Outcome != "candidate_not_legal" &&
+            !admission.Outcome.StartsWith("low_confidence:", StringComparison.Ordinal))
         {
             return;
         }
@@ -74,6 +76,24 @@ public sealed partial class PrivateWorldRuntime
 
     private void CloseNameRequest(string inhabitantId, string placeholderName) =>
         society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, inhabitantId, placeholderName));
+
+    private void CloseUnresolvedNameRetry(CognitionDecisionRequest request)
+    {
+        if (!request.Observation.IsNameRetry)
+        {
+            return;
+        }
+
+        var inhabitantId = request.Observation.InhabitantId;
+        var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
+        if (!inhabitant.NeedsName)
+        {
+            return;
+        }
+
+        CloseNameRequest(inhabitantId, inhabitant.Name);
+        AppendEvent("agent_name_retry_unusable", inhabitantId);
+    }
 
     private static string? CanonicalNameKey(string name)
     {

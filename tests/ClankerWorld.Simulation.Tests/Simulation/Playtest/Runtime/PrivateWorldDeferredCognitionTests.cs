@@ -109,6 +109,58 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
+    public async Task MalformedReplyDoesNotApplyItsNameOrStartTheDuplicateNameRetry()
+    {
+        var provider = new SequencedHostedProvider(new NameReply("Taken Name", 1.2));
+        using var world = CreateNameTestWorld("malformed-name-reply", provider);
+        Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var result = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        var admission = Assert.Single(result.Decisions, item => item.InhabitantId == NameTargetId).Admission;
+
+        Assert.True(admission.FellBack);
+        Assert.Equal("malformed_response", admission.Outcome);
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.True(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.Equal(1, provider.CallCount);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "agent_name_retry_requested");
+    }
+
+    [Fact]
+    public async Task FailedNameRetryKeepsPlaceholderAndClosesTheNamingAttempt()
+    {
+        var provider = new SequencedHostedProvider(
+            [new NameReply("Taken Name")], false, false, true);
+        using var world = CreateNameTestWorld("failed-name-retry", provider);
+        Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
+        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
+        world.StartWorld();
+
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        await provider.SecondFailed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await Task.Delay(100);
+        _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+
+        var namedAgent = world.Society.GetInhabitant(NameTargetId);
+        Assert.Equal(placeholder, namedAgent.Name);
+        Assert.False(namedAgent.NeedsName);
+        var requests = provider.ObservedRequests.ToArray();
+        Assert.True(requests.Length >= 2);
+        Assert.True(requests[1].IsNameRetry);
+        Assert.Contains(world.ExportState().Events,
+            item => item.Kind == "agent_name_retry_unusable" && item.Detail == NameTargetId);
+        Assert.Single(world.ExportState().Events,
+            item => item.Kind == "agent_name_retry_requested" && item.Detail == NameTargetId);
+        Assert.DoesNotContain(world.ExportState().Society.Cognition.Queue,
+            entry => entry.InhabitantId == NameTargetId && entry.TriggerIds.Contains(
+                SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task SecondDuplicateKeepsPlaceholderAndDoesNotStartAnotherNamingRequest()
     {
         var provider = new SequencedHostedProvider(
@@ -388,7 +440,8 @@ public sealed class PrivateWorldDeferredCognitionTests
     private sealed class SequencedHostedProvider(
         IReadOnlyList<NameReply> replies,
         bool holdSecond = false,
-        bool ignoreSecondCancellation = false) : IDecisionProvider
+        bool ignoreSecondCancellation = false,
+        bool failSecond = false) : IDecisionProvider
     {
         private int callCount;
 
@@ -402,6 +455,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         public TaskCompletionSource<bool> SecondStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> SecondReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> SecondFailed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public InhabitantObservation? SecondObservation { get; private set; }
         public int CallCount => Volatile.Read(ref callCount);
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
@@ -425,6 +479,16 @@ public sealed class PrivateWorldDeferredCognitionTests
                     else
                         await ReleaseSecond.Task.WaitAsync(cancellationToken);
                 }
+            }
+
+            if (failSecond && observation.IsNameRetry)
+            {
+                if (call == 2)
+                {
+                    SecondFailed.TrySetResult(true);
+                    SecondReturned.TrySetResult(true);
+                }
+                throw new HttpRequestException("test transport failure");
             }
 
             var reply = replies[Math.Min(call - 1, replies.Count - 1)];

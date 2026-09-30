@@ -434,6 +434,7 @@ public sealed partial class PrivateWorldRuntime
                         }
                         if (outcome.Response is { } response)
                             ApplyChosenNameOutcome(item.Request, response, decision.Admission);
+                        CloseUnresolvedNameRetry(item.Request);
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }

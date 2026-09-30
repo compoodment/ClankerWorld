@@ -135,13 +135,13 @@ name already used by another agent, the scheduler queues one extra metered
 personal-model request. That request marks `name_retry` and says the chosen
 name is taken, but it still does not include anyone else's name. Names are
 compared after Unicode normalization, case folding and collapsing whitespace;
-deceased agents count too. A second duplicate, a missing name, or a name that
-cannot be used leaves the placeholder for the player to rename. The retry
-marker uses the existing saved cognition queue trigger list, so it survives
-pause and restore without a new per-agent save field. The name check is
-separate from action admission: the reply's action still follows its normal
-path, and a valid unique name is kept even when a low-confidence action falls
-back to safe idle.
+deceased agents count too. A second duplicate, a missing or invalid name, or an
+unusable retry reply leaves the placeholder for the player to rename. The
+retry marker uses the existing saved cognition queue trigger list, so it
+survives pause and restore without a new per-agent save field. The name check
+is separate from action admission: a valid name from a current legal-choice,
+low-confidence or rejected-action reply is kept, while malformed replies and
+stale replies cannot name the agent.
 
 The response must select a legal candidate. Confidence below 0.5 permits only
 the safe-idle fallback; probabilities are validated/retained but do not select
