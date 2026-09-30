@@ -26,9 +26,9 @@ public sealed class ProviderModelCatalogTests
         """;
 
     [Fact]
-    public void GameListsAreNewestFirstAndIncludeEachDefault()
+    public void GameListsKeepTheirChosenOrderAndIncludeEachDefault()
     {
-        Assert.Equal(["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra"],
+        Assert.Equal(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
             ProviderModelCatalog.Curated[PlayerDecisionProviders.OpenAi]);
         Assert.Equal(["glm-5.3-flash:cloud", "glm-5.3:cloud", "deepseek-v4.1-flash:cloud", "deepseek-v4-pro:cloud",
             "minimax-m3:cloud", "kimi-k3:cloud", "gemma4:cloud"], ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud]);
@@ -70,7 +70,7 @@ public sealed class ProviderModelCatalogTests
 
         var first = await catalog.ListAsync(new("openai"), CancellationToken.None);
         Assert.Null(first.Error);
-        Assert.Equal([new("gpt-6.1-sol", false), new("gpt-6-sol", true), new("gpt-6-luna", true), new("gpt-6-astra", false)],
+        Assert.Equal([new("gpt-6.1-sol", false), new("gpt-6-astra", false), new("gpt-6-sol", true), new("gpt-6-luna", true)],
             first.Models);
         Assert.Equal("gpt-6-luna", first.DefaultModel);
         Assert.Equal(ProviderModelCatalog.OpenAiModels, handler.Requests.Single().Uri);

@@ -24,14 +24,15 @@ public sealed class ProviderModelCatalog(
     public static readonly Uri OllamaCloudCompatibleModels = new("https://ollama.com/v1/models", UriKind.Absolute);
 
     /// <summary>
-    /// The models offered for each provider, newest first, as each provider
-    /// lists them. Adding a model means adding its exact API name here, above
-    /// older ones. Owners can still type any other model name.
+    /// The models offered for each provider, top to bottom: the newest
+    /// generation first and, within a generation, the larger models first.
+    /// Adding a model means adding its exact API name in its place. Owners can
+    /// still type any other model name.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Curated =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
-            [PlayerDecisionProviders.OpenAi] = ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra"],
+            [PlayerDecisionProviders.OpenAi] = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
             [PlayerDecisionProviders.OllamaCloud] =
             [
                 "glm-5.3-flash:cloud",

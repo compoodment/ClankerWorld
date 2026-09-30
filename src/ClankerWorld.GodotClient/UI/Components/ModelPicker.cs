@@ -3,7 +3,7 @@ using Godot;
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
-/// Chooses an agent's model from the game's list for a provider, newest first,
+/// Chooses an agent's model from the game's list for a provider, newest at the top,
 /// with a "Type a model name…" choice for any other model. Models the chosen
 /// key can't use are shown but can't be picked. While the list loads, or when
 /// it can't be read, the owner can still keep the current model or type one.
@@ -34,7 +34,7 @@ public partial class ModelPicker : VBoxContainer
         choice.FitToLongestItem = false;
         choice.ClipText = true;
         choice.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        choice.TooltipText = "The game's models for this provider, newest first. Pick Type a model name… for any other model.";
+        choice.TooltipText = "The game's models for this provider, newest at the top. Pick Type a model name… for any other model.";
         choice.ItemSelected += OnItemSelected;
         AddChild(choice);
 
@@ -118,9 +118,9 @@ public partial class ModelPicker : VBoxContainer
     public bool IsLatest(int lookup) => lookup == request;
 
     /// <summary>
-    /// Shows the game's models in the order given, newest first. With nothing
-    /// chosen yet, the default model is picked when the key can use it,
-    /// otherwise the newest usable one. <paramref name="note"/> explains a key
+    /// Shows the game's models in the order given. With nothing chosen yet, the
+    /// default model is picked when the key can use it, otherwise the top
+    /// usable one. <paramref name="note"/> explains a key
     /// that couldn't be checked.
     /// </summary>
     public void ShowList(IReadOnlyList<OwnerProviderModelChoice> choices, string fallbackModel,
@@ -168,7 +168,7 @@ public partial class ModelPicker : VBoxContainer
     private bool Lists(string model) => models.Any(item => item.Model == model);
 
     // With nothing chosen, start on the default model when the key can use it,
-    // otherwise on the newest usable model.
+    // otherwise on the top usable model in the list.
     private void ChooseWhenEmpty()
     {
         if (current.Length > 0 || models.Count == 0) return;

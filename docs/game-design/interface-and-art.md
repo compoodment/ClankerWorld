@@ -180,7 +180,7 @@ everything that is available in the current build. See [what works today](../wha
   the world. Existing credentials can be reused by multiple agents. A player
   may also add another key for the **same provider** and choose which key that
   agent uses; there is no single-key-per-provider restriction. The model is
-  chosen from the game's own short list for that provider, newest first.
+  chosen from the game's own short list for that provider, newest at the top.
   Listed models the selected key can't use are shown greyed out, and the
   player can always type any other model name. The agent
   chooses its own name after placement; the player can rename it later. Agents

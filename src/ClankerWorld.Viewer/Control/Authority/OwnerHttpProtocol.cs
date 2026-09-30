@@ -86,7 +86,7 @@ public sealed record OwnerProviderModelListAction(
 public sealed record OwnerProviderModelChoice(string Model, bool Available);
 
 /// <summary>
-/// The game's models for a provider, newest first. <see cref="DefaultModel"/>
+/// The game's models for a provider, in display order. <see cref="DefaultModel"/>
 /// is the game's default for this provider, chosen for a new agent when the
 /// key can use it. <see cref="Error"/> explains, in plain words, a key that
 /// couldn't be checked; the models are then all shown as usable.

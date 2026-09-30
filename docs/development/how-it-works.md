@@ -127,15 +127,16 @@ actual position without inventing the missing path. Visited facts remain
 personal knowledge; an unfinished outing does not create a completed artifact.
 
 The owner's model picker shows the game's own list for each provider,
-`ProviderModelCatalog.Curated`, newest first; add new models there, above older
-ones. When a key is known, the host checks it against the provider's model-list
-route (OpenAI `/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+`ProviderModelCatalog.Curated`: newest generation first and, within a generation,
+larger models first. Add new models there in their place. When a key is known,
+the host checks it against the provider's model-list route (OpenAI
+`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
 the saved key, a named key slot, or a key pasted for that check only, which is
 not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
 `:cloud`, `-cloud` or `:latest` endings. If the key can't be checked, the whole
 list stays usable and the reason is shown. A new agent starts on the provider's
-default model when the key can use it, otherwise on the newest usable model.
+default model when the key can use it, otherwise on the top usable model.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 

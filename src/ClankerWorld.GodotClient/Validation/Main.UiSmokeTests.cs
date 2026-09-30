@@ -170,7 +170,7 @@ public partial class Main
     }
 
     /// <summary>
-    /// The model picker shows the game's list newest first, marks models the
+    /// The model picker shows the game's list in its order, marks models the
     /// key can't use, keeps an unlisted model as a typed name, and explains a
     /// key that couldn't be checked with a Retry.
     /// </summary>
@@ -201,10 +201,10 @@ public partial class Main
             var lookup = picker.BeginLoading("gpt-6-luna");
             if (picker.IsLatest(stale) || !picker.IsLatest(lookup))
                 throw new InvalidOperationException("Only the newest model lookup may fill the picker.");
-            OwnerProviderModelChoice[] listed = [new("gpt-6.1-sol", true), new("gpt-6-sol", true), new("gpt-6-luna", true), new("gpt-6-astra", false)];
+            OwnerProviderModelChoice[] listed = [new("gpt-6.1-sol", true), new("gpt-6-astra", false), new("gpt-6-sol", true), new("gpt-6-luna", true)];
             picker.ShowList(listed, "gpt-6-luna");
             var unavailable = "gpt-6-astra" + ModelPicker.UnavailableNote;
-            if (Items() != $"gpt-6.1-sol | gpt-6-sol | gpt-6-luna | {unavailable} | {ModelPicker.TypeOwnText}" ||
+            if (Items() != $"gpt-6.1-sol | {unavailable} | gpt-6-sol | gpt-6-luna | {ModelPicker.TypeOwnText}" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna" || picker.Problem.Length > 0 ||
                 !picker.Choice.IsItemDisabled(Index(unavailable)) || picker.Choice.IsItemDisabled(Index("gpt-6-sol")))
                 throw new InvalidOperationException($"The model list must keep the game's order and mark models the key can't use: {Items()}.");
@@ -213,7 +213,7 @@ public partial class Main
             var newest = fresh.Model;
             fresh.Free();
             if (newest != "gpt-6-sol")
-                throw new InvalidOperationException("Without a usable default model, a new agent must start on the newest usable model.");
+                throw new InvalidOperationException("Without a usable default model, a new agent must start on the top usable model.");
             picker.SetModel("my-fine-tune");
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "my-fine-tune" || picker.Model != "my-fine-tune" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.TypeOwnText)
