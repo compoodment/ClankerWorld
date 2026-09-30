@@ -301,6 +301,10 @@ release yet.
   suggested earlier stay in the Mod Library. An adult without a household
   cannot build a House yet, so in a new world clothing and natural cover are
   their only protection from cold.
+- Text now uses pixel fonts that match the art. Body text is Fusion Pixel,
+  and titles, headings, section labels, dialog titles and the Main Menu's
+  choices use Timber, thin capitals based on the logo's letters. Text sizes
+  snap to whole pixels, so letters stay sharp instead of blurry.
 - Weather on the map now moves. Rain falls as short drops that land with
   small splash rings, storms darken the sky with heavier slanted rain and a
   soft flash of lightning every several seconds, and snow drifts down. Rain,

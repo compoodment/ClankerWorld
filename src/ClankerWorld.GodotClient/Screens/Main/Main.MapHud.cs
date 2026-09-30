@@ -17,7 +17,6 @@ public partial class Main
 
     private void BuildMapHud(Control canvas)
     {
-        hoverReadoutLabel.AddThemeFontSizeOverride("font_size", 13);
         hoverReadout.ThemeTypeVariation = "HudPanel";
         hoverReadout.AddChild(hoverReadoutLabel);
         hoverReadout.Hide();

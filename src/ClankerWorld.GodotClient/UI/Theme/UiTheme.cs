@@ -233,7 +233,7 @@ public static class UiTheme
 
     public static Theme Build(UiPalette p)
     {
-        var theme = new Theme { DefaultFontSize = 14 };
+        var theme = new Theme { DefaultFont = UiFonts.Text, DefaultFontSize = UiFonts.Body };
 
         // Frames and panels.
         var frame = Frame(p, 28, 2, 7);
@@ -293,6 +293,14 @@ public static class UiTheme
         // Text sitting straight on a wooden bar rather than on parchment.
         SetLabel(theme, "WoodLabel", p.OnWood, "Label");
         SetLabel(theme, "WoodSoftLabel", p.OnWoodSoft, "Label");
+        // Titles, headings, section labels and counts use the Timber lettering.
+        SetLabel(theme, "TitleLabel", p.Ink, "Label");
+        foreach (var (type, size) in new[] { ("TitleLabel", UiFonts.Title), ("HeadingLabel", UiFonts.Heading),
+            ("SectionLabel", UiFonts.Body), ("BadgeLabel", UiFonts.Body) })
+        {
+            theme.SetFont("font", type, UiFonts.Headings);
+            theme.SetFontSize("font_size", type, size);
+        }
         theme.SetColor("default_color", "RichTextLabel", p.Ink);
         theme.SetColor("font_selected_color", "RichTextLabel", p.Ink);
         theme.SetColor("selection_color", "RichTextLabel", p.Selection);
@@ -404,6 +412,8 @@ public static class UiTheme
         theme.SetStylebox("embedded_unfocused_border", "Window", window);
         theme.SetConstant("title_height", "Window", TitleHeight);
         theme.SetColor("title_color", "Window", p.Ink);
+        theme.SetFont("title_font", "Window", UiFonts.Headings);
+        theme.SetFontSize("title_font_size", "Window", UiFonts.Heading);
         theme.SetIcon("close", "Window", Cross(p.Ink));
         theme.SetIcon("close_pressed", "Window", Cross(p.InkMuted));
         theme.SetStylebox("panel", "AcceptDialog", Flat(p.Paper, 16, 12));

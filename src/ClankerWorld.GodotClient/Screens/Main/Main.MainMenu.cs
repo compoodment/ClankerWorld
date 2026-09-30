@@ -76,8 +76,7 @@ public partial class Main
         var body = new VBoxContainer { CustomMinimumSize = new Vector2(400, 0) };
         body.AddThemeConstantOverride("separation", 12);
         var title = new Label { Text = "CLANKERWORLD", HorizontalAlignment = HorizontalAlignment.Center };
-        title.AddThemeFontSizeOverride("font_size", 35);
-        title.ThemeTypeVariation = "HeadingLabel";
+        title.ThemeTypeVariation = "TitleLabel";
         body.AddChild(title);
         body.AddChild(new Label
         {
@@ -120,6 +119,14 @@ public partial class Main
         StyleButton(quitGameButton);
         quitGameButton.Pressed += () => quitGameConfirmation.PopupCentered(new Vector2I(440, 170));
         body.AddChild(quitGameButton);
+
+        // The Main Menu's choices use the Timber heading lettering.
+        foreach (var button in new[] { mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton,
+            mainMenuSettingsButton, mainMenuConnectButton, quitGameButton })
+        {
+            button.AddThemeFontOverride("font", UiFonts.Headings);
+            button.AddThemeFontSizeOverride("font_size", UiFonts.Heading);
+        }
 
         AddPanelContents(mainMenuCard, body);
         mainMenuCard.CustomMinimumSize = new Vector2(440, 0);
@@ -257,7 +264,7 @@ public partial class Main
         // the actions that act on it. Narrow or scaled-up screens wrap the
         // preview under the options and the card scrolls instead of clipping.
         worldMenuBody.AddThemeConstantOverride("separation", 10);
-        worldMenuHeading.AddThemeFontSizeOverride("font_size", 24);
+        worldMenuHeading.ThemeTypeVariation = "TitleLabel";
         worldMenuBody.AddChild(worldMenuHeading);
         worldMenuStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         worldMenuBody.AddChild(worldMenuStatus);

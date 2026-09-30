@@ -77,7 +77,9 @@ public partial class Main
         // Map terrain, object labels, and fixed-size agent hit targets stay in
         // their native map-space geometry; only the surrounding GUI is scaled.
         if (IsMapRenderNode(node)) return;
-        if (node is Control control)
+        // A control still entering the tree cannot see the game's theme yet and
+        // would record Godot's default size; it is handled once it arrives.
+        if (node is Control control && control.IsInsideTree())
         {
             // RichTextLabel has separate sizes for each style; ordinary controls use font_size.
             var themeFontSizeItems = control is RichTextLabel
@@ -156,9 +158,7 @@ public partial class Main
     /// <summary>A small heading that groups related settings.</summary>
     private static Label SettingsSection(string text)
     {
-        var heading = new Label { Text = text.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" };
-        heading.AddThemeFontSizeOverride("font_size", 12);
-        return heading;
+        return new Label { Text = text.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" };
     }
 
     private HBoxContainer DisplaySettingRow(string label, Control choice)

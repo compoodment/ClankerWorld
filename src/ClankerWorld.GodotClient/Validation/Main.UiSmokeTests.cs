@@ -44,6 +44,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+            VerifyPixelText("at 100% UI Scale");
             var nativeRenderSize = displayWindow.ContentScaleSize;
             var baseSettingsFontSize = uiScaleChoice.GetThemeFontSize("font_size");
             var baseHudFontSize = clockLabel.GetThemeFontSize("font_size");
@@ -68,6 +69,8 @@ public partial class Main
                     await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
                 var expectedScale = DisplayUiScalePolicy.ScaleFactor(percent);
+                if (percent % 100 == 0)
+                    VerifyPixelText($"at {percent}% UI Scale");
                 if (!Mathf.IsEqualApprox(ThemeDB.FallbackBaseScale, expectedScale))
                     throw new InvalidOperationException($"UI Scale did not update Godot's fallback base scale to {percent}%.");
                 if (uiScaleChoice.GetThemeFontSize("font_size") <= baseSettingsFontSize ||
@@ -131,6 +134,42 @@ public partial class Main
             ApplyUiScale(originalPreferences.UiScalePercent);
             RefreshRenderResolutionOptions();
         }
+    }
+
+    /// <summary>Pixel lettering stays crisp only at whole multiples of its pixel size.</summary>
+    private void VerifyPixelText(string when)
+    {
+        var theme = GetTree().Root.Theme;
+        if (theme.DefaultFont != UiFonts.Text || theme.DefaultFontSize != UiFonts.PixelSize ||
+            UiFonts.Text.Antialiasing != TextServer.FontAntialiasing.None ||
+            UiFonts.Text.SubpixelPositioning != TextServer.SubpixelPositioning.Disabled)
+            throw new InvalidOperationException("Body text must use Fusion Pixel at its 12 px size without smoothing.");
+        foreach (var heading in new Control[] { menuHeadingLabel, selectedActorNameLabel, clockLabel, mainMenuContinueButton })
+            if (heading.GetThemeFont("font") != UiFonts.Headings)
+                throw new InvalidOperationException($"{heading.Name} must use the Timber heading lettering.");
+        ConfirmationDialog[] dialogs = [quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation];
+        if (dialogs.Any(dialog => dialog.GetThemeFont("title_font") != UiFonts.Headings))
+            throw new InvalidOperationException("Dialog titles must use the Timber heading lettering.");
+        foreach (var letter in TimberFont.Characters)
+            if (!UiFonts.Headings.HasChar(letter) || !UiFonts.Headings.HasChar(char.ToLowerInvariant(letter)))
+                throw new InvalidOperationException($"Timber must draw '{letter}' in both cases.");
+        var uneven = new List<string>();
+        foreach (var control in FindChildren("*", nameof(Control), recursive: true, owned: false).OfType<Control>())
+        {
+            var items = control switch
+            {
+                RichTextLabel => UiScaleRichTextFontSizeThemeItems,
+                Label or Button or LineEdit or TextEdit or ItemList => UiScaleFontSizeThemeItems,
+                _ => [],
+            };
+            foreach (var item in items)
+                if (control.GetThemeFontSize(item) % UiFonts.PixelSize != 0)
+                    uneven.Add($"{control.Name} {item}={control.GetThemeFontSize(item)}");
+        }
+        uneven.AddRange(dialogs.Where(dialog => dialog.GetThemeFontSize("title_font_size") % UiFonts.PixelSize != 0)
+            .Select(dialog => $"{dialog.Title} title={dialog.GetThemeFontSize("title_font_size")}"));
+        if (uneven.Count > 0)
+            throw new InvalidOperationException($"Text must be drawn at whole multiples of {UiFonts.PixelSize} px {when}: {string.Join(", ", uneven.Take(10))}.");
     }
 
     private async Task VerifyMenuBackdropAsync()
@@ -488,6 +527,8 @@ public partial class Main
                 !TownListText().Contains("First Town", StringComparison.Ordinal) ||
                 !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
                 throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+            // Town rows are built after startup, so their text must still get the theme's sizes.
+            VerifyPixelText("in rows added after startup");
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");

@@ -110,7 +110,7 @@ public partial class Main
         center.AddChild(manualSaveCard);
         var body = new VBoxContainer { CustomMinimumSize = new Vector2(430, 0) };
         body.AddThemeConstantOverride("separation", 10);
-        manualSaveHeading.AddThemeFontSizeOverride("font_size", 24);
+        manualSaveHeading.ThemeTypeVariation = "TitleLabel";
         body.AddChild(manualSaveHeading);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);

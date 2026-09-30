@@ -34,6 +34,13 @@ Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
 
+The client bundles one third-party font, Fusion Pixel 12px, in
+`src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
+License. Keep `fusion-pixel-OFL.txt` beside it; the export preset's include
+filter copies that licence into the game data. Do not edit the font file: the
+licence reserves the name Fusion Pixel for unmodified copies. The heading
+lettering, Timber, is drawn in code in `UI/Theme/TimberFont.cs`.
+
 ## Which checks to run
 
 | Change | Check |

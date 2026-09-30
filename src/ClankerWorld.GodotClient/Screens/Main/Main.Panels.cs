@@ -35,7 +35,7 @@ public partial class Main
             {
                 case TownStyle.Heading:
                     if (index > 0) worldDetails.Newline();
-                    worldDetails.PushFontSize(15);
+                    worldDetails.PushFont(UiFonts.Headings, worldDetails.GetThemeFontSize("normal_font_size"));
                     worldDetails.PushColor(HeadingText);
                     worldDetails.AddText(line.Text);
                     worldDetails.Pop();

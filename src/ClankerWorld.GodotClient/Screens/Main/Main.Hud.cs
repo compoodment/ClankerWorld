@@ -79,7 +79,6 @@ public partial class Main
         pauseButton.Pressed += () => _ = TogglePauseAsync();
         hudTime.AddChild(pauseButton);
         clockLabel.Text = "Connecting…";
-        clockLabel.AddThemeFontSizeOverride("font_size", 18);
         clockLabel.ThemeTypeVariation = "HeadingLabel";
         clockLabel.VerticalAlignment = VerticalAlignment.Center;
         hudTime.AddChild(clockLabel);
@@ -118,7 +117,6 @@ public partial class Main
         eventsBadgeLabel.ThemeTypeVariation = "BadgeLabel";
         eventsBadgeLabel.HorizontalAlignment = HorizontalAlignment.Center;
         eventsBadgeLabel.VerticalAlignment = VerticalAlignment.Center;
-        eventsBadgeLabel.AddThemeFontSizeOverride("font_size", 11);
         eventsBadge.AddChild(eventsBadgeLabel);
         AttachCorner(eventsButton, eventsBadge, "Badge", new Vector2(20, 20), new Vector2(-13, -7));
         hudRight.AddChild(eventsButton);
@@ -412,7 +410,6 @@ public partial class Main
             });
             var text = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             var name = new Label { Text = town.Name, ThemeTypeVariation = "HeadingLabel" };
-            name.AddThemeFontSizeOverride("font_size", 16);
             text.AddChild(name);
             var founded = string.Equals(town.FoundingState, "founded", StringComparison.OrdinalIgnoreCase)
                 ? "founded " + SplitClock(DisplayWorldClock(town.FoundedTick)).Date
@@ -422,7 +419,6 @@ public partial class Main
                 Text = $"{town.ResidentIds.Count} {(town.ResidentIds.Count == 1 ? "resident" : "residents")} · {founded}",
                 ThemeTypeVariation = "DimLabel",
             };
-            facts.AddThemeFontSizeOverride("font_size", 13);
             text.AddChild(facts);
             line.AddChild(text);
             var show = new Button

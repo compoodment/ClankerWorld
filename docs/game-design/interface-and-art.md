@@ -119,14 +119,21 @@ everything that is available in the current build. See [what works today](../wha
   **Timber & Parchment** look chosen from three mockup directions: wooden
   frames around parchment panels, ink text, bevelled pixel buttons and a green
   main action. Game Settings offers a **Theme** of **Light**, **Dark** (dark
-  wood with cream text) or **Match system**. The exact font, icon set and
-  remaining accessibility treatment stay open.
+  wood with cream text) or **Match system**. The exact icon set and remaining
+  accessibility treatment stay open.
 - **Agreed after the September 29 background review:** the Main Menu
   background is a side-view pixel-art valley chosen from three mockup
   directions: mountains, patchwork fields, a river and small Towns built from
   the game's own building types. It animates gently (drifting clouds, chimney
   smoke, birds, river sparkle). The Light theme shows a clear morning and the
   Dark theme a dusk with lit windows, lanterns, stars and fireflies.
+- **Agreed after the September 30 font review:** text uses pixel fonts,
+  chosen from six options shown on real game screens. Body text is **Fusion
+  Pixel 12px**. Titles, panel headings, section labels, dialog titles and the
+  Main Menu's choices use **Timber**: thin capitals drawn from the logo's
+  letter shapes. Text is drawn without smoothing and only at whole multiples
+  of its 12 px size, so letters stay crisp. computment prefers this look over
+  a smoother font chosen for easy reading.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

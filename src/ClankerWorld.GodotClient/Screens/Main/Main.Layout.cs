@@ -10,7 +10,7 @@ public partial class Main
 {
     private void BuildLayout()
     {
-        AddThemeFontSizeOverride("font_size", 14);
+        AddThemeFontSizeOverride("font_size", UiFonts.Body);
 
         appBackdrop.MouseFilter = Control.MouseFilterEnum.Ignore;
         appBackdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -86,14 +86,13 @@ public partial class Main
     {
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
-        var heading = new Label { Text = "PAIR THIS WINDOWS DEVICE" };
-        heading.AddThemeFontSizeOverride("font_size", 16);
+        var heading = new Label { Text = "Pair this Windows device", ThemeTypeVariation = "HeadingLabel" };
         body.AddChild(heading);
         pairingInstructionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(pairingInstructionLabel);
         var codeRow = new HBoxContainer();
         codeRow.AddChild(new Label { Text = "comparison code:" });
-        pairingCodeLabel.AddThemeFontSizeOverride("font_size", 22);
+        pairingCodeLabel.AddThemeFontSizeOverride("font_size", UiFonts.Body * 2);
         codeRow.AddChild(pairingCodeLabel);
         body.AddChild(codeRow);
         var idRow = new HBoxContainer();
@@ -195,8 +194,7 @@ public partial class Main
 
         var familyBody = new VBoxContainer();
         var familyHeading = new HBoxContainer();
-        var familyTitle = new Label { Text = "Family Tree", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        familyTitle.AddThemeFontSizeOverride("font_size", 18);
+        var familyTitle = new Label { Text = "Family Tree", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         familyHeading.AddChild(familyTitle);
         var closeFamily = new Button { Text = "×", TooltipText = "Close family tree" };
         StyleButton(closeFamily);
@@ -220,8 +218,7 @@ public partial class Main
 
         var memoriesBody = new VBoxContainer();
         var memoriesHeading = new HBoxContainer();
-        var memoriesTitle = new Label { Text = "Memories and maps", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        memoriesTitle.AddThemeFontSizeOverride("font_size", 18);
+        var memoriesTitle = new Label { Text = "Memories and maps", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         memoriesHeading.AddChild(memoriesTitle);
         var closeMemories = new Button { Text = "×", TooltipText = "Close memories" };
         StyleButton(closeMemories);
@@ -279,8 +276,7 @@ public partial class Main
         var menuHeading = new HBoxContainer();
         menuHeadingLabel.Text = "Paused";
         menuHeadingLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        menuHeadingLabel.AddThemeFontSizeOverride("font_size", 24);
-        menuHeadingLabel.ThemeTypeVariation = "HeadingLabel";
+        menuHeadingLabel.ThemeTypeVariation = "TitleLabel";
         menuHeading.AddChild(menuHeadingLabel);
         menuCloseButton.Text = "×";
         menuCloseButton.TooltipText = "Return to the world";
@@ -567,7 +563,6 @@ public partial class Main
 
         var heading = new HBoxContainer();
         selectedActorNameLabel.Text = string.Empty;
-        selectedActorNameLabel.AddThemeFontSizeOverride("font_size", 18);
         selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
         selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         heading.AddChild(selectedActorNameLabel);
@@ -646,7 +641,6 @@ public partial class Main
         selectedAgentOverview.AddChild(historyActions);
 
         var instructionHeading = new Label { Text = "Speak to them" };
-        instructionHeading.AddThemeFontSizeOverride("font_size", 13);
         instructionHeading.ThemeTypeVariation = "SectionLabel";
         selectedAgentOverview.AddChild(instructionHeading);
         instructionKind.AddItem("Suggestion", 0);
@@ -740,7 +734,6 @@ public partial class Main
         {
             var headingRow = new HBoxContainer();
             var heading = new Label { Text = title, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            heading.AddThemeFontSizeOverride("font_size", 17);
             heading.ThemeTypeVariation = "HeadingLabel";
             headingRow.AddChild(heading);
             var close = new Button
@@ -761,7 +754,6 @@ public partial class Main
         else if (!string.IsNullOrWhiteSpace(title))
         {
             var heading = new Label { Text = title, ThemeTypeVariation = "HeadingLabel" };
-            heading.AddThemeFontSizeOverride("font_size", 15);
             body.AddChild(heading);
         }
 

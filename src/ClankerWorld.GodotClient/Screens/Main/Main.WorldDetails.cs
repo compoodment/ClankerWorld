@@ -80,7 +80,7 @@ public partial class Main
             if (date != day)
             {
                 if (day is not null) eventLog.Newline();
-                eventLog.PushFontSize(13);
+                eventLog.PushFont(UiFonts.Headings, eventLog.GetThemeFontSize("normal_font_size"));
                 eventLog.PushColor(HeadingText);
                 eventLog.AddText(date);
                 eventLog.Pop();

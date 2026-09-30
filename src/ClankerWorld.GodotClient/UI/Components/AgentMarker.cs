@@ -102,8 +102,8 @@ public partial class AgentMarker : Control
         DrawTextureRectRegion(AgentSprites.Atlas(atlasSize), sprite, AgentSprites.Region(variant, stage, atlasSize));
         var named = selected || hovered ? drawn >= 20 : showNameTag && drawn >= NameTagMinimum;
         if (!named || caption.Length == 0) return;
-        var font = ThemeDB.FallbackFont;
-        var fontSize = Math.Clamp((int)(drawn * 0.3f), 11, 14);
+        var font = UiFonts.Text;
+        const int fontSize = UiFonts.Body;
         var text = caption.Length > 14 ? caption[..13] + "…" : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
         var tag = new Rect2(new Vector2(center.X - textSize.X / 2 - 4, sprite.Position.Y + drawn * 0.86f),
