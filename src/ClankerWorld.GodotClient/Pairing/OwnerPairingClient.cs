@@ -5,6 +5,13 @@ using System.Text.Json.Serialization;
 
 namespace ClankerWorld.GodotClient.Pairing;
 
+/// <summary>A host has not advertised the format required for this action.</summary>
+public sealed class OwnerActionCompatibilityException : InvalidOperationException
+{
+    public OwnerActionCompatibilityException()
+        : base("The host and client need matching updates for this action.") { }
+}
+
 /// <summary>
 /// Default absolute-path endpoints for the owner pairing and signed-action
 /// protocol. These paths are relative to the supplied ClankerWorld server URI.
@@ -341,7 +348,8 @@ public sealed class OwnerPairingClient
         string canonicalPayload,
         TAction action,
         IOwnerDeviceSigner deviceKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? requiredPayloadDomain = null)
         where TResponse : class
     {
         // ResponseHeadersRead ends HttpClient's timeout at the headers. Keep
@@ -358,6 +366,11 @@ public sealed class OwnerPairingClient
             requestId,
             deviceKey,
             cancellationToken).ConfigureAwait(false);
+        if (requiredPayloadDomain is not null &&
+            !(challenge.SupportedActionPayloads ?? []).Contains(requiredPayloadDomain, StringComparer.Ordinal))
+        {
+            throw new OwnerActionCompatibilityException();
+        }
         var request = CreateSignedActionRequest(
             authority,
             deviceId,

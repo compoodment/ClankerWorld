@@ -159,8 +159,9 @@ public partial class Main
             var stored = building.StoredItems is { Count: > 0 }
                 ? string.Join(" · ", building.StoredItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))
                 : "none recorded";
-            // The terrain layer draws the roof; the marker keeps the name and hover help.
-            AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, name,
+            // The terrain layer draws the roof. Buildings show no name on the map;
+            // the marker keeps the hover help that names them.
+            AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
                 (household is null ? "" : $"\nHousehold · {household.Name}\nStored here · {stored}"),
@@ -209,11 +210,10 @@ public partial class Main
                     entityLayer.AddChild(actorMarker);
                     inhabitantVisuals.Add(inhabitant.Id, actorMarker);
                 }
-                actorMarker.Caption = $"{GameUiText.ActivityMapGlyph(inhabitant.PublicIntention?.CandidateId)} {GameUiText.ActorMapLabel(inhabitant.DisplayName)}";
+                actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
-                actorMarker.ShowNameTag = occupants.Length == 1;
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;

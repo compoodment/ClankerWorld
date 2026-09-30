@@ -20,6 +20,18 @@ public sealed partial class PrivateWorldRuntime
         gate.Wait();
         try
         {
+            var idempotencyKey = request.IdempotencyKey.Trim();
+            if (instructionsByIdempotency.TryGetValue(idempotencyKey, out var existing))
+            {
+                if (!Matches(existing, request))
+                {
+                    throw new InvalidOperationException(
+                        "An idempotency key cannot be reused for a different instruction request.");
+                }
+
+                return instructionReceipts[idempotencyKey];
+            }
+
             var targetId = request.TargetInhabitantId.Trim();
             var target = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == targetId);
             if (target is null || target.Status != SocietyInhabitantStatus.Active)
@@ -31,21 +43,10 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Infants cannot carry out owner instructions; direct care through an adult caregiver.", nameof(request));
             }
 
-            if (instructionsByIdempotency.TryGetValue(request.IdempotencyKey, out var existing))
-            {
-                if (!Matches(existing, request))
-                {
-                    throw new InvalidOperationException(
-                        "An idempotency key cannot be reused for a different instruction request.");
-                }
-
-                return instructionReceipts[request.IdempotencyKey];
-            }
-
             var sequence = nextInstructionSequence++;
             var instruction = new OwnerQueuedInstruction(
                 $"private-instruction-{sequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}",
-                request.IdempotencyKey.Trim(),
+                idempotencyKey,
                 request.IssuerId.Trim(),
                 targetId,
                 request.Kind,

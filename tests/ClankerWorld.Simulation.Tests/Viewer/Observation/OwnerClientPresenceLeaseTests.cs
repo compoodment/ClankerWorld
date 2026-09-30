@@ -56,8 +56,10 @@ public sealed class OwnerClientPresenceLeaseTests
         }
     }
 
-    [Fact]
-    public async Task HostedFailureLogReportsOutcomeWithoutProviderExceptionText()
+    [Theory]
+    [InlineData("founder-scout")]
+    [InlineData("founder:00000000000000000000000000000001")]
+    public async Task HostedFailureLogReportsCompleteActorAndOutcomeWithoutProviderExceptionText(string actorId)
     {
         var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-hosted-log-{Guid.NewGuid():N}");
         try
@@ -66,7 +68,16 @@ public sealed class OwnerClientPresenceLeaseTests
             var provider = new ThrowingHostedProvider();
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
             using var runtime = new PrivateWorldRuntime("hosted-log", id =>
-                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
+                id == actorId ? provider : new DeterministicDecisionProvider(),
+                startPace: actorId.Contains(':') ? WorldStartPace.FounderSetup : WorldStartPace.Legacy);
+            if (actorId.Contains(':'))
+            {
+                runtime.PlaceFounder(actorId, new(0, 0));
+                runtime.PlaceFounder("founder:00000000000000000000000000000002", new(1, 2));
+                runtime.PlaceFounder("founder:00000000000000000000000000000003", new(2, 2));
+                runtime.PlaceFounder("founder:00000000000000000000000000000004", new(3, 2));
+                runtime.StartWorld();
+            }
             using var service = new PrivateWorldRuntimeService(runtime,
                 new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence, logger);
             presence.RecordAuthenticatedReconnect("owner");
@@ -81,6 +92,8 @@ public sealed class OwnerClientPresenceLeaseTests
             }
             Assert.Contains(logger.Messages, message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
                 message.Contains("provider_failure:HttpRequestException", StringComparison.Ordinal));
+            Assert.All(logger.Messages.Where(message => message.Contains("hosted_decision tick=", StringComparison.Ordinal)),
+                message => Assert.Contains($"inhabitant={actorId} outcome=", message, StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("super-secret-api-key", StringComparison.Ordinal));
         }
         finally

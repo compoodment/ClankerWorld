@@ -112,6 +112,8 @@ ready for review.
   [logging rules](docs/development/how-it-works.md#runtime-logging).
 - Changes to saved state, events or replay need the relevant
   [compatibility and replay checks](docs/development/saves-and-replay.md).
+  During alpha, an older save may stop loading. Do not write migration or
+  old-save code only to keep one working.
 - Add or update meaningful tests for behavior changes. Wording and docs changes
   do not need new tests; update existing checks when their contract changes.
 - Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run).

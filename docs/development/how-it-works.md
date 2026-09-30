@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -39,6 +39,9 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 - **Knowledge belongs to each agent.** The player's map and observations are
   not automatically agent knowledge. Preserve ownership, source, confidence
   and correction history. A belief can be wrong without changing world facts.
+  Long descendant identities remain intact in saved discovery provenance;
+  knowledge keys and model-facing discoverer references use stable hashes
+  only when the original identifier exceeds their size limits.
 - **Credentials are installation state.** Keep keys and device authority out
   of saves, exports, observations and telemetry. See
   [device pairing](device-pairing.md) for transport and access rules.
@@ -63,8 +66,8 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Recognized MustDo instructions complete only when their requested legal action
-actually progresses: acquiring/eating food or taking a travel step. An unrelated
-action, blocked movement or unavailable food leaves the instruction pending,
+actually progresses: acquiring food or orchard fruit, eating, or taking a travel
+step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
 including across reload. Travel completion here is one step, not a full-route
 goal; suggestive instructions retain their separate semantics.
 
@@ -103,6 +106,8 @@ invalid response values such as confidence outside 0–1, also completes with
 safe idle instead of repeatedly spending calls on the same decision. A choice
 that was offered but is no longer legal stays stale; request, provider and run
 identity checks still reject late replies without applying fallback.
+A reply for a different request cannot cancel the agent's current pending choice
+or replace its last accepted intention.
 No adapter can turn provider prose directly into a world mutation.
 Jev has a separate, smaller routine payload; it is not a persona/dialogue adapter.
 
@@ -233,6 +238,9 @@ access rules still apply. If no site is reachable, an existing project uses its
 blocked/reconsideration path rather than travelling toward an unreachable tile.
 
 Recipe preparation and production must use the same actor/building owner.
+Direct production requests use the same age restrictions as autonomous choices:
+only adults and elders may start workstation recipes or crops. A request for an
+infant, child or adolescent is refused before reserving inputs or changing jobs.
 Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
@@ -277,6 +285,12 @@ metadata, never private prose or map contents. Logs are derived telemetry, never
 simulation authority or required save state. Observability tests must prove both
 useful signal and absence of representative secrets.
 
+Event descriptions resolve complete agent and Town IDs from the owner snapshot;
+colons inside those IDs are part of the identity. Food yields and Town membership
+fields are read separately. Existing entries use the current saved name, including
+deceased profiles. Hosted-decision and Town telemetry likewise keep complete IDs.
+These readers do not rewrite accepted event details or change save/replay formats.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished
@@ -314,5 +328,11 @@ finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the
 first opening can display them. Compatibility still comes from the host's
 checkpoint/history/configuration assessment; no compatibility cache or unchecked
-"compatible" shortcut was added. Client cancellation does not interrupt a host
+"compatible" shortcut was added. Open captures the chosen world's ID before
+pausing, so a later catalog refresh cannot change its target. Open, Create and
+Delete share the owner-action gate; selecting a different row cannot re-enable
+Open or Delete until the current action finishes. Cleanup checks the current
+selection rather than a row retained across an await.
+
+Client cancellation does not interrupt a host
 assessment that already holds its mutation lock.

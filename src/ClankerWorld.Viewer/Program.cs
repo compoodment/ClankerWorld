@@ -152,7 +152,7 @@ if (isPrivateWorld)
                 saves.RecoverDeletions();
                 catalog.RecoverDeletions(saves.DeleteWorldSnapshots);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
             {
                 ManualWorldSaveTelemetry.DeletionPending(services.GetRequiredService<ILogger<WorldCatalogStore>>(),
                     "startup", exception.GetType().Name);

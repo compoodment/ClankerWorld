@@ -242,6 +242,12 @@ public sealed class CognitionRuntime
             var rejection = ValidateResponse(request, response);
             if (rejection is not null)
             {
+                if (rejection == "request_id")
+                {
+                    AppendEvent(request.Observation.WorldTick, "cognition_response_rejected", $"{response.RequestId}:{rejection}");
+                    return Rejected(rejection);
+                }
+
                 // An unusable answer to this decision is terminal, not a reason
                 // to spend another hosted call on the same queued decision.
                 if (rejection is "malformed_response" or "candidate_not_legal")

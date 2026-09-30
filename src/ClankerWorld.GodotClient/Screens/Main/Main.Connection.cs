@@ -342,6 +342,8 @@ public partial class Main
     {
         if (registeredEndpointInvalid)
         {
+            connectionStatusLabel.Text = "This device's saved connection is invalid. Ask the host owner before pairing again.";
+            connectionStatusLabel.Show();
             SetStatus("saved paired endpoint is invalid · forget this local registration before pairing again", good: false);
             return;
         }
@@ -352,13 +354,33 @@ public partial class Main
         }
         catch (Exception exception)
         {
-            SetStatus($"world URL is invalid · {FriendlyFailure(exception)}", good: false);
+            var failure = FriendlyFailure(exception);
+            connectionStatusLabel.Text = $"World URL is invalid · {failure}";
+            connectionStatusLabel.Show();
+            SetStatus($"world URL is invalid · {failure}", good: false);
             return;
         }
 
         if (registration is not null)
         {
+            if (isRefreshing || isOwnerAction)
+            {
+                connectionStatusLabel.Text = "A connection check is already in progress.";
+                connectionStatusLabel.Show();
+                return;
+            }
+
+            var previousRefreshCount = successfulRefreshCount;
+            var previousToastTime = statusToastShownAtMsec;
+            connectionStatusLabel.Text = "Checking connection…";
+            connectionStatusLabel.Show();
+            connectButton.Disabled = true;
             await RefreshAsync();
+            connectionStatusLabel.Text = successfulRefreshCount > previousRefreshCount
+                ? "Connected. Go back to open your world."
+                : statusToastKind == StatusToastKind.Connection && statusToastShownAtMsec != previousToastTime
+                    ? statusLabel.Text
+                    : "Could not confirm the connection. Try again.";
             return;
         }
 

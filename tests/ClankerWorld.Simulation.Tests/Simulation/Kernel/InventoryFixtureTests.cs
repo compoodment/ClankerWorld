@@ -63,6 +63,74 @@ public sealed class InventoryFixtureTests
         Assert.Equal(InventoryDigest.State(spoiled), InventoryDigest.State(restored));
     }
 
+    [Theory]
+    [InlineData(InventoryReservationState.Reserved)]
+    [InlineData(InventoryReservationState.PartiallyConsumed)]
+    [InlineData(InventoryReservationState.Committed)]
+    public void SplitCannotRemoveReservedStockOrChangeTheRejectedCheckpoint(InventoryReservationState state)
+    {
+        var reserved = InventoryFixture.Reserve(
+            InventoryFixture.CreateGenesis([new InventoryLot("wood", "wood", "owner", 10, 10_000, 10_000, 0)]),
+            "job-input", "owner", "wood", 7, "building", 100);
+        reserved = reserved with { Reservations = [reserved.GetReservation("job-input") with { State = state }] };
+        var before = InventoryCheckpointCodec.Encode(reserved);
+
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.SplitLot(reserved, "wood", 8, "wood-split"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(reserved));
+        var restored = InventoryCheckpointCodec.Decode(before);
+        var split = InventoryFixture.SplitLot(restored, "wood", 3, "wood-split");
+        Assert.Equal(7, split.GetLot("wood").Quantity);
+        Assert.Equal(reserved.Reservations, split.Reservations);
+        Assert.Equal(10, split.Lots.Sum(lot => lot.Quantity));
+        if (state != InventoryReservationState.Committed)
+        {
+            var consumed = InventoryFixture.ConsumeReservation(
+                InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(split)), "job-input");
+            Assert.Equal(InventoryReservationState.Completed, consumed.GetReservation("job-input").State);
+            Assert.Equal(3, consumed.GetLot("wood-split").Quantity);
+            Assert.DoesNotContain(consumed.Lots, lot => lot.Id == "wood");
+        }
+    }
+
+    [Fact]
+    public void SplitPreservesBothBarterPartiesReservationsAndTheOfferCanStillSettleAfterReload()
+    {
+        var genesis = InventoryFixture.CreateGenesis(
+        [
+            new InventoryLot("wood", "wood", "alpha", 10, 10_000, 10_000, 0),
+            new InventoryLot("food", "food", "bravo", 5, 10_000, 10_000, 0),
+        ]);
+        var offered = InventoryFixture.CreateDirectBarterOffer(genesis,
+            new DirectBarterProposal("offer", 1, "alpha", "bravo", "wood", 7, "food", 3, 100));
+        var before = InventoryCheckpointCodec.Encode(offered);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.SplitLot(offered, "wood", 4, "wood-split"));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.SplitLot(offered, "food", 3, "food-split"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(offered));
+
+        var split = InventoryFixture.SplitLot(offered, "wood", 3, "wood-split");
+        split = InventoryFixture.SplitLot(split, "food", 2, "food-split");
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(split));
+        var settled = InventoryFixture.AcceptDirectBarterOffer(
+            InventoryFixture.AcceptDirectBarterOffer(restored, "offer", 1, "alpha"), "offer", 1, "bravo");
+        Assert.Equal(DirectBarterState.Settled, settled.GetOffer("offer").State);
+        Assert.Equal("bravo", settled.GetLot("wood").OwnerId);
+        Assert.Equal("alpha", settled.GetLot("food").OwnerId);
+        Assert.Equal("alpha", settled.GetLot("wood-split").OwnerId);
+        Assert.Equal("bravo", settled.GetLot("food-split").OwnerId);
+    }
+
+    [Fact]
+    public void ReleasedReservationsAllowSplittingAndUnusableUnreservedLotsKeepTheirExistingSplitBehavior()
+    {
+        var reserved = InventoryFixture.Reserve(
+            InventoryFixture.CreateGenesis([new InventoryLot("wood", "wood", "owner", 10, 10_000, 10_000, 0)]),
+            "job-input", "owner", "wood", 7, "building", 100);
+        var released = InventoryFixture.ReleaseReservation(reserved, "job-input");
+        Assert.Equal(2, InventoryFixture.SplitLot(released, "wood", 8, "wood-split").GetLot("wood").Quantity);
+        var spoiled = InventoryFixture.CreateGenesis([new InventoryLot("spoiled", "food", "owner", 10, 0, 0, 0)]);
+        Assert.Equal(2, InventoryFixture.SplitLot(spoiled, "spoiled", 8, "spoiled-split").GetLot("spoiled").Quantity);
+    }
+
     [Fact]
     public void ReservationExpiryReleasesOnlyTheReservedQuantity()
     {
