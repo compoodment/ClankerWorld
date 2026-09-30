@@ -30,12 +30,20 @@ public partial class WorldTerrainLayer : Control
     private readonly HashSet<Vector2I> roadTiles = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    // Road tiles in front of a door, and the side of the tile the door is on.
+    private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
     private static readonly Color[] HouseholdPropertyColors =
     [
         new("4DC7B9"), new("9D89DF"), new("6AA6E8"), new("E69D70"),
     ];
 
     public int VisibleTileCount { get; private set; }
+
+    /// <summary>Tiles inside the Town borders currently drawn; zero when borders are hidden.</summary>
+    public int TownBorderTileCount => townBorderTiles.Count;
+
+    /// <summary>Tiles tinted as household property; zero when that overlay is hidden.</summary>
+    public int HouseholdPropertyTileCount => householdPropertyTiles.Count;
 
     /// <summary>Camera-visible tile rectangle, in tiles; x can run past the seam on wrapped worlds.</summary>
     public Rect2 VisibleTiles => visibleTiles;
@@ -161,6 +169,20 @@ public partial class WorldTerrainLayer : Control
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
+        doorsteps.Clear();
+        foreach (var (footprint, _, door) in buildings)
+        {
+            if (door.Tile is not { } along) continue;
+            var (tile, toward) = door.Side switch
+            {
+                DoorSide.North => (new Vector2I(footprint.Position.X + along, footprint.Position.Y - 1), RoadLinks.DoorSouth),
+                DoorSide.East => (new Vector2I(footprint.End.X, footprint.Position.Y + along), RoadLinks.DoorWest),
+                DoorSide.West => (new Vector2I(footprint.Position.X - 1, footprint.Position.Y + along), RoadLinks.DoorEast),
+                _ => (new Vector2I(footprint.Position.X + along, footprint.End.Y), RoadLinks.DoorNorth),
+            };
+            if (wrapsEastWest && world is not null) tile.X = Mod(tile.X, world.Width);
+            doorsteps[tile] = doorsteps.GetValueOrDefault(tile) | toward;
+        }
         QueueRedraw();
     }
 
@@ -382,6 +404,7 @@ public partial class WorldTerrainLayer : Control
             var edges = TerrainTransitions.Atlas(atlasSize);
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
+            var hills = TerrainTextures.HillAtlas(atlasSize);
             for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             {
                 for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
@@ -406,6 +429,11 @@ public partial class WorldTerrainLayer : Control
                     TerrainTransitions.Collect(world, mapX, y, wrapsEastWest, transitionPieces);
                     foreach (var (over, piece) in transitionPieces)
                         DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
+                    // Hills are relief over the tile's own ground, not a
+                    // separate surface, so grass or snow still shows through.
+                    if (world.IsHillAt(mapX, y))
+                        DrawTextureRectRegion(hills, tile, TerrainTextures.HillRegion(
+                            (int)(PixelArt.Hash(mapX, y, 61) % TerrainTextures.VariantCount), atlasSize));
                 }
             }
         }
@@ -609,23 +637,49 @@ public partial class WorldTerrainLayer : Control
         return (int)(hash % HouseholdPropertyColors.Length);
     }
 
+    /// <summary>
+    /// Town borders as a pale dashed line just inside the border's outer edge,
+    /// with a faint shadow so it stays visible on snow and sand. Too small for
+    /// dashes, at overview zoom, it is a thin solid line.
+    /// </summary>
     private void DrawTownBorders((int Left, int Top, int Width, int Height) bounds, int stride)
     {
         if (world is null || townBorderTiles.Count == 0 || tileSize <= 0) return;
-        var color = new Color(0.95f, 0.78f, 0.38f, 0.88f);
-        var lineWidth = Math.Clamp(tileSize / 30f, 1f, 4f);
+        var dash = new Color("FFF1C9");
+        var shadow = new Color(0.1f, 0.07f, 0.04f, 0.35f);
+        var width = Math.Max(1.5f, tileSize / 14f);
+        var dashed = tileSize >= SpriteTileMinimum;
+        var inset = dashed ? width : 0.5f;
+        float t = tileSize;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
                 var canonicalX = wrapsEastWest ? Mod(x, world.Width) : x;
                 if (!townBorderTiles.Contains(new Vector2I(canonicalX, y))) continue;
                 var origin = new Vector2(x * stride, y * stride);
-                var edge = new Vector2(tileSize, tileSize);
-                if (!ContainsTownTile(canonicalX - 1, y)) DrawLine(origin, origin + new Vector2(0, tileSize), color, lineWidth);
-                if (!ContainsTownTile(canonicalX + 1, y)) DrawLine(origin + new Vector2(tileSize, 0), origin + edge, color, lineWidth);
-                if (!ContainsTownTile(canonicalX, y - 1)) DrawLine(origin, origin + new Vector2(tileSize, 0), color, lineWidth);
-                if (!ContainsTownTile(canonicalX, y + 1)) DrawLine(origin + new Vector2(0, tileSize), origin + edge, color, lineWidth);
+                if (!ContainsTownTile(canonicalX, y - 1)) Edge(origin, new Vector2(1, 0), new Vector2(0, 1));
+                if (!ContainsTownTile(canonicalX + 1, y)) Edge(origin + new Vector2(t, 0), new Vector2(0, 1), new Vector2(-1, 0));
+                if (!ContainsTownTile(canonicalX, y + 1)) Edge(origin + new Vector2(t, t), new Vector2(-1, 0), new Vector2(0, -1));
+                if (!ContainsTownTile(canonicalX - 1, y)) Edge(origin + new Vector2(0, t), new Vector2(0, -1), new Vector2(1, 0));
             }
+
+        // One tile edge, running along `along` from `start`; three dashes per edge.
+        void Edge(Vector2 start, Vector2 along, Vector2 inward)
+        {
+            var from = start + inward * inset;
+            if (!dashed)
+            {
+                DrawLine(from, from + along * t, dash with { A = 0.9f }, 1f);
+                return;
+            }
+            for (var d = t * 0.08f; d < t; d += t / 3f)
+            {
+                var a = from + along * d;
+                var b = from + along * Math.Min(t, d + t / 5.5f);
+                DrawLine(a + new Vector2(1, 1), b + new Vector2(1, 1), shadow, width);
+                DrawLine(a, b, dash, width);
+            }
+        }
 
         bool ContainsTownTile(int x, int y) => y >= 0 && y < world.Height &&
             (wrapsEastWest ? townBorderTiles.Contains(new Vector2I(Mod(x, world.Width), y)) :
@@ -658,33 +712,71 @@ public partial class WorldTerrainLayer : Control
         }
     }
 
+    /// <summary>
+    /// Packed-dirt Road pieces joined along the Road, with smooth diagonals
+    /// and doorstep paths. At overview zoom the same links are drawn as flat
+    /// lines.
+    /// </summary>
     private void DrawRoads((int Left, int Top, int Width, int Height) bounds, int stride)
     {
         if (world is null || roadTiles.Count == 0 || tileSize <= 0) return;
-        // A packed-dirt path: a darker worn edge under a lighter center.
-        DrawRoadLayer(bounds, stride, new Color("8F7B5B"), Math.Clamp(tileSize / 2.6f, 2f, 12f));
-        DrawRoadLayer(bounds, stride, new Color("C2AB84"), Math.Clamp(tileSize / 3.8f, 1f, 8f));
+        if (tileSize < SpriteTileMinimum)
+        {
+            DrawRoadLines(bounds, stride, RoadSprites.WornEdge, Math.Clamp(tileSize / 2.2f, 1.5f, 6f));
+            DrawRoadLines(bounds, stride, RoadSprites.Dirt, Math.Clamp(tileSize / 3.5f, 1f, 4f));
+            return;
+        }
+        var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                var links = RoadLinksAt(x, y);
+                if (!RoadSprites.Draws(links)) continue;
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(mapX, y));
+                var variant = (int)(PixelArt.Hash(mapX, y, 7) % RoadSprites.VariantCount);
+                var dark = RoadSprites.NeedsDarkEdge(world.StyleAt(mapX, y));
+                DrawTextureRect(RoadSprites.Texture(links, variant, atlasSize, dark),
+                    new Rect2(x * stride, y * stride, tileSize, tileSize), false);
+            }
     }
 
-    private void DrawRoadLayer((int Left, int Top, int Width, int Height) bounds, int stride, Color color, float width)
+    /// <summary>Which of a tile's neighbours are Road, and whether it is Road itself.</summary>
+    private RoadLinks RoadLinksAt(int x, int y)
+    {
+        var links = RoadLinks.None;
+        if (IsRoad(x, y)) links |= RoadLinks.Road;
+        if (IsRoad(x, y - 1)) links |= RoadLinks.North;
+        if (IsRoad(x + 1, y)) links |= RoadLinks.East;
+        if (IsRoad(x, y + 1)) links |= RoadLinks.South;
+        if (IsRoad(x - 1, y)) links |= RoadLinks.West;
+        // Diagonals only matter for Road tiles and for tiles between two Roads.
+        if (!links.HasFlag(RoadLinks.Road) && System.Numerics.BitOperations.PopCount((uint)links) < 2) return links;
+        if (IsRoad(x + 1, y - 1)) links |= RoadLinks.NorthEast;
+        if (IsRoad(x + 1, y + 1)) links |= RoadLinks.SouthEast;
+        if (IsRoad(x - 1, y + 1)) links |= RoadLinks.SouthWest;
+        if (IsRoad(x - 1, y - 1)) links |= RoadLinks.NorthWest;
+        return links;
+    }
+
+    private bool IsRoad(int x, int y) => world is not null && y >= 0 && y < world.Height &&
+        (wrapsEastWest || x >= 0 && x < world.Width) &&
+        roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y));
+
+    private void DrawRoadLines((int Left, int Top, int Width, int Height) bounds, int stride, Color color, float width)
     {
         if (world is null) return;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
-                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
-                if (!roadTiles.Contains(new Vector2I(mapX, y))) continue;
+                if (!IsRoad(x, y)) continue;
                 var center = new Vector2(x * stride + tileSize / 2f, y * stride + tileSize / 2f);
-                DrawRect(new Rect2(center - new Vector2(width / 2f, width / 2f),
-                    new Vector2(width, width)), color);
-                foreach (var (dx, dy) in new (int X, int Y)[] { (1, 0), (0, 1), (1, 1), (1, -1) })
+                DrawRect(new Rect2(center - new Vector2(width / 2f, width / 2f), new Vector2(width, width)), color);
+                foreach (var (dx, dy) in new (int X, int Y)[] { (1, 0), (0, 1), (1, 1), (-1, 1) })
                 {
-                    var nextX = x + dx;
-                    var nextY = y + dy;
-                    if (nextY < 0 || nextY >= world.Height ||
-                        !wrapsEastWest && (nextX < 0 || nextX >= world.Width) ||
-                        !roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(nextX, world.Width) : nextX, nextY)))
-                        continue;
+                    if (!IsRoad(x + dx, y + dy)) continue;
+                    // A diagonal is drawn only where no straight path joins the two tiles.
+                    if (dx != 0 && dy != 0 && (IsRoad(x + dx, y) || IsRoad(x, y + dy))) continue;
                     DrawLine(center, center + new Vector2(dx * stride, dy * stride), color, width);
                 }
             }

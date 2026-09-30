@@ -100,8 +100,8 @@ public partial class Main
         {
             var (width, height) = MapDimensions(snapshot);
             terrainMap = snapshot.PackedTerrain is { } packed
-                ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers)
-                : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers);
+                ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers, snapshot.WrapsEastWest)
+                : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers, snapshot.WrapsEastWest);
             terrainWorldId = snapshot.WorldId;
             terrainManifestDigest = manifest;
             terrainLayersDigest = snapshot.MapLayersDigest;
