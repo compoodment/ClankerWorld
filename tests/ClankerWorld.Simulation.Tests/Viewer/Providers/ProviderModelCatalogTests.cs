@@ -6,83 +6,72 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ProviderModelCatalogTests
 {
+    // An account that can use Luna and Sol but not the newer or larger models.
     private const string OpenAiList = """
         {"object":"list","data":[
-          {"id":"gpt-4o","object":"model","created":1715367049},
-          {"id":"gpt-6","object":"model","created":1785000000},
-          {"id":"gpt-6-luna","object":"model","created":1784000000},
-          {"id":"gpt-6-luna-pro","object":"model","created":1784500000},
-          {"id":"gpt-5.6-luna","object":"model","created":1775000000},
-          {"id":"gpt-5-mini","object":"model","created":1754425777},
-          {"id":"gpt-5","object":"model","created":1754425928},
-          {"id":"text-embedding-3-small","object":"model","created":1705948997},
-          {"id":"gpt-4o-audio-preview","object":"model","created":1727460443},
-          {"id":"gpt-4o-realtime-preview","object":"model","created":1727659998},
-          {"id":"gpt-image-1","object":"model","created":1745517030},
-          {"id":"dall-e-3","object":"model","created":1698785189},
-          {"id":"whisper-1","object":"model","created":1677532384},
-          {"id":"o3","object":"model","created":1744225308},
-          {"id":"o1-pro","object":"model","created":1742251791},
-          {"id":"omni-moderation-latest","object":"model","created":1731689265},
-          {"id":"gpt-4o-mini-search-preview","object":"model","created":1741391161},
-          {"id":"gpt-3.5-turbo-instruct","object":"model","created":1692901427}
+          {"id":"gpt-6-luna","object":"model","created":1790000000},
+          {"id":"gpt-6-sol","object":"model","created":1790000000},
+          {"id":"gpt-5.6-terra","object":"model","created":1783000000},
+          {"id":"text-embedding-3-small","object":"model","created":1705948997}
         ]}
         """;
 
+    // Ollama's native list names cloud models without the ":cloud" the app uses.
     private const string OllamaTags = """
         {"models":[
-          {"name":"kimi-k3","model":"kimi-k3","modified_at":"2026-08-20T10:00:00Z"},
-          {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"},
-          {"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-04-02T10:00:00Z"}
+          {"name":"glm-5.3-flash","model":"glm-5.3-flash","modified_at":"2026-09-20T10:00:00Z"},
+          {"name":"kimi-k3:cloud","model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
+          {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"}
         ]}
         """;
 
     [Fact]
-    public void OpenAiListKeepsOnlyChatModelsFromOldestToNewest()
+    public void GameListsAreNewestFirstAndIncludeEachDefault()
     {
-        var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OpenAi,
+        Assert.Equal(["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra"],
+            ProviderModelCatalog.Curated[PlayerDecisionProviders.OpenAi]);
+        Assert.Equal(["glm-5.3-flash:cloud", "glm-5.3:cloud", "deepseek-v4.1-flash:cloud", "deepseek-v4-pro:cloud",
+            "minimax-m3:cloud", "kimi-k3:cloud", "gemma4:cloud"], ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud]);
+        Assert.Equal("gpt-6-luna", PlayerDecisionProviders.DefaultOpenAiModel);
+        Assert.Equal("glm-5.3-flash:cloud", PlayerDecisionProviders.DefaultOllamaCloudModel);
+        foreach (var (provider, models) in ProviderModelCatalog.Curated)
+        {
+            Assert.Contains(PlayerDecisionProviders.DefaultModel(provider), models);
+            Assert.Equal(models.Count, models.Distinct(StringComparer.Ordinal).Count());
+        }
+    }
+
+    [Theory]
+    [InlineData("glm-5.3:cloud", "glm-5.3")]
+    [InlineData("gpt-oss:120b-cloud", "gpt-oss:120b")]
+    [InlineData("Gemma4:latest", "gemma4")]
+    [InlineData("gpt-6-luna", "gpt-6-luna")]
+    public void MatchingIgnoresOllamaCloudEndings(string listed, string expected) =>
+        Assert.Equal(expected, ProviderModelCatalog.MatchName(listed));
+
+    [Fact]
+    public void BothListShapesAreReadAndOthersAreRejected()
+    {
+        Assert.Equal(["gpt-6-luna", "gpt-6-sol", "gpt-5.6-terra", "text-embedding-3-small"],
             ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)));
-        Assert.Equal(["gpt-4o", "o3", "gpt-5-mini", "gpt-5", "gpt-5.6-luna", "gpt-6-luna", "gpt-6"], models);
-    }
-
-    [Fact]
-    public void OllamaListReadsNativeTagsFromOldestToNewest()
-    {
-        var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OllamaCloud,
-            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
-        Assert.Equal(["gpt-oss:120b", "gemma4:31b", "kimi-k3"], models);
-    }
-
-    [Fact]
-    public void VeryLongListKeepsItsNewestModelsStillOldestFirst()
-    {
-        var start = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var listed = Enumerable.Range(0, 250).Select(day => new ProviderModelCatalog.ListedModel($"model-{day:D3}", start.AddDays(day)));
-        var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OllamaCloud, listed);
-        Assert.Equal(200, models.Count);
-        Assert.Equal("model-050", models[0]);
-        Assert.Equal("model-249", models[^1]);
-    }
-
-    [Fact]
-    public void UnrecognisedListShapeIsRejected()
-    {
+        Assert.Equal(["glm-5.3-flash", "kimi-k3:cloud", "gpt-oss:120b"], ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
         Assert.Throws<InvalidDataException>(() => ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes("""{"items":[]}""")));
     }
 
     [Fact]
-    public async Task SavedKeyIsSentOnlyToTheProviderAndTheListIsReusedUntilItExpires()
+    public async Task SavedKeyMarksListedModelsItCantUseAndTheCheckIsReusedUntilItExpires()
     {
         using var directory = new TemporaryDirectory();
         var store = directory.Store();
-        _ = store.Configure(new("planning", "openai", "gpt-5-mini", "saved-openai-secret", false));
+        _ = store.Configure(new("planning", "openai", "gpt-6-luna", "saved-openai-secret", false));
         var handler = new ListHandler(_ => (HttpStatusCode.OK, OpenAiList));
         var clock = new ManualClock();
         var catalog = new ProviderModelCatalog(store, new ClientFactory(handler), clock);
 
         var first = await catalog.ListAsync(new("openai"), CancellationToken.None);
         Assert.Null(first.Error);
-        Assert.Equal("gpt-6", first.Models[^1]);
+        Assert.Equal([new("gpt-6.1-sol", false), new("gpt-6-sol", true), new("gpt-6-luna", true), new("gpt-6-astra", false)],
+            first.Models);
         Assert.Equal("gpt-6-luna", first.DefaultModel);
         Assert.Equal(ProviderModelCatalog.OpenAiModels, handler.Requests.Single().Uri);
         Assert.Equal("Bearer saved-openai-secret", handler.Requests.Single().Authorization);
@@ -95,7 +84,7 @@ public sealed class ProviderModelCatalogTests
     }
 
     [Fact]
-    public async Task PastedKeyIsUsedForTheLookupWithoutBeingSaved()
+    public async Task PastedKeyIsCheckedWithoutBeingSavedAndCloudEndingsStillMatch()
     {
         using var directory = new TemporaryDirectory();
         var store = directory.Store();
@@ -105,10 +94,27 @@ public sealed class ProviderModelCatalogTests
         var list = await catalog.ListAsync(new("ollama-cloud", ApiKey: " pasted-secret "), CancellationToken.None);
 
         Assert.Null(list.Error);
-        Assert.Equal(3, list.Models.Count);
+        Assert.Equal(["glm-5.3-flash:cloud", "kimi-k3:cloud"], list.Models.Where(item => item.Available).Select(item => item.Model));
+        Assert.Equal(ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud], list.Models.Select(item => item.Model));
         Assert.Equal("Bearer pasted-secret", handler.Requests.Single().Authorization);
         Assert.Null(store.CaptureRuntimeConfiguration().OllamaCloud.ApiKey);
         Assert.DoesNotContain("pasted-secret", File.ReadAllText(directory.ProvidersPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListWithoutAKeyCheckAsksNoProvider()
+    {
+        using var directory = new TemporaryDirectory();
+        var store = directory.Store();
+        _ = store.Configure(new("planning", "openai", "gpt-6-luna", "saved-openai-secret", false));
+        var handler = new ListHandler(_ => throw new InvalidOperationException("No provider call expected."));
+        var catalog = new ProviderModelCatalog(store, new ClientFactory(handler));
+
+        var list = await catalog.ListAsync(new("openai", CheckKey: false), CancellationToken.None);
+
+        Assert.Null(list.Error);
+        Assert.All(list.Models, item => Assert.True(item.Available));
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -117,7 +123,7 @@ public sealed class ProviderModelCatalogTests
         using var directory = new TemporaryDirectory();
         var store = directory.Store();
         var slot = Guid.NewGuid().ToString("N");
-        _ = store.Configure(new("personal", "openai", "gpt-5", "slot-secret", false, "inhabitant-test", slot, "Second account"));
+        _ = store.Configure(new("personal", "openai", "gpt-6-sol", "slot-secret", false, "inhabitant-test", slot, "Second account"));
         var handler = new ListHandler(_ => (HttpStatusCode.OK, OpenAiList));
         var catalog = new ProviderModelCatalog(store, new ClientFactory(handler));
 
@@ -132,32 +138,36 @@ public sealed class ProviderModelCatalogTests
     }
 
     [Fact]
-    public async Task MissingKeyRefusedKeyAndFailuresExplainThemselvesWithoutTheKey()
+    public async Task KeysThatCantBeCheckedKeepTheWholeListUsableAndExplainWithoutTheKey()
     {
         using var directory = new TemporaryDirectory();
         var store = directory.Store();
+        var curated = ProviderModelCatalog.Curated[PlayerDecisionProviders.OpenAi];
 
         var none = await new ProviderModelCatalog(store, new ClientFactory(new ListHandler(_ => throw new InvalidOperationException())))
             .ListAsync(new("openai"), CancellationToken.None);
         Assert.Equal("Add an API key for OpenAI first.", none.Error);
-        Assert.Empty(none.Models);
+        Assert.Equal(curated, none.Models.Select(item => item.Model));
+        Assert.All(none.Models, item => Assert.True(item.Available));
 
         var refused = await new ProviderModelCatalog(store, new ClientFactory(new ListHandler(_ => (HttpStatusCode.Unauthorized, "{}"))))
             .ListAsync(new("openai", ApiKey: "wrong-secret"), CancellationToken.None);
         Assert.Equal("OpenAI refused this key.", refused.Error);
+        Assert.All(refused.Models, item => Assert.True(item.Available));
 
         var broken = await new ProviderModelCatalog(store, new ClientFactory(new ListHandler(_ => (HttpStatusCode.OK, "not json"))))
             .ListAsync(new("openai", ApiKey: "some-secret"), CancellationToken.None);
-        Assert.StartsWith("Couldn't get the model list from OpenAI.", broken.Error, StringComparison.Ordinal);
+        Assert.StartsWith("Couldn't check this key with OpenAI.", broken.Error, StringComparison.Ordinal);
         Assert.DoesNotContain("some-secret", broken.Error, StringComparison.Ordinal);
 
         var offline = await new ProviderModelCatalog(store, new ClientFactory(new ListHandler(_ => throw new HttpRequestException("offline"))))
             .ListAsync(new("ollama-cloud", ApiKey: "some-secret"), CancellationToken.None);
-        Assert.StartsWith("Couldn't get the model list from Ollama Cloud.", offline.Error, StringComparison.Ordinal);
+        Assert.StartsWith("Couldn't check this key with Ollama Cloud.", offline.Error, StringComparison.Ordinal);
+        Assert.Equal(7, offline.Models.Count);
     }
 
     [Fact]
-    public async Task FailedListIsNotCached()
+    public async Task FailedCheckIsNotCached()
     {
         using var directory = new TemporaryDirectory();
         var store = directory.Store();
@@ -176,13 +186,13 @@ public sealed class ProviderModelCatalogTests
         using var directory = new TemporaryDirectory();
         var handler = new ListHandler(uri => uri == ProviderModelCatalog.OllamaCloudModels
             ? (HttpStatusCode.NotFound, "{}")
-            : (HttpStatusCode.OK, """{"object":"list","data":[{"id":"gpt-oss:120b","created":1754000000}]}"""));
+            : (HttpStatusCode.OK, """{"object":"list","data":[{"id":"minimax-m3","created":1754000000}]}"""));
         var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(handler));
 
         var list = await catalog.ListAsync(new("ollama-cloud", ApiKey: "ollama-secret"), CancellationToken.None);
 
         Assert.Null(list.Error);
-        Assert.Equal(["gpt-oss:120b"], list.Models);
+        Assert.Equal(["minimax-m3:cloud"], list.Models.Where(item => item.Available).Select(item => item.Model));
         Assert.Equal([ProviderModelCatalog.OllamaCloudModels, ProviderModelCatalog.OllamaCloudCompatibleModels],
             handler.Requests.Select(request => request.Uri));
     }

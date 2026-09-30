@@ -126,16 +126,18 @@ If intervening legal movement interrupts an outing, scouting restarts at the
 actual position without inventing the missing path. Visited facts remain
 personal knowledge; an unfinished outing does not create a completed artifact.
 
-The owner's model picker asks the host which models a key can use. The host
-calls the provider's model-list route (OpenAI `/v1/models`; Ollama Cloud
-`/api/tags`, then `/v1/models`) with the saved key, a named key slot, or a key
-pasted for that lookup only, which is not stored. Keys never return to the
-client. OpenAI's list is filtered to chat models by name. The list runs oldest
-to newest and keeps the newest 200 models. A new agent starts on the game's
-default model for that provider when the key offers it, otherwise on the
-newest listed model. Lists are cached per
-key for ten minutes, time out after eight seconds and are not model calls, so
-they do not count toward the usage cap below.
+The owner's model picker shows the game's own list for each provider,
+`ProviderModelCatalog.Curated`, newest first; add new models there, above older
+ones. When a key is known, the host checks it against the provider's model-list
+route (OpenAI `/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+the saved key, a named key slot, or a key pasted for that check only, which is
+not stored. Keys never return to the client. Listed models the key's route
+doesn't include are marked unavailable; names are compared without Ollama's
+`:cloud`, `-cloud` or `:latest` endings. If the key can't be checked, the whole
+list stays usable and the reason is shown. A new agent starts on the provider's
+default model when the key can use it, otherwise on the newest usable model.
+Checks are cached per key for ten minutes, time out after eight seconds and are
+not model calls, so they do not count toward the usage cap below.
 
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and

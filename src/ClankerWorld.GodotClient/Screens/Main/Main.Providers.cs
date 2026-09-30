@@ -404,7 +404,7 @@ public partial class Main
     {
         "jev" => "jev-1.13.0",
         "openai" => "gpt-6-luna",
-        "ollama-cloud" => "gpt-oss:120b-cloud",
+        "ollama-cloud" => "glm-5.3-flash:cloud",
         _ => string.Empty,
     };
 

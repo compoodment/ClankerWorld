@@ -348,16 +348,18 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData("openai", null, null)]
-    [InlineData("ollama-cloud", "0123456789abcdef0123456789abcdef", null)]
-    [InlineData("openai", null, "pasted-provider-secret")]
+    [InlineData("openai", null, null, true)]
+    [InlineData("ollama-cloud", "0123456789abcdef0123456789abcdef", null, true)]
+    [InlineData("openai", null, "pasted-provider-secret", true)]
+    [InlineData("ollama-cloud", null, null, false)]
     public void ProviderModelListPayloadMatchesViewerOwnerProtocolWithoutEmbeddingTheSecret(
-        string provider, string? slot, string? apiKey)
+        string provider, string? slot, string? apiKey, bool checkKey)
     {
-        var clientPayload = OwnerWorldActionPayload.ProviderModelList(new OwnerProviderModelListAction(provider, slot, apiKey));
-        var serverPayload = OwnerHttpBinding.ProviderModelListPayload(new ServerProviderModelListAction(provider, slot, apiKey));
+        var clientPayload = OwnerWorldActionPayload.ProviderModelList(new OwnerProviderModelListAction(provider, slot, apiKey, checkKey));
+        var serverPayload = OwnerHttpBinding.ProviderModelListPayload(new ServerProviderModelListAction(provider, slot, apiKey, checkKey));
 
         Assert.Equal(serverPayload, clientPayload);
+        Assert.EndsWith($"check-key={checkKey.ToString().ToLowerInvariant()}", clientPayload, StringComparison.Ordinal);
         if (apiKey is not null) Assert.DoesNotContain(apiKey, clientPayload, StringComparison.Ordinal);
     }
 

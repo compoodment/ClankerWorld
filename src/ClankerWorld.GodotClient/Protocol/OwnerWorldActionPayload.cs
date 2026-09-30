@@ -117,7 +117,8 @@ public static class OwnerWorldActionPayload
         return string.Join('\n', "clankerworld.owner-provider-models.v1",
             $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
             $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
-            $"api-key-sha256={apiKeyDigest}");
+            $"api-key-sha256={apiKeyDigest}",
+            $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
     }
 
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)

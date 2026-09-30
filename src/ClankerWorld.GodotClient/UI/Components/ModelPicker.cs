@@ -3,13 +3,15 @@ using Godot;
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
-/// Chooses an agent's model from the list a provider key offers, oldest to
-/// newest, with a "Type a model name…" choice for anything the list leaves out. While the list loads, or when it can't be read, the owner
-/// can still keep the current model or type one.
+/// Chooses an agent's model from the game's list for a provider, newest first,
+/// with a "Type a model name…" choice for any other model. Models the chosen
+/// key can't use are shown but can't be picked. While the list loads, or when
+/// it can't be read, the owner can still keep the current model or type one.
 /// </summary>
 public partial class ModelPicker : VBoxContainer
 {
     public const string TypeOwnText = "Type a model name…";
+    public const string UnavailableNote = " (not available with this key)";
     private const string TypeOwnId = "\u0001type";
 
     private readonly OptionButton choice = new();
@@ -17,7 +19,7 @@ public partial class ModelPicker : VBoxContainer
     private readonly HBoxContainer problemRow = new();
     private readonly Label problem = new();
     private readonly Button retry = new();
-    private IReadOnlyList<string> models = [];
+    private IReadOnlyList<OwnerProviderModelChoice> models = [];
     private string defaultModel = string.Empty;
     private string current = string.Empty;
     private string? error;
@@ -32,7 +34,7 @@ public partial class ModelPicker : VBoxContainer
         choice.FitToLongestItem = false;
         choice.ClipText = true;
         choice.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        choice.TooltipText = "Models this key can use. Pick Type a model name… for one that isn't listed.";
+        choice.TooltipText = "The game's models for this provider, newest first. Pick Type a model name… for any other model.";
         choice.ItemSelected += OnItemSelected;
         AddChild(choice);
 
@@ -47,7 +49,7 @@ public partial class ModelPicker : VBoxContainer
         problemRow.AddThemeConstantOverride("separation", 6);
         problemRow.AddChild(problem);
         retry.Text = "Retry";
-        retry.TooltipText = "Ask the provider for its model list again.";
+        retry.TooltipText = "Check the key with the provider again.";
         retry.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         retry.Pressed += () => RetryRequested?.Invoke();
         problemRow.AddChild(retry);
@@ -84,13 +86,17 @@ public partial class ModelPicker : VBoxContainer
     public string Problem => problemRow.Visible ? problem.Text : string.Empty;
     public bool CanRetry => problemRow.Visible && retry.Visible;
 
-    /// <summary>Shows a model as chosen, for example after the provider changes.</summary>
+    /// <summary>
+    /// Shows a model as chosen, for example after the provider changes. A model
+    /// that isn't in the game's list is shown as a typed name.
+    /// </summary>
     public void SetModel(string model)
     {
         current = model.Trim();
         typing = false;
-        ChooseWhenEmpty();
         typed.Text = current;
+        ChooseWhenEmpty();
+        FollowList();
         Rebuild();
     }
 
@@ -112,28 +118,24 @@ public partial class ModelPicker : VBoxContainer
     public bool IsLatest(int lookup) => lookup == request;
 
     /// <summary>
-    /// Shows the key's models in the order given. With nothing chosen yet, the
-    /// game's default model is picked when offered, otherwise the newest.
+    /// Shows the game's models in the order given, newest first. With nothing
+    /// chosen yet, the default model is picked when the key can use it,
+    /// otherwise the newest usable one. <paramref name="note"/> explains a key
+    /// that couldn't be checked.
     /// </summary>
-    public void ShowList(IReadOnlyList<string> offered, string fallbackModel)
+    public void ShowList(IReadOnlyList<OwnerProviderModelChoice> choices, string fallbackModel,
+        string? note = null, bool canRetry = true)
     {
         defaultModel = fallbackModel;
-        models = offered;
+        models = choices;
         loading = false;
         listed = true;
-        error = offered.Count == 0 ? "This key doesn't offer any chat models. Type a model name instead." : null;
+        error = note;
         // Keep a name the owner typed, but an empty text box gives way to the list.
-        if (typing && typed.Text.Trim().Length == 0 && offered.Count > 0) typing = false;
+        if (typing && typed.Text.Trim().Length == 0 && choices.Count > 0) typing = false;
         ChooseWhenEmpty();
-        Rebuild(canRetry: false);
-    }
-
-    // With nothing chosen, start on the game's default model when the key
-    // offers it, otherwise on the newest listed model.
-    private void ChooseWhenEmpty()
-    {
-        if (current.Length == 0 && models.Count > 0)
-            current = models.Contains(defaultModel, StringComparer.Ordinal) ? defaultModel : models[^1];
+        FollowList();
+        Rebuild(canRetry);
     }
 
     public void ShowError(string message, string fallbackModel, bool canRetry = true)
@@ -163,18 +165,32 @@ public partial class ModelPicker : VBoxContainer
         problemRow.Visible = false;
     }
 
+    private bool Lists(string model) => models.Any(item => item.Model == model);
+
+    // With nothing chosen, start on the default model when the key can use it,
+    // otherwise on the newest usable model.
+    private void ChooseWhenEmpty()
+    {
+        if (current.Length > 0 || models.Count == 0) return;
+        current = models.FirstOrDefault(item => item.Model == defaultModel && item.Available)?.Model ??
+            models.FirstOrDefault(item => item.Available)?.Model ?? models[0].Model;
+    }
+
+    // An agent's model that isn't in the game's list stays, as a typed name.
+    private void FollowList()
+    {
+        if (!listed || typing || current.Length == 0 || Lists(current)) return;
+        typing = true;
+        typed.Text = current;
+    }
+
     private void Rebuild(bool canRetry = true)
     {
         choice.Visible = true;
         choice.Clear();
-        var known = models.Contains(current, StringComparer.Ordinal);
-        if (current.Length > 0 && !known)
-        {
-            // Keep the agent's model even when this key's list leaves it out.
-            AddModel(current, listed ? $"{current} (not offered by this key)" : current);
-        }
-        foreach (var model in models)
-            AddModel(model, model);
+        if (!listed && !typing && current.Length > 0) AddModel(current, current, available: true);
+        foreach (var item in models)
+            AddModel(item.Model, item.Available ? item.Model : item.Model + UnavailableNote, item.Available);
         if (loading)
         {
             choice.AddItem("Loading models…");
@@ -191,13 +207,13 @@ public partial class ModelPicker : VBoxContainer
         problemRow.Visible = error is not null;
     }
 
-    private void AddModel(string model, string text)
+    private void AddModel(string model, string text, bool available)
     {
         choice.AddItem(text);
         choice.SetItemMetadata(choice.ItemCount - 1, model);
         choice.SetItemTooltip(choice.ItemCount - 1, model);
+        choice.SetItemDisabled(choice.ItemCount - 1, !available);
     }
-
     private void SelectCurrent()
     {
         for (var index = 0; index < choice.ItemCount; index++)

@@ -13,12 +13,16 @@ public partial class Main
 
     private static bool HasModelList(string provider) => provider is "openai" or "ollama-cloud";
 
+    private const string PasteKeyNote = "Paste the key to check which of these it can use.";
+
     /// <summary>
-    /// Fills a model picker from the host, which asks the provider with the
-    /// saved key, a named key slot, or a key that was just pasted and not saved.
-    /// Keys never come back to this device.
+    /// Fills a model picker with the game's list from the host. When a key is
+    /// known, the host checks it with the provider: the saved key, a named key
+    /// slot, or a key that was just pasted and not saved. Keys never come back
+    /// to this device. Without a key yet, the list is shown unchecked.
     /// </summary>
-    private async Task LoadModelListAsync(ModelPicker picker, string provider, string? credentialSlotId, string? apiKey)
+    private async Task LoadModelListAsync(ModelPicker picker, string provider, string? credentialSlotId, string? apiKey,
+        bool checkKey = true)
     {
         var defaultModel = DefaultProviderModel(provider);
         if (!HasModelList(provider))
@@ -35,10 +39,10 @@ public partial class Main
         try
         {
             var list = await ownerApi.ListProviderModelsAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerProviderModelListAction(provider, credentialSlotId, apiKey), signer, CancellationToken.None);
+                new OwnerProviderModelListAction(provider, credentialSlotId, apiKey, checkKey), signer, CancellationToken.None);
             if (!picker.IsLatest(lookup)) return;
-            if (list.Error is { } error) picker.ShowError(error, list.DefaultModel);
-            else picker.ShowList(list.Models, list.DefaultModel);
+            if (checkKey) picker.ShowList(list.Models, list.DefaultModel, list.Error);
+            else picker.ShowList(list.Models, list.DefaultModel, PasteKeyNote, canRetry: false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -54,13 +58,8 @@ public partial class Main
         var choice = SelectedFounderCredential();
         if (choice == "new")
         {
-            if (string.IsNullOrWhiteSpace(founderApiKeyInput.Text))
-            {
-                founderModelPicker.ShowError("Paste the key to see which models it offers.",
-                    DefaultProviderModel(provider), canRetry: false);
-                return;
-            }
-            _ = LoadModelListAsync(founderModelPicker, provider, null, founderApiKeyInput.Text);
+            var pasted = string.IsNullOrWhiteSpace(founderApiKeyInput.Text) ? null : founderApiKeyInput.Text;
+            _ = LoadModelListAsync(founderModelPicker, provider, null, pasted, checkKey: pasted is not null);
             return;
         }
         _ = LoadModelListAsync(founderModelPicker, provider, choice == "default" ? null : choice, null);
@@ -94,15 +93,10 @@ public partial class Main
         var lookup = $"{provider}|{credential}|{pasted?.GetHashCode(StringComparison.Ordinal)}";
         if (!force && lookup == cognitionModelLookup) return;
         cognitionModelLookup = lookup;
-        if (credential == "new" && pasted is null)
-        {
-            cognitionModelPicker.ShowError("Paste the key to see which models it offers.",
-                DefaultProviderModel(provider), canRetry: false);
-            return;
-        }
         var slot = credential is null or "default" or "new" ? null : credential;
         var usePasted = credential == "new" || !agentCredential;
-        _ = LoadModelListAsync(cognitionModelPicker, provider, slot, usePasted ? pasted : null);
+        _ = LoadModelListAsync(cognitionModelPicker, provider, slot, usePasted ? pasted : null,
+            checkKey: credential != "new" || pasted is not null);
     }
 
     // A pasted key is looked up once the owner stops typing, not per keystroke.

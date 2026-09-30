@@ -7,10 +7,12 @@ using System.Text.Json;
 namespace ClankerWorld.Viewer.Control;
 
 /// <summary>
-/// Asks a hosted provider which models an API key can use, so the owner picks
-/// one from a list instead of typing its name. The host already holds the
-/// keys; a key the owner has only just pasted is used for this one lookup and
-/// is not stored. Listing costs no tokens, so it is not a metered model call.
+/// The game's own short list of models for each hosted provider, so the owner
+/// picks from a few current models instead of everything a provider offers.
+/// When a key is known, the host also asks the provider which models that key
+/// can use and marks the listed models it can't. The host already holds the
+/// keys; a key the owner has only just pasted is used for this one check and
+/// is not stored. Checking costs no tokens, so it is not a metered model call.
 /// </summary>
 public sealed class ProviderModelCatalog(
     ProviderConfigurationStore configuration,
@@ -21,53 +23,98 @@ public sealed class ProviderModelCatalog(
     public static readonly Uri OllamaCloudModels = new("https://ollama.com/api/tags", UriKind.Absolute);
     public static readonly Uri OllamaCloudCompatibleModels = new("https://ollama.com/v1/models", UriKind.Absolute);
 
-    /// <summary>How long a key's list is reused before the provider is asked again.</summary>
+    /// <summary>
+    /// The models offered for each provider, newest first, as each provider
+    /// lists them. Adding a model means adding its exact API name here, above
+    /// older ones. Owners can still type any other model name.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Curated =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+        {
+            [PlayerDecisionProviders.OpenAi] = ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra"],
+            [PlayerDecisionProviders.OllamaCloud] =
+            [
+                "glm-5.3-flash:cloud",
+                "glm-5.3:cloud",
+                "deepseek-v4.1-flash:cloud",
+                "deepseek-v4-pro:cloud",
+                "minimax-m3:cloud",
+                "kimi-k3:cloud",
+                "gemma4:cloud",
+            ],
+        };
+
+    /// <summary>How long a key's check is reused before the provider is asked again.</summary>
     public static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(10);
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(8);
-    private const int MaximumModels = 200;
     private const int MaximumBodyBytes = 2 * 1024 * 1024;
 
     private readonly TimeProvider clock = time ?? TimeProvider.System;
     private readonly object gate = new();
-    private readonly Dictionary<string, (DateTimeOffset Expires, IReadOnlyList<string> Models)> cache = [];
+    private readonly Dictionary<string, (DateTimeOffset Expires, IReadOnlySet<string> Offered)> cache = [];
 
     public async Task<OwnerProviderModelList> ListAsync(OwnerProviderModelListAction action, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(action);
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
-        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+        if (!Curated.TryGetValue(provider, out var curated))
             throw new ArgumentException("Only OpenAI and Ollama Cloud offer a model list.", nameof(action));
         var defaultModel = PlayerDecisionProviders.DefaultModel(provider);
         var name = DisplayName(provider);
+        OwnerProviderModelList Unchecked(string? error) =>
+            new(provider, [.. curated.Select(model => new OwnerProviderModelChoice(model, true))], defaultModel, error);
+
+        if (!action.CheckKey) return Unchecked(null);
         if (ResolveKey(provider, action) is not { } apiKey)
-            return new OwnerProviderModelList(provider, [], defaultModel, $"Add an API key for {name} first.");
+            return Unchecked($"Add an API key for {name} first.");
 
         var cacheKey = provider + ":" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));
+        IReadOnlySet<string>? offered = null;
         lock (gate)
         {
             if (cache.TryGetValue(cacheKey, out var cached) && cached.Expires > clock.GetUtcNow())
-                return new OwnerProviderModelList(provider, cached.Models, defaultModel, null);
+                offered = cached.Offered;
         }
 
         try
         {
-            var listed = await FetchAsync(provider, apiKey, cancellationToken).ConfigureAwait(false);
-            var models = Order(provider, listed);
-            lock (gate)
-                cache[cacheKey] = (clock.GetUtcNow() + CacheLifetime, models);
-            return new OwnerProviderModelList(provider, models, defaultModel, null);
+            if (offered is null)
+            {
+                var listed = await FetchAsync(provider, apiKey, cancellationToken).ConfigureAwait(false);
+                offered = listed.Select(MatchName).ToHashSet(StringComparer.Ordinal);
+                lock (gate)
+                    cache[cacheKey] = (clock.GetUtcNow() + CacheLifetime, offered);
+            }
+            return new OwnerProviderModelList(provider,
+                [.. curated.Select(model => new OwnerProviderModelChoice(model, offered.Contains(MatchName(model))))],
+                defaultModel, null);
         }
         catch (ProviderRefusedKeyException)
         {
-            return new OwnerProviderModelList(provider, [], defaultModel, $"{name} refused this key.");
+            return Unchecked($"{name} refused this key.");
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidDataException &&
             !cancellationToken.IsCancellationRequested)
         {
-            return new OwnerProviderModelList(provider, [], defaultModel,
-                $"Couldn't get the model list from {name}. Check the key or your connection, or type a model name.");
+            return Unchecked($"Couldn't check this key with {name}. Check the key or your connection.");
         }
+    }
+
+    /// <summary>
+    /// The part of a model name that identifies it across a provider's routes.
+    /// Ollama names the same cloud model with or without a <c>:cloud</c> or
+    /// <c>-cloud</c> ending, and a bare name means <c>:latest</c>.
+    /// </summary>
+    public static string MatchName(string model)
+    {
+        var name = model.Trim().ToLowerInvariant();
+        foreach (var ending in (string[])[":cloud", "-cloud", ":latest"])
+        {
+            if (name.EndsWith(ending, StringComparison.Ordinal))
+                name = name[..^ending.Length];
+        }
+        return name;
     }
 
     /// <summary>A key pasted now, a named key slot, or the provider's default key, in that order.</summary>
@@ -85,7 +132,7 @@ public sealed class ProviderModelCatalog(
         return string.IsNullOrWhiteSpace(stored.ApiKey) ? null : stored.ApiKey;
     }
 
-    private async Task<IReadOnlyList<ListedModel>> FetchAsync(string provider, string apiKey, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>> FetchAsync(string provider, string apiKey, CancellationToken cancellationToken)
     {
         if (provider == PlayerDecisionProviders.OpenAi)
             return await GetListAsync(OpenAiModels, apiKey, cancellationToken).ConfigureAwait(false) ??
@@ -97,7 +144,7 @@ public sealed class ProviderModelCatalog(
     }
 
     /// <summary>The models at one endpoint, or null when the provider has no such route.</summary>
-    private async Task<IReadOnlyList<ListedModel>?> GetListAsync(Uri endpoint, string apiKey, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>?> GetListAsync(Uri endpoint, string apiKey, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RequestTimeout);
@@ -120,25 +167,20 @@ public sealed class ProviderModelCatalog(
     }
 
     /// <summary>
-    /// Reads either list shape: OpenAI-style <c>data[].id</c> with a
-    /// <c>created</c> time, or Ollama's native <c>models[].name</c> with
-    /// <c>modified_at</c>.
+    /// Reads either list shape: OpenAI-style <c>data[].id</c>, or Ollama's
+    /// native <c>models[].name</c> (or <c>model</c>).
     /// </summary>
-    public static IReadOnlyList<ListedModel> Parse(byte[] body)
+    public static IReadOnlyList<string> Parse(byte[] body)
     {
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
-        var models = new List<ListedModel>();
+        var models = new List<string>();
         if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in data.EnumerateArray())
             {
                 if (item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
-                {
-                    var created = item.TryGetProperty("created", out var time) && time.TryGetInt64(out var seconds)
-                        ? DateTimeOffset.FromUnixTimeSeconds(seconds) : DateTimeOffset.MinValue;
-                    models.Add(new ListedModel(id.GetString()!, created));
-                }
+                    models.Add(id.GetString()!);
             }
         }
         else if (root.TryGetProperty("models", out var listed) && listed.ValueKind == JsonValueKind.Array)
@@ -147,11 +189,7 @@ public sealed class ProviderModelCatalog(
             {
                 var name = item.TryGetProperty("name", out var named) && named.ValueKind == JsonValueKind.String ? named.GetString()
                     : item.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String ? model.GetString() : null;
-                if (name is null) continue;
-                var modified = item.TryGetProperty("modified_at", out var time) && time.ValueKind == JsonValueKind.String &&
-                    DateTimeOffset.TryParse(time.GetString(), System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) ? parsed : DateTimeOffset.MinValue;
-                models.Add(new ListedModel(name, modified));
+                if (name is not null) models.Add(name);
             }
         }
         else
@@ -161,43 +199,7 @@ public sealed class ProviderModelCatalog(
         return models;
     }
 
-    /// <summary>
-    /// Chat models only, oldest to newest. OpenAI lists image, speech,
-    /// embedding and other models on the same route, so those are left out by
-    /// name. A very long list keeps its newest models.
-    /// </summary>
-    public static IReadOnlyList<string> Order(string provider, IEnumerable<ListedModel> listed) => listed
-        .Where(model => model.Id.Length is > 0 and <= 200 && !model.Id.Any(char.IsControl))
-        .Where(model => provider != PlayerDecisionProviders.OpenAi || IsOpenAiChatModel(model.Id))
-        .GroupBy(model => model.Id, StringComparer.Ordinal).Select(group => group.First())
-        .OrderByDescending(model => model.Created)
-        .Take(MaximumModels)
-        .OrderBy(model => model.Created)
-        .ThenBy(model => model.Id, StringComparer.Ordinal)
-        .Select(model => model.Id)
-        .ToArray();
-
-    /// <summary>
-    /// OpenAI's chat families (<c>gpt-…</c>, <c>chatgpt-…</c> and the
-    /// <c>o1</c>/<c>o3</c>/<c>o4</c> reasoning models), without the audio,
-    /// realtime, speech, image, search and other variants that cannot answer
-    /// the game's chat requests.
-    /// </summary>
-    public static bool IsOpenAiChatModel(string id)
-    {
-        var lower = id.ToLowerInvariant();
-        var chatFamily = lower.StartsWith("gpt-", StringComparison.Ordinal) ||
-            lower.StartsWith("chatgpt-", StringComparison.Ordinal) ||
-            lower.Length > 1 && lower[0] == 'o' && char.IsAsciiDigit(lower[1]);
-        if (!chatFamily) return false;
-        string[] excluded = ["audio", "realtime", "tts", "transcribe", "whisper", "image", "embedding", "moderation",
-            "search", "instruct", "dall-e", "codex", "computer-use", "deep-research", "-pro"];
-        return !excluded.Any(part => lower.Contains(part, StringComparison.Ordinal));
-    }
-
     private static string DisplayName(string provider) => provider == PlayerDecisionProviders.OpenAi ? "OpenAI" : "Ollama Cloud";
-
-    public sealed record ListedModel(string Id, DateTimeOffset Created);
 
     private sealed class ProviderRefusedKeyException : Exception;
 }

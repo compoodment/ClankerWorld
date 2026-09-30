@@ -50,9 +50,11 @@ pace, subject to model/server load.
 Each starting agent has a provider, model and key assignment. Stored keys can
 be shared or selected independently. An agent's Profile lets you change these
 choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
-from the list the chosen key offers, or typed by name. The host asks the
-provider for that list; it has been tested against recorded sample replies,
-not yet against live provider accounts. Jev can be switched on or off for a paused world.
+from the game's own short list, newest first, or typed by name. The host checks
+the chosen key with the provider and greys out listed models it can't use. That
+check and the listed model names have been tested against recorded sample
+replies, not yet against live provider accounts. Jev can be switched on or off
+for a paused world.
 
 Personal models choose from legal actions. They receive some saved self
 information, need values, a recent private thought, relevant personal memories
