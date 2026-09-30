@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
@@ -154,16 +155,17 @@ public sealed class TownBridgeRuntimeTests
     public async Task AStreetRunningOnPastANewDoorCrossesANarrowRiverOnASavedBridge()
     {
         // The workshop faces an existing street, so no new side street is
-        // needed; a nearby dead end then runs on and meets a one-tile river.
-        using var world = await GrowthWorldAsync("town-bridge-0", new GridPoint(45, 0));
+        // needed; a nearby dead end then runs on and meets a two-tile river.
+        using var world = await GrowthWorldAsync();
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var roadsBefore = world.RoadTiles.ToHashSet();
         var eventsBefore = world.ExportState().Events.Count;
 
-        Assert.True(world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(43, 1)).Applied);
+        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(85, 2));
+        Assert.True(placed.Applied, placed.Failure);
 
         var bridge = Assert.Single(world.Bridges);
-        Assert.Equal(("bridge-47-5-ns-1", BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
+        Assert.Equal((GrowthBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
             (bridge.Id, bridge.Trigger, bridge.RouteId));
         var events = world.ExportState().Events.Skip(eventsBefore).Select(item => item.Kind).ToArray();
         Assert.DoesNotContain("town_road_generated", events);
@@ -174,7 +176,9 @@ public sealed class TownBridgeRuntimeTests
         Assert.All(bridge.Entrances, entrance => Assert.Contains(entrance, world.RoadTiles));
         Assert.All(world.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
         Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
-        Assert.True(map.CanFootStep(bridge.Span[0], bridge.Entrances[1]));
+        Assert.Equal(2, bridge.Span.Count);
+        Assert.True(map.CanFootStep(bridge.Span[0], bridge.Span[1]));
+        Assert.True(map.CanFootStep(bridge.Span[^1], bridge.Entrances[1]));
         // The far bank is inside the Town border, which grew around the new street.
         Assert.Contains(bridge.Entrances[1], Assert.Single(world.Towns).BorderTiles);
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
@@ -279,6 +283,55 @@ public sealed class TownBridgeRuntimeTests
     }
 
     private const string TrafficAgentId = "agent:00000000000000000000000000000099";
+
+    [Fact]
+    public async Task PlantingAtATrafficBridgeEntranceKeepsTheSeedAndTheCheckpoint()
+    {
+        using var setup = await TrafficWorldAsync(seedEvidence: false);
+        var state = setup.ExportState();
+        var blocked = state.Map.Resources.Select(resource => resource.Position)
+            .Concat(state.Map.CampObjects.Select(item => item.Position))
+            .Concat(setup.RoadTiles)
+            .Concat(setup.WorldSimulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(setup.WorldContent.Buildings.Single(
+                    definition => definition.CanonicalId == building.DefinitionId), building.Position)))
+            .ToHashSet();
+        RiverCrossing? crossing = null;
+        foreach (var tile in state.Map.Tiles)
+        {
+            foreach (var (dx, dy) in new[] { (1, 0), (0, 1) })
+            {
+                if (!RiverBridgeRules.TryFindCrossing(state.Map, tile.Position, dx, dy, out var candidate) ||
+                    candidate!.Span.Count != 1 || candidate.Entrances.Any(blocked.Contains) ||
+                    TreeGrowthRules.GroundRefusal(state.Map, candidate.EntranceA) is not null) continue;
+                crossing = candidate;
+                break;
+            }
+            if (crossing is not null) break;
+        }
+        Assert.NotNull(crossing);
+        var bridge = RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Traffic, setup.WorldTick, null);
+        Assert.DoesNotContain(crossing.EntranceA, setup.RoadTiles);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "bridge-tree-seed", TreeGrowthRules.TreeSeedItem, TrafficAgentId, 1);
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Bridges = [bridge],
+            BridgeTraffic = BridgeTrafficState.Empty,
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == TrafficAgentId
+                ? person with { Position = crossing.EntranceA } : person).ToArray(),
+        });
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+
+        var result = world.PlantTree(TrafficAgentId, TreeGrowthRules.Broadleaf,
+            "bridge-tree-seed", crossing.EntranceA);
+
+        Assert.False(result.Planted);
+        Assert.Equal(TreePlantingRefusal.Road, result.Refusal);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Validate();
+    }
 
     private static async Task<PrivateWorldRuntime> TrafficWorldAsync(bool seedEvidence)
     {

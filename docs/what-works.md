@@ -152,10 +152,8 @@ river (six crossings by at least two agents within two world days), a bridge
 appears. It is drawn on the map, named on the tile card and hover readout, and
 walked at dry-ground speed. When a Town grows, a new side street or a street
 running on past a door crosses a river up to two tiles wide on a new bridge.
-A normal game does not grow new Town buildings yet
-([#470](https://github.com/compoodment/ClankerWorld/issues/470)), and the
-starting layout keeps its streets on dry land, so Road bridges are not seen in
-normal play yet. No bridge is added where one already joins the same river
+Households can plan new buildings, whose streets may need a bridge; the
+starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
 banks. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
@@ -164,7 +162,7 @@ have sapling, mature and stump stages. Felling one for wood also gives the agent
 a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
 broadleaf or conifer on grass or forest ground outside the Town, and the Event
 Log says so. Trees are never planted on sand, water, rock, snow, buildings or
-Roads; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
+Roads or bridge entrances; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
 do not spread on their own. This is a basic version: agents have seeds only
 after felling a tree, and you cannot yet tell an agent where to plant.
 
