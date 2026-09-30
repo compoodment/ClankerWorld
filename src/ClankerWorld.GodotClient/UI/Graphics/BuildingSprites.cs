@@ -225,7 +225,7 @@ public static class BuildingSprites
                 canvas.Rect(spoolX - 3, spoolY - 2, 6, 1, new Color("7A5634"));
                 canvas.Rect(spoolX - 2, spoolY - 1, 4, 3, new Color("C0504A"));
                 canvas.Rect(spoolX - 3, spoolY + 2, 6, 1, new Color("7A5634"));
-                Doorstep(canvas, width, height, inset, roofHeight);
+                Doorstep(canvas, roof, door);
                 break;
             case BuildingKind.Workshop:
                 // A hammer sign over the door marks a place for making things.
