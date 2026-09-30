@@ -49,6 +49,23 @@ internal static partial class TownTelemetry
     private static partial void LogTownLayoutAccepted(ILogger logger, long worldTick, string outcome, int x, int y,
         int buildings, int roadTiles);
 
+    public static void Bridge(ILogger logger, long worldTick, string bridgeId, string trigger,
+        string outcome, string reason) =>
+        LogBridge(logger, worldTick, bridgeId, trigger, outcome, reason);
+
+    [LoggerMessage(EventId = 2272, Level = LogLevel.Information,
+        Message = "bridge outcome={Outcome} world_tick={WorldTick} bridge={BridgeId} trigger={Trigger} reason={Reason}")]
+    private static partial void LogBridge(ILogger logger, long worldTick, string bridgeId, string trigger,
+        string outcome, string reason);
+
+    public static void RoadUnconnected(ILogger logger, long worldTick, string townId, string buildingId, string reason) =>
+        LogRoadUnconnected(logger, worldTick, townId, buildingId, reason);
+
+    [LoggerMessage(EventId = 2273, Level = LogLevel.Information,
+        Message = "road_route outcome=unconnected world_tick={WorldTick} town={TownId} building={BuildingId} reason={Reason}")]
+    private static partial void LogRoadUnconnected(ILogger logger, long worldTick, string townId, string buildingId,
+        string reason);
+
     public static void FounderMoved(ILogger logger, long worldTick, string founderId, int x, int y) =>
         LogFounderMoved(logger, worldTick, founderId, x, y);
 

@@ -383,6 +383,9 @@ internal static partial class OwnerEndpoints
             if (town is not null && town.BorderTiles.Count != previousBorderTiles)
                 TownTelemetry.Transition(telemetry, runtime.WorldTick, town.Id, TownTransitionKind.BorderExpanded,
                     town.ResidentIds.Count, town.AssignedBuildingIds.Count, town.BorderTiles.Count);
+            if (town is not null)
+                foreach (var bridge in runtime.Bridges.Where(item => item.RouteId == $"road:{town.Id}:{placed.InstanceId}"))
+                    TownTelemetry.Bridge(telemetry, runtime.WorldTick, bridge.Id, bridge.Trigger, "built", "none");
             return Results.Ok(result);
         });
 

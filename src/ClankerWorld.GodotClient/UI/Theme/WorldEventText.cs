@@ -48,6 +48,8 @@ public static class WorldEventText
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
             "town_founded" => "Your first Town is founded.",
+            "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
+            "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",

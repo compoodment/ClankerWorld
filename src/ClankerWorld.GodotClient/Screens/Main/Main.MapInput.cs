@@ -280,6 +280,8 @@ public partial class Main
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
+        if (BridgeAt(snapshot, tile) is { } bridge)
+            lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
         SetPanelText(selectedTileText, string.Join('\n', lines));
         PositionSelectedTilePanel();

@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 27;
+    public const int StateSchemaVersion = 28;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
@@ -277,6 +277,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.towns = (state.Towns ?? MigrateTowns(state)).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.roadTiles = (state.RoadTiles ?? []).ToHashSet();
+        runtime.bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.bridgeTraffic = state.BridgeTraffic ?? BridgeTrafficState.Empty;
+        runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
@@ -410,7 +413,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles);
+        RoadTiles, Bridges, bridgeTraffic);
 
     private void AppendEvent(string kind, string detail)
     {
