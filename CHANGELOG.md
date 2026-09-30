@@ -6,6 +6,8 @@ release yet.
 
 ## Unreleased
 
+- World Connection now says whether Connect reached the paired world, instead of leaving a successful check invisible.
+
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
 - Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.

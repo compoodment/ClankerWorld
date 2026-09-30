@@ -23,6 +23,9 @@ the device on the server, then complete pairing. Do not post the code, keys or
 private world data in an issue. Once paired, reconnecting uses the saved
 registration; normal play does not need approval every time.
 
+For an already paired device, **Connect** checks the saved server connection
+and shows the result below the address. It does not start a new pairing.
+
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.
 

@@ -44,19 +44,25 @@ public partial class Main
 
     private void BuildConnectionPanel()
     {
-        var body = new HBoxContainer();
-        body.AddThemeConstantOverride("separation", 8);
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
+        var controls = new HBoxContainer();
+        controls.AddThemeConstantOverride("separation", 8);
         worldUrlInput.PlaceholderText = "https://your-tailnet-host:8443";
         worldUrlInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        body.AddChild(worldUrlInput);
+        controls.AddChild(worldUrlInput);
         connectButton.Text = "Connect";
         connectButton.Pressed += () => _ = ConnectUsingCurrentUrlAsync();
-        body.AddChild(connectButton);
+        controls.AddChild(connectButton);
         pairAgainButton.Text = "Pair again";
         pairAgainButton.TooltipText = "Forget this device's saved connection and connect again.";
         pairAgainButton.Visible = false;
         pairAgainButton.Pressed += () => _ = PairAgainAsync();
-        body.AddChild(pairAgainButton);
+        controls.AddChild(pairAgainButton);
+        body.AddChild(controls);
+        connectionStatusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        connectionStatusLabel.Hide();
+        body.AddChild(connectionStatusLabel);
         AddPanelContents(connectionPanel, "World connection", body);
         connectionPanel.ThemeTypeVariation = "InsetPanel";
     }
