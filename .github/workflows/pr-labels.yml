@@ -1,43 +1,36 @@
 name: Label pull requests
 
 # pull_request_target runs this file from main, so pull requests from forks can
-# be labeled too. It never checks out or runs the pull request's own code: it
-# only reads the list of changed files and the description text.
+# be labeled too. The checkout below is main's own copy (for the label script);
+# the pull request's code is never checked out or run. Only the changed-file
+# list and the description text are read.
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, edited]
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft, closed]
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 jobs:
   label:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
       - name: Add area labels from the changed files
+        if: github.event.action != 'closed'
         uses: actions/labeler@v5
         with:
           dot: true
           sync-labels: false
 
-      - name: Add a type label from the ticked template box
+      - name: Update type, review and linked-issue labels
         uses: actions/github-script@v8
         with:
           script: |
-            const body = context.payload.pull_request.body ?? '';
-            const ticked = box => new RegExp(`^\\s*[-*] \\[[xX]\\] ${box}\\s*$`, 'm').test(body);
-            const labels = new Set();
-            if (ticked('Bug fix')) labels.add('type:bug');
-            if (ticked('New or changed gameplay') || ticked('UI or game text')) labels.add('type:feature');
-            if (ticked('Documentation') && labels.size === 0 && !ticked('Refactor or tooling')) labels.add('type:docs');
-            if (labels.size === 0) {
-              core.info('No type box is ticked, or only Refactor or tooling; leaving the type to the author.');
-              return;
-            }
-            await github.rest.issues.addLabels({
-              ...context.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: [...labels],
-            });
-            core.info(`Added ${[...labels].join(', ')}.`);
+            const labelPullRequest = require('./.github/scripts/pr-labels.js');
+            await labelPullRequest({ github, context, core });

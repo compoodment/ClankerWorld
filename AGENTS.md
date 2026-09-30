@@ -88,7 +88,9 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 
 GitHub Issues owns bug reports, reproduction steps, progress and repair evidence.
-Do not recreate a bug register in Markdown. An open PR is proposed work, not
+Do not recreate a bug register in Markdown. Keep [labels](CONTRIBUTING.md#labels)
+current on every issue you open, claim or change: one type, one or two areas and
+a status. An open PR is proposed work, not
 proof that its design is agreed or its feature is available.
 
 ## Keep explanations understandable
