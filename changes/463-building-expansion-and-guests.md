@@ -3,3 +3,5 @@ Houses and Warehouses can expand their storage while keeping the same building, 
 Any adult household member may invite a named guest to shelter during storms, or revoke the invitation. Invitations survive saving and loading; guests have no access to household stock or cooking.
 
 Trial values for playtesting: 64 stock units per footprint tile, an 80% full threshold, 20 ticks of work, four wood per added tile, and an additional two stone per added Warehouse tile. Footprint variants may rotate to fit the available space. These values are provisional.
+
+Project helpers deliver materials at the recipient household's House without gaining stock access. An agent building its first House keeps new materials personally carried until they are used, rather than creating household stock without a location.
