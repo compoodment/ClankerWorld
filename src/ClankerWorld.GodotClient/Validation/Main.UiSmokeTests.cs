@@ -1365,6 +1365,31 @@ public partial class Main
                     BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(side, 0)).GetData())).Distinct().Count() != 4 ||
                 northDoor.GetPixel(16, 1).A < 0.5f || southDoor.GetPixel(16, 1).A > 0)
                 throw new InvalidOperationException("A building must show its door on the side it faces.");
+            if (BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(DoorSide.South, 0)).GetPixel(16, 31).A < 0.5f ||
+                southDoor.GetPixel(16, 31).A > 0)
+                throw new InvalidOperationException("A building facing a Road must start its doorstep path at the edge of its footprint.");
+            bool Drawn(RoadLinks links, int x, int y, bool dark = false) => RoadSprites.Render(links, 0, 32, dark).GetPixel(x, y).A > 0.5f;
+            const RoadLinks road = RoadLinks.Road;
+            if (!Drawn(road | RoadLinks.North | RoadLinks.South, 16, 0) || !Drawn(road | RoadLinks.North | RoadLinks.South, 16, 31) ||
+                Drawn(road | RoadLinks.North | RoadLinks.South, 1, 16) || Drawn(road | RoadLinks.North | RoadLinks.South, 30, 16))
+                throw new InvalidOperationException("A straight Road piece must run edge to edge along the Road and nowhere else.");
+            if (!Drawn(road | RoadLinks.NorthEast, 29, 2) || Drawn(road | RoadLinks.NorthEast, 16, 1) ||
+                Drawn(road | RoadLinks.NorthEast | RoadLinks.North, 29, 2))
+                throw new InvalidOperationException("A diagonal Road step must draw one smooth diagonal only where no straight path joins it.");
+            if (!Drawn(RoadLinks.North | RoadLinks.East, 30, 1) || Drawn(RoadLinks.North | RoadLinks.East, 16, 16) ||
+                Drawn(RoadLinks.North | RoadLinks.East | RoadLinks.NorthEast, 30, 1) ||
+                RoadSprites.Draws(RoadLinks.North) || !RoadSprites.Draws(RoadLinks.North | RoadLinks.East))
+                throw new InvalidOperationException("A tile beside a diagonal Road must draw only its share of that diagonal.");
+            if (!Drawn(road | RoadLinks.North | RoadLinks.East | RoadLinks.NorthEast, 28, 4) ||
+                Drawn(road | RoadLinks.North | RoadLinks.East, 29, 2))
+                throw new InvalidOperationException("A Road corner must fill in only where the tile between its two arms is Road too.");
+            if (!Drawn(road | RoadLinks.DoorNorth, 16, 1) || Drawn(road, 16, 1) || Drawn(road | RoadLinks.DoorNorth, 11, 1))
+                throw new InvalidOperationException("A narrow doorstep path must run from the Road to the building's door.");
+            if (!RoadSprites.NeedsDarkEdge(TerrainStyle.Sand) || !RoadSprites.NeedsDarkEdge(TerrainStyle.Snow) ||
+                RoadSprites.NeedsDarkEdge(TerrainStyle.Grass) || RoadSprites.NeedsDarkEdge(TerrainStyle.ForestGrass) ||
+                RoadSprites.Render(road | RoadLinks.East, 0, 32, true).GetPixel(16, 23) is var darkEdge &&
+                    (darkEdge.A < 0.5f || darkEdge.Luminance >= RoadSprites.WornEdge.Luminance))
+                throw new InvalidOperationException("Roads on sand and snow must take a solid darker edge to stay visible.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||

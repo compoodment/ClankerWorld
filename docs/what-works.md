@@ -37,9 +37,10 @@ test alone does not make it available in the game.
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
-Blacksmith along them, each with its door facing its Road. Streets run on a few
-tiles past the last building, and the Town border keeps about three tiles of
-spare land around the buildings and Roads. The Houses hold
+Blacksmith along them, each with its door facing its packed-dirt Road and a short
+doorstep path joining it. Streets run on a few tiles past the last building,
+and the Town border keeps about three tiles of spare land around buildings
+and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.
