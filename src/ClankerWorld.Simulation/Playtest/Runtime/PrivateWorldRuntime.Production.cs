@@ -42,7 +42,8 @@ public sealed partial class PrivateWorldRuntime
             occupied,
             FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite),
             resourcesForLayout,
-            buildingsForLayout);
+            buildingsForLayout,
+            roadTiles);
     }
 
     private Dictionary<GridPoint, int> FindUnoccupiedFootCosts(

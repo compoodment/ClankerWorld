@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -28,8 +29,14 @@ public sealed partial class PrivateWorldRuntime
             ? Math.Max(1, cost * 70 / 100) : cost;
     }
 
-    /// <summary>Lays a Road from the building's best entrance to the network and returns the new Road tiles.</summary>
-    private List<GridPoint> GenerateRoadToBuilding(PlacedBuilding building)
+    /// <summary>
+    /// Joins a building that has joined a Town to the Road network and returns
+    /// the new Road tiles. A building beside a Road faces it and needs no new
+    /// Road; otherwise a new street runs from its best entrance to the nearest
+    /// Road, inside the Town border where it can. Either way, streets near its
+    /// door then run on past it (<see cref="ExtendStreetsPastDoors"/>).
+    /// </summary>
+    private List<GridPoint> GenerateRoadToBuilding(PlacedBuilding building, IReadOnlySet<GridPoint>? border = null)
     {
         var laid = new List<GridPoint>();
         if (building.TownId is null) return laid;
@@ -61,6 +68,37 @@ public sealed partial class PrivateWorldRuntime
             .Where(point => map.IsBuildable(point) && !occupied.Contains(point))
             .ToHashSet();
         if (network.Count == 0) network.Add(entrances[0]);
+
+        var route = (border is null ? null : FindRoadRoute(entrances, network, occupied, border)) ??
+            FindRoadRoute(entrances, network, occupied, null);
+        if (route is null)
+        {
+            AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:land_route_unavailable");
+            return laid;
+        }
+        foreach (var tile in route)
+            if (roadTiles.Add(tile)) laid.Add(tile);
+        // The route starts at the entrance it was laid from, so the door faces this Road.
+        SetBuildingEntrance(building.InstanceId, route[0]);
+        if (laid.Count > 0)
+            AppendEvent("town_road_generated", $"{building.TownId}:{building.InstanceId}:tiles:{laid.Count}");
+        var extended = ExtendStreetsPastDoors(building, occupied);
+        if (extended.Count > 0)
+            AppendEvent("town_road_extended", $"{building.TownId}:{building.InstanceId}:tiles:{extended.Count}");
+        laid.AddRange(extended);
+        return laid;
+    }
+
+    /// <summary>
+    /// The cheapest new street from any entrance to the network, as the tiles
+    /// from the entrance to the first Road tile. It may step diagonally where
+    /// both corner tiles are clear, and pays extra for each tile that would run
+    /// beside an existing Road, so it meets streets rather than shadowing them.
+    /// </summary>
+    private List<GridPoint>? FindRoadRoute(GridPoint[] entrances, HashSet<GridPoint> network,
+        HashSet<GridPoint> occupied, IReadOnlySet<GridPoint>? border)
+    {
+        const int BesideRoadCost = 60;
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int>();
         var predecessor = new Dictionary<GridPoint, GridPoint>();
@@ -76,34 +114,80 @@ public sealed partial class PrivateWorldRuntime
             if (priority.Cost != best[current]) continue;
             if (network.Contains(current))
             {
-                while (true)
+                var route = new List<GridPoint> { current };
+                while (predecessor.TryGetValue(current, out var previous))
                 {
-                    if (roadTiles.Add(current)) laid.Add(current);
-                    if (!predecessor.TryGetValue(current, out var previous)) break;
                     current = previous;
+                    route.Add(current);
                 }
-                // The route starts at the entrance it was laid from, so the
-                // door faces this Road.
-                SetBuildingEntrance(building.InstanceId, current);
-                if (laid.Count > 0)
-                    AppendEvent("town_road_generated", $"{building.TownId}:{building.InstanceId}:tiles:{laid.Count}");
-                return laid;
+                route.Reverse();
+                return route;
             }
 
             foreach (var next in map.FootNeighbors(current))
             {
-                if (!map.IsBuildable(next) || occupied.Contains(next) && !network.Contains(next) ||
-                    map.IsDiagonalFootStep(current, next))
+                var joins = network.Contains(next);
+                if (!map.IsBuildable(next) || occupied.Contains(next) && !joins ||
+                    border is not null && !joins && !border.Contains(next))
                     continue;
-                var cost = checked(priority.Cost + map.FootStepCost(current, next));
-                if (best.TryGetValue(next, out var previous) && previous <= cost) continue;
+                if (map.IsDiagonalFootStep(current, next) &&
+                    (Math.Abs(next.X - current.X) != 1 || !IsClearCorner(new GridPoint(next.X, current.Y)) ||
+                     !IsClearCorner(new GridPoint(current.X, next.Y))))
+                    continue;
+                var cost = checked(priority.Cost + map.FootStepCost(current, next) +
+                    (!joins && TownStreets.Directions.Any(step =>
+                        roadTiles.Contains(new GridPoint(next.X + step.X, next.Y + step.Y))) ? BesideRoadCost : 0));
+                if (best.TryGetValue(next, out var known) && known <= cost) continue;
                 best[next] = cost;
                 predecessor[next] = current;
                 open.Enqueue(next, (cost, next.Y, next.X, order++));
             }
         }
-        AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:land_route_unavailable");
-        return laid;
+        return null;
+
+        bool IsClearCorner(GridPoint tile) => map.IsBuildable(tile) && !occupied.Contains(tile);
+    }
+
+    /// <summary>
+    /// Streets run on about three tiles past the last door on them, leaving free
+    /// frontage for the next building. Each dead end fewer tiles than that past
+    /// its nearest door carries on in its own direction where the land allows,
+    /// keeping clear of other streets.
+    /// </summary>
+    private List<GridPoint> ExtendStreetsPastDoors(PlacedBuilding building, HashSet<GridPoint> occupied)
+    {
+        var extended = new List<GridPoint>();
+        var doors = worldSimulation.Buildings.Where(item => item.Entrance is not null)
+            .Select(item => item.Entrance!.Value).ToHashSet();
+        var ordered = roadTiles.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
+        var streets = new TownStreets(map, occupied, ordered);
+        var random = Pcg32XshRrV1.Create(worldSeed, $"town-streets/{building.InstanceId}");
+        foreach (var end in ordered)
+        {
+            var linked = TownStreets.Linked(roadTiles, end).ToArray();
+            if (linked.Length != 1 || StepsToDoor(end, doors) is not { } steps || steps >= TownStreets.RunOnTiles)
+                continue;
+            var path = streets.Wander(end, TownStreets.DirectionBetween(linked[0], end),
+                TownStreets.RunOnTiles - steps, 0, random);
+            foreach (var tile in path)
+                if (roadTiles.Add(tile)) extended.Add(tile);
+        }
+        return extended;
+    }
+
+    /// <summary>Road steps from a tile to the nearest door, looking no further than a street's run-on.</summary>
+    private int? StepsToDoor(GridPoint start, HashSet<GridPoint> doors)
+    {
+        var steps = new Dictionary<GridPoint, int> { [start] = 0 };
+        var pending = new Queue<GridPoint>([start]);
+        while (pending.TryDequeue(out var current))
+        {
+            if (doors.Contains(current)) return steps[current];
+            if (steps[current] >= TownStreets.RunOnTiles) continue;
+            foreach (var next in TownStreets.Linked(roadTiles, current))
+                if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
+        }
+        return null;
     }
 
     private void SetBuildingEntrance(string instanceId, GridPoint entrance)

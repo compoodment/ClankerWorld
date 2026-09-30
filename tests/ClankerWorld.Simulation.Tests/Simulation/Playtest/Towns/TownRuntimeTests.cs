@@ -357,6 +357,91 @@ public sealed class TownRuntimeTests
         }
     }
 
+    [Fact]
+    public void BuildingsJoiningATownExtendItsStreetsAndBranchNewOnes()
+    {
+        var geography = new GeographyOptions("first-town-streets-grow", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        PlaceFourFounders(world);
+        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+        var map = world.ExportState().Map;
+        HashSet<GridPoint> Footprints() => world.WorldSimulation.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(
+                world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId),
+                building.Position)).ToHashSet();
+
+        // The starting wood pays for four workshops.
+        for (var index = 0; index < 4; index++)
+        {
+            var town = Assert.Single(world.Towns);
+            var roads = world.RoadTiles.ToHashSet();
+            var taken = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+                .Concat(roads).Concat(Footprints()).ToHashSet();
+            var sites = map.Tiles.Select(tile => tile.Position).Where(point =>
+                    WorldContentSimulationRules.Footprint(workshop, point).All(tile => map.IsBuildable(tile) && !taken.Contains(tile)) &&
+                    TownBorderRules.IsWithinOrAdjacent(town, point, workshop.Width, workshop.Height))
+                .ToArray();
+            int NearestRoad(GridPoint point) => WorldContentSimulationRules.Footprint(workshop, point)
+                .Min(tile => roads.Min(road => Math.Abs(road.X - tile.X) + Math.Abs(road.Y - tile.Y)));
+            // Alternate a lot facing a street with one that needs a new side street.
+            var facing = index % 2 == 0;
+            var position = sites.First(point => facing ? NearestRoad(point) == 1 : NearestRoad(point) >= 3);
+
+            var result = world.PlaceBuilding($"growth-{index}", workshop.CanonicalId, position);
+            Assert.True(result.Applied, result.Failure);
+            var entrance = Assert.Single(world.WorldSimulation.Buildings, item => item.InstanceId == result.InstanceId)
+                .Entrance ?? throw new InvalidOperationException("The joined building has no entrance.");
+            Assert.True(WorldContentSimulationRules.IsEntrance(workshop, position, entrance));
+            Assert.Contains(entrance, world.RoadTiles);
+            if (facing) Assert.Contains(entrance, roads);
+            else Assert.DoesNotContain(entrance, roads);
+        }
+
+        var network = world.RoadTiles.ToHashSet();
+        var grownTown = Assert.Single(world.Towns);
+        Assert.Empty(network.Intersect(Footprints()));
+        Assert.All(network, road => Assert.Contains(road, grownTown.BorderTiles));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "town_road_extended");
+
+        // The Town stays one connected street network.
+        var reachable = new HashSet<GridPoint> { world.RoadTiles[0] };
+        var pending = new Queue<GridPoint>(reachable);
+        while (pending.TryDequeue(out var current))
+            foreach (var next in TownStreets.Linked(network, current))
+                if (reachable.Add(next)) pending.Enqueue(next);
+        Assert.True(network.SetEquals(reachable));
+
+        // Streets run on three tiles past the nearest door wherever the land ahead is clear.
+        var doors = world.WorldSimulation.Buildings.Where(item => item.Entrance is not null)
+            .Select(item => item.Entrance!.Value).ToHashSet();
+        var blocked = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(Footprints()).ToHashSet();
+        foreach (var end in network.Where(road => TownStreets.Linked(network, road).Count() == 1))
+        {
+            if (StepsToDoor(network, doors, end) >= TownStreets.RunOnTiles) continue;
+            var from = TownStreets.Linked(network, end).Single();
+            var ahead = new GridPoint(end.X + (end.X - from.X), end.Y + (end.Y - from.Y));
+            Assert.True(!map.IsBuildable(ahead) || blocked.Contains(ahead) || network.Contains(ahead) ||
+                TownStreets.Directions.Any(step => new GridPoint(ahead.X + step.X, ahead.Y + step.Y) is var near &&
+                    near != end && near != from && network.Contains(near)),
+                $"The street ending at {end} could run on past its door.");
+        }
+    }
+
+    private static int StepsToDoor(HashSet<GridPoint> roads, HashSet<GridPoint> doors, GridPoint start)
+    {
+        var steps = new Dictionary<GridPoint, int> { [start] = 0 };
+        var pending = new Queue<GridPoint>([start]);
+        while (pending.TryDequeue(out var current))
+        {
+            if (doors.Contains(current)) return steps[current];
+            foreach (var next in TownStreets.Linked(roads, current))
+                if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
+        }
+        return int.MaxValue;
+    }
+
     private static void PlaceFourFounders(PrivateWorldRuntime world)
     {
         if (world.Towns.Count == 0)

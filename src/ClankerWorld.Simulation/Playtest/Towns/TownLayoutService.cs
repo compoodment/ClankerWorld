@@ -16,6 +16,7 @@ public static class TownConstructionSiteReasonCodes
     public const string ForestPreservation = "terrain_forest";
     public const string NearbyMaterial = "nearby_material";
     public const string PurposeCluster = "purpose_cluster";
+    public const string RoadFrontage = "road_frontage";
 }
 
 /// <summary>
@@ -36,7 +37,7 @@ public sealed record TownLayoutBuilding(PlacedBuilding Building, BuildingDefinit
 /// <summary>
 /// Immutable runtime facts used by every construction-site query in one
 /// inhabitant decision or project continuation. Candidate anchors are clipped
-/// to the current first-Town rectangle plus its one-tile planning margin.
+/// to the bounds of the first Town's border plus its spare-land margin.
 /// </summary>
 public sealed class TownLayoutContext
 {
@@ -46,7 +47,8 @@ public sealed class TownLayoutContext
         IEnumerable<GridPoint> occupiedTiles,
         IReadOnlyDictionary<GridPoint, int> reachableFootCosts,
         IEnumerable<TownLayoutResource> resources,
-        IEnumerable<TownLayoutBuilding> buildings)
+        IEnumerable<TownLayoutBuilding> buildings,
+        IEnumerable<GridPoint>? roadTiles = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(occupiedTiles);
@@ -64,6 +66,7 @@ public sealed class TownLayoutContext
             throw new ArgumentException("Reachable site costs must be non-negative map positions.", nameof(reachableFootCosts));
         Resources = resources.ToArray();
         Buildings = buildings.ToArray();
+        RoadTiles = (roadTiles ?? []).ToHashSet();
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
             : CandidateBounds(map, town);
@@ -80,6 +83,8 @@ public sealed class TownLayoutContext
     public IReadOnlyList<TownLayoutResource> Resources { get; }
 
     public IReadOnlyList<TownLayoutBuilding> Buildings { get; }
+
+    public IReadOnlySet<GridPoint> RoadTiles { get; }
 
     public IReadOnlyList<GridPoint> CandidateAnchors { get; }
 
@@ -191,6 +196,14 @@ public static class TownLayoutService
             }
         }
 
+        // New buildings prefer free frontage on an existing street, so the
+        // Town grows along its Roads.
+        if (FacesRoad(context, definition, position))
+        {
+            score += 24;
+            reasons.Add(new(TownConstructionSiteReasonCodes.RoadFrontage, "Its door can face an existing Road."));
+        }
+
         var terrain = context.TerrainAt(position);
         if (terrain == TerrainKind.Meadow)
         {
@@ -259,6 +272,11 @@ public static class TownLayoutService
         var relationship = context.Town is null ? "existing" : "Town's existing";
         reasons.Add(new(TownConstructionSiteReasonCodes.PurposeCluster, $"Near {relationship} {role} building."));
     }
+
+    private static bool FacesRoad(TownLayoutContext context, BuildingDefinition definition, GridPoint position) =>
+        context.RoadTiles.Count > 0 && Footprint(definition, position).Any(tile => TownStreets.Directions
+            .Where(step => step.X == 0 || step.Y == 0)
+            .Any(step => context.RoadTiles.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y))));
 
     private static int ExpansionFor(TownLayoutContext context, BuildingDefinition definition, GridPoint position)
     {
