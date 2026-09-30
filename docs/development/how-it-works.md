@@ -293,8 +293,9 @@ owns anywhere, plus what its members carry. Each kind is planned at most once
 at a time and a household never holds two of a kind; a second member choosing
 the same kind in the same tick is refused, and a project stops if its household
 comes to hold that kind. Only a household holding a Farmhouse plans a Silo, and
-its sites must touch that Farmhouse at an edge or corner, a provisional reading
-of "next to". While the first building it still needs lacks a material, one
+its sites must lie within two tiles of that Farmhouse, counting diagonals, with
+touching sites ranked first. This provisional reading of "next to" keeps a Silo
+possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
 adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
 kinds are listed in `HouseholdBuildingKinds`, which already names the Tailor

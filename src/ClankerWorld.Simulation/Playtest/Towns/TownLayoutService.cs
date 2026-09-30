@@ -86,10 +86,14 @@ public sealed class TownLayoutContext
     public IReadOnlyList<GridPoint> CandidateAnchors { get; }
 
     /// <summary>
-    /// When set, a legal footprint must touch one of these tiles at an edge or
-    /// a corner, as a Silo must touch its household's Farmhouse.
+    /// When set, a legal footprint must lie within <see cref="NeighborReach"/>
+    /// tiles of one of these, as a Silo must stand near its household's
+    /// Farmhouse; sites that touch rank first.
     /// </summary>
     public IReadOnlySet<GridPoint>? RequiredNeighborTiles { get; }
+
+    /// <summary>How far, in tiles including diagonals, a site may be from its required neighbor. Provisional.</summary>
+    public const int NeighborReach = 2;
 
     public TerrainKind? TerrainAt(GridPoint position) => Map.TerrainKindAt(position);
 
@@ -172,8 +176,11 @@ public static class TownLayoutService
         var footprint = Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
             return false;
-        if (context.RequiredNeighborTiles is { } neighbors && !footprint.Any(point =>
-                neighbors.Any(neighbor => Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)) == 1)))
+        var neighborDistance = context.RequiredNeighborTiles is { } neighbors
+            ? footprint.SelectMany(point => neighbors.Select(neighbor =>
+                Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)))).DefaultIfEmpty(int.MaxValue).Min()
+            : 0;
+        if (neighborDistance > TownLayoutContext.NeighborReach)
             return false;
         if (context.Town is { } town &&
             !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))
@@ -214,6 +221,13 @@ public static class TownLayoutService
             reasons.Add(new(TownConstructionSiteReasonCodes.ForestPreservation, "Open meadow sites rank ahead of forest ground."));
         }
 
+        if (context.RequiredNeighborTiles is not null)
+        {
+            score += neighborDistance == 1 ? 12 : 0;
+            reasons.Add(new(TownConstructionSiteReasonCodes.PurposeCluster, neighborDistance == 1
+                ? "Stands right beside the building it serves."
+                : $"Stands {neighborDistance} tiles from the building it serves."));
+        }
         AddMaterialReasons(context, definition, position, reasons, ref score);
         AddPurposeReason(context, definition, position, reasons, ref score);
         candidate = new TownConstructionSiteCandidate(position, score, routeCost, expansion, reasons.ToArray());

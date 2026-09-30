@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
             building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
     }
 
-    /// <summary>A Silo stands next to its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
+    /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
     private GridPoint[] SiloNeighborTiles(string actor,
         Dictionary<string, BuildingDefinition> definitions) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&

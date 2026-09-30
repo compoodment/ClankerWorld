@@ -61,9 +61,11 @@ public sealed class HouseholdBuildingPlanTests
             .Select(id => TownConstructionCandidateIds.TryParse(id, out var selection) ? selection.SitePosition!.Value : default)
             .ToArray();
         Assert.NotEmpty(siloSites);
-        // Next to means touching the Farmhouse at an edge or a corner.
-        Assert.All(siloSites, site => Assert.Equal(1,
-            Math.Max(Math.Abs(site.X - farmhouse.Position.X), Math.Abs(site.Y - farmhouse.Position.Y))));
+        // Near means within two tiles, counting diagonals; this Farmhouse has
+        // free corners, so a touching site is offered too.
+        int Distance(GridPoint site) => Math.Max(Math.Abs(site.X - farmhouse.Position.X), Math.Abs(site.Y - farmhouse.Position.Y));
+        Assert.All(siloSites, site => Assert.InRange(Distance(site), 1, TownLayoutContext.NeighborReach));
+        Assert.Contains(siloSites, site => Distance(site) == 1);
         Assert.DoesNotContain("building:silo-1x1", FamiliesForHousehold(world, recorder, Beta));
     }
 

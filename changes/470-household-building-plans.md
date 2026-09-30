@@ -1,4 +1,4 @@
-- Households plan the buildings they need again: a House, Farmhouse, Blacksmith or Silo they do not hold yet, one of each, once they have the materials. Agents gather missing stone or wood first. The new Silo stands next to its household's Farmhouse and stores its harvests.
+- Households plan the buildings they need again: a House, Farmhouse, Blacksmith or Silo they do not hold yet, one of each, once they have the materials. Agents gather missing stone or wood first. The new Silo stands beside or near its household's Farmhouse and stores its harvests.
 - An agent carrying supplies into a household building no longer hands the same load back to help a project, which could repeat for hours.
 - While one agent waits for a busy field or workstation, others are not offered new work there, so the waiting agent gets the next turn.
 - Agents no longer build approved owner building designs, since households plan only their own kinds of building.
