@@ -412,6 +412,7 @@ public sealed partial class PrivateWorldRuntime
                         outcome.Failure, legal);
                     if (decision is not null)
                     {
+                        ApplyPersonalIdentityChoice(id, item.Request, outcome.Response, decision.Admission);
                         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
                             outcome.Response is
                             {

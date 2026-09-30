@@ -277,6 +277,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {
+            if (person.IdentityChoicePending && state.SchemaVersion < 28)
+                throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);
