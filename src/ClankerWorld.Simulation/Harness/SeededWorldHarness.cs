@@ -568,14 +568,14 @@ public static class GeneratedCampMapGenerator
             ? GenerateLegacyResourceSites(options, kinds, width, height, objects, resources)
             : GenerateResourceSites(options, geography, hydrologyKinds, elevationLevels,
             surfaceKinds, vegetationKinds, objects, placed);
-        // Rare deposits come before the scattered filler trees so that a
-        // forested chunk cannot crowd out the map's only iron or gold.
+        // Reserve rare deposits and orchards before scattered filler trees
+        // can consume their shared chunk budget.
         List<MapResource> geology = legacyLayout ? [] : GenerateGeologySites(options, geography, objects,
             placed.Concat(distributed).ToArray());
-        List<MapResource> trees = legacyLayout ? [] : GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
-            width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
         List<MapResource> orchards = legacyLayout ? [] : GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
-            placed.Concat(distributed).Concat(geology).Concat(trees).ToArray());
+            placed.Concat(distributed).Concat(geology).ToArray());
+        List<MapResource> trees = legacyLayout ? [] : GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
+            width, height, objects, placed.Concat(distributed).Concat(geology).Concat(orchards).ToArray());
         if (!legacyLayout)
             MarkFertileSoilSites(surfaceKinds,
                 placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards), width, height);
@@ -953,8 +953,9 @@ public static class GeneratedCampMapGenerator
         byte[] surfaceKinds, byte[] vegetationKinds, int width, int height, IReadOnlyList<CampObject> camp,
         IReadOnlyList<MapResource> existing)
     {
-        // One generic fruit tree per suitable chunk, after woodland trees have
-        // been placed. Species, density and seasonality are not final content.
+        // Reserve one generic fruit tree per suitable chunk before scattered
+        // woodland trees use the remaining budget. Species, density and
+        // seasonality are not final content.
         var occupied = camp.Select(item => item.Position)
             .Concat(existing.Select(item => item.Position)).ToHashSet();
         var perChunk = existing.GroupBy(item =>
