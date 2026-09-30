@@ -52,14 +52,20 @@ internal static class NormalPathWorld
     }
 }
 
-/// <summary>Records every candidate offered to each agent, then lets the built-in rules choose.</summary>
-internal sealed class ActionCoverageRecorder : IDecisionProvider
+/// <summary>
+/// Records every candidate offered to each agent, then lets the built-in rules
+/// choose, or always stays idle so the world changes as little as possible.
+/// </summary>
+internal sealed class ActionCoverageRecorder(bool chooseIdle = false) : IDecisionProvider
 {
     private readonly DeterministicDecisionProvider chooser = new();
 
     public ConcurrentDictionary<string, ConcurrentDictionary<string, int>> OfferedByAgent { get; } = new(StringComparer.Ordinal);
 
     public ConcurrentDictionary<string, int> Chosen { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The world tick at which each agent was first offered each candidate.</summary>
+    public ConcurrentDictionary<(string AgentId, string CandidateId), long> FirstOfferedTick { get; } = new();
 
     public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
 
@@ -71,8 +77,20 @@ internal sealed class ActionCoverageRecorder : IDecisionProvider
         var offered = OfferedByAgent.GetOrAdd(request.Observation.InhabitantId,
             _ => new ConcurrentDictionary<string, int>(StringComparer.Ordinal));
         foreach (var candidate in request.Observation.Candidates)
+        {
             offered.AddOrUpdate(candidate.Id, 1, (_, count) => count + 1);
-        var response = await chooser.DecideAsync(request, cancellationToken);
+            FirstOfferedTick.TryAdd((request.Observation.InhabitantId, candidate.Id), request.Observation.WorldTick);
+        }
+        var choice = chooseIdle
+            ? request with
+            {
+                Observation = request.Observation with
+                {
+                    Candidates = [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")],
+                },
+            }
+            : request;
+        var response = await chooser.DecideAsync(choice, cancellationToken);
         Chosen.AddOrUpdate(response.SelectedCandidateId, 1, (_, count) => count + 1);
         return response;
     }

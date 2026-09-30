@@ -1407,6 +1407,7 @@ public partial class Main
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
+                BuildingSprites.KindFor(["silo", "farm-storage"]) != BuildingKind.Silo ||
                 BuildingSprites.KindFor(null) != BuildingKind.Generic ||
                 BuildingSprites.KindForObject("campfire") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||

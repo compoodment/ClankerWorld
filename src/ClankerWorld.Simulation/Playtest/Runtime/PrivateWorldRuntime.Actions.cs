@@ -194,7 +194,9 @@ public sealed partial class PrivateWorldRuntime
     private string ProductionOwnerFor(PlacedBuilding? building, string workerId) =>
         building?.HouseholdId ?? society.Checkpoint.GetInhabitant(workerId).HouseholdId ?? workerId;
 
-    private static bool IsHouseholdBuildingTag(string tag) => tag is "house" or "farmhouse" or "blacksmith";
+    private static bool IsHouseholdBuildingTag(string tag) => HouseholdBuildingKinds.IsKindTag(tag);
+
+    private static string? HouseholdBuildingKind(BuildingDefinition definition) => HouseholdBuildingKinds.KindOf(definition);
 
     private PlacedBuilding? HouseForHousehold(string householdId) => HouseholdBuildingWithTag(householdId, "house");
 
