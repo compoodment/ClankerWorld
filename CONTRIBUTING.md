@@ -49,8 +49,10 @@ one, and a workflow updates the repository.
 - **Automatic:** the templates set the type. A pull request gets areas from the
   files it changes, a type from its ticked **Type of change** box and
   `status:needs-review` while it is ready. An issue it links with `Closes` or
-  `Refs` gets `status:has-pr`, which is removed when the last such pull request
-  closes; if none merged, the issue goes back to `status:ready`.
+  `Refs` gets `status:has-pr`; once the pull request is ready for review, the
+  issue's `status:in-progress` claim is removed. `status:has-pr` is removed when
+  the last such pull request closes; if none merged, the issue goes back to
+  `status:ready`.
 - **By hand:** areas and a status on new issues; `status:ready` only when
   nothing is left to decide; the other statuses when they become true; and
   `status:parked` when closing agreed work for later.
@@ -80,6 +82,8 @@ it and the branch name; assignment alone does not show which agent took it.
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
 - If you stop, remove the label and comment with what you learned.
+- You don't remove it when you open the pull request: once the pull request is
+  ready for review, the issue switches to `status:has-pr` automatically.
 - A claim with no pull request and no update for 12 hours is stale: say you are
   taking it over, then claim it again.
 

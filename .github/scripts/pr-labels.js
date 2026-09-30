@@ -7,6 +7,8 @@
 // - status:has-pr on open issues the PR links as described in CONTRIBUTING
 //   ("Closes #N", "Fixes #N", "Resolves #N" or "Refs #N", one keyword per issue,
 //   or any #N on the template's Closes and Refs lines), replacing status:ready.
+//   Once the PR is ready for review (not a draft), the issue's claim label
+//   status:in-progress is removed too, so the issue shows only status:has-pr.
 //   When the last open PR linking an issue closes, status:has-pr is removed
 //   again; an issue whose PR closed without merging goes back to status:ready
 //   if it has no other status.
@@ -14,6 +16,7 @@
 const NeedsReview = 'status:needs-review';
 const HasPr = 'status:has-pr';
 const Ready = 'status:ready';
+const InProgress = 'status:in-progress';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
 // ignoring HTML comments and code. Refs links an issue without closing it.
@@ -113,7 +116,8 @@ async function labelPullRequest({ github, context, core }) {
     if (!issue) continue;
     await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [HasPr] });
     await removeLabel(github, repo, number, Ready);
-    core.info(`Marked #${number} as ${HasPr}.`);
+    if (!pr.draft) await removeLabel(github, repo, number, InProgress);
+    core.info(`Marked #${number} as ${HasPr}${pr.draft ? '' : ` and cleared ${InProgress}`}.`);
   }
 
   // An edit that drops a reference releases that issue.
