@@ -1814,6 +1814,8 @@ public partial class Main
             if (gameMenuPanel.Visible)
                 throw new InvalidOperationException("Escape must close the Pause Menu.");
             quitGameButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (quitGameConfirmation.DialogText.Contains("saved", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Quit Game is offered only on the Main Menu, so it must not talk about saving progress.");
             if (!quitGameConfirmation.Visible)
                 throw new InvalidOperationException("Quit Game must ask for confirmation before exiting.");
             quitGameConfirmation.Hide();

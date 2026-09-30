@@ -402,6 +402,10 @@ release yet.
 - A damaged named-save entry no longer hides other saves or stops autosave
   rotation. Damaged files are preserved, with a safe diagnostic for recovery.
 
+- The Main Menu's Quit Game confirmation now just says the game will close,
+  instead of telling you your progress is saved after you have already left
+  your world.
+
 - Hovering the Town panel no longer pops up a technical tooltip of world
   ticks, revisions, map digests and internal system counts.
 - The selected-agent card no longer covers the agent it describes: when it

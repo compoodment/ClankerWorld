@@ -329,7 +329,8 @@ public partial class Main
         menuActions.AddChild(menuQuitToMainButton);
 
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
-        quitGameConfirmation.DialogText = "Quit the game? Your progress is saved.";
+        // Quit Game is only offered on the Main Menu, after leaving any world.
+        quitGameConfirmation.DialogText = "The game will close.";
         quitGameConfirmation.Confirmed += () => GetTree().Quit();
         AddChild(quitGameConfirmation);
         body.AddChild(menuActions);
