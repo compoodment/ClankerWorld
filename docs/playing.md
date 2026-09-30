@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Playing the current game
@@ -92,6 +92,7 @@ remove the cap in World Settings, then resume separately.
 select that particular save and confirm; typing the same name does not overwrite
 it. World Settings offers rotating autosaves as well as automatic recovery.
 **Load World** shows existing worlds and warns about saves it cannot load.
+Open and Delete are unavailable while another world action finishes.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes

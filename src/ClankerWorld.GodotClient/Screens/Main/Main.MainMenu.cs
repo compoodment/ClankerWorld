@@ -423,10 +423,10 @@ public partial class Main
         worldSelectionList.CustomMinimumSize = new Vector2(0, 300);
         worldSelectionList.ItemSelected += index =>
         {
+            RefreshWorldMenuAvailability();
+            if (worldMenuBusy || isOwnerAction) return;
             if (worldListRequest.IsLoading || index < 0 || index >= listedWorlds.Length) return;
             var world = listedWorlds[(int)index];
-            worldDeleteButton.Disabled = worldMenuBusy;
-            worldSelectButton.Disabled = world.Compatibility == "incompatible";
             worldMenuStatus.Text = world.Compatibility == "incompatible"
                 ? "Cannot open this world: " + (world.CompatibilityReason ?? "It was made with a different version.") + " Your save is safe."
                 : world.Compatibility == "unknown"
@@ -592,6 +592,42 @@ public partial class Main
         Callable.From(LayoutWorldMenu).CallDeferred();
     }
 
+    private CatalogWorld? SelectedListedWorld()
+    {
+        var selected = worldSelectionList.GetSelectedItems();
+        return selected.Length == 1 && selected[0] >= 0 && selected[0] < listedWorlds.Length
+            ? listedWorlds[selected[0]] : null;
+    }
+
+    private void RefreshWorldMenuAvailability()
+    {
+        var disabled = worldMenuBusy || isOwnerAction || worldListRequest.IsLoading ||
+            registeredEndpointInvalid || registration is null || deviceKey is null;
+        var world = SelectedListedWorld();
+        worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
+        worldDeleteButton.Disabled = disabled || world is null;
+        worldPreviewButton.Disabled = disabled;
+        worldCreateButton.Disabled = disabled || !SameGeneration(previewedWorldOptions, CurrentWorldOptions());
+    }
+
+    private async Task RunWorldMenuActionAsync(Func<Task> action)
+    {
+        await ownerActionGate.RunAsync(async () =>
+        {
+            worldMenuBusy = true;
+            isOwnerAction = true;
+            refreshCancellation?.Cancel();
+            RefreshControlAvailability();
+            try { await action(); }
+            finally
+            {
+                worldMenuBusy = false;
+                isOwnerAction = false;
+                RefreshControlAvailability();
+            }
+        });
+    }
+
     private OwnerWorldCreationAction CurrentWorldOptions() => new(
         worldNameInput.Text.Trim(), worldSeedInput.Text.Trim(),
         worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
@@ -664,7 +700,7 @@ public partial class Main
 
     private async Task PreviewWorldAsync()
     {
-        if (worldMenuBusy || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (worldMenuBusy || isOwnerAction || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var action = CurrentWorldOptions();
         if (action.Name.Length is < 1 or > 80 || action.Seed.Length is < 1 or > 100 ||
             action.Name.Any(char.IsControl) || action.Seed.Any(char.IsControl))
@@ -703,13 +739,13 @@ public partial class Main
         finally
         {
             worldMenuBusy = false;
-            worldPreviewButton.Disabled = false;
+            RefreshWorldMenuAvailability();
         }
     }
 
     private async Task CreateSelectedWorldAsync()
     {
-        if (worldMenuBusy || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (worldMenuBusy || isOwnerAction || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var name = worldNameInput.Text.Trim();
         var seed = worldSeedInput.Text.Trim();
         if (name.Length is < 1 or > 80 || seed.Length is < 1 or > 100 ||
@@ -725,58 +761,53 @@ public partial class Main
             worldCreateButton.Disabled = true;
             return;
         }
-        worldMenuBusy = true;
-        worldCreateButton.Disabled = true;
-        worldMenuStatus.Text = "Generating world…";
-        try
+        await RunWorldMenuActionAsync(async () =>
         {
-            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
-                signer, CancellationToken.None);
-            resumeWorldOnContinue = false;
-            await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
-                action, signer, CancellationToken.None));
-            worldMenuOverlay.Hide();
-            await EnterWorldAsync();
-        }
-        catch (Exception exception)
-        {
-            worldMenuStatus.Text = "Could not create world: " + FriendlyFailure(exception);
-        }
-        finally
-        {
-            worldMenuBusy = false;
-            worldCreateButton.Disabled = !SameGeneration(previewedWorldOptions, CurrentWorldOptions());
-        }
+            worldMenuStatus.Text = "Generating world…";
+            try
+            {
+                await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                    signer, CancellationToken.None);
+                resumeWorldOnContinue = false;
+                await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
+                    action, signer, CancellationToken.None));
+                worldMenuOverlay.Hide();
+                await EnterWorldAsync();
+            }
+            catch (Exception exception)
+            {
+                worldMenuStatus.Text = "Could not create world: " + FriendlyFailure(exception);
+            }
+        });
     }
 
     private async Task SelectListedWorldAsync()
     {
-        if (worldMenuBusy || worldSelectionList.GetSelectedItems() is not { Length: 1 } selected ||
-            selected[0] < 0 || selected[0] >= listedWorlds.Length ||
-            listedWorlds[selected[0]].Compatibility == "incompatible" ||
+        if (worldMenuBusy || isOwnerAction || SelectedListedWorld() is not { } world ||
+            world.Compatibility == "incompatible" ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
-        worldMenuBusy = true;
-        worldSelectButton.Disabled = true;
-        worldMenuStatus.Text = "Opening world…";
-        try
+        // The catalog and selection can change while the pause response is pending.
+        // Keep the player's chosen identity, never its position in the list.
+        var worldId = world.Id;
+        var server = ResolveWorldUri();
+        await RunWorldMenuActionAsync(async () =>
         {
-            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
-                signer, CancellationToken.None);
-            resumeWorldOnContinue = false;
-            await observationSession.ChangeTimelineAsync(() => ownerApi.SelectWorldAsync(ResolveWorldUri(), authority, deviceId,
-                listedWorlds[selected[0]].Id, signer, CancellationToken.None));
-            worldMenuOverlay.Hide();
-            await EnterWorldAsync();
-        }
-        catch (Exception exception)
-        {
-            worldMenuStatus.Text = "Could not open world: " + FriendlyFailure(exception);
-        }
-        finally
-        {
-            worldMenuBusy = false;
-            worldSelectButton.Disabled = listedWorlds[selected[0]].Compatibility == "incompatible";
-        }
+            worldMenuStatus.Text = "Opening world…";
+            try
+            {
+                await ownerApi.SetPausedAsync(server, authority, deviceId, true,
+                    signer, CancellationToken.None);
+                resumeWorldOnContinue = false;
+                await observationSession.ChangeTimelineAsync(() => ownerApi.SelectWorldAsync(server, authority, deviceId,
+                    worldId, signer, CancellationToken.None));
+                worldMenuOverlay.Hide();
+                await EnterWorldAsync();
+            }
+            catch (Exception exception)
+            {
+                worldMenuStatus.Text = "Could not open world: " + FriendlyFailure(exception);
+            }
+        });
     }
 
     /// <summary>Menu buttons carry the same pixel icons as the HUD, redrawn for the current theme.</summary>

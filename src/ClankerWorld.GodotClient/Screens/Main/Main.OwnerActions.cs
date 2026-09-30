@@ -318,6 +318,7 @@ public partial class Main
 
     private void RefreshControlAvailability()
     {
+        RefreshWorldMenuAvailability();
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
         worldSettingsCategoryButton.Disabled = !paired || !isInWorld || returnToMainMenu;
         var snapshot = observationSession.Current?.Baseline.Snapshot;

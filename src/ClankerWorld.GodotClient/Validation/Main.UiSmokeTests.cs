@@ -267,6 +267,7 @@ public partial class Main
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        worldSelectionList.Select(6);
         worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
@@ -493,6 +494,7 @@ public partial class Main
             try
             {
                 await VerifyFirstWorldListAsync();
+                await VerifyWorldActionSelectionAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);

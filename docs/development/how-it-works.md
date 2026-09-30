@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # How the game works
@@ -314,5 +314,11 @@ finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the
 first opening can display them. Compatibility still comes from the host's
 checkpoint/history/configuration assessment; no compatibility cache or unchecked
-"compatible" shortcut was added. Client cancellation does not interrupt a host
+"compatible" shortcut was added. Open captures the chosen world's ID before
+pausing, so a later catalog refresh cannot change its target. Open, Create and
+Delete share the owner-action gate; selecting a different row cannot re-enable
+Open or Delete until the current action finishes. Cleanup checks the current
+selection rather than a row retained across an await.
+
+Client cancellation does not interrupt a host
 assessment that already holds its mutation lock.

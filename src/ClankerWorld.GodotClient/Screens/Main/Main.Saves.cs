@@ -305,7 +305,7 @@ public partial class Main
 
     private void ConfirmWorldDeletion()
     {
-        if (worldMenuBusy || worldSelectionList.GetSelectedItems() is not { Length: 1 } selected ||
+        if (worldMenuBusy || isOwnerAction || worldSelectionList.GetSelectedItems() is not { Length: 1 } selected ||
             selected[0] < 0 || selected[0] >= listedWorlds.Length) return;
         var world = listedWorlds[selected[0]];
         if (world.Id == listedActiveWorldId)
@@ -323,6 +323,7 @@ public partial class Main
         var action = pendingDeletion;
         pendingDeletion = null;
         if (action is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (action.Kind == "world" && worldMenuBusy) return;
         manualSaveDeleteButton.Disabled = true;
         worldDeleteButton.Disabled = true;
         await RunOwnerActionAsync(async () =>
