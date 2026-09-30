@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 
 # Releasing
@@ -30,8 +30,10 @@ A tagged release must report both its game version and source revision.
 The public version does **not** decide whether a saved world loads. The
 existing save/replay envelopes carry their own contract, simulation and schema
 versions; generator, clock, content-lock and asset versions are separate where
-relevant. Change each field only when its semantics change, and cover old-save
-handling, migration and replay in tests. A cosmetic game-version bump is not a
+relevant. Change each field only when its semantics change, and cover replay
+in tests. Once a release promises that older saves load, cover old-save
+handling and migration too; during alpha they are not required (see
+[Saves and replay](saves-and-replay.md)). A cosmetic game-version bump is not a
 save migration.
 
 Content packages have their own versions and compatibility/dependency rules.
@@ -54,8 +56,9 @@ Before publishing:
    `CHANGELOG.md` entries into a dated release section, leaving `Unreleased`.
 2. Run the applicable build, test, Godot-export and Windows playtest gates.
    Check a real player path, not only isolated simulation fixtures.
-3. If compatibility changed, verify migration, old-save handling, replay and
-   rollback from a matching backup.
+3. If compatibility changed, verify replay and rollback from a matching backup.
+   Also verify migration and old-save handling when the release promises that
+   older saves load.
 4. Merge the release changes through the [contribution review process](../../CONTRIBUTING.md#review-and-merge),
    then fetch and verify the intended commit on GitHub's `origin/main`.
 5. Create and push the annotated tag, then verify that GitHub resolves it to

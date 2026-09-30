@@ -60,8 +60,15 @@ that recorded events reproduce its expected results and digests.
 - Validate externally loaded state and map identity before accepting it.
 - Reject unsupported, mismatched or corrupt data visibly; preserve the original
   file and valid current world instead of silently substituting content or keys.
-- Include old-save handling, migration and replay coverage when state, events,
-  schemas, generation or replay semantics change.
+- Include replay coverage when state, events, schemas, generation or replay
+  semantics change, so a save in the current format still loads and replays.
+- During alpha, older saves do not have to keep loading, and no migration or
+  old-save handling is written only to keep one working. The rule above still
+  applies: a save that cannot load is refused with a reason and kept. Finished
+  releases promise forward migration later, as described in
+  [Saves](../game-design/saves.md). Old-save code already in the repository
+  stays until it is removed; [issue #487](https://github.com/compoodment/ClankerWorld/issues/487)
+  audits it.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
