@@ -542,69 +542,6 @@ public static class AssetNormalizer
         }
     }
 
-    internal static void ValidateProvenanceForManifest(AssetProvenance provenance)
-    {
-        ArgumentNullException.ThrowIfNull(provenance);
-        var diagnostics = new List<AssetDiagnostic>();
-        ValidateProvenance(provenance, diagnostics);
-        ThrowIfManifestValidationFailed(diagnostics, "provenance");
-    }
-
-    internal static void ValidatePreviewForManifest(AssetPreviewReference preview)
-    {
-        ArgumentNullException.ThrowIfNull(preview);
-        var diagnostics = new List<AssetDiagnostic>();
-        ValidatePreview(preview, diagnostics);
-        ThrowIfManifestValidationFailed(diagnostics, "preview");
-    }
-
-    internal static string RebuildCanonicalMetadata(AssetProvenanceManifest manifest)
-    {
-        ArgumentNullException.ThrowIfNull(manifest);
-        var marker = "/asset/";
-        var markerIndex = manifest.AssetId.IndexOf(marker, StringComparison.Ordinal);
-        var versionMarker = manifest.AssetId.LastIndexOf('@');
-        if (markerIndex <= 0 || versionMarker <= markerIndex + marker.Length)
-        {
-            throw new InvalidDataException("The asset provenance manifest has an invalid asset ID.");
-        }
-
-        var packageDigest = manifest.AssetId[..markerIndex];
-        var localId = manifest.AssetId[(markerIndex + marker.Length)..versionMarker];
-        var version = ContentVersion.Parse(manifest.AssetId[(versionMarker + 1)..]);
-        var candidate = new InertRasterAssetCandidate(
-            packageDigest,
-            localId,
-            version,
-            manifest.DisplayName,
-            ReadOnlyMemory<byte>.Empty,
-            manifest.Provenance,
-            manifest.Preview);
-        return CanonicalMetadata(
-            candidate,
-            manifest.AssetId,
-            manifest.OriginalDigest,
-            manifest.NormalizedDigest,
-            manifest.Png);
-    }
-
-    private static void ThrowIfManifestValidationFailed(
-        IReadOnlyList<AssetDiagnostic> diagnostics,
-        string field)
-    {
-        var errors = diagnostics
-            .Where(diagnostic => diagnostic.Severity == AssetDiagnosticSeverity.Error)
-            .OrderBy(diagnostic => diagnostic.Code, StringComparer.Ordinal)
-            .ThenBy(diagnostic => diagnostic.Field, StringComparer.Ordinal)
-            .Select(diagnostic => diagnostic.ToString())
-            .ToArray();
-        if (errors.Length > 0)
-        {
-            throw new InvalidDataException(
-                $"Asset provenance manifest contains invalid {field} data: {string.Join('\n', errors)}");
-        }
-    }
-
     private static void ValidateProvenance(
         AssetProvenance provenance,
         List<AssetDiagnostic> diagnostics)
