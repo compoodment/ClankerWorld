@@ -198,9 +198,13 @@ Town/culture. Exact weights and when another offer appears are open.
 
 **Agreed, what a household plans:** a household plans only the buildings it
 needs for itself: a House, or a Farmhouse, Blacksmith, Store or Tailor Shop it
-does not yet hold. Buildings the Town shares wait for governance. **Still to
-decide:** the design says agents may develop a Workshop later, which this rule
-would block, so whether the Workshop is an exception remains open.
+does not yet hold. It plans at most one of each kind, and only once it has the
+materials in hand. There is no Town-wide limit on how many of a kind exist
+until playtests show agents overbuilding. Only the household that holds the
+Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
+exception**: a household may plan it, and once it is built the Town holds it.
+Other buildings the Town shares wait for governance. Any Town resident may plan
+the Warehouse's expansion once its stock is nearly full.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -297,8 +301,7 @@ must not pass through blocked corners. Playable foot movement now uses the stric
 Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, invitation details, access to other non-residential
-buildings, reservations and queues; whether the Workshop is an exception to
-the household planning rule;
+buildings, reservations and queues;
 claim boundaries, shared-use grants and mayoral powers; Town borders and
 governance; currency/land pricing;
 transport progression; other terrain eligibility,
