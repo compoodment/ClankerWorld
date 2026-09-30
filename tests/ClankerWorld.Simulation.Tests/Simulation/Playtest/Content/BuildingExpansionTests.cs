@@ -12,6 +12,140 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class BuildingExpansionTests
 {
     [Fact]
+    public async Task AHouseCanGrowAgainToTwoByTwoWithoutCreatingAnotherHouse()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var original);
+        Assert.True(seed.StartBuildingExpansion(actor, original.InstanceId).Applied);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
+        var state = seed.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == original.InstanceId);
+        var stored = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = house.Position } : person).ToArray(),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "second-expansion-wood", "wood", house.HouseholdId!,
+                    104 - stored, storageBuildingId: house.InstanceId),
+                }
+            },
+        };
+        using var growing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+        var started = growing.StartBuildingExpansion(actor, house.InstanceId);
+        Assert.True(started.Applied, started.Failure);
+        using var reloaded = Reload(growing);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        var expanded = reloaded.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId);
+        Assert.Equal(new BuildingFootprintRevision(2, 2, 2), expanded.Footprint);
+        Assert.Single(reloaded.WorldSimulation.Buildings, item => item.HouseholdId == house.HouseholdId && item.DefinitionId == house.DefinitionId);
+        Assert.Equal(256, new OwnerWorldObservationStore(reloaded).GetSnapshot().PlacedBuildings.Single(item => item.InstanceId == house.InstanceId).StorageCapacity);
+        Assert.All(reloaded.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId), lot => Assert.Equal(house.HouseholdId, lot.OwnerId));
+        Assert.False(reloaded.StartBuildingExpansion(actor, house.InstanceId).Applied);
+    }
+
+    [Fact]
+    public void ACurrentSaveCannotRemoveOrReassignAHouseWhileItHoldsStockAndJobs()
+    {
+        using var world = PreparedWorld("first-town-house-a", out var actor, out var house);
+        Assert.True(world.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        var state = world.ExportState();
+        var missing = state with
+        {
+            WorldSimulation = state.WorldSimulation! with { Buildings = state.WorldSimulation.Buildings.Where(item => item.InstanceId != house.InstanceId).ToArray() },
+            Towns = state.Towns!.Select(town => town with { AssignedBuildingIds = town.AssignedBuildingIds.Where(id => id != house.InstanceId).ToArray() }).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(missing));
+        var otherHousehold = state.Society.Society.Households.First(item => item.Id != house.HouseholdId).Id;
+        var reassigned = state with
+        {
+            WorldSimulation = state.WorldSimulation! with
+            {
+                Buildings = state.WorldSimulation.Buildings.Select(item => item.InstanceId == house.InstanceId ? item with { HouseholdId = otherHousehold } : item).ToArray(),
+            }
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(reassigned));
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+    }
+
+    [Fact]
+    public async Task AHelperFromAnotherHouseholdCanDeliverMaterialsWithoutStockAccess()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var helper = seed.Society.Inhabitants.First(person => person.HouseholdId != house.HouseholdId).Id;
+        var definition = seed.WorldContent.Buildings.Single(item => item.LocalId == "blacksmith-1x2");
+        var wood = definition.BuildCosts.Single(item => item.ResourceId == "wood").Amount;
+        var state = seed.ExportState();
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != house.HouseholdId || lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "helper-building-wood", "wood", helper, wood);
+        var helperPosition = state.Map.FootNeighbors(house.Position).First(point =>
+            state.Map.IsBuildable(point) && !state.Inhabitants.Any(person => person.Position == point));
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
+                ? person with { Position = helperPosition, HungerBasisPoints = 9_000, LastDecisionContext = null }
+                : person.InhabitantId == actor ? person with
+                {
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(definition.CanonicalId, house.Position),
+                        definition.DisplayName, seed.WorldTick, "acquiring"),
+                } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == helper ? new IdleProvider("assist:wood") : new IdleProvider());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var delivered = world.Society.Inventory.GetLot("helper-building-wood");
+        Assert.Equal(house.HouseholdId, delivered.OwnerId);
+        Assert.Equal(house.InstanceId, delivered.StorageBuildingId);
+        Assert.Equal(wood, delivered.Quantity);
+        var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "house-meal");
+        Assert.False(world.StartProduction(recipe.CanonicalId, house.InstanceId, helper).Applied);
+        using var reloaded = Reload(world);
+        Assert.Equal(delivered, reloaded.Society.Inventory.GetLot(delivered.Id));
+    }
+
+    [Fact]
+    public async Task AHouseholdWithoutAHouseBuildsItsFirstOneFromPersonallyCarriedMaterials()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out _, out _);
+        var state = seed.ExportState();
+        var site = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
+            !state.Map.Resources.Any(resource => resource.Position == tile.Position) &&
+            !state.Towns!.SelectMany(town => town.BorderTiles).Contains(tile.Position) &&
+            !state.Inhabitants.Any(person => person.Position == tile.Position)).Position;
+        const string actor = "agent:00000000000000000000000000000098";
+        var household = seed.AddAgent(actor, site);
+        var definition = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        state = seed.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in definition.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "first-house-" + cost.ResourceId, cost.ResourceId, actor, cost.Amount);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            {
+                HungerBasisPoints = 9_000,
+                Project = new SettlementProject(TownConstructionCandidateIds.Building(definition.CanonicalId, site),
+                    definition.DisplayName, seed.WorldTick, "working", 10),
+            } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var house = Assert.Single(world.WorldSimulation.Buildings, item => item.HouseholdId == household);
+        Assert.Equal(site, house.Position);
+        Assert.Equal("completed", world.Inhabitants.Single(person => person.InhabitantId == actor).Project!.Stage);
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id.StartsWith("first-house-", StringComparison.Ordinal));
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == household && lot.StorageBuildingId is null);
+        using var reloaded = Reload(world);
+        Assert.Contains(reloaded.WorldSimulation.Buildings, item => item == house);
+    }
+
+    [Fact]
     public async Task HouseExpansionKeepsItsIdentityStockAndCookingJobAcrossReload()
     {
         using var world = PreparedWorld("first-town-house-a", out var actor, out var building);

@@ -205,6 +205,17 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
+    private string BuildingConstructionOwner(string actor, BuildingDefinition definition)
+    {
+        var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        if (household is null) return actor;
+        if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
+        // Existing household supplies remain usable; new supplies stay personally
+        // carried until a household has a physical House to receive them.
+        return HouseForHousehold(household) is not null || HasAvailableQuantities(definition.BuildCosts, household)
+            ? household : actor;
+    }
+
     private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
     {
         // Preserve valid legacy IDs; descendant identities contain separators
