@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Agents, families and social life
@@ -325,14 +325,17 @@ options, not agreed game design.
 Weapons and armor should fit the general item/equipment/crafting/invention
 system rather than be a disconnected special system. An axe could be both a
 work tool and a weapon; armor could be wearable protective equipment. Combat
-still needs its own actions and balancing. Computment's agreement here was
+still needs its own actions and balancing. The approved
+[item pipelines](towns.md#item-and-resource-pipelines) give spears, swords,
+shields and basic armor wood/cloth/iron crafting paths at the Blacksmith, with
+equipping, wear, repair and replacement. Computment's agreement here was
 qualified (“if I get what you mean”).
 
 ### Still to decide
 
-Injuries, medicine, escape/surrender, law enforcement, war declarations and
-peace, lethality balance, combat equipment progression, and whether animal
-slaughter or hunting ever becomes part of the game.
+Detailed injuries and recovery rates, escape/surrender, law enforcement, war
+declarations and peace, lethality balance, combat effects of equipment, and
+whether animal slaughter or hunting ever becomes part of the game.
 
 ## Questions linking these systems
 
