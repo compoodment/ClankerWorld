@@ -63,6 +63,10 @@ and update existing documentation checks if files move. Report unrun or failed
 checks clearly.
 
 For changes intended for main, use the reviewed PR workflow in CONTRIBUTING.
+Follow [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness): do not
+leave completed work in draft solely for routine owner playtesting or pending
+independent review. Report unperformed checks without turning them into
+unrequested merge gates.
 After merging, fetch and verify the resulting commit on GitHub's `origin/main`
 before reporting the implementation delivered. Report its hash or link.
 If review or another required step is pending, report that remaining step and

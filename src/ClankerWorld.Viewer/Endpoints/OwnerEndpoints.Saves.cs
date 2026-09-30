@@ -93,8 +93,10 @@ internal static partial class OwnerEndpoints
             if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
             try
             {
-                var saved = saves.Create(action.Value, runtime,
-                    providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+                ManualWorldSave saved;
+                lock (providers.WorldMutationGate)
+                    saved = saves.Create(action.Value, runtime,
+                        providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
                 ManualWorldSaveTelemetry.Created(logger, saved.Id, saved.WorldTick);
                 return Results.Ok(saved);
             }
@@ -129,8 +131,10 @@ internal static partial class OwnerEndpoints
             if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
             try
             {
-                var result = saves.Overwrite(action.Value, runtime,
-                    providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+                ManualSaveOverwriteReceipt result;
+                lock (providers.WorldMutationGate)
+                    result = saves.Overwrite(action.Value, runtime,
+                        providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
                 ManualWorldSaveTelemetry.Overwritten(logger, result.Saved.Id, result.BackupId,
                     result.Saved.WorldTick);
                 return Results.Ok(result);

@@ -6,6 +6,16 @@ release yet.
 
 ## Unreleased
 
+- Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
+- Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.
+
+- Prototype survival priorities leave more room for ordinary activities below comfortable fullness and warmth. Urgent food or continuing cold exposure still interrupts discretionary work, while safe nearby care remains possible. Routine food and outing reserves remain provisional for playtesting.
+- Add confirmed permanent deletion of one selected save, or an inactive world and all its saves. The active world and other worlds stay intact.
+- New World adds a compact Advanced section with 20–80% water (50% default), Low/Normal/High forest, mountains, rivers and resources, climate choices, wrapping and latitude cooling. Reset restores the full supported preset; preview and creation use the same saved settings.
+
+- New worlds keep inland lakes smaller and route rivers into lakes instead of around their shores, while preserving the selected open-water area. Existing worlds retain their saved geography.
+- Load World shows saved-world checks in progress, displays delayed results on the first opening, and ignores replies from closed or superseded lists.
+
 - Remove the redundant Load World tooltip from the Main Menu.
 - Crafting agents can choose a reachable free Workshop instead of repeatedly trying to enter an occupied one.
 

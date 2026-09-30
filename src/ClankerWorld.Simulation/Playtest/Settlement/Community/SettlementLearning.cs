@@ -13,7 +13,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool ActiveLesson(SettlementLesson? lesson) => lesson?.Stage is "requested" or "accepted" or "training";
 
     private bool ReadyForLesson(string actor) => inhabitants.TryGetValue(actor, out var person) &&
-        person.HungerBasisPoints >= 3_500 && !NeedsUrgentWarmth(person);
+        !NeedsUrgentFood(person) && !NeedsUrgentWarmth(person);
 
     private bool CanMentor(string teacher, SocietyWorkRole role) =>
         inhabitants.ContainsKey(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) &&

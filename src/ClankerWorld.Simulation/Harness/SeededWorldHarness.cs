@@ -492,7 +492,7 @@ public static class GeneratedCampMapGenerator
                     _ when tile.Elevation >= SeededMap.MountainElevationThreshold => TerrainKind.Mountain,
                     _ when tile.Climate is ClimateZone.Polar or ClimateZone.Cold => TerrainKind.Snow,
                     _ when tile.Climate == ClimateZone.Dry => TerrainKind.Sand,
-                    _ when tile.Rainfall >= 150 && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate => TerrainKind.Forest,
+                    _ when tile.Rainfall >= (options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 }) && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate => TerrainKind.Forest,
                     _ => TerrainKind.Meadow,
                 };
                 var index = y * width + x;
@@ -514,7 +514,7 @@ public static class GeneratedCampMapGenerator
                         ? VegetationCover.Cactus :
                     tile.Climate == ClimateZone.Dry ? VegetationCover.Scrub :
                     tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? VegetationCover.Tundra :
-                    tile.Rainfall >= 150 && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate
+                    tile.Rainfall >= (options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 }) && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate
                         ? VegetationCover.Forest : VegetationCover.Grass);
                 tiles[index] = new TerrainTile(new GridPoint(x, y), kind);
             }

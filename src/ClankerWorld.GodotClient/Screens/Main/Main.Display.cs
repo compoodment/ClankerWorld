@@ -64,7 +64,7 @@ public partial class Main
     /// <summary>Dialogs, drop-down lists and tooltips are separate windows, so they scale on their own.</summary>
     private void ScaleWindows(int factor)
     {
-        foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation })
+        foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation })
             UiTheme.ScaleDialog(dialog, factor);
         foreach (var node in FindChildren("*", nameof(OptionButton), recursive: true, owned: false))
             UiTheme.ScaleWindow(((OptionButton)node).GetPopup(), factor);

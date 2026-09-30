@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 
@@ -10,20 +11,23 @@ public sealed record CatalogWorld(
     WorldAutosaveSettings? AutosaveSettings,
     string Compatibility = "unknown", string? CompatibilityReason = null);
 
-public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
+public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CatalogWorld>? PendingDeletions = null);
 
 /// <summary>Private installation-level index of independently selectable worlds.</summary>
 public sealed class WorldCatalogStore
 {
-    private readonly object gate = new();
+    private readonly object gate;
     private readonly string directory;
     private readonly string indexPath;
     private WorldCatalogSnapshot index;
     public bool RecoveredSelection { get; }
 
     public WorldCatalogStore(string activeSavePath, PrivateWorldRuntimeState activeState,
-        IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings autosaveSettings)
+        IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings autosaveSettings,
+        object? mutationGate = null)
     {
+        gate = mutationGate ?? new object();
         directory = Path.GetFullPath(activeSavePath) + ".worlds";
         indexPath = Path.Combine(directory, "catalog.json");
         if (File.Exists(indexPath))
@@ -56,7 +60,44 @@ public sealed class WorldCatalogStore
 
     public WorldCatalogSnapshot Capture()
     {
-        lock (gate) return index;
+        lock (gate) return index with { PendingDeletions = null };
+    }
+
+    public void Delete(string id, string expectedWorldId, Action<string> deleteSnapshots)
+    {
+        ArgumentNullException.ThrowIfNull(deleteSnapshots);
+        lock (gate)
+        {
+            if (id == index.ActiveId)
+                throw new InvalidOperationException("Open or create another world before deleting this one.");
+            var entry = index.Worlds.Concat(index.PendingDeletions ?? []).SingleOrDefault(world => world.Id == id)
+                ?? throw new FileNotFoundException("The selected world no longer exists.");
+            if (entry.WorldId != expectedWorldId)
+                throw new InvalidOperationException("The selected world changed. Refresh the list before deleting.");
+            if (index.Worlds.Any(world => world.Id == id))
+            {
+                var next = index with
+                {
+                    Worlds = index.Worlds.Where(world => world.Id != id).ToArray(),
+                    PendingDeletions = [.. index.PendingDeletions ?? [], entry],
+                };
+                WriteIndex(next);
+                index = next;
+            }
+            deleteSnapshots(entry.WorldId);
+            File.Delete(SnapshotPath(id));
+            var remaining = (index.PendingDeletions ?? []).Where(world => world.Id != id).ToArray();
+            var completed = index with { PendingDeletions = remaining.Length == 0 ? null : remaining };
+            WriteIndex(completed);
+            index = completed;
+        }
+    }
+
+    public void RecoverDeletions(Action<string> deleteSnapshots)
+    {
+        lock (gate)
+            foreach (var entry in (index.PendingDeletions ?? []).ToArray())
+                Delete(entry.Id, entry.WorldId, deleteSnapshots);
     }
 
     public CatalogWorld Active()
@@ -69,7 +110,7 @@ public sealed class WorldCatalogStore
         name = NormalizeName(name);
         lock (gate)
         {
-            if (index.Worlds.Any(world => world.WorldId == state.Society.Society.WorldId))
+            if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world => world.WorldId == state.Society.Society.WorldId))
                 throw new InvalidOperationException("This world already exists.");
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), name,
                 state.Society.Society.WorldId, state.WorldSeed, DateTimeOffset.UtcNow, [], null);
@@ -140,7 +181,11 @@ public sealed class WorldCatalogStore
             state.Worlds.Select(world => world.Id).Distinct(StringComparer.Ordinal).Count() != state.Worlds.Count ||
             state.Worlds.Select(world => world.WorldId).Distinct(StringComparer.Ordinal).Count() != state.Worlds.Count)
             throw new InvalidDataException("The world catalog index is invalid.");
-        foreach (var world in state.Worlds)
+        var pending = state.PendingDeletions ?? [];
+        if (pending.Any(world => state.Worlds.Any(live => live.Id == world.Id || live.WorldId == world.WorldId)) ||
+            pending.Select(world => world.Id).Distinct(StringComparer.Ordinal).Count() != pending.Count)
+            throw new InvalidDataException("The pending world deletions are invalid.");
+        foreach (var world in state.Worlds.Concat(pending))
         {
             if (world.Id.Length != 32 || !world.Id.All(char.IsAsciiHexDigit) ||
                 string.IsNullOrWhiteSpace(world.WorldId) || string.IsNullOrWhiteSpace(world.Seed) ||

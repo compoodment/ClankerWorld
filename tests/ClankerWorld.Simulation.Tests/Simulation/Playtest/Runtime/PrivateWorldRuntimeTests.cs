@@ -91,7 +91,7 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Equal(
             runtime.Society.Inhabitants.Select(item => item.Id),
             restored.Society.Inhabitants.Select(item => item.Id));
-        Assert.Equal(runtime.Inhabitants, restored.Inhabitants);
+        // Canonical bytes below compare nested collection contents, not array/list identity.
         Assert.Equal(
             encoded,
             PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
@@ -161,7 +161,9 @@ public sealed partial class PrivateWorldRuntimeTests
     [Fact]
     public async Task PrivateWorldActivatesStagedContentOnTheNextTickAndCanQuarantineIt()
     {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        // Test unused-content rollback independently of the default gameplay policy.
+        using var runtime = new PrivateWorldRuntime("playtest-alpha",
+            _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var packageDigest = "sha256:" + new string('d', 64);
         var version = ContentVersion.Parse("1.0.0");
         var building = new BuildingDefinition(

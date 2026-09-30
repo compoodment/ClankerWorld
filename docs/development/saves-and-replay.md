@@ -90,6 +90,13 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Generated geography now saves a hydrology revision for new worlds. A missing
+or zero revision keeps the previous lake/river algorithm, including historical
+resource placement and map identity. Revision 1 is selected by both normal
+New World preview and Create World. Existing saves are not regenerated with it;
+there is no in-place lake shrink or river rewrite. Older builds need not accept
+new-revision worlds.
+
 Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON
 remains readable and migrates atomically on load. Historical generators and
 known package digests validate older generated maps without replacing their
@@ -203,3 +210,28 @@ World-systems schema 1 remains readable, with the absent field omitted when null
 Older binaries reject the newer schema instead of silently dropping episodes.
 The new code reads old saves; keep backups before testing.
 This prototype changes future weather/events, not past recorded history.
+
+Advanced generation saves optional forest, mountain and river presets. Missing
+fields mean Normal and preserve the historical default generator. New-world
+water defaults do not alter saved water values. Non-default maps require a
+build that understands their options and validates their generated identity.
+
+## Explicit permanent deletion
+
+Signed deletion binds the target kind, exact ID, world ID and (for snapshots)
+creation timestamp. It shares the installation mutation gate with world
+selection and snapshot writes. The active world cannot be deleted.
+
+Snapshot metadata is renamed to a deletion intent before owned generations
+are removed. World removal first moves its catalog entry into pending deletion,
+then removes its snapshots and archived checkpoint. Pending targets are not
+loadable; startup retries cleanup. Storage failure is reported rather than
+acknowledged as complete. Corrupt metadata whose ownership cannot be established
+is preserved and can leave cleanup pending. Do not roll back to older binaries
+while deletion intents remain: they cannot perform this recovery.
+
+History reclamation verifies all remaining active, archived and manual checkpoint
+roots and their digest-addressed chains before removing unreferenced segments.
+Unpublished generations conservatively count as roots. Corrupt roots defer history
+cleanup, preserving other saves. This is ordinary file deletion, not secure disk
+erasure, and does not remove copies in external backups.

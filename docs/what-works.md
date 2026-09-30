@@ -156,3 +156,16 @@ experiments and open decisions. [The Windows and paired-world checklist](https:/
 records tests still needed for source fixes. Code, tests and exports are evidence
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
+
+New World includes relative Advanced terrain controls and a resettable 50%-water
+preset for Small and Medium. All settings feed the matching preview and saved
+generation options. See [Advanced New World settings](playing.md#advanced-new-world-settings);
+Windows interaction and real preview latency still need playtesting.
+
+## Permanent deletion
+
+The save list offers confirmed deletion of one snapshot; Load World offers
+separate deletion of an inactive world and all its saves. Other worlds, provider
+credentials and pairing remain unchanged. Interrupted deletion stays hidden
+from loading and is retried on host startup. Native Windows interaction still
+needs playtesting. See [save controls](playing.md#save-and-return).

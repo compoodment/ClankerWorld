@@ -31,6 +31,13 @@ public static class OwnerWorldActionPayload
         "clankerworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
 
+    public static string Deletion(OwnerDeletionAction action) => string.Join(
+        '\n', "clankerworld.owner-deletion.v1",
+        $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
+        $"id={EncodeRequired(action.Id, nameof(action.Id))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
+
     public static string ManualSave(OwnerManualSaveAction action) => string.Join(
         '\n',
         "clankerworld.owner-manual-save.v1",
@@ -39,7 +46,7 @@ public static class OwnerWorldActionPayload
 
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-world-creation.v1",
+        "clankerworld.owner-world-creation.v2",
         $"name={EncodeRequired(action.Name, nameof(action.Name))}",
         $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
         $"size={EncodeRequired(action.Size, nameof(action.Size))}",
@@ -48,7 +55,10 @@ public static class OwnerWorldActionPayload
         $"climate-mode={EncodeRequired(action.ClimateMode, nameof(action.ClimateMode))}",
         $"selected-climate={EncodeRequired(action.SelectedClimate, nameof(action.SelectedClimate))}",
         $"latitude-cooling={action.LatitudeCooling.ToString().ToLowerInvariant()}",
-        $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}");
+        $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
+        $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
+        $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
 
     public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',

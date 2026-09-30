@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
     private bool AvailablePartner(string actor) => AdultResident(actor) &&
         !Partnerships(actor).Any(item => item.State is SocietyRelationshipState.Proposed or SocietyRelationshipState.Accepted);
 
-    private bool HasFamilyDecision(string actor) => ReadyForLesson(actor) && Partnerships(actor).Any(item =>
+    private bool HasFamilyDecision(string actor) => ReadyForBriefInteraction(actor) && Partnerships(actor).Any(item =>
         item.State == SocietyRelationshipState.Proposed && item.TargetId == actor);
 
     private bool CloseKin(string actor, string other)
@@ -68,7 +68,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddFamilyCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (survivalState is null || !AdultResident(actor) || !ReadyForLesson(actor))
+        if (survivalState is null || !AdultResident(actor) || !ReadyForBriefInteraction(actor))
         {
             return;
         }

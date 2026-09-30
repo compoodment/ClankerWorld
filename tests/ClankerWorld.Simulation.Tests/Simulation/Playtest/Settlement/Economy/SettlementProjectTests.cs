@@ -126,7 +126,7 @@ public sealed class SettlementProjectTests
         helping = helping with
         {
             Inhabitants = helping.Inhabitants.Select(person => person.InhabitantId == helper
-                ? person with { Position = homeSite, HungerBasisPoints = 9_000 } : person).ToArray(),
+                ? person with { Position = homeSite, HungerBasisPoints = 9_000, LastDecisionContext = null } : person).ToArray(),
             Society = helping.Society with
             {
                 Society = helping.Society.Society with

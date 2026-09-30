@@ -167,6 +167,44 @@ public sealed class PrivateWorldStateFile
         lock (gate) VerifyHistory(checkpoint.HistoryArchiveHead);
     }
 
+    /// <summary>Call while holding the installation world mutation gate.</summary>
+    public void ReclaimUnreferencedHistory()
+    {
+        lock (gate)
+        {
+            var directory = Path + ".history";
+            if (!Directory.Exists(directory)) return;
+            var roots = new List<string> { Path };
+            foreach (var suffix in new[] { ".manual", ".worlds" })
+                if (Directory.Exists(Path + suffix))
+                    roots.AddRange(Directory.GetFiles(Path + suffix, "*.save"));
+            var retained = new HashSet<string>(StringComparer.Ordinal);
+            // Verify every root and chain before deleting anything. Unpublished
+            // checkpoints are conservative roots too; corrupt roots fail closed.
+            foreach (var root in roots)
+            {
+                var head = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(root)).HistoryArchiveHead;
+                var visited = new HashSet<string>(StringComparer.Ordinal);
+                while (head is not null)
+                {
+                    if (!visited.Add(head)) throw new InvalidDataException("The history archive contains a cycle.");
+                    var bytes = File.ReadAllBytes(HistoryPath(head));
+                    if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != head)
+                        throw new InvalidDataException("The history archive is corrupt.");
+                    retained.Add(head);
+                    head = (JsonSerializer.Deserialize<PrivateWorldHistorySegment>(bytes)
+                        ?? throw new InvalidDataException("The history archive is empty.")).Parent;
+                }
+            }
+            foreach (var file in Directory.GetFiles(directory, "*.json"))
+            {
+                var digest = System.IO.Path.GetFileNameWithoutExtension(file);
+                if (digest.Length == 64 && digest.All(char.IsAsciiHexDigit) && !retained.Contains(digest))
+                    File.Delete(file);
+            }
+        }
+    }
+
     private void VerifyHistory(string? head)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);

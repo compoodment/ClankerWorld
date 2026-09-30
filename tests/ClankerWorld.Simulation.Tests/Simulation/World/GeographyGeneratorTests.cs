@@ -708,11 +708,13 @@ public sealed class GeographyGeneratorTests
     }
 
     [Theory]
-    [InlineData("river-world-a", true)]
-    [InlineData("river-world-b", false)]
-    public void GeneratedRiversFollowAnAcyclicRouteToWater(string seed, bool wrap)
+    [InlineData("river-world-a", true, 0)]
+    [InlineData("river-world-b", false, 0)]
+    [InlineData("river-world-a", true, 1)]
+    [InlineData("river-world-b", false, 1)]
+    public void GeneratedRiversFollowAnAcyclicRouteToWater(string seed, bool wrap, int version)
     {
-        var map = GeographyGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small, wrap));
+        var map = GeographyGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small, wrap, HydrologyVersion: version));
 
         Assert.Equal(0, map.Width % GeographyGenerator.ChunkSize);
         Assert.Equal(0, map.Height % GeographyGenerator.ChunkSize);

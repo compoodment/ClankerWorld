@@ -16,6 +16,7 @@
 - Agreed design or existing behavior this follows:
 - Other open PRs that overlap:
 - Work left for later:
+- If draft, unfinished work or decision needed before marking ready:
 
 ## Checks
 
@@ -23,7 +24,9 @@
 - Checked in the game by hand (what you did and saw):
 - Checks not run, and why:
 
-<!-- Distinguish automated tests, export checks, deployment and actual playtesting. -->
+<!-- Distinguish automated tests, export checks, deployment and actual playtesting.
+Routine owner playtesting may follow merge; record it as pending, not as an
+automatic draft/merge blocker. Name any explicitly required pre-merge check. -->
 
 ## Saves and replay
 

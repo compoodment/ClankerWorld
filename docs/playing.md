@@ -98,6 +98,13 @@ last client stops time and model work after about five seconds. Returning makes
 no offline progress or change to a manual pause. An unfinished model call can
 be cancelled and retried later; the provider may charge for both attempts.
 
+To remove one snapshot, select it in Load Save and choose **Delete selected save**.
+The confirmation names the snapshot; deletion is permanent and leaves its world
+and other saves alone. In Load World, **Delete World** removes that
+world and all its saves. Open or create another world first if the target is
+active. Canceling either confirmation changes nothing. These controls require
+a paused world.
+
 ## Report what you notice
 
 Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choose)
@@ -105,3 +112,13 @@ for a bug or playtest report. Rough notes are welcome: what you did, what happen
 what you expected and the build you used.
 [Contributing](../CONTRIBUTING.md#issues-and-design-questions) explains the report options.
 Some fixes still need a Windows playtest; include failures as well as successes.
+
+## Advanced New World settings
+
+The simple preset uses 50% water, Normal forest/mountains/rivers/resources,
+Balanced climates, east/west wrapping and latitude cooling. Expand **Advanced**
+to change water from 20% to 80%, relative Low/Normal/High settings, climates,
+wrapping or latitude cooling. **Reset generation settings** restores the preset
+and Small size without changing the name or seed. The preview updates after
+changes; Create World waits for a matching preview. Small and Medium are
+available; larger worlds remain unavailable pending their support checks.
