@@ -35,9 +35,11 @@ test alone does not make it available in the game.
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
-New worlds open paused with no old camp. Choosing the first Town places two
-Houses, a Warehouse, Farmhouse and Blacksmith, linked by Roads, with each
-building's door on the side facing its Road. The Houses hold
+New worlds open paused with no old camp. Choosing the first Town lays a winding
+main road with side streets, then places two Houses, a Warehouse, Farmhouse and
+Blacksmith along them, each with its door facing its Road. Streets run on a few
+tiles past the last building, and the Town border keeps about three tiles of
+spare land around the buildings and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households. The player presses Start World explicitly.
 
@@ -124,8 +126,9 @@ unfinished.
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. Diagonal Roads and
-bridges remain unfinished.
+impassable; mountains and peaks cannot hold construction. The first Town's
+streets take diagonals where the land allows; Roads laid for later buildings
+still step in straight lines, and bridges remain unfinished.
 
 Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
 fruit trees have fruiting, picked and growing stages. Replanting currently uses a
