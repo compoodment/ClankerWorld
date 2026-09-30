@@ -46,7 +46,8 @@ public sealed class TownLayoutContext
         IEnumerable<GridPoint> occupiedTiles,
         IReadOnlyDictionary<GridPoint, int> reachableFootCosts,
         IEnumerable<TownLayoutResource> resources,
-        IEnumerable<TownLayoutBuilding> buildings)
+        IEnumerable<TownLayoutBuilding> buildings,
+        IEnumerable<GridPoint>? requiredNeighborTiles = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(occupiedTiles);
@@ -64,6 +65,7 @@ public sealed class TownLayoutContext
             throw new ArgumentException("Reachable site costs must be non-negative map positions.", nameof(reachableFootCosts));
         Resources = resources.ToArray();
         Buildings = buildings.ToArray();
+        RequiredNeighborTiles = requiredNeighborTiles?.ToHashSet();
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
             : CandidateBounds(map, town);
@@ -82,6 +84,12 @@ public sealed class TownLayoutContext
     public IReadOnlyList<TownLayoutBuilding> Buildings { get; }
 
     public IReadOnlyList<GridPoint> CandidateAnchors { get; }
+
+    /// <summary>
+    /// When set, a legal footprint must touch one of these tiles at an edge or
+    /// a corner, as a Silo must touch its household's Farmhouse.
+    /// </summary>
+    public IReadOnlySet<GridPoint>? RequiredNeighborTiles { get; }
 
     public TerrainKind? TerrainAt(GridPoint position) => Map.TerrainKindAt(position);
 
@@ -163,6 +171,9 @@ public static class TownLayoutService
             return false;
         var footprint = Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
+            return false;
+        if (context.RequiredNeighborTiles is { } neighbors && !footprint.Any(point =>
+                neighbors.Any(neighbor => Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)) == 1)))
             return false;
         if (context.Town is { } town &&
             !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))

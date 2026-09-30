@@ -299,7 +299,7 @@ public sealed class SettlementProjectTests
             .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
         Assert.True(gathered.Count >= 3);
         Assert.Contains("stone", gathered);
-        Assert.Contains("fiber", gathered);
+        Assert.Contains("seed", gathered);
         Assert.Contains(state.Events, item => item.Kind == "project_request_fulfilled");
         Assert.Contains(state.Events, item => item.Kind == "social_standing_changed");
         Assert.Contains(state.Inhabitants, person => person.SocialStanding?.Any(item => item.Trust >= 2) == true);

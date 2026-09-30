@@ -9,6 +9,7 @@ public enum BuildingKind : byte
     Warehouse,
     Farmhouse,
     Blacksmith,
+    Silo,
     Shelter,
     Storehouse,
     Hearth,
@@ -39,6 +40,7 @@ public static class BuildingSprites
         if (Has("warehouse")) return BuildingKind.Warehouse;
         if (Has("farmhouse")) return BuildingKind.Farmhouse;
         if (Has("blacksmith")) return BuildingKind.Blacksmith;
+        if (Has("silo")) return BuildingKind.Silo;
         if (Has("workshop")) return BuildingKind.Workshop;
         if (Has("weaving")) return BuildingKind.Weaving;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
@@ -90,6 +92,7 @@ public static class BuildingSprites
         BuildingKind.Warehouse => (new Color("758390"), new Color("59656F"), new Color("343C43"), new Color("97A5B0")),
         BuildingKind.Farmhouse => (new Color("D2AE5E"), new Color("A98A45"), new Color("6B5528"), new Color("E6C77B")),
         BuildingKind.Blacksmith => (new Color("62666E"), new Color("4A4E55"), new Color("2B2E33"), new Color("80858E")),
+        BuildingKind.Silo => (new Color("B7A07A"), new Color("8E7A58"), new Color("54462F"), new Color("D3C09A")),
         BuildingKind.Shelter => (new Color("8C8A4E"), new Color("6D6B3C"), new Color("403F22"), new Color("A8A564")),
         BuildingKind.Storehouse => (new Color("8E6C47"), new Color("6E5236"), new Color("3F2E1F"), new Color("AC8A60")),
         BuildingKind.Workshop => (new Color("6F7C6A"), new Color("566150"), new Color("30372D"), new Color("8E9B88")),
@@ -113,6 +116,9 @@ public static class BuildingSprites
                 return;
             case BuildingKind.Bedroll:
                 PaintBedroll(canvas, width, height);
+                return;
+            case BuildingKind.Silo:
+                PaintSilo(canvas, width, height);
                 return;
         }
 
@@ -216,6 +222,32 @@ public static class BuildingSprites
         if (y + 3 > height) return;
         canvas.Rect(width / 2f - 3, y, 6, 3, new Color("B9AB8E"));
         canvas.Rect(width / 2f - 3, y + 2, 6, 1, new Color("8C7F66"));
+    }
+
+    /// <summary>
+    /// A round silo seen from straight above: a conical roof, lit on its far
+    /// side, with seams running to a small vent cap at the top.
+    /// </summary>
+    private static void PaintSilo(PixelCanvas canvas, int width, int height)
+    {
+        var palette = Palette(BuildingKind.Silo);
+        var cx = width / 2f;
+        var cy = height / 2f;
+        var radius = Math.Min(width, height) / 2f - 3;
+        canvas.Disc(cx + 2, cy + 3, radius, Shadow);
+        canvas.Disc(cx, cy, radius, palette.Edge);
+        canvas.Disc(cx, cy, radius - 1, palette.Shade);
+        canvas.Disc(cx - 1, cy - 1.5f, radius - 2.5f, palette.Lit);
+        for (var seam = 0; seam < 8; seam++)
+        {
+            var angle = seam * Mathf.Tau / 8;
+            canvas.Line(cx + Mathf.Cos(angle) * 2.5f, cy + Mathf.Sin(angle) * 2.5f,
+                cx + Mathf.Cos(angle) * (radius - 1.5f), cy + Mathf.Sin(angle) * (radius - 1.5f),
+                palette.Edge with { A = 0.35f });
+        }
+        canvas.Ring(cx, cy, radius * 0.6f, palette.Edge with { A = 0.3f });
+        canvas.Disc(cx, cy, 2.5f, palette.Edge);
+        canvas.Disc(cx, cy, 1.5f, palette.Ridge);
     }
 
     private static void PaintHearth(PixelCanvas canvas, int width, int height)

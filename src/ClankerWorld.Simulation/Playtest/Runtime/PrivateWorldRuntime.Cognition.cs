@@ -377,6 +377,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
+        {
+            GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
             BeginProject(inhabitantId, state, candidateId);
@@ -443,7 +448,7 @@ public sealed partial class PrivateWorldRuntime
         if (selection.IsBuilding)
         {
             var definition = worldContent.Buildings.SingleOrDefault(item => item.CanonicalId == selection.DefinitionId);
-            var layout = CreateTownLayoutContext(inhabitantId, selection.SitePosition);
+            var layout = CreateTownLayoutContext(inhabitantId, selection.SitePosition, definition);
             TownConstructionSiteCandidate? rankedSite = null;
             if (definition is not null)
             {
@@ -632,55 +637,8 @@ public sealed partial class PrivateWorldRuntime
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState state)
     {
-        var canBuildStructures = inhabitant.CurrentRole == SocietyWorkRole.Builder ||
-            state.Aspiration.Contains("build", StringComparison.OrdinalIgnoreCase);
-        if (canBuildStructures)
-        {
-            var layout = CreateTownLayoutContext(inhabitant.Id);
-            foreach (var definition in worldContent.Buildings)
-            {
-                if (RetiredBuildings.Contains(definition))
-                    continue;
-                if (definition.Tags.Contains("warehouse", StringComparer.Ordinal) &&
-                    (TownForResident(inhabitant.Id) is not { } townId ||
-                     worldSimulation.Buildings.Any(building => building.TownId == townId &&
-                         worldContent.Buildings.Any(existing => existing.CanonicalId == building.DefinitionId &&
-                             existing.Tags.Contains("warehouse", StringComparer.Ordinal)))))
-                    continue;
-                if (definition.Tags.Contains("house", StringComparer.Ordinal) &&
-                    (inhabitant.HouseholdId is null || HouseForHousehold(inhabitant.HouseholdId) is not null))
-                    continue;
-                if (definition.Tags.Contains("farmhouse", StringComparer.Ordinal) && inhabitant.HouseholdId is null)
-                    continue;
-                if (definition.Tags.Contains("blacksmith", StringComparer.Ordinal) &&
-                    (inhabitant.HouseholdId is null || TownForResident(inhabitant.Id) is null))
-                    continue;
-                if (NeedsUrgentWarmth(state) && !definition.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
-                {
-                    continue;
-                }
-                var instanceId = BuildInstanceId(inhabitant.Id, definition);
-                var constructionOwner = definition.Tags.Any(IsHouseholdBuildingTag)
-                    ? inhabitant.HouseholdId : inhabitant.HouseholdId is null ? inhabitant.Id : null;
-                if (worldSimulation.Buildings.Any(item => item.InstanceId == instanceId) ||
-                    !CanAcquireProjectInputs(definition.BuildCosts, constructionOwner, inhabitant.Id))
-                {
-                    continue;
-                }
-
-                var sites = TownLayoutService.RankConstructionSites(layout, definition);
-                for (var rank = 0; rank < sites.Count; rank++)
-                {
-                    var site = sites[rank];
-                    var description = string.Join(" ", site.Reasons.Select(reason => reason.Description));
-                    candidates.Add(new CognitionCandidate(
-                        TownConstructionCandidateIds.Building(definition.CanonicalId, site.Position),
-                        $"Plan {definition.DisplayName} at ({site.Position.X}, {site.Position.Y}): {description}",
-                        20 + rank,
-                        $"build-site:{site.Position.X},{site.Position.Y}"));
-                }
-            }
-        }
+        if (inhabitant.HouseholdId is { } planningHousehold)
+            AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
 
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the
@@ -699,7 +657,8 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
             var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
-            if (!NeedsRecipeOutput(recipe, recipeOwner) || !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
+            if (!NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
+                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
