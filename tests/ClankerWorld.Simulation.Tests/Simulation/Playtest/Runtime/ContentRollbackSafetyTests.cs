@@ -91,7 +91,7 @@ public sealed partial class PrivateWorldRuntimeTests
         using var seed = new PrivateWorldRuntime("rollback-safety",
             _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var (workPackage, building, workRecipe) = MaterialPackage(2);
-        var (cropPackage, cropRecipe) = CropPackage();
+        var (cropPackage, _, cropRecipe) = CropPackage();
         Activate(seed, workPackage);
         Activate(seed, cropPackage);
         await seed.AdvanceOneTickAsync();

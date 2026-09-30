@@ -298,7 +298,18 @@ ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Building plans are offered only to an agent with the Builder role or an
 aspiration that mentions building. A normal game gives agents neither, so these
-choices are not offered yet ([#441](https://github.com/compoodment/ClankerWorld/issues/441)).
+choices are not offered yet ([#470](https://github.com/compoodment/ClankerWorld/issues/470)).
+
+Recipes do not depend on a role or on personality or aspiration text. An adult
+resident is offered a crop recipe only when their household holds a Farmhouse,
+and a workstation recipe only at a building their household holds or at a
+communal one, which has no holding household. A Farmhouse or Blacksmith that no
+household holds is nobody's workstation. First-Town setup gives the Farmhouse
+to the first starting household and the Blacksmith to the second. The offline
+check in `HouseholdBuildingUseCoverageTests` builds generated worlds the normal
+way and runs two world days with the built-in rule-based chooser and no model
+calls, failing if these offers disappear or cross households. The owner's direct
+production request keeps its own checks and does not apply the crop rule.
 
 For workstation recipes, site selection checks the actor’s current walking route as well as
 ownership and unused production capacity. An occupied or inaccessible workstation
