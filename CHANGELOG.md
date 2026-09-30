@@ -6,6 +6,8 @@ release yet.
 
 ## Unreleased
 
+- Retrying an accepted instruction still confirms its original receipt after the agent dies or the host restarts. Instruction keys with surrounding spaces no longer fail on an exact retry or skip a sequence number.
+
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
 - Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.

@@ -102,7 +102,11 @@ idempotency key or authoring batch ID.
 
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
-returns the original receipt rather than creating a duplicate. This is not a
+returns the original receipt rather than creating a duplicate. Private-world
+instruction keys ignore surrounding whitespace consistently. An exact instruction
+retry still returns its accepted receipt after the recipient dies, including
+after saving and restarting the host. A new instruction to a deceased agent or
+a different request reusing that key remains rejected. This is not a
 general offline queue: only one request is retained, it cannot cross a pairing
 or origin boundary, and it can be explicitly forgotten. The record never
 contains a private key, signature, challenge, comparison code, or bearer
