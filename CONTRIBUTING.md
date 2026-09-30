@@ -73,13 +73,17 @@ one, and a workflow updates the repository.
 - **Bugs:** a crash, data loss or unplayable game is P0; wrong in normal play
   is P1; an edge case is P2; cosmetic is P3. A `regression`, something that
   used to work, goes one level higher.
-- **Features, experiments and decisions** start at P2. The owner moves them;
-  anyone else who thinks one is wrong says so in a comment instead of changing it.
+- **Features, experiments and decisions** start at P2, and move to P1 when the
+  next playtest needs them.
 - **How we work:** changes to CI, labels, templates, CONTRIBUTING or AGENTS
   affect every agent, so they are at least P1.
-- **At most 5 open P0 and 10 open P1 issues.** When a level is full, give the
-  new issue the level below and comment asking the owner whether it should
-  replace one; do not move other issues down to make room.
+- **At most 5 open P0 and 10 open P1 issues.** When a level is full, the least
+  urgent issue there, counting the new one, goes down a level; between equals,
+  the newest goes down.
+- **Anyone may set or change a priority by these rules without asking the
+  owner.** Change one only when the rules call for it, and add a one-line
+  comment saying why. When the owner picks a priority, say so in that comment;
+  nobody else moves it afterwards, even to make room.
 
 ## Work on an issue
 
