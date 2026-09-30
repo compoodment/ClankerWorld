@@ -56,10 +56,16 @@ everything that is available in the current build. See [what works today](../wha
   conversation is initiated even if they are far apart in the world: a narrow
   exception to ordinary proximity-bound conversation, not a general remote
   communication ability. A completed marriage must not be left without a
-  shared surname. The conversation must be bounded; if the partners do not
-  agree within that bound, a disclosed tie-break rule selects one of their two
-  surnames so the marriage can finalize. The tie-break method, turn limit, and
-  provider-failure behavior remain open. Unmarried parents may have different
+  shared surname. The conversation has at most **four alternating turns**,
+  two per partner, each using that agent's selected model. It may choose only
+  the partners' two existing surnames. If valid choices still disagree after
+  the limit, a disclosed, seeded deterministic tie-break selects one of those
+  surnames. This resolves the surname only: marriage consent and other
+  prerequisites must be checked independently, never inferred from a
+  tie-break. A failed model call, pause or cancellation suspends the
+  conversation without consuming a turn. Its participants, original surnames,
+  completed turns and next speaker must survive save and resume; paid calls
+  still require an active player. Unmarried parents may have different
   surnames, so their child's surname choice is meaningful; married parents
   already share one surname, so either parent's surname is the same choice.
   The low-population continuity rule may encourage marriage but must not make
@@ -212,9 +218,10 @@ another sprite family at first.
   final wrap-up round can avoid endless looping. If unresolved, say so rather
   than fabricate agreement, and allow later resumption. The marriage-surname
   conversation above is a special case: it must be started even across the
-  world, must be bounded, and a marriage cannot complete with its surname
-  undecided. Loop protection is accepted as a design direction, **not yet a
-  specified or implemented turn limit**.
+  world, has the four-turn bound described above, and a marriage cannot
+  complete with its surname undecided. Ordinary conversations have no agreed
+  numeric turn limit yet. These are intended rules, not a claim that the
+  marriage conversation is implemented.
 - Socializing agents display a chat bubble above their sprites. Clicking opens
   a nearby popup with a summary; expanding reveals the complete conversation.
 - Jev may notice social moments, retrieve memories, summarize, or route cheap
@@ -303,9 +310,3 @@ These remain open; they are not new decisions.
    tokens, latency, and cost in representative play before choosing decision
    cadence, budgets, and how resource pressure is shown to the player. This is
    a scalability constraint, not permission to replace agents with Jev.
-
-- **Marriage-surname procedure.** Unmarried couples may have children, and
-   the parents choose one of their surnames for the child. The continuity rule
-   may encourage marriage but cannot require it for birth. Still decide the
-   bounded marriage-surname conversation's tie-break method, turn limit, and
-   provider-failure behavior.

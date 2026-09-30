@@ -42,9 +42,15 @@ everything that is available in the current build. See [what works today](../wha
   the save cannot be loaded**; a version difference or old timestamp alone is
   not evidence of incompatibility. Preserve a blocked save rather than
   deleting or overwriting it. Development playtest saves may legitimately
-  become incompatible as formats change; migration support is a later design
-  goal, not a current requirement. How to present an unknown assessment and
-  the exact compatibility contract remain open.
+  become incompatible as formats change; migration is not a current alpha
+  promise. For finished stable releases, support forward migration from the
+  immediately preceding supported stable save format when one exists. Write
+  and validate a new save while retaining the unmodified original; select
+  the migrated copy only after validation succeeds. Publish the actual tested
+  support window with each release, rather than promising all old formats or
+  downgrades. An unknown assessment must remain distinct from a proven
+  incompatibility. Missing required content or a mod needs a clear, resolvable
+  explanation rather than silently discarding its state.
 - World-created inventions and active mods travel with that world's save;
   provider credentials and graphical/device settings are global. The global
   library reads the latest save for each world rather than silently merging
@@ -55,14 +61,21 @@ everything that is available in the current build. See [what works today](../wha
 The owner may permanently remove one selected named save or autosave after a
 confirmation. Whole-world deletion is a separate action covering all of that
 world's snapshots. The active/only world is blocked until the owner opens or
-creates another world. This does not settle automated backup retention.
+creates another world. Manual saves and the unmodified originals kept before
+migration remain until the owner explicitly deletes them. Recovery-history
+cleanup is a separate, **opt-in** option, off by default: first show the exact
+recoveries proposed for removal and keep the latest verified recovery for each
+named save. The existing autosave rotation is separate and does not authorize
+deletion of manual saves or migration originals. A specific cleanup budget
+still needs measurement and a choice; age alone must not trigger deletion.
 
 ### Still to decide
 
 Whether manual saves are checkpoints or divergent branches; restore/rewind
-behavior; disk-space warnings and retention; exactly when autosave occurs
-relative to model/conversation work; crash-recovery guarantees; and save
-compatibility across game/mod versions.
+behavior; disk-space warnings and the opt-in recovery-history budget; exactly
+when autosave occurs relative to model/conversation work; crash-recovery
+guarantees; and compatibility outside the preceding supported stable format
+or across changed mod requirements.
 
 **Agreed development playtest policy:** computment does not require old
 playtest worlds to remain loadable as the New World flow and save format change;

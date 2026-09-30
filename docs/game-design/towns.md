@@ -101,8 +101,16 @@ everything that is available in the current build. See [what works today](../wha
   **not** belong in the current plan, though they may be revisited later.
   The accepted base roster is **chickens (eggs), sheep (wool), cows (milk), and
   horses (mounts)**. Leather/wool and milk/egg products are late-development
-  items alongside animal husbandry. Their detailed mechanics are deliberately
-  deferred to late development; slaughter/hunting is not assumed.
+  items alongside animal husbandry. Animals belong to households: care uses
+  physically reachable feed and water, and collected products enter local
+  stock rather than a global pool. Permission to ride a horse does not transfer
+  its ownership. If care is missed, production and riding stop first; whether
+  and when an animal could die from neglect is still to decide. Breeding is
+  autonomous but must have a population cap, not a player-triggered breeding
+  action. The cap, resource needs, product intervals, pregnancy duration and
+  mount speed need later design and playtesting. Animal husbandry remains a
+  **late-development phase**, not a current playable system. Slaughter,
+  hunting and a leather-production chain are not assumed.
 
 ### Agreed content and building sizes
 

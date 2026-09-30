@@ -41,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedRoute(actor, state.Position, camp, ResourceInteractionRange).Count > 0 &&
             FindUnoccupiedRoute(actor, camp, house.Position, 0).Count > 0)
             candidates.Add(new("haul_household_stock",
-                "Carry a load of household supplies from camp to the House.", 28, house.InstanceId));
+                "Carry a load of household supplies to the household's House.", 28, house.InstanceId));
         if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
             (state.Position == house.Position ||
              FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0))

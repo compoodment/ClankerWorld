@@ -105,6 +105,10 @@ public sealed class CognitionTests
         Assert.Equal("jev-1.13.0", body.RootElement.GetProperty("model").GetString());
         var question = body.RootElement.GetProperty("questions").GetProperty("selected_candidate");
         Assert.Equal("choice", question.GetProperty("type").GetString());
+        Assert.Null(RetiredWording.Find(question.GetProperty("instructions").GetString()!));
+        var jevState = body.RootElement.GetProperty("state");
+        Assert.Equal("actor-scout", jevState.GetProperty("agent_id").GetString());
+        Assert.False(jevState.TryGetProperty("inhabitant_id", out _));
         Assert.Equal("seek_food", response.SelectedCandidateId);
         Assert.Equal(0.84, response.Confidence);
         Assert.Equal("jev-1.13.0", response.Usage?.ModelId);
@@ -213,6 +217,14 @@ public sealed class CognitionTests
         Assert.Contains("not authoritative current facts", systemPrompt, StringComparison.OrdinalIgnoreCase);
         using var question = JsonDocument.Parse(body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
         Assert.False(question.RootElement.TryGetProperty("energy_basis_points", out _));
+        Assert.Equal("actor-scout", question.RootElement.GetProperty("agent_id").GetString());
+        foreach (var internalField in new[] { "inhabitant_id", "world_tick", "run_epoch", "decision_generation" })
+        {
+            Assert.False(question.RootElement.TryGetProperty(internalField, out _), internalField);
+        }
+
+        Assert.Null(RetiredWording.Find(systemPrompt!));
+        Assert.Null(RetiredWording.Find(body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!));
         Assert.True(question.RootElement.GetProperty("needs_name").GetBoolean());
         var self = question.RootElement.GetProperty("self");
         Assert.Equal("Aster Vale", self.GetProperty("name").GetString());

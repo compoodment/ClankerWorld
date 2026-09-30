@@ -66,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Lesson!.Stage is "accepted" or "training" && ReadyForLesson(person.Lesson.TeacherId))
             {
-                candidates.Add(new("lesson_attend", "Attend the agreed practical lesson at camp.", 18));
+                candidates.Add(new("lesson_attend", "Attend the agreed practical lesson.", 18));
             }
             candidates.Add(new("lesson_cancel", "Withdraw from the requested or ongoing lesson.", 110));
         }
