@@ -287,7 +287,7 @@ their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Building plans follow what a household needs, not a role. An adult whose
-household lacks a House, Farmhouse, Blacksmith or Silo is offered ranked sites
+household lacks a House, Farmhouse, Blacksmith, Silo or Tailor Shop is offered ranked sites
 for it once the household has the build costs in hand: stock the household
 owns anywhere, plus what its members carry. Each kind is planned at most once
 at a time and a household never holds two of a kind; a second member choosing
@@ -298,8 +298,8 @@ touching sites ranked first. This provisional reading of "next to" keeps a Silo
 possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
 adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
-kinds are listed in `HouseholdBuildingKinds`, which already names the Tailor
-Shop and Store so they follow the same rules once their content exists.
+kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
+it follows the same rules once its content exists.
 A crop's outputs other than ready-to-eat food go into its household's Silo when
 it holds one; ready food stays unlocated until it is carried to the House.
 
@@ -353,9 +353,27 @@ for pending-will restore behavior.
 New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
-kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat; the Weaving frame remains the temporary
-clothing source while Tailor Shop production is undecided. General invention is
-later Workshop work.
+kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+
+Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
+replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
+weaves 3 fiber into 1 cloth in 20 ticks and sews 2 cloth into 1 clothing in 24
+ticks, and costs 8 wood and 2 fiber to build; all of these are provisional
+values. First-Town setup stores each starting agent's garment in their
+household's House. A package is staged for older worlds on the first tick, but
+the settlement package's digest changed when the Weaving frame was removed, so
+saves made before this change are refused.
+
+Workstation recipes use only stock already at the building. A household
+building without its own dedicated hauling (every kind except the House,
+Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
+`supply_workstation:<item>` choice. It is offered to an adult of the holding
+household while the building holds less of an input than two batches of the
+largest recipe that needs it, counting loads already on their way. The adult
+delivers what they carry, picks up the household's spare stock from its House
+or Silo (the existing delivery step then carries it in), or gathers from a
+reachable source. Stock already set aside at another workstation is left
+alone.
 
 ## Approved authored assets
 

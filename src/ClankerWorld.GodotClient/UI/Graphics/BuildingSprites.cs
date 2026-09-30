@@ -13,7 +13,7 @@ public enum BuildingKind : byte
     Shelter,
     Storehouse,
     Hearth,
-    Weaving,
+    TailorShop,
     Workshop,
     Path,
     Bedroll,
@@ -42,7 +42,7 @@ public static class BuildingSprites
         if (Has("blacksmith")) return BuildingKind.Blacksmith;
         if (Has("silo")) return BuildingKind.Silo;
         if (Has("workshop")) return BuildingKind.Workshop;
-        if (Has("weaving")) return BuildingKind.Weaving;
+        if (Has("tailor")) return BuildingKind.TailorShop;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -93,6 +93,7 @@ public static class BuildingSprites
         BuildingKind.Farmhouse => (new Color("D2AE5E"), new Color("A98A45"), new Color("6B5528"), new Color("E6C77B")),
         BuildingKind.Blacksmith => (new Color("62666E"), new Color("4A4E55"), new Color("2B2E33"), new Color("80858E")),
         BuildingKind.Silo => (new Color("B7A07A"), new Color("8E7A58"), new Color("54462F"), new Color("D3C09A")),
+        BuildingKind.TailorShop => (new Color("8F6A9E"), new Color("6E4F7C"), new Color("3E2B47"), new Color("B08CBE")),
         BuildingKind.Shelter => (new Color("8C8A4E"), new Color("6D6B3C"), new Color("403F22"), new Color("A8A564")),
         BuildingKind.Storehouse => (new Color("8E6C47"), new Color("6E5236"), new Color("3F2E1F"), new Color("AC8A60")),
         BuildingKind.Workshop => (new Color("6F7C6A"), new Color("566150"), new Color("30372D"), new Color("8E9B88")),
@@ -107,9 +108,6 @@ public static class BuildingSprites
         {
             case BuildingKind.Hearth:
                 PaintHearth(canvas, width, height);
-                return;
-            case BuildingKind.Weaving:
-                PaintWeavingFrame(canvas, width, height);
                 return;
             case BuildingKind.Path:
                 PaintPath(canvas, width, height);
@@ -182,6 +180,17 @@ public static class BuildingSprites
                 break;
             case BuildingKind.Storehouse:
                 canvas.Rect(width / 2f - 3, inset + roofHeight - 1, 6, 3, new Color("4A3321"));
+                break;
+            case BuildingKind.TailorShop:
+                // A thread spool on a sign over the door marks clothing work.
+                var spoolX = width / 2f;
+                var spoolY = inset + roofHeight - 9;
+                canvas.Rect(spoolX - 5, spoolY - 4, 10, 9, palette.Edge);
+                canvas.Rect(spoolX - 4, spoolY - 3, 8, 7, new Color("E8DDBF"));
+                canvas.Rect(spoolX - 3, spoolY - 2, 6, 1, new Color("7A5634"));
+                canvas.Rect(spoolX - 2, spoolY - 1, 4, 3, new Color("C0504A"));
+                canvas.Rect(spoolX - 3, spoolY + 2, 6, 1, new Color("7A5634"));
+                Doorstep(canvas, width, height, inset, roofHeight);
                 break;
             case BuildingKind.Workshop:
                 // A hammer sign over the door marks a place for making things.
@@ -300,17 +309,5 @@ public static class BuildingSprites
         canvas.Rect(cx - 7, cy - 7, 14, 1, new Color("B9AB8E"));
         for (var stripe = cy - 4; stripe < cy + 10; stripe += 4)
             canvas.Rect(cx - 7, stripe, 14, 1, palette.Ridge);
-    }
-
-    private static void PaintWeavingFrame(PixelCanvas canvas, int width, int height)
-    {
-        canvas.Rect(7, 8, width - 12, height - 14, Shadow);
-        canvas.Rect(5, 6, width - 10, 2, new Color("7A5634"));
-        canvas.Rect(5, height - 10, width - 10, 2, new Color("7A5634"));
-        canvas.Rect(5, 6, 2, height - 14, new Color("6A4A2C"));
-        canvas.Rect(width - 7, 6, 2, height - 14, new Color("6A4A2C"));
-        for (var thread = 9; thread < width - 8; thread += 3)
-            canvas.Rect(thread, 8, 1, height - 18, new Color("E8DDBF"));
-        canvas.Rect(8, height / 2f - 2, width - 16, 4, new Color("B2533E"));
     }
 }

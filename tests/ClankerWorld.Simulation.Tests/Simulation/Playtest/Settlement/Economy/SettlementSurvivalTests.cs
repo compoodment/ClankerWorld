@@ -289,8 +289,9 @@ public sealed class SettlementSurvivalTests
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
         Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
-        // This legacy world starts without clothing, and its Weaving frame was a
-        // Town-shared building that households no longer plan (#470).
+        // This legacy world starts without clothing: its household builds a
+        // Tailor Shop, weaves cloth and sews the garment that is collected here.
+        Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
@@ -314,6 +315,10 @@ public sealed class SettlementSurvivalTests
                     Position = heater.Position,
                     HungerBasisPoints = 9_000,
                     Survival = person.Survival! with { WarmthBasisPoints = 0 },
+                    // Only the heater is under test: no unfinished outing or
+                    // project may walk the agent away from it.
+                    Project = null,
+                    Exploration = null,
                 }
                 : person.Position == heater.Position ? person with { Position = recoveringPosition } : person).ToArray(),
             Society = state.Society with
