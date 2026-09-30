@@ -21,6 +21,16 @@ public static class PrivateWorldRuntimeCodec
         WriteIndented = false,
     };
     private static readonly JsonSerializerOptions ChunkedOptions = CreateChunkedOptions();
+    private static readonly JsonSerializerOptions LegacyReadOptions = CreateReadOptions(LegacyOptions);
+    private static readonly JsonSerializerOptions ChunkedReadOptions = CreateReadOptions(ChunkedOptions);
+
+    private static JsonSerializerOptions CreateReadOptions(JsonSerializerOptions source) => new(source)
+    {
+        // Required checkpoint members must not become null/default objects that
+        // escape per-world compatibility checks as unexpected runtime faults.
+        RespectNullableAnnotations = true,
+        RespectRequiredConstructorParameters = true,
+    };
 
     private static JsonSerializerOptions CreateChunkedOptions()
     {
@@ -50,7 +60,7 @@ public static class PrivateWorldRuntimeCodec
             if (version is not (LegacyHeader or ChunkedHeader))
                 throw new InvalidDataException("The private-world runtime checkpoint format is unsupported.");
             var document = JsonSerializer.Deserialize<RuntimeDocument>(bytes.Span,
-                version == ChunkedHeader ? ChunkedOptions : LegacyOptions)
+                version == ChunkedHeader ? ChunkedReadOptions : LegacyReadOptions)
                 ?? throw new InvalidDataException("The private-world runtime checkpoint is empty.");
             if (document.State is null ||
                 (version == ChunkedHeader && document.State.SchemaVersion < 19) ||

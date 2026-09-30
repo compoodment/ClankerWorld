@@ -401,7 +401,7 @@ public sealed partial class PrivateWorldRuntime
                 SeekWarmth(inhabitantId, state);
                 break;
             case "seek_food":
-                if (AvailableFoodSource(state.Position) is { } foodSource)
+                if (AvailableFoodSource(inhabitantId, state.Position) is { } foodSource)
                     MoveToward(inhabitantId, state, foodSource.Position, "food", ResourceInteractionRange);
                 break;
             case "harvest_food":
@@ -540,10 +540,11 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate("consume_food", "Follow the owner's food instruction.", 0));
         }
 
-        var foodSource = AvailableFoodSource(state.Position);
         var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
         // An optional reserve remains selectable without outranking ordinary activities.
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
+        var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
+            ? AvailableFoodSource(inhabitantId, state.Position) : null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))

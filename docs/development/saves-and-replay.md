@@ -75,6 +75,13 @@ that recorded events reproduce its expected results and digests.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
+Checkpoint decoding enforces declared non-null members and required constructor
+fields before runtime validation. A missing society, cognition or inventory
+object is invalid data, not an unexpected null-reference fault. Compatibility
+assessment marks that inactive world incompatible while retaining healthy list
+entries. Selecting it fails before replacing the active world; the damaged file
+stays available for recovery. Optional fields retain their declared defaults.
+
 Signed pause, resume and rename retries persist the requested state before reporting
 success, including when the in-memory value already matches after a failed
 write. Storage failure remains an error. A paused world's Resume stages the

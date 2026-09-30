@@ -30,7 +30,7 @@ everything that is available in the current build. See [what works today](../wha
   tune behavior. There is no need to move the current development world just
   to settle the eventual distribution architecture.
 - **For the first finished game distributed to other players:** provide a
-  simple PC install that runs the game and its the game rules on
+  simple PC install that runs the game and its game rules on
   that player's own computer. Their saves and provider credentials belong on
   their computer; playing must not depend on access to computment's VPS or a
   mandatory hosted game account. If they choose cloud-hosted AI models, those
@@ -152,9 +152,10 @@ accounting details need design and playtesting.
   targets, **not locked constants**.
 - **The first local release supports Small and Medium worlds only.** Large,
   Huge and Mega stay as planned presets until the costs of saving, observing
-  and overviewing a world of that size are measured. The map's zoom-out limit
-  also stays as it is until Large is measured; see
-  [Interface and art](interface-and-art.md).
+  and overviewing a world of that size are measured. **Leaning toward
+  (provisional):** the map's zoom-out limit also stays as it is until Large is
+  measured, and is then tuned; see
+  [Interface and art](interface-and-art.md#leaning-toward).
 - Use **64×64 logical tiles per chunk** as the starting arrangement target.
   Chunks help storage, loading, and rendering without forcing an entire chunk
   into one giant texture. Rendering only what the camera sees is distinct from
@@ -274,10 +275,11 @@ Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. The world automatically adds bridges at sufficiently used
 crossings. A generated Road may also **create a bridge immediately** where its
 route meets a bridgeable river; it need not wait for traffic there. Once a
-bridge is placed, a no-other-bridge radius prevents a
-redundant bridge appearing right next to it on the **same crossing/river**.
-It does not block a needed bridge over a separate nearby stream. Exact radius,
-bridge materials/work, and wider/deeper river crossing rules remain open. The
+bridge is placed, no redundant bridge is added over the **same crossing/river**.
+Spacing compares the actual connected banks, with no fixed radius, so a needed
+bridge over a separate nearby stream is never blocked. A river is bridgeable up
+to two tiles wide; wider water is not bridged, and bridges cost no materials.
+Crossing rules for wider or deeper water remain open. The
 initial traffic threshold and permanent Road/bridge rule are recorded in
 [Towns](towns.md#how-roads-and-bridges-appear). Town site planning and Road
 generation must be designed together.
@@ -351,8 +353,9 @@ call for each weather change.
   resource Warehouse.
 - A severe weather event lasts **no more than three-quarters of a game day**.
   An agent may shelter from storms in their own household's House, or use
-  natural cover such as a forest or tree when away from home. Whether an
-  invited guest can use another household's House as storm refuge is open.
+  natural cover such as a forest or tree when away from home. An invited guest
+  may also shelter from storms in another household's House, without access to
+  its stock or cooking (see [Towns](towns.md#buildings-land-towns-and-animals)).
   Weather may sometimes cause illness; food and care support recovery. Illness
   slows work and travel, not personality or normal conversation; staying home
   speeds recovery but confinement is not required. Exact penalties, care and

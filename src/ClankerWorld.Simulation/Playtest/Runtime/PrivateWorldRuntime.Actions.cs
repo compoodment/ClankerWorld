@@ -130,16 +130,18 @@ public sealed partial class PrivateWorldRuntime
     private bool IsWithinInteractionRange(GridPoint origin, GridPoint destination, int interactionRange) =>
         map.FootDistance(origin, destination) <= interactionRange;
 
-    private MapResource? AvailableFoodSource(GridPoint position) => map.Resources
+    private MapResource? AvailableFoodSource(string actor, GridPoint position) => map.Resources
         .Where(resource => resource.Kind is "food" or "fruit" &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
             map.IsReachableOnFoot(position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
-        .FirstOrDefault();
+        .ThenBy(resource => resource.Id, StringComparer.Ordinal)
+        .FirstOrDefault(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||
+            FindUnoccupiedRoute(actor, position, resource.Position, ResourceInteractionRange).Count > 0);
 
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
-        var source = AvailableFoodSource(state.Position);
+        var source = AvailableFoodSource(inhabitantId, state.Position);
         if (source is null || !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             AppendEvent("harvest_failed", $"{inhabitantId}:not_at_available_food");

@@ -6,6 +6,7 @@ release yet.
 
 ## Unreleased
 
+- A damaged inactive checkpoint with missing required state no longer breaks the entire Load World list. It is marked incompatible and cannot replace the healthy active world.
 - Loading or overwriting a damaged manual save reports a recoverable conflict before creating backups or changing the active world, instead of returning a server error or accepting invalid metadata.
 
 - Keep descendants able to explore and save even when their inherited identities are long.
@@ -15,6 +16,7 @@ release yet.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
+- Hungry agents and caregivers skip blocked food routes and can gather from another reachable source instead of repeatedly getting stuck.
 - Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.
 
 - Prototype survival priorities leave more room for ordinary activities below comfortable fullness and warmth. Urgent food or continuing cold exposure still interrupts discretionary work, while safe nearby care remains possible. Routine food and outing reserves remain provisional for playtesting.
@@ -45,6 +47,7 @@ release yet.
 - Food choices use the acting inhabitant’s connected ground, so an adult on another island can harvest its reachable local food instead of seeking an unreachable camp resource.
 - Crop planning and preparation use the worker’s actual household stock. Household cooking rechecks on-site ingredients, and failed production starts enter a recoverable blocked state instead of remaining stuck at completed preparation.
 - Production requests now refuse workers who are too young, before taking materials or creating a job, using the same age limits as agents' own choices.
+- Adults can only propose barter to another adult or elder, so a trade can no longer reserve a child's belongings when the child cannot answer it.
 - Loading a save and switching worlds can no longer archive a mixture of one checkpoint and another set of model/autosave settings.
 - Manual overwrite atomically publishes a complete checkpoint/model/settings generation; a failed metadata replacement keeps the prior selected save and its recovery backup.
 

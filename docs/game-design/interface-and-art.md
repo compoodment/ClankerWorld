@@ -23,7 +23,7 @@ everything that is available in the current build. See [what works today](../wha
 ### Agreed
 
 - Launch into the **Main Menu** with **New World**, **Load World** when worlds
-  exist, **Settings**, **Quit Game**, and a separate **Continue** action for the
+  exist, **Settings**, **Mod Library**, **Quit Game**, and a separate **Continue** action for the
   most recently played world.
 - **New World** offers world size and climate choices, advanced generation
   controls, preview/reroll, wrapping, and an optional early survival grace
@@ -31,7 +31,8 @@ everything that is available in the current build. See [what works today](../wha
   nothing-start challenge mode was removed from the plan for now. Generating
   the world creates the map and opens it paused; four starting agents must be
   configured before starting time. The first-Town siting and generated
-  building layout flow are specified below. API keys are not a prerequisite for
+  building layout flow are in
+  [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices). API keys are not a prerequisite for
   reaching the world view.
 - Enter a visually coherent generated world. The player can see its whole
   geography from the start; there is no player fog of war. Individual agents
@@ -195,10 +196,12 @@ everything that is available in the current build. See [what works today](../wha
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
-  collisions. The world should reject an already-taken full name and let the
-  agent choose again; similar but distinct names are allowed. Exact duplicate
-  matching, retries/failure fallback, player renaming collisions and cultural
-  naming context remain open.
+  collisions. The world rejects an already-taken exact full name and asks the
+  agent once more; if that also fails, the agent keeps a placeholder name the
+  player can change. The comparison covers every agent in the world, including
+  those who have died; similar but distinct names are allowed (see
+  [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages)).
+  Player renaming collisions and cultural naming context remain open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
   household and which Town the new agent will belong to. One shared rule
   decides this, checked in this order: household property first, then
@@ -250,6 +253,11 @@ categories and transition behavior for an in-flight Jev task remain open.
 World Settings must be absent from Main Menu Settings while no world is loaded;
 opening Main Menu settings must never enter a world.
 
+**Agreed (confirmed 30 September):** placing an agent with Add Agent on a
+household's property joins that household without its consent, as recorded in
+[Towns](towns.md#buildings-land-towns-and-animals). The rest of this paragraph
+stays provisional.
+
 In the **Add Agent** placement view, show exclusive household use areas and
 Town borders so computment can see the new agent's initial affiliation.
 Within the agreed placement order above, placement on a tile assigned
@@ -263,8 +271,9 @@ where the agent later walks. A player-added adult could be a new unrelated
 family line even when placed inside an existing household. Other
 invalid-placement rules and later voluntary household changes remain open.
 This forced Add Agent membership is distinct from inviting a nonmember to
-visit a House. The agreed first-Town household setup below is separate from
-this later Add Agent placement rule.
+visit a House. The agreed first-Town household setup in
+[Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices)
+is separate from this later Add Agent placement rule.
 
 ### Still to decide
 
