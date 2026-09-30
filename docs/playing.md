@@ -29,6 +29,10 @@ and shows the result below the address. It does not start a new pairing.
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.
 
+If New World asks for matching updates, update the game and have the server
+updated too. Keep your current device pairing; pairing again does not repair
+that version mismatch. You can still reconnect to the existing world.
+
 ## Create your first Town
 
 1. Choose **New World**. Select a Small or Medium map, a seed and the available

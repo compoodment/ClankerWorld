@@ -8,6 +8,61 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private static readonly System.Text.Json.JsonSerializerOptions CompatibilitySmokeJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private async Task VerifyNewWorldCompatibilityMessageAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var portProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        portProbe.Start();
+        var port = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
+        portProbe.Stop();
+        var origin = $"http://127.0.0.1:{port}/";
+        using var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add(origin);
+        listener.Start();
+        try
+        {
+            var authority = new OwnerAuthorityIdentity("compatibility-smoke", "compatibility-world");
+            registration = new(authority, "compatibility-device", signer.PublicKeyFingerprint, origin);
+            deviceKey = signer;
+            worldUrlInput.Text = origin;
+            worldNameInput.Text = "Disposable";
+            worldSeedInput.Text = "compatibility-smoke";
+            var response = Task.Run(async () =>
+            {
+                var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
+                    throw new InvalidOperationException("New World must check an authenticated challenge first.");
+                context.Response.ContentType = "application/json";
+                await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
+                    new OwnerChallenge(authority, registration.DeviceId, "challenge-smoke", "nonce-smoke",
+                        DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
+                context.Response.Close();
+            });
+            await PreviewWorldAsync();
+            await response;
+            if (!worldPreviewStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
+                !worldPreviewStatus.Text.Contains("pairing can stay", StringComparison.Ordinal) ||
+                worldPreviewStatus.Text.Contains("not allowed", StringComparison.Ordinal) ||
+                !worldCreateButton.Disabled || worldPreviewButton.Disabled || registration is null)
+                throw new InvalidOperationException("New World must show the update remedy, keep pairing and leave Create unavailable without a preview.");
+        }
+        finally
+        {
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            listener.Stop();
+        }
+    }
+
     private async Task VerifyUiScaleAt1440pAsync(Window displayWindow)
     {
         var originalWindowSize = displayWindow.Size;
@@ -496,6 +551,7 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);

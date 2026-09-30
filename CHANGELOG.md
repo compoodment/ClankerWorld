@@ -7,6 +7,8 @@ release yet.
 ## Unreleased
 
 - Keep descendants able to explore and save even when their inherited identities are long.
+- New World explains when the game and world server need matching updates, keeping valid device pairing instead of asking players to connect the device again.
+
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.

@@ -54,6 +54,8 @@ public static class GameUiText
 
     public static string FriendlyFailure(Exception exception) => exception switch
     {
+        Pairing.OwnerActionCompatibilityException =>
+            "this client and world server need matching updates before making a new world. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
         {
             System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden =>
