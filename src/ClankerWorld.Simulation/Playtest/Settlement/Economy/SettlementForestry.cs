@@ -243,7 +243,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (TreeGrowthRules.GroundRefusal(map, point) is { } ground) return ground;
         if (obstacles.Buildings.Contains(point)) return TreePlantingRefusal.Building;
-        if (roadTiles.Contains(point)) return TreePlantingRefusal.Road;
+        if (RoadAndBridgeTiles().Contains(point)) return TreePlantingRefusal.Road;
         if (obstacles.Occupied.Contains(point)) return TreePlantingRefusal.Occupied;
         return null;
     }
@@ -266,7 +266,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var tree in map.Resources.Where(IsPlantedTree))
         {
             if (!TreeGrowthRules.IsValidPlantedTree(map, tree) || obstacles.Buildings.Contains(tree.Position) ||
-                roadTiles.Contains(tree.Position) ||
+                RoadAndBridgeTiles().Contains(tree.Position) ||
                 map.CampObjects.Any(item => item.Position == tree.Position) ||
                 !ecology.TryGetValue(tree.Id, out var growth) || growth.Kind != tree.Kind ||
                 growth.Position != tree.Position || !growth.IsRenewable)

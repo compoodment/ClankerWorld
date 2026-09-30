@@ -52,6 +52,13 @@ public enum ResourceState
     Depleted,
 }
 
+/// <summary>The direction a bridge deck carries travelers across its river.</summary>
+public enum BridgeAxis : byte
+{
+    NorthSouth,
+    EastWest,
+}
+
 public sealed record TerrainTile(GridPoint Position, TerrainKind Terrain);
 
 public sealed record CampObject(string Id, string Kind, GridPoint Position);
@@ -94,6 +101,15 @@ public sealed record SeededMap(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool WrapsEastWest { get; init; }
 
+    /// <summary>
+    /// Built bridge decks over river tiles, keyed by water tile. They come from
+    /// the world's saved bridges, not from generation: they are never part of
+    /// the manifest, the terrain digest or the saved map JSON. A deck is walked
+    /// only along its axis, at dry-ground cost, between its two banks.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<GridPoint, BridgeAxis>? BridgeDecks { get; init; }
+
     // Keep the index outside the record: a cache field would silently change
     // record equality and could be copied into a `with` map with new tiles.
     private static readonly ConditionalWeakTable<SeededMap, byte[]> TerrainIndexes = new();
@@ -104,11 +120,23 @@ public sealed record SeededMap(
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
 
     public bool IsPassable(GridPoint point) =>
-        Contains(point) && (IsOpenGroundAt(point) || IsMountainAt(point) || IsNarrowRiverCrossing(point));
+        Contains(point) && (IsOpenGroundAt(point) || IsMountainAt(point) || IsNarrowRiverCrossing(point) ||
+            IsBridgeDeck(point));
 
     public int FootTravelCost(GridPoint point) => !IsPassable(point)
         ? throw new ArgumentOutOfRangeException(nameof(point), "The tile cannot be crossed on foot.")
+        : IsBridgeDeck(point) ? 100
         : IsRiverAt(point) || IsMountainAt(point) ? 200 : 100;
+
+    public bool IsBridgeDeck(GridPoint point) => BridgeDecks is { } decks && decks.ContainsKey(point);
+
+    /// <summary>River water, as opposed to lake, ocean or land. Bridge decks are still river water.</summary>
+    public bool IsRiverWater(GridPoint point) => Contains(point) && IsRiverAt(point);
+
+    /// <summary>Wraps a column across an enabled east/west seam; rows never wrap.</summary>
+    public GridPoint WrapColumn(GridPoint point) => WrapsEastWest && Width > 0
+        ? new GridPoint((point.X % Width + Width) % Width, point.Y)
+        : point;
 
     public int FootDistance(GridPoint origin, GridPoint destination)
     {
@@ -140,6 +168,20 @@ public sealed record SeededMap(
     {
         if (!IsPassable(origin) || !IsPassable(destination) || FootDistance(origin, destination) != 1)
             return false;
+        if (BridgeDecks is { } decks)
+        {
+            var originIsDeck = decks.TryGetValue(origin, out var originAxis);
+            var destinationIsDeck = decks.TryGetValue(destination, out var destinationAxis);
+            if (originIsDeck || destinationIsDeck)
+            {
+                // A bridge is walked end to end along its axis: never sideways
+                // into the river beside it, and never on a diagonal.
+                if (IsDiagonalFootStep(origin, destination)) return false;
+                var axis = origin.Y == destination.Y ? BridgeAxis.EastWest : BridgeAxis.NorthSouth;
+                return (!originIsDeck || originAxis == axis) && (!destinationIsDeck || destinationAxis == axis) &&
+                    (originIsDeck || IsDryBank(origin)) && (destinationIsDeck || IsDryBank(destination));
+            }
+        }
         var originIsRiver = IsRiverAt(origin);
         var destinationIsRiver = IsRiverAt(destination);
         if (originIsRiver || destinationIsRiver)

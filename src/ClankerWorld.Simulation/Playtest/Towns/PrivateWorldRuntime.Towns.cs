@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
             var founder = SocietyFixture.CreateFounder(founderId, name, config: society.Checkpoint.Config);
             society.Apply(checkpoint => SocietyFixture.PlaceFounder(checkpoint, founder, householdId));
             inhabitants.Add(founderId, new PlaytestInhabitantState(founderId, position, 6_500, 0,
-                "undecided", "find a purpose"));
+                "undecided", "find a purpose", IdentityChoicePending: true));
             founderSetup = setup with { FounderIds = [.. setup.FounderIds, founderId] };
             AddTownResident(TownBorderRules.FirstTownId, founderId, "founder_joined");
             AppendEvent("founder_placed", $"{founderId}:{householdId}");
@@ -140,7 +140,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = membership.HouseholdIdFor(agentId);
         society.Apply(checkpoint => SocietyFixture.AddAdult(checkpoint, agentId, householdId));
         inhabitants.Add(agentId, new PlaytestInhabitantState(agentId, position, 6_500, 0,
-            "undecided", "find a purpose"));
+            "undecided", "find a purpose", IdentityChoicePending: true));
         if (town is not null) AddTownResident(town.Id, agentId, "agent_joined");
         else AppendEvent("town_membership_evaluated", $"{agentId}:unaffiliated");
         AppendEvent("agent_added", agentId);

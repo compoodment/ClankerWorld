@@ -31,7 +31,7 @@ test alone does not make it available in the game.
 | --- | --- | --- |
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
 | Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance and player-chosen supplies are unfinished. |
-| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts and household/Town filters. General land claims are not recorded. |
+| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
 
@@ -67,9 +67,11 @@ full name.
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant
-memories and some places they know. Agents placed the normal way still start
-with the placeholder personality "undecided" and aspiration "find a purpose"
-([#442](https://github.com/compoodment/ClankerWorld/issues/442)). The household
+memories and some places they know. Newly placed adults can choose their own
+personality and aspiration in their first personal-model reply. The choice is
+saved and shown on their profile. A missing or invalid choice keeps "undecided"
+and "find a purpose" without an extra call; later replies cannot overwrite it.
+Children's initial identity and later life changes are still unfinished. The household
 and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
@@ -98,8 +100,8 @@ generated memory summaries and full conversations are unfinished.
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
-| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith or Silo it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Warehouse expansion, Store and Tailor Shop are not offered yet. |
+| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing there, carrying fiber in from its own stock or gathering it; an adult without clothing collects a finished garment from the shop. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
+| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Warehouse expansion and Store are not offered yet. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
@@ -128,8 +130,9 @@ before proposing a new House is not finished. Agents without a household
 cannot build a House; in fresh worlds they rely on clothing and natural storm
 cover until housing is resolved. New Shelters, Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
-The Weaving frame still supplies clothing while the intended Tailor Shop is
-unfinished.
+The Weaving frame and its woven clothing are gone. Each starting agent's
+garment waits in their household's House, and new clothing comes only from a
+household's Tailor Shop.
 
 ## Maps, weather and appearance
 
@@ -137,7 +140,7 @@ Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
 impassable; mountains and peaks cannot hold construction. Town streets take
-diagonals where the land allows. Bridges remain unfinished.
+diagonals where the land allows.
 
 In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
@@ -151,12 +154,22 @@ maps, and they have not been checked by hand in the Windows game yet
 generated before this change no longer load; they are refused and their saves
 are kept.
 
+Bridges are a basic version. Where agents often wade across the same one-tile
+river (six crossings by at least two agents within two world days), a bridge
+appears. It is drawn on the map, named on the tile card and hover readout, and
+walked at dry-ground speed. When a Town grows, a new side street or a street
+running on past a door crosses a river up to two tiles wide on a new bridge.
+Households can plan new buildings, whose streets may need a bridge; the
+starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
+banks. Road links between Towns are unfinished, and bridges have not been
+checked in hands-on Windows play.
+
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
 have sapling, mature and stump stages. Felling one for wood also gives the agent
 a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
 broadleaf or conifer on grass or forest ground outside the Town, and the Event
 Log says so. Trees are never planted on sand, water, rock, snow, buildings or
-Roads; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
+Roads or bridge entrances; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
 do not spread on their own. This is a basic version: agents have seeds only
 after felling a tree, and you cannot yet tell an agent where to plant.
 

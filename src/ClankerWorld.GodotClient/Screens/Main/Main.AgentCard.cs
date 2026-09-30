@@ -518,6 +518,8 @@ public partial class Main
             return;
         }
 
+        // One quick card at a time: choosing an agent closes a building's card.
+        if (selectedBuildingId is not null) ClearBuildingSelection();
         string? Factor(string key) => inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == key)?.Detail;
         var ageBand = Factor("age-band");
         var ageYears = Factor("age-years");

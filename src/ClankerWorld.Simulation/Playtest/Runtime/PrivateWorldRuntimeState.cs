@@ -27,7 +27,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSocialStanding>? SocialStanding = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestPrivateThought>? RecentThoughts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int TravelCooldownTicks = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 
@@ -74,7 +75,9 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GeographyOptions? Geography = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TownRuntimeState>? Towns = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PrivateWorldKnowledgeState? Knowledge = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GridPoint>? RoadTiles = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GridPoint>? RoadTiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BridgeState>? Bridges = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BridgeTrafficState? BridgeTraffic = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

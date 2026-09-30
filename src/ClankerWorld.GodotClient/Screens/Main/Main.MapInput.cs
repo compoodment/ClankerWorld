@@ -112,6 +112,7 @@ public partial class Main
         cameraCenterTiles = tileCenter;
         UpdateMapGeometry(snapshot);
         PositionSelectedInhabitantCard(snapshot);
+        PositionBuildingQuickCard(snapshot);
     }
 
     private void PanCamera(Vector2 deltaTiles)
@@ -181,8 +182,15 @@ public partial class Main
             else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
                 var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y))
+                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile) is { } building)
                 {
+                    // A building opens its own card instead of the tile's.
+                    SelectBuilding(building.InstanceId);
+                    mapCanvas.AcceptEvent();
+                }
+                else if (MapContains(snapshot, tile.X, tile.Y))
+                {
+                    ClearBuildingSelection();
                     selectedTile = tile;
                     terrainLayer.SetSelectedTile(tile);
                     // Show first: hidden containers report no content size.
@@ -280,6 +288,8 @@ public partial class Main
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
+        if (BridgeAt(snapshot, tile) is { } bridge)
+            lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
         SetPanelText(selectedTileText, string.Join('\n', lines));
         PositionSelectedTilePanel();

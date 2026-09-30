@@ -54,6 +54,10 @@ public partial class Main
         PositionMapHud();
     }
 
+    /// <summary>The saved bridge whose deck covers this tile, if any.</summary>
+    private static OwnerWorldBridge? BridgeAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>
+        snapshot.Bridges.FirstOrDefault(bridge => bridge.Span.Any(point => point.X == tile.X && point.Y == tile.Y));
+
     private static string HoverSummary(OwnerWorldSnapshot snapshot, WorldTerrainMap terrain, Vector2I tile)
     {
         var parts = new List<string>();
@@ -72,6 +76,7 @@ public partial class Main
             parts.Add(resource.TreeKind is { } tree ? $"{Pretty(tree)} tree"
                 : WorldTerrainMap.NaturalObjectName(resource.NaturalObjectKind) ?? $"{Pretty(resource.Kind)} site");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) parts.Add("Road");
+        if (BridgeAt(snapshot, tile) is not null) parts.Add("Bridge");
         if (snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } owner)
             parts.Add(owner.Name);
         return string.Join(" · ", parts);

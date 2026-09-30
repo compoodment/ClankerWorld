@@ -133,6 +133,16 @@ state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
 before an upgrade.
 
+Bridges are saved in the same checkpoint as the Road tiles they join, so a
+Road never ends at a river without its bridge. Loading checks every bridge
+against the map (a legal one- or two-tile river span between buildable banks,
+matching its ID and design), refuses overlapping decks, a bridge landing on a
+building, resource or camp object, and a Road bridge whose two entrances are
+not both Road tiles. It does not need the Town or building that caused the
+bridge. Traffic evidence must be recent, within its per-agent bound, for real
+unbridged one-tile crossings, and any open wade must match where that agent
+stands. A save that fails these checks is refused with a reason and kept.
+
 | Compatibility change | Meaning |
 | --- | --- |
 | Schema 18 | Removes persisted energy/sleep state. Legacy bedding can remain inert compatibility data; recipes cannot restart sleep gameplay. |
@@ -145,6 +155,7 @@ before an upgrade.
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 | Schema 27 | Optional building entrances and trees planted on new tiles. An entrance must lie directly beside a footprint edge. Planted trees are saved as `planted-tree-{x}-{y}` map resources with their growth record and must be legal plantings (see [Trees and planting](how-it-works.md#trees-and-planting)). Invalid state is refused and the file is kept. Older builds refuse schema 27 saves. |
+| Schema 28 | Saved bridges and bounded bridge-traffic evidence, plus an optional pending first personality/aspiration choice for newly placed adults. An older save has no bridges; an older schema that carries bridges or pending identity choices is refused. Accepted personal replies consume the identity opportunity; missing or invalid fields keep the placeholders. The marker, selected text and ID-only choice event survive current-format save/reload. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

@@ -74,7 +74,9 @@ public sealed partial class PrivateWorldRuntime
                 NeedsName: inhabitant.NeedsName,
                 RequiresPersonalProvider: requiresPersonalProvider,
                 RetrievedMemories: retrievedMemories,
-                KnownMapFacts: knownMapFacts, Self: self);
+                KnownMapFacts: knownMapFacts, Self: self,
+                NeedsPersonality: physical.IdentityChoicePending,
+                NeedsAspiration: physical.IdentityChoicePending);
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
             {
                 try
@@ -381,6 +383,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
+        {
+            SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
         {
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
@@ -628,6 +635,7 @@ public sealed partial class PrivateWorldRuntime
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
+            AddWorkstationSupplyCandidate(candidates, inhabitantId);
             AddCraftToolCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
@@ -741,7 +749,8 @@ public sealed partial class PrivateWorldRuntime
                 .Append(fact.Terrain).Append('|').Append(string.Join(',', fact.ResourceKinds))
                 .Append('|').Append(fact.DiscovererId).Append('|').Append(fact.Acquisition)
                 .Append('|').Append(fact.LearnedTick);
-        text.Append("|self=").Append(JsonSerializer.Serialize(self));
+        text.Append("|self=").Append(JsonSerializer.Serialize(self))
+            .Append("|identity_pending=").Append(state.IdentityChoicePending);
         return $"sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())))}";
     }
 

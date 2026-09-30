@@ -88,6 +88,13 @@ model does not read your words yet. A direct order works only when it asks them 
 or harvest food, eat, or go somewhere, and "go" currently means walking toward
 food. [What works today](what-works.md#agents-and-their-models) has the details.
 
+Click a building to outline it and open a small card beside it: who owns it,
+what is being made there or who is inside, and what it stores, shown as item
+icons with the amount in the corner. **Details** opens the rest on the left:
+who may use it, when it was built, which side its door faces, the work in
+progress, a larger storage grid with each item's name, and who is inside or
+lives there. Back (or **Escape**) returns to the small card.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
 **Event Log** shows important events. Clicking an event with a known location
