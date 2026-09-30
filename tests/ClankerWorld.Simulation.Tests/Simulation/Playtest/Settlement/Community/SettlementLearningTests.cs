@@ -72,7 +72,7 @@ public sealed class SettlementLearningTests
     }
 
     [Fact]
-    public async Task AcceptedTrainingSurvivesPauseAndRestartAndUnlocksActualBuildingWork()
+    public async Task AcceptedTrainingSurvivesPauseAndRestartAndAssignsTheLearnedRole()
     {
         var state = await PreparedState();
         var learner = state.Society.Society.Inhabitants.Single(person => person.CurrentRole == SocietyWorkRole.Trader).Id;
@@ -95,13 +95,14 @@ public sealed class SettlementLearningTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
         restored.Resume();
-        for (var tick = 0; tick < 100 && restored.Inhabitants.Single(person => person.InhabitantId == learner).Project is null; tick++)
+        // Building plans no longer depend on a role (#470), so the lesson only
+        // records the learned role until lessons teach saved skills (#471).
+        for (var tick = 0; tick < 100 && restored.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage != "completed"; tick++)
         {
             await restored.AdvanceOneTickAsync();
         }
         Assert.Equal(SocietyWorkRole.Builder, restored.Society.GetInhabitant(learner).CurrentRole);
         Assert.Equal("completed", restored.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
-        Assert.NotNull(restored.Inhabitants.Single(person => person.InhabitantId == learner).Project);
         Assert.Contains(restored.Society.Memories, memory => memory.OwnerId == learner && memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal));
         var completed = restored.Inhabitants.Single(person => person.InhabitantId == learner);
         Assert.Equal(2, completed.SocialStanding!.Single(item => item.SubjectId == completed.Lesson!.TeacherId).Trust);

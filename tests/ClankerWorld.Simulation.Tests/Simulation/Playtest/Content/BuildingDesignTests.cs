@@ -9,23 +9,28 @@ public sealed class BuildingDesignTests
 {
     [Theory]
     [InlineData("shelter")]
-    public async Task InhabitantsConstructReviewedDesignThroughOrdinaryPlanning(string purpose)
+    [InlineData("hearth")]
+    public async Task ReviewedDesignIsActiveButNotAHouseholdPlan(string purpose)
     {
+        // A household plans only the buildings it holds for itself (#470). A
+        // reviewed design is none of those kinds, so it waits for the shared
+        // buildings that Town governance and the Workshop will bring.
         var package = BuildingDesign.Create("Resident-built " + purpose, purpose, 8);
         var definitionId = package.Definitions.Single().CanonicalId(package.PackageDigest);
         var target = "build:building:" + definitionId;
-        using var world = new PrivateWorldRuntime("building-design-playtest", _ => new DesignProvider(target));
+        var provider = new DesignProvider(target);
+        using var world = new PrivateWorldRuntime("building-design-playtest", _ => provider);
         world.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await world.AdvanceOneTickAsync();
         world.ProposeContent(package);
         world.ValidateContent(package.PackageId, world.ResolveContent(package.PackageId));
         world.ApproveContent(package.PackageId);
         world.StageContent(package.PackageId);
-        for (var tick = 0; tick < 400 && !world.WorldSimulation.Buildings.Any(building =>
-            building.DefinitionId == definitionId); tick++) await world.AdvanceOneTickAsync();
-        var placed = Assert.Single(world.WorldSimulation.Buildings, building => building.DefinitionId == definitionId);
-        Assert.Contains(world.Inhabitants, person => person.Project is { Stage: "completed" } project &&
-            project.CandidateId == TownConstructionCandidateIds.Building(definitionId, placed.Position));
+        for (var tick = 0; tick < 120; tick++) await world.AdvanceOneTickAsync();
+        Assert.Contains(world.WorldContent.Buildings, building => building.CanonicalId == definitionId);
+        Assert.True(provider.Decisions > 0);
+        Assert.False(provider.TargetOffered);
+        Assert.DoesNotContain(world.WorldSimulation.Buildings, building => building.DefinitionId == definitionId);
         using var restored = PrivateWorldRuntime.Restore(world.ExportState());
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
@@ -93,9 +98,14 @@ public sealed class BuildingDesignTests
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
+        public int Decisions { get; private set; }
+        public bool TargetOffered { get; private set; }
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Decisions++;
+            TargetOffered |= request.Observation.Candidates.Any(candidate =>
+                candidate.Id.StartsWith(target + ":site:", StringComparison.Ordinal));
             var selected = request.Observation.Candidates.OrderBy(candidate =>
                     candidate.Id.StartsWith(target + ":site:", StringComparison.Ordinal) ? -1 : candidate.DeterministicPriority)
                 .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).First().Id;

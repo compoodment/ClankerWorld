@@ -289,7 +289,8 @@ public sealed class SettlementSurvivalTests
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
         Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
-        Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal));
+        // This legacy world starts without clothing, and its Weaving frame was a
+        // Town-shared building that households no longer plan (#470).
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));

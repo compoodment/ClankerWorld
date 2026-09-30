@@ -169,13 +169,23 @@ public sealed class FounderSetupTests
         Assert.Contains(agentId, restored.Towns.Single().ResidentIds);
         Assert.Contains(secondAgentId, restored.Towns.Single().ResidentIds);
 
+        // The household holds a House, so with stone in hand it is offered the
+        // productive buildings it lacks, and never a second House.
         var capture = new CandidateCaptureProvider();
         var proposed = world.ExportState();
         proposed = proposed with
         {
             Inhabitants = proposed.Inhabitants.Select(person => person.InhabitantId == agentId
-                ? person with { Aspiration = "build a home", HungerBasisPoints = 9_000 }
+                ? person with { HungerBasisPoints = 9_000 }
                 : person).ToArray(),
+            Society = proposed.Society with
+            {
+                Society = proposed.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(proposed.Society.Society.Inventory, "alpha-stone", "stone",
+                        "household:camp-alpha", 4, storageBuildingId: "starter-house-alpha"),
+                },
+            },
         };
         using var observing = PrivateWorldRuntime.Restore(proposed,
             id => id == agentId ? capture : new CandidateCaptureProvider());

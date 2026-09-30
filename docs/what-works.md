@@ -70,7 +70,7 @@ illness where known. It also gives their latest private thought, a few relevant
 memories and some places they know. Agents placed the normal way still start
 with the placeholder personality "undecided" and aspiration "find a purpose"
 ([#442](https://github.com/compoodment/ClankerWorld/issues/442)). The household
-is sent as an internal code, not its name. Models are not told about nearby
+and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
@@ -99,7 +99,7 @@ generated memory summaries and full conversations are unfinished.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
-| Building new buildings | Built but not connected to normal play | Building plans are still offered only to an agent with the Builder role or an aspiration that mentions building, and a normal game gives agents neither ([#470](https://github.com/compoodment/ClankerWorld/issues/470) tracks the fix). |
+| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith or Silo it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Warehouse expansion, Store and Tailor Shop are not offered yet. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
@@ -147,10 +147,21 @@ maps, and they have not been checked by hand in the Windows game yet
 generated before this change no longer load; they are refused and their saves
 are kept.
 
-Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
-fruit trees have fruiting, picked and growing stages. Replanting currently uses a
-generic seed at an existing depleted wood-tree site. Species-specific seeds,
-new-tile planting and full managed orchards are unfinished.
+Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
+have sapling, mature and stump stages. Felling one for wood also gives the agent
+a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
+broadleaf or conifer on grass or forest ground outside the Town, and the Event
+Log says so. Trees are never planted on sand, water, rock, snow, buildings or
+Roads; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
+do not spread on their own. This is a basic version: agents have seeds only
+after felling a tree, and you cannot yet tell an agent where to plant.
+
+Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
+the rest of the year and drop any fruit left when autumn ends. A picked tree
+fruits again after 3 days while autumn lasts, and each picking gives 4 fruit.
+Orchard trees cannot be planted yet. All tree numbers are provisional, to tune
+in playtests ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
+A Windows check of the tree stages at different zooms is still to do.
 
 Weather varies by region and affects local survival and crops. Each 32×32-tile
 region keeps its weather for a spell of a quarter of a day to a full day. A
@@ -190,7 +201,8 @@ are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only. Previously recorded
 data-only building proposals and host approval rules remain, but agents no
-longer create the retired shelter, storehouse or hearth proposals. General invention,
+longer create the retired shelter, storehouse or hearth proposals, and they do
+not build approved designs, because households plan only their own buildings. General invention,
 player review controls, personal libraries and mod import/export are unfinished.
 Asset-validation and rights tools are built but not connected to a complete
 creator experience. Arbitrary generated scripts are disabled; no sandbox has

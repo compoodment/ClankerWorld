@@ -21,6 +21,7 @@ public sealed record SettlementProject(
 public sealed partial class PrivateWorldRuntime
 {
     private const int ProjectWorkTicks = 10;
+    private const string WaitingForWorkSiteBlocker = "Waiting for a free work site";
     private const int BlockedProjectRetryDelayTicks = 60;
     // The pre-energy-removal settlement package included bedding. Its digest
     // remains a valid provenance marker for three staged map resources.
@@ -101,18 +102,27 @@ public sealed partial class PrivateWorldRuntime
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         var added = state.Map.Resources.Where(resource => !baseIds.Contains(resource.Id)).ToArray();
-        if (state.SchemaVersion < 5 || added.Length is < 1 or > 3 ||
+        // A saved map may add the settlement's staged sites and trees planted
+        // on new tiles. Everything else must match deterministic regeneration.
+        var planted = added.Where(IsPlantedTree).ToArray();
+        var staged = added.Where(resource => !IsPlantedTree(resource)).ToArray();
+        if (added.Length == 0 ||
             added.Select(resource => resource.Position).Distinct().Count() != added.Length ||
+            added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
+                baseline.Resources.Any(item => item.Position == resource.Position)))
+            return false;
+        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 3 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
                 (package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest ||
                  package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
                 package.ActivationTick is not null) != true ||
-            added.Any(resource => resource.Id != "settlement-" + resource.Kind ||
+            staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
                 resource.Kind is not ("stone" or "fiber" or "seed") ||
                 resource.IsRenewable != (resource.Kind is "fiber" or "seed") ||
-                !baseline.IsBuildable(resource.Position) ||
-                baseline.CampObjects.Any(item => item.Position == resource.Position) ||
-                baseline.Resources.Any(item => item.Position == resource.Position)))
+                !baseline.IsBuildable(resource.Position))))
+            return false;
+        if (planted.Length > 0 && (state.SchemaVersion < PlantedTreeSchemaVersion ||
+            planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree))))
             return false;
         var original = state.Map with
         {
@@ -236,6 +246,31 @@ public sealed partial class PrivateWorldRuntime
         contentRegistry.Approve(manifest.PackageId, WorldTick);
         contentRegistry.Stage(manifest.PackageId, WorldTick);
         AppendEvent("house_cooking_content_staged", manifest.PackageId);
+    }
+
+    private void StageSiloContent() =>
+        StageBuiltInContent(SiloContent.PackageId, FarmContent.PackageId, SiloContent.Create, "silo_content_staged");
+
+    /// <summary>
+    /// Stages a shipped package once its dependency is active, so worlds that
+    /// did not start with it still receive it. It activates on a later tick.
+    /// </summary>
+    private void StageBuiltInContent(string packageId, string requiredActivePackageId,
+        Func<ContentPackageManifest> create, string eventKind)
+    {
+        var packages = contentRegistry.ExportState().Packages;
+        if (packages.Any(package => package.Manifest.PackageId == packageId) ||
+            !packages.Any(package => package.Manifest.PackageId == requiredActivePackageId &&
+                package.Lifecycle == ContentPackageLifecycle.Active))
+            return;
+        var manifest = create();
+        var resolution = ContentPackageResolver.Resolve(packages.Select(package => package.Manifest).Append(manifest),
+            [manifest.PackageId]);
+        contentRegistry.Propose(manifest, WorldTick);
+        contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
+        contentRegistry.Approve(manifest.PackageId, WorldTick);
+        contentRegistry.Stage(manifest.PackageId, WorldTick);
+        AppendEvent(eventKind, manifest.PackageId);
     }
 
     private void AddSettlementResources()
@@ -369,6 +404,16 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var definitionId = selected.DefinitionId;
+        // Two members can choose in the same tick; the household still plans one of each kind.
+        if (selected.IsBuilding &&
+            worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == definitionId) is { } planned &&
+            HouseholdBuildingKind(planned) is { } plannedKind &&
+            society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is { } planningHousehold &&
+            HouseholdBuildingProjectInProgress(planningHousehold, plannedKind))
+        {
+            AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:household_plan_in_progress");
+            return;
+        }
         var label = selected.IsBuilding
             ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == definitionId)?.DisplayName
             : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == definitionId)?.DisplayName;
@@ -423,11 +468,24 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
         }
-        if (building?.Tags.Any(tag => tag is "farmhouse" or "blacksmith") == true &&
-            society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null)
+        if (building is not null && HouseholdBuildingKind(building) is { } kind && kind != "house")
         {
-            SetProject(inhabitantId, project with { Stage = "cancelled", Blocker = "A household is required to claim a private workshop." });
-            return;
+            var householdId = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId;
+            if (householdId is null)
+            {
+                SetProject(inhabitantId, project with { Stage = "cancelled", Blocker = "A household is required to hold this building." });
+                return;
+            }
+            if (HouseholdBuildingWithTag(householdId, kind) is not null)
+            {
+                SetProject(inhabitantId, project with { Stage = "cancelled", Blocker = $"This household already holds a {building.DisplayName}." });
+                return;
+            }
+            if (kind == "silo" && FarmhouseForHousehold(householdId) is null)
+            {
+                SetProject(inhabitantId, project with { Stage = "cancelled", Blocker = "Only the household holding a Farmhouse builds a Silo." });
+                return;
+            }
         }
         if (building?.Tags.Contains("warehouse", StringComparer.Ordinal) == true &&
             (TownForResident(inhabitantId) is not { } townId ||
@@ -448,7 +506,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (!TryFindRecipeSite(recipe, out var recipeSite, out _, inhabitantId))
             {
-                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for a free work site" });
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
                 return;
             }
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
@@ -479,7 +537,7 @@ public sealed partial class PrivateWorldRuntime
         GridPoint position;
         if (building is not null)
         {
-            var layout = CreateTownLayoutContext(inhabitantId, selection.SitePosition);
+            var layout = CreateTownLayoutContext(inhabitantId, selection.SitePosition, building);
             if (selection.SitePosition is { } selectedSite)
             {
                 if (!TownLayoutService.TryEvaluateConstructionSite(layout, building, selectedSite, out _))
@@ -517,7 +575,7 @@ public sealed partial class PrivateWorldRuntime
         }
         else if (!TryFindRecipeSite(recipe!, out _, out position, inhabitantId))
         {
-            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for a free work site" });
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
             return;
         }
         if (state.Position != position)
@@ -558,12 +616,24 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    /// <summary>
+    /// Whether someone else is already queued for the kind of site this recipe
+    /// needs: fertile land for crops, or the recipe's workstation design. They
+    /// keep their turn instead of losing it to new starts every time it frees.
+    /// </summary>
+    private bool AnotherAgentWaitsForWorkSite(string actor, RecipeDefinition recipe) =>
+        inhabitants.Values.Any(other => other.InhabitantId != actor &&
+            other.Project is { Stage: "blocked", Blocker: WaitingForWorkSiteBlocker } waiting &&
+            TownConstructionCandidateIds.TryParse(waiting.CandidateId, out var selection) && !selection.IsBuilding &&
+            worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) is { } queued &&
+            (queued.IsCrop ? recipe.IsCrop : !recipe.IsCrop && queued.WorkstationBuildingId == recipe.WorkstationBuildingId));
+
     private void AcquireProjectInput(string inhabitantId, PlaytestInhabitantState state,
         ContentQuantity input, string constructionOwner)
     {
         var project = state.Project!;
         var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
-            lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0);
+            lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
         {
             var house = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId == constructionOwner
@@ -672,6 +742,16 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
         if (source.TreeKind is not null)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
+        if (TreeGrowthRules.IsWoodTree(source.TreeKind) && harvested.Quantity == 0 &&
+            TreeGrowthRules.TreeSeedsPerFelledTree > 0)
+        {
+            // A felled tree also gives a seed that can replant a stump or
+            // start a new tree elsewhere.
+            ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory,
+                $"tree-seed:{WorldTick}:{inhabitantId}", TreeGrowthRules.TreeSeedItem, inhabitantId,
+                TreeGrowthRules.TreeSeedsPerFelledTree, WorldTick));
+            AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{TreeGrowthRules.TreeSeedsPerFelledTree}");
+        }
     }
 
     private IEnumerable<(string Requester, ContentQuantity Input, string OwnerId)> ProjectRequests(string helperId)
@@ -745,7 +825,8 @@ public sealed partial class PrivateWorldRuntime
         {
             var itemKind = request.Input.ResourceId;
             if (MaterialSource(itemKind, helperId) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
-                    lot.OwnerId == helperId && lot.ItemKind == itemKind && AvailableLotQuantity(lot) > 0))
+                    lot.OwnerId == helperId && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
+                    AvailableLotQuantity(lot) > 0))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
                     $"Help {society.Checkpoint.GetInhabitant(request.Requester).Name}: gather and share {itemKind} for their project.", 15));
@@ -760,8 +841,9 @@ public sealed partial class PrivateWorldRuntime
         {
             return;
         }
+        // A load already on its way into a household building is not spare.
         var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == helperId &&
-            lot.ItemKind == itemKind && AvailableLotQuantity(lot) > 0);
+            lot.ItemKind == itemKind && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
             if (MaterialSource(itemKind, helperId) is { } source)

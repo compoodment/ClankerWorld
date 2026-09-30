@@ -118,11 +118,15 @@ Self context is included in the queued-observation digest. Nearby relationships,
 carried inventory and current activity are not provided.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
-*inhabitant*, *settlement* and *camp*. One phrase in the system prompt still says
-"inhabitants" ([#443](https://github.com/compoodment/ClankerWorld/issues/443)). The personal-model request does not send
-the clock or the run and decision counters; admission uses them on the server.
-The request still names households by their internal ID, and the Jev request
-still carries those counters, because Jev's live service cannot be checked offline.
+*inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the
+clock and run/decision counters; admission uses them on the server. Households
+and Towns use their recorded names. Candidate destinations use a readable name
+where one is available, while the legal option IDs remain unchanged. Jev stays
+narrow: choosing a legal action and scoring existing memories, without persona.
+Retrieval ranks which memories to include before sending the request. Its Jev
+importance scores are not sent to the personal model: those scores select the
+context, rather than adding facts about the remembered event. Belief provenance
+and belief confidence remain explicit.
 When an unnamed agent is asked to choose a full name, the personal-model
 request includes a soft first-letter hint derived from that agent's stable ID.
 The hint stays the same if the request is retried, is computed per agent, and
@@ -236,7 +240,8 @@ occupancy before each step. An agent gathering for its own project, and the chec
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
 reachable area (see [Material gathering](#material-gathering)). Boat access
-remains unfinished.
+remains unfinished. Trees and planting are described in
+[Trees and planting](#trees-and-planting).
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -374,9 +379,29 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
-Building plans are offered only to an agent with the Builder role or an
-aspiration that mentions building. A normal game gives agents neither, so these
-choices are not offered yet ([#470](https://github.com/compoodment/ClankerWorld/issues/470)).
+Building plans follow what a household needs, not a role. An adult whose
+household lacks a House, Farmhouse, Blacksmith or Silo is offered ranked sites
+for it once the household has the build costs in hand: stock the household
+owns anywhere, plus what its members carry. Each kind is planned at most once
+at a time and a household never holds two of a kind; a second member choosing
+the same kind in the same tick is refused, and a project stops if its household
+comes to hold that kind. Only a household holding a Farmhouse plans a Silo, and
+its sites must lie within two tiles of that Farmhouse, counting diagonals, with
+touching sites ranked first. This provisional reading of "next to" keeps a Silo
+possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
+adult at a time is offered to gather it from a reachable source. Buildings the
+Town shares, including a new Warehouse, are never offered to a household. The
+kinds are listed in `HouseholdBuildingKinds`, which already names the Tailor
+Shop and Store so they follow the same rules once their content exists.
+A crop's outputs other than ready-to-eat food go into its household's Silo when
+it holds one; ready food stays unlocated until it is carried to the House.
+
+A recipe project that finds its work site busy waits with the blocker "Waiting
+for a free work site". While anyone waits, no one else is offered a new recipe
+for the same kind of site (fertile land for crops, or the same workstation
+design), so the waiting agent gets the next turn instead of losing it each time
+the site frees. Every map still has a single fertile-land site, so this queue
+matters once more than one household farms.
 
 Recipes do not depend on a role or on personality or aspiration text. An adult
 resident is offered a crop recipe only when their household holds a Farmhouse,
@@ -420,7 +445,8 @@ for pending-will restore behavior.
 
 New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
-compatibility. House fires supply heat; the Weaving frame remains the temporary
+compatibility. Approved owner building designs stay active but are not household
+kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat; the Weaving frame remains the temporary
 clothing source while Tailor Shop production is undecided. General invention is
 later Workshop work.
 
@@ -475,6 +501,46 @@ not use it yet. This does not change fuel duration or harvest yields.
 Shared fuel and equipment also require an unoccupied route to their collection
 point. Unreachable stock stays untouched and does not prevent an agent from
 using reachable supplies or gathering local fuel instead.
+
+## Trees and planting
+
+Each tree is one map resource with one saved growth record
+(`EcologyResource`). Growth, harvest, tile inspection and map art all read that
+same record: `TreeGrowthRules.StageOf` turns it into the stage the host sends
+as `TreeStage`, and the client draws whatever the host sends. Every tree number
+lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
+
+- **Wood trees** are `sapling`, `mature` or `stump`. Felling a mature tree gives
+  wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
+  serves broadleaf and conifer.
+- **Planting** is the typed `PlantTree` action. It checks, in order, the
+  species (broadleaf or conifer only; orchard propagation is still open), that
+  the planter is an adult, that the seed lot is a tree seed they own with one
+  free, the ground (grass, forest floor or fertile soil; never water, sand,
+  rock, snow or dry scrub), buildings, Roads and existing objects, that the
+  planter stands on or next to the tile, and the chunk's resource budget. A
+  refusal returns a `TreePlantingRefusal` and a one-line reason and changes
+  nothing. Success consumes exactly one seed and adds a `planted-tree-{x}-{y}`
+  map resource with a sapling growth record, in the same tick.
+- **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
+  site is the nearest reachable open tile outside every Town border, so trees
+  do not block building sites. The species follows the nearest wood tree.
+  `replant_tree` also uses a tree seed.
+- **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
+  `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
+  worlds) and falls when that season ends. New worlds start in spring, so
+  orchards start without fruit.
+- **Saves.** Planted trees are part of the saved map. On load, the map must
+  still match regeneration apart from the settlement's staged sites and valid
+  planted trees; each planted tree must be a plantable species on legal ground,
+  off Roads and buildings, with its growth record. See
+  [saves and replay](saves-and-replay.md#current-formats-and-older-worlds).
+- **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
+  tree art: species, stage, asset ID, sprite, source, licence and review
+  status. The map reads its sprites and stage names from it. Every entry is a
+  provisional code-drawn placeholder; the tree-seed item has no art yet.
+- **Logs.** The host logs `tree_planting` outcomes (planted, refused,
+  replanted, seed collected) with the agent ID and a bounded detail.
 
 ## Advanced generation controls
 

@@ -13,7 +13,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null)
+    private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null,
+        BuildingDefinition? building = null)
     {
         var origin = inhabitants[actor].Position;
         var town = towns.SingleOrDefault(item => item.ResidentIds.Contains(actor, StringComparer.Ordinal));
@@ -43,8 +44,17 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite),
             resourcesForLayout,
             buildingsForLayout,
-            roadTiles);
+            roadTiles: roadTiles,
+            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
     }
+
+    /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
+    private GridPoint[] SiloNeighborTiles(string actor,
+        Dictionary<string, BuildingDefinition> definitions) =>
+        society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
+        FarmhouseForHousehold(householdId) is { } farmhouse
+            ? WorldContentSimulationRules.Footprint(definitions[farmhouse.DefinitionId], farmhouse.Position).ToArray()
+            : [];
 
     private Dictionary<GridPoint, int> FindUnoccupiedFootCosts(
         string inhabitantId, GridPoint origin, TownRuntimeState? town,
@@ -480,6 +490,9 @@ public sealed partial class PrivateWorldRuntime
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
         var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
+        // A household's harvest goes into its own Silo when it holds one;
+        // ready-to-eat food still goes home to the House.
+        var silo = recipe.IsCrop ? HouseholdBuildingWithTag(productionOwner, "silo")?.InstanceId : null;
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -498,7 +511,8 @@ public sealed partial class PrivateWorldRuntime
                     productionOwner,
                     CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
                     targetTick,
-                    storageBuildingId: productionBuilding?.HouseholdId is null ? null : productionBuilding.InstanceId);
+                    storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
+                        : IsEdibleFood(output.ResourceId) ? null : silo);
             }
 
             return current;

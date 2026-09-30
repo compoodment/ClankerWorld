@@ -152,7 +152,7 @@ public static class GameUiText
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
-            "crop_moisture_effect" or "food_harvested" or "food_consumed" or "child_born" or
+            "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
             "council_policy_adopted" or "settlement_trade_completed" or
