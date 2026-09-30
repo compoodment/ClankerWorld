@@ -1063,14 +1063,13 @@ public partial class Main
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Town border filter must update the map and its visible explanation.");
-            HandleMapInput(new InputEventMouseButton
-            {
-                Position = mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f),
-                ButtonIndex = MouseButton.Left,
-                Pressed = true,
-            });
+            selectedTile = new Vector2I(2, 2);
+            selectedTilePanel.Show();
+            RenderTileInspection(ownedMap);
             if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
                 throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            await VerifyBuildingCardsAsync(ownedMap);
+            RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();

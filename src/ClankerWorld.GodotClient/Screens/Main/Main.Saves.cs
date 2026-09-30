@@ -366,6 +366,7 @@ public partial class Main
             var loaded = await ownerApi.LoadManualSaveAsync(ResolveWorldUri(), authority,
                 deviceId, save.Id, signer, CancellationToken.None);
             selectedInhabitantId = null;
+            ClearBuildingSelection();
             renderedMapSnapshot = null;
             manualSaveOverlay.Hide();
             mainMenuOverlay.Hide();

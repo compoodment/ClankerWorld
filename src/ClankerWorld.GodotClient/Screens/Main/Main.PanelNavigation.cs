@@ -282,6 +282,16 @@ public partial class Main
             foreach (var panel in overlays) panel.Hide();
             return true;
         }
+        if (buildingDetailsPanel.Visible)
+        {
+            BuildingDetailsBack();
+            return true;
+        }
+        if (buildingQuickCard.Visible)
+        {
+            ClearBuildingSelection();
+            return true;
+        }
         if (agentProfilePanel.Visible)
         {
             AgentProfileBack();
