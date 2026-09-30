@@ -101,18 +101,27 @@ public sealed partial class PrivateWorldRuntime
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         var added = state.Map.Resources.Where(resource => !baseIds.Contains(resource.Id)).ToArray();
-        if (state.SchemaVersion < 5 || added.Length is < 1 or > 3 ||
+        // A saved map may add the settlement's staged sites and trees planted
+        // on new tiles. Everything else must match deterministic regeneration.
+        var planted = added.Where(IsPlantedTree).ToArray();
+        var staged = added.Where(resource => !IsPlantedTree(resource)).ToArray();
+        if (added.Length == 0 ||
             added.Select(resource => resource.Position).Distinct().Count() != added.Length ||
+            added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
+                baseline.Resources.Any(item => item.Position == resource.Position)))
+            return false;
+        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 3 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
                 (package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest ||
                  package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
                 package.ActivationTick is not null) != true ||
-            added.Any(resource => resource.Id != "settlement-" + resource.Kind ||
+            staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
                 resource.Kind is not ("stone" or "fiber" or "seed") ||
                 resource.IsRenewable != (resource.Kind is "fiber" or "seed") ||
-                !baseline.IsBuildable(resource.Position) ||
-                baseline.CampObjects.Any(item => item.Position == resource.Position) ||
-                baseline.Resources.Any(item => item.Position == resource.Position)))
+                !baseline.IsBuildable(resource.Position))))
+            return false;
+        if (planted.Length > 0 && (state.SchemaVersion < PlantedTreeSchemaVersion ||
+            planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree))))
             return false;
         var original = state.Map with
         {
@@ -672,6 +681,16 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
         if (source.TreeKind is not null)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
+        if (TreeGrowthRules.IsWoodTree(source.TreeKind) && harvested.Quantity == 0 &&
+            TreeGrowthRules.TreeSeedsPerFelledTree > 0)
+        {
+            // A felled tree also gives a seed that can replant a stump or
+            // start a new tree elsewhere.
+            ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory,
+                $"tree-seed:{WorldTick}:{inhabitantId}", TreeGrowthRules.TreeSeedItem, inhabitantId,
+                TreeGrowthRules.TreeSeedsPerFelledTree, WorldTick));
+            AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{TreeGrowthRules.TreeSeedsPerFelledTree}");
+        }
     }
 
     private IEnumerable<(string Requester, ContentQuantity Input, string OwnerId)> ProjectRequests(string helperId)

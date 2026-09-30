@@ -126,10 +126,21 @@ diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
 impassable; mountains and peaks cannot hold construction. Diagonal Roads and
 bridges remain unfinished.
 
-Resources can deplete or regrow. Wood trees have mature, stump and sapling stages;
-fruit trees have fruiting, picked and growing stages. Replanting currently uses a
-generic seed at an existing depleted wood-tree site. Species-specific seeds,
-new-tile planting and full managed orchards are unfinished.
+Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
+have sapling, mature and stump stages. Felling one for wood also gives the agent
+a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
+broadleaf or conifer on grass or forest ground outside the Town, and the Event
+Log says so. Trees are never planted on sand, water, rock, snow, buildings or
+Roads; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
+do not spread on their own. This is a basic version: agents have seeds only
+after felling a tree, and you cannot yet tell an agent where to plant.
+
+Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
+the rest of the year and drop any fruit left when autumn ends. A picked tree
+fruits again after 3 days while autumn lasts, and each picking gives 4 fruit.
+Orchard trees cannot be planted yet. All tree numbers are provisional, to tune
+in playtests ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
+A Windows check of the tree stages at different zooms is still to do.
 
 Weather varies by region and affects local survival and crops. Each 32×32-tile
 region keeps its weather for a spell of a quarter of a day to a full day. A

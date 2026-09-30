@@ -134,6 +134,7 @@ before an upgrade.
 | Schema 24 | World-owned Roads. |
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
+| Schema 27 | Trees planted on new tiles, saved as `planted-tree-{x}-{y}` map resources with their growth record. A load accepts them only when each is a legal planting (see [Trees and planting](how-it-works.md#trees-and-planting)); anything else is refused with a reason and the file is kept. Older builds refuse schema 27 saves. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

@@ -266,7 +266,8 @@ public sealed class OwnerWorldObservationStore
                     ecology?.GetValueOrDefault(resource.Id)?.RegenerationSeason.ToString().ToLowerInvariant(),
                     resource.TreeKind,
                     ecology?.GetValueOrDefault(resource.Id)?.IsPlanted ?? false,
-                    TreeStageFor(resource.TreeKind, ecology?.GetValueOrDefault(resource.Id)),
+                    TreeGrowthRules.StageOf(resource.TreeKind, ecology?.GetValueOrDefault(resource.Id),
+                        state.WorldSystems?.Climate.Season ?? SeasonKind.Spring),
                     resource.NaturalObjectKind))
                 .ToArray(),
             actor,
@@ -1032,14 +1033,6 @@ public sealed class OwnerWorldObservationStore
         ResourceState.Available => "available",
         ResourceState.Depleted => "depleted",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
-    };
-
-    private static string? TreeStageFor(string? kind, EcologyResource? resource) => kind switch
-    {
-        "orchard" when resource?.Quantity > 0 => "fruiting",
-        "orchard" when resource?.State == EcologyResourceState.Depleted => "picked",
-        "orchard" => "growing",
-        _ => null,
     };
 
     private static string ToWireValue(OwnerInstructionKind kind) => kind switch

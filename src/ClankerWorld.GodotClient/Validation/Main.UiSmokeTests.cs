@@ -1278,6 +1278,20 @@ public partial class Main
             for (byte code = 1; code <= 9; code++)
                 if (NatureSprites.ForTree(code) is null)
                     throw new InvalidOperationException($"Tree state {code} has no sprite.");
+            foreach (var (species, stages) in new[]
+                     {
+                         ("broadleaf", new[] { "seed", "sapling", "mature", "stump" }),
+                         ("conifer", new[] { "seed", "sapling", "mature", "stump" }),
+                         ("orchard", new[] { "growing", "fruiting", "picked" }),
+                     })
+                foreach (var stage in stages)
+                    if (TreeArtManifest.For(species, stage) is not { } art || string.IsNullOrWhiteSpace(art.AssetId) ||
+                        string.IsNullOrWhiteSpace(art.Source) || string.IsNullOrWhiteSpace(art.Licence) ||
+                        string.IsNullOrWhiteSpace(art.Review) || art.Code > 0 != art.Sprite is not null)
+                        throw new InvalidOperationException($"The tree art manifest must describe {species} {stage}.");
+            if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
+                TreeArtManifest.Entries.Count(entry => entry.Code > 0))
+                throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
             for (byte kind = 1; kind <= 11; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
@@ -1361,6 +1375,15 @@ public partial class Main
             RenderMap(sample with { Resources = [sampleResource, sampleTree with { Quantity = 0, State = "depleted", IsPlanted = true }] });
             if (terrainLayer.TreeStageAt(3, 1) != "sapling")
                 throw new InvalidOperationException("Replanted trees must become visible saplings.");
+            var plantedTree = new OwnerWorldResource("planted-tree-2-2", "construction", new(2, 2), true,
+                "depleted", 0, 1, 1, 6, "spring", "conifer", true, TreeStage: "sapling");
+            RenderMap(sample with { Resources = [sampleResource, sampleTree, plantedTree] });
+            if (terrainLayer.TreeStageAt(2, 2) != "sapling" || terrainLayer.TreeStageAt(3, 1) != "mature" ||
+                NatureSprites.ForTree(TreeArtManifest.For("conifer", "sapling")!.Code) != NatureSprite.ConiferSapling)
+                throw new InvalidOperationException("A tree planted on a new tile must draw the host's sapling stage on its own tile.");
+            RenderMap(sample with { Resources = [sampleResource, sampleTree, plantedTree with { Quantity = 1, State = "available", IsPlanted = false, TreeStage = "mature" }] });
+            if (terrainLayer.TreeStageAt(2, 2) != "mature")
+                throw new InvalidOperationException("A grown sapling must draw as a mature tree.");
             var sampleNaturalObject = new OwnerWorldResource("sample-berry-bush", "food", new(0, 2), true,
                 "available", 4, 8, NaturalObjectKind: "berry_bush");
             RenderMap(sample with { Resources = [sampleResource, sampleNaturalObject] });
