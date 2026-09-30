@@ -682,13 +682,14 @@ public sealed partial class PrivateWorldRuntime
             }
         }
 
-        var canGrow = inhabitant.CurrentRole == SocietyWorkRole.Farmer ||
-            state.Aspiration.Contains("self-sufficient", StringComparison.OrdinalIgnoreCase);
-        var canProduce = inhabitant.CurrentRole is SocietyWorkRole.Farmer or
-            SocietyWorkRole.Builder or SocietyWorkRole.Trader or SocietyWorkRole.Organizer;
+        // Work follows what the household holds, not a role: crops need the
+        // household's Farmhouse, and workstation recipes need a building the
+        // household holds or a communal one (see TryFindRecipeSite).
+        var canGrow = inhabitant.HouseholdId is { } farmingHousehold &&
+            HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     (item.IsCrop ? canGrow : canProduce)))
+                     (!item.IsCrop || canGrow)))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
             {

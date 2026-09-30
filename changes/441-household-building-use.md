@@ -1,0 +1,1 @@
+- Agents now farm, mill grain, make tools and mine ore through the buildings their household holds, without needing a work role. In a new world the first household holds the Farmhouse and the second holds the Blacksmith; a household cannot use a building it does not hold.

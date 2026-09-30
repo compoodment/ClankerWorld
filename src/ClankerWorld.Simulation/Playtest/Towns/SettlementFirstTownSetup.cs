@@ -28,10 +28,12 @@ public sealed partial class PrivateWorldRuntime
             var placed = plan.Buildings.Select(building => new PlacedBuilding(
                 "first-town-" + building.Role, building.DefinitionId, building.Position, 0,
                 TownBorderRules.FirstTownId,
+                // Each starting household holds one productive building; the
+                // Warehouse stays communal Town property.
                 building.Role switch
                 {
-                    "house-a" => HouseholdId,
-                    "house-b" => SecondHouseholdId,
+                    "house-a" or "farmhouse" => HouseholdId,
+                    "house-b" or "blacksmith" => SecondHouseholdId,
                     _ => null,
                 })).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
             var town = TownBorderRules.CreateFirstTown(map, originSite: roughSite);
