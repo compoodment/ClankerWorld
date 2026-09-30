@@ -65,26 +65,6 @@ public sealed class ContentGovernanceTests
     }
 
     [Fact]
-    public void DataOnlyPackageFollowsTheProposeValidateApproveStageActivateLifecycle()
-    {
-        var package = Package("camp-items", "1.0.0", 'a');
-        var resolution = ContentPackageResolver.Resolve([package], [package.PackageId]);
-        var registry = new ContentPackageRegistry();
-
-        registry.Propose(package);
-        registry.Validate(package.PackageId, resolution, worldTick: 4);
-        registry.Approve(package.PackageId, worldTick: 4);
-        registry.Stage(package.PackageId, worldTick: 4);
-        var active = registry.Activate(package.PackageId, worldTick: 5);
-
-        Assert.Equal(ContentPackageLifecycle.Active, active.Lifecycle);
-        Assert.Equal(5, active.ActivationTick);
-        Assert.Equal(
-            ["package_proposed", "package_validated", "package_approved", "package_staged", "package_activated"],
-            registry.ExportState().Events.Select(item => item.Kind));
-    }
-
-    [Fact]
     public void ExecutableCapabilitiesAreDisabledAtTheDataOnlyBoundary()
     {
         var package = Package("unsafe", "1.0.0", 'a', capabilities: ["network"]);
@@ -169,7 +149,16 @@ public sealed class ContentGovernanceTests
             registry.Approve(package.PackageId, 0);
             registry.Stage(package.PackageId, 0);
         }
-        Assert.Equal(["z-core", "a-world"], registry.ActivateReady(1).Select(item => item.Manifest.PackageId));
+        var active = registry.ActivateReady(1);
+        Assert.Equal(["z-core", "a-world"], active.Select(item => item.Manifest.PackageId));
+        Assert.All(active, package =>
+        {
+            Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle);
+            Assert.Equal(1, package.ActivationTick);
+        });
+        Assert.Equal(
+            ["package_proposed", "package_validated", "package_approved", "package_staged", "package_activated"],
+            registry.ExportState().Events.Where(item => item.PackageId == "z-core").Select(item => item.Kind));
     }
 
     private static ContentPackageManifest Package(

@@ -69,8 +69,8 @@ public sealed class WorldAssetReservationTests
     public void WorldReservationLedgerRoundTripsCanonicallyAndReleasesAWholePackage()
     {
         var ledger = new WorldAssetReservationLedger();
-        Assert.True(ledger.TryReservePackage("first", [Request(PackageDigestA, "one", PackageDigestA, 1, 1)], 0).IsSuccess);
-        Assert.True(ledger.TryReservePackage("second", [Request(PackageDigestB, "two", PackageDigestB, 1, 1)], 1).IsSuccess);
+        Assert.True(ledger.TryReservePackage("a", [Request(PackageDigestA, "a", PackageDigestA, 1, 1)], 0).IsSuccess);
+        Assert.True(ledger.TryReservePackage("aa", [Request(PackageDigestB, "aa", PackageDigestB, 1, 1)], 1).IsSuccess);
 
         var encoded = System.Text.Json.JsonSerializer.Serialize(ledger.ExportState());
         var restored = WorldAssetReservationLedger.Restore(
@@ -78,19 +78,9 @@ public sealed class WorldAssetReservationTests
 
         Assert.Equal(ledger.ExportState().Reservations, restored.ExportState().Reservations);
         Assert.Equal(ledger.ExportState().Events, restored.ExportState().Events);
-        Assert.True(restored.ReleasePackage("first", 2));
+        Assert.True(restored.ReleasePackage("a", 2));
         Assert.Single(restored.ExportState().Reservations);
         restored.Validate();
-    }
-
-    [Fact]
-    public void PrefixRelatedPackageIdsRestoreInTheSameStructuralOrderAsExport()
-    {
-        var ledger = new WorldAssetReservationLedger();
-        Assert.True(ledger.TryReservePackage("a", [Request(PackageDigestA, "a", PackageDigestA, 1, 1)], 0).IsSuccess);
-        Assert.True(ledger.TryReservePackage("aa", [Request(PackageDigestB, "aa", PackageDigestB, 1, 1)], 1).IsSuccess);
-        var restored = WorldAssetReservationLedger.Restore(ledger.ExportState());
-        Assert.Equal(ledger.ExportState().Reservations, restored.ExportState().Reservations);
     }
 
     [Theory]

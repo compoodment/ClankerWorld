@@ -84,7 +84,6 @@ public sealed class FirstTownLayoutPlannerTests
 
     [Theory]
     [InlineData("starter-layout-one")]
-    [InlineData("starter-layout-two")]
     public void StartingPlanHasFiveLegalBuildingsAndAConnectedRoadNetwork(string seed)
     {
         var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small));

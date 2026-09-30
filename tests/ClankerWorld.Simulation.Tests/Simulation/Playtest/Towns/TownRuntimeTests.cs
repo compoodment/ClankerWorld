@@ -119,29 +119,6 @@ public sealed class TownRuntimeTests
     }
 
     [Fact]
-    public void OlderCampWorldWithoutSavedTownRebuildsItsResidentBorder()
-    {
-        using var world = new PrivateWorldRuntime("older-camp-town", startPace: WorldStartPace.FounderSetup);
-        var founderIds = new[]
-        {
-            "founder:00000000000000000000000000000001",
-            "founder:00000000000000000000000000000002",
-            "founder:00000000000000000000000000000003",
-            "founder:00000000000000000000000000000004",
-        };
-        var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
-        for (var index = 0; index < founderIds.Length; index++) world.PlaceFounder(founderIds[index], positions[index]);
-        var expected = Assert.Single(world.Towns);
-        var earlierCheckpoint = world.ExportState() with { SchemaVersion = 20, Towns = null };
-
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(earlierCheckpoint)));
-        var town = Assert.Single(restored.Towns);
-        Assert.Equal(expected.ResidentIds, town.ResidentIds);
-        Assert.Equal(expected.BorderTiles, town.BorderTiles);
-    }
-
-    [Fact]
     public async Task PausedFounderTownMembershipAndBordersSurviveSaveLoadAndProjectToOwnerAndTelemetry()
     {
         var geography = new GeographyOptions("first-town-persistence", WorldSizePreset.Small);

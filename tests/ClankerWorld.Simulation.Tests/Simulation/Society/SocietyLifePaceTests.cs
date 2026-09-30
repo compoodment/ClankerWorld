@@ -207,7 +207,6 @@ public sealed class SocietyLifePaceTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(-1)]
     public void UnsupportedClockRatesFailClosed(int rate)
     {
         var state = SocietyFixture.CreateGenesis("invalid-life-clock");

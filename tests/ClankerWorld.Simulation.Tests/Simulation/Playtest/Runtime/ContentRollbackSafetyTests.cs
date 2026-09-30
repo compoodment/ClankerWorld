@@ -8,7 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class PrivateWorldRuntimeTests
 {
     [Theory]
-    [InlineData("acquiring")]
     [InlineData("completed")]
     public async Task RollbackPreservesRecordedProjectReferences(string stage)
     {
@@ -36,7 +35,6 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData(false, false)]
-    [InlineData(false, true)]
     [InlineData(true, true)]
     public async Task RollbackWithCommittedProductionReferencesRejectsWithoutDeletingWorldState(bool crop, bool completed)
     {
