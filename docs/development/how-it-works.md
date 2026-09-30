@@ -118,11 +118,15 @@ Self context is included in the queued-observation digest. Nearby relationships,
 carried inventory and current activity are not provided.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
-*inhabitant*, *settlement* and *camp*. One phrase in the system prompt still says
-"inhabitants" ([#443](https://github.com/compoodment/ClankerWorld/issues/443)). The personal-model request does not send
-the clock or the run and decision counters; admission uses them on the server.
-The request still names households by their internal ID, and the Jev request
-still carries those counters, because Jev's live service cannot be checked offline.
+*inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the
+clock and run/decision counters; admission uses them on the server. Households
+and Towns use their recorded names. Candidate destinations use a readable name
+where one is available, while the legal option IDs remain unchanged. Jev stays
+narrow: choosing a legal action and scoring existing memories, without persona.
+Retrieval ranks which memories to include before sending the request. Its Jev
+importance scores are not sent to the personal model: those scores select the
+context, rather than adding facts about the remembered event. Belief provenance
+and belief confidence remain explicit.
 When an unnamed agent is asked to choose a full name, the personal-model
 request includes a soft first-letter hint derived from that agent's stable ID.
 The hint stays the same if the request is retried, is computed per agent, and

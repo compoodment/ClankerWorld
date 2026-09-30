@@ -378,7 +378,7 @@ public partial class Main
         var deceasedSelected = selected?.Lifecycle == "dead";
         submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft || infantSelected || deceasedSelected;
         submitInstructionButton.TooltipText = deceasedSelected ? "Historical profiles cannot receive instructions." :
-            infantSelected ? "Direct care through an adult caregiver." : "Send an instruction to this inhabitant.";
+            infantSelected ? "Direct care through an adult caregiver." : "Send an instruction to this agent.";
         submitAuthoringButton.Disabled = actionDisabled || !paused;
         authoringKind.Disabled = actionDisabled || !paused;
         authoringId.Editable = !actionDisabled && paused;
