@@ -387,6 +387,19 @@ public sealed record OwnerUsageStatus(long Attempts, long Completed, long Failed
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+/// <summary>
+/// Asks the host which models a provider key can use. <see cref="ApiKey"/> is a
+/// key the owner has just pasted and not saved yet; it is used for this lookup
+/// only. Without it, the named key slot or the provider's saved key is used.
+/// </summary>
+public sealed record OwnerProviderModelListAction(string Provider, string? CredentialSlotId = null, string? ApiKey = null);
+
+/// <summary>
+/// The chat models a key can use, newest first with the recommended model on
+/// top when offered. <see cref="Error"/> explains an empty list in plain words.
+/// </summary>
+public sealed record OwnerProviderModelList(string Provider, IReadOnlyList<string> Models, string Recommended, string? Error);
+
 public sealed record OwnerProviderConfigurationAction(
     string Role,
     string Provider,

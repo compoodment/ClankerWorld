@@ -126,6 +126,14 @@ If intervening legal movement interrupts an outing, scouting restarts at the
 actual position without inventing the missing path. Visited facts remain
 personal knowledge; an unfinished outing does not create a completed artifact.
 
+The owner's model picker asks the host which models a key can use. The host
+calls the provider's model-list route (OpenAI `/v1/models`; Ollama Cloud
+`/api/tags`, then `/v1/models`) with the saved key, a named key slot, or a key
+pasted for that lookup only, which is not stored. Keys never return to the
+client. OpenAI's list is filtered to chat models by name. Lists are cached per
+key for ten minutes, time out after eight seconds and are not model calls, so
+they do not count toward the usage cap below.
+
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.

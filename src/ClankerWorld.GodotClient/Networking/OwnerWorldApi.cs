@@ -605,4 +605,22 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
     }
+
+    public Task<OwnerProviderModelList> ListProviderModelsAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProviderModelListAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProviderModelListAction, OwnerProviderModelList>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderModels,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderModelList(action),
+            action,
+            deviceKey,
+            cancellationToken);
 }

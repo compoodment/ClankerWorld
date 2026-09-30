@@ -72,6 +72,19 @@ public sealed record OwnerUsageStatusAction;
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+/// <summary>
+/// Asks the host which models a provider key can use. <see cref="ApiKey"/> is a
+/// key the owner has just pasted and not saved yet; it is used for this lookup
+/// only. Without it, the named key slot or the provider's saved key is used.
+/// </summary>
+public sealed record OwnerProviderModelListAction(string Provider, string? CredentialSlotId = null, string? ApiKey = null);
+
+/// <summary>
+/// The chat models a key can use, newest first with the recommended model on
+/// top when offered. <see cref="Error"/> explains an empty list in plain words.
+/// </summary>
+public sealed record OwnerProviderModelList(string Provider, IReadOnlyList<string> Models, string Recommended, string? Error);
+
 public sealed record OwnerProviderConfigurationAction(
     string Role,
     string Provider,
@@ -267,6 +280,18 @@ public static class OwnerHttpBinding
         ArgumentNullException.ThrowIfNull(action);
         return string.Join('\n', "clankerworld.owner-credential-slot-deletion.v1",
             $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}");
+    }
+
+    public static string ProviderModelListPayload(OwnerProviderModelListAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-models.v1",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}");
     }
 
     public static string ProviderConfigurationPayload(OwnerProviderConfigurationAction action)

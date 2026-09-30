@@ -5,6 +5,7 @@ using ServerDeviceManagementAction = ClankerWorld.Viewer.Control.OwnerDeviceMana
 using ServerInstructionAction = ClankerWorld.Viewer.Control.OwnerInstructionAction;
 using ServerPairingApprovalAction = ClankerWorld.Viewer.Control.OwnerPairingApprovalAction;
 using ServerProviderConfigurationAction = ClankerWorld.Viewer.Control.OwnerProviderConfigurationAction;
+using ServerProviderModelListAction = ClankerWorld.Viewer.Control.OwnerProviderModelListAction;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -344,6 +345,20 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Equal(serverPayload, clientPayload);
         Assert.DoesNotContain(secret, clientPayload, StringComparison.Ordinal);
         Assert.Equal(OwnerHttpBinding.ProviderStatusPayload(), OwnerWorldActionPayload.ProviderStatus());
+    }
+
+    [Theory]
+    [InlineData("openai", null, null)]
+    [InlineData("ollama-cloud", "0123456789abcdef0123456789abcdef", null)]
+    [InlineData("openai", null, "pasted-provider-secret")]
+    public void ProviderModelListPayloadMatchesViewerOwnerProtocolWithoutEmbeddingTheSecret(
+        string provider, string? slot, string? apiKey)
+    {
+        var clientPayload = OwnerWorldActionPayload.ProviderModelList(new OwnerProviderModelListAction(provider, slot, apiKey));
+        var serverPayload = OwnerHttpBinding.ProviderModelListPayload(new ServerProviderModelListAction(provider, slot, apiKey));
+
+        Assert.Equal(serverPayload, clientPayload);
+        if (apiKey is not null) Assert.DoesNotContain(apiKey, clientPayload, StringComparison.Ordinal);
     }
 
     [Fact]

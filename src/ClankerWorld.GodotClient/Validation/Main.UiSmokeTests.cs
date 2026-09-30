@@ -169,6 +169,70 @@ public partial class Main
             throw new InvalidOperationException("Permanent deletion must be the red action; other confirmations stay green.");
     }
 
+    /// <summary>
+    /// The model picker offers the key's list with the recommended model
+    /// marked, keeps a model the key doesn't list, falls back to a typed name,
+    /// and explains a failed lookup with a Retry.
+    /// </summary>
+    private void VerifyModelPicker()
+    {
+        var parent = founderCredentialChoice.GetParent();
+        if (founderModelPicker.GetParent() != parent || founderModelPicker.GetIndex() < founderApiKeyInput.GetIndex() ||
+            cognitionModelPicker.GetIndex() < cognitionApiKeyInput.GetIndex())
+            throw new InvalidOperationException("Add agent and Model settings must ask for the key before the model it offers.");
+        var picker = new ModelPicker();
+        AddChild(picker);
+        try
+        {
+            string Items() => string.Join(" | ", Enumerable.Range(0, picker.Choice.ItemCount)
+                .Where(index => !picker.Choice.IsItemSeparator(index)).Select(picker.Choice.GetItemText));
+            void Pick(string text)
+            {
+                var index = Enumerable.Range(0, picker.Choice.ItemCount).First(item => picker.Choice.GetItemText(item) == text);
+                picker.Choice.Select(index);
+                picker.Choice.EmitSignal(OptionButton.SignalName.ItemSelected, index);
+            }
+
+            picker.SetModel("gpt-6-luna");
+            var stale = picker.BeginLoading("gpt-6-luna");
+            if (!Items().Contains("Loading models…", StringComparison.Ordinal) || picker.Model != "gpt-6-luna")
+                throw new InvalidOperationException($"A loading model list must keep the current model: {Items()}.");
+            var lookup = picker.BeginLoading("gpt-6-luna");
+            if (picker.IsLatest(stale) || !picker.IsLatest(lookup))
+                throw new InvalidOperationException("Only the newest model lookup may fill the picker.");
+            picker.ShowList(["gpt-6-luna", "gpt-6", "gpt-5.6-luna"], "gpt-6-luna");
+            if (Items() != $"gpt-6-luna (recommended) | gpt-6 | gpt-5.6-luna | {ModelPicker.TypeOwnText}" ||
+                picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna (recommended)" || picker.Problem.Length > 0)
+                throw new InvalidOperationException($"The model list must mark the recommended model and end with a typed choice: {Items()}.");
+            picker.SetModel("gpt-4.1");
+            picker.ShowList(["gpt-6-luna", "gpt-6", "gpt-5.6-luna"], "gpt-6-luna");
+            if (picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-4.1 (not offered by this key)" || picker.Model != "gpt-4.1")
+                throw new InvalidOperationException($"An agent's model must stay chosen when the key doesn't list it: {Items()}.");
+            Pick("gpt-5.6-luna");
+            if (picker.Model != "gpt-5.6-luna" || picker.TypedInput.Visible)
+                throw new InvalidOperationException("Picking a listed model must choose it.");
+            Pick(ModelPicker.TypeOwnText);
+            if (!picker.TypedInput.Visible || picker.TypedInput.Text != "gpt-5.6-luna")
+                throw new InvalidOperationException("Type a model name must open a text box starting from the chosen model.");
+            picker.TypedInput.Text = "my-fine-tune";
+            picker.ShowList(["gpt-6-luna", "gpt-6"], "gpt-6-luna");
+            if (picker.Model != "my-fine-tune" || !picker.TypedInput.Visible)
+                throw new InvalidOperationException("A new list must not replace a typed model name.");
+            picker.SetModel("gpt-6-luna");
+            picker.ShowError("OpenAI refused this key.", "gpt-6-luna");
+            if (picker.Problem != "OpenAI refused this key." || !picker.CanRetry || picker.Model != "gpt-6-luna" ||
+                !Items().Contains(ModelPicker.TypeOwnText, StringComparison.Ordinal))
+                throw new InvalidOperationException("A failed lookup must explain itself, offer Retry and keep the model usable.");
+            picker.ShowTypedOnly("jev-1.13.0");
+            if (picker.Choice.Visible || !picker.TypedInput.Visible || picker.Model != "jev-1.13.0")
+                throw new InvalidOperationException("A provider without a model list must use a typed name.");
+        }
+        finally
+        {
+            picker.QueueFree();
+        }
+    }
+
     /// <summary>Pixel lettering stays crisp only at whole multiples of its pixel size.</summary>
     private void VerifyPixelText(string when)
     {
@@ -698,6 +762,7 @@ public partial class Main
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
+            VerifyModelPicker();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
