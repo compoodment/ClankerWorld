@@ -51,16 +51,24 @@ everything that is available in the current build. See [what works today](../wha
   local-PC deployments. The player-facing Godot client should not become the
   authority merely because the host runs locally. Closing the game still
   freezes the world, without offline catch-up.
+- **On a player's computer, the host is a bundled companion process.** The game
+  starts it, and it listens only on the loopback address, which means only
+  programs on that same computer can connect to it. It is not embedded inside
+  the game process.
+- **The first local package is an unsigned portable zip.** An installer and code
+  signing (a publisher signature on the files) come later.
+- **Private-server deployment starts with a written checklist.** A staged
+  deployment command for the private server waits until the local package
+  works.
 
 ### Still to decide
 
-Whether the local host is embedded in the installed game or bundled as a
-background companion process; installer and update design; exact Windows
-version/architecture support; local credential storage and diagnostics export;
-save migration between deployments; performance requirements and packaging
-tests; on-demand credential validation and the new-world starting-agent setup when no
-key exists yet. These are implementation choices to prove, not reasons to
-reopen the decided player-local distribution goal.
+Exact Windows version and architecture support; update design; local credential
+storage and diagnostics export; save migration between deployments;
+performance requirements and packaging tests; on-demand credential validation;
+and the new-world starting-agent setup when no key exists yet. These are
+implementation choices to prove, not reasons to reopen the agreed player-local
+distribution goal, the companion-process host or the first package.
 
 ## World time, pausing, and slow models
 
@@ -142,6 +150,11 @@ accounting details need design and playtesting.
   continents, and a planet respectively. The proposed logical dimensions are
   **256×128, 512×256, 1024×512, 2048×1024, 4096×2048**—initial benchmark
   targets, **not locked constants**.
+- **The first local release supports Small and Medium worlds only.** Large,
+  Huge and Mega stay as planned presets until the costs of saving, observing
+  and overviewing a world of that size are measured. The map's zoom-out limit
+  also stays as it is until Large is measured; see
+  [Interface and art](interface-and-art.md).
 - Use **64×64 logical tiles per chunk** as the starting arrangement target.
   Chunks help storage, loading, and rendering without forcing an entire chunk
   into one giant texture. Rendering only what the camera sees is distinct from
@@ -186,14 +199,24 @@ accounting details need design and playtesting.
   Each tile holds **at most one tree**; do not depict several harvestable trees
   as one stand on a tile. Trees yield wood when harvested, leave stumps that can
   regrow, and can also be replanted from seeds when forest resources are depleted.
+  **There is no natural tree spread for now:** trees do not seed themselves onto
+  new tiles. New trees come only from stump regrowth and from agents planting seeds.
 - **September 29 terrain direction:** sand is not a compulsory strip along
   every coast and especially not along every river. A forest-floor tile should
   visibly contain a tree or plant, mostly trees; grass-surfaced forest tiles
   should instead have scattered trees. Trees and ordinary plants should not
   grow on sand. Computment now disfavors cacti entirely, though that exclusion
   was phrased tentatively; avoid expanding cactus content until settled. Hills
-  forming a readable base around mountain regions are preferred; their exact
-  elevation thresholds and passability remain open.
+  forming a readable base around mountain regions were preferred; the next item
+  records the September 30 decision, and their exact elevation thresholds
+  remain open.
+- **Hills at the base of mountains (September 30):** hills are added around
+  mountain regions as a **visual layer only**. For now, a hill costs the same to
+  walk as grass. Mountain and peak rules, described below, are unchanged.
+- **Leaning toward (provisional, to tune in playtests):** one orchard fruit tree
+  species, which fruits in autumn. The orchard tree itself is already accepted
+  in [Planned game content](content-list.md); its yield and other details
+  remain open.
 - Generated geography includes **rivers** as well as oceans, shores and lakes.
   Rivers belong to the 2D, top-down tile world and its water layout layer; they
   must remain continuous across an enabled east/west world seam. A noise
@@ -392,8 +415,9 @@ These remain open; they are not new decisions.
 
 - **Local packaging and VPS parity.** The finished distribution target is
    player-local and Windows-only at first, while development stays VPS-backed.
-   Prove the same simulation and save behavior in both; choose the local
-   process/installer shape without creating a second, divergent game.
+   [Where the game runs](#where-the-game-runs) records the agreed local host
+   and first package. Still to prove: the same simulation and save behavior in
+   both deployments, without creating a second, divergent game.
 
 - **Night and weather details.** Night affects temperature and weather, with
     no sleep/energy gate or independent night-only restrictions. Decide exact

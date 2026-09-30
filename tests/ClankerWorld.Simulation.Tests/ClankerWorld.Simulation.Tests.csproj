@@ -27,6 +27,7 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Pairing\OwnerDeviceKey.cs" Link="GodotClient\Pairing\OwnerDeviceKey.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Pairing\OwnerPairingClient.cs" Link="GodotClient\Pairing\OwnerPairingClient.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\GameUiText.cs" Link="GodotClient\UI\Theme\GameUiText.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\WorldEventText.cs" Link="GodotClient\UI\Theme\WorldEventText.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Networking\OwnerWorldApi.cs" Link="GodotClient\Networking\OwnerWorldApi.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Protocol\OwnerWorldContracts.cs" Link="GodotClient\Protocol\OwnerWorldContracts.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Protocol\OwnerWorldObservationSession.cs" Link="GodotClient\Protocol\OwnerWorldObservationSession.cs" />

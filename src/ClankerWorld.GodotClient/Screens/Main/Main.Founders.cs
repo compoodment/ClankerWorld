@@ -143,7 +143,7 @@ public partial class Main
         founderProviderChoice.SetItemMetadata(1, "ollama-cloud");
         founderProviderChoice.ItemSelected += _ =>
         {
-            founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()));
+            founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), chooseAvailableModel: true);
             PopulateFounderCredentials();
         };
         body.AddChild(founderProviderChoice);
@@ -162,7 +162,7 @@ public partial class Main
         founderApiKeyInput.TextChanged += _ => OnFounderKeyEdited();
         body.AddChild(founderApiKeyInput);
 
-        founderModelPicker.SetModel(DefaultProviderModel("openai"));
+        founderModelPicker.SetModel(DefaultProviderModel("openai"), chooseAvailableModel: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
         body.AddChild(founderModelPicker);
 

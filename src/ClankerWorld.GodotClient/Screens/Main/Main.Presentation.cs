@@ -61,63 +61,8 @@ public partial class Main
         return GameUiText.FriendlyFailure(exception);
     }
 
-    private static string DescribeWorldEvent(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
-    {
-        var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        string NameAt(int index)
-        {
-            if (index >= parts.Length)
-            {
-                return "Someone";
-            }
-
-            return snapshot?.Inhabitants.FirstOrDefault(inhabitant => inhabitant.Id == parts[index])?.DisplayName
-                ?? GameUiText.HumanizeIdentifier(parts[index]);
-        }
-
-        string ThingAt(int index) => index < parts.Length
-            ? GameUiText.HumanizeIdentifier(parts[index])
-            : "something new";
-
-        return worldEvent.Kind switch
-        {
-            "world_created" => "A new world has begun.",
-            "world_started" => "Time has started in this world.",
-            "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
-            "building_placed" => $"{ThingAt(1)} was built.",
-            "build_started" => $"Work began on {ThingAt(1)}.",
-            "build_completed" => $"{ThingAt(1)} is ready.",
-            "recipe_started" => $"Work began on {ThingAt(1)}.",
-            "recipe_completed" => $"{ThingAt(1)} was finished.",
-            "crop_moisture_effect" when parts.Length >= 3 => parts[1] == "wet"
-                ? "Moist soil improved a crop harvest."
-                : "Dry soil reduced a crop harvest.",
-            "food_harvested" => $"{NameAt(0)} gathered food.",
-            "food_consumed" => $"{NameAt(0)} ate.",
-            "inhabitant_slept" => $"{NameAt(0)} slept.",
-            "child_born" => $"{NameAt(0)} was born.",
-            "inhabitant_removed" => $"{NameAt(0)} died.",
-            "estate_will_accepted" => "A final will decided who gets their belongings.",
-            "estate_will_default" => "Their belongings went to their household.",
-            "partnership_accepted" => "Two agents formed a partnership.",
-            "partnership_ended" => "A partnership ended.",
-            "caregiver_assigned" => "A child has a new caregiver.",
-            "council_policy_adopted" => "The Town adopted a new policy.",
-            "settlement_trade_completed" => "A trade was completed.",
-            "inhabitant_building_proposed" => $"{NameAt(0)} suggested a new building design.",
-            "settlement_founded" => "A new Town was founded.",
-            "town_founding_started" => "Your first Town is being set up.",
-            "town_resident_joined" when parts.Length >= 2 => $"{NameAt(1)} joined the first Town.",
-            "town_resident_left" when parts.Length >= 2 => $"{NameAt(1)} left the first Town.",
-            "town_membership_evaluated" => "The new adult is not part of a Town yet.",
-            "town_building_assigned" => "A building joined the first Town.",
-            "town_border_expanded" => "The first Town border expanded.",
-            "town_founded" => "Your first Town is founded.",
-            "paused" => "The world was paused.",
-            "resumed" => "The world resumed.",
-            _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
-        };
-    }
+    private static string DescribeWorldEvent(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot) =>
+        WorldEventText.Describe(worldEvent, snapshot);
 
     private static string PositionKey(OwnerWorldPosition position) => $"{position.X},{position.Y}";
 

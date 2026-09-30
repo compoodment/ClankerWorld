@@ -254,14 +254,14 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.OwnerId == decision.InhabitantId && lot.ItemKind == "food").Sum(lot => (long)lot.Quantity);
+            lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
         {
             "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
             "consume_food" => inhabitants[decision.InhabitantId].HungerBasisPoints > state.HungerBasisPoints,
             "harvest_food" => society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.OwnerId == decision.InhabitantId && lot.ItemKind == "food").Sum(lot => (long)lot.Quantity) > carriedFoodBefore,
+                lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity) > carriedFoodBefore,
             _ => false,
         });
 

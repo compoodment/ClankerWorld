@@ -290,7 +290,7 @@ public partial class Main
     private static void StyleCompactToggle(Button button)
     {
         button.ThemeTypeVariation = "TabButton";
-        button.FocusMode = Control.FocusModeEnum.None;
+        button.FocusMode = Control.FocusModeEnum.All;
         foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
         {
             var box = (StyleBox)UiTheme.Theme.GetStylebox(state, "TabButton").Duplicate();

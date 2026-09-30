@@ -161,10 +161,17 @@ public sealed class ProviderModelCatalog(
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength > MaximumBodyBytes)
             throw new InvalidDataException("The model list is too large.");
-        var body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
-        if (body.Length > MaximumBodyBytes)
-            throw new InvalidDataException("The model list is too large.");
-        return Parse(body);
+        await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+        using var body = new MemoryStream();
+        var buffer = new byte[8192];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, timeout.Token).ConfigureAwait(false)) > 0)
+        {
+            if (body.Length + read > MaximumBodyBytes)
+                throw new InvalidDataException("The model list is too large.");
+            body.Write(buffer, 0, read);
+        }
+        return Parse(body.ToArray());
     }
 
     /// <summary>
@@ -175,11 +182,15 @@ public sealed class ProviderModelCatalog(
     {
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("The provider returned an unrecognised model list.");
         var models = new List<string>();
         if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in data.EnumerateArray())
             {
+                if (item.ValueKind != JsonValueKind.Object)
+                    throw new InvalidDataException("The provider returned an unrecognised model list.");
                 if (item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
                     models.Add(id.GetString()!);
             }
@@ -188,6 +199,8 @@ public sealed class ProviderModelCatalog(
         {
             foreach (var item in listed.EnumerateArray())
             {
+                if (item.ValueKind != JsonValueKind.Object)
+                    throw new InvalidDataException("The provider returned an unrecognised model list.");
                 var name = item.TryGetProperty("name", out var named) && named.ValueKind == JsonValueKind.String ? named.GetString()
                     : item.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String ? model.GetString() : null;
                 if (name is not null) models.Add(name);

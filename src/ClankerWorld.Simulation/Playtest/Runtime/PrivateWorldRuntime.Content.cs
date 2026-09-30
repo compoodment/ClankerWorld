@@ -372,6 +372,11 @@ public sealed partial class PrivateWorldRuntime
             {
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The production worker is not active.");
             }
+            if (!AgePermitsCandidate(normalizedWorkerId, $"build:recipe:{recipe.CanonicalId}"))
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "This worker is too young to start production. Choose an adult worker.");
+            }
 
             var workstation = placed is null ? null : worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
             if (placed?.HouseholdId is { } workOwner && worker.HouseholdId != workOwner)

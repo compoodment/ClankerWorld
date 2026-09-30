@@ -26,6 +26,7 @@ public partial class ModelPicker : VBoxContainer
     private bool loading;
     private bool listed;
     private bool typing;
+    private bool chooseAvailable;
     private int request;
 
     public ModelPicker()
@@ -40,7 +41,7 @@ public partial class ModelPicker : VBoxContainer
 
         typed.PlaceholderText = "Model name";
         typed.Visible = false;
-        typed.TextChanged += _ => ModelChanged?.Invoke();
+        typed.TextChanged += _ => { chooseAvailable = false; ModelChanged?.Invoke(); };
         AddChild(typed);
 
         problem.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -90,11 +91,12 @@ public partial class ModelPicker : VBoxContainer
     /// Shows a model as chosen, for example after the provider changes. A model
     /// that isn't in the game's list is shown as a typed name.
     /// </summary>
-    public void SetModel(string model)
+    public void SetModel(string model, bool chooseAvailableModel = false)
     {
         current = model.Trim();
         typing = false;
         typed.Text = current;
+        chooseAvailable = chooseAvailableModel;
         ChooseWhenEmpty();
         FollowList();
         Rebuild();
@@ -128,6 +130,13 @@ public partial class ModelPicker : VBoxContainer
     {
         defaultModel = fallbackModel;
         models = choices;
+        if (chooseAvailable && choices.Any(item => item.Available) &&
+            !choices.Any(item => item.Model == current && item.Available))
+        {
+            current = choices.FirstOrDefault(item => item.Model == defaultModel && item.Available)?.Model ??
+                choices.First(item => item.Available).Model;
+            typing = false;
+        }
         loading = false;
         listed = true;
         error = note;
@@ -237,6 +246,7 @@ public partial class ModelPicker : VBoxContainer
 
     private void OnItemSelected(long index)
     {
+        chooseAvailable = false;
         var id = choice.GetItemMetadata((int)index).AsString();
         if (id == TypeOwnId)
         {

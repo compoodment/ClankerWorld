@@ -11,6 +11,84 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class AgentKnowledgeTests
 {
     [Theory]
+    [InlineData(100, 1)]
+    [InlineData(50, 2)]
+    public async Task DescendantsKeepExploringAndSavingWithLongInheritedIdentities(int seedLength, int generations)
+    {
+        using var seed = new PrivateWorldRuntime(new string('s', seedLength));
+        var state = seed.ExportState();
+        var parent = "founder-scout";
+        for (var generation = 0; generation < generations; generation++)
+        {
+            var partner = generation == 0 ? "founder-mira" : "founder-rowan";
+            var society = state.Society.Society;
+            var relationshipId = $"descendant-partnership-{generation}";
+            society = SocietyFixture.ProposeRelationship(society, new(relationshipId, 1,
+                SocietyRelationshipType.Partnership, parent, partner, society.WorldTick)).Checkpoint;
+            society = SocietyFixture.AcceptRelationship(society, relationshipId, 1, partner).Checkpoint;
+            var birth = SocietyFixture.CommitBirth(society, new($"family:{parent}:{society.WorldTick}", 1,
+                parent, partner, "household:camp-alpha", [parent, partner], [parent, partner],
+                "food:camp-alpha", 2, society.WorldTick, ChildName: "Explorer"));
+            parent = Assert.IsType<string>(birth.CreatedId);
+            society = birth.Checkpoint;
+            // Accelerate age only, retaining the actual birth identity and family records.
+            var adultBirth = society.LifeTickAt(society.WorldTick) - 20 * society.Config.TicksPerLifecycleAge;
+            society = society with
+            {
+                Inhabitants = society.Inhabitants.Select(person => person.Id == parent ? person with
+                {
+                    BirthTick = adultBirth,
+                    BirthLifeTick = society.LifeClock is null ? null : adultBirth,
+                    AgeBand = SocietyAgeBand.Adult,
+                    LastLifecycleYearChecked = 20,
+                } : person).ToArray(),
+            };
+            var position = state.Map.Tiles.Select(tile => tile.Position).First(point =>
+                state.Map.IsPassable(point) && state.Inhabitants.All(person => person.Position != point) &&
+                state.Map.FootNeighbors(point).Any(state.Map.IsPassable));
+            state = state with
+            {
+                Society = state.Society with { Society = society },
+                Inhabitants = state.Inhabitants.Append(new PlaytestInhabitantState(parent, position,
+                    9_500, 0, "curious", "explore")).ToArray(),
+            };
+        }
+        Assert.True(parent.Length > 128);
+        var provider = new CandidateProvider(parent, "explore");
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        for (var tick = 0; tick < 80; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            world.Validate();
+            _ = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        }
+        var saved = world.ExportState();
+        Assert.Contains(saved.Knowledge!.Facts, fact => fact.OwnerId == parent);
+        Assert.All(saved.Knowledge.Facts.Where(fact => fact.OwnerId == parent),
+            fact => Assert.Equal(parent, fact.DiscovererId));
+        Assert.Contains(saved.Knowledge.Artifacts, artifact => artifact.CreatorId == parent);
+        Assert.NotEmpty(provider.KnownMapFactsByAgent[parent]);
+        var discovererReference = Assert.Single(provider.KnownMapFactsByAgent[parent]
+            .Select(fact => fact.DiscovererId).Distinct());
+        Assert.InRange(discovererReference.Length, 1, 128);
+        using var reloaded = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)), _ => provider);
+        for (var tick = 0; tick < 25; tick++)
+        {
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        }
+        reloaded.Validate();
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.All(provider.KnownMapFactsByAgent[parent],
+            fact => Assert.Equal(discovererReference, fact.DiscovererId));
+        Assert.Equal(saved.Knowledge.Facts.Select(fact => fact.Id),
+            reloaded.ExportState().Knowledge!.Facts.Select(fact => fact.Id));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task InheritedNaturalFieldRecordKeepsItsPhysicalIdentityAndPrivateProvenance(bool selectedHeir)
