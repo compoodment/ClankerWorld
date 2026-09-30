@@ -38,7 +38,8 @@ everything that is available in the current build. See [what works today](../wha
   storms but get no access to the House's stock or cooking. **There is no
   fixed occupant limit for a House**, including invited visitors; prior
   capacity and crowding ideas are superseded. It has no bed or sleep-recovery
-  role. A selected building exposes inspectable occupants, stock and ownership in a panel;
+  role. A selected building exposes inspectable occupants, stock and ownership in a panel
+  ([quick card and Details](interface-and-art.md));
   there are **no visible/enterable room interiors**.
 - **Storage-driven building expansion:** a House starts at **1×1** and can
   expand to **1×2** or **2×2** when its household needs more storage.
