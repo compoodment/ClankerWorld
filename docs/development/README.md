@@ -17,6 +17,7 @@ For the game itself, start with [playing](../playing.md),
 | Restore dependencies, build and check a change | [Build and test](build-and-test.md) |
 | Approve devices or understand request security | [Device pairing](device-pairing.md) |
 | Change saves, recovery or replay | [Saves and replay](saves-and-replay.md) |
+| Update a private server with backups and rollback | [Private-server deployment](private-server-deployment.md) |
 | Choose versions and publish a release | [Releasing](releasing.md) |
 | See measurements from merged prototypes | [Survival priorities](survival-priority-prototype.md), [Weather episodes](weather-episode-prototype.md) |
 

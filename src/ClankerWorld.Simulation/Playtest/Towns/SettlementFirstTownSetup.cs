@@ -37,17 +37,13 @@ public sealed partial class PrivateWorldRuntime
                     _ => null,
                 }, building.Entrance)).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
             var town = TownBorderRules.CreateFirstTown(map, originSite: roughSite);
-            foreach (var building in placed)
+            town = town with
             {
-                var definition = definitions[building.DefinitionId];
-                town = town with
-                {
-                    AssignedBuildingIds = town.AssignedBuildingIds.Append(building.InstanceId)
-                        .Order(StringComparer.Ordinal).ToArray(),
-                    BorderTiles = TownBorderRules.ExpandForBuilding(map, town, building.Position,
-                        definition.Width, definition.Height),
-                };
-            }
+                AssignedBuildingIds = placed.Select(building => building.InstanceId).Order(StringComparer.Ordinal).ToArray(),
+                BorderTiles = TownBorderRules.Expand(map, town, placed
+                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position))
+                    .Concat(plan.RoadTiles)),
+            };
             var starterInventory = PrepareFirstTownStock(society.Checkpoint.Inventory);
             var firstTownWasUnplaced = towns.Count == 0;
             worldSimulation = WorldContentSimulationState.Empty with { Buildings = placed };
