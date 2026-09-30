@@ -19,6 +19,7 @@ public partial class WorldTerrainLayer : Control
     private bool wrapsEastWest;
     private Vector2I? hoveredTile;
     private Vector2I? selectedTile;
+    private Rect2I? selectedBuilding;
     private byte[] trees = [];
     private byte[] naturalObjects = [];
     private readonly Dictionary<int, NatureSprite> campResources = [];
@@ -260,6 +261,16 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>The footprint of the selected building, outlined like a selected tile.</summary>
+    public Rect2I? SelectedBuilding => selectedBuilding;
+
+    public void SetSelectedBuilding(Rect2I? footprint)
+    {
+        if (selectedBuilding == footprint) return;
+        selectedBuilding = footprint;
+        QueueRedraw();
+    }
+
     public string? TreeStageAt(int x, int y)
     {
         if (world is null || x < 0 || y < 0 || x >= world.Width || y >= world.Height) return null;
@@ -477,6 +488,17 @@ public partial class WorldTerrainLayer : Control
                 if ((wrapsEastWest ? Mod(x, world.Width) : x) != selected.X) continue;
                 DrawRect(new Rect2(new Vector2(x * stride + 1, selected.Y * stride + 1),
                     new Vector2(tileSize - 2, tileSize - 2)),
+                    new Color("FFD166"), filled: false, width: tileSize >= 12 ? 3 : 2);
+            }
+        }
+        if (selectedBuilding is { } building && tileSize > 0 &&
+            building.End.Y > bounds.Top && building.Position.Y < bounds.Top + bounds.Height)
+        {
+            for (var x = bounds.Left - building.Size.X + 1; x < bounds.Left + bounds.Width; x++)
+            {
+                if ((wrapsEastWest ? Mod(x, world.Width) : x) != building.Position.X) continue;
+                DrawRect(new Rect2(new Vector2(x * stride + 1, building.Position.Y * stride + 1),
+                    new Vector2(building.Size.X * stride - tileGap - 2, building.Size.Y * stride - tileGap - 2)),
                     new Color("FFD166"), filled: false, width: tileSize >= 12 ? 3 : 2);
             }
         }

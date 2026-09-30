@@ -27,6 +27,7 @@ public partial class Main
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
             ClearTileSelection();
+            ClearBuildingSelection();
         }
         foreach (var worldEvent in appendedEvents)
         {
@@ -44,6 +45,7 @@ public partial class Main
         RenderFounderSetup(snapshot);
         RenderWorldInfo(snapshot);
         RenderSelectedInhabitantCard(snapshot);
+        RenderBuildingCard(snapshot);
         if (familyTreePanel.Visible && selectedInhabitantId is { } center)
         {
             familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, center);
@@ -241,6 +243,7 @@ public partial class Main
 
         RenderTileInspection(snapshot);
         PositionSelectedInhabitantCard(snapshot);
+        PositionBuildingQuickCard(snapshot);
         RefreshTileHoverAtMouse();
     }
 

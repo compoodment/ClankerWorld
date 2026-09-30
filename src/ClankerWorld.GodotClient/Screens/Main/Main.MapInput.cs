@@ -112,6 +112,7 @@ public partial class Main
         cameraCenterTiles = tileCenter;
         UpdateMapGeometry(snapshot);
         PositionSelectedInhabitantCard(snapshot);
+        PositionBuildingQuickCard(snapshot);
     }
 
     private void PanCamera(Vector2 deltaTiles)
@@ -181,8 +182,15 @@ public partial class Main
             else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
                 var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y))
+                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile) is { } building)
                 {
+                    // A building opens its own card instead of the tile's.
+                    SelectBuilding(building.InstanceId);
+                    mapCanvas.AcceptEvent();
+                }
+                else if (MapContains(snapshot, tile.X, tile.Y))
+                {
+                    ClearBuildingSelection();
                     selectedTile = tile;
                     terrainLayer.SetSelectedTile(tile);
                     // Show first: hidden containers report no content size.
