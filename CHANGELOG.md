@@ -323,6 +323,10 @@ release yet.
 
 ### Changed
 
+- The map is quieter. An agent's name appears only while you hover over or
+  select them, as outlined pixel letters without a dark box (gold for the
+  selected agent), and no longer carries an activity symbol. Buildings no
+  longer show their names on the map; hover over one to see its name.
 - The Main Menu now shows the ClankerWorld logo instead of a plain text title and slogan: wood-grain letters either side of a friendly robot waving in front of a little planet, floating over the valley above the menu buttons. The line of text in the menu only appears when something needs your attention, such as connecting this device or reaching your world. The robot and planet are also the game window's icon and the Windows program's icon.
 - Agents no longer start Shelters, Storehouses, Cooking fires or Stone
   hearths. A household's House now provides shelter, cooking, warmth from its

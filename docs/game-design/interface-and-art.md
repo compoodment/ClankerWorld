@@ -165,6 +165,12 @@ everything that is available in the current build. See [what works today](../wha
   buttons, other buttons share one height, and confirming something that
   cannot be undone uses a red button. The hover readout names what is under
   the pointer without map coordinates.
+- **Agreed after the September 30 nameplate review:** the map shows an agent's
+  name only while that agent is selected or hovered, as light pixel letters
+  with a dark edge and no box; the selected agent's name is gold. Names carry
+  no activity symbol. Buildings show no names on the map; hovering a building
+  still names it. computment chose the outlined-text look (option C) with the
+  only-when-needed rule (option E) from the nameplate mockups.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

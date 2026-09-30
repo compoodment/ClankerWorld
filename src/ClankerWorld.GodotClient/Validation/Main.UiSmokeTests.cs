@@ -1263,8 +1263,9 @@ public partial class Main
             if (terrainLayer.TreeStageAt(2, 1) != "growing")
                 throw new InvalidOperationException("Regrowing orchard trees must show their growing stage.");
             var builtMarker = mapObjectVisuals["building:test-hall"];
-            if (!builtMarker.Text.Contains("Test hall", StringComparison.Ordinal) || builtMarker.Size.X <= builtMarker.Size.Y)
-                throw new InvalidOperationException("Built structures must render their name and multi-tile footprint.");
+            if (builtMarker.Text.Length > 0 || !builtMarker.TooltipText.Contains("Test hall", StringComparison.Ordinal) ||
+                builtMarker.Size.X <= builtMarker.Size.Y)
+                throw new InvalidOperationException("Built structures must keep their multi-tile footprint and hover help without a name on the map.");
             var founderPosition = new OwnerWorldPosition(2, 0);
             var founder = new OwnerWorldInhabitant("founder-ui-test", "Rowan", "active", founderPosition,
                 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
@@ -1276,9 +1277,17 @@ public partial class Main
             RenderMap(occupied);
             var founderButton = inhabitantVisuals[founder.Id];
             var founderButtonIdentity = founderButton.GetInstanceId();
-            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || !founderButton.ShowNameTag ||
-                founderButton.Caption.Length == 0)
-                throw new InvalidOperationException("A lone agent on the map must use their stable sprite and show a name tag.");
+            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || founderButton.Caption != "Rowan" ||
+                founderButton.NameShown)
+                throw new InvalidOperationException("An agent on the map must use their stable sprite and keep their name hidden until needed.");
+            founderButton.EmitSignal(Control.SignalName.MouseEntered);
+            var hoverNamed = founderButton.NameShown;
+            founderButton.EmitSignal(Control.SignalName.MouseExited);
+            founderButton.Selected = true;
+            var selectedNamed = founderButton.NameShown;
+            founderButton.Selected = false;
+            if (!hoverNamed || !selectedNamed || founderButton.NameShown)
+                throw new InvalidOperationException("An agent's name must show only while it is hovered or selected.");
             if (terrainLayer.CampResourceSpriteCount == 0 || mapObjectVisuals["resource:wood"].Text.Contains('▰'))
                 throw new InvalidOperationException("Older camp resources such as the wood store must draw as sprites instead of glyphs.");
             if (terrainLayer.BuildingSpriteCount != occupied.PlacedBuildings.Count ||
