@@ -3,37 +3,356 @@ using Godot;
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
-/// Pixel-art icons for stored items, generated at the size they are shown.
-/// Each item kind has its own picture; a kind without one yet (for example
-/// new content) shows a plain crate, so the owner still sees it counted.
+/// Pixel-art icons for stored items. Each is drawn by hand on a 16 × 16 grid
+/// in three or four shades, and gets a one-pixel outline all the way round
+/// its silhouette, in a darker shade of whatever it borders, so the outline
+/// is always complete. Icons scale only by whole numbers (16, 32, 48 px) so
+/// they stay crisp. An item kind without its own icon yet (for example new
+/// content) shows a plain crate, so it is still counted.
 /// </summary>
 public static class ItemIcons
 {
-    private static readonly Color Outline = new("3B2A1E");
+    public const int Grid = 16;
+    private const string Fallback = "crate";
+    private static readonly Color Ink = new("2A1A10");
     private static readonly Dictionary<(string Kind, int Size), ImageTexture> Cache = [];
+    private static readonly Dictionary<string, Image> Art = [];
 
-    private static readonly Dictionary<string, Action<PixelCanvas>> Painters = new(StringComparer.Ordinal)
+    /// <summary>Each row is one line of pixels; '.' is empty and every other letter is a palette colour.</summary>
+    private sealed record Icon(string Palette, string[] Rows);
+
+    private static readonly Dictionary<string, Icon> Icons = new(StringComparer.Ordinal)
     {
-        ["wood"] = PaintWood,
-        ["stone"] = canvas => PaintRock(canvas, new Color("6A6862"), new Color("8E8C86"), new Color("B8B5AC"), null),
-        ["iron_ore"] = canvas => PaintRock(canvas, new Color("5E5A57"), new Color("7E7874"), new Color("A39C95"), new Color("D0773A")),
-        ["clay"] = PaintClay,
-        ["iron"] = PaintIngot,
-        ["fiber"] = PaintFiber,
-        ["grain"] = PaintGrain,
-        ["flour"] = PaintFlour,
-        ["seed"] = PaintSeeds,
-        ["food"] = PaintApple,
-        ["berries"] = PaintBerries,
-        ["bread"] = PaintBread,
-        ["clothing"] = PaintTunic,
-        ["wooden_axe"] = PaintAxe,
-        ["wooden_pickaxe"] = PaintPickaxe,
-        ["tool"] = PaintHammer,
+        ["wood"] = new("b6B4423 m8E5C30 lB07A42 fE6C48E rC0925A c9C6A3A",
+        [
+            "................",
+            "................",
+            ".....ffllllllll.",
+            "....frrfmmmmmmm.",
+            "....frcfmmbmmmm.",
+            "....frrfbmbbbmb.",
+            ".....ffbbbbbbbb.",
+            "................",
+            "..fflllllllll...",
+            ".frrfmmmmmmmm...",
+            ".frcfmmbmmmbm...",
+            ".frrfbmbbbmbb...",
+            "..ffbbbbbbbbb...",
+            "................",
+            "................",
+            "................",
+        ]),
+        ["stone"] = new("hD6D3CA lAEABA3 m8A8780 d66645E k4A4844",
+        [
+            "................",
+            "................",
+            "........hl......",
+            "......hhhll.....",
+            ".....hhhhlll....",
+            "...hhhhhllllm...",
+            "..lhhhhllllmmm..",
+            "..llhhllllmmmmd.",
+            ".lllllllllmmmmd.",
+            ".llllllllmmmmdd.",
+            ".mllllllmmmmddd.",
+            ".mmmlllmmmmmddd.",
+            "..mmmmmmmmmdddk.",
+            "...mmmmmmdddkk..",
+            ".....kkkkkkk....",
+            "................",
+        ]),
+        ["clay"] = new("hEFA882 lD5825A mB8623C d8E4428 k6A3020",
+        [
+            "................",
+            "................",
+            "................",
+            "....hhhhhhhh....",
+            "...hllllllllh...",
+            "..hllddlllllll..",
+            "..lllllllddlll..",
+            ".mllllllllllllm.",
+            ".mmmmmmmmmmmmmm.",
+            ".mmmmmmmmmmmmmd.",
+            ".dmmmmmmmmmmmdd.",
+            "..dddddddddddd..",
+            "................",
+            "................",
+            "................",
+            "................",
+        ]),
+        ["iron_ore"] = new("hA69E98 l8A827C m6C6560 d524C48 k3E3A37 oC8662E OF2A060",
+        [
+            "................",
+            "................",
+            "........hl......",
+            "......hhOll.....",
+            ".....hhoOlll....",
+            "...hhhhhlloOm...",
+            "..lhoOhllllmmm..",
+            "..llhhlllommmmd.",
+            ".llllOolllmmmmd.",
+            ".llllllllmmoOdd.",
+            ".mlloOllmmmmddd.",
+            ".mmmlllmmOommdd.",
+            "..mmmmmmmmmdddk.",
+            "...mmmmmmdddkk..",
+            ".....kkkkkkk....",
+            "................",
+        ]),
+        ["iron"] = new("hEEF2F4 lBFC8CF m939CA5 d6A727B k50575E",
+        [
+            "................",
+            "................",
+            "......hhhh......",
+            ".....hllllh.....",
+            "....mmmmmmmm....",
+            "....mhmmmmmd....",
+            "....dddddddk....",
+            "...hlllllllll...",
+            "..hlllllllllll..",
+            ".mmmmmmmmmmmmmd.",
+            ".mhmmmmmmmmmmmd.",
+            ".mmmmmmmmmmmmmd.",
+            ".dddddddddddddk.",
+            "................",
+            "................",
+            "................",
+        ]),
+        ["fiber"] = new("hF0E0A0 lD8C47A mB8A458 d8E7C3E k6E5E2C",
+        [
+            "................",
+            "................",
+            "......llll......",
+            "....llhhllmm....",
+            "...lhhlldlmmm...",
+            "..lhllddllmmmd..",
+            "..llddllmmddmd..",
+            ".llddllmmddmmdd.",
+            ".lddllmmddmmddd.",
+            ".llllmmddmmdddd.",
+            ".mllmmddmmmdddd.",
+            "..mmmddmmddddd..",
+            "..mmddmmdddddd..",
+            "...mmmddddddm...",
+            ".....dddddd..mm.",
+            "................",
+        ]),
+        ["grain"] = new("eE2B64A EF6D882 sB8963E S8A6E2C t7A4E2A",
+        [
+            "................",
+            ".......E........",
+            "......eEe.......",
+            "...E..EeE..E....",
+            "..eEe.eEe.eEe...",
+            "..EeE.EeE.EeE...",
+            "..eEe..s..eEe...",
+            "..EeE..s..EeE...",
+            "...s...s...s....",
+            "....s..s..s.....",
+            ".....s.s.s......",
+            "......sss.......",
+            ".....ttttt......",
+            "......sSs.......",
+            ".....s.S.s......",
+            "................",
+        ]),
+        ["flour"] = new("WF8F2E2 wE8DEC6 gCDBF9E GA89878 t8A5A30 sC8A060",
+        [
+            "................",
+            "......ww.ww.....",
+            ".......www......",
+            "......ttttt.....",
+            ".....wWWwwww....",
+            "....wWWwwwwwg...",
+            "...wWWwwwwwwgg..",
+            "..wWwwwwwwwggg..",
+            ".wwWwwwwwwwwggg.",
+            ".wwwwwwwwwwwggg.",
+            ".wwwwwwwwwwgggG.",
+            ".gwwwwwwwwggggG.",
+            "..ggggggggggGG..",
+            "...GGGGGGGGGG...",
+            "................",
+            "................",
+        ]),
+        ["seed"] = new("lC8985E m9A6A3A d6A4222",
+        [
+            "................",
+            "................",
+            "...ll.....ll....",
+            "..lmmm...lmmm...",
+            "..mmmd...mmmd...",
+            "..mmdd...mmdd...",
+            "...dd.....dd....",
+            "................",
+            "......ll........",
+            ".....lmmm...ll..",
+            ".....mmmd..lmmm.",
+            ".....mmdd..mmmd.",
+            "......dd...mmdd.",
+            "............dd..",
+            "................",
+            "................",
+        ]),
+        ["food"] = new("rC23A2A RE0584A hF8A08A d8A2418 s5E3A1E g6AA640 G3E6E28",
+        [
+            "................",
+            "........s.gg....",
+            "........sgGGg...",
+            "...RRRR.srrrr...",
+            "..RhhRRRrrrrrr..",
+            ".RhhRRRrrrrrrrr.",
+            ".RhRRRrrrrrrrrr.",
+            ".RRRRrrrrrrrrrd.",
+            ".RRRrrrrrrrrrrd.",
+            ".RRrrrrrrrrrrdd.",
+            ".rrrrrrrrrrrrdd.",
+            "..rrrrrrrrrrdd..",
+            "..rrrrrrrrrddd..",
+            "...rrrr..rddd...",
+            "................",
+            "................",
+        ]),
+        ["berries"] = new("m7E3A96 hC89AE6 lA060C0 d4E2262 g6AA640 G3E6E28 s5E3A1E",
+        [
+            "................",
+            ".......gg.......",
+            "......gGGg......",
+            ".......s.s......",
+            ".....lm...lm....",
+            "....lhmm.lhmm...",
+            "....mmmd.mmmd...",
+            ".....dd...dd....",
+            "...lm...lm......",
+            "..lhmm.lhmm.lm..",
+            "..mmmd.mmmdlhmm.",
+            "...dd...dd.mmmd.",
+            "............dd..",
+            "................",
+            "................",
+            "................",
+        ]),
+        ["bread"] = new("cC07A34 CDC9C52 hF2C27E d8A5222 k6A3C18",
+        [
+            "................",
+            "................",
+            "................",
+            "................",
+            "................",
+            ".....CCCCCC.....",
+            "...CChhChhCCc...",
+            "..ChhCChhCChcc..",
+            ".CChCCChCCChccc.",
+            ".cCCCCCCCCCcccd.",
+            ".cccccccccccccd.",
+            "..cccccccccccdd.",
+            "...kdddddddddk..",
+            "................",
+            "................",
+            "................",
+        ]),
+        ["clothing"] = new("b4A6E9E B6C92C4 h92B4DE d32507E t7A4E2A TC09A5A",
+        [
+            "................",
+            "................",
+            "...bbbb..bbbb...",
+            "..bbBBBd.dBBBbb.",
+            ".bbBBBBBdBBBBbb.",
+            ".bbBhBBBBBBhBbb.",
+            ".bbbBhBBBBBBbbb.",
+            ".ddbBBBBBBBBbdd.",
+            "....BBBBBBBB....",
+            "....ttttTttt....",
+            "....bBBBBBBb....",
+            "....bBBBBBBb....",
+            "....bBBBBBBb....",
+            "....dddddddd....",
+            "................",
+            "................",
+        ]),
+        ["wooden_axe"] = new("HC08448 D7A4E26 g8C8984 GB8B5AE k5E5C57 EE4E1D8",
+        [
+            "................",
+            "..E......HD.....",
+            ".EGGGGGGGHDk....",
+            ".EGgggggGHDk....",
+            ".EGgggggkHDk....",
+            ".EGggggkkHDk....",
+            ".EGgggkkkHDk....",
+            "..Ekkkkk.HD.....",
+            ".........HD.....",
+            ".........HD.....",
+            ".........HD.....",
+            ".........HD.....",
+            ".........HD.....",
+            ".........DD.....",
+            "................",
+            "................",
+        ]),
+        ["wooden_pickaxe"] = new("HC08448 D7A4E26 g8C8984 GB8B5AE k5E5C57",
+        [
+            "................",
+            "................",
+            "....GGGHDGGG....",
+            "..GGgggHDgggkk..",
+            ".Ggk...HD...kgk.",
+            ".gk....HD....kk.",
+            ".k.....HD.....k.",
+            ".......HD.......",
+            ".......HD.......",
+            ".......HD.......",
+            ".......HD.......",
+            ".......HD.......",
+            ".......HD.......",
+            ".......DD.......",
+            "................",
+            "................",
+        ]),
+        ["tool"] = new("HC08448 D7A4E26 g8C8984 GB8B5AE k5E5C57",
+        [
+            "................",
+            "................",
+            "..kGGGGGGGGk....",
+            "..kGgggggggk....",
+            "..kkkkHDkkkk....",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......HD........",
+            "......DD........",
+            "................",
+            "................",
+        ]),
+        ["crate"] = new("wB07A42 WD09A5A d7A4E26",
+        [
+            "................",
+            "................",
+            ".WWWWWWWWWWWWWW.",
+            ".WddwwwwwwwwwdW.",
+            ".WwddwwwwwwwwwW.",
+            ".WwwddwwwwwwwwW.",
+            ".WwwwddwwwwwwwW.",
+            ".WWWWWWWWWWWWWW.",
+            ".WwwwwwwddwwwwW.",
+            ".WwwwwwwwddwwwW.",
+            ".WwwwwwwwwddwwW.",
+            ".WwwwwwwwwwddwW.",
+            ".WdwwwwwwwwwddW.",
+            ".dddddddddddddd.",
+            "................",
+            "................",
+        ]),
     };
 
-    /// <summary>Whether this kind has its own picture rather than the crate.</summary>
-    public static bool Has(string kind) => Painters.ContainsKey(kind);
+    /// <summary>The item kinds that have their own icon.</summary>
+    public static IReadOnlyCollection<string> Kinds => Icons.Keys.Where(kind => kind != Fallback).ToArray();
+
+    /// <summary>Whether this kind has its own icon rather than the crate.</summary>
+    public static bool Has(string kind) => kind != Fallback && Icons.ContainsKey(kind);
 
     public static ImageTexture Texture(string kind, int size)
     {
@@ -44,241 +363,62 @@ public static class ItemIcons
         return texture;
     }
 
+    /// <summary>
+    /// The icon at the largest whole-number scale that fits <paramref name="size"/>,
+    /// centred on a transparent square of that size.
+    /// </summary>
     public static Image Render(string kind, int size)
     {
+        var art = OutlinedArt(Icons.ContainsKey(kind) ? kind : Fallback);
+        var scale = Math.Max(1, size / Grid);
+        var offset = (size - Grid * scale) / 2;
         var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
         image.Fill(Colors.Transparent);
-        // Icons are drawn on a 16-unit grid and scaled to the requested size.
-        var canvas = new PixelCanvas(image, new Rect2I(0, 0, size, size), size / 16f);
-        (Painters.GetValueOrDefault(kind) ?? PaintCrate)(canvas);
+        for (var y = 0; y < Grid; y++)
+            for (var x = 0; x < Grid; x++)
+            {
+                var color = art.GetPixel(x, y);
+                if (color.A > 0) image.FillRect(new Rect2I(offset + x * scale, offset + y * scale, scale, scale), color);
+            }
         return image;
     }
 
-    private static void Box(PixelCanvas c, float x, float y, float w, float h, Color fill) =>
-        c.Rect(x, y, w, h, fill);
-
-    private static void OutlinedBox(PixelCanvas c, float x, float y, float w, float h, Color fill)
+    /// <summary>The 16 × 16 art with its outline, drawn once per kind.</summary>
+    public static Image OutlinedArt(string kind)
     {
-        c.Rect(x - 1, y - 1, w + 2, h + 2, Outline);
-        c.Rect(x, y, w, h, fill);
+        if (Art.TryGetValue(kind, out var cached)) return cached;
+        var icon = Icons[kind];
+        var palette = icon.Palette.Split(' ').ToDictionary(entry => entry[0], entry => new Color(entry[1..]));
+        var fill = new Color?[Grid, Grid];
+        for (var y = 0; y < Grid; y++)
+            for (var x = 0; x < Grid; x++)
+                if (icon.Rows[y][x] is not '.' and var key) fill[x, y] = palette[key];
+        var image = Image.CreateEmpty(Grid, Grid, false, Image.Format.Rgba8);
+        image.Fill(Colors.Transparent);
+        for (var y = 0; y < Grid; y++)
+            for (var x = 0; x < Grid; x++)
+            {
+                if (fill[x, y] is { } color)
+                {
+                    image.SetPixel(x, y, color);
+                    continue;
+                }
+                // An empty pixel beside the silhouette becomes outline, in a
+                // dark shade of the darkest colour it touches.
+                Color? darkest = null;
+                foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    if (x + dx is >= 0 and < Grid && y + dy is >= 0 and < Grid && fill[x + dx, y + dy] is { } near &&
+                        (darkest is null || near.Luminance < darkest.Value.Luminance))
+                        darkest = near;
+                if (darkest is { } edge) image.SetPixel(x, y, (edge * 0.42f).Lerp(Ink, 0.45f) with { A = 1 });
+            }
+        Art[kind] = image;
+        return image;
     }
 
-    private static void OutlinedDisc(PixelCanvas c, float x, float y, float r, Color fill)
-    {
-        c.Disc(x, y, r + 1, Outline);
-        c.Disc(x, y, r, fill);
-    }
-
-    private static void PaintWood(PixelCanvas c)
-    {
-        var bark = new Color("7A4E2A");
-        var barkLight = new Color("A06A3A");
-        var face = new Color("DDB47C");
-        var ring = new Color("A87A48");
-        foreach (var (x, y) in new[] { (3f, 3f), (5f, 9f) })
-        {
-            OutlinedBox(c, x + 2, y, 9, 4, bark);
-            Box(c, x + 2, y, 9, 1, barkLight);
-            OutlinedDisc(c, x + 2, y + 2, 2.5f, face);
-            c.Dot(x + 2, y + 2, ring);
-            c.Ring(x + 2, y + 2, 1.6f, ring);
-        }
-    }
-
-    private static void PaintRock(PixelCanvas c, Color dark, Color mid, Color light, Color? fleck)
-    {
-        c.Ellipse(8, 9.5f, 6.8f, 5.3f, Outline);
-        c.Ellipse(8, 9.5f, 5.8f, 4.3f, mid);
-        c.Ellipse(9.5f, 11.5f, 4f, 2.2f, dark);
-        c.Ellipse(6.5f, 8f, 2.6f, 1.6f, light);
-        c.Ellipse(12.5f, 13f, 2.4f, 1.8f, Outline);
-        c.Ellipse(12.5f, 13f, 1.6f, 1.1f, mid);
-        if (fleck is { } ore)
-            foreach (var (x, y) in new[] { (5f, 10f), (8f, 8f), (10f, 11f), (11f, 8f), (7f, 12f) })
-                c.Rect(x, y, 1, 1, ore);
-    }
-
-    private static void PaintClay(PixelCanvas c)
-    {
-        c.Lumpy(8, 9, 6.2f, Outline, 5, 1);
-        c.Lumpy(8, 9, 5.2f, new Color("B5653E"), 5, 1);
-        c.Ellipse(6.5f, 7.5f, 2.2f, 1.4f, new Color("D6875C"));
-        c.Line(9, 7, 11, 11, new Color("8A4528"));
-    }
-
-    private static void PaintIngot(PixelCanvas c)
-    {
-        c.Rect(2, 6, 12, 7, Outline);
-        c.Rect(4, 5, 8, 1, Outline);
-        c.Rect(4, 6, 8, 3, new Color("CDD4DA"));
-        c.Rect(3, 7, 1, 2, new Color("CDD4DA"));
-        c.Rect(12, 7, 1, 2, new Color("CDD4DA"));
-        c.Rect(3, 9, 10, 3, new Color("8E979F"));
-        c.Rect(3, 11, 10, 1, new Color("6E767D"));
-        c.Rect(5, 6, 3, 1, Colors.White);
-    }
-
-    private static void PaintFiber(PixelCanvas c)
-    {
-        // A bound bundle of stalks, flaring at both ends.
-        var shades = new[] { new Color("C9B26A"), new Color("E3D08C"), new Color("B09A52") };
-        c.Rect(4, 2, 8, 13, Outline);
-        c.Rect(3, 2, 1, 3, Outline);
-        c.Rect(12, 2, 1, 3, Outline);
-        c.Rect(3, 12, 1, 3, Outline);
-        c.Rect(12, 12, 1, 3, Outline);
-        for (var i = 0; i < 8; i++)
-        {
-            var x = 4 + i;
-            var flare = i < 4 ? -0.6f : 0.6f;
-            c.Line(x + flare, 3, x, 8, shades[i % 3]);
-            c.Line(x, 9, x + flare, 14, shades[(i + 1) % 3]);
-        }
-        OutlinedBox(c, 4, 8, 8, 2, new Color("7A4E2A"));
-        Box(c, 4, 8, 8, 1, new Color("A0703C"));
-    }
-
-    private static void PaintGrain(PixelCanvas c)
-    {
-        var stalk = new Color("B89A48");
-        var ear = new Color("E8C862");
-        var earDark = new Color("C49A38");
-        foreach (var x in new[] { 5f, 8f, 11f })
-        {
-            c.Line(x, 6, 8, 15, Outline);
-            c.Line(x + 0.5f, 6, 8.5f, 15, stalk);
-        }
-        foreach (var x in new[] { 5f, 8f, 11f })
-        {
-            c.Ellipse(x, 4.5f, 1.8f, 3.4f, Outline);
-            c.Ellipse(x, 4.5f, 1f, 2.6f, ear);
-            c.Dot(x, 5, earDark);
-            c.Dot(x, 3, earDark);
-        }
-        OutlinedBox(c, 6, 10, 5, 1, new Color("7A4E2A"));
-    }
-
-    private static void PaintFlour(PixelCanvas c)
-    {
-        c.Ellipse(8, 10, 5.8f, 5.2f, Outline);
-        c.Ellipse(8, 10, 4.8f, 4.2f, new Color("EDE3CC"));
-        c.Ellipse(9.5f, 12, 2.8f, 1.8f, new Color("CFC2A4"));
-        c.Rect(6, 3, 4, 3, Outline);
-        c.Rect(7, 3, 2, 2, new Color("EDE3CC"));
-        OutlinedBox(c, 6, 5, 4, 1, new Color("A0703C"));
-        c.Rect(6, 9, 4, 1, new Color("B8A98A"));
-    }
-
-    private static void PaintSeeds(PixelCanvas c)
-    {
-        var seed = new Color("9A6A3A");
-        var light = new Color("C99A62");
-        foreach (var (x, y) in new[] { (5f, 6f), (10f, 5f), (7.5f, 10f), (12f, 11f), (4.5f, 12f) })
-        {
-            c.Ellipse(x, y, 2.2f, 3f, Outline);
-            c.Ellipse(x, y, 1.3f, 2.1f, seed);
-            c.Dot(x - 0.5f, y - 1, light);
-        }
-    }
-
-    private static void PaintApple(PixelCanvas c)
-    {
-        OutlinedDisc(c, 8, 10, 5, new Color("C8402E"));
-        c.Disc(6.5f, 8.5f, 1.4f, new Color("EE7A5C"));
-        c.Ellipse(10, 12.5f, 2.2f, 1.4f, new Color("962C20"));
-        c.Line(8, 3, 8.5f, 6, Outline);
-        c.Leaf(10.5f, 4, 3, 1.6f, -0.5f, new Color("5A8A3A"), new Color("3E6628"));
-    }
-
-    private static void PaintBerries(PixelCanvas c)
-    {
-        var berry = new Color("7A3A8E");
-        var shine = new Color("B87ACC");
-        c.Leaf(8, 4, 4, 2, 0.2f, new Color("5A8A3A"), new Color("3E6628"));
-        foreach (var (x, y) in new[] { (5.5f, 9f), (10f, 8.5f), (8f, 12.5f), (12f, 12f), (4.5f, 13f) })
-            c.Disc(x, y, 2.9f, Outline);
-        foreach (var (x, y) in new[] { (5.5f, 9f), (10f, 8.5f), (8f, 12.5f), (12f, 12f), (4.5f, 13f) })
-        {
-            c.Disc(x, y, 2f, berry);
-            c.Dot(x - 0.7f, y - 0.8f, shine);
-        }
-    }
-
-    private static void PaintBread(PixelCanvas c)
-    {
-        c.Ellipse(8, 10, 7, 4.6f, Outline);
-        c.Ellipse(8, 10, 6, 3.6f, new Color("C8883E"));
-        c.Ellipse(8, 9, 5, 2.4f, new Color("E0A85A"));
-        foreach (var x in new[] { 5f, 8f, 11f })
-            c.Line(x - 1, 10, x + 1, 8, new Color("9A5E26"));
-    }
-
-    private static void PaintTunic(PixelCanvas c)
-    {
-        var cloth = new Color("5A7A9A");
-        var dark = new Color("40597A");
-        c.Rect(3, 3, 10, 12, Outline);
-        c.Rect(1, 4, 3, 6, Outline);
-        c.Rect(12, 4, 3, 6, Outline);
-        c.Rect(4, 4, 8, 10, cloth);
-        c.Rect(2, 5, 2, 4, cloth);
-        c.Rect(12, 5, 2, 4, cloth);
-        c.Rect(6, 3, 4, 2, Outline);
-        c.Rect(7, 4, 2, 1, dark);
-        c.Rect(4, 11, 8, 1, new Color("8A6A3A"));
-        c.Rect(4, 12, 8, 2, dark);
-    }
-
-    private static void Handle(PixelCanvas c, float fromX, float fromY, float toX, float toY)
-    {
-        for (var offset = -1f; offset <= 1f; offset += 0.5f)
-            c.Line(fromX + offset, fromY, toX + offset, toY, Outline);
-        c.Line(fromX, fromY, toX, toY, new Color("A0703C"));
-        c.Line(fromX + 0.5f, fromY, toX + 0.5f, toY, new Color("7A4E2A"));
-    }
-
-    private static void PaintAxe(PixelCanvas c)
-    {
-        Handle(c, 4, 15, 9, 2);
-        // A stone head lashed across the handle, its blade curving out to the right.
-        c.Ellipse(12, 5.5f, 3.4f, 4.4f, Outline);
-        c.Rect(7, 3, 5, 5, Outline);
-        c.Ellipse(12, 5.5f, 2.4f, 3.4f, new Color("8E8C86"));
-        c.Rect(8, 4, 4, 3, new Color("8E8C86"));
-        c.Line(14, 3, 14, 8, new Color("C9C6BC"));
-        c.Rect(8, 6, 4, 1, new Color("6A6862"));
-        c.Rect(9, 3, 1, 5, new Color("A0703C"));
-    }
-
-    private static void PaintPickaxe(PixelCanvas c)
-    {
-        Handle(c, 4, 15, 9, 5);
-        for (var i = 0; i <= 10; i++)
-        {
-            var t = i / 10f;
-            var x = 2 + t * 12;
-            var y = 5 - MathF.Sin(t * MathF.PI) * 3;
-            c.Disc(x, y, 1.6f, Outline);
-        }
-        for (var i = 0; i <= 10; i++)
-        {
-            var t = i / 10f;
-            c.Disc(2 + t * 12, 5 - MathF.Sin(t * MathF.PI) * 3, 0.8f, new Color("C9A06A"));
-        }
-    }
-
-    private static void PaintHammer(PixelCanvas c)
-    {
-        Handle(c, 5, 15, 9, 6);
-        OutlinedBox(c, 5, 3, 8, 4, new Color("8E979F"));
-        Box(c, 5, 3, 8, 1, new Color("CDD4DA"));
-    }
-
-    private static void PaintCrate(PixelCanvas c)
-    {
-        OutlinedBox(c, 3, 4, 10, 10, new Color("A0703C"));
-        Box(c, 3, 4, 10, 1, new Color("C9965C"));
-        Box(c, 3, 8.5f, 10, 1, new Color("7A4E2A"));
-        c.Line(4, 5, 12, 13, new Color("7A4E2A"));
-    }
+    /// <summary>Whether every row is 16 wide and no pixel touches the edge, so the outline fits.</summary>
+    public static bool FitsGrid(string kind) => Icons.TryGetValue(kind, out var icon) && icon.Rows.Length == Grid &&
+        icon.Rows.All(row => row.Length == Grid) &&
+        icon.Rows[0].All(pixel => pixel == '.') && icon.Rows[^1].All(pixel => pixel == '.') &&
+        icon.Rows.All(row => row[0] == '.' && row[^1] == '.');
 }
