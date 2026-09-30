@@ -74,6 +74,9 @@ one, and a workflow updates the repository.
   used to work, goes one level higher.
 - **Features, experiments and decisions** start at P2. The owner moves them;
   anyone else who thinks one is wrong says so in a comment instead of changing it.
+- **At most 5 open P0 and 7 open P1 issues.** When a level is full, give the
+  new issue the level below and comment asking the owner whether it should
+  replace one; do not move other issues down to make room.
 
 ## Work on an issue
 
