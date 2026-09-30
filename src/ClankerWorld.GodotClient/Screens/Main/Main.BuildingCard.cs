@@ -217,7 +217,7 @@ public partial class Main
                 storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, Pretty(item.Kind), item.ConditionBasisPoints, item.BrokenQuantity)).ToArray(),
                     stored.Where(item => item.ContainerCapacity > 0).ToDictionary(item => item.Kind, VesselContentsText));
         }
-        RenderBuildingStatus(snapshot, jobs, inside);
+        RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
 
         buildingDetailsPanel.Visible = buildingDetailsRequested;
@@ -227,14 +227,24 @@ public partial class Main
     }
 
     /// <summary>The quick card's one line on what is happening: work in progress, or who is inside.</summary>
-    private void RenderBuildingStatus(OwnerWorldSnapshot snapshot, OwnerWorldProductionJob[] jobs, string[] inside)
+    private void RenderBuildingStatus(OwnerWorldSnapshot snapshot, OwnerWorldPlacedBuilding building,
+        OwnerWorldProductionJob[] jobs, string[] inside)
     {
         var signature = jobs.Length > 0
             ? string.Join('|', JobSummary(snapshot, jobs[0])) + (jobs.Length > 1 ? "+" + (jobs.Length - 1) : "")
             : string.Join('|', inside);
+        signature += $"|{building.ExpansionState}|{building.ExpansionFailure}";
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
+        if (building.ExpansionState == "running")
+            buildingQuickStatus.AddChild(new Label { Text = "Expanding storage" });
+        else if (building.ExpansionFailure is { } failure)
+            buildingQuickStatus.AddChild(new Label
+            {
+                Text = failure,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -274,7 +284,16 @@ public partial class Main
             ("Owner", household ?? town ?? "Nobody"),
             ("Used by", usedBy),
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
+            ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
+        if (building.StorageCapacity is { } capacity)
+            facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
+        if (building.ExpansionState == "running")
+            facts.Add(("Expansion", "Work in progress"));
+        else if (building.ExpansionFailure is { } failure)
+            facts.Add(("Expansion", failure));
+        if (building.InvitedGuests is { Count: > 0 } guests)
+            facts.Add(("Storm guests", string.Join(", ", guests) + " · shelter only"));
         // Only an entrance beside the footprint names a side; the fallback door is not a fact.
         if (building.Entrance is { } entrance &&
             BuildingDoor.Facing(Footprint(building), new Vector2I(entrance.X, entrance.Y)) is { Tile: not null } door)
