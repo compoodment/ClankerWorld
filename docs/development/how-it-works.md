@@ -373,6 +373,10 @@ another agent's project and Blacksmith ore use this selector; they do not
 require a path to the original map anchor. Gathering for one's own project does
 not use it yet. This does not change fuel duration or harvest yields.
 
+Shared fuel and equipment also require an unoccupied route to their collection
+point. Unreachable stock stays untouched and does not prevent an agent from
+using reachable supplies or gathering local fuel instead.
+
 ## Advanced generation controls
 
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
