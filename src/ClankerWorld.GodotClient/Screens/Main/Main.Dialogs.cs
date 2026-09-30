@@ -16,8 +16,8 @@ public partial class Main
         dialog.CancelButtonText = "Cancel";
         StyleButton(dialog.GetOkButton(), primary: true);
         StyleButton(dialog.GetCancelButton());
-        dialog.GetOkButton().CustomMinimumSize = new Vector2(150, 36);
-        dialog.GetCancelButton().CustomMinimumSize = new Vector2(110, 36);
+        dialog.GetOkButton().CustomMinimumSize = new Vector2(150, 34);
+        dialog.GetCancelButton().CustomMinimumSize = new Vector2(110, 34);
         dialog.GetLabel().AutowrapMode = TextServer.AutowrapMode.WordSmart;
     }
 }

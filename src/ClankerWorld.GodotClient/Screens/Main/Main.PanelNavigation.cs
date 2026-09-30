@@ -116,6 +116,8 @@ public partial class Main
         menuResumeButton.Text = "Resume";
         SetWorldMenuActionsVisible(true);
         menuHeadingLabel.Text = "Paused";
+        StyleIconButton(menuCloseButton, PixelGlyph.Close);
+        menuCloseButton.TooltipText = "Return to the world";
         worldInfoPanel.Hide();
         gameMenuPanel.Show();
         menuShade.Show();
@@ -158,7 +160,7 @@ public partial class Main
         developerScroll.Hide();
         menuPausedWorld = false;
         menuPauseConfirmed = false;
-        menuCloseButton.Text = "×";
+        StyleIconButton(menuCloseButton, PixelGlyph.Close);
         menuCloseButton.TooltipText = "Return to the world";
     }
 

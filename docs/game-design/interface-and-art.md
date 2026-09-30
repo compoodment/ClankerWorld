@@ -152,6 +152,13 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
+- **Agreed on September 30:** buttons are consistent across the whole game.
+  Every panel closes with one small square button showing a pixel ×. A screen
+  reached from another shows a pixel back chevron in that same place, instead
+  of a separate Back button. The Main Menu and Pause Menu use the same choice
+  buttons, other buttons share one height, and confirming something that
+  cannot be undone uses a red button. The hover readout names what is under
+  the pointer without map coordinates.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

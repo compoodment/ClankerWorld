@@ -377,7 +377,6 @@ public partial class Main
         {
             tab.Text = text;
             StyleSettingsCategoryButton(tab);
-            tab.CustomMinimumSize = new Vector2(0, 30);
             tab.Pressed += () => ShowWorldInfoPage(towns);
             tabs.AddChild(tab);
         }

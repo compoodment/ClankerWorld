@@ -160,16 +160,12 @@ public partial class Main
         founderApiKeyInput.PlaceholderText = "Paste API key";
         body.AddChild(founderApiKeyInput);
 
-        var close = new Button { Text = "Close" };
-        StyleButton(close);
-        close.Pressed += () =>
+        AddClosablePanelContents(founderSetupPanel, "Add an agent", body, () =>
         {
             founderApiKeyInput.Text = string.Empty;
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-        };
-        body.AddChild(close);
-        AddPanelContents(founderSetupPanel, "Add an agent", body);
+        });
         founderSetupPanel.Position = new Vector2(350, 14);
         founderSetupPanel.ZIndex = 90;
         founderSetupPanel.Hide();
