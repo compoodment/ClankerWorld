@@ -90,6 +90,12 @@ private thought. Absent fields remain unknown. Need scales are explained;
 Self context is included in the queued-observation digest. Nearby relationships,
 carried inventory and current activity are not all provided by this slice.
 
+Request text uses the game's own words (*agent*, *Town*, *House*), not the older
+*inhabitant*, *settlement* and *camp*. The personal-model request does not send
+the clock or the run and decision counters; admission uses them on the server.
+The request still names households by their internal ID, and the Jev request
+still carries those counters, because Jev's live service cannot be checked offline.
+
 The response must select a legal candidate. Confidence below 0.5 permits only
 the safe-idle fallback; probabilities are validated/retained but do not select
 the action. A current reply that names a candidate never offered to it, or has

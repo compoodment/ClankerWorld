@@ -81,11 +81,38 @@ public partial class Main
             label.AddThemeFontSizeOverride("font_size", UiFonts.Body * factor);
     }
 
-    /// <summary>Opens a confirmation at its size in interface pixels.</summary>
-    private void PopupDialog(ConfirmationDialog dialog, Vector2I size) =>
-        dialog.PopupCentered(DialogSize(size));
+    /// <summary>Opens a confirmation just large enough for its title, message and buttons.</summary>
+    private void PopupDialog(ConfirmationDialog dialog) =>
+        dialog.PopupCentered(DialogSize(FitDialog(dialog)));
 
     private Vector2I DialogSize(Vector2I size) => size * uiLayer.Factor;
+
+    /// <summary>The widest a confirmation's message runs before it wraps, in interface pixels.</summary>
+    private const int DialogTextWidth = 360;
+
+    /// <summary>Room kept on each side of a dialog's centered title for the close button.</summary>
+    private const int DialogTitleClearance = 30;
+
+    /// <summary>
+    /// A confirmation's size in interface pixels. Its message keeps its natural
+    /// width up to <see cref="DialogTextWidth"/> and wraps beyond that; the
+    /// dialog is no wider than its title, message or buttons need and no taller
+    /// than the wrapped message above its buttons.
+    /// </summary>
+    private static Vector2I FitDialog(AcceptDialog dialog)
+    {
+        var label = dialog.GetLabel();
+        var margins = dialog.GetThemeStylebox("panel").GetMinimumSize();
+        var buttons = dialog.GetOkButton().GetParent<Control>().GetCombinedMinimumSize();
+        var message = label.GetThemeFont("font").GetStringSize(label.Text, HorizontalAlignment.Left, -1,
+            label.GetThemeFontSize("font_size")).X + 1;
+        var title = UiFonts.Headings.GetStringSize(dialog.Title, HorizontalAlignment.Left, -1, UiFonts.Heading).X +
+            2 * DialogTitleClearance;
+        var width = Mathf.Ceil(Math.Max(Math.Min(message, DialogTextWidth), Math.Max(buttons.X, title) - margins.X));
+        label.Size = new Vector2(width, label.Size.Y);
+        var height = label.GetMinimumSize().Y + margins.Y + buttons.Y + dialog.GetThemeConstant("buttons_separation");
+        return new Vector2I((int)(width + margins.X), (int)Mathf.Ceil(height));
+    }
 
     private static Vector2I CurrentMonitorSize() =>
         DisplayServer.ScreenGetSize(DisplayServer.WindowGetCurrentScreen());

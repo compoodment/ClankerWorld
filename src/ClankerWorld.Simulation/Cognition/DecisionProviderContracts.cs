@@ -487,7 +487,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         {
             [ChoiceQuestionId] = new JevQuestion(
                 "choice",
-                "Choose exactly one legal candidate for the inhabitant's next small action. " +
+                "Choose exactly one legal candidate for the agent's next small action. " +
                 "hunger_basis_points says how well fed they are: 10000 is full and 0 is starving.",
                 request.Observation.Candidates.ToDictionary(
                     candidate => candidate.Id,
@@ -508,7 +508,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         var payload = new JevRequest(
             new
             {
-                inhabitant_id = request.Observation.InhabitantId,
+                agent_id = request.Observation.InhabitantId,
                 world_tick = request.Observation.WorldTick,
                 run_epoch = request.Observation.RunEpoch,
                 decision_generation = request.Observation.DecisionGeneration,
@@ -745,7 +745,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 new
                 {
                     role = "system",
-                    content = "You are one inhabitant of a settlement, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
+                    content = "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
                         "Self context is your saved identity and condition, not other inhabitants’ private information. " +
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
@@ -770,10 +770,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     role = "user",
                     content = JsonSerializer.Serialize(new
                     {
-                        inhabitant_id = request.Observation.InhabitantId,
-                        world_tick = request.Observation.WorldTick,
-                        run_epoch = request.Observation.RunEpoch,
-                        decision_generation = request.Observation.DecisionGeneration,
+                        agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         needs_name = request.Observation.NeedsName,
                         self = request.Observation.Self is { } self ? new
