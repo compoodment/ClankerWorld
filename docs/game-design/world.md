@@ -152,9 +152,10 @@ accounting details need design and playtesting.
   targets, **not locked constants**.
 - **The first local release supports Small and Medium worlds only.** Large,
   Huge and Mega stay as planned presets until the costs of saving, observing
-  and overviewing a world of that size are measured. The map's zoom-out limit
-  also stays as it is until Large is measured; see
-  [Interface and art](interface-and-art.md).
+  and overviewing a world of that size are measured. **Leaning toward
+  (provisional):** the map's zoom-out limit also stays as it is until Large is
+  measured, and is then tuned; see
+  [Interface and art](interface-and-art.md#leaning-toward).
 - Use **64×64 logical tiles per chunk** as the starting arrangement target.
   Chunks help storage, loading, and rendering without forcing an entire chunk
   into one giant texture. Rendering only what the camera sees is distinct from

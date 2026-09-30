@@ -63,8 +63,9 @@ everything that is available in the current build. See [what works today](../wha
   names is being investigated, and nothing about it is decided.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
-  as the child's surname. Children inherit tendencies, abilities,
-  culture, and provider/model settings; baby appearance uses baby art. Close
+  as the child's surname. Children inherit tendencies, culture, and
+  provider/model settings, but never skills: like every agent, a child starts
+  with no skills; baby appearance uses baby art. Close
   biological relatives cannot pair.
 - Agents can become a couple and then marry, but **a couple may have a baby
   without marrying first**. Marriage is not a birth requirement. When agents

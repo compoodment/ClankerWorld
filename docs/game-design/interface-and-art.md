@@ -231,6 +231,11 @@ categories and transition behavior for an in-flight Jev task remain open.
 World Settings must be absent from Main Menu Settings while no world is loaded;
 opening Main Menu settings must never enter a world.
 
+**Agreed (confirmed 30 September):** placing an agent with Add Agent on a
+household's property joins that household without its consent, as recorded in
+[Towns](towns.md#buildings-land-towns-and-animals). The rest of this paragraph
+stays provisional.
+
 In the **Add Agent** placement view, show exclusive household use areas and
 Town borders so computment can see the new agent's initial affiliation.
 Within the agreed placement order above, placement on a tile assigned
