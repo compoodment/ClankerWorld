@@ -197,7 +197,8 @@ public sealed partial class PrivateWorldRuntimeTests
         using var runtime = new PrivateWorldRuntime(
             "playtest-alpha",
             _ => new BuildSelectingProvider());
-        var (package, building, recipe) = MaterialPackage(durationTicks: 2);
+        // A household plans a building kind it does not hold yet, then works there.
+        var (package, building, recipe) = MaterialPackage(durationTicks: 2, buildingTag: "blacksmith");
         Activate(runtime, package);
 
         var decisions = new List<SocietyCognitionDispatchResult>();
@@ -207,16 +208,20 @@ public sealed partial class PrivateWorldRuntimeTests
             decisions.AddRange(result.Decisions);
         }
 
+        bool FromFirstHousehold(SocietyCognitionDispatchResult decision) =>
+            runtime.Society.GetInhabitant(decision.InhabitantId).HouseholdId == "household:camp-alpha";
         Assert.Contains(
             decisions,
-            decision => decision.InhabitantId == "founder-rowan" &&
+            decision => FromFirstHousehold(decision) &&
                 decision.Admission.Intention?.CandidateId.StartsWith(
                     $"build:building:{building.CanonicalId}:site:", StringComparison.Ordinal) == true);
+        Assert.Equal("household:camp-alpha",
+            Assert.Single(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId).HouseholdId);
         Assert.Contains(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId);
         Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
         Assert.Contains(
             decisions,
-            decision => decision.InhabitantId == "founder-rowan" &&
+            decision => FromFirstHousehold(decision) &&
                 decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
         Assert.Contains(runtime.WorldSimulation.ProductionJobs, item =>
             item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
@@ -342,7 +347,7 @@ public sealed partial class PrivateWorldRuntimeTests
         []);
 
     private static (ContentPackageManifest Package, BuildingDefinition Building, RecipeDefinition Recipe) MaterialPackage(
-        int durationTicks)
+        int durationTicks, string buildingTag = "camp")
     {
         var packageDigest = "sha256:" + new string('e', 64);
         var version = ContentVersion.Parse("1.0.0");
@@ -355,7 +360,7 @@ public sealed partial class PrivateWorldRuntimeTests
             1,
             2,
             [new ContentQuantity("wood", 2)],
-            ["camp"]);
+            [buildingTag]);
         var recipe = new RecipeDefinition(
             packageDigest,
             "berry-meal",
@@ -378,7 +383,7 @@ public sealed partial class PrivateWorldRuntimeTests
                     building.Version,
                     building.DisplayName,
                     building.PayloadDigest,
-                    """{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["camp"]}"""),
+                    $$"""{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["{{buildingTag}}"]}"""),
                 new ContentDefinition(
                     RecipeDefinition.SchemaKind,
                     recipe.LocalId,

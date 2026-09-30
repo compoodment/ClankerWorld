@@ -316,6 +316,7 @@ public sealed partial class PrivateWorldRuntime
             StageBlacksmithContent();
             StageHouseCookingContent();
             StageForestryContent();
+            StageSiloContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),

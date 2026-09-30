@@ -99,7 +99,7 @@ public sealed partial class PrivateWorldRuntime
             [
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
-                HouseCookingContent.Create(),
+                HouseCookingContent.Create(), SiloContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -383,7 +383,7 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "Only a member of the building's household can work there.");
 
-            if (workstation?.Tags.Any(tag => tag is "farmhouse" or "blacksmith") == true && placed?.HouseholdId is null)
+            if (workstation?.Tags.Any(IsHouseholdBuildingTag) == true && placed?.HouseholdId is null)
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household workshop must be claimed before production.");
 

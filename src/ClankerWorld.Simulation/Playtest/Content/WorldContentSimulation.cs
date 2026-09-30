@@ -149,7 +149,7 @@ public static class WorldContentSimulationRules
             }
 
             var isHouse = definition.Tags.Contains("house", StringComparer.Ordinal);
-            var acceptsHouseholdOwner = definition.Tags.Any(tag => tag is "house" or "farmhouse" or "blacksmith");
+            var acceptsHouseholdOwner = definition.Tags.Any(HouseholdBuildingKinds.IsKindTag);
             if (isHouse && string.IsNullOrWhiteSpace(building.HouseholdId) ||
                 building.HouseholdId is not null && string.IsNullOrWhiteSpace(building.HouseholdId) ||
                 building.HouseholdId is not null && !acceptsHouseholdOwner ||

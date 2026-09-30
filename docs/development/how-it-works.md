@@ -375,9 +375,29 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
-Building plans are offered only to an agent with the Builder role or an
-aspiration that mentions building. A normal game gives agents neither, so these
-choices are not offered yet ([#470](https://github.com/compoodment/ClankerWorld/issues/470)).
+Building plans follow what a household needs, not a role. An adult whose
+household lacks a House, Farmhouse, Blacksmith or Silo is offered ranked sites
+for it once the household has the build costs in hand: stock the household
+owns anywhere, plus what its members carry. Each kind is planned at most once
+at a time and a household never holds two of a kind; a second member choosing
+the same kind in the same tick is refused, and a project stops if its household
+comes to hold that kind. Only a household holding a Farmhouse plans a Silo, and
+its sites must lie within two tiles of that Farmhouse, counting diagonals, with
+touching sites ranked first. This provisional reading of "next to" keeps a Silo
+possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
+adult at a time is offered to gather it from a reachable source. Buildings the
+Town shares, including a new Warehouse, are never offered to a household. The
+kinds are listed in `HouseholdBuildingKinds`, which already names the Tailor
+Shop and Store so they follow the same rules once their content exists.
+A crop's outputs other than ready-to-eat food go into its household's Silo when
+it holds one; ready food stays unlocated until it is carried to the House.
+
+A recipe project that finds its work site busy waits with the blocker "Waiting
+for a free work site". While anyone waits, no one else is offered a new recipe
+for the same kind of site (fertile land for crops, or the same workstation
+design), so the waiting agent gets the next turn instead of losing it each time
+the site frees. Every map still has a single fertile-land site, so this queue
+matters once more than one household farms.
 
 Recipes do not depend on a role or on personality or aspiration text. An adult
 resident is offered a crop recipe only when their household holds a Farmhouse,
@@ -421,7 +441,8 @@ for pending-will restore behavior.
 
 New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
-compatibility. House fires supply heat; the Weaving frame remains the temporary
+compatibility. Approved owner building designs stay active but are not household
+kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat; the Weaving frame remains the temporary
 clothing source while Tailor Shop production is undecided. General invention is
 later Workshop work.
 
