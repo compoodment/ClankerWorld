@@ -69,14 +69,17 @@ public partial class Main
             eventLog.PushColor(DimText);
             eventLog.AddText("Nothing notable has happened yet.");
             eventLog.Pop();
+            FitTextPanel(eventLog);
             return;
         }
 
         // Newest first, grouped under each day so a time is enough per row.
+        // Each row ends where the next begins, so no blank line trails the log.
         string? day = null;
         foreach (var entry in entries)
         {
             var (date, time) = SplitClock(entry.Clock);
+            if (day is not null) eventLog.Newline();
             if (date != day)
             {
                 if (day is not null) eventLog.Newline();
@@ -107,8 +110,8 @@ public partial class Main
                 eventLog.Pop();
             }
             else eventLog.AddText(entry.Text);
-            eventLog.Newline();
         }
+        FitTextPanel(eventLog);
     }
 
     private void JumpToEvent(string eventId)

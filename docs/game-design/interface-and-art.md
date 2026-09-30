@@ -152,6 +152,9 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
+- **Agreed on September 30:** panels and confirmation dialogs fit what they
+  hold rather than keeping a fixed size with empty space. A panel with long
+  text stays on screen and scrolls that text; a long dialog message wraps.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

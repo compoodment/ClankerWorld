@@ -274,28 +274,10 @@ public partial class Main
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
         SetPanelText(selectedTileText, string.Join('\n', lines));
-        FitSelectedTileText();
-    }
-
-    /// <summary>
-    /// Grows the tile card to its wrapped facts, so the last one is not hidden
-    /// behind a scrollbar, and re-anchors it inside the bottom of the view.
-    /// Before the card has been laid out its text width is unknown; the
-    /// label's Resized signal repeats the fit once the width arrives.
-    /// </summary>
-    private void FitSelectedTileText()
-    {
-        if (selectedTileText.Size.X >= 64)
-        {
-            var height = Math.Min(Math.Max(64, UiSize.Y - 96),
-                Math.Max(64, selectedTileText.GetContentHeight() + 4));
-            if (Math.Abs(selectedTileText.CustomMinimumSize.Y - height) >= 1)
-                selectedTileText.CustomMinimumSize = new Vector2(0, height);
-        }
-        selectedTilePanel.Size = selectedTilePanel.GetCombinedMinimumSize();
         PositionSelectedTilePanel();
     }
 
+    /// <summary>Keeps the tile card, which fits its facts, anchored inside the bottom of the view.</summary>
     private void PositionSelectedTilePanel() =>
         selectedTilePanel.Position = new Vector2(14,
             Math.Max(14, UiSize.Y - Math.Max(selectedTilePanel.Size.Y,

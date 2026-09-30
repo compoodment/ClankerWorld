@@ -391,10 +391,10 @@ public partial class Main
         ConfigureTextPanel(worldDetails, 240);
         townsPage.AddChild(worldDetails);
         body.AddChild(townsPage);
-        ConfigureTextPanel(worldInfoText, 220);
+        ConfigureTextPanel(worldInfoText, 300);
         body.AddChild(worldInfoText);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
-        worldInfoPanel.CustomMinimumSize = new Vector2(420, 380);
+        worldInfoPanel.CustomMinimumSize = new Vector2(420, 0);
         worldInfoPanel.ZIndex = 80;
         worldInfoPanel.Hide();
         content.AddChild(worldInfoPanel);
