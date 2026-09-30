@@ -232,6 +232,9 @@ public sealed partial class PrivateWorldRuntime
         founderSetup = proposed.founderSetup;
         towns = proposed.towns;
         roadTiles = proposed.roadTiles;
+        bridges = proposed.bridges;
+        bridgeTraffic = proposed.bridgeTraffic;
+        roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
 
@@ -311,6 +314,7 @@ public sealed partial class PrivateWorldRuntime
             StageHouseCookingContent();
             StageForestryContent();
             StageSiloContent();
+            StageTailorContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -454,6 +458,7 @@ public sealed partial class PrivateWorldRuntime
             var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
             ApplyContinuingIntentions(decisions.Select(item => item.InhabitantId).Concat(waiting));
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
+            AdvanceBridgeTraffic();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

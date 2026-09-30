@@ -9,6 +9,8 @@ public enum MeterKind
     Warmth,
     Diet,
     Illness,
+    /// <summary>How far a piece of work has got, such as a job at a workstation.</summary>
+    Progress,
 }
 
 /// <summary>
@@ -74,7 +76,7 @@ public partial class PixelMeter : Control
         var fill = Kind switch
         {
             MeterKind.Warmth => palette.MeterWarmth,
-            MeterKind.Diet => palette.MeterDiet,
+            MeterKind.Diet or MeterKind.Progress => palette.MeterDiet,
             MeterKind.Illness => palette.MeterIllness,
             _ => palette.MeterFullness,
         };

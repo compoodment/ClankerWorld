@@ -83,6 +83,9 @@ public sealed class HouseholdBuildingUseCoverageTests
             .Select(item => "recipe:" + item.LocalId).ToArray();
         var blacksmithRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == blacksmith.DefinitionId)
             .Select(item => "recipe:" + item.LocalId).ToArray();
+        var tailorShop = content.Buildings.Single(item => item.Tags.Contains("tailor"));
+        var tailorRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == tailorShop.CanonicalId)
+            .Select(item => "recipe:" + item.LocalId).ToArray();
         foreach (var household in world.Society.Households)
         {
             var families = FamiliesForHousehold(world, recorder, household.Id);
@@ -90,6 +93,8 @@ public sealed class HouseholdBuildingUseCoverageTests
                 Assert.DoesNotContain(families, family => cropRecipes.Contains(family) || farmhouseRecipes.Contains(family));
             if (!Holds(world, household.Id, "blacksmith"))
                 Assert.DoesNotContain(families, blacksmithRecipes.Contains);
+            if (!Holds(world, household.Id, "tailor"))
+                Assert.DoesNotContain(families, family => tailorRecipes.Contains(family) || family == "supply_workstation");
         }
 
         // Each household is offered the productive building it lacks, never a
@@ -109,7 +114,7 @@ public sealed class HouseholdBuildingUseCoverageTests
         foreach (var household in world.Society.Households)
         {
             var kinds = world.WorldSimulation.Buildings.Where(item => item.HouseholdId == household.Id)
-                .Select(item => definitions[item.DefinitionId].Tags.First(tag => tag is "house" or "farmhouse" or "blacksmith" or "silo"))
+                .Select(item => HouseholdBuildingKinds.KindOf(definitions[item.DefinitionId]))
                 .ToArray();
             Assert.Equal(kinds.Length, kinds.Distinct(StringComparer.Ordinal).Count());
         }

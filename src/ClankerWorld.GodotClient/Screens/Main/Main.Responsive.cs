@@ -48,11 +48,13 @@ public partial class Main
             else
             {
                 PositionSelectedInhabitantCard(snapshot);
+                PositionBuildingQuickCard(snapshot);
             }
         }
 
         if (controlsPanel.Visible) PositionControlsPanel();
         PositionAgentProfile();
+        PositionBuildingDetails();
         PositionMapHud();
         // Panels open just below the floating HUD, under the button that opened them.
         var hudTop = HudTop;
@@ -95,15 +97,26 @@ public partial class Main
         }
 
         selectedInhabitantCard.CustomMinimumSize = new Vector2(Math.Min(QuickCardWidth, Math.Max(1, ui.X - 24)), 0);
-        var cardSize = selectedInhabitantCard.GetCombinedMinimumSize();
-        var cardWidth = cardSize.X;
-        selectedInhabitantCard.Size = cardSize;
         // The map is drawn at screen resolution; the card lives in interface pixels.
         var stride = currentTileSize + TileGap;
         var tile = currentTileSize / (float)uiLayer.Factor;
-        var actorCenter = (mapStage.Position + new Vector2(
-            (inhabitant.Position.X * stride) + (currentTileSize / 2f),
-            (inhabitant.Position.Y * stride) + (currentTileSize / 2f))) / uiLayer.Factor;
+        var actorCorner = (mapStage.Position + new Vector2(inhabitant.Position.X * stride, inhabitant.Position.Y * stride)) / uiLayer.Factor;
+        PlaceQuickCard(selectedInhabitantCard, new Rect2(actorCorner, new Vector2(tile, tile)));
+    }
+
+    /// <summary>
+    /// Places a quick card above what it describes, or below it when there is
+    /// no room above, keeping clear of open top-bar panels. A tall card on a
+    /// short screen moves beside its target rather than covering it.
+    /// <paramref name="target"/> is in interface pixels.
+    /// </summary>
+    private void PlaceQuickCard(PanelContainer card, Rect2 target)
+    {
+        var ui = UiSize;
+        var cardSize = card.GetCombinedMinimumSize();
+        var cardWidth = cardSize.X;
+        card.Size = cardSize;
+        var center = target.GetCenter();
         // Keep clear of open top-bar panels, such as the Event Log, when there is room beside them.
         var (left, right) = (12f, ui.X - 12);
         foreach (var panel in HudPanels().Where(panel => panel.Visible))
@@ -112,26 +125,23 @@ public partial class Main
             else right = Math.Min(right, panel.Position.X - 12);
         }
         if (right - left < cardWidth) (left, right) = (12f, ui.X - 12);
-        var x = Math.Clamp(actorCenter.X - (cardWidth / 2), left, Math.Max(left, right - cardWidth));
-        var y = actorCenter.Y - (tile / 2f) - cardSize.Y - 12;
+        var x = Math.Clamp(center.X - (cardWidth / 2), left, Math.Max(left, right - cardWidth));
+        var y = target.Position.Y - cardSize.Y - 12;
         if (y < 12)
         {
-            y = actorCenter.Y + (tile / 2f) + 12;
+            y = target.End.Y + 12;
         }
 
         y = Math.Clamp(y, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
-        // A tall card on a short screen cannot fit above or below the agent,
-        // so it moves beside them rather than covering the person it describes.
-        var actorRect = new Rect2(actorCenter - new Vector2(tile, tile) / 2, new Vector2(tile, tile));
-        if (new Rect2(x, y, cardSize).Intersects(actorRect))
+        if (new Rect2(x, y, cardSize).Intersects(target))
         {
-            var besideRight = actorRect.End.X + 12;
-            var besideLeft = actorRect.Position.X - cardWidth - 12;
+            var besideRight = target.End.X + 12;
+            var besideLeft = target.Position.X - cardWidth - 12;
             if (besideRight + cardWidth <= right) x = besideRight;
             else if (besideLeft >= left) x = besideLeft;
-            y = Math.Clamp(actorCenter.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
+            y = Math.Clamp(center.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
         }
-        selectedInhabitantCard.Position = new Vector2(x, y);
+        card.Position = new Vector2(x, y);
     }
 
     /// <summary>The agent card sits below the HUD when it fits, and slides up over it only when it is taller than the room left.</summary>

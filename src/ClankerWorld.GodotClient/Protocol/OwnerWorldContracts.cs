@@ -253,6 +253,16 @@ public sealed record OwnerWorldProductionJob(
 
 public sealed record OwnerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
+/// <summary>A saved bridge: the same crossing movement uses, drawn and inspected from these tiles.</summary>
+public sealed record OwnerWorldBridge(
+    string Id,
+    string Design,
+    string Trigger,
+    string Axis,
+    IReadOnlyList<OwnerWorldPosition> Entrances,
+    IReadOnlyList<OwnerWorldPosition> Span,
+    long BuiltTick);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -293,6 +303,7 @@ public sealed record OwnerWorldSnapshot(
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
+    public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];

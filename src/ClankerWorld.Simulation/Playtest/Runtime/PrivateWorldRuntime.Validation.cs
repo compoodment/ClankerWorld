@@ -69,6 +69,10 @@ public sealed partial class PrivateWorldRuntime
         ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateTowns(towns, map, founderSetup, society.Checkpoint, worldSimulation, worldContent);
         ValidateRoads(RoadTiles, map, founderSetup);
+        ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
+            society.Checkpoint, inhabitants.Values);
+        if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
+            throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
@@ -234,6 +238,8 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
         if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
+        if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
+            throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
             throw new InvalidDataException(
                 $"Trees planted on new tiles require private-world schema {PlantedTreeSchemaVersion}.");
@@ -253,6 +259,8 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Private-world schema 23 requires agent map-knowledge state.");
         if (state.SchemaVersion >= 24 && state.RoadTiles is null)
             throw new InvalidDataException("Private-world schema 24 requires authoritative Road state.");
+        if (state.SchemaVersion >= 28 && (state.Bridges is null || state.BridgeTraffic is null))
+            throw new InvalidDataException("Private-world schema 28 requires authoritative bridge state.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
@@ -267,10 +275,13 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The private-world runtime contains an invalid map.");
         }
+        // Saved positions and paths may be on bridge decks, so check them
+        // against the same bridged map that movement uses.
+        var travelMap = TravelMap(state);
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
-        AgentKnowledgeRules.Validate(state.Knowledge, state.Map, society.Checkpoint,
+        AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick, state.SchemaVersion);
         ValidateSurvival(state);
         ValidateCouncil(state);
@@ -278,19 +289,20 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
-                (state.SchemaVersion < 28 || !CognitionProviderFailures.IsStatus(attempt.Status) ||
+                (state.SchemaVersion < 29 || !CognitionProviderFailures.IsStatus(attempt.Status) ||
                  attempt.WorldTick < 0 || attempt.WorldTick > state.Society.Society.WorldTick ||
                  (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
                  attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
                  attempt.LastAcceptedCandidateId is { } candidate &&
                     (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
-                 attempt.SetupBlocker is not (null or "unsupported_request")))
+                 attempt.SetupBlocker is not (null or "unsupported_request") ||
+                 attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
                 throw new InvalidDataException("The saved model attempt is invalid.");
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);
             ValidatePrivateThoughts(person.RecentThoughts, state.SchemaVersion, state.Society.Society.WorldTick);
-            ValidateExploration(person.Exploration, state.Map, state.Society.Society.WorldTick);
+            ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
         ContentPackageRegistry.Restore(state.Content);
@@ -338,6 +350,9 @@ public sealed partial class PrivateWorldRuntime
             ValidateTowns(state.Towns ?? MigrateTowns(state), state.Map, state.FounderSetup,
                 state.Society.Society, state.WorldSimulation, state.WorldContent);
             ValidateRoads(state.RoadTiles ?? [], state.Map, state.FounderSetup);
+            ValidateBridges(state.Bridges ?? [], state.BridgeTraffic ?? BridgeTrafficState.Empty, travelMap,
+                state.RoadTiles ?? [], state.WorldSimulation, state.WorldContent, state.Society.Society,
+                state.Inhabitants);
         }
 
         if (state.AssetReservations is not null)
@@ -355,7 +370,7 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, state.Map, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -367,6 +382,14 @@ public sealed partial class PrivateWorldRuntime
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
         }
+    }
+
+    private static SeededMap TravelMap(PrivateWorldRuntimeState state)
+    {
+        var bridges = state.Bridges ?? [];
+        RiverBridgeRules.ValidateSaved(bridges, state.Map, state.RoadTiles ?? [], state.Society.Society.WorldTick);
+        var decks = RiverBridgeRules.Decks(bridges);
+        return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 
     private static void ValidateDeceasedArchive(

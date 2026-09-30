@@ -170,7 +170,8 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
-            "town_building_assigned" or "town_border_expanded" or "town_founded" or "paused" or "resumed";
+            "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
+            "paused" or "resumed";
     }
 
     /// <summary>

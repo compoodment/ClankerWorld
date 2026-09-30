@@ -17,7 +17,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("Choose the first Town layout during paused setup before placing founders.");
             var existing = worldSimulation.Buildings;
             if (existing.Any(building => !building.InstanceId.StartsWith("first-town-", StringComparison.Ordinal)) ||
-                existing.Count is not (0 or 5))
+                existing.Count is not (0 or 5) || bridges.Count != 0)
                 throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var plan = FirstTownLayoutPlanner.Plan(map, roughSite)
                 ?? throw new ArgumentException("No connected five-building layout fits near this rough site.", nameof(roughSite));
@@ -77,11 +77,20 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("The starting households need usable food before a Town site can be accepted.");
         }
 
+        // Each starting agent's garment is kept in their household's House,
+        // so nobody is cold while the first Tailor Shop is built.
+        var garmentLocations = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["clothing:camp-alpha"] = firstHouse,
+            ["clothing:camp-beta"] = secondHouse,
+        };
         var stock = source with
         {
             Lots = source.Lots.Select(lot => foodLocations.TryGetValue(lot.Id, out var location)
                 ? lot with { StorageBuildingId = location.BuildingId }
-                : lot).ToArray(),
+                : garmentLocations.TryGetValue(lot.Id, out var house) && lot.ItemKind == "clothing"
+                    ? lot with { StorageBuildingId = house }
+                    : lot).ToArray(),
         };
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-axe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-axe", "wooden_axe",

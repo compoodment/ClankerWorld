@@ -81,13 +81,21 @@ public sealed class TownStreets
     /// run beside another street. It never turns more than 45° from the
     /// heading it set out on, so it cannot double back. A street shorter than
     /// <paramref name="minimum"/> tiles is taken up again.
+    /// <para>
+    /// Where <paramref name="crossRiver"/> is given and a step is blocked,
+    /// it may offer a bridge crossing from the current tile in that direction.
+    /// The street then continues from the crossing's far bank, which counts as
+    /// one step, and the crossing is added to <paramref name="crossings"/>.
+    /// Without it, as in the first Town's layout, streets keep to dry land.
+    /// </para>
     /// </summary>
     public List<GridPoint> Wander(GridPoint start, int direction, int length, double bendChance, Pcg32XshRrV1 random,
-        int minimum = 1)
+        int minimum = 1, Func<GridPoint, int, RiverCrossing?>? crossRiver = null, List<RiverCrossing>? crossings = null)
     {
         ArgumentNullException.ThrowIfNull(random);
         var heading = direction;
         var path = new List<GridPoint>();
+        var bridged = new List<RiverCrossing>();
         var current = start;
         var straight = 0;
         for (var step = 0; step < length; step++)
@@ -100,13 +108,26 @@ public sealed class TownStreets
             var moved = false;
             foreach (var choice in choices)
             {
-                if (Math.Abs(Turn(choice - heading, 4) - 4) > 1 ||
-                    !CanStep(current, choice, out var next) || RunsBeside(next, current, start, path)) continue;
+                if (Math.Abs(Turn(choice - heading, 4) - 4) > 1) continue;
+                RiverCrossing? crossing = null;
+                if (!CanStep(current, choice, out var next))
+                {
+                    if (crossRiver?.Invoke(current, choice) is not { } offered) continue;
+                    crossing = offered;
+                    next = offered.EntranceA == current ? offered.EntranceB : offered.EntranceA;
+                    if (!IsFree(next)) continue;
+                }
+                if (RunsBeside(next, current, start, path)) continue;
                 straight = choice == direction ? straight + 1 : 0;
                 direction = choice;
                 current = next;
                 path.Add(next);
                 Add(next);
+                if (crossing is not null)
+                {
+                    bridged.Add(crossing);
+                    crossings?.Add(crossing);
+                }
                 moved = true;
                 break;
             }
@@ -115,6 +136,7 @@ public sealed class TownStreets
         if (path.Count >= minimum) return path;
         roads.ExceptWith(path);
         order.RemoveAll(path.Contains);
+        crossings?.RemoveAll(bridged.Contains);
         return [];
     }
 
