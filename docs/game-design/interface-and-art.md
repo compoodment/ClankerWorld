@@ -205,6 +205,16 @@ everything that is available in the current build. See [what works today](../wha
   parent-child ancestry and partnerships; household membership is displayed
   separately, never as proof of biological family. Unrelated starter
   housemates must not be drawn as relatives.
+- **Agreed on September 30:** the agent card's **Speak to them** box sends a
+  Suggestion or a Direct order. A Direct order that asks for nothing the game
+  can act on, such as "build a house", is accepted and closed at once, and
+  the Event Log says the agent did not understand it. It uses no model request
+  and does not hold up later Suggestions or orders to that agent. A Direct
+  order the game understands but that cannot be carried out yet, such as "eat"
+  while the agent carries no food, keeps waiting, including across saves. It
+  is checked again only when the agent next makes one of its usual decisions,
+  never on every tick. Which orders the game understands is covered under
+  **Still to decide** below.
 
 ### Leaning toward
 
@@ -251,8 +261,9 @@ which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
 month/season names and date presentation; and the detailed player-control/
-observer boundary beyond adding and renaming agents. Computment may provide a
-UI drawing.
+observer boundary beyond adding and renaming agents. That boundary includes
+which Direct orders the game should understand and whether an agent's own model
+reads the words of a Suggestion or order. Computment may provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
 retention count, how memories are grouped/searched/labeled, family-tree

@@ -6,6 +6,7 @@ release yet.
 
 ## Unreleased
 
+- A Direct order the game can't act on, such as "build a house", now closes at once, and the Event Log says the agent didn't understand it. Before, it never finished, asked the agent's model for a new decision about once a second and held up later instructions to that agent. An order that can't be carried out yet, such as "eat" with no food, still waits, but without the extra requests. Orders are now read as whole words, so "heat" no longer counts as "eat" and "good" no longer counts as "go".
 - Keep descendants able to explore and save even when their inherited identities are long.
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 

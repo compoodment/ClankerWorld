@@ -25,6 +25,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            // Submission already closes these. Recognition can change between
+            // versions, so orders that are already waiting follow the same rule.
+            CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
@@ -124,7 +127,11 @@ public sealed partial class PrivateWorldRuntime
         CognitionIntention? current,
         List<CognitionCandidate> candidates)
     {
-        if (PendingInstructionFor(inhabitantId) is not null)
+        // A new instruction prompts one fresh decision. If it cannot progress
+        // yet, it waits for the agent's usual decisions instead of requesting
+        // another (possibly paid) decision on every tick.
+        if (PendingInstructionFor(inhabitantId) is { } instruction &&
+            (current is null || current.WorldTick <= instruction.SubmittedTick))
         {
             return true;
         }

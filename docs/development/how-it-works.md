@@ -65,11 +65,34 @@ authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
+Owner instructions are Suggestions (`Suggestive`) or Direct orders (`MustDo`).
+The model does not receive their text. `InstructionCandidate` reads whole words
+only: *harvest* or *gather* means `harvest_food`; *berry* means `seek_food`;
+*eat*, *food* or *hungry* means `consume_food`; and *go*, *travel* or *move*
+means `seek_food`, so travel always heads toward food. A few plain inflections
+such as *gathering* and *berries* also count.
+
+A MustDo with no recognized action is closed when it is submitted: it is added
+to the completed instructions with an `instruction_not_understood` event
+(`<agent ID>:<instruction ID>`), which the Event Log shows. Each tick repeats
+this check before scheduling, which also closes an order queued under earlier
+matching rules. A closed order requests no decision and no longer blocks later
+instructions to that agent.
+
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses: acquiring food or orchard fruit, eating, or taking a travel
 step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
 including across reload. Travel completion here is one step, not a full-route
-goal; suggestive instructions retain their separate semantics.
+goal. Instructions to one agent apply in submission order, so a pending order
+holds later ones back. A Suggestion completes at the agent's next accepted
+decision, whatever that decision is.
+
+A pending instruction prompts one fresh decision: it schedules cognition only
+until the agent has an accepted intention observed after the submission tick.
+After that, `NeedsCognition` applies its usual rules. For example, active agents
+reevaluate every 30 ticks, and idle agents reevaluate when their legal choices
+change or after 300 ticks. An order that cannot progress therefore cannot
+request a decision, or a paid model call, on every tick.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
