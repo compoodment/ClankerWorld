@@ -236,7 +236,8 @@ occupancy before each step. An agent gathering for its own project, and the chec
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
 reachable area (see [Material gathering](#material-gathering)). Boat access
-remains unfinished.
+remains unfinished. Trees and planting are described in
+[Trees and planting](#trees-and-planting).
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -475,6 +476,46 @@ not use it yet. This does not change fuel duration or harvest yields.
 Shared fuel and equipment also require an unoccupied route to their collection
 point. Unreachable stock stays untouched and does not prevent an agent from
 using reachable supplies or gathering local fuel instead.
+
+## Trees and planting
+
+Each tree is one map resource with one saved growth record
+(`EcologyResource`). Growth, harvest, tile inspection and map art all read that
+same record: `TreeGrowthRules.StageOf` turns it into the stage the host sends
+as `TreeStage`, and the client draws whatever the host sends. Every tree number
+lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
+
+- **Wood trees** are `sapling`, `mature` or `stump`. Felling a mature tree gives
+  wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
+  serves broadleaf and conifer.
+- **Planting** is the typed `PlantTree` action. It checks, in order, the
+  species (broadleaf or conifer only; orchard propagation is still open), that
+  the planter is an adult, that the seed lot is a tree seed they own with one
+  free, the ground (grass, forest floor or fertile soil; never water, sand,
+  rock, snow or dry scrub), buildings, Roads and existing objects, that the
+  planter stands on or next to the tile, and the chunk's resource budget. A
+  refusal returns a `TreePlantingRefusal` and a one-line reason and changes
+  nothing. Success consumes exactly one seed and adds a `planted-tree-{x}-{y}`
+  map resource with a sapling growth record, in the same tick.
+- **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
+  site is the nearest reachable open tile outside every Town border, so trees
+  do not block building sites. The species follows the nearest wood tree.
+  `replant_tree` also uses a tree seed.
+- **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
+  `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
+  worlds) and falls when that season ends. New worlds start in spring, so
+  orchards start without fruit.
+- **Saves.** Planted trees are part of the saved map. On load, the map must
+  still match regeneration apart from the settlement's staged sites and valid
+  planted trees; each planted tree must be a plantable species on legal ground,
+  off Roads and buildings, with its growth record. See
+  [saves and replay](saves-and-replay.md#current-formats-and-older-worlds).
+- **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
+  tree art: species, stage, asset ID, sprite, source, licence and review
+  status. The map reads its sprites and stage names from it. Every entry is a
+  provisional code-drawn placeholder; the tree-seed item has no art yet.
+- **Logs.** The host logs `tree_planting` outcomes (planted, refused,
+  replanted, seed collected) with the agent ID and a bounded detail.
 
 ## Advanced generation controls
 

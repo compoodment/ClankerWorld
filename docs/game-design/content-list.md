@@ -75,7 +75,7 @@ large circular weather overlays are rejected, not accepted asset references.
 | 2.9 | Agreed | Universal-grain field: prepared soil, seeded, sprout, mature, harvested | **Grain**, with no species-specific wheat/barley/etc. item; grain seed. |
 | 2.10 | Agreed | Potato field: same functional stages | **Potatoes** and potato planting stock; not generic roots or carrots. |
 | 2.11 | Agreed | Cultivated leafy-green field: same functional stages | Farmed greens, a **different, more filling food** than wild greens. |
-| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit; the orchard tree also obeys **one tree per tile**. **Leaning toward** (provisional, tuned in playtests): one species that fruits in autumn. Yield and other details open. |
+| 2.12 | Agreed | Orchard fruit tree: growing, fruiting, picked | Fruit; the orchard tree also obeys **one tree per tile**. **Leaning toward** (provisional, tuned in playtests): one species that fruits in autumn. The prototype starts with fruit ripening only in autumn and falling when autumn ends, a picked tree fruiting again after 3 days while autumn lasts, and 4 fruit per picking. Those numbers, orchard propagation and longer orchard cycles remain open. |
 
 The accepted compact base-food set is berries, wild greens, universal grain,
 potatoes, cultivated greens and orchard fruit. It avoids dozens of crops that

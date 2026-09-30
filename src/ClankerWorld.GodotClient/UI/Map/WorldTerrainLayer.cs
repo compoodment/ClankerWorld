@@ -205,25 +205,17 @@ public partial class WorldTerrainLayer : Control
             var x = resource.Position.X;
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
-            var kind = resource.TreeKind switch
-            {
-                "broadleaf" => (byte)1,
-                "conifer" => (byte)2,
-                "orchard" => (byte)7,
-                _ => (byte)0,
-            };
-            if (kind == 0) continue;
+            if (resource.TreeKind is not { } species) continue;
+            // The host sends the stage it read from the saved growth state.
+            // Older hosts sent it only for orchards, so derive the rest.
+            var stage = resource.TreeStage ?? (species == "orchard" ? "fruiting"
+                : resource.IsPlanted ? "sapling"
+                : resource.Quantity == 0 || resource.State != "available" ? "stump" : "mature");
+            if (TreeArtManifest.For(species, stage) is not { Code: > 0 } art) continue;
             var index = y * world.Width + x;
             if (next[index] != 0)
                 throw new InvalidDataException("Two trees occupy one visible tile.");
-            next[index] = kind == 7 ? resource.TreeStage switch
-            {
-                "picked" => (byte)8,
-                "growing" => (byte)9,
-                _ => (byte)7,
-            } : resource.IsPlanted ? (byte)(kind + 4) :
-                resource.Quantity == 0 || resource.State != "available"
-                    ? (byte)(kind + 2) : kind;
+            next[index] = art.Code;
         }
         trees = next;
         QueueRedraw();
@@ -253,16 +245,7 @@ public partial class WorldTerrainLayer : Control
     public string? TreeStageAt(int x, int y)
     {
         if (world is null || x < 0 || y < 0 || x >= world.Width || y >= world.Height) return null;
-        return trees[y * world.Width + x] switch
-        {
-            1 or 2 => "mature",
-            3 or 4 => "stump",
-            5 or 6 => "sapling",
-            7 => "fruiting",
-            8 => "picked",
-            9 => "growing",
-            _ => null,
-        };
+        return TreeArtManifest.ForCode(trees[y * world.Width + x])?.Stage;
     }
 
     public string? NaturalObjectNameAt(int x, int y)

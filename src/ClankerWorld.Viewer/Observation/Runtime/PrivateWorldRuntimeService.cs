@@ -39,6 +39,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "retired_buildings tick={WorldTick} standing={Standing} projects={Projects} outcome=kept_not_offered")]
     private static partial void LogRetiredBuildings(ILogger logger, long worldTick, int standing, int projects);
 
+    [LoggerMessage(EventId = 2271, Level = LogLevel.Information,
+        Message = "tree_planting tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome} detail={Detail}")]
+    private static partial void LogTreePlanting(ILogger logger, long worldTick, string inhabitantId, string outcome, string detail);
+
     [LoggerMessage(EventId = 2218, Level = LogLevel.Information,
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
@@ -247,6 +251,15 @@ public sealed partial class PrivateWorldRuntimeService(
                     if (actor is null) continue;
                     LogHostedDecision(logger, result.WorldTick, actor,
                         worldEvent.Kind["hosted_decision_".Length..] + worldEvent.Detail[actor.Length..]);
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "tree_planted" or
+                             "tree_planting_refused" or "tree_replanted" or "tree_seed_collected"))
+                {
+                    // Details after the actor are bounded IDs, species and refusal codes.
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null || worldEvent.Detail.Length <= actor.Length + 1) continue;
+                    LogTreePlanting(logger, result.WorldTick, actor, worldEvent.Kind,
+                        worldEvent.Detail[(actor.Length + 1)..]);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("estate_will_", StringComparison.Ordinal)))
                 {

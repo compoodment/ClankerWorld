@@ -62,8 +62,13 @@ public sealed class IslandHeatingTests
             Assert.Contains(result.Events, item => item.Kind == "material_gathered" && item.Detail.StartsWith(ids[0] + ":", StringComparison.Ordinal));
             Assert.Contains(result.Survival!.Fires, fire => fire.BuildingId == "first-town-house-a");
             Assert.DoesNotContain(result.Events, item => item.Kind == "movement_blocked" && item.Detail.StartsWith(ids[0] + ":no_route", StringComparison.Ordinal));
+            // Felling a tree for fuel also gives one tree seed for planting.
+            Assert.Single(result.Events, item => item.Kind == "tree_seed_collected" &&
+                item.Detail.StartsWith(ids[0] + ":", StringComparison.Ordinal));
             using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(result)));
             Assert.NotEmpty(restored.ExportState().Survival!.Fires);
+            Assert.Equal(TreeGrowthRules.TreeSeedsPerFelledTree, restored.Society.Inventory.Lots
+                .Where(lot => lot.OwnerId == ids[0] && lot.ItemKind == TreeGrowthRules.TreeSeedItem).Sum(lot => lot.Quantity));
         }
         finally { world.Dispose(); }
     }
