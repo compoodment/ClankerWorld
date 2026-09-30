@@ -232,13 +232,13 @@ public sealed partial class PrivateWorldRuntime
         }
         if (WeatherExposure(person.Position) > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing", actor) is not null)
         {
-            candidates.Add(new CognitionCandidate("wear_clothing", "Collect woven clothing from camp to reduce exposure.", 3));
+            candidates.Add(new CognitionCandidate("wear_clothing", "Collect clothing to reduce exposure to the weather.", 3));
         }
         var losingWarmth = WarmthChange(person) < 0;
         if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && AccessibleHeatingBuildings(actor).Any(building => !IsFireLit(building)) &&
             (SharedItem("wood", actor) is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood", actor) is not null))
         {
-            candidates.Add(new CognitionCandidate("tend_fire", "Carry household wood to a hearth and keep the camp warm.", NeedsUrgentWarmth(person) ? 1 : 2));
+            candidates.Add(new CognitionCandidate("tend_fire", "Carry wood to an unlit hearth and keep it burning for warmth.", NeedsUrgentWarmth(person) ? 1 : 2));
         }
         var stormCover = WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position) &&
             NearbyNaturalStormCover(actor, person.Position) is not null;
