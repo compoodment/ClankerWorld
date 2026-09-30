@@ -1602,9 +1602,16 @@ public partial class Main
             UpdateTileHover(founderButton.Position + mapStage.Position + founderButton.Size / 2);
             if (terrainLayer.HoveredTile is not null)
                 throw new InvalidOperationException("An agent marker must take hover priority over its ground tile.");
+            // A tooltip, like the one over the resource marker checked earlier,
+            // lets the pointer pass through and must not stop tile hover.
+            var tooltipLike = new PopupPanel();
+            tooltipLike.SetFlag(Window.Flags.MousePassthrough, true);
+            AddChild(tooltipLike);
+            tooltipLike.Popup(new Rect2I(0, 0, 40, 20));
             UpdateTileHover(new Vector2(currentTileSize * 1.5f, currentTileSize * 0.5f) + mapStage.Position);
+            tooltipLike.QueueFree();
             if (terrainLayer.HoveredTile != new Vector2I(1, 0))
-                throw new InvalidOperationException("The hovered ground tile must receive a square outline.");
+                throw new InvalidOperationException("The hovered ground tile must receive a square outline, even while a tooltip shows.");
             selectedInhabitantId = null;
             selectedInhabitantCard.Hide();
             var agentClick = founderButton.GetGlobalRect().GetCenter();

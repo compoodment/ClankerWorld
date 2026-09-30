@@ -305,7 +305,8 @@ public partial class Main
         // Popups have their own viewport, so the main viewport can report no
         // hovered control. Keep the last placement preview while a menu is
         // open, or while the pointer is inside the scaled Add Agent panel.
-        if (GetViewport().GetEmbeddedSubwindows().Count > 0 ||
+        // Tooltips let the pointer pass through, so they never block the map.
+        if (GetViewport().GetEmbeddedSubwindows().Any(window => !window.GetFlag(Window.Flags.MousePassthrough)) ||
             founderSetupPanel.IsVisibleInTree() && founderSetupPanel.GetGlobalRect()
                 .HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition))
             return;
