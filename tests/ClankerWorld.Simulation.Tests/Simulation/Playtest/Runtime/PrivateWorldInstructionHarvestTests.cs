@@ -107,7 +107,25 @@ public sealed partial class PrivateWorldRuntimeTests
             world.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), startingTiles[index]);
         world.StartWorld();
         world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : new GridPoint(126, 66));
-        return world;
+        if (!orchard) return world;
+        // Orchard trees fruit only in autumn; put them in season for this check.
+        var state = world.ExportState();
+        var orchards = state.Map.Resources.Where(resource => resource.TreeKind == "orchard")
+            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
+        world.Dispose();
+        return PrivateWorldRuntime.Restore(state with
+        {
+            Resources = state.Resources.Select(resource => orchards.Contains(resource.ResourceId)
+                ? resource with { State = ResourceState.Available } : resource).ToArray(),
+            WorldSystems = state.WorldSystems! with
+            {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource => orchards.Contains(resource.Id)
+                        ? TreeGrowthAndPlantingTests.InFruitingSeason(resource, state) : resource).ToArray(),
+                },
+            },
+        }, _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
     }
 
     // An empty tile beside an orchard tree with no other food within reach,

@@ -402,6 +402,11 @@ public sealed partial class PrivateWorldRuntime
             ReplantTree(inhabitantId, state);
             return;
         }
+        if (candidateId == "plant_tree")
+        {
+            PlantTreeNearby(inhabitantId, state);
+            return;
+        }
 
         switch (candidateId)
         {

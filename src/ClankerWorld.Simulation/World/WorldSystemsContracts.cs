@@ -541,13 +541,20 @@ public static class EcologyRules
             };
         }
 
+        // Fruit is seasonal: it ripens only in its recorded season and falls
+        // once that season ends, so a tree never carries fruit out of season.
+        if (resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason)
+        {
+            return resource with { Quantity = 0, State = EcologyResourceState.Regenerating };
+        }
+
         if (resource.Quantity >= resource.Capacity)
         {
             return resource with { State = EcologyResourceState.Available };
         }
 
         if (calendar.DayIndex < resource.NextRegenerationDay ||
-            resource.Kind != "fruit" && calendar.Season != resource.RegenerationSeason)
+            calendar.Season != resource.RegenerationSeason)
         {
             return resource with
             {

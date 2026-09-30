@@ -46,11 +46,14 @@ one, and a workflow updates the repository.
 | Status | `status:ready` (agreed, unblocked, needs a pull request), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:needs-playtest` (merged; waiting for a hands-on check), `status:parked` (closed for a later stage) |
 | Other | `owner-task` (only computment can do it), `priority:blocker` (must finish before the current milestone), `severity:data-loss`, `regression`, `from:playtest`, `accessibility` |
 
-- **Automatic:** the templates set the type. A pull request gets areas from the
-  files it changes, a type from its ticked **Type of change** box and
-  `status:needs-review` while it is ready. An issue it links with `Closes` or
-  `Refs` gets `status:has-pr`, which is removed when the last such pull request
-  closes; if none merged, the issue goes back to `status:ready`.
+- **Automatic:** the templates set the type. A pull request gets at most two
+  areas from the code it changes, set when it opens and again when it is marked
+  ready (fix them by hand if they are wrong), a type from its ticked **Type of
+  change** box, and `status:needs-review` while it is ready. An issue it links with `Closes` or
+  `Refs` gets `status:has-pr`; once the pull request is ready for review, the
+  issue's `status:in-progress` claim is removed. `status:has-pr` is removed when
+  the last such pull request closes; if none merged, the issue goes back to
+  `status:ready`.
 - **By hand:** areas and a status on new issues; `status:ready` only when
   nothing is left to decide; the other statuses when they become true; and
   `status:parked` when closing agreed work for later.
@@ -80,6 +83,8 @@ it and the branch name; assignment alone does not show which agent took it.
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
 - If you stop, remove the label and comment with what you learned.
+- You don't remove it when you open the pull request: once the pull request is
+  ready for review, the issue switches to `status:has-pr` automatically.
 - A claim with no pull request and no update for 12 hours is stale: say you are
   taking it over, then claim it again.
 
@@ -140,10 +145,15 @@ Use a short title about the effect, such as
 
 ### Drafts and readiness
 
-Open completed work ready for review. Use a draft only for unfinished work, a
-proposal awaiting a decision, or when asked for one, and say what must happen
-before it is ready. Waiting for review, or for a prerequisite pull request to
-merge, is not a reason for a draft.
+Open a pull request as a **draft** and keep it there while anyone is still
+working on it. Mark it **ready for review** only when it is finished: every
+change pushed, the checks run and the description final. To change a ready pull
+request, whether for a review comment, a CI failure or something you forgot,
+convert it back to draft first, push, recheck, and mark it ready again. That way
+nobody merges it halfway through. A proposal awaiting a decision also stays a
+draft; say what must happen before it is ready. Once the work is finished,
+waiting for review or for a prerequisite pull request to merge is not a reason
+to stay in draft.
 
 Routine playtesting by computment can happen after merge during the alpha, so a
 missing Windows playtest, tuning session or latency measurement does not by
@@ -194,13 +204,15 @@ The reviewer is not the pull request's author and normally merges. An author
 merges only when the owner explicitly asks and someone else has already
 reviewed the current head. Before merging, check that:
 
-1. CI is green on the current head. If main was merged in or the branch changed
+1. The pull request is ready for review, not a draft, and nobody has pushed to
+   it since it was marked ready, other than your own merge of main.
+2. CI is green on the current head. If main was merged in or the branch changed
    after review, review and check the new head.
-2. Someone other than the author reviewed that exact head. Record who reviewed
+3. Someone other than the author reviewed that exact head. Record who reviewed
    which commit and what they checked, in the squash commit body or a comment.
-3. The description links its issues correctly
+4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
-4. Any integration order named by this or another pull request is respected.
+5. Any integration order named by this or another pull request is respected.
 
 Squash-merge with the PR title as the commit subject, delete the branch, then:
 
