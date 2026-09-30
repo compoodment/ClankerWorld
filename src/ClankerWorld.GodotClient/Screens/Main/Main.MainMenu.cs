@@ -132,7 +132,7 @@ public partial class Main
 
         quitGameButton.Text = "Quit Game";
         StyleMenuChoice(quitGameButton);
-        quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation, new Vector2I(440, 170));
+        quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation);
         body.AddChild(quitGameButton);
 
         AddPanelContents(mainMenuCard, body);

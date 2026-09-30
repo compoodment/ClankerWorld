@@ -23,8 +23,8 @@ public partial class Main
         CompactHud(viewport.X < 1280);
         float panelWidth(int width) => Math.Min(width, Math.Max(1, viewport.X - 28));
         rosterPanel.CustomMinimumSize = new Vector2(panelWidth(410), 0);
-        eventsPanel.CustomMinimumSize = new Vector2(panelWidth(390), 360);
-        worldInfoPanel.CustomMinimumSize = new Vector2(panelWidth(420), 380);
+        eventsPanel.CustomMinimumSize = new Vector2(panelWidth(390), 0);
+        worldInfoPanel.CustomMinimumSize = new Vector2(panelWidth(420), 0);
         selectedTilePanel.CustomMinimumSize = new Vector2(panelWidth(315), 0);
         filtersPanel.CustomMinimumSize = new Vector2(panelWidth(305), 0);
         // Size the shared caption column from its widest caption at the
@@ -63,12 +63,8 @@ public partial class Main
         familyTreePanel.Position = new Vector2(
             Math.Max(14, (viewport.X - familySize.X) / 2),
             Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
-        var memoriesSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600),
-            Math.Clamp(viewport.Y - 28, 280, 430));
-        memoriesPanel.Size = memoriesSize;
-        memoriesPanel.Position = new Vector2(
-            Math.Max(14, (viewport.X - memoriesSize.X) / 2),
-            Math.Max(hudTop, (viewport.Y - memoriesSize.Y) / 2));
+        memoriesPanel.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600), 0);
+        CenterMemoriesPanel();
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
@@ -77,6 +73,16 @@ public partial class Main
         statusToast.Position = new Vector2(
             Math.Max(14, (viewport.X - toastSize.X) / 2),
             Math.Max(14, viewport.Y - toastSize.Y - 18));
+    }
+
+    /// <summary>Memories fit their text and sit in the middle of the screen, below the top bar.</summary>
+    private void CenterMemoriesPanel()
+    {
+        var size = memoriesPanel.GetCombinedMinimumSize();
+        memoriesPanel.Size = size;
+        memoriesPanel.Position = new Vector2(
+            Math.Max(14, (UiSize.X - size.X) / 2),
+            Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
     /// <summary>The card's profile scrolls when the whole card would not fit below the top bar.</summary>
