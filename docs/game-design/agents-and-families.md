@@ -43,7 +43,8 @@ everything that is available in the current build. See [what works today](../wha
 - Each agent independently has a chosen provider/model, private memory and
   context, goals/personality, call schedule, usage, and failure state. Different
   agents may use the same stored key. Agents choose their own personality,
-  aspirations, skills, and initial identity. The player can add adults freely.
+  aspirations and initial identity. Agents start with no skills; they gain each
+  one by doing the work. The player can add adults freely.
 - An agent chooses its personality and aspiration **once, at its first
   decision**. **Leaning toward (provisional; the moments and the cap are tuned
   in playtests):** it can change them later only at moments the game names: a
@@ -56,10 +57,10 @@ everything that is available in the current build. See [what works today](../wha
   which costs one extra request that counts toward model usage. If that also
   fails, the agent keeps a placeholder name that the player can change. Similar
   but not identical names are allowed, such as two agents called Rowan with
-  different surnames. **Leaning toward (provisional):** the comparison covers
-  every agent in the world, including those who have died. **Still to
-  decide:** why models choose similar names is being investigated, and nothing
-  about it is decided.
+  different surnames. The comparison covers every agent in the world,
+  including those who have died. A valid name is kept even when the action in
+  the same reply is rejected. **Still to decide:** why models choose similar
+  names is being investigated, and nothing about it is decided.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, abilities,
@@ -249,7 +250,7 @@ another sprite family at first.
 - **Leaning toward (provisional; tuned in playtests):** a conversation has at
   most **six public turns**, three per participant, plus **one wrap-up
   round**. An agent starts a conversation by choosing a talk action, and each
-  agent has at most one conversation per world day.
+  agent has at most two conversations per world day.
 - **Spoken promises are not tracked as commitments in the first version.**
   Tracking whether promises are kept or broken comes later.
 - Socializing agents display a chat bubble above their sprites. Clicking opens
@@ -277,8 +278,8 @@ another sprite family at first.
   such as farming or smithing, is saved for the learner and the lesson records
   who taught it. In the first version a skill does not change what an agent is
   able to do. Later, skills could speed up work or unlock advanced tools, but
-  that is not decided. As a provisional detail, an agent first gains a skill by
-  finishing that kind of work.
+  that is not decided. Agents start with no skills, and an agent first gains a
+  skill by finishing that kind of work.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 
