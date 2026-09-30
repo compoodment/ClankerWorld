@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # The world, time and survival
@@ -409,6 +409,10 @@ and movement costs, not knowledge of the whole map or a guarantee of safety.
 Illness, exposure damage and food production are unchanged. The
 [controlled comparison](../development/survival-priority-prototype.md) reports
 the original regressions and revised measurements; this is not settled balance.
+
+The approved [food and material pipelines](towns.md#item-and-resource-pipelines)
+give farming, cooking, fresh water and care supplies concrete sources and uses.
+Their yields, spoilage and recovery rates remain playtest balance.
 
 ### Still to decide after playtesting
 
