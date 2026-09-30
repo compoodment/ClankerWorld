@@ -103,6 +103,17 @@ public static class OwnerWorldActionPayload
             $"additional-calls={action.AdditionalCalls.ToString(CultureInfo.InvariantCulture)}");
     }
 
+    public static string CredentialSlotCreation(OwnerCredentialSlotCreationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.ApiKey);
+        return string.Join('\n', "clankerworld.owner-credential-slot-creation.v1",
+            $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"label={EncodeRequired(action.Label, nameof(action.Label))}",
+            $"api-key-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)))}");
+    }
+
     public static string CredentialSlotDeletion(OwnerCredentialSlotDeletionAction action)
     {
         ArgumentNullException.ThrowIfNull(action);

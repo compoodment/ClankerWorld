@@ -229,7 +229,11 @@ use the actor's foot-accessible terrain component and skip sites whose current
 occupied routes cannot reach harvesting range. Adjacent food needs no route
 search. Candidate generation searches only when gathering or a food instruction
 needs a source, and stops at the first reachable site. Caregivers use the same
-selection. Immutable map connectivity is cached once per map; movement rechecks
+selection. When fetching food for an infant, caregivers also skip household
+food stores whose collection point has no currently unoccupied route. They try
+other household food before gathering wild food; inaccessible stock is left
+untouched. This does not change household ownership or food-policy rules.
+Immutable map connectivity is cached once per map; movement rechecks
 occupancy before each step. An agent gathering for its own project, and the check
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
@@ -320,7 +324,18 @@ ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Building plans are offered only to an agent with the Builder role or an
 aspiration that mentions building. A normal game gives agents neither, so these
-choices are not offered yet ([#441](https://github.com/compoodment/ClankerWorld/issues/441)).
+choices are not offered yet ([#470](https://github.com/compoodment/ClankerWorld/issues/470)).
+
+Recipes do not depend on a role or on personality or aspiration text. An adult
+resident is offered a crop recipe only when their household holds a Farmhouse,
+and a workstation recipe only at a building their household holds or at a
+communal one, which has no holding household. A Farmhouse or Blacksmith that no
+household holds is nobody's workstation. First-Town setup gives the Farmhouse
+to the first starting household and the Blacksmith to the second. The offline
+check in `HouseholdBuildingUseCoverageTests` builds generated worlds the normal
+way and runs two world days with the built-in rule-based chooser and no model
+calls, failing if these offers disappear or cross households. The owner's direct
+production request keeps its own checks and does not apply the crop rule.
 
 For workstation recipes, site selection checks the actor’s current walking route as well as
 ownership and unused production capacity. An occupied or inaccessible workstation
@@ -479,6 +494,10 @@ then checks an actual unoccupied route into harvest range. Heating, help with
 another agent's project and Blacksmith ore use this selector; they do not
 require a path to the original map anchor. Gathering for one's own project does
 not use it yet. This does not change fuel duration or harvest yields.
+
+Shared fuel and equipment also require an unoccupied route to their collection
+point. Unreachable stock stays untouched and does not prevent an agent from
+using reachable supplies or gathering local fuel instead.
 
 ## Advanced generation controls
 

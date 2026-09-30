@@ -185,6 +185,26 @@ everything that is available in the current build. See [what works today](../wha
   no activity symbol. Buildings show no names on the map; hovering a building
   still names it. computment chose the outlined-text look (option C) with the
   only-when-needed rule (option E) from the nameplate mockups.
+- **Agreed after the September 30 building panel review:** selecting a
+  building opens a small **quick card** beside it, like an agent's: its roof,
+  name and owner (household or Town), one line on what is happening there (who
+  is inside, or who is making what, with a progress bar and time left), what
+  it stores as item icons with the count in the corner, and a **Details**
+  button. **Details** docks a larger panel on the left, like an agent's
+  Profile: owner, who may use it, when it was built and which side its door
+  faces; storage as a larger icon grid with each item's name; work in progress
+  with what it uses; and who lives there or is inside. A list of recent
+  storage changes and what a workstation can make are wanted later. A
+  storage-space bar waits until buildings record a storage limit. Hovering a
+  building still names it.
+- **Agreed on September 30:** items have their own pixel-art icons, drawn by
+  hand on a 16-pixel grid in a few shades with a complete dark outline and
+  shown only at whole-number sizes so they stay crisp. An item without its own
+  icon yet shows a plain crate, so new items are still counted.
+- **Agreed on September 30:** map Filters start off, Town borders included.
+  Town borders show as a pale dashed line along the border's edge (option B of
+  four looks). Add Agent placement still shows Town borders and household
+  property while placing, without switching the Filters on.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

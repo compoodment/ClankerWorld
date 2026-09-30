@@ -203,7 +203,14 @@ public partial class Main
         }
     }
 
-    private void RefreshTileHoverAtMouse() => UpdateTileHover(mapCanvas.GetLocalMousePosition());
+    private void RefreshTileHoverAtMouse()
+    {
+        // Observation refreshes also update map geometry. A pointer in a HUD
+        // panel must not preview the map tile hidden beneath that panel.
+        if (GetViewport().GuiGetHoveredControl() is { } hovered && uiLayer.IsAncestorOf(hovered))
+            return;
+        UpdateTileHover(mapCanvas.GetLocalMousePosition());
+    }
 
     private Vector2I TileAtCanvas(Vector2 canvasPosition, OwnerWorldSnapshot snapshot)
     {
@@ -296,6 +303,14 @@ public partial class Main
             UpdateHoverReadout(null, null);
             return;
         }
+
+        // Popups have their own viewport, so the main viewport can report no
+        // hovered control. Keep the last placement preview while a menu is
+        // open, or while the pointer is inside the scaled Add Agent panel.
+        if (founderSetupPanel.IsVisibleInTree() &&
+            (GetViewport().GetEmbeddedSubwindows().Any(window => window.Visible) ||
+             founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition)))
+            return;
 
         var stagePosition = canvasPosition - mapStage.Position;
         var tile = TileAtCanvas(canvasPosition, snapshot);

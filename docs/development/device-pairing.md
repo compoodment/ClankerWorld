@@ -198,9 +198,11 @@ is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
 ## Bounded owner actions
 
 Signed actions have a 15-second deadline over the complete challenge/sign/send/read
-operation, or the HTTP client's shorter configured timeout. Cancellation covers
-both response bodies even after successful headers. Reconnect retains its shorter
-four-second deadline. A timeout does not prove that the server rejected an action;
+operation, or the HTTP client's shorter configured timeout. Load World allows up
+to 60 seconds because listing checks every saved checkpoint; leaving that screen
+still cancels the request. Cancellation covers both response bodies even after
+successful headers. Reconnect retains its shorter four-second deadline.
+A timeout does not prove that the server rejected an action;
 instructions and authoring retain their exact existing retry record until a
 receipt is accepted.
 

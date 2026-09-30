@@ -75,7 +75,7 @@ public sealed class ModelFacingWordingTests
         PrivateWorldRuntime? restored = null;
         if (withRoles)
         {
-            // Roles unlock building, recipes, hauling and lessons, which a normal game does not offer yet.
+            // Roles still unlock building plans and lessons, which a normal game does not offer yet (#470, #471).
             var state = seed.ExportState();
             var society = state.Society.Society;
             var adults = society.Inhabitants.Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
