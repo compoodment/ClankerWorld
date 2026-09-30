@@ -1301,6 +1301,20 @@ public partial class Main
                             !buildingData.Add(Convert.ToBase64String(roof.GetData())))
                             throw new InvalidOperationException($"{kind} buildings must look different from every other building family.");
                     }
+            var doorFootprint = new Rect2I(10, 10, 2, 1);
+            if (BuildingDoor.Facing(doorFootprint, new Vector2I(11, 11)) != new BuildingDoor(DoorSide.South, 1) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(10, 9)) != new BuildingDoor(DoorSide.North, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(12, 10)) != new BuildingDoor(DoorSide.East, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(9, 10)) != new BuildingDoor(DoorSide.West, 0) ||
+                BuildingDoor.Facing(doorFootprint, new Vector2I(12, 11)) != BuildingDoor.Default ||
+                BuildingDoor.Facing(doorFootprint, null) != BuildingDoor.Default)
+                throw new InvalidOperationException("A building's door must face the entrance tile beside its footprint.");
+            var northDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(DoorSide.North, 0));
+            var southDoor = BuildingSprites.Render(BuildingKind.House, 1, 1, 32);
+            if (Enum.GetValues<DoorSide>().Select(side => Convert.ToBase64String(
+                    BuildingSprites.Render(BuildingKind.House, 1, 1, 32, new BuildingDoor(side, 0)).GetData())).Distinct().Count() != 4 ||
+                northDoor.GetPixel(16, 1).A < 0.5f || southDoor.GetPixel(16, 1).A > 0)
+                throw new InvalidOperationException("A building must show its door on the side it faces.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||

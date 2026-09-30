@@ -230,7 +230,8 @@ public sealed record ViewerPlacedBuilding(
     int Height = 1,
     string? TownId = null,
     string? HouseholdId = null,
-    IReadOnlyList<ViewerInventoryEntry>? StoredItems = null);
+    IReadOnlyList<ViewerInventoryEntry>? StoredItems = null,
+    ViewerPosition? Entrance = null);
 
 public sealed record ViewerProductionJob(
     string JobId,

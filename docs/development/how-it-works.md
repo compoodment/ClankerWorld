@@ -279,6 +279,12 @@ There is no wrapped-seam claim geometry, competing-claim graph or automatic
 second-Town founding. Filters display saved Town and household-building facts,
 not invented general land ownership.
 
+A building that joins a Town gets a Road from one of the tiles directly beside
+its footprint to the nearest existing Road. That starting tile is saved as the
+building's entrance, and the map draws the door on that side. The first Town's
+planner records its buildings' entrances the same way. A building without a
+Road has no entrance and shows its door in the middle of its south side.
+
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
 resources, purpose and compact growth. A model selects a site-specific candidate
