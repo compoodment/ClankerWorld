@@ -587,6 +587,15 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
 
+    public Task<OwnerProviderConfigurationStatus> CreateCredentialSlotAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerCredentialSlotCreationAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerCredentialSlotCreationAction, OwnerProviderConfigurationStatus>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerCredentialSlotCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.CredentialSlotCreation(action),
+            action, deviceKey, cancellationToken);
+
     public Task<OwnerProviderConfigurationStatus> DeleteCredentialSlotAsync(
         Uri serverUri,
         OwnerAuthorityIdentity authority,

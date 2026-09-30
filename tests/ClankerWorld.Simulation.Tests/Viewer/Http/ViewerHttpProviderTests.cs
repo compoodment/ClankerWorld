@@ -16,6 +16,99 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("ollama-cloud")]
+    public async Task SignedOwnerCanSaveAReusableKeyBeforePlacingAnyAgents(string provider)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-settings-key-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory.FullName, null,
+                privateWorld: true, legacyPrivateWorld: false);
+            using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("http://127.0.0.1/"),
+            });
+            var device = await StartAndActivateAsync(host, client, key);
+            var store = host.Services.GetRequiredService<ProviderConfigurationStore>();
+            var observations = host.Services.GetRequiredService<OwnerWorldObservationStore>();
+            var beforeWorld = System.Text.Json.JsonSerializer.Serialize(observations.GetSnapshot());
+            var beforeRouting = store.CaptureRuntimeConfiguration();
+            const string secret = "test-only-settings-key-secret";
+            var action = new OwnerCredentialSlotCreationAction(Guid.NewGuid().ToString("N"), provider, "Personal account", secret);
+            const string endpoint = "/api/v1/owner/providers/slots/create";
+            var payload = OwnerHttpBinding.CredentialSlotCreationPayload(action);
+            Assert.DoesNotContain(secret, payload, StringComparison.Ordinal);
+            Assert.Equal(payload, ClankerWorld.GodotClient.UI.OwnerWorldActionPayload.CredentialSlotCreation(
+                new(action.CredentialSlotId, provider, action.Label, secret)));
+            foreach (var changed in new[]
+            {
+                action with { CredentialSlotId = Guid.NewGuid().ToString("N") },
+                action with { Provider = provider == "openai" ? "ollama-cloud" : "openai" },
+                action with { Label = "Someone else" },
+                action with { ApiKey = "a-different-test-secret" },
+            })
+            {
+                using var tampered = await SendSignedAsync(host, client, key, device.DeviceId,
+                    endpoint, changed, payload);
+                Assert.Equal(HttpStatusCode.Unauthorized, tampered.StatusCode);
+                Assert.Empty(store.CaptureStatus().CredentialSlots!);
+            }
+            var identity = host.Services.GetRequiredService<OwnerAuthorityStore>().Identity;
+            using var signer = new SettingsKeySigner(key);
+            var api = new ClankerWorld.GodotClient.UI.OwnerWorldApi(client);
+            var savedStatus = await api.CreateCredentialSlotAsync(client.BaseAddress!,
+                new(identity.ServerAuthorityId, identity.WorldId), device.DeviceId,
+                new(action.CredentialSlotId, provider, action.Label, secret), signer, CancellationToken.None);
+            Assert.Equal(action.CredentialSlotId, Assert.Single(savedStatus.CredentialSlots!).Id);
+            using var saved = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/providers/status", new OwnerProviderStatusAction(), OwnerHttpBinding.ProviderStatusPayload());
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            var text = await saved.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
+            var status = await saved.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+            var slot = Assert.Single(status!.CredentialSlots!);
+            Assert.Equal(action.CredentialSlotId, slot.Id);
+            Assert.Equal(provider, slot.Provider);
+            Assert.Equal(action.Label, slot.Label);
+            Assert.Equal(beforeWorld, System.Text.Json.JsonSerializer.Serialize(observations.GetSnapshot()));
+            var afterRouting = store.CaptureRuntimeConfiguration();
+            Assert.Equal(beforeRouting.RoutineProvider, afterRouting.RoutineProvider);
+            Assert.Equal(beforeRouting.PlanningProvider, afterRouting.PlanningProvider);
+            Assert.Equal(beforeRouting.OpenAi, afterRouting.OpenAi);
+            Assert.Equal(beforeRouting.OllamaCloud, afterRouting.OllamaCloud);
+            Assert.Equal(beforeRouting.Assignments, afterRouting.Assignments);
+            Assert.Equal(0, host.Services.GetRequiredService<ProviderUsageStore>().Capture().Attempts);
+            if (OperatingSystem.IsWindows()) Assert.DoesNotContain(secret, File.ReadAllText(store.Path), StringComparison.Ordinal);
+            var reloaded = new ProviderConfigurationStore(store.Path,
+                new("deterministic", null, null, null, null, null, null));
+            Assert.Equal(secret, Assert.Single(reloaded.CaptureRuntimeConfiguration().CredentialSlots!).ApiKey);
+            // The saved key can be selected by a later agent without resubmitting it.
+            var assigned = reloaded.Configure(new("personal", provider, "test-model", null, false,
+                "later-agent", action.CredentialSlotId));
+            Assert.All(assigned.Assignments!, assignment => Assert.Equal(action.CredentialSlotId, assignment.CredentialSlotId));
+            using var duplicate = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, action, payload);
+            Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+            Assert.Single(store.CaptureStatus().CredentialSlots!);
+            var unsupported = action with { CredentialSlotId = Guid.NewGuid().ToString("N"), Provider = "jev" };
+            using var rejected = await SendSignedAsync(host, client, key, device.DeviceId,
+                endpoint, unsupported, OwnerHttpBinding.CredentialSlotCreationPayload(unsupported));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Single(store.CaptureStatus().CredentialSlots!);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private sealed class SettingsKeySigner(ECDsa key) : ClankerWorld.GodotClient.Pairing.IOwnerDeviceSigner
+    {
+        public string PublicKeySpkiBase64 => Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+        public string PublicKeyFingerprint => ClankerWorld.GodotClient.Pairing.OwnerPairingProtocol.CreatePublicKeyFingerprint(PublicKeySpkiBase64);
+        public string SignCanonicalProof(string canonicalProof) => Sign(key, canonicalProof);
+        public void Dispose() { } // The test owns the signing key.
+    }
+
     [Fact]
     public async Task DamagedUsageMeterKeepsHostReachableAndReportsBlockedAccountingToOwner()
     {

@@ -108,6 +108,32 @@ internal static partial class OwnerEndpoints
             }
         });
 
+        app.MapPost("/api/v1/owner/providers/slots/create", (
+            OwnerSignedHttpRequest<OwnerCredentialSlotCreationAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderConfigurationStore providers) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A named API key is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.CredentialSlotCreationPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request,
+                "POST", "/api/v1/owner/providers/slots/create", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            try { return Results.Ok(providers.CreateCredentialSlot(request.Action)); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+        });
+
         app.MapPost("/api/v1/owner/providers/slots/delete", (
             OwnerSignedHttpRequest<OwnerCredentialSlotDeletionAction> request,
             OwnerRequestAuthorizer authorizer,
