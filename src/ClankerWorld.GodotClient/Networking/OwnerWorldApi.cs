@@ -176,7 +176,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerWorldCreationAction, CatalogWorld>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldCreate,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.WorldCreationPayloadDomain);
 
     public Task<OwnerWorldPreview> PreviewWorldAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -184,7 +184,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerWorldCreationAction, OwnerWorldPreview>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldPreview,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.WorldCreationPayloadDomain);
 
     public Task<CatalogWorld> SelectWorldAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

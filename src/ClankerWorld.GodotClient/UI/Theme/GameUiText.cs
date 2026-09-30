@@ -18,25 +18,6 @@ public static class GameUiText
             ? given : System.Globalization.StringInfo.GetNextTextElement(given) + ".";
     }
 
-    public static string ActivityMapGlyph(string? candidateId) => candidateId switch
-    {
-        "seek_food" => "→",
-        "harvest_food" or "gather_smith_ore" => "✦",
-        "consume_food" or "collect_shared_food" => "♥",
-        "seek_warmth" or "wear_clothing" or "tend_fire" => "♨",
-        "explore" => "⌖",
-        "child_help_food" => "+",
-        not null when candidateId.StartsWith("build:", StringComparison.Ordinal) => "◆",
-        not null when candidateId.StartsWith("trade_", StringComparison.Ordinal) => "⇄",
-        not null when candidateId.StartsWith("child_converse:", StringComparison.Ordinal) ||
-            candidateId.StartsWith("knowledge_share:", StringComparison.Ordinal) => "…",
-        not null when candidateId.StartsWith("child_play:", StringComparison.Ordinal) => "☆",
-        not null when candidateId.StartsWith("child_learn:", StringComparison.Ordinal) => "?",
-        not null when candidateId.StartsWith("care:", StringComparison.Ordinal) => "+",
-        "safe_idle" => "·",
-        _ => "○",
-    };
-
     public static string ResourceMapCaption(OwnerWorldResource resource, float tileSize)
     {
         // At overview scale the existing terrain sprite/glyph carries the site;
@@ -54,6 +35,8 @@ public static class GameUiText
 
     public static string FriendlyFailure(Exception exception) => exception switch
     {
+        Pairing.OwnerActionCompatibilityException =>
+            "this client and world server need matching updates before making a new world. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
         {
             System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden =>

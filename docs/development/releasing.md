@@ -25,6 +25,21 @@ The current .NET version metadata comes from
 constant. See the [build reference](build-and-test.md) for the selected toolchain.
 A tagged release must report both its game version and source revision.
 
+## Matching client and host builds
+
+When an action's signed format changes, ship or deploy the matching host before
+distributing the client. A bundled local host and client must come from the
+same verified source revision. Record both revisions for a private deployment;
+a successful reconnect alone does not prove that New World or another changed
+action is compatible.
+
+Before distribution, use an approved test device and a disposable world to
+preview and create with the accepted Advanced settings at the real signed HTTP
+boundary. Verify an older host produces the update explanation, preserves the
+pairing and cannot receive a downgraded action. The New World client now requires
+the host's authenticated v2 action advertisement, including on hosts that
+already verified v2 before they advertised it. See [Device pairing](device-pairing.md#client-and-host-updates).
+
 ## Save and content compatibility
 
 The public version does **not** decide whether a saved world loads. The

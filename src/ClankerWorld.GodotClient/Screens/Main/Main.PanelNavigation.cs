@@ -52,6 +52,7 @@ public partial class Main
     private void ShowFamilyTree(OwnerWorldSnapshot snapshot, string id)
     {
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
         familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
         UpdateFamilyTreeStatus();
         rosterPanel.Hide();
@@ -77,7 +78,6 @@ public partial class Main
         if (observationSession.Current is not { } current) return;
         var snapshot = current.Baseline.Snapshot;
         RenderInhabitantList(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderMap(snapshot);
     }
@@ -90,6 +90,7 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        thoughtsPanel.Hide();
         memoriesPanel.Show();
         ApplyResponsiveLayout();
     }
@@ -112,6 +113,7 @@ public partial class Main
         eventsPanel.Hide();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
         returnToMainMenu = false;
         menuResumeButton.Text = "Resume";
         SetWorldMenuActionsVisible(true);
@@ -263,7 +265,7 @@ public partial class Main
             placingAddedAgent = false;
             return true;
         }
-        foreach (var panel in new Control[] { familyTreePanel, memoriesPanel })
+        foreach (var panel in new Control[] { familyTreePanel, memoriesPanel, thoughtsPanel })
         {
             if (!panel.Visible) continue;
             panel.Hide();
@@ -280,9 +282,9 @@ public partial class Main
             foreach (var panel in overlays) panel.Hide();
             return true;
         }
-        if (selectedAgentModelScroll.Visible)
+        if (agentProfilePanel.Visible)
         {
-            CloseAgentModelEditor();
+            AgentProfileBack();
             return true;
         }
         if (selectedInhabitantCard.Visible)

@@ -29,6 +29,10 @@ and shows the result below the address. It does not start a new pairing.
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.
 
+If New World asks for matching updates, update the game and have the server
+updated too. Keep your current device pairing; pairing again does not repair
+that version mismatch. You can still reconnect to the existing world.
+
 ## Create your first Town
 
 1. Choose **New World**. Select a Small or Medium map, a seed and the available
@@ -56,10 +60,16 @@ Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview
 click it or drag its view rectangle to move the camera. **Filters** controls the
 saved Town border and household-owned building overlays.
 
-Click an agent to inspect their needs, activity, belongings, relationships,
-thoughts and memories. **Find** centers the camera on them. You can rename them,
-change their model settings or open their family tree. Inspection does not
-pause time, and reading private thoughts does not tell other agents.
+Click an agent to open a small card beside them: what they are doing and bars
+for fullness, warmth and illness. **Profile** opens everything else on the left
+of the screen: diet, belongings, work, private thoughts, relationships and the
+Memories, Family and Model buttons. Click their thoughts, or **Read all**, to
+read every recent thought in a larger panel beside the Profile. The pencil
+beside their name renames them, and **Speak** goes straight to the message box,
+where you choose **Suggest** or **Order**. The crosshair centers the camera on
+them, and back (or **Escape**) returns from the Profile to the small card.
+Inspection does not pause time, and reading private thoughts does not tell
+other agents.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;

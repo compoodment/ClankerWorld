@@ -150,7 +150,8 @@ public sealed record OwnerChallenge(
     string DeviceId,
     string ChallengeId,
     string Nonce,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc,
+    IReadOnlyList<string>? SupportedActionPayloads = null);
 
 /// <summary>
 /// Binding should be a deterministic identifier or canonical action digest

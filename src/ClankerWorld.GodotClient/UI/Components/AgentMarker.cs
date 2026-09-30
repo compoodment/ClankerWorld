@@ -10,14 +10,17 @@ public partial class AgentMarker : Control
     private bool hovered;
     private int variant;
     private int stage = 2;
-    private bool showNameTag;
 
     private const float SpriteScale = 1.35f;
-    private const float NameTagMinimum = 36;
+    private const float NameMinimum = 20;
+    private static readonly Color SelectedColor = new("FFD166");
+    private static readonly Color HoveredColor = new("FFF0B5");
+    private static readonly Color NameColor = new("FFF6E0");
+    private static readonly Color NameEdge = new("1E1712");
 
     public event Action? Activated;
 
-    /// <summary>Name tags grow with UI Scale, in whole steps so the pixel font stays crisp.</summary>
+    /// <summary>Names grow with UI Scale, in whole steps so the pixel font stays crisp.</summary>
     public static int TextScale { get; set; } = 1;
 
     public string Caption
@@ -46,12 +49,11 @@ public partial class AgentMarker : Control
         set { if (stage != value) { stage = value; QueueRedraw(); } }
     }
 
-    /// <summary>Always draws the caption as a name tag at close zoom; off when several agents share a tile. Hover and selection show it regardless.</summary>
-    public bool ShowNameTag
-    {
-        get => showNameTag;
-        set { if (showNameTag != value) { showNameTag = value; QueueRedraw(); } }
-    }
+    /// <summary>
+    /// The name shows only while the agent is selected or hovered, so a busy
+    /// Town stays clear. It is drawn once the figure is large enough to read.
+    /// </summary>
+    public bool NameShown => (selected || hovered) && caption.Length > 0;
 
     public AgentMarker()
     {
@@ -62,7 +64,7 @@ public partial class AgentMarker : Control
         MouseExited += () => { hovered = false; Raise(); };
     }
 
-    // A hovered or selected agent draws over its neighbors so its name tag stays readable.
+    // A hovered or selected agent draws over its neighbors so its name stays readable.
     private void Raise()
     {
         ZIndex = selected || hovered ? 11 : 10;
@@ -86,7 +88,7 @@ public partial class AgentMarker : Control
         {
             // Too small for a readable figure: a clear dot in the agent's colors.
             if (selected || hovered)
-                DrawCircle(center, Math.Max(2.5f, side / 2 + 1.5f), new Color(selected ? "FFD166" : "FFF0B5"));
+                DrawCircle(center, Math.Max(2.5f, side / 2 + 1.5f), selected ? SelectedColor : HoveredColor);
             DrawCircle(center, Math.Max(1.5f, side / 2), new Color("1E2226"));
             DrawCircle(center, Math.Max(1f, side / 2 - 1), new Color("F4C78A"));
             return;
@@ -99,20 +101,26 @@ public partial class AgentMarker : Control
         if (selected || hovered)
         {
             DrawArc(center + new Vector2(0, drawn * 0.06f), drawn * 0.36f, 0, Mathf.Tau, 32,
-                new Color(selected ? "FFD166" : "FFF0B5"), Math.Max(1.5f, drawn / 18f));
+                selected ? SelectedColor : HoveredColor, Math.Max(1.5f, drawn / 18f));
         }
         var atlasSize = drawn >= 24 ? 32 : 16;
         DrawTextureRectRegion(AgentSprites.Atlas(atlasSize), sprite, AgentSprites.Region(variant, stage, atlasSize));
-        var named = selected || hovered ? drawn >= 20 : showNameTag && drawn >= NameTagMinimum;
-        if (!named || caption.Length == 0) return;
+        if (!NameShown || drawn < NameMinimum) return;
         var font = UiFonts.Text;
         var fontSize = UiFonts.Body * TextScale;
         var text = caption.Length > 14 ? caption[..13] + "…" : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
-        var tag = new Rect2(new Vector2(center.X - textSize.X / 2 - 4 * TextScale, sprite.Position.Y + drawn * 0.86f),
-            new Vector2(textSize.X + 8 * TextScale, textSize.Y + 2 * TextScale));
-        DrawRect(tag, new Color(0.06f, 0.09f, 0.11f, 0.78f));
-        DrawString(font, new Vector2(tag.Position.X + 4 * TextScale, tag.Position.Y + font.GetAscent(fontSize) + TextScale),
-            text, fontSize: fontSize, modulate: Colors.White);
+        // Light letters with a dark pixel edge and no box, gold for the selected agent.
+        var baseline = new Vector2(Mathf.Floor(center.X - textSize.X / 2),
+            Mathf.Floor(sprite.Position.Y + drawn * 0.86f) + font.GetAscent(fontSize));
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                if (dx != 0 || dy != 0)
+                    DrawString(font, baseline + new Vector2(dx, dy) * TextScale, text, fontSize: fontSize, modulate: NameEdge);
+            }
+        }
+        DrawString(font, baseline, text, fontSize: fontSize, modulate: selected ? SelectedColor : NameColor);
     }
 }

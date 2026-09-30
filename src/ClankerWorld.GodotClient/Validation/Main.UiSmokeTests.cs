@@ -8,6 +8,61 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private static readonly System.Text.Json.JsonSerializerOptions CompatibilitySmokeJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private async Task VerifyNewWorldCompatibilityMessageAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var portProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        portProbe.Start();
+        var port = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
+        portProbe.Stop();
+        var origin = $"http://127.0.0.1:{port}/";
+        using var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add(origin);
+        listener.Start();
+        try
+        {
+            var authority = new OwnerAuthorityIdentity("compatibility-smoke", "compatibility-world");
+            registration = new(authority, "compatibility-device", signer.PublicKeyFingerprint, origin);
+            deviceKey = signer;
+            worldUrlInput.Text = origin;
+            worldNameInput.Text = "Disposable";
+            worldSeedInput.Text = "compatibility-smoke";
+            var response = Task.Run(async () =>
+            {
+                var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
+                    throw new InvalidOperationException("New World must check an authenticated challenge first.");
+                context.Response.ContentType = "application/json";
+                await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
+                    new OwnerChallenge(authority, registration.DeviceId, "challenge-smoke", "nonce-smoke",
+                        DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
+                context.Response.Close();
+            });
+            await PreviewWorldAsync();
+            await response;
+            if (!worldPreviewStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
+                !worldPreviewStatus.Text.Contains("pairing can stay", StringComparison.Ordinal) ||
+                worldPreviewStatus.Text.Contains("not allowed", StringComparison.Ordinal) ||
+                !worldCreateButton.Disabled || worldPreviewButton.Disabled || registration is null)
+                throw new InvalidOperationException("New World must show the update remedy, keep pairing and leave Create unavailable without a preview.");
+        }
+        finally
+        {
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            listener.Stop();
+        }
+    }
+
     private async Task VerifyUiScaleAt1440pAsync(Window displayWindow)
     {
         var originalWindowSize = displayWindow.Size;
@@ -496,6 +551,7 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
@@ -1263,8 +1319,9 @@ public partial class Main
             if (terrainLayer.TreeStageAt(2, 1) != "growing")
                 throw new InvalidOperationException("Regrowing orchard trees must show their growing stage.");
             var builtMarker = mapObjectVisuals["building:test-hall"];
-            if (!builtMarker.Text.Contains("Test hall", StringComparison.Ordinal) || builtMarker.Size.X <= builtMarker.Size.Y)
-                throw new InvalidOperationException("Built structures must render their name and multi-tile footprint.");
+            if (builtMarker.Text.Length > 0 || !builtMarker.TooltipText.Contains("Test hall", StringComparison.Ordinal) ||
+                builtMarker.Size.X <= builtMarker.Size.Y)
+                throw new InvalidOperationException("Built structures must keep their multi-tile footprint and hover help without a name on the map.");
             var founderPosition = new OwnerWorldPosition(2, 0);
             var founder = new OwnerWorldInhabitant("founder-ui-test", "Rowan", "active", founderPosition,
                 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
@@ -1276,9 +1333,17 @@ public partial class Main
             RenderMap(occupied);
             var founderButton = inhabitantVisuals[founder.Id];
             var founderButtonIdentity = founderButton.GetInstanceId();
-            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || !founderButton.ShowNameTag ||
-                founderButton.Caption.Length == 0)
-                throw new InvalidOperationException("A lone agent on the map must use their stable sprite and show a name tag.");
+            if (founderButton.Variant != AgentSprites.VariantFor(founder.Id) || founderButton.Caption != "Rowan" ||
+                founderButton.NameShown)
+                throw new InvalidOperationException("An agent on the map must use their stable sprite and keep their name hidden until needed.");
+            founderButton.EmitSignal(Control.SignalName.MouseEntered);
+            var hoverNamed = founderButton.NameShown;
+            founderButton.EmitSignal(Control.SignalName.MouseExited);
+            founderButton.Selected = true;
+            var selectedNamed = founderButton.NameShown;
+            founderButton.Selected = false;
+            if (!hoverNamed || !selectedNamed || founderButton.NameShown)
+                throw new InvalidOperationException("An agent's name must show only while it is hovered or selected.");
             if (terrainLayer.CampResourceSpriteCount == 0 || mapObjectVisuals["resource:wood"].Text.Contains('▰'))
                 throw new InvalidOperationException("Older camp resources such as the wood store must draw as sprites instead of glyphs.");
             if (terrainLayer.BuildingSpriteCount != occupied.PlacedBuildings.Count ||
@@ -1290,16 +1355,78 @@ public partial class Main
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (inhabitantVisuals[founder.Id].GetInstanceId() != founderButtonIdentity ||
-                !selectedActorConditionLabel.Text.Contains("Warmth 82%", StringComparison.Ordinal) ||
-                !selectedActorConditionLabel.IsVisibleInTree() ||
-                !selectedInhabitantCard.GetGlobalRect().Encloses(selectedActorConditionLabel.GetGlobalRect()))
-                throw new InvalidOperationException("Agent hover targets and condition stats must survive observation refreshes.");
+                quickWarmthMeter.Percent != 82 || quickFullnessMeter.Percent != 80 ||
+                !quickWarmthMeter.IsVisibleInTree() || agentProfilePanel.Visible ||
+                !selectedInhabitantCard.GetGlobalRect().Encloses(quickWarmthMeter.GetGlobalRect()))
+                throw new InvalidOperationException("The quick card's condition bars and agent hover targets must survive observation refreshes.");
             if (!mapCanvas.GetGlobalRect().Grow(1).Encloses(selectedInhabitantCard.GetGlobalRect()))
                 throw new InvalidOperationException($"The agent card must fit inside the world view: map={mapCanvas.GetGlobalRect()} card={selectedInhabitantCard.GetGlobalRect()}.");
             if (selectedInhabitantCard.GetGlobalRect().Intersects(inhabitantVisuals[founder.Id].GetGlobalRect()))
                 throw new InvalidOperationException($"The agent card must not cover the agent it describes: card={selectedInhabitantCard.GetGlobalRect()} agent={inhabitantVisuals[founder.Id].GetGlobalRect()}.");
+            // The quick card opens the Profile, which docks on the left below the
+            // top bar and steps back to the quick card.
+            quickCardProfileButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!agentProfilePanel.Visible || selectedInhabitantCard.Visible || agentProfilePanel.Position.X > 20 ||
+                agentProfilePanel.Position.Y < HudTop - 1 || !ShowsGlyph(profileCloseButton, PixelGlyph.Back) ||
+                !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
+                !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
+                throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
+            var suggestDisabled = instructionSuggestButton.Disabled;
+            var orderDisabled = instructionOrderButton.Disabled;
+            instructionSuggestButton.Disabled = instructionOrderButton.Disabled = false;
+            try
+            {
+                instructionOrderButton.GrabFocus();
+                if (!instructionOrderButton.HasFocus())
+                    throw new InvalidOperationException("Order must be reachable by keyboard in the Profile.");
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!instructionOrderButton.ButtonPressed || instructionSuggestButton.ButtonPressed)
+                    throw new InvalidOperationException("Keyboard activation must switch the instruction kind to Order.");
+                instructionSuggestButton.GrabFocus();
+                if (!instructionSuggestButton.HasFocus())
+                    throw new InvalidOperationException("Suggest must be reachable by keyboard in the Profile.");
+                instructionSuggestButton.ButtonPressed = true;
+            }
+            finally
+            {
+                instructionSuggestButton.Disabled = suggestDisabled;
+                instructionOrderButton.Disabled = orderDisabled;
+            }
+            readThoughtsButton.GrabFocus();
+            if (!readThoughtsButton.HasFocus())
+                throw new InvalidOperationException("Read all must be reachable by keyboard in the Profile.");
+            Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            readThoughtsButton.ReleaseFocus();
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!thoughtsPanel.Visible || !agentProfilePanel.Visible ||
+                thoughtsPanel.Position.X < agentProfilePanel.Position.X + agentProfilePanel.Size.X ||
+                !mapCanvas.GetGlobalRect().Grow(1).Encloses(thoughtsPanel.GetGlobalRect()) ||
+                !thoughtsReaderText.GetParsedText().Contains("None recorded yet.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Read all must open the thoughts reader beside the Profile: reader={thoughtsPanel.GetGlobalRect()} profile={agentProfilePanel.GetGlobalRect()}.");
+            thoughtsPanel.Hide();
+            privateThoughtHistory.EmitSignal(Control.SignalName.GuiInput, new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true });
+            if (!thoughtsPanel.Visible || privateThoughtHistory.MouseDefaultCursorShape != Control.CursorShape.PointingHand)
+                throw new InvalidOperationException("Clicking the Profile's thoughts must open the thoughts reader.");
+            thoughtsPanel.Hide();
+            profileCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (agentProfilePanel.Visible || !selectedInhabitantCard.Visible || selectedInhabitantId != founder.Id)
+                throw new InvalidOperationException("Back on the Profile must return to the quick card with the agent still selected.");
+            quickCardSpeakButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!agentProfilePanel.Visible || !speakSection.Visible)
+                throw new InvalidOperationException("Speak on the quick card must open the Profile at its message box.");
+            profileCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
             selectedInhabitantId = null;
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
+            if (selectedInhabitantCard.Visible || agentProfilePanel.Visible)
+                throw new InvalidOperationException("Clearing the selection must close both the quick card and the Profile.");
             selectedInhabitantId = founder.Id;
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             if (inhabitantSocialDetails.GetParsedText().Length == 0 || privateThoughtHistory.GetParsedText().Length == 0)
@@ -1315,14 +1442,14 @@ public partial class Main
                 }],
                 Stockpiles = [new("household:one", "Founder's household", [])],
             });
-            if (selectedActorConditionLabel.Visible ||
+            if (quickWarmthMeter.Visible || profileWarmthMeter.Visible || selectedActorConditionLabel.Text.Contains('%') ||
                 !inhabitantSocialDetails.Text.Contains("Member of Founder's household", StringComparison.Ordinal) ||
                 inhabitantSocialDetails.Text.Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
-                inhabitantSocialDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
-                !inhabitantSocialDetails.Text.Contains("Wants to take it easy.", StringComparison.Ordinal))
-                throw new InvalidOperationException($"The agent card must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {inhabitantSocialDetails.Text}");
+                inhabitantDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
+                !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {inhabitantSocialDetails.Text}");
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
-            if (!selectedActorConditionLabel.Visible)
+            if (!quickWarmthMeter.Visible || !profileWarmthMeter.Visible)
                 throw new InvalidOperationException("Reported agent condition must be shown again.");
             UpdateTileHover(founderButton.Position + mapStage.Position + founderButton.Size / 2);
             if (terrainLayer.HoveredTile is not null)
@@ -1931,11 +2058,14 @@ public partial class Main
             RenderSelectedInhabitantCard(historicalSnapshot);
             if (entityLayer.GetChildren().Any(child => !child.IsQueuedForDeletion()) ||
                 inhabitantList.ItemCount != 1 || !rosterSummaryLabel.Text.Contains("1 deceased", StringComparison.Ordinal) ||
-                !selectedInhabitantCard.Visible || !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
-                renameAgentInput.Text != "Mira")
-                throw new InvalidOperationException("A deceased inhabitant must remain inspectable without appearing as a living map actor.");
+                !agentProfilePanel.Visible || selectedInhabitantCard.Visible || speakSection.Visible ||
+                !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
+                !ShowsGlyph(profileCloseButton, PixelGlyph.Close) || renameAgentInput.Text != "Mira")
+                throw new InvalidOperationException("A deceased inhabitant must open straight to a historical Profile without appearing as a living map actor.");
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
-                !privateThoughtHistory.Text.Contains("historical", StringComparison.Ordinal))
+                !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal) ||
+                !thoughtsReaderText.GetParsedText().Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
+                !thoughtsReaderTitle.Text.Contains("historical", StringComparison.Ordinal))
                 throw new InvalidOperationException("Deceased profiles must retain their saved private thoughts without generating new ones.");
             memoriesButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!memoriesPanel.Visible ||
@@ -1959,8 +2089,8 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             ToggleEvents();
-            if (!eventsPanel.Visible || !selectedInhabitantCard.Visible)
-                throw new InvalidOperationException("The Event Log and agent info panel must remain available.");
+            if (!eventsPanel.Visible || !agentProfilePanel.Visible)
+                throw new InvalidOperationException("The Event Log and the agent's Profile must remain available together.");
             var beforeDeathJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "101");
             if (eventsPanel.Visible || cameraCenterTiles.DistanceTo(beforeDeathJump) < 0.5f)
@@ -2068,9 +2198,23 @@ public partial class Main
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.N, Pressed = true });
             if (selectedInhabitantId != founder.Id)
                 throw new InvalidOperationException("N with a single living agent must keep them selected.");
-            selectedInhabitantCard.Hide();
-            selectedInhabitantId = null;
             ClearTileSelection();
+            // Escape steps back from the Profile to the quick card, then clears the selection.
+            RenderSelectedInhabitantCard(renderedMapSnapshot!);
+            OpenAgentProfile(speak: false);
+            OpenThoughtsReader();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (thoughtsPanel.Visible || !agentProfilePanel.Visible)
+                throw new InvalidOperationException("Escape must close the thoughts reader before the Profile.");
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (agentProfilePanel.Visible || !selectedInhabitantCard.Visible)
+                throw new InvalidOperationException("Escape must step back from the Profile to the quick card.");
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (selectedInhabitantCard.Visible || selectedInhabitantId is not null)
+                throw new InvalidOperationException("Escape on the quick card must clear the selection.");
+            selectedInhabitantCard.Hide();
+            agentProfilePanel.Hide();
+            selectedInhabitantId = null;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (!gameMenuPanel.Visible || !topBarShade.Visible)
                 throw new InvalidOperationException("Escape with nothing open must open the Pause Menu.");

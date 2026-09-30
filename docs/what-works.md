@@ -48,7 +48,7 @@ pace, subject to model/server load.
 ## Agents and their models
 
 Each starting agent has a provider, model and key assignment. Stored keys can
-be shared or selected independently. The agent card lets you change these
+be shared or selected independently. An agent's Profile lets you change these
 choices and rename the person. Jev can be switched on or off for a paused world.
 
 Personal models choose from legal actions. They receive some saved self
@@ -63,10 +63,10 @@ low-confidence response uses only the explicit safe fallback; it does not invent
 an important choice or complete a firm instruction. The paired Windows/model-wait
 check remains in [the playtest checklist](https://github.com/compoodment/ClankerWorld/issues/285).
 
-The agent card's **Speak to them** box sends a Suggestion or a Direct order.
-This is a basic version. The game understands only orders to gather food, eat
-or go toward food. The agent's model does not see the words. A Direct order the
-game can't act on closes at once, and the Event Log says the agent didn't
+The agent card's **Speak to them** box sends a message as a **Suggest** or an
+**Order**. This is a basic version. The game understands only orders to gather
+food, eat or go toward food. The agent's model does not see the words. An order
+the game can't act on closes at once, and the Event Log says the agent didn't
 understand it. An order that can't be carried out yet waits without extra model
 requests. The card does not yet show which orders are still waiting.
 

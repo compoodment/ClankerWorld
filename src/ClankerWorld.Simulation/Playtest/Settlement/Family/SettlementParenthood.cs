@@ -203,7 +203,7 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                if (AvailableFoodSource(parent.Position) is { } source)
+                if (AvailableFoodSource(actor, parent.Position) is { } source)
                 {
                     if (IsWithinInteractionRange(parent.Position, source.Position, ResourceInteractionRange))
                         HarvestFood(actor, parent);

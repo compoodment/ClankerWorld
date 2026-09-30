@@ -144,7 +144,6 @@ public partial class Main
         CenterOnInhabitant(inhabitantId);
         if (observationSession.Current is { } current)
         {
-            RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
             RefreshControlAvailability();
@@ -171,7 +170,6 @@ public partial class Main
 
         if (observationSession.Current is { } current)
         {
-            RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
             RefreshControlAvailability();
@@ -183,11 +181,13 @@ public partial class Main
         CloseAgentModelEditor();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
         selectedInhabitantId = null;
         inhabitantList.DeselectAll();
+        selectedInhabitantCard.Hide();
+        agentProfilePanel.Hide();
         if (observationSession.Current is { } current)
         {
-            RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
             RefreshControlAvailability();

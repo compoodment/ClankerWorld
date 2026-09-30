@@ -58,6 +58,22 @@ network requests. For this private deployment, the owner can relay the short
 comparison code through the already trusted direct-control channel; that
 channel approves a pending pairing only, never supplies the device key.
 
+## Client and host updates
+
+An approved device can reconnect even when a particular action needs a newer
+host. Authenticated challenge responses advertise supported action payloads;
+New World preview and creation require `clankerworld.owner-world-creation.v2`.
+The client checks each fresh challenge before signing or posting either action.
+An absent or different format produces an update message while keeping the
+existing pairing. Older hosts without this advertisement need an update too.
+Other signed actions, including reconnect, keep their existing contracts.
+
+The advertisement is compatibility information, not permission to weaken a
+proof. The host still reconstructs the exact action payload and verifies its
+binding, device signature and one-use challenge. The client never retries with
+an older format. Actual challenge/access failures retain their access messages.
+See [Releasing](releasing.md#matching-client-and-host-builds) for distribution order.
+
 Owner pairing and signed control traffic require HTTPS. Literal loopback IPs
 are the sole plaintext exception, for an explicit local-development host.
 

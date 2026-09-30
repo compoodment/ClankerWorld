@@ -75,6 +75,13 @@ that recorded events reproduce its expected results and digests.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
+Checkpoint decoding enforces declared non-null members and required constructor
+fields before runtime validation. A missing society, cognition or inventory
+object is invalid data, not an unexpected null-reference fault. Compatibility
+assessment marks that inactive world incompatible while retaining healthy list
+entries. Selecting it fails before replacing the active world; the damaged file
+stays available for recovery. Optional fields retain their declared defaults.
+
 Signed pause, resume and rename retries persist the requested state before reporting
 success, including when the in-memory value already matches after a failed
 write. Storage failure remains an error. A paused world's Resume stages the
@@ -172,6 +179,11 @@ same history archive. Overwriting a selected checkpoint retains a recovery copy;
 these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints. Updating autosave
 configuration trims only that configured world, including rotation off.
+
+Load and overwrite validate required manual-save metadata before creating a
+recovery backup or changing the active world. Malformed JSON, missing save
+records or invalid required fields return a controlled conflict and preserve
+the original files. The save list skips these same invalid entries.
 
 Manual overwrite first writes an immutable checkpoint generation, then
 atomically publishes its metadata pointer with the matching model assignments

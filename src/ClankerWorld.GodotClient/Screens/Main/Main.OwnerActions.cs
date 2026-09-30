@@ -60,7 +60,7 @@ public partial class Main
         var action = new OwnerInstructionAction(
             $"instruction_{OwnerPairingProtocol.CreateRequestId()}",
             selected.Id,
-            instructionKind.GetSelectedId() == 1 ? "must_do" : "suggestive",
+            instructionOrderButton.ButtonPressed ? "must_do" : "suggestive",
             text);
         if (!TryBeginPendingInstruction(action, out var pending))
         {
@@ -248,6 +248,7 @@ public partial class Main
             var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
                 new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
             renamingAgentId = null;
+            renameRow.Hide();
             return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
         });
     }
@@ -359,6 +360,7 @@ public partial class Main
         addAgentButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: true };
         renameAgentButton.Disabled = actionDisabled || selected is null || selected.IsDraft;
         renameAgentInput.Editable = !actionDisabled && selected is { IsDraft: false };
+        renameToggleButton.Disabled = !renameAgentInput.Editable;
         startWorldButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false, Placed: 4 };
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
@@ -378,7 +380,8 @@ public partial class Main
         authoringX.Editable = !actionDisabled && paused;
         authoringY.Editable = !actionDisabled && paused;
         authoringRenewable.Disabled = actionDisabled || !paused;
-        instructionKind.Disabled = actionDisabled || deceasedSelected;
+        instructionSuggestButton.Disabled = actionDisabled || deceasedSelected;
+        instructionOrderButton.Disabled = actionDisabled || deceasedSelected;
         instructionText.Editable = !actionDisabled && !deceasedSelected;
         retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null;
         forgetPendingSubmissionButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;

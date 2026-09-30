@@ -102,7 +102,6 @@ public partial class Main : Control
     private readonly Label rosterSummaryLabel = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly VBoxContainer selectedAgentOverview = new();
-    private readonly ScrollContainer selectedAgentOverviewScroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
     private readonly ScrollContainer selectedAgentModelScroll = new();
     private readonly VBoxContainer selectedAgentModelContent = new();
     private readonly Button modelSettingsButton = new();
@@ -166,7 +165,6 @@ public partial class Main : Control
     private string? lastLifePaceWorldId;
 
     private readonly Button pauseButton = new();
-    private readonly OptionButton instructionKind = new();
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
     private readonly Label pendingSubmissionLabel = new();

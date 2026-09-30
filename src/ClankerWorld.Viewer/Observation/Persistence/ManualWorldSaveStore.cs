@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
@@ -60,8 +61,7 @@ public sealed class ManualWorldSaveStore
                 throw new InvalidOperationException("Pause the world before overwriting a manual save.");
             if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The selected manual save no longer exists.");
-            var previousMetadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))
-                ?? throw new InvalidDataException("The selected manual save metadata is invalid.");
+            var previousMetadata = ReadMetadata(id);
             if (previousMetadata.Save.Id != id || previousMetadata.Save.IsAutosave ||
                 previousMetadata.WorldId != state.Society.Society.WorldId)
                 throw new InvalidOperationException("Only a named save from this world can be overwritten.");
@@ -209,7 +209,7 @@ public sealed class ManualWorldSaveStore
                 try
                 {
                     var item = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path));
-                    if (item?.Save is null || !IsId(fileId) || item.Save.Id != fileId || item.Generation is not null && !IsId(item.Generation))
+                    if (!IsValidMetadata(item, fileId))
                     {
                         ReportInvalid(path, fileId, "invalid_metadata", invalidPaths);
                         continue;
@@ -303,12 +303,26 @@ public sealed class ManualWorldSaveStore
 
     private Metadata ReadMetadata(string id)
     {
-        var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))
-            ?? throw new InvalidDataException("The manual save metadata is invalid.");
-        if (metadata.Save.Id != id || metadata.Generation is not null && !IsId(metadata.Generation))
-            throw new InvalidDataException("The manual save generation is invalid.");
+        Metadata? metadata;
+        try
+        {
+            metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)));
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The manual save metadata is invalid.", exception);
+        }
+        if (!IsValidMetadata(metadata, id))
+            throw new InvalidDataException("The manual save metadata is invalid.");
         return metadata;
     }
+
+    private static bool IsValidMetadata([NotNullWhen(true)] Metadata? metadata, string id) =>
+        metadata?.Save is { } save && IsId(id) && save.Id == id &&
+        !string.IsNullOrWhiteSpace(save.Name) && save.Name.Length <= 80 &&
+        !save.Name.Any(char.IsControl) && save.WorldTick >= 0 &&
+        metadata.Assignments is not null && metadata.Assignments.All(item => item is not null) &&
+        (metadata.Generation is null || IsId(metadata.Generation));
 
     private string CommittedStatePath(string id, Metadata metadata) => metadata.Generation is { } generation
         ? GenerationPath(id, generation) : StatePath(id);

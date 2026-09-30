@@ -6,12 +6,18 @@ release yet.
 
 ## Unreleased
 
-- A Direct order the game can't act on, such as "build a house", now closes at once, and the Event Log says the agent didn't understand it. Before, it never finished, asked the agent's model for a new decision about once a second and held up later instructions to that agent. An order that can't be carried out yet, such as "eat" with no food, still waits, but without the extra requests. Orders are now read as whole words, so "heat" no longer counts as "eat" and "good" no longer counts as "go".
+- An agent-card **Order** the game can't act on, such as "build a house", now closes at once, and the Event Log says the agent didn't understand it. Before, it never finished, asked the agent's model for a new decision about once a second and held up later instructions to that agent. An order that can't be carried out yet, such as "eat" with no food, still waits, but without the extra requests. Orders are now read as whole words, so "heat" no longer counts as "eat" and "good" no longer counts as "go".
+- A damaged inactive checkpoint with missing required state no longer breaks the entire Load World list. It is marked incompatible and cannot replace the healthy active world.
+- Loading or overwriting a damaged manual save reports a recoverable conflict before creating backups or changing the active world, instead of returning a server error or accepting invalid metadata.
+
 - Keep descendants able to explore and save even when their inherited identities are long.
+- New World explains when the game and world server need matching updates, keeping valid device pairing instead of asking players to connect the device again.
+
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
 - Model requests now use the game's own wording for agents and no longer send internal clock and counter values to the personal model. A few choice descriptions no longer mention the old camp.
 - Agents gather heating fuel and project materials from reachable local resources, including island Towns disconnected from the original map anchor.
+- Hungry agents and caregivers skip blocked food routes and can gather from another reachable source instead of repeatedly getting stuck.
 - Storm refuge selection checks reachable, unoccupied routes, so an inaccessible nearby forest does not hide usable cover.
 
 - Prototype survival priorities leave more room for ordinary activities below comfortable fullness and warmth. Urgent food or continuing cold exposure still interrupts discretionary work, while safe nearby care remains possible. Routine food and outing reserves remain provisional for playtesting.
@@ -42,6 +48,7 @@ release yet.
 - Food choices use the acting inhabitant’s connected ground, so an adult on another island can harvest its reachable local food instead of seeking an unreachable camp resource.
 - Crop planning and preparation use the worker’s actual household stock. Household cooking rechecks on-site ingredients, and failed production starts enter a recoverable blocked state instead of remaining stuck at completed preparation.
 - Production requests now refuse workers who are too young, before taking materials or creating a job, using the same age limits as agents' own choices.
+- Adults can only propose barter to another adult or elder, so a trade can no longer reserve a child's belongings when the child cannot answer it.
 - Loading a save and switching worlds can no longer archive a mixture of one checkpoint and another set of model/autosave settings.
 - Manual overwrite atomically publishes a complete checkpoint/model/settings generation; a failed metadata replacement keeps the prior selected save and its recovery backup.
 
@@ -324,6 +331,10 @@ release yet.
 
 ### Changed
 
+- The map is quieter. An agent's name appears only while you hover over or
+  select them, as outlined pixel letters without a dark box (gold for the
+  selected agent), and no longer carries an activity symbol. Buildings no
+  longer show their names on the map; hover over one to see its name.
 - The Main Menu now shows the ClankerWorld logo instead of a plain text title and slogan: wood-grain letters either side of a friendly robot waving in front of a little planet, floating over the valley above the menu buttons. The line of text in the menu only appears when something needs your attention, such as connecting this device or reaching your world. The robot and planet are also the game window's icon and the Windows program's icon.
 - Agents no longer start Shelters, Storehouses, Cooking fires or Stone
   hearths. A household's House now provides shelter, cooking, warmth from its
@@ -334,6 +345,18 @@ release yet.
   suggested earlier stay in the Mod Library. An adult without a household
   cannot build a House yet, so in a new world clothing and natural cover are
   their only protection from cold.
+- Selecting an agent now opens a small card beside them instead of one tall
+  card: their name, what they are doing, pixel bars for fullness, warmth and
+  illness, and **Profile** and **Speak** buttons. **Profile** docks the rest on
+  the left of the screen: a portrait, a pencil to rename, age, diet, belongings,
+  work and learning, private thoughts, people, Memories, Family and Model, and a
+  message box with a **Suggest** or **Order** choice instead of a drop-down.
+  Click the thoughts, or **Read all**, to read every recent thought in a larger
+  panel beside the Profile, grouped by day; Memories opens beside it too.
+  Back, or Escape, returns to the small card. The card no longer repeats what
+  the agent wants to do, no longer shows an always-open rename box, and no
+  longer leaves empty gaps. A deceased agent opens straight to their historical
+  Profile.
 - Buttons are consistent across the game. Every panel closes with the same
   small square button showing a pixel ×, and a screen reached from another
   (Main Menu Settings, New World, Load World, Save World and an agent's model

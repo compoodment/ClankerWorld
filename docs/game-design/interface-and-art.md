@@ -158,6 +158,19 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
+- **Agreed after the September 30 agent card review:** computment chose the
+  two-step card (option D of four mockups). Selecting an agent opens a small
+  **quick card** beside them with their name, what they are doing, bars for
+  fullness, warmth and illness, and **Profile** and **Speak** buttons.
+  **Profile** docks a larger panel on the left of the screen: portrait, a
+  pencil to rename, age, diet and the other bars, belongings, work and
+  learning, private thoughts, people, **Memories**, **Family** and **Model**,
+  and a message box with a **Suggest** or **Order** choice. Clicking the
+  thoughts, or **Read all**, opens every recent thought in a larger reader
+  beside the Profile, grouped by day; Memories opens beside it too. The
+  Profile's back button returns to the quick card; a deceased agent's
+  historical Profile opens directly and simply closes. This refines the
+  selected-agent popup described further down this list.
 - **Agreed on September 30:** buttons are consistent across the whole game.
   Every panel closes with one small square button showing a pixel ×. A screen
   reached from another shows a pixel back chevron in that same place, instead
@@ -165,6 +178,12 @@ everything that is available in the current build. See [what works today](../wha
   buttons, other buttons share one height, and confirming something that
   cannot be undone uses a red button. The hover readout names what is under
   the pointer without map coordinates.
+- **Agreed after the September 30 nameplate review:** the map shows an agent's
+  name only while that agent is selected or hovered, as light pixel letters
+  with a dark edge and no box; the selected agent's name is gold. Names carry
+  no activity symbol. Buildings show no names on the map; hovering a building
+  still names it. computment chose the outlined-text look (option C) with the
+  only-when-needed rule (option E) from the nameplate mockups.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player
@@ -206,15 +225,15 @@ everything that is available in the current build. See [what works today](../wha
   separately, never as proof of biological family. Unrelated starter
   housemates must not be drawn as relatives.
 - **Agreed on September 30:** the agent card's **Speak to them** box sends a
-  Suggestion or a Direct order. A Direct order that asks for nothing the game
-  can act on, such as "build a house", is accepted and closed at once, and
-  the Event Log says the agent did not understand it. It uses no model request
-  and does not hold up later Suggestions or orders to that agent. A Direct
-  order the game understands but that cannot be carried out yet, such as "eat"
-  while the agent carries no food, keeps waiting, including across saves. It
-  is checked again only when the agent next makes one of its usual decisions,
-  never on every tick. Which orders the game understands is covered under
-  **Still to decide** below.
+  message as a **Suggest** or an **Order**. An order that asks for nothing
+  the game can act on, such as "build a house", is accepted and closed at
+  once, and the Event Log says the agent did not understand it. It uses no
+  model request and does not hold up later suggestions or orders to that
+  agent. An order the game understands but that cannot be carried out yet,
+  such as "eat" while the agent carries no food, keeps waiting, including
+  across saves. It is checked again only when the agent next makes one of its
+  usual decisions, never on every tick. Which orders the game understands is
+  covered under **Still to decide** below.
 
 ### Leaning toward
 
@@ -262,8 +281,8 @@ ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
 month/season names and date presentation; and the detailed player-control/
 observer boundary beyond adding and renaming agents. That boundary includes
-which Direct orders the game should understand and whether an agent's own model
-reads the words of a Suggestion or order. Computment may provide a UI drawing.
+which orders the game should understand and whether an agent's own model reads
+the words of a suggestion or order. Computment may provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
 retention count, how memories are grouped/searched/labeled, family-tree

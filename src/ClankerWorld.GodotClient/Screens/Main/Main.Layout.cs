@@ -159,8 +159,7 @@ public partial class Main
         weatherLayer.Follow(terrainLayer);
         mapStage.AddChild(weatherLayer);
 
-        BuildSelectedInhabitantCard();
-        uiLayer.AddChild(selectedInhabitantCard);
+        BuildAgentCards();
 
         worldOverview.CenterRequested += CenterCameraAt;
         AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
@@ -243,7 +242,7 @@ public partial class Main
         memoriesBody.AddChild(memoryHistory);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
-        memoriesPanel.Resized += CenterMemoriesPanel;
+        memoriesPanel.Resized += () => PlaceReaderPanel(memoriesPanel);
         memoriesPanel.Hide();
         content.AddChild(memoriesPanel);
 
@@ -568,110 +567,6 @@ public partial class Main
         UpdateAuthoringHint();
     }
 
-    private void BuildSelectedInhabitantCard()
-    {
-        var body = new VBoxContainer();
-        body.AddThemeConstantOverride("separation", 6);
-
-        var heading = new HBoxContainer();
-        selectedActorNameLabel.Text = string.Empty;
-        selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
-        selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        heading.AddChild(selectedActorNameLabel);
-        StyleIconButton(clearSelectionButton, PixelGlyph.Close);
-        clearSelectionButton.TooltipText = "Close";
-        // While the model editor is open this is its back button.
-        clearSelectionButton.Pressed += () =>
-        {
-            if (selectedAgentModelScroll.Visible) CloseAgentModelEditor();
-            else ClearInhabitantSelection();
-        };
-        StyleIconButton(findAgentButton, PixelGlyph.Find);
-        findAgentButton.TooltipText = "Center the map on this agent (C).";
-        findAgentButton.Pressed += () =>
-        {
-            if (selectedInhabitantId is { } id) CenterOnInhabitant(id);
-        };
-        heading.AddChild(findAgentButton);
-        heading.AddChild(clearSelectionButton);
-        body.AddChild(heading);
-
-        selectedAgentOverview.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        selectedAgentOverviewScroll.AddChild(selectedAgentOverview);
-        body.AddChild(selectedAgentOverviewScroll);
-        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
-        selectedAgentModelScroll.AddChild(selectedAgentModelContent);
-        body.AddChild(selectedAgentModelScroll);
-        selectedAgentModelScroll.Hide();
-
-        selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        selectedActorSummaryLabel.ThemeTypeVariation = "DimLabel";
-        selectedAgentOverview.AddChild(selectedActorSummaryLabel);
-        selectedActorConditionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        selectedActorConditionLabel.ThemeTypeVariation = "SoftLabel";
-        selectedAgentOverview.AddChild(selectedActorConditionLabel);
-
-        var renameRow = new HBoxContainer();
-        renameAgentInput.PlaceholderText = "Agent name";
-        renameAgentInput.MaxLength = 48;
-        renameAgentInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        renameRow.AddChild(renameAgentInput);
-        renameAgentButton.Text = "Rename";
-        StyleButton(renameAgentButton);
-        renameAgentButton.Pressed += () => _ = RenameSelectedAgentAsync();
-        renameRow.AddChild(renameAgentButton);
-        selectedAgentOverview.AddChild(renameRow);
-
-        ConfigureTextPanel(inhabitantDetails, 96);
-        selectedAgentOverview.AddChild(inhabitantDetails);
-
-        ConfigureTextPanel(inhabitantSocialDetails, 104);
-        selectedAgentOverview.AddChild(inhabitantSocialDetails);
-
-        ConfigureTextPanel(privateThoughtHistory, 86);
-        privateThoughtHistory.TooltipText = "Only you can see these thoughts. Other agents don't know them unless they are told.";
-        selectedAgentOverview.AddChild(privateThoughtHistory);
-
-        memoriesButton.Text = "Memories + maps";
-        memoriesButton.TooltipText = "See what this agent remembers, including private memories.";
-        StyleButton(memoriesButton);
-        memoriesButton.Pressed += OpenMemories;
-        var historyActions = new HBoxContainer();
-        historyActions.AddChild(memoriesButton);
-
-        familyTreeButton.Text = "Family Tree";
-        familyTreeButton.TooltipText = "See their family, including those who have passed.";
-        StyleButton(familyTreeButton);
-        familyTreeButton.Pressed += OpenFamilyTree;
-        historyActions.AddChild(familyTreeButton);
-        modelSettingsButton.Text = "Model and key";
-        modelSettingsButton.TooltipText = "Choose this agent's model and API key.";
-        StyleButton(modelSettingsButton);
-        modelSettingsButton.Pressed += OpenAgentModelEditor;
-        historyActions.AddChild(modelSettingsButton);
-        selectedAgentOverview.AddChild(historyActions);
-
-        var instructionHeading = new Label { Text = "Speak to them" };
-        instructionHeading.ThemeTypeVariation = "SectionLabel";
-        selectedAgentOverview.AddChild(instructionHeading);
-        instructionKind.AddItem("Suggestion", 0);
-        instructionKind.AddItem("Direct order", 1);
-        instructionKind.CustomMinimumSize = new Vector2(0, 32);
-        selectedAgentOverview.AddChild(instructionKind);
-        instructionText.PlaceholderText = "Say something…";
-        instructionText.CustomMinimumSize = new Vector2(0, 34);
-        selectedAgentOverview.AddChild(instructionText);
-        submitInstructionButton.Text = "Send";
-        StyleButton(submitInstructionButton, primary: true);
-        submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
-        selectedAgentOverview.AddChild(submitInstructionButton);
-
-        AddPanelContents(selectedInhabitantCard, body);
-        selectedInhabitantCard.CustomMinimumSize = new Vector2(350, 0);
-        selectedInhabitantCard.ZIndex = 70;
-        selectedInhabitantCard.Hide();
-    }
-
     private void BuildStatusToast(Control content)
     {
         statusLabel.Text = "Connecting…";
@@ -741,7 +636,16 @@ public partial class Main
             var rest = panel.GetCombinedMinimumSize().Y - label.CustomMinimumSize.Y;
             height = Math.Min(height, UiSize.Y - HudTop - 12 - rest);
         }
-        height = Mathf.Ceil(Math.Max(UiFonts.Body * 2, height));
+        // Text that has to scroll shows whole lines rather than a sliced last one.
+        var line = label.GetThemeFont("normal_font").GetHeight(label.GetThemeFontSize("normal_font_size")) +
+            label.GetThemeConstant("line_separation");
+        var minimum = (float)UiFonts.Body * 2;
+        if (height < label.GetContentHeight() && line > 0)
+        {
+            height = Math.Max(line, Mathf.Floor(height / line) * line);
+            minimum = line;
+        }
+        height = Mathf.Ceil(Math.Max(minimum, height));
         if (Math.Abs(label.CustomMinimumSize.Y - height) >= 1)
             label.CustomMinimumSize = new Vector2(label.CustomMinimumSize.X, height);
     }
@@ -752,7 +656,7 @@ public partial class Main
     /// </summary>
     private void FitFloatingPanelsToContents()
     {
-        foreach (var panel in HudPanels().Append(memoriesPanel).Append(selectedTilePanel))
+        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(selectedTilePanel).Append(agentProfilePanel))
             panel.MinimumSizeChanged += () => panel.Size = panel.GetCombinedMinimumSize();
     }
 
