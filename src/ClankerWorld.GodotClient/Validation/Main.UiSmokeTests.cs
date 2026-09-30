@@ -170,8 +170,8 @@ public partial class Main
     }
 
     /// <summary>
-    /// The model picker offers the key's list with the recommended model
-    /// marked, keeps a model the key doesn't list, falls back to a typed name,
+    /// The model picker shows the key's models as plain names, oldest to
+    /// newest, keeps a model the key doesn't list, falls back to a typed name,
     /// and explains a failed lookup with a Retry.
     /// </summary>
     private void VerifyModelPicker()
@@ -200,12 +200,19 @@ public partial class Main
             var lookup = picker.BeginLoading("gpt-6-luna");
             if (picker.IsLatest(stale) || !picker.IsLatest(lookup))
                 throw new InvalidOperationException("Only the newest model lookup may fill the picker.");
-            picker.ShowList(["gpt-6-luna", "gpt-6", "gpt-5.6-luna"], "gpt-6-luna");
-            if (Items() != $"gpt-6-luna (recommended) | gpt-6 | gpt-5.6-luna | {ModelPicker.TypeOwnText}" ||
-                picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna (recommended)" || picker.Problem.Length > 0)
-                throw new InvalidOperationException($"The model list must mark the recommended model and end with a typed choice: {Items()}.");
+            string[] offered = ["gpt-5.6-luna", "gpt-6-luna", "gpt-6"];
+            picker.ShowList(offered, "gpt-6-luna");
+            if (Items() != $"gpt-5.6-luna | gpt-6-luna | gpt-6 | {ModelPicker.TypeOwnText}" ||
+                picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-6-luna" || picker.Problem.Length > 0)
+                throw new InvalidOperationException($"The model list must show plain names in the order given and end with a typed choice: {Items()}.");
+            var fresh = new ModelPicker();
+            fresh.ShowList(["gpt-5.6-luna", "gpt-6"], "gpt-6-luna");
+            var newest = fresh.Model;
+            fresh.Free();
+            if (newest != "gpt-6")
+                throw new InvalidOperationException("Without the default model, a new agent must start on the newest listed model.");
             picker.SetModel("gpt-4.1");
-            picker.ShowList(["gpt-6-luna", "gpt-6", "gpt-5.6-luna"], "gpt-6-luna");
+            picker.ShowList(offered, "gpt-6-luna");
             if (picker.Choice.GetItemText(picker.Choice.Selected) != "gpt-4.1 (not offered by this key)" || picker.Model != "gpt-4.1")
                 throw new InvalidOperationException($"An agent's model must stay chosen when the key doesn't list it: {Items()}.");
             Pick("gpt-5.6-luna");
@@ -215,7 +222,7 @@ public partial class Main
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "gpt-5.6-luna")
                 throw new InvalidOperationException("Type a model name must open a text box starting from the chosen model.");
             picker.TypedInput.Text = "my-fine-tune";
-            picker.ShowList(["gpt-6-luna", "gpt-6"], "gpt-6-luna");
+            picker.ShowList(offered, "gpt-6-luna");
             if (picker.Model != "my-fine-tune" || !picker.TypedInput.Visible)
                 throw new InvalidOperationException("A new list must not replace a typed model name.");
             picker.SetModel("gpt-6-luna");

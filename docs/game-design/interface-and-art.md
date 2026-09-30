@@ -180,9 +180,9 @@ everything that is available in the current build. See [what works today](../wha
   the world. Existing credentials can be reused by multiple agents. A player
   may also add another key for the **same provider** and choose which key that
   agent uses; there is no single-key-per-provider restriction. The model is
-  chosen from a list of the chat models the selected key can use, newest
-  first with the recommended model on top, and the player can still type a
-  model name the list leaves out. The agent
+  chosen from a plain list of the chat models the selected key can use,
+  oldest to newest, and the player can still type a model name the list
+  leaves out. The agent
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid

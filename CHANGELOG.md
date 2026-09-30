@@ -314,13 +314,13 @@ release yet.
 
 - Choosing an agent's model no longer means typing its exact name. In Add an
   agent and in an agent's Model settings, the key is chosen first, and the
-  model comes from a list of the chat models that key can use, newest first
-  with the game's recommended model marked. A model the key doesn't list is
+  model comes from a plain list of the chat models that key can use, oldest
+  to newest. A model the key doesn't list is
   kept and labelled, **Type a model name…** covers anything else, and if the
   list can't be read the reason is shown with **Retry**. The host fetches the
   list, so keys never leave it, and a newly pasted key is not saved until the
   agent is placed or the change applied.
-- The recommended OpenAI model is now GPT-6 Luna (`gpt-6-luna`), replacing
+- New OpenAI agents now start on GPT-6 Luna (`gpt-6-luna`) instead of
   `gpt-5-mini`. Agents and saved settings that already name a model keep it.
 - The Main Menu now shows the ClankerWorld logo instead of a plain text title and slogan: wood-grain letters either side of a friendly robot waving in front of a little planet, floating over the valley above the menu buttons. The line of text in the menu only appears when something needs your attention, such as connecting this device or reaching your world. The robot and planet are also the game window's icon and the Windows program's icon.
 - Agents no longer start Shelters, Storehouses, Cooking fires or Stone

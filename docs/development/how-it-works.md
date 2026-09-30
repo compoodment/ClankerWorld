@@ -130,7 +130,10 @@ The owner's model picker asks the host which models a key can use. The host
 calls the provider's model-list route (OpenAI `/v1/models`; Ollama Cloud
 `/api/tags`, then `/v1/models`) with the saved key, a named key slot, or a key
 pasted for that lookup only, which is not stored. Keys never return to the
-client. OpenAI's list is filtered to chat models by name. Lists are cached per
+client. OpenAI's list is filtered to chat models by name. The list runs oldest
+to newest and keeps the newest 200 models. A new agent starts on the game's
+default model for that provider when the key offers it, otherwise on the
+newest listed model. Lists are cached per
 key for ten minutes, time out after eight seconds and are not model calls, so
 they do not count toward the usage cap below.
 

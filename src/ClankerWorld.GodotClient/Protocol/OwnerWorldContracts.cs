@@ -395,10 +395,11 @@ public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 public sealed record OwnerProviderModelListAction(string Provider, string? CredentialSlotId = null, string? ApiKey = null);
 
 /// <summary>
-/// The chat models a key can use, newest first with the recommended model on
-/// top when offered. <see cref="Error"/> explains an empty list in plain words.
+/// The chat models a key can use, oldest to newest. <see cref="DefaultModel"/>
+/// is the game's default for this provider, chosen for a new agent when the
+/// key offers it. <see cref="Error"/> explains an empty list in plain words.
 /// </summary>
-public sealed record OwnerProviderModelList(string Provider, IReadOnlyList<string> Models, string Recommended, string? Error);
+public sealed record OwnerProviderModelList(string Provider, IReadOnlyList<string> Models, string DefaultModel, string? Error);
 
 public sealed record OwnerProviderConfigurationAction(
     string Role,

@@ -3,9 +3,8 @@ using Godot;
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
-/// Chooses an agent's model from the list a provider key offers, with the
-/// recommended model marked and a "Type a model name…" choice for anything the
-/// list leaves out. While the list loads, or when it can't be read, the owner
+/// Chooses an agent's model from the list a provider key offers, oldest to
+/// newest, with a "Type a model name…" choice for anything the list leaves out. While the list loads, or when it can't be read, the owner
 /// can still keep the current model or type one.
 /// </summary>
 public partial class ModelPicker : VBoxContainer
@@ -19,7 +18,7 @@ public partial class ModelPicker : VBoxContainer
     private readonly Label problem = new();
     private readonly Button retry = new();
     private IReadOnlyList<string> models = [];
-    private string recommended = string.Empty;
+    private string defaultModel = string.Empty;
     private string current = string.Empty;
     private string? error;
     private bool loading;
@@ -90,6 +89,7 @@ public partial class ModelPicker : VBoxContainer
     {
         current = model.Trim();
         typing = false;
+        ChooseWhenEmpty();
         typed.Text = current;
         Rebuild();
     }
@@ -98,9 +98,9 @@ public partial class ModelPicker : VBoxContainer
     /// Starts a new lookup and returns its number. Only the latest lookup's
     /// answer is shown, so a slow reply for an old key can't replace a newer list.
     /// </summary>
-    public int BeginLoading(string recommendedModel)
+    public int BeginLoading(string fallbackModel)
     {
-        recommended = recommendedModel;
+        defaultModel = fallbackModel;
         loading = true;
         listed = false;
         error = null;
@@ -111,26 +111,39 @@ public partial class ModelPicker : VBoxContainer
 
     public bool IsLatest(int lookup) => lookup == request;
 
-    public void ShowList(IReadOnlyList<string> offered, string recommendedModel)
+    /// <summary>
+    /// Shows the key's models in the order given. With nothing chosen yet, the
+    /// game's default model is picked when offered, otherwise the newest.
+    /// </summary>
+    public void ShowList(IReadOnlyList<string> offered, string fallbackModel)
     {
-        recommended = recommendedModel;
+        defaultModel = fallbackModel;
         models = offered;
         loading = false;
         listed = true;
         error = offered.Count == 0 ? "This key doesn't offer any chat models. Type a model name instead." : null;
-        if (current.Length == 0 && offered.Count > 0)
-            current = offered.Contains(recommended, StringComparer.Ordinal) ? recommended : offered[0];
+        // Keep a name the owner typed, but an empty text box gives way to the list.
+        if (typing && typed.Text.Trim().Length == 0 && offered.Count > 0) typing = false;
+        ChooseWhenEmpty();
         Rebuild(canRetry: false);
     }
 
-    public void ShowError(string message, string recommendedModel, bool canRetry = true)
+    // With nothing chosen, start on the game's default model when the key
+    // offers it, otherwise on the newest listed model.
+    private void ChooseWhenEmpty()
     {
-        recommended = recommendedModel;
+        if (current.Length == 0 && models.Count > 0)
+            current = models.Contains(defaultModel, StringComparer.Ordinal) ? defaultModel : models[^1];
+    }
+
+    public void ShowError(string message, string fallbackModel, bool canRetry = true)
+    {
+        defaultModel = fallbackModel;
         models = [];
         loading = false;
         listed = false;
         error = message;
-        if (current.Length == 0) current = recommended;
+        if (current.Length == 0) current = defaultModel;
         Rebuild(canRetry);
     }
 
@@ -158,11 +171,10 @@ public partial class ModelPicker : VBoxContainer
         if (current.Length > 0 && !known)
         {
             // Keep the agent's model even when this key's list leaves it out.
-            AddModel(current, listed ? $"{current} (not offered by this key)" :
-                current == recommended ? $"{current} (recommended)" : current);
+            AddModel(current, listed ? $"{current} (not offered by this key)" : current);
         }
         foreach (var model in models)
-            AddModel(model, model == recommended ? $"{model} (recommended)" : model);
+            AddModel(model, model);
         if (loading)
         {
             choice.AddItem("Loading models…");

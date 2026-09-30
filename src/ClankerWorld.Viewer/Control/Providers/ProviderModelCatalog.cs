@@ -38,34 +38,34 @@ public sealed class ProviderModelCatalog(
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
         if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
             throw new ArgumentException("Only OpenAI and Ollama Cloud offer a model list.", nameof(action));
-        var recommended = PlayerDecisionProviders.DefaultModel(provider);
+        var defaultModel = PlayerDecisionProviders.DefaultModel(provider);
         var name = DisplayName(provider);
         if (ResolveKey(provider, action) is not { } apiKey)
-            return new OwnerProviderModelList(provider, [], recommended, $"Add an API key for {name} first.");
+            return new OwnerProviderModelList(provider, [], defaultModel, $"Add an API key for {name} first.");
 
         var cacheKey = provider + ":" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));
         lock (gate)
         {
             if (cache.TryGetValue(cacheKey, out var cached) && cached.Expires > clock.GetUtcNow())
-                return new OwnerProviderModelList(provider, cached.Models, recommended, null);
+                return new OwnerProviderModelList(provider, cached.Models, defaultModel, null);
         }
 
         try
         {
             var listed = await FetchAsync(provider, apiKey, cancellationToken).ConfigureAwait(false);
-            var models = Order(provider, listed, recommended);
+            var models = Order(provider, listed);
             lock (gate)
                 cache[cacheKey] = (clock.GetUtcNow() + CacheLifetime, models);
-            return new OwnerProviderModelList(provider, models, recommended, null);
+            return new OwnerProviderModelList(provider, models, defaultModel, null);
         }
         catch (ProviderRefusedKeyException)
         {
-            return new OwnerProviderModelList(provider, [], recommended, $"{name} refused this key.");
+            return new OwnerProviderModelList(provider, [], defaultModel, $"{name} refused this key.");
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidDataException &&
             !cancellationToken.IsCancellationRequested)
         {
-            return new OwnerProviderModelList(provider, [], recommended,
+            return new OwnerProviderModelList(provider, [], defaultModel,
                 $"Couldn't get the model list from {name}. Check the key or your connection, or type a model name.");
         }
     }
@@ -162,24 +162,20 @@ public sealed class ProviderModelCatalog(
     }
 
     /// <summary>
-    /// Chat models only, newest first, with the game's recommended model on top
-    /// when the key offers it. OpenAI lists image, speech, embedding and other
-    /// models on the same route, so those are left out by name.
+    /// Chat models only, oldest to newest. OpenAI lists image, speech,
+    /// embedding and other models on the same route, so those are left out by
+    /// name. A very long list keeps its newest models.
     /// </summary>
-    public static IReadOnlyList<string> Order(string provider, IEnumerable<ListedModel> listed, string recommended)
-    {
-        var models = listed
-            .Where(model => model.Id.Length is > 0 and <= 200 && !model.Id.Any(char.IsControl))
-            .Where(model => provider != PlayerDecisionProviders.OpenAi || IsOpenAiChatModel(model.Id))
-            .GroupBy(model => model.Id, StringComparer.Ordinal).Select(group => group.First())
-            .OrderByDescending(model => string.Equals(model.Id, recommended, StringComparison.Ordinal))
-            .ThenByDescending(model => model.Created)
-            .ThenBy(model => model.Id, StringComparer.Ordinal)
-            .Select(model => model.Id)
-            .Take(MaximumModels)
-            .ToArray();
-        return models;
-    }
+    public static IReadOnlyList<string> Order(string provider, IEnumerable<ListedModel> listed) => listed
+        .Where(model => model.Id.Length is > 0 and <= 200 && !model.Id.Any(char.IsControl))
+        .Where(model => provider != PlayerDecisionProviders.OpenAi || IsOpenAiChatModel(model.Id))
+        .GroupBy(model => model.Id, StringComparer.Ordinal).Select(group => group.First())
+        .OrderByDescending(model => model.Created)
+        .Take(MaximumModels)
+        .OrderBy(model => model.Created)
+        .ThenBy(model => model.Id, StringComparer.Ordinal)
+        .Select(model => model.Id)
+        .ToArray();
 
     /// <summary>
     /// OpenAI's chat families (<c>gpt-…</c>, <c>chatgpt-…</c> and the

@@ -352,7 +352,7 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
             var list = await missing.Content.ReadFromJsonAsync<OwnerProviderModelList>();
             Assert.Equal("Add an API key for Ollama Cloud first.", list!.Error);
-            Assert.Equal(PlayerDecisionProviders.DefaultOllamaCloudModel, list.Recommended);
+            Assert.Equal(PlayerDecisionProviders.DefaultOllamaCloudModel, list.DefaultModel);
 
             var jev = new OwnerProviderModelListAction("jev");
             using var unsupported = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, jev,

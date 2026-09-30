@@ -37,9 +37,8 @@ If the server changes, forget the old registration and pair again.
    You can choose another site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
-   provider. The model list shows the chat models that key can use, with the
-   game's recommended model marked; pick **Type a model name…** for one that is
-   not listed. The agents start in two households, not two forced couples or
+   provider. The model list shows the chat models that key can use, oldest to
+   newest; pick **Type a model name…** for one that is not listed. The agents start in two households, not two forced couples or
    biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or

@@ -20,16 +20,16 @@ public partial class Main
     /// </summary>
     private async Task LoadModelListAsync(ModelPicker picker, string provider, string? credentialSlotId, string? apiKey)
     {
-        var recommended = DefaultProviderModel(provider);
+        var defaultModel = DefaultProviderModel(provider);
         if (!HasModelList(provider))
         {
-            picker.ShowTypedOnly(picker.Model.Length > 0 ? picker.Model : recommended);
+            picker.ShowTypedOnly(picker.Model.Length > 0 ? picker.Model : defaultModel);
             return;
         }
-        var lookup = picker.BeginLoading(recommended);
+        var lookup = picker.BeginLoading(defaultModel);
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
-            picker.ShowError("Connect this device to see the models.", recommended, canRetry: false);
+            picker.ShowError("Connect this device to see the models.", defaultModel, canRetry: false);
             return;
         }
         try
@@ -37,13 +37,13 @@ public partial class Main
             var list = await ownerApi.ListProviderModelsAsync(ResolveWorldUri(), authority, deviceId,
                 new OwnerProviderModelListAction(provider, credentialSlotId, apiKey), signer, CancellationToken.None);
             if (!picker.IsLatest(lookup)) return;
-            if (list.Error is { } error) picker.ShowError(error, list.Recommended);
-            else picker.ShowList(list.Models, list.Recommended);
+            if (list.Error is { } error) picker.ShowError(error, list.DefaultModel);
+            else picker.ShowList(list.Models, list.DefaultModel);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             if (picker.IsLatest(lookup))
-                picker.ShowError("Couldn't reach the game server for the model list. Type a model name or try again.", recommended);
+                picker.ShowError("Couldn't reach the game server for the model list. Type a model name or try again.", defaultModel);
         }
     }
 

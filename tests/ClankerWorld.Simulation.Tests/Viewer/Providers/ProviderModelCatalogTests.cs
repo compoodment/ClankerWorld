@@ -31,26 +31,37 @@ public sealed class ProviderModelCatalogTests
 
     private const string OllamaTags = """
         {"models":[
-          {"name":"qwen3-coder:480b-cloud","model":"qwen3-coder:480b-cloud","modified_at":"2025-09-17T10:00:00Z"},
-          {"name":"gpt-oss:120b-cloud","model":"gpt-oss:120b-cloud","modified_at":"2025-08-05T10:00:00Z"},
-          {"name":"deepseek-v3.1:671b-cloud","model":"deepseek-v3.1:671b-cloud","modified_at":"2025-09-22T10:00:00Z"}
+          {"name":"kimi-k3","model":"kimi-k3","modified_at":"2026-08-20T10:00:00Z"},
+          {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"},
+          {"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-04-02T10:00:00Z"}
         ]}
         """;
 
     [Fact]
-    public void OpenAiListKeepsChatModelsWithTheRecommendedModelFirstThenNewest()
+    public void OpenAiListKeepsOnlyChatModelsFromOldestToNewest()
     {
         var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OpenAi,
-            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)), PlayerDecisionProviders.DefaultOpenAiModel);
-        Assert.Equal(["gpt-6-luna", "gpt-6", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "o3", "gpt-4o"], models);
+            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)));
+        Assert.Equal(["gpt-4o", "o3", "gpt-5-mini", "gpt-5", "gpt-5.6-luna", "gpt-6-luna", "gpt-6"], models);
     }
 
     [Fact]
-    public void OllamaListReadsNativeTagsNewestFirstWithTheRecommendedModelOnTop()
+    public void OllamaListReadsNativeTagsFromOldestToNewest()
     {
         var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OllamaCloud,
-            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)), PlayerDecisionProviders.DefaultOllamaCloudModel);
-        Assert.Equal(["gpt-oss:120b-cloud", "deepseek-v3.1:671b-cloud", "qwen3-coder:480b-cloud"], models);
+            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
+        Assert.Equal(["gpt-oss:120b", "gemma4:31b", "kimi-k3"], models);
+    }
+
+    [Fact]
+    public void VeryLongListKeepsItsNewestModelsStillOldestFirst()
+    {
+        var start = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var listed = Enumerable.Range(0, 250).Select(day => new ProviderModelCatalog.ListedModel($"model-{day:D3}", start.AddDays(day)));
+        var models = ProviderModelCatalog.Order(PlayerDecisionProviders.OllamaCloud, listed);
+        Assert.Equal(200, models.Count);
+        Assert.Equal("model-050", models[0]);
+        Assert.Equal("model-249", models[^1]);
     }
 
     [Fact]
@@ -71,8 +82,8 @@ public sealed class ProviderModelCatalogTests
 
         var first = await catalog.ListAsync(new("openai"), CancellationToken.None);
         Assert.Null(first.Error);
-        Assert.Equal("gpt-6-luna", first.Models[0]);
-        Assert.Equal("gpt-6-luna", first.Recommended);
+        Assert.Equal("gpt-6", first.Models[^1]);
+        Assert.Equal("gpt-6-luna", first.DefaultModel);
         Assert.Equal(ProviderModelCatalog.OpenAiModels, handler.Requests.Single().Uri);
         Assert.Equal("Bearer saved-openai-secret", handler.Requests.Single().Authorization);
 
