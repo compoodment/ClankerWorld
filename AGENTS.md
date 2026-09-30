@@ -49,16 +49,20 @@ different point.
 
 - Choose from the [agent-ready issues](CONTRIBUTING.md#find-work) and claim one
   before you start.
-- Open the pull request ready for review, with `Closes` for each issue it
-  completes and `Refs` for the rest. If the change still needs a hands-on check
-  in the game, add `status:needs-playtest` to the issue.
+- Open the pull request as a draft while you work, with `Closes` for each issue
+  it completes and `Refs` for the rest. Mark it ready for review only when it is
+  finished. If the change still needs a hands-on check in the game, add
+  `status:needs-playtest` to the issue.
+- Fix CI failures and review requests on the same branch, but convert the pull
+  request back to draft first and mark it ready again when you are done
+  ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)).
 - Do not merge it yourself. Report the pull request link as your result.
-- Fix CI failures and review requests on the same branch.
 
 ### Review and merge
 
 - Review only pull requests you did not write, and follow the
-  [Review and merge](CONTRIBUTING.md#review-and-merge) checklist.
+  [Review and merge](CONTRIBUTING.md#review-and-merge) checklist. Never merge a
+  draft, or a pull request someone pushed to after marking it ready.
 - Merge dependent pull requests in their stated order. After each merge, later
   pull requests may need main merged in and CI run again.
 - After merging, confirm the commit on GitHub's `origin/main` and that the
@@ -118,8 +122,9 @@ and update existing documentation checks if files move. Report unrun or failed
 checks clearly.
 
 For changes intended for main, use the reviewed PR workflow in CONTRIBUTING.
-Follow [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness): do not
-leave completed work in draft solely for routine owner playtesting or pending
+Follow [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness): keep a
+pull request in draft while you are still working on it, and do not leave
+finished work in draft solely for routine owner playtesting or pending
 independent review. Report unperformed checks without turning them into
 unrequested merge gates.
 If you merged, fetch and verify the resulting commit on GitHub's `origin/main`
