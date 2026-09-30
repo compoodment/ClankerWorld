@@ -247,6 +247,36 @@ public sealed class CognitionTests
     }
 
     [Fact]
+    public async Task NamingHintVariesBetweenAgentsButStaysStableForRetries()
+    {
+        var handler = new RecordingHandler(OpenAiCompatibleJsonResponse());
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(
+            client, () => "synthetic-test-key", new Uri("https://model.test/v1/chat/completions"), "test-model");
+
+        static CognitionDecisionRequest Request(string actor, bool needsName, string requestId) =>
+            new(requestId, 2, new InhabitantObservation(actor, 9, 1, 3, "sha256:test-observation", 9_000,
+                [new CognitionCandidate("safe_idle", "Continue safely.")], NeedsName: needsName));
+
+        async Task<string> SystemPrompt(CognitionDecisionRequest request)
+        {
+            _ = await provider.DecideAsync(request);
+            using var payload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+            return payload.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+        }
+
+        var first = await SystemPrompt(Request("actor-alpha", true, "first"));
+        var retry = await SystemPrompt(Request("actor-alpha", true, "retry"));
+        var other = await SystemPrompt(Request("actor-gamma", true, "other"));
+        var named = await SystemPrompt(Request("actor-alpha", false, "named"));
+
+        Assert.Equal(first, retry);
+        Assert.NotEqual(first, other);
+        Assert.Contains("given name starting with", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("given name starting with", named, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CognitionSelfContextRejectsAnotherOwnerAndOversizedThoughts()
     {
         var observation = new InhabitantObservation("actor", 1, 0, 1, "digest", 5_000,

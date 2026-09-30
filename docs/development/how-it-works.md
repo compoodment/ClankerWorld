@@ -98,6 +98,11 @@ Request text uses the game's own words (*agent*, *Town*, *House*), not the older
 the clock or the run and decision counters; admission uses them on the server.
 The request still names households by their internal ID, and the Jev request
 still carries those counters, because Jev's live service cannot be checked offline.
+When an unnamed agent is asked to choose a full name, the personal-model
+request includes a soft first-letter hint derived from that agent's stable ID.
+The hint stays the same if the request is retried, is computed per agent, and
+does not reveal anyone else's name or add a separate model call. It does not
+guarantee unique names; duplicate handling remains separate.
 
 The response must select a legal candidate. Confidence below 0.5 permits only
 the safe-idle fallback; probabilities are validated/retained but do not select

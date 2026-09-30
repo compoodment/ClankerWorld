@@ -11,6 +11,7 @@ release yet.
 
 - Keep descendants able to explore and save even when their inherited identities are long.
 - New World explains when the game and world server need matching updates, keeping valid device pairing instead of asking players to connect the device again.
+- New agents choosing names receive a stable first-letter suggestion to encourage variety without adding a model call.
 
 - A mandatory harvest instruction completes after gathering orchard fruit, allowing the agent's next queued instruction to proceed after saving and loading too.
 
