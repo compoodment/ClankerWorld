@@ -34,6 +34,16 @@ fi
 
 mapfile -t files < <(printf '%s\n' "${entries[@]}" | LC_ALL=C sort -k1,1nr -k2 | cut -d' ' -f2-)
 
+# git rm refuses changed tracked files. Check every entry before writing the
+# changelog so a refusal cannot leave copied entries waiting to be copied again.
+for path in "${files[@]}"; do
+    if git ls-files --error-unmatch "${path}" >/dev/null 2>&1 &&
+        { ! git diff --quiet -- "${path}" || ! git diff --cached --quiet -- "${path}"; }; then
+        printf 'Commit changes to %s before collecting entries.\n' "${path}" >&2
+        exit 1
+    fi
+done
+
 block="$(mktemp)"
 trap 'rm -f "${block}"' EXIT
 for path in "${files[@]}"; do

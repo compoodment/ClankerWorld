@@ -14,3 +14,6 @@ in the changelog:
 
 `scripts/collect-changes.sh` moves these entries into CHANGELOG.md, newest
 first, and deletes their files.
+Commit edits to tracked entries before collecting them. If an entry has staged
+or unstaged changes, the script stops before changing the changelog or deleting
+any entries. New, untracked entries can be collected directly.
