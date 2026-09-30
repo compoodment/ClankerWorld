@@ -30,7 +30,7 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 - **A tick commits all its accepted changes together.** A tick is one step of
   world time. Rejected, cancelled or stale model work cannot leave a half-applied
   action. Pause and loss of authenticated client presence invalidate in-flight
-  work. A failed or low-confidence reply uses only explicit `safe_idle`;
+  work. A failed or unusable reply uses only explicit `safe_idle`;
   it cannot execute a strategic candidate or complete an instruction.
 - **Time and spending require presence.** The host remains reachable while
   paused. Ticks and hosted model calls require an authenticated presence lease;
