@@ -238,11 +238,15 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogAgentMemoryCompaction(logger, transition.WorldTick, transition.OwnerId,
                         transition.AssessedCount, transition.IndexSize);
                 }
+                var actors = runtime.Society.Inhabitants.Select(person => person.Id)
+                    .OrderByDescending(id => id.Length).ToArray();
+                string? EventActor(string detail) => actors.FirstOrDefault(id => detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal));
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("hosted_decision_", StringComparison.Ordinal)))
                 {
-                    var split = worldEvent.Detail.Split(':', 2);
-                    LogHostedDecision(logger, result.WorldTick, split[0],
-                        worldEvent.Kind["hosted_decision_".Length..] + (split.Length > 1 ? ":" + split[1] : ""));
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null) continue;
+                    LogHostedDecision(logger, result.WorldTick, actor,
+                        worldEvent.Kind["hosted_decision_".Length..] + worldEvent.Detail[actor.Length..]);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("estate_will_", StringComparison.Ordinal)))
                 {
@@ -256,8 +260,6 @@ public sealed partial class PrivateWorldRuntimeService(
                             outcome, reason);
                     }
                 }
-                var actors = runtime.Inhabitants.Select(person => person.InhabitantId).OrderByDescending(id => id.Length).ToArray();
-                string? EventActor(string detail) => actors.FirstOrDefault(id => detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal));
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal)))
@@ -399,7 +401,9 @@ public sealed partial class PrivateWorldRuntimeService(
         if (kind is null) return;
         var townId = worldEvent.Kind == "town_membership_evaluated"
             ? "none"
-            : worldEvent.Detail.Split(':', 2)[0];
+            : runtime.Towns.OrderByDescending(item => item.Id.Length).FirstOrDefault(item =>
+                worldEvent.Detail == item.Id || worldEvent.Detail.StartsWith(item.Id + ":", StringComparison.Ordinal))?.Id;
+        if (townId is null) return;
         var town = runtime.Towns.FirstOrDefault(item => item.Id == townId);
         TownTelemetry.Transition(logger, worldEvent.WorldTick, townId, kind.Value,
             town?.ResidentIds.Count ?? 0, town?.AssignedBuildingIds.Count ?? 0, town?.BorderTiles.Count ?? 0);

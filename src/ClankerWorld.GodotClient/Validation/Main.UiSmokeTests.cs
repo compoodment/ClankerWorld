@@ -330,6 +330,7 @@ public partial class Main
     {
         try
         {
+            VerifyEventLogAgentNames();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -1900,7 +1901,7 @@ public partial class Main
             if (inhabitantList.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
-            var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
+            var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
                 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
                 new OwnerWorldRoute("deceased", null, null, [], string.Empty),
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
@@ -2103,4 +2104,64 @@ public partial class Main
         }
     }
 
+    private void VerifyEventLogAgentNames()
+    {
+        const string founderId = "founder:00000000000000000000000000000001";
+        const string agentId = "agent:00000000000000000000000000000099";
+        const string childId = "world:inhabitant:birth:" + founderId + ":" + agentId + ":1";
+        var position = new OwnerWorldPosition(0, 0);
+        OwnerWorldInhabitant Person(string id, string name, string lifecycle = "active") =>
+            new(id, name, lifecycle, position, 8_000, [], [],
+                new("idle", null, null, [], ""), new(position, [], []), false);
+        var snapshot = new OwnerWorldSnapshot("event-name-smoke", 1, "event-name-map",
+            [new(0, 0, "meadow")], [], [], null, 6)
+        {
+            Inhabitants = [Person(founderId, "Rowan"), Person(agentId, "Aster", "dead"),
+                Person(childId, "Mira"), Person("founder-scout", "Scout")],
+            Towns = [new("town:first", "First Town", "founded", 0, [], [], [])],
+        };
+        OwnerWorldEvent[] events =
+        [
+            new(1, 1, "food_harvested", founderId + ":4"),
+            new(2, 1, "food_consumed", "founder-scout"),
+            new(3, 1, "child_born", childId),
+            new(4, 1, "inhabitant_removed", agentId),
+            new(5, 1, "town_resident_joined", "town:first:" + founderId + ":founder_joined:residents:4"),
+            new(6, 1, "town_resident_left", "town:first:" + agentId + ":residents:3"),
+        ];
+        var handshake = new OwnerWorldHandshake(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+             "owner-control.request.v1", "paused-authoring.request.v1"], []);
+        try
+        {
+            var baseline = new OwnerWorldReconnectBaseline(snapshot, new(1, 0, events));
+            if (!observationSession.TryAccept(new(handshake, baseline), 0, out var failure))
+                throw new InvalidOperationException("Event Log name fixture was rejected: " + failure);
+            foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
+            RenderEventLog();
+            string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
+                "Rowan joined the first Town.", "Aster left the first Town."];
+            if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
+                throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
+            snapshot = snapshot with
+            {
+                Inhabitants = snapshot.Inhabitants.Select(person => person.Id == founderId
+                    ? person with { DisplayName = "Renamed Rowan" } : person).ToArray(),
+            };
+            baseline = baseline with { Snapshot = snapshot };
+            if (!observationSession.TryAccept(new(handshake, baseline), 0, out failure))
+                throw new InvalidOperationException("Renamed Event Log fixture was rejected: " + failure);
+            RenderEventLog();
+            if (!eventLog.GetParsedText().Contains("Renamed Rowan gathered food.", StringComparison.Ordinal))
+                throw new InvalidOperationException("An existing Event Log entry must resolve the current agent name after rename.");
+        }
+        finally
+        {
+            observationSession.ResetAfterLoad();
+            knownEvents.Clear();
+            UpdateUnreadEvents(null);
+            renderedEventLog = string.Empty;
+            RenderEventLog();
+        }
+    }
 }
