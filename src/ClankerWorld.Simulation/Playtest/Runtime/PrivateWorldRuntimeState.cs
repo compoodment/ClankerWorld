@@ -27,7 +27,15 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSocialStanding>? SocialStanding = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestPrivateThought>? RecentThoughts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int TravelCooldownTicks = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null);
+
+public sealed record PlaytestModelAttempt(
+    string Status,
+    long WorldTick,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastAcceptedCandidateId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? LastAcceptedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SetupBlocker = null);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 

@@ -484,7 +484,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         var apiKey = apiKeyAccessor()?.Trim();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            throw new InvalidOperationException("Jev is enabled but no TypeSafe API key is configured.");
+            throw new CognitionProviderUnavailableException("missing_key", "Jev is enabled but no TypeSafe API key is configured.");
         }
 
         var questions = new Dictionary<string, JevQuestion>(StringComparer.Ordinal)
@@ -557,7 +557,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+                $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).", null, response.StatusCode);
         }
 
         var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
@@ -583,12 +583,13 @@ public sealed class JevDecisionProvider : IDecisionProvider
 
             var selected = answer.GetProperty("choice").GetString();
             var confidence = answer.GetProperty("confidence").GetDouble();
-            var probabilities = answer.GetProperty("probabilities")
-                .EnumerateObject()
-                .ToDictionary(
+            var probabilities = answer.TryGetProperty("probabilities", out var probabilitiesProperty)
+                ? probabilitiesProperty.EnumerateObject().ToDictionary(
                     property => property.Name,
                     property => property.Value.GetDouble(),
-                    StringComparer.Ordinal);
+                    StringComparer.Ordinal)
+                : request.Observation.Candidates.ToDictionary(candidate => candidate.Id,
+                    candidate => candidate.Id == selected ? 1d : 0d, StringComparer.Ordinal);
             var usage = root.TryGetProperty("usage", out var usageProperty)
                 ? new CognitionUsage(
                     modelId,
@@ -754,8 +755,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
                         "Return JSON only, with fields " +
-                        "selected_candidate_id (string), confidence (number 0..1), and " +
-                        "probabilities (object mapping candidate IDs to numbers 0..1), and optional " +
+                        "selected_candidate_id (string), confidence (number 0..1), " +
+                        "and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
@@ -842,7 +843,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+                $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).", null, response.StatusCode);
         }
 
         var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);

@@ -50,7 +50,6 @@ public sealed class SocietyCognitionScheduler
     private readonly int maxQueueLength;
     private readonly int maxDispatchPerCycle;
     private readonly Func<string, IDecisionProvider> providerFactory;
-    private readonly double minimumConfidence;
     private long nextEventId = 1;
     private long eventHistoryFloor;
 
@@ -58,8 +57,7 @@ public sealed class SocietyCognitionScheduler
         IEnumerable<SocietyInhabitant> inhabitants,
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxQueueLength = 64,
-        int maxDispatchPerCycle = 8,
-        double minimumConfidence = 0.5)
+        int maxDispatchPerCycle = 8)
     {
         ArgumentNullException.ThrowIfNull(inhabitants);
         if (maxQueueLength <= 0 || maxDispatchPerCycle <= 0)
@@ -70,13 +68,12 @@ public sealed class SocietyCognitionScheduler
         this.maxQueueLength = maxQueueLength;
         this.maxDispatchPerCycle = maxDispatchPerCycle;
         this.providerFactory = providerFactory ?? (_ => new DeterministicDecisionProvider());
-        this.minimumConfidence = minimumConfidence;
         runtimes = inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToDictionary(
                 item => item.Id,
-                item => new CognitionRuntime(item.Id, this.providerFactory(item.Id), minimumConfidence),
+                item => new CognitionRuntime(item.Id, this.providerFactory(item.Id)),
                 StringComparer.Ordinal);
     }
 
@@ -151,7 +148,7 @@ public sealed class SocietyCognitionScheduler
 
             runtimes.Add(
                 inhabitant.Id,
-                new CognitionRuntime(inhabitant.Id, providerFactory(inhabitant.Id), minimumConfidence));
+                new CognitionRuntime(inhabitant.Id, providerFactory(inhabitant.Id)));
             AppendEvent(0, "cognition_runtime_added", inhabitant.Id);
         }
 
@@ -330,8 +327,7 @@ public sealed class SocietyCognitionScheduler
 
     public static SocietyCognitionScheduler Restore(
         SocietyCognitionSchedulerState state,
-        Func<string, IDecisionProvider>? providerFactory = null,
-        double minimumConfidence = 0.5)
+        Func<string, IDecisionProvider>? providerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion ||
@@ -357,8 +353,7 @@ public sealed class SocietyCognitionScheduler
             inhabitants,
             providerFactory,
             state.MaxQueueLength,
-            state.MaxDispatchPerCycle,
-            minimumConfidence);
+            state.MaxDispatchPerCycle);
         scheduler.queue.AddRange(state.Queue);
         foreach (var runtimeState in state.Runtimes)
         {
@@ -369,8 +364,7 @@ public sealed class SocietyCognitionScheduler
 
             scheduler.runtimes[runtimeState.InhabitantId] = CognitionRuntime.Restore(
                 runtimeState,
-                providerFactory?.Invoke(runtimeState.InhabitantId),
-                minimumConfidence);
+                providerFactory?.Invoke(runtimeState.InhabitantId));
         }
 
         scheduler.events.AddRange(state.Events);

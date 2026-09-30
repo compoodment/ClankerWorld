@@ -277,6 +277,15 @@ public sealed partial class PrivateWorldRuntime
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {
+            if (person.LastModelAttempt is { } attempt &&
+                (state.SchemaVersion < 28 || !CognitionProviderFailures.IsStatus(attempt.Status) ||
+                 attempt.WorldTick < 0 || attempt.WorldTick > state.Society.Society.WorldTick ||
+                 (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
+                 attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
+                 attempt.LastAcceptedCandidateId is { } candidate &&
+                    (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
+                 attempt.SetupBlocker is not (null or "unsupported_request")))
+                throw new InvalidDataException("The saved model attempt is invalid.");
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);

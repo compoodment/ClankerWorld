@@ -145,6 +145,7 @@ before an upgrade.
 | Schema 25 | Optional selected first-Town origin; older Towns keep their camp-derived border. |
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 | Schema 27 | Optional building entrances and trees planted on new tiles. An entrance must lie directly beside a footprint edge. Planted trees are saved as `planted-tree-{x}-{y}` map resources with their growth record and must be legal plantings (see [Trees and planting](how-it-works.md#trees-and-planting)). Invalid state is refused and the file is kept. Older builds refuse schema 27 saves. |
+| Schema 28 | Optional bounded model-attempt status and a separate last accepted model choice per agent. Current-format reload preserves failed/canceled attempts without replacing the last choice. Old builds may refuse these alpha checkpoints; no migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
