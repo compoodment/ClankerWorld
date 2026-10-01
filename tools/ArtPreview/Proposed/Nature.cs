@@ -5,8 +5,9 @@ using Godot;
 namespace ArtPreview.Proposed.Nature;
 
 /// <summary>
-/// Round-1 nature mockups: trees and natural sites redrawn gently over the
-/// current <see cref="NatureSprites"/> look. Every sprite keeps its silhouette
+/// Nature mockups (rounds 1 and 2): trees and natural sites redrawn gently
+/// over the current <see cref="NatureSprites"/> look, plus the picked,
+/// harvested, depleted and regrowing states the game design agrees on. Every sprite keeps its silhouette
 /// and hue family and gains a north-west light (STYLE L1), a one-pixel outline
 /// in its ramp's edge step (L4), a south-east ground shadow (L2) and marks
 /// that still read at 16 px (S1, S4). Picked and depleted states keep the
@@ -56,6 +57,32 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
     /// </summary>
     private static readonly Ramp Boulders = Ramp.Of("4A4542", "756D68", "8B837D", "A49C95", "B9B2AB");
 
+    /// <summary>
+    /// Host rock of the diamond outcrop: the style guide's Slate ramp, which
+    /// sits on today's blue-grey diamond-outcrop stones (4C5356, 6A7276,
+    /// 98A2A6), so the cool rock sets off the pale crystals.
+    /// </summary>
+    private static readonly Ramp Slate = Ramp.Of("2B2E33", "4A4E55", "62666E", "80858E", "9A9FA7");
+    private static readonly Ramp Diamond = Ramp.Of("3F7E86", "5FB4BE", "7FD3DC", "B4EEF2", "E8FFFF");
+
+    /// <summary>The Fertile soil ramp, for loosened earth under a regrowing sprout and a bare depleted patch.</summary>
+    private static readonly Ramp Soil = Ramp.Of("4A3A2A", "5C4B35", "735F45", "86704F", "9A8460");
+
+    /// <summary>
+    /// Reed stems and blades: today's two olive greens (6E7F46, 8A9A55) as the
+    /// base and light steps, with a darker shade, an olive edge and one pale
+    /// highlight added around them, the way the fibre plant ramp was built.
+    /// </summary>
+    private static readonly Ramp Reed = Ramp.Of("3D4A2B", "57653A", "6E7F46", "8A9A55", "A6B36C");
+
+    /// <summary>
+    /// Gravel left by quarrying iron rock: the Iron ramp with its middle steps
+    /// stained a quarter of the way toward Rust shade, as the outcrop's faces
+    /// are, so it reads warmer than the gold outcrop's grey gravel.
+    /// </summary>
+    private static readonly Ramp IronGravel = new(Iron.Edge, Iron.Shade.Lerp(Rust.Shade, 0.25f),
+        Iron.Base.Lerp(Rust.Shade, 0.25f), Iron.Light.Lerp(Rust.Shade, 0.25f), Iron.Highlight);
+
     /// <summary>The pale leaf vein of today's wild greens (B6CF8A), kept as the greens' accent.</summary>
     private static readonly Color GreensVein = new("B6CF8A");
 
@@ -82,6 +109,21 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
         ("GoldOutcrop", NatureSprite.GoldOutcrop, "Rock boulders with gold flecks in gold light and highlight; two-pixel dashes at 16 px."),
         ("ClayBank", NatureSprite.ClayBank, "Brown bank lit on its crest with a bite dug out of the south-east: crest line, fresh clay floor, spade scrapes, clods."),
         ("HerbPatch", null, "New: a low clump of small-leaved sprigs with small pale flowers that have a gold centre."),
+        // Round 2.
+        ("ConiferStump", NatureSprite.ConiferStump, "A darker cut face than the broadleaf stump, with close rings, a scaly bark ring, five slender roots and a bead of amber resin."),
+        ("ConiferSapling", NatureSprite.ConiferSapling, "A small seven-point star in the lighter needle steps, lit north-west, outlined; the points stay at 16 px."),
+        ("Reeds", NatureSprite.Reeds, "Today's standing reeds, redrawn: three olive clumps of stems fanning up, with dark cattail heads lit on the north-west."),
+        ("ReedsHarvested", null, "The clumps cut low: short stubs with pale cut ends and the low leaves, no cattail heads."),
+        ("WildGreensPicked", null, "The rosette with its big outer leaves picked: short cut stalks with pale ends round the young inner leaves."),
+        ("FiberPlantHarvested", null, "The same dark clump with every blade cut short; each stub ends in a pale cut."),
+        ("HerbPatchPicked", null, "The herb clump with its sprig tips and flowers snipped off: shorter stems with their lower leaves."),
+        ("DiamondOutcrop", NatureSprite.DiamondOutcrop, "Blue-grey slate boulders holding pale faceted crystals lit from the north-west; cyan dashes at 16 px."),
+        ("IronOutcropDepleted", null, "The iron outcrop quarried flat: iron-grey gravel, a dug hollow, rust-stained chips."),
+        ("GoldOutcropDepleted", null, "The gold outcrop quarried flat: grey gravel and hollow with a few dull gold traces."),
+        ("DiamondOutcropDepleted", null, "The diamond outcrop quarried flat: slate gravel and hollow with one dull crystal shard."),
+        ("ClayBankDepleted", null, "The clay bank dug out: a low crest of the old bank on the north-west round a wide pit of fresh clay."),
+        ("Regrowing", NatureSprite.Regrowing, "A fresh sprout, two seed leaves and a young leaf, on a small patch of loosened earth; for any regrowing site."),
+        ("Depleted", NatureSprite.Depleted, "Fallback for a used-up site without its own art: a bare scuffed patch of earth with a few pebbles and a broken twig."),
     ];
 
     /// <summary>Which current sprites this proposal replaces in the scene.</summary>
@@ -129,16 +171,32 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
             case "WildGreens": WildGreens(layers); return layers.Compose(Canopy.Edge);
             case "FiberPlant": FiberPlant(layers); return layers.Compose(Fiber.Edge, outline: false);
             case "StoneOutcrop": Outcrop(layers, Ore.None); return layers.Compose(Rock.Edge);
-            case "StoneOutcropDepleted": Rubble(layers); return layers.Compose(Rock.Edge);
+            case "StoneOutcropDepleted": Rubble(layers, Boulders, Ore.None); return layers.Compose(Rock.Edge);
             case "IronOutcrop": Outcrop(layers, Ore.Iron); return layers.Compose(Iron.Edge);
             case "GoldOutcrop": Outcrop(layers, Ore.Gold); return layers.Compose(Rock.Edge);
             case "ClayBank": ClayBank(layers); return layers.Compose(Bank.Edge);
             case "HerbPatch": HerbPatch(layers); return layers.Compose(Canopy.Edge);
-            default: throw new ArgumentOutOfRangeException(nameof(id), id, "not a round-1 nature asset");
+            case "ConiferStump": ConiferStump(layers); return layers.Compose(Timber.Edge);
+            // Like the conifer, the 16 px sapling draws its own edge star so its points stay apart.
+            case "ConiferSapling": ConiferSapling(layers); return layers.Compose(Needle.Edge, outline: layers.Fine);
+            // Reed blades carry their own south-east edge copy, like the fibre plant, so they stay slender.
+            case "Reeds": Reeds(layers, harvested: false); return layers.Compose(Reed.Edge, outline: false);
+            case "ReedsHarvested": Reeds(layers, harvested: true); return layers.Compose(Reed.Edge, outline: false);
+            case "WildGreensPicked": WildGreensPicked(layers); return layers.Compose(Canopy.Edge);
+            case "FiberPlantHarvested": FiberPlantHarvested(layers); return layers.Compose(Fiber.Edge, outline: false);
+            case "HerbPatchPicked": HerbPatchPicked(layers); return layers.Compose(Canopy.Edge);
+            case "DiamondOutcrop": Outcrop(layers, Ore.Diamond); return layers.Compose(Slate.Edge);
+            case "IronOutcropDepleted": Rubble(layers, IronGravel, Ore.Iron); return layers.Compose(Iron.Edge);
+            case "GoldOutcropDepleted": Rubble(layers, Rock, Ore.Gold); return layers.Compose(Rock.Edge);
+            case "DiamondOutcropDepleted": Rubble(layers, Slate, Ore.Diamond); return layers.Compose(Slate.Edge);
+            case "ClayBankDepleted": ClayPit(layers); return layers.Compose(Bank.Edge);
+            case "Regrowing": Regrowing(layers); return layers.Compose(Canopy.Edge);
+            case "Depleted": BareGround(layers); return layers.Compose(Soil.Edge);
+            default: throw new ArgumentOutOfRangeException(nameof(id), id, "not a proposed nature asset");
         }
     }
 
-    private enum Ore { None, Iron, Gold }
+    private enum Ore { None, Iron, Gold, Diamond }
 
     /// <summary>
     /// The two layers of one sprite: the body, which gets the edge outline,
@@ -527,7 +585,8 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
         s.Shadow(17, 20, 11, 7);
         var c = s.Canvas;
         // Plain stone is the lightest, gold-bearing rock mid grey, iron rock darkest, so the three differ in value as well as flecks.
-        var stone = ore switch { Ore.Iron => Iron, Ore.Gold => Rock, _ => Boulders };
+        // Diamond-bearing rock is the cool blue-grey slate, as today's diamond outcrop is.
+        var stone = ore switch { Ore.Iron => Iron, Ore.Gold => Rock, Ore.Diamond => Slate, _ => Boulders };
         Color? tint = ore == Ore.Iron ? Rust.Shade : null;
         // Back to front, so each nearer boulder creases over the one behind it.
         Boulder(s, 20, 14, 7.5f, 7, stone, 0.3f, tint);
@@ -561,41 +620,132 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
                     Mark(s, x, y, Gold.Light, Gold.Highlight, dash16: true);
                 if (s.Fine) foreach (var (x, y) in new[] { (14, 20), (22, 11), (8, 20) }) c.Dot(x, y, Gold.Base);
                 break;
+            case Ore.Diamond:
+                if (s.Fine)
+                {
+                    // A cluster of two crystals on the big boulder, one on each of the others.
+                    Gem(s, 20, 13, large: true);
+                    Gem(s, 23, 16, large: false);
+                    Gem(s, 10, 18, large: true);
+                    Gem(s, 19, 22, large: false);
+                }
+                else
+                    foreach (var (x, y) in new[] { (19, 12), (10, 17), (18, 22) })
+                        Mark(s, x, y, Diamond.Light, Diamond.Highlight, dash16: true);
+                break;
         }
     }
 
     /// <summary>
-    /// Depleted stone outcrop: the site quarried flat. A grey gravel patch
-    /// with a darker rim lies on the ground layer (no outline, so it reads as
-    /// level ground), holding a shallow dug hollow (shaded north-west wall,
-    /// lit south-east lip) and a few left-over chips. It keeps the outcrop's
-    /// own stone colours (N4) and has nothing raised, so it never reads as a
-    /// smaller outcrop.
+    /// One crystal at 32 px, seen from above (N3): a small rhombus whose
+    /// north-west facets are Diamond highlight and light and whose south-east
+    /// facets are Diamond base and shade, with a Diamond-edge pixel or two
+    /// where it meets the rock on its shaded side. The large one is five
+    /// pixels across, the small one three. Pixel coordinates.
     /// </summary>
-    private static void Rubble(Layers s)
+    private static void Gem(Layers s, int x, int y, bool large)
+    {
+        var c = s.Canvas;
+        if (large)
+        {
+            // Rows from north to south: H highlight, L light, B base, S shade, E edge, '.' rock.
+            ReadOnlySpan<string> rows = ["..H..", ".HLB.", "HLLBS", ".BBSE", "..SE."];
+            for (var row = 0; row < rows.Length; row++)
+                for (var col = 0; col < rows[row].Length; col++)
+                {
+                    Color? color = rows[row][col] switch
+                    {
+                        'H' => Diamond.Highlight, 'L' => Diamond.Light, 'B' => Diamond.Base,
+                        'S' => Diamond.Shade, 'E' => Diamond.Edge, _ => null,
+                    };
+                    if (color is { } pixel) c.Dot(x - 2 + col, y - 2 + row, pixel);
+                }
+            return;
+        }
+        c.Dot(x, y - 1, Diamond.Highlight);
+        c.Dot(x - 1, y, Diamond.Highlight);
+        c.Dot(x, y, Diamond.Light);
+        c.Dot(x + 1, y, Diamond.Shade);
+        c.Dot(x, y + 1, Diamond.Shade);
+        c.Dot(x + 1, y + 1, Diamond.Edge);
+    }
+
+    /// <summary>
+    /// A depleted outcrop: the site quarried flat. A gravel patch with a
+    /// darker rim lies on the ground layer (no outline, so it reads as level
+    /// ground), holding a shallow dug hollow (shaded north-west wall, lit
+    /// south-east lip) and a few left-over chips. It keeps the outcrop's own
+    /// stone colours (N4) and has nothing raised, so it never reads as a
+    /// smaller outcrop. An ore outcrop leaves a dull trace of its ore: a rust
+    /// stain, a few gold specks or one crystal shard, never a bright fleck,
+    /// so it does not look as if there is still ore to take.
+    /// </summary>
+    private static void Rubble(Layers s, Ramp stone, Ore ore)
     {
         s.Shadow(17, 19, 8, 4.5f);
         var g = s.GroundCanvas;
-        g.Lumpy(16, 17, 10, Boulders.Shade with { A = 0.6f }, 6, 1);
-        g.Lumpy(15.6f, 16.6f, 9, Boulders.Base with { A = 0.8f }, 6, 1);
+        g.Lumpy(16, 17, 10, stone.Shade with { A = 0.6f }, 6, 1);
+        g.Lumpy(15.6f, 16.6f, 9, stone.Base with { A = 0.8f }, 6, 1);
         // The hollow: lit far lip, dark near wall, floor.
-        g.Ellipse(16.8f, 17.6f, 5.6f, 3.7f, Boulders.Light);
-        g.Ellipse(16.2f, 17, 5.2f, 3.3f, Boulders.Edge with { A = 0.85f });
-        g.Ellipse(16.9f, 17.7f, 4.2f, 2.5f, Boulders.Shade);
+        g.Ellipse(16.8f, 17.6f, 5.6f, 3.7f, stone.Light);
+        g.Ellipse(16.2f, 17, 5.2f, 3.3f, stone.Edge with { A = 0.85f });
+        g.Ellipse(16.9f, 17.7f, 4.2f, 2.5f, stone.Shade);
         if (s.Fine)
         {
             // Gravel: a few pale grains on the apron and in the hollow.
             foreach (var (x, y) in new[] { (9, 13), (12, 22), (22, 13), (24, 20), (8, 18), (18, 18) })
-                g.Dot(x, y, Boulders.Light);
+                g.Dot(x, y, stone.Light);
         }
         // Left-over chips on the rim; the smallest are dropped at 16 px.
         var c = s.Canvas;
         foreach (var (x, y, r) in new[] { (9.5f, 15.5f, 2.2f), (23f, 22f, 2.4f), (21.5f, 11.5f, 1.7f), (12.5f, 23f, 1.6f) })
         {
             if (!s.Fine && r < 2) continue;
-            c.Disc(x, y, r, Boulders.Shade);
-            c.Disc(x - 0.5f, y - 0.5f, r - 0.8f, Boulders.Light);
-            if (s.Fine && r >= 2) c.Dot(x - 1, y - 1, Boulders.Highlight);
+            c.Disc(x, y, r, stone.Shade);
+            c.Disc(x - 0.5f, y - 0.5f, r - 0.8f, stone.Light);
+            if (s.Fine && r >= 2) c.Dot(x - 1, y - 1, stone.Highlight);
+        }
+        RubbleTrace(s, ore);
+    }
+
+    /// <summary>The dull ore trace left in a quarried outcrop (N4): rust on iron rock, dull gold specks, one crystal shard.</summary>
+    private static void RubbleTrace(Layers s, Ore ore)
+    {
+        var g = s.GroundCanvas;
+        var c = s.Canvas;
+        switch (ore)
+        {
+            case Ore.Iron:
+                if (s.Fine)
+                {
+                    // A rust stain across the hollow floor and on two chips.
+                    g.Line(14, 18, 19, 19, Rust.Shade with { A = 0.8f });
+                    g.Dot(16, 17, Rust.Edge);
+                    c.Dot(9, 15, Rust.Shade);
+                    c.Dot(22, 22, Rust.Shade);
+                }
+                else c.Dot(23, 22, Rust.Shade);
+                break;
+            case Ore.Gold:
+                // Single pixels in Gold base and shade: duller and smaller than the outcrop's 2×2 flecks.
+                if (s.Fine)
+                {
+                    g.Dot(15, 18, Gold.Base);
+                    g.Dot(22, 15, Gold.Base);
+                    g.Dot(11, 21, Gold.Shade);
+                }
+                else g.Dot(17, 18, Gold.Base);
+                break;
+            case Ore.Diamond:
+                // One broken shard in the hollow, in the dull crystal steps.
+                if (s.Fine)
+                {
+                    g.Dot(17, 18, Diamond.Shade);
+                    g.Dot(18, 18, Diamond.Edge);
+                    g.Dot(12, 21, Diamond.Shade with { A = 0.7f });
+                }
+                else g.Dot(17, 18, Diamond.Shade);
+                break;
         }
     }
 
@@ -684,5 +834,363 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
             foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) }) c.Dot(x + dx, y + dy, Cloth.Highlight);
             c.Dot(x, y, Gold.Light);
         }
+    }
+    // ───────────────────────────── Round 2 ─────────────────────────────
+
+    /// <summary>
+    /// Conifer stump: told apart from the broadleaf stump by a darker cut face
+    /// (Timber base, as today's conifer stump is darker) with two close rings,
+    /// a scaly bark ring with dark plate notches, five slender roots spread
+    /// evenly, and a bead of amber resin on the rim as its colour accent (S4).
+    /// </summary>
+    private static void ConiferStump(Layers s)
+    {
+        s.Shadow(17, 18.5f, 8.5f, 6);
+        var c = s.Canvas;
+        // Root directions in radians clockwise from east, spread evenly round the trunk.
+        foreach (var angle in new[] { 0.3f, 1.5f, 2.65f, 3.85f, 5.1f })
+        {
+            var lit = FacesLight(angle, -0.3f);
+            // At 16 px only the roots on the shadow side stay, as on the broadleaf stump.
+            if (!s.Fine && lit) continue;
+            var dir = Vector2.FromAngle(angle);
+            var color = lit ? Timber.Base : Timber.Shade;
+            c.Leaf(16 + dir.X * 5.8f, 16 + dir.Y * 5.8f, 2.3f, 1.5f, angle, color, color);
+        }
+        c.Disc(16, 16, 6.2f, Timber.Shade);
+        c.Disc(16, 16, 5, Timber.Light);
+        c.Disc(16.5f, 16.5f, 4.6f, Timber.Base);
+        if (s.Fine)
+        {
+            // Bark plates: dark notches round the bark ring, on every side but the lit north-west.
+            foreach (var (x, y) in new[] { (22, 13), (21, 20), (17, 22), (12, 21), (10, 18), (22, 17) }) c.Dot(x, y, Timber.Edge);
+            // Two close growth rings and the pith.
+            c.Ring(16.4f, 16.4f, 3.4f, Timber.Shade);
+            c.Ring(16.4f, 16.4f, 1.8f, Timber.Shade);
+            c.Dot(16, 16, Timber.Edge);
+            // The resin bead on the north-east rim: gold base with a bright top pixel.
+            c.Dot(19, 12, Gold.Base);
+            c.Dot(20, 12, Gold.Shade);
+            c.Dot(19, 11, Gold.Highlight);
+            return;
+        }
+        c.Dot(16, 16, Timber.Shade);
+        c.Dot(19, 12, Gold.Base);
+    }
+
+    /// <summary>
+    /// Conifer sapling: a small seven-point star in the lighter needle steps,
+    /// each inner layer stepped toward the north-west light like the grown
+    /// conifer. At 16 px it draws its own edge star so the points stay apart.
+    /// </summary>
+    private static void ConiferSapling(Layers s)
+    {
+        s.Shadow(17.5f, 19.5f, 6.5f, 4.6f);
+        var c = s.Canvas;
+        if (!s.Fine) c.Star(16, 16, 8.4f, 4.6f, Needle.Edge, 7);
+        c.Star(16, 16, 7.2f, 3.8f, Needle.Base, 7);
+        c.Star(15.4f, 15.4f, 5.2f, 2.8f, Needle.Light, 7);
+        c.Star(14.9f, 14.9f, 2.6f, 1.4f, Needle.Highlight, 7);
+        if (!s.Fine) return;
+        // Shade on the south-east points, where they turn away from the light.
+        foreach (var (x, y) in new[] { (20, 19), (17, 21), (21, 16) }) c.Dot(x, y, Needle.Shade);
+    }
+
+    /// <summary>
+    /// One reed stem or blade: a one-pixel line from <paramref name="from"/>
+    /// along <paramref name="angle"/> that bends by <paramref name="bend"/>
+    /// radians over its length. Drawn in two passes like the fibre plant:
+    /// pass 0 lays an edge-step copy one pixel south-east, pass 1 the stem,
+    /// lit when it leans toward the light. Tile units.
+    /// </summary>
+    private static void ReedStem(Layers s, int pass, Vector2 from, float angle, float length, float bend = 0)
+    {
+        var offset = pass == 0 ? s.Pixel : 0;
+        var color = pass == 0 ? Reed.Edge : FacesLight(angle, 0.3f) ? Reed.Light : Reed.Base;
+        const int Segments = 3;
+        var point = from;
+        for (var i = 0; i < Segments; i++)
+        {
+            var next = point + Vector2.FromAngle(angle + bend * (i + 0.5f) / Segments) * (length / Segments);
+            s.Canvas.Line(point.X + offset, point.Y + offset, next.X + offset, next.Y + offset, color);
+            point = next;
+        }
+    }
+
+    /// <summary>
+    /// Reeds: three clumps of standing stems, kept from today's sprite
+    /// because the brown cattail head is what tells reeds from the fibre
+    /// plant. Each clump is a small olive tuft (edge rim, shade, lit
+    /// north-west) with stems fanning up and out of it, two low leaves
+    /// splaying sideways, and cattail heads on the tallest stems: a dark
+    /// Timber-shade spike along the stem with a Timber-edge copy to the
+    /// south-east, a lit north-west pixel and a pale stalk tip beyond. Stems
+    /// leaning toward the light are lighter. At 16 px each head is a brown
+    /// pixel over an edge pixel. Harvested, the stems are cut low: short stubs
+    /// with pale cut ends and the low leaves, no heads (N4).
+    /// </summary>
+    private static void Reeds(Layers s, bool harvested)
+    {
+        var c = s.Canvas;
+        // Clump bases and their stems: angle (radians clockwise from east, -1.57 is north), length, and whether a head tops it.
+        var clumps = new (Vector2 Base, (float Angle, float Length, bool Head)[] Stems)[]
+        {
+            (new Vector2(10.5f, 21), [(-2.05f, 10, true), (-1.62f, 12.5f, true), (-1.25f, 9, false)]),
+            (new Vector2(17, 19.5f), [(-1.8f, 12, true), (-1.4f, 10, false), (-2.3f, 8, false), (-1.0f, 11, true)]),
+            (new Vector2(22.5f, 22.5f), [(-1.55f, 10.5f, true), (-1.15f, 8.5f, false), (-0.75f, 9, false)]),
+        };
+        s.Shadow(17.5f, 23, 9.5f, 4);
+        for (var pass = 0; pass < 2; pass++)
+            foreach (var (root, stems) in clumps)
+            {
+                // Two low leaves splaying west and east, drooping a little.
+                ReedStem(s, pass, root, Mathf.Pi + 0.35f, 5.5f, -0.5f);
+                ReedStem(s, pass, root, -0.35f, 5, 0.5f);
+                for (var i = 0; i < stems.Length; i++)
+                {
+                    var (angle, length, _) = stems[i];
+                    // At 16 px only the first two stems of each clump stay, so the rest do not merge.
+                    if (!s.Fine && i >= 2) continue;
+                    ReedStem(s, pass, root, angle, harvested ? 3 + i % 2 : length);
+                }
+            }
+        // The tuft at the foot of each clump.
+        foreach (var (root, _) in clumps)
+        {
+            Lobed(s, root.X, root.Y, 2.4f + s.Pixel, Reed.Edge, 5, 1, 0.15f);
+            Lobed(s, root.X, root.Y, 2.4f, Reed.Shade, 5, 1, 0.15f);
+            if (s.Fine) c.Dot(root.X - 1, root.Y - 1, Reed.Light);
+        }
+        foreach (var (root, stems) in clumps)
+            foreach (var (angle, length, head) in stems)
+            {
+                var dir = Vector2.FromAngle(angle);
+                if (harvested)
+                {
+                    // A pale cut end on each stub.
+                    if (s.Fine) c.Dot(root.X + dir.X * 3.4f, root.Y + dir.Y * 3.4f, Reed.Highlight);
+                    continue;
+                }
+                if (!head) continue;
+                var at = root + dir * (length - 2.6f);
+                if (!s.Fine)
+                {
+                    c.Dot(at.X, at.Y, Timber.Shade);
+                    c.Dot(at.X + 2, at.Y + 2, Timber.Edge);
+                    continue;
+                }
+                c.Dot(root.X + dir.X * (length + 0.6f), root.Y + dir.Y * (length + 0.6f), Reed.Highlight);
+                c.Leaf(at.X + 1, at.Y + 1, 2.2f, 1.15f, angle, Timber.Edge, Timber.Edge);
+                c.Leaf(at.X, at.Y, 2.2f, 1.15f, angle, Timber.Shade, Timber.Shade);
+                c.Dot(at.X - 1 - dir.X, at.Y - dir.Y, Timber.Base);
+            }
+    }
+
+    /// <summary>
+    /// Picked wild greens (N4): the big outer leaves are gone, leaving short
+    /// cut stalks with pale cut ends round the heart and the three young inner
+    /// leaves. At 16 px a small five-stalk rosette with a pale centre.
+    /// </summary>
+    private static void WildGreensPicked(Layers s)
+    {
+        s.Shadow(17, 18, 6.5f, 5);
+        var c = s.Canvas;
+        var leaves = s.Fine ? 7 : 5;
+        for (var i = 0; i < leaves; i++)
+        {
+            var angle = i * Mathf.Tau / leaves + 0.45f;
+            var lit = FacesLight(angle);
+            var dir = Vector2.FromAngle(angle);
+            var color = lit ? Canopy.Light : Canopy.Base;
+            c.Leaf(16 + dir.X * 3.2f, 16 + dir.Y * 3.2f, 2.6f, 1.5f, angle, color, color);
+            if (s.Fine) c.Dot(16 + dir.X * 5.4f, 16 + dir.Y * 5.4f, GreensVein);
+        }
+        c.Disc(16, 16, 1.8f, s.Fine ? Canopy.Shade : GreensVein);
+        if (!s.Fine) return;
+        for (var i = 0; i < 3; i++)
+        {
+            var angle = i * Mathf.Tau / 3 - 1.2f;
+            var dir = Vector2.FromAngle(angle);
+            c.Leaf(16 + dir.X * 2.4f, 16 + dir.Y * 2.4f, 2.4f, 1.3f, angle, Canopy.Highlight, GreensVein);
+        }
+    }
+
+    /// <summary>
+    /// Harvested fibre plant (N4): the same dark clump with every blade cut
+    /// to a short stub, drawn the same way (south-east edge copy, lit stubs
+    /// toward the light), each stub ending in a pale cut.
+    /// </summary>
+    private static void FiberPlantHarvested(Layers s)
+    {
+        s.Shadow(17, 18.5f, 7, 4.8f);
+        var c = s.Canvas;
+        // The fibre plant's eleven blade angles, cut to stubs that alternate long and short so they stay apart.
+        ReadOnlySpan<(float Angle, float Length)> stubs =
+        [
+            (0.1f, 6.5f), (0.75f, 5), (1.35f, 6.5f), (1.95f, 5), (2.5f, 6.5f), (3.05f, 5),
+            (3.65f, 7), (4.15f, 5), (4.7f, 7), (5.25f, 5), (5.8f, 6.5f),
+        ];
+        for (var pass = 0; pass < 2; pass++)
+        {
+            for (var i = 0; i < stubs.Length; i++)
+            {
+                if (!s.Fine && i % 3 == 1) continue;
+                var (angle, length) = stubs[i];
+                var half = length / 2;
+                var dir = Vector2.FromAngle(angle);
+                var offset = pass == 0 ? s.Pixel : 0;
+                var lit = FacesLight(angle, 0.1f);
+                var color = pass == 0 ? Fiber.Edge : lit ? Fiber.Light : Fiber.Base;
+                c.Leaf(16 + dir.X * (half + 1) + offset, 16 + dir.Y * (half + 1) + offset, half, 0.9f, angle, color, color);
+            }
+            if (pass == 0) c.Disc(16 + s.Pixel, 16.5f + s.Pixel, 3.6f, Fiber.Edge);
+        }
+        c.Disc(16, 16.5f, 3.4f, Fiber.Shade);
+        c.Disc(15, 15.5f, 1.6f, Fiber.Base);
+        if (!s.Fine) return;
+        foreach (var (angle, length) in stubs)
+        {
+            var dir = Vector2.FromAngle(angle);
+            c.Dot(16 + dir.X * (length + 0.3f), 16 + dir.Y * (length + 0.3f), FacesLight(angle, 0.1f) ? Fiber.Highlight : Fiber.Light);
+        }
+    }
+
+    /// <summary>
+    /// Picked herb patch (N4): the herb clump with its sprig tips and flowers
+    /// snipped off. Each stem is cut to about half its length with a pale cut
+    /// end and keeps its lower leaf pair. At 16 px a smaller lobed clump with
+    /// no flower dots.
+    /// </summary>
+    private static void HerbPatchPicked(Layers s)
+    {
+        s.Shadow(17.5f, 19, 7, 5);
+        var c = s.Canvas;
+        if (!s.Fine)
+        {
+            Lobed(s, 16, 16, 5.2f, Canopy.Base, 7, 0.5f, 0.24f);
+            Lobed(s, 15, 15, 2.8f, Canopy.Light, 5, 1, 0.2f);
+            return;
+        }
+        c.Disc(16, 16.5f, 2.2f, Canopy.Shade);
+        // The herb patch's seven sprigs, as drawn on the unpicked patch.
+        ReadOnlySpan<(float Angle, float Length)> sprigs =
+        [
+            (0.2f, 7), (1.1f, 6), (1.9f, 7.5f), (2.8f, 6.5f), (3.7f, 7.5f), (4.6f, 6.5f), (5.45f, 7),
+        ];
+        for (var index = 0; index < sprigs.Length; index++)
+        {
+            var (angle, length) = sprigs[index];
+            var dir = Vector2.FromAngle(angle);
+            var lit = FacesLight(angle, -0.2f);
+            var leaf = lit ? Canopy.Light : Canopy.Base;
+            var cut = length * 0.8f;
+            c.Line(16, 16.5f, 16 + dir.X * cut, 16.5f + dir.Y * cut, Canopy.Shade);
+            // The lower leaf pair stays; of the upper pair only one leaf is left, on alternate sides, so the clump looks snipped.
+            foreach (var (along, side) in new[] { (0.45f, -0.75f), (0.45f, 0.75f), (0.72f, index % 2 == 0 ? -0.75f : 0.75f) })
+            {
+                var leafAngle = angle + side;
+                var at = new Vector2(16, 16.5f) + dir * (length * along) + Vector2.FromAngle(leafAngle) * 1.4f;
+                c.Leaf(at.X, at.Y, 1.6f, 1f, leafAngle, leaf, leaf);
+            }
+            c.Dot(16 + dir.X * (cut + 0.5f), 16.5f + dir.Y * (cut + 0.5f), GreensVein);
+        }
+        // The heart of the clump, filled with leaves so it does not read as a ring.
+        c.Disc(16, 16.5f, 2.2f, Canopy.Base);
+        c.Disc(15.5f, 16, 1.2f, Canopy.Light);
+    }
+
+    /// <summary>
+    /// Depleted clay bank: the bank dug away, drawn like the quarried stone
+    /// outcrop so the depleted sites read as one family. A trodden apron of
+    /// bank brown lies on the ground layer round a shallow dug hollow of fresh
+    /// clay (lit south-east lip, shaded north-west wall, floor with spade
+    /// scrapes); a low hump of the old bank survives on the north-west, and
+    /// two dug clods are left behind. It keeps the bank's own colours (N4)
+    /// and nothing tall remains, so it never reads as a smaller bank.
+    /// </summary>
+    private static void ClayPit(Layers s)
+    {
+        s.Shadow(17, 19, 8.5f, 5);
+        var g = s.GroundCanvas;
+        g.Lumpy(16, 17, 10.5f, Bank.Shade with { A = 0.6f }, 6, 1);
+        g.Lumpy(15.6f, 16.6f, 9.5f, Bank.Base with { A = 0.8f }, 6, 1);
+        g.Ellipse(17.8f, 18.6f, 6.4f, 4.2f, Clay.Light);
+        g.Ellipse(17.2f, 18, 6, 3.8f, Clay.Edge with { A = 0.9f });
+        g.Ellipse(17.9f, 18.7f, 4.9f, 3, Clay.Shade);
+        if (s.Fine)
+        {
+            g.Line(17, 18, 18, 20, Clay.Base);
+            g.Line(20, 17.5f, 21, 19.5f, Clay.Base);
+            // Crumbs of bank soil on the apron.
+            foreach (var (x, y) in new[] { (9, 15), (24, 14), (12, 23), (25, 20) }) g.Dot(x, y, Bank.Light);
+        }
+        // The low hump of the old bank on the north-west, lit on its crest, with a grass tuft.
+        Lobed(s, 11, 12, 4.4f, Bank.Shade, 4, 2, 0.15f);
+        Lobed(s, 10.5f, 11.5f, 3.5f, Bank.Base, 4, 2, 0.15f);
+        if (s.Fine)
+        {
+            s.Canvas.Disc(9.6f, 10.6f, 1.3f, Bank.Light);
+            s.Canvas.Line(12, 10, 13, 8.5f, GrassTuft);
+        }
+        // Dug clods of fresh clay left on the apron.
+        Mark(s, 24, 23, Clay.Base, Clay.Light);
+        Mark(s, 22, 12, Clay.Base, Clay.Light);
+    }
+
+    /// <summary>
+    /// Regrowing: a generic sprout for any regrowing site. A patch of
+    /// loosened earth on the ground layer holds a fresh sprout seen from
+    /// above: two seed leaves spreading almost flat to the west and east (the
+    /// west one lit) and a young leaf rising to the north-east, outlined in
+    /// the canopy edge, with two tiny shoots coming up beside it at 32 px.
+    /// </summary>
+    private static void Regrowing(Layers s)
+    {
+        var g = s.GroundCanvas;
+        g.Lumpy(16.4f, 17.6f, 7, Soil.Shade with { A = 0.5f }, 5, 1);
+        g.Ellipse(16, 17.2f, 5.8f, 4, Soil.Base with { A = 0.75f });
+        if (s.Fine) foreach (var (x, y) in new[] { (11, 18), (20, 20), (13, 20), (21, 15) }) g.Dot(x, y, Soil.Light);
+        s.Shadow(17, 18.6f, 4.6f, 2.6f);
+        var c = s.Canvas;
+        // Seed leaves spreading almost flat to the west and east (the west one lit), and a young leaf rising to the north-east.
+        c.Leaf(12.9f, 16.6f, 3, 2.1f, Mathf.Pi + 0.15f, Canopy.Light, Canopy.Highlight);
+        c.Leaf(19.1f, 16.6f, 3, 2.1f, -0.15f, Canopy.Base, Canopy.Light);
+        c.Leaf(16.8f, 14, 2.2f, 1.4f, -1.25f, Canopy.Highlight, Canopy.Highlight);
+        c.Disc(16, 16.8f, 1.1f, Canopy.Shade);
+        if (!s.Fine) return;
+        // Two tiny shoots coming up beside it.
+        c.Dot(11, 21, Canopy.Light);
+        c.Dot(22, 19, Canopy.Light);
+    }
+
+    /// <summary>
+    /// Depleted (generic fallback): for a used-up site with no depleted art of
+    /// its own, a bare scuffed patch of dry earth on the ground layer (soft
+    /// soil-shade rim, soil-light floor, a few crumbs and dents), with two small
+    /// pebbles and a broken twig left on it. Neutral and low, so it reads as
+    /// "nothing left here" for any plant.
+    /// </summary>
+    private static void BareGround(Layers s)
+    {
+        var g = s.GroundCanvas;
+        g.Lumpy(16.5f, 17.5f, 8.5f, Soil.Shade with { A = 0.4f }, 5, 3);
+        g.Ellipse(16, 17, 7.2f, 5f, Soil.Light with { A = 0.6f });
+        if (s.Fine)
+        {
+            foreach (var (x, y) in new[] { (12, 15), (19, 14), (14, 20), (21, 19) }) g.Dot(x, y, Soil.Highlight);
+            foreach (var (x, y) in new[] { (13, 16), (20, 15), (17, 19) }) g.Dot(x, y, Soil.Edge with { A = 0.6f });
+        }
+        s.Shadow(17, 19, 6, 3.5f);
+        var c = s.Canvas;
+        // Two pebbles.
+        c.Disc(11.5f, 18, 1.5f, Rock.Base);
+        c.Dot(11, 17, Rock.Highlight);
+        c.Disc(21, 20.5f, 1.2f, Rock.Base);
+        if (s.Fine) c.Dot(20, 20, Rock.Light);
+        // A broken twig lying north-west to south-east, lit on its north end.
+        if (!s.Fine) return;
+        c.Line(15, 13, 20, 16, Timber.Light);
+        c.Dot(15, 13, Timber.Highlight);
+        c.Line(18, 15, 19, 13, Timber.Base);
     }
 }

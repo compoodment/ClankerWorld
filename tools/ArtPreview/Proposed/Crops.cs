@@ -5,7 +5,8 @@ namespace ArtPreview.Proposed.Crops;
 
 /// <summary>
 /// Proposed crop art: farm-field overlays for the Fertile soil tile (one per
-/// crop and growth state) and the orchard tree stages.
+/// crop and growth state, rounds 1 and 2) and the orchard tree stages,
+/// including the planted sapling.
 ///
 /// A field is a transparent overlay the size of one tile (32 px, or 16 px for
 /// the mid-zoom atlas) drawn over the Fertile soil ground tile. Its rows run
@@ -54,39 +55,57 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
     private static readonly Color Seed = new("A77C52");
     private static readonly Color Vein = new("E8DCC0");
 
-    /// <summary>The round-1 fields: every grain state and the mature potato and greens.</summary>
-    private static readonly (Crop Crop, Growth Growth)[] Round1Fields =
-    [
-        (Crop.Grain, Growth.Prepared), (Crop.Grain, Growth.Seeded), (Crop.Grain, Growth.Sprout),
-        (Crop.Grain, Growth.Mature), (Crop.Grain, Growth.Harvested),
-        (Crop.Potato, Growth.Mature), (Crop.Greens, Growth.Mature),
-    ];
+    /// <summary>
+    /// Potato flesh and skin, from the Timber ramp as the potato item icon
+    /// uses it: highlight D2AC77, light A77C52, base 8A6440. Planted and
+    /// left-over potatoes are outlined in the soil edge step.
+    /// </summary>
+    private static readonly Ramp Tuber = Ramp.Of("4A3A2A", "6E4E31", "8A6440", "A77C52", "D2AC77");
+
+    /// <summary>Every field: three crops by five growth states.</summary>
+    private static readonly (Crop Crop, Growth Growth)[] AllFields =
+        Enum.GetValues<Crop>().SelectMany(crop => Enum.GetValues<Growth>().Select(growth => (crop, growth))).ToArray();
 
     private static readonly NatureSprite[] OrchardStages =
         [NatureSprite.OrchardGrowing, NatureSprite.OrchardFruiting, NatureSprite.OrchardPicked];
+
+    /// <summary>The orchard trees on the sheet, youngest first: the sapling is new and has no game sprite yet.</summary>
+    private static readonly (string Id, Func<int, Image> Draw, string Note)[] OrchardTrees =
+    [
+        ("OrchardSapling", OrchardSapling, "A newly planted orchard tree: a small lumpy crown in the orchard ramp, standing in a ring of dug soil."),
+        ("OrchardGrowing", size => Orchard(NatureSprite.OrchardGrowing, size), OrchardNote(NatureSprite.OrchardGrowing)),
+        ("OrchardFruiting", size => Orchard(NatureSprite.OrchardFruiting, size), OrchardNote(NatureSprite.OrchardFruiting)),
+        ("OrchardPicked", size => Orchard(NatureSprite.OrchardPicked, size), OrchardNote(NatureSprite.OrchardPicked)),
+    ];
 
     private static readonly Dictionary<(NatureSprite, int), Image> OrchardCache = [];
 
     public IEnumerable<Entry> Render()
     {
-        // Rows of eight on the sheet: each 32 px field above its 16 px version, the tiling patch at the end of each row.
+        // Each size: the fifteen fields with the grain patch after them (two
+        // sheet rows), then the potato and greens patches, the orchard trees
+        // over grass, the bare orchard sprites and the bare field overlays.
         foreach (var size in new[] { 32, 16 })
         {
             var suffix = size == 32 ? "" : ".16";
-            foreach (var (crop, growth) in Round1Fields)
+            foreach (var (crop, growth) in AllFields)
                 yield return new(Family, FieldId(crop, growth) + suffix, OnSoil(Field(crop, growth, size), size), FieldNote(crop, growth));
-            yield return new(Family, "field.tiling" + suffix, Tiling(size),
+            yield return new(Family, "field.tiling" + suffix, Tiling(Crop.Grain, size),
                 "A 3×3 patch of mature grain over the soil variants the map picks, to judge seams and repetition.");
         }
         foreach (var size in new[] { 32, 16 })
-            foreach (var stage in OrchardStages)
-                yield return new(Family, stage + (size == 32 ? "" : ".16"),
-                    Bitmap.Over(TerrainTextures.Tile(TerrainStyle.Grass, 0, size), Orchard(stage, size), 0, 0), OrchardNote(stage));
+            foreach (var crop in new[] { Crop.Potato, Crop.Greens })
+                yield return new(Family, $"field.{crop.ToString().ToLowerInvariant()}.tiling" + (size == 32 ? "" : ".16"), Tiling(crop, size),
+                    $"A 3×3 patch of mature {(crop == Crop.Potato ? "potatoes" : "greens")} over the soil variants the map picks, to judge seams and repetition.");
         foreach (var size in new[] { 32, 16 })
-            foreach (var stage in OrchardStages)
-                yield return new(Family, stage + (size == 32 ? "" : ".16") + ".sprite", Orchard(stage, size));
+            foreach (var (id, draw, note) in OrchardTrees)
+                yield return new(Family, id + (size == 32 ? "" : ".16"),
+                    Bitmap.Over(TerrainTextures.Tile(TerrainStyle.Grass, 0, size), draw(size), 0, 0), note);
         foreach (var size in new[] { 32, 16 })
-            foreach (var (crop, growth) in Round1Fields)
+            foreach (var (id, draw, _) in OrchardTrees)
+                yield return new(Family, id + (size == 32 ? "" : ".16") + ".sprite", draw(size));
+        foreach (var size in new[] { 32, 16 })
+            foreach (var (crop, growth) in AllFields)
                 yield return new(Family, FieldId(crop, growth) + (size == 32 ? "" : ".16") + ".sprite", Field(crop, growth, size));
     }
 
@@ -99,18 +118,20 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
     private static string FieldId(Crop crop, Growth growth) =>
         $"field.{crop.ToString().ToLowerInvariant()}.{growth.ToString().ToLowerInvariant()}";
 
-    private static string FieldNote(Crop crop, Growth growth) => growth switch
+    private static string FieldNote(Crop crop, Growth growth) => (crop, growth) switch
     {
-        Growth.Prepared => "Tilled rows: a lit furrow wall and a shaded trough four pixels apart, a few clods with their shadow.",
-        Growth.Seeded => "The tilled rows with seed in Timber light dotted along every trough.",
-        Growth.Sprout => "Two-pixel shoots standing in every trough, lit tip to the north.",
-        Growth.Harvested => "Pale cut stubble along the rows, one loose straw and a few clods on the furrows.",
-        _ => crop switch
-        {
-            Crop.Grain => "Ripe grain covering the soil: rows of lit ears, each row shading a thin line on the next, with slow lighter swells.",
-            Crop.Potato => "Rows of separate low leafy mounds in the canopy ramp, lit north-west, outlined, soil showing between the rows.",
-            _ => "Staggered round rosettes in canopy light with a cream heart and faint midrib, each with its own outline and shadow.",
-        },
+        (_, Growth.Prepared) => "Tilled rows: a lit furrow wall and a shaded trough four pixels apart, a few clods with their shadow. The same for every crop.",
+        (Crop.Potato, Growth.Seeded) => "The tilled rows with seed potatoes set in at every planting spot, where the plants will come up.",
+        (_, Growth.Seeded) => "The tilled rows with seed in Timber light dotted along every trough. Grain and greens share it.",
+        (Crop.Potato, Growth.Sprout) => "Small leafy clumps at every planting spot, outlined and shadowed: young potato plants.",
+        (Crop.Greens, Growth.Sprout) => "Small round rosettes at every planting spot, lit north-west with a pale heart.",
+        (_, Growth.Sprout) => "Two-pixel shoots standing in every trough, lit tip to the north.",
+        (Crop.Potato, Growth.Harvested) => "Dug soil: a turned hollow at every plant, clods, and a few left-over potatoes.",
+        (Crop.Greens, Growth.Harvested) => "Cut stumps at every plant: a pale cut stem in a ring of trimmed leaf bases.",
+        (_, Growth.Harvested) => "Pale cut stubble along the rows, one loose straw and a few clods on the furrows.",
+        (Crop.Grain, _) => "Ripe grain covering the soil: rows of lit ears, each row shading a thin line on the next, with slow lighter swells.",
+        (Crop.Potato, _) => "Rows of separate low leafy mounds in the canopy ramp, lit north-west, outlined, soil showing between the rows.",
+        _ => "Staggered round rosettes in canopy light with a cream heart and faint midrib, each with its own outline and shadow.",
     };
 
     private static string OrchardNote(NatureSprite stage) => stage switch
@@ -124,11 +145,11 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
     private static Image OnSoil(Image overlay, int size) =>
         Bitmap.Over(TerrainTextures.Tile(TerrainStyle.FertileSoil, 0, size), overlay, 0, 0);
 
-    /// <summary>A 3×3 patch of mature grain over the soil variants the map would pick there.</summary>
-    private static Image Tiling(int size)
+    /// <summary>A 3×3 patch of one mature crop over the soil variants the map would pick there.</summary>
+    private static Image Tiling(Crop crop, int size)
     {
         var patch = Bitmap.Empty(size * 3, size * 3);
-        var overlay = Field(Crop.Grain, Growth.Mature, size);
+        var overlay = Field(crop, Growth.Mature, size);
         for (var y = 0; y < 3; y++)
             for (var x = 0; x < 3; x++)
             {
@@ -155,8 +176,16 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
                 Clods(plot, plot.Fine ? 5 : 2, 1);
                 break;
             case Growth.Seeded:
-                Seeds(plot);
+                // Potatoes are their own planting stock, so a seeded potato field shows the planted potatoes.
+                if (crop == Crop.Potato) SeedPotatoes(plot);
+                else Seeds(plot);
                 Clods(plot, plot.Fine ? 3 : 1, 2);
+                break;
+            case Growth.Sprout when crop == Crop.Potato:
+                PotatoSprouts(plot);
+                break;
+            case Growth.Sprout when crop == Crop.Greens:
+                GreensSprouts(plot);
                 break;
             case Growth.Sprout:
                 Shoots(plot);
@@ -170,10 +199,16 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
             case Growth.Mature:
                 Greens(plot);
                 break;
+            case Growth.Harvested when crop == Crop.Potato:
+                DugPotatoes(plot);
+                break;
+            case Growth.Harvested when crop == Crop.Greens:
+                CutGreens(plot);
+                Clods(plot, plot.Fine ? 4 : 2, 3);
+                break;
             case Growth.Harvested:
-                // Grain leaves stubble; potatoes and greens leave only turned earth.
-                if (crop == Crop.Grain) Stubble(plot);
-                Clods(plot, plot.Fine ? (crop == Crop.Grain ? 4 : 8) : 2, 3);
+                Stubble(plot);
+                Clods(plot, plot.Fine ? 4 : 2, 3);
                 break;
         }
         return plot.Compose(Canopy.Edge);
@@ -469,6 +504,193 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
     }
 
     /// <summary>
+    /// The planting spots of a potato or greens field, where the mature
+    /// plants stand, so every state lines up with the one before it. At 32 px
+    /// four staggered rows of four, eight pixels apart, in tile pixels and
+    /// with the same small jitter the mature potatoes use; at 16 px four
+    /// staggered rows of four, four pixels apart, as the 16 px mature plants.
+    /// Index numbers each spot for per-plant variation.
+    /// </summary>
+    private static IEnumerable<(float X, float Y, int Index)> Stations(Crop crop, bool fine)
+    {
+        for (var row = 0; row < 4; row++)
+            for (var index = 0; index < 4; index++)
+            {
+                if (fine)
+                {
+                    var shift = row % 2 == 0 ? 0f : 4f;
+                    var x = crop == Crop.Potato
+                        ? 4f + index * 8 + shift + ((int)(PixelArt.Hash(index, row, 71) % 3) - 1) * 0.5f
+                        : 4.5f + index * 8 + shift;
+                    yield return (x, 4.5f + row * 8, index + row * 4);
+                }
+                else if (crop == Crop.Potato)
+                    // The middle of a 16 px mound, which starts at an even column shifted per row.
+                    yield return ((int)(PixelArt.Hash(row, 0, 70) % 2) * 2 + index * 4 + 1, row * RowPeriod + 1, index + row * 4);
+                else
+                    yield return (row % 2 * 2 + 1 + index * 4, row * RowPeriod + 1, index + row * 4);
+            }
+    }
+
+    /// <summary>
+    /// Seeded potatoes: potatoes are their own planting stock, so at every
+    /// planting spot a seed potato sits half set into the furrow, with turned
+    /// soil heaped on its south-east. At 32 px a 2×2 piece (lit north-west
+    /// pixel, soil-edge pixel to the south-east); at 16 px one bright pixel,
+    /// sparser and lighter than the grain's seed dots.
+    /// </summary>
+    private static void SeedPotatoes(Plot plot)
+    {
+        foreach (var (cx, cy, _) in Stations(Crop.Potato, plot.Fine))
+        {
+            var x = (int)MathF.Floor(cx);
+            var y = (int)MathF.Floor(cy);
+            if (!plot.Fine)
+            {
+                plot.Mark(x, y, Tuber.Highlight);
+                continue;
+            }
+            plot.Mark(x - 1, y - 1, Tuber.Highlight);
+            plot.Mark(x, y - 1, Tuber.Light);
+            plot.Mark(x - 1, y, Tuber.Light);
+            plot.Mark(x, y, Tuber.Base);
+            plot.Mark(x + 1, y, Tuber.Edge);
+            plot.Mark(x, y + 1, Tuber.Edge);
+            plot.Mark(x + 1, y + 1, Soil.Light);
+            plot.Mark(x + 2, y + 1, Soil.Highlight);
+        }
+    }
+
+    /// <summary>
+    /// Sprouting potatoes: a small leafy clump at every planting spot, about
+    /// two thirds the width of a grown mound: three leaflets (west, east and
+    /// north) in canopy shade, so the outline notches between them, with the
+    /// base and a light leaf toward the north-west, shadowed like the mature
+    /// plants. Darker and more ragged than a greens rosette. At 16 px a
+    /// two-pixel clump.
+    /// </summary>
+    private static void PotatoSprouts(Plot plot)
+    {
+        foreach (var (cx, cy, index) in Stations(Crop.Potato, plot.Fine))
+        {
+            if (!plot.Fine)
+            {
+                plot.Leaf((int)cx, (int)cy, Canopy.Base);
+                plot.Leaf((int)cx + 1, (int)cy, Canopy.Shade);
+                continue;
+            }
+            plot.Blob(plot.Ground, cx + 1, cy + 1.4f, 3f, 1.8f, Shadow);
+            foreach (var (dx, dy) in new[] { (-1.4f, 0.4f), (1.4f, 0.4f), (0f, -0.9f) })
+                plot.Blob(plot.Plants, cx + dx, cy + dy, 1.15f, 1.05f, Canopy.Shade, 3, index, 0.2f);
+            plot.Blob(plot.Plants, cx - 1.4f, cy + 0.1f, 0.75f, 0.65f, Canopy.Base);
+            plot.Blob(plot.Plants, cx - 0.2f, cy - 1.2f, 0.75f, 0.65f, Canopy.Base);
+            plot.Leaf((int)MathF.Floor(cx - 1.0f), (int)MathF.Floor(cy - 1.6f), Canopy.Light);
+        }
+    }
+
+    /// <summary>
+    /// Sprouting greens: a small round rosette at every planting spot, in
+    /// canopy light with a highlight toward the north-west and a faint cream
+    /// heart, shadowed and outlined like the mature rosettes. At 16 px one
+    /// light pixel, which the outline rings.
+    /// </summary>
+    private static void GreensSprouts(Plot plot)
+    {
+        foreach (var (cx, cy, index) in Stations(Crop.Greens, plot.Fine))
+        {
+            if (!plot.Fine)
+            {
+                plot.Leaf((int)cx, (int)cy, Canopy.Light);
+                continue;
+            }
+            plot.Blob(plot.Ground, cx + 0.8f, cy + 1.2f, 1.9f, 1.5f, Shadow);
+            plot.Blob(plot.Plants, cx, cy, 1.7f, 1.7f, Canopy.Base, 5, index, 0.2f);
+            plot.Blob(plot.Plants, cx - 0.4f, cy - 0.4f, 1.1f, 1.1f, Canopy.Light);
+            var x = (int)MathF.Floor(cx);
+            var y = (int)MathF.Floor(cy);
+            plot.Leaf(x - 1, y - 1, Canopy.Highlight);
+            plot.Leaf(x, y, Vein with { A = 0.4f });
+        }
+    }
+
+    /// <summary>
+    /// Harvested potatoes: the rows have been dug. Each plant leaves a turned
+    /// hollow (shaded north-west wall, lit south-east lip of thrown-up soil),
+    /// clods lie between them, and a few small potatoes the diggers missed
+    /// lie on top, each outlined in the soil edge with a lit north-west pixel.
+    /// At 16 px a shade pixel per plant and two pale potato pixels.
+    /// </summary>
+    private static void DugPotatoes(Plot plot)
+    {
+        foreach (var (cx, cy, index) in Stations(Crop.Potato, plot.Fine))
+        {
+            if (!plot.Fine)
+            {
+                plot.Mark((int)cx, (int)cy, Soil.Edge);
+                plot.Mark((int)cx + 1, (int)cy, Soil.Shade);
+                plot.Mark((int)cx + 1, (int)cy + 1, Soil.Highlight);
+                continue;
+            }
+            // Each hollow is a little different in size and outline, so a dug field does not look stamped.
+            var grow = (PixelArt.Hash(index, 7, 75) % 3) * 0.3f;
+            plot.Blob(plot.Ground, cx + 0.7f, cy + 0.8f, 3.1f + grow, 2.1f, Soil.Light, 5, index, 0.22f);
+            plot.Blob(plot.Ground, cx, cy, 2.9f + grow, 1.9f, Soil.Edge with { A = 0.85f }, 5, index, 0.22f);
+            plot.Blob(plot.Ground, cx + 0.5f, cy + 0.6f, 2.1f + grow, 1.2f, Soil.Shade, 4, index + 2, 0.2f);
+            // Soil thrown up beside the hollow, on alternate sides.
+            var side = index % 2 == 0 ? 1 : -1;
+            plot.Mark((int)MathF.Floor(cx + side * (4 + grow)), (int)MathF.Floor(cy), Soil.Highlight);
+            plot.Mark((int)MathF.Floor(cx + side * (4 + grow)) + 1, (int)MathF.Floor(cy) + 1, Soil.Shade);
+        }
+        Clods(plot, plot.Fine ? 6 : 2, 4);
+        // A few left-over potatoes at fixed, irregular spots; more would repeat as a pattern across a dug field.
+        var leftovers = plot.Fine ? new[] { (9, 9), (22, 18), (5, 26) } : new[] { (5, 5), (11, 11) };
+        foreach (var (x, y) in leftovers)
+        {
+            if (!plot.Fine)
+            {
+                plot.Mark(x, y, Tuber.Highlight);
+                plot.Mark(x + 1, y, Tuber.Light);
+                continue;
+            }
+            // A small potato, three by two, with its outline in the soil edge.
+            foreach (var (dx, dy) in new[] { (0, -1), (1, -1), (2, -1), (-1, 0), (3, 0), (-1, 1), (3, 1), (0, 2), (1, 2), (2, 2) })
+                plot.Mark(x + dx, y + dy, Tuber.Edge);
+            plot.Mark(x, y, Tuber.Highlight);
+            plot.Mark(x + 1, y, Tuber.Light);
+            plot.Mark(x + 2, y, Tuber.Light);
+            plot.Mark(x, y + 1, Tuber.Light);
+            plot.Mark(x + 1, y + 1, Tuber.Light);
+            plot.Mark(x + 2, y + 1, Tuber.Base);
+        }
+    }
+
+    /// <summary>
+    /// Harvested greens: every head has been cut, leaving a stump at each
+    /// planting spot: a pale cream cut stem in a small ring of trimmed outer
+    /// leaf bases (canopy shade and base, the north-west one lit), shadowed
+    /// and outlined. At 16 px a single cream pixel, which the outline rings.
+    /// </summary>
+    private static void CutGreens(Plot plot)
+    {
+        foreach (var (cx, cy, index) in Stations(Crop.Greens, plot.Fine))
+        {
+            var x = (int)MathF.Floor(cx);
+            var y = (int)MathF.Floor(cy);
+            if (!plot.Fine)
+            {
+                plot.Leaf(x, y, Vein);
+                continue;
+            }
+            plot.Blob(plot.Ground, cx + 0.8f, cy + 1.2f, 2f, 1.5f, Shadow);
+            plot.Blob(plot.Plants, cx, cy, 1.8f, 1.6f, Canopy.Shade, 4, index, 0.3f);
+            plot.Leaf(x - 1, y - 1, Canopy.Light);
+            plot.Leaf(x, y - 1, Canopy.Base);
+            plot.Leaf(x, y, Vein);
+            plot.Leaf(x - 1, y, Canopy.Base);
+        }
+    }
+
+    /// <summary>
     /// A field overlay under construction: a ground layer (furrows, clods,
     /// seed, shadows) and a plant layer that gets a one-pixel outline (L4).
     /// Every mark wraps around the tile edges, so the overlay repeats without
@@ -552,6 +774,28 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
     }
 
     /// <summary>
+    /// The orchard sapling (N6): a newly planted tree, a small lumpy crown in
+    /// the orchard ramp (shade body, base and light pulled north-west, a
+    /// highlight), standing in a ring of dug soil that shows it was planted.
+    /// Smaller than the growing stage.
+    /// </summary>
+    public static Image OrchardSapling(int size)
+    {
+        var tree = new TreeSprite(size);
+        // The planting ring: a soil rim round a soil floor, a few crumbs on its lit north-west edge.
+        tree.GroundEllipse(16.4f, 17.6f, 8.4f, 6.4f, Soil.Shade with { A = 0.85f });
+        tree.GroundEllipse(16.2f, 17.4f, 7.2f, 5.3f, Soil.Base with { A = 0.95f });
+        if (tree.Fine)
+            foreach (var (x, y) in new[] { (10, 15), (13, 12), (11, 20) }) tree.GroundDot(x, y, Soil.Light);
+        tree.Shadow(17, 18.5f, 5.8f, 4.4f);
+        tree.Lobed(16, 16, 5.4f, OrchardCanopy.Shade, 5, 1, 0.16f);
+        tree.Lobed(15.5f, 15.5f, 4.6f, OrchardCanopy.Base, 5, 1, 0.16f);
+        tree.Lobed(14.8f, 14.8f, 3f, OrchardCanopy.Light, 4, 2, 0.16f);
+        tree.Canvas.Disc(14, 14, 1.3f, OrchardCanopy.Highlight);
+        return tree.Compose(OrchardCanopy.Edge);
+    }
+
+    /// <summary>
     /// A broadleaf canopy in the orchard ramp (N2, N6), drawn the way the
     /// proposed broadleaf is: the L2 shadow offset (+1, +3), a shade body,
     /// the base pulled north-west so a shade rim stays on the south-east, a
@@ -624,6 +868,12 @@ public sealed class CropsProposal : IArtProposal, IArtSetProvider
 
         /// <summary>The L2 ground shadow, an ellipse already offset toward the south-east by the caller.</summary>
         public void Shadow(float cx, float cy, float rx, float ry) => groundCanvas.Ellipse(cx, cy, rx, ry, CropsProposal.Shadow);
+
+        /// <summary>An ellipse on the ground layer (tile units), for marks the outline must not wrap, such as a planting ring.</summary>
+        public void GroundEllipse(float cx, float cy, float rx, float ry, Color color) => groundCanvas.Ellipse(cx, cy, rx, ry, color);
+
+        /// <summary>One ground-layer pixel (tile units); used only at 32 px, where a tile unit is one pixel.</summary>
+        public void GroundDot(float x, float y, Color color) => groundCanvas.Dot(x, y, color);
 
         /// <summary>Sets one body pixel in image pixels, clipped to the sprite.</summary>
         public void Put(int x, int y, Color color)

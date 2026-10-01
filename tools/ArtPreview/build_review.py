@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds the ClankerWorld art review page from baseline and proposed renders."""
-import argparse, base64, json, os, re, html, glob
+import argparse, base64, collections, hashlib, json, os, re, html, glob
 import markdown
 
 FAMILY_TITLES = {
@@ -15,6 +15,8 @@ FAMILY_TITLES = {
     'glyphs': 'Interface icons',
     'menu': 'Main Menu valley',
     'brand': 'Logo and program icon',
+    'relief': 'Mountains, peaks and hills',
+    'animals': 'Livestock and horses',
 }
 FAMILY_INTRO = {
     'terrain': 'Each surface has a clean and a busier variant; the game draws the busier one on about one tile in four. The 16 px versions are what you see at mid zoom.',
@@ -28,11 +30,13 @@ FAMILY_INTRO = {
     'glyphs': 'Interface icons are not redrawn in this round. They are shown so the catalogue is complete.',
     'menu': 'The valley behind the Main Menu by day (Light theme) and at dusk (Dark theme). Clouds, smoke, birds, sparkles and lights animate in the game; this shows the still layers.',
     'brand': 'Agreed on September 29 and not redrawn. Shown for completeness only.',
+    'relief': 'Mountains, peaks and hills are now drawn from the world\'s elevation as one landform spanning many tiles, instead of a picture per tile. Hills are soft foothill shading, with no rings. The range and Town scenes show it in place.',
+    'animals': 'Late-development livestock (chicken, sheep, cow) and the remaining horse facings, in the style of the approved agents and horse.',
 }
 BASELINE_ALIAS = {'terrain16': 'terrain', 'hills': 'terrain', 'nature16': 'nature',
                   'items_tools': 'items', 'items_goods': 'items'}
 SKIP_BASELINE = {'edges', 'coasts', 'retired'}
-ORDER = ['terrain', 'water', 'roads', 'nature', 'crops', 'buildings', 'agents', 'items', 'glyphs', 'menu', 'brand']
+ORDER = ['relief', 'terrain', 'water', 'roads', 'nature', 'crops', 'buildings', 'agents', 'animals', 'items', 'glyphs', 'menu', 'brand']
 
 def data_uri(path):
     with open(path, 'rb') as f:
@@ -57,6 +61,10 @@ def main():
     ap.add_argument('--notes', help='directory with <family>.md owner notes')
     ap.add_argument('--out', required=True)
     ap.add_argument('--questions')
+    ap.add_argument('--round', type=int, default=1)
+    ap.add_argument('--approved', help='previous round proposals (index.json root)')
+    ap.add_argument('--decisions', help='directory of previous-round decision JSON files')
+    ap.add_argument('--compare', action='append', default=[], help='label|before.png|after.png scene comparison')
     args = ap.parse_args()
 
     baseline = load_index(args.baseline)
@@ -116,11 +124,86 @@ def main():
         c['pid'] = pid
         matched.add(bid)
 
+    if args.round > 1:
+        families.clear()
+        approved = {}
+        if args.approved:
+            for e in load_index(args.approved):
+                approved[e['id']] = (e, os.path.join(args.approved, e['path']))
+        previous = {}
+        if args.decisions:
+            for path in glob.glob(os.path.join(args.decisions, '*.json')):
+                d = json.load(open(path)); d = d.get('data', d)
+                previous[d.get('key')] = d.get('decision')
+        def digest(path):
+            with open(path, 'rb') as f: return hashlib.md5(f.read()).hexdigest()
+        proposed_by_id = {e['id']: e for e in proposed}
+        approved_counts = collections.Counter()
+        unchanged_counts = collections.Counter()
+        from PIL import Image as PILImage
+        def unchanged(a, b, fkey):
+            if digest(a) == digest(b): return True
+            ia, ib = PILImage.open(a).convert('RGBA'), PILImage.open(b).convert('RGBA')
+            if ia.size != ib.size: return False
+            # Interface glyphs are tinted per theme: compare their shapes.
+            return fkey == 'glyphs' and ia.getchannel('A').tobytes() == ib.getchannel('A').tobytes()
+        for e in proposed:
+            pid = e['id']
+            if '.sprite' in pid: continue
+            fkey = BASELINE_ALIAS.get(e['family'], e['family'])
+            path = os.path.join(args.proposed, e['path'])
+            if pid in approved:
+                ae, apath = approved[pid]
+                decision = previous.get(f"{fkey}~{pid}") or previous.get(f"{ae['family']}~{pid}")
+                twin = proposed_by_id.get(pid + '.sprite')
+                same = digest(path) == digest(apath) or (twin is not None and pid + '.sprite' in approved and
+                        digest(os.path.join(args.proposed, twin['path'])) == digest(approved[pid + '.sprite'][1]))
+                # Approved pictures are hidden: any pixel change in them comes
+                # from a shared background (for example the approved grass now
+                # used under every sprite), not from a redraw.
+                if decision == 'approve':
+                    approved_counts[fkey] += 1
+                    continue
+                if same:
+                    # Asked to change but replaced by another approach (mountain tiles give way to relief).
+                    continue
+                c = card(fkey, pid)
+                c['current'] = data_uri(apath); c['cw'], c['ch'] = ae['width'], ae['height']
+                c['currentLabel'] = 'round 1'
+                c['proposed'] = data_uri(path); c['pw'], c['ph'] = e['width'], e['height']
+                c['note'] = e.get('note') or ''
+                c['kind'] = 'replaced'
+                continue
+            c = card(fkey, pid)
+            bid = pid
+            if fkey == 'agents' and pid not in base_by_id:
+                m = re.match(r'^(infant|child|adult|elder)\.v(\d)\.S$', pid)
+                if m: bid = f'{m.group(1)}.v{m.group(2)}'
+            if bid in base_by_id:
+                b = base_by_id[bid]
+                bpath = os.path.join(args.baseline, b['path'])
+                if unchanged(bpath, path, fkey):
+                    # Today's art, yielded only to complete the catalogue.
+                    del families[fkey]['cards'][pid]
+                    unchanged_counts[fkey] += 1
+                    continue
+                c['current'] = data_uri(bpath); c['cw'], c['ch'] = b['width'], b['height']
+                c['kind'] = 'replaced'
+            else:
+                c['kind'] = 'new'
+            c['proposed'] = data_uri(path); c['pw'], c['ph'] = e['width'], e['height']
+            c['note'] = e.get('note') or ''
+        for key, n in approved_counts.items():
+            fam(key)['approvedCount'] = n
+        for key, n in unchanged_counts.items():
+            fam(key)['unchangedCount'] = n
+
     # Owner notes per family.
     if args.notes:
         for path in glob.glob(os.path.join(args.notes, '*.md')):
             key = os.path.splitext(os.path.basename(path))[0].lower()
             key = {'itemstools': 'items', 'itemsgoods': 'items', 'items_tools': 'items', 'items_goods': 'items'}.get(key, key)
+            if args.round > 1 and key not in families: continue
             with open(path) as f:
                 text = f.read()
             if key in families:
@@ -147,7 +230,7 @@ def main():
 
     ordered = []
     for key in ORDER:
-        if key in families:
+        if key in families and (families[key]['cards'] or args.round == 1):
             f = families[key]
             cards = list(f['cards'].values())
             # New and replaced first, kept last; keep stable id order inside.
@@ -155,7 +238,11 @@ def main():
             cards.sort(key=lambda c: (rank[c['kind']], c['id']))
             ordered.append({**f, 'cards': cards})
 
-    data = {'families': ordered, 'scenes': scenes, 'hasProposed': bool(proposed)}
+    comparisons = []
+    for spec in args.compare:
+        label, before, after = spec.split('|')
+        comparisons.append({'label': label, 'before': data_uri(before), 'after': data_uri(after)})
+    data = {'families': ordered, 'scenes': scenes, 'hasProposed': bool(proposed), 'round': args.round, 'comparisons': comparisons}
     payload = json.dumps(data).replace('</', '<\\/')
 
     questions_html = ''
@@ -287,8 +374,8 @@ details > summary { cursor: pointer; font-family: var(--display); font-size: 1.1
 </div></div>
 <div class="wrap">
   <div class="lead">
-    <h1>ClankerWorld art: current versus proposed</h1>
-    <p>Every texture the game draws today is shown beside its proposed improvement, drawn in code the same way. Round 1 covers a reference set from every family; the rest follows once you like the direction. Nothing here is in the game yet. Your decisions save as you click, and I read them back from this page.</p>
+    <h1 id="title">ClankerWorld art: current versus proposed</h1>
+    <p id="lead">Every texture the game draws today is shown beside its proposed improvement, drawn in code the same way. Round 1 covers a reference set from every family; the rest follows once you like the direction. Nothing here is in the game yet. Your decisions save as you click, and I read them back from this page.</p>
     <div class="how">
       <strong>How to review</strong>
       <ul>
@@ -319,6 +406,8 @@ details > summary { cursor: pointer; font-family: var(--display); font-size: 1.1
 <div class="toast" id="toast" hidden></div>
 <script>
 const DATA = __DATA__;
+const PREFIX = DATA.round > 1 ? 'r' + DATA.round + ':' : '';
+const famOf = key => key.split('~')[0].replace(/^r\d+:/, '');
 const state = { zoom: 3, filter: 'changed', decisions: {}, db: null, canWrite: null };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -364,21 +453,23 @@ function render() {
     const sec = el('section', { class: 'fam', id: 'fam-' + f.key });
     sec.appendChild(el('div', { class: 'famhead' }, [el('h2', { text: f.title }), el('span', { class: 'counts', 'data-counts': f.key })]));
     if (f.intro) sec.appendChild(el('p', { class: 'intro', text: f.intro }));
+    if (f.approvedCount) sec.appendChild(el('p', { class: 'intro', text: `${f.approvedCount} pictures you approved in round 1 are not shown again.` }));
+    if (f.unchangedCount) sec.appendChild(el('p', { class: 'intro', text: `${f.unchangedCount} pictures keep today's art and are not shown.` }));
     if (f.note) { const d = el('details', { class: 'note' }, [el('summary', { text: 'What changed and why' })]); const n = el('div'); n.innerHTML = f.note; d.appendChild(n); sec.appendChild(d); }
     if (f.cards.some(c => c.kind !== 'kept')) {
-      const overall = el('div', { class: 'overall', 'data-card': f.key + '~overall' }, [el('h3', { text: 'This family as a whole' }), decideRow(f.key + '~overall')]);
+      const overall = el('div', { class: 'overall', 'data-card': PREFIX + f.key + '~overall' }, [el('h3', { text: 'This family as a whole' }), decideRow(PREFIX + f.key + '~overall')]);
       const ta = el('textarea', { class: 'cnote', placeholder: 'Notes for the whole family (optional)' });
-      overall.appendChild(ta); bindNote(ta, f.key + '~overall');
+      overall.appendChild(ta); bindNote(ta, PREFIX + f.key + '~overall');
       sec.appendChild(overall);
     }
     const grid = el('div', { class: 'grid' });
     for (const c of f.cards) {
-      const key = f.key + '~' + c.id;
+      const key = PREFIX + f.key + '~' + c.id;
       const card = el('div', { class: 'card' + (Math.max(c.cw, c.pw) > 96 ? ' wide' : ''), 'data-card': key, 'data-kind': c.kind });
       card.appendChild(el('div', { class: 'idrow' }, [el('span', { class: 'id', text: c.id }), el('span', { class: 'tag ' + c.kind, text: c.kind === 'new' ? 'new' : c.kind === 'replaced' ? 'redrawn' : (f.key === 'brand' ? 'agreed, unchanged' : 'later round') })]));
       const pics = el('div', { class: 'pics' });
       const bd = backdropFor(f.key);
-      if (c.current) pics.appendChild(pic('current', c.current, c.cw, c.ch, bd));
+      if (c.current) pics.appendChild(pic(c.currentLabel || 'current', c.current, c.cw, c.ch, bd));
       if (c.proposed) pics.appendChild(pic('proposed', c.proposed, c.pw, c.ph, bd));
       card.appendChild(pics);
       if (c.note) card.appendChild(el('div', { class: 'entrynote', text: c.note }));
@@ -394,8 +485,10 @@ function render() {
     root.appendChild(sec);
   }
   renderScenes();
-  bindNote($('#direction .overall textarea'), 'direction~overall');
-  $('#direction .overall .decide').replaceWith(decideRow('direction~overall'));
+  $('#direction .overall').dataset.card = PREFIX + 'direction~overall';
+  bindNote($('#direction .overall textarea'), PREFIX + 'direction~overall');
+  $('#direction .overall .decide').replaceWith(decideRow(PREFIX + 'direction~overall'));
+  if (DATA.round > 1) { $('#title').textContent = 'ClankerWorld art: round ' + DATA.round; $('#lead').textContent = 'Round ' + DATA.round + ' shows the changes you asked for in round 1 and the rest of the catalogue. Pictures you already approved and that did not change are left out. Nothing here is in the game yet. Your decisions save as you click, and I read them back from this page.'; }
   // Make tables in the guide scroll instead of widening the page.
   $$('#styleguide table').forEach(t => { const w = el('div', { class: 'tablewrap' }); t.replaceWith(w); w.appendChild(t); });
   applyDecisions();
@@ -407,7 +500,7 @@ function compare(label, cur, prop, scale) {
   const under = el('img', { src: cur, alt: 'current ' + label });
   const over = el('div', { class: 'over' }, [el('img', { src: prop, alt: 'proposed ' + label })]);
   const handle = el('div', { class: 'handle' });
-  box.append(under, over, handle, el('span', { class: 'lbl l', text: 'proposed' }), el('span', { class: 'lbl r', text: 'current' }));
+  box.append(under, over, handle, el('span', { class: 'lbl l', text: 'proposed' }), el('span', { class: 'lbl r', text: DATA.round > 1 ? 'before' : 'current' }));
   const range = el('input', { type: 'range', min: 0, max: 100, value: 50, class: 'slider', id: 'slider-' + label.replace(/\W/g, '') });
   const update = () => { over.style.clipPath = `inset(0 ${100 - range.value}% 0 0)`; handle.style.left = range.value + '%'; };
   range.addEventListener('input', update); update();
@@ -417,6 +510,7 @@ function compare(label, cur, prop, scale) {
 function renderScenes() {
   const w = $('#scenes'); w.textContent = '';
   const s = DATA.scenes;
+  if (DATA.comparisons && DATA.comparisons.length) { for (const c of DATA.comparisons) w.appendChild(compare(c.label, c.before, c.after)); return; }
   if (s.current32 && s.proposed32) w.appendChild(compare('Full zoom (32 px tiles)', s.current32, s.proposed32));
   else if (s.current32) w.appendChild(el('div', {}, [el('h3', { text: 'Full zoom (32 px tiles), current art' }), el('div', { class: 'compare' }, [el('img', { src: s.current32, alt: 'current scene' })])]));
   if (s.current16 && s.proposed16) w.appendChild(compare('Mid zoom (16 px tiles)', s.current16, s.proposed16));
@@ -453,7 +547,7 @@ function applyDecisions() {
     $$('.decide .btn', card).forEach(b => b.classList.toggle('on', b.classList.contains(d.decision || '-')));
     const ta = $('textarea', card);
     if (ta && document.activeElement !== ta && (d.note || '') !== ta.value) ta.value = d.note || '';
-    const fam = key.split('~')[0];
+    const fam = famOf(key);
     perFamily[fam] = perFamily[fam] || { t: 0, d: 0 };
     perFamily[fam].t++; total++;
     if (d.decision) { perFamily[fam].d++; decided++; }
@@ -466,7 +560,7 @@ function applyDecisions() {
 let saving = {};
 async function save(key, patch) {
   const prev = state.decisions[key] || {};
-  const next = { ...prev, ...patch, key, family: key.split('~')[0], id: key.split('~').slice(1).join('~'), updated: new Date().toISOString() };
+  const next = { ...prev, ...patch, key, round: DATA.round, family: famOf(key), id: key.split('~').slice(1).join('~'), updated: new Date().toISOString() };
   state.decisions[key] = next;
   applyDecisions(); applyFilter();
   if (!state.db) { try { localStorage.setItem('art-review-' + key, JSON.stringify(next)); } catch (e) {} return; }
@@ -529,7 +623,7 @@ try { const z = +localStorage.getItem('art-review-zoom'); if (z) setZoom(z); } c
   if (can === false) readOnly('Read-only view: your decisions are not saved.');
   else $('#dbstatus').textContent = 'Decisions save automatically.';
   db.collection('reviews').onSnapshot(snap => {
-    for (const doc of snap.docs) { const d = doc.data(); if (d && d.key) state.decisions[d.key] = d; }
+    for (const doc of snap.docs) { const d = doc.data(); if (d && d.key && (PREFIX ? d.key.startsWith(PREFIX) : !/^r\d+:/.test(d.key))) state.decisions[d.key] = d; }
     applyDecisions(); applyFilter();
   }, err => { $('#dbstatus').textContent = 'Could not load saved decisions (' + err.code + ').'; });
 })();

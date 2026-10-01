@@ -5,10 +5,11 @@ using Godot;
 namespace ArtPreview.Proposed.Menu;
 
 /// <summary>
-/// Round-1 proposal for the Main Menu valley (STYLE.md section 13). It renders
+/// Proposal for the Main Menu valley (STYLE.md section 13). It renders
 /// <see cref="MenuSceneProposed"/>, a copy of the game's <c>MenuScene</c> with
 /// the same composition, Towns, river course and animation lists, improved in
-/// place: three ridge bands with atmospheric depth, a varied tree line, fields
+/// place: side-view snowy mountains with lit and shaded faces, ribs, couloirs
+/// and snowfields in three hazed depth bands (round 2), a varied tree line, fields
 /// with rows and hedges, a banked river with a reflection band, the map's Road
 /// and plank bridge, the map's roof materials, foreground tufts and flowers,
 /// and at dusk warm F2C14E windows and a faint mist band.
@@ -29,8 +30,8 @@ public sealed class MenuProposal : IArtProposal, IArtSetProvider
             foreach (var cloud in scene.Clouds) Sheet.Blend(composed, cloud.Image, (int)cloud.X, (int)cloud.Y);
             yield return new Entry(Family, night ? "valley.dusk" : "valley.day", composed,
                 night
-                    ? "Dusk: same valley and lights; warm F2C14E windows, faint mist band over the far fields."
-                    : "Day: three ridge bands, varied tree line, rowed fields with hedges, banked river, map roofs and bridge.");
+                    ? "Dusk: the same mountains with pale snowfields and lit west faces against indigo rock; the valley as approved."
+                    : "Day: snowy peaks with lit west faces, blue-shaded east faces, ribs, couloirs and snowfields in hazed depth bands; the valley as approved.");
         }
     }
 
@@ -69,6 +70,8 @@ public sealed class MenuSceneProposed
     {
         Sky,
         FarRidge,
+        /// <summary>The tall massifs at the back of the middle band, a little hazier than the peaks in front of them.</summary>
+        BackPeaks,
         Mountain,
         NearRidge,
         TreeLine,
@@ -345,101 +348,423 @@ public sealed class MenuSceneProposed
     }
 
     /// <summary>
-    /// The far ridge band behind the main peaks (M2: mixed 45% toward the
-    /// sky when composed). Same outline as the game's distant range, with
-    /// west faces lit and a thin snow cap.
+    /// A summit on a mountain skyline: where it stands and how steeply its
+    /// crest falls away to the west and to the east, in pixels down per pixel
+    /// across. A low summit with one gentle side reads as a shoulder or shelf
+    /// on its bigger neighbour; <paramref name="Reach"/> ends that gentle
+    /// stretch, after which the crest falls at least one pixel per pixel.
     /// </summary>
-    private void PaintFarRidges()
+    private readonly record struct Summit(float X, float Y, float West, float East, float Reach = 1000)
     {
-        var top = new float[Width + 1];
-        for (var x = 0; x <= Width; x++)
-            top[x] = 58 + 16 * Fbm(x, 3, 70) - 10 * Mathf.Exp(-Mathf.Pow((x - 120) / 40f, 2)) -
-                8 * Mathf.Exp(-Mathf.Pow((x - 300) / 30f, 2));
-        for (var x = 0; x < Width; x++)
+        /// <summary>How far below the top of the picture this summit's crest lies <paramref name="dx"/> pixels away (its cone).</summary>
+        public float CrestY(float dx)
         {
-            // Ground rising to the east means this is a west-facing, lit slope.
-            var rising = top[Mathf.Min(Width, x + 2)] < top[Mathf.Max(0, x - 2)];
-            for (var y = (int)top[x]; y < Horizon; y++)
-            {
-                var lit = Fbm(x + y * 0.6f, 8, 14) + (rising ? 0.14f : -0.14f) > 0.5f;
-                var value = lit ? PeakRamp.Base : PeakRamp.Shade;
-                if (y < top[x] + 4 + 3 * Fbm(x, 9, 6)) value = lit ? SnowRamp.Highlight : SnowRamp.Shade;
-                Put(x, y, value, Layer.FarRidge);
-            }
+            var slope = dx < 0 ? West : East;
+            var distance = Mathf.Abs(dx);
+            return Y + slope * Mathf.Min(distance, Reach) + Mathf.Max(slope, 1) * Mathf.Max(0, distance - Reach);
         }
     }
 
     /// <summary>
-    /// The middle ridge band: the game's snowy peaks, unchanged in outline and
-    /// colour (M2: mixed 25% toward the sky). A one-pixel crease now marks
-    /// where each lit face turns into shade.
+    /// A rib of rock running down a mountain face from just under the skyline
+    /// toward the viewer. Its crest leans away from the summit and wanders a
+    /// little; it rises out of the face over its first pixels and sinks back
+    /// into it at its foot.
+    /// </summary>
+    private readonly record struct Spur(float X, float Y, float Lean, float Length, float Height, float Sharpness, int Salt)
+    {
+        /// <summary>Where the rib's crest lies in row <paramref name="y"/>.</summary>
+        public float CrestX(float y)
+        {
+            var down = y - Y;
+            return X + Lean * down + (Fbm(down, Salt, 6) - 0.5f) * 2.4f * Mathf.Min(1, down / 6f);
+        }
+
+        /// <summary>How far the rib stands out of the face in row <paramref name="y"/>; zero above and below it.</summary>
+        public float Rise(float y)
+        {
+            var down = y - Y;
+            if (down < 0 || down > Length) return 0;
+            return Height * Mathf.Min(1, down / 3f) * (1 - down / Length);
+        }
+    }
+
+    /// <summary>
+    /// One mountain band: its painting layer (which sets its haze, rule M2),
+    /// a seed, its summits, the row above which snow lies, the row below
+    /// which the valley's shadow starts to darken the faces, the lowest row
+    /// painted, and whether it gets the full set of ribs, buttresses, rock
+    /// bands and ramp steps or the quieter treatment of a distant range.
+    /// </summary>
+    private sealed record MountainBand(Layer OnLayer, int Seed, Summit[] Summits, float SnowLine, float ValleyShade, int Bottom, bool Detailed);
+
+    /// <summary>
+    /// The menu's mountains, in the round-1 blue-greys extended into ramps
+    /// (edge, shade, base, light, highlight). Sunlit faces lean warm and
+    /// shaded faces cool toward blue-violet, so shadow is a hue shift and not
+    /// a darker grey (rule P3).
+    /// </summary>
+    private static readonly Ramp AlpineRockRamp = new("5A6080", "6C7592", "848AA0", "9D9CA8", "B8B6BC");
+    private static readonly Ramp AlpineSnowRamp = new("96A2C4", "AEBBD6", "CBD5E4", "E2E7EE", "F6F7F8");
+
+    /// <summary>
+    /// The same ramps for dusk, before the scene's night grading: darker rock
+    /// and paler snow, so after grading the snowfields still glow against the
+    /// rock and the lit west faces stay readable against the shaded east faces.
+    /// </summary>
+    private static readonly Ramp DuskRockRamp = new("30354C", "3C425C", "4E5672", "666E8C", "8088A6");
+    private static readonly Ramp DuskSnowRamp = new("8890B4", "A0AACC", "BCC6E0", "D8E0F0", "F4F7FC");
+
+    /// <summary>Light comes from the upper west and a little in front (rule L1); the vector points toward it.</summary>
+    private const float LightWest = 0.7f, LightUp = 0.45f, LightFront = 0.55f;
+
+    /// <summary>
+    /// The far range behind the big peaks (M2: mixed 45% toward the sky when
+    /// composed). It shows between the big summits as pale, low-contrast
+    /// peaks with their own lit faces and thin snow.
+    /// </summary>
+    private void PaintFarRidges()
+    {
+        Summit[] summits =
+        [
+            new(-6, 54, 0.8f, 0.7f), new(26, 58, 0.7f, 0.9f), new(58, 62, 0.8f, 0.6f), new(100, 56, 0.9f, 0.7f),
+            new(120, 52, 0.6f, 0.9f), new(152, 58, 0.8f, 0.8f), new(222, 54, 0.7f, 0.9f), new(262, 49, 0.9f, 0.7f),
+            new(306, 56, 0.8f, 0.8f), new(334, 52, 0.7f, 0.7f),
+        ];
+        PaintRange(new MountainBand(Layer.FarRidge, 500, summits, 58, 66, Horizon, false));
+    }
+
+    /// <summary>
+    /// The big peaks in two planes. Behind: three tall massifs with shoulders,
+    /// a shelf and a forepeak, a little hazier. In front: lower, sharper
+    /// peaks that overlap their feet (M2: mixed 25% toward the sky). Saddles
+    /// between the massifs open onto the far range.
     /// </summary>
     private void PaintMountains()
     {
-        var lit = new Color(148 / 255f, 158 / 255f, 178 / 255f);
-        var shaded = new Color(116 / 255f, 126 / 255f, 152 / 255f);
-        var rib = new Color(104 / 255f, 112 / 255f, 138 / 255f);
-        var shadedRib = new Color(134 / 255f, 144 / 255f, 168 / 255f);
-        var snow = new Color(240 / 255f, 244 / 255f, 250 / 255f);
-        var shadedSnow = new Color(192 / 255f, 204 / 255f, 224 / 255f);
-        (int X, int Y, float Slope)[] peaks =
-            [(22, 54, 1.05f), (70, 34, 0.95f), (132, 46, 1.1f), (178, 26, 0.9f), (236, 42, 1f), (282, 30, 0.92f), (332, 50, 1f)];
-        var ridge = new float[Width];
+        Summit[] back =
+        [
+            new(44, 50, 0.9f, 0.55f, 16), new(70, 35, 0.95f, 1.0f), new(96, 49, 0.7f, 1.1f, 14),
+            new(140, 44, 0.9f, 0.1f, 18), new(182, 22, 0.85f, 0.95f), new(210, 36, 0.4f, 1.0f, 16),
+            new(288, 30, 1.25f, 0.8f), new(318, 46, 0.5f, 0.6f, 20),
+        ];
+        Summit[] front =
+        [
+            new(16, 56, 0.6f, 0.85f), new(128, 47, 1.15f, 0.9f), new(238, 44, 0.9f, 0.6f, 14), new(252, 47, 0.15f, 1.0f, 14),
+        ];
+        PaintRange(new MountainBand(Layer.BackPeaks, 600, back, 51, 50, 108, true));
+        PaintRange(new MountainBand(Layer.Mountain, 700, front, 50, 56, 108, true));
+    }
+
+    /// <summary>
+    /// Paints one mountain band as side-view mountains lit from the upper
+    /// west (rule L1). Each column's skyline comes from the lowest summit
+    /// cone, roughened away from the summits. The face below is a relief:
+    /// each summit's two faces meet along a main ridge that leans, bends and
+    /// wanders; saddles between summits turn into valleys; rock ribs and
+    /// buttresses stand out of the faces; and shallow erosion gullies run
+    /// down the fall line. The slope of that relief picks each pixel's ramp
+    /// step, so west faces are lit, east faces shaded, and every rib has a lit
+    /// and a shaded side. Lower down, the valley's shadow takes one or two
+    /// steps away. Snow lies above the snow line, longer on shaded faces and
+    /// in the couloirs between ribs, and breaks into rock in tongues; rib
+    /// crests stay bare. Patches under fourteen pixels are merged away, so
+    /// there is no speckle. A detailed band also gets short rock bands, a lit
+    /// rim on west-facing skyline, and a one-step darker crest where it
+    /// stands in front of a farther band.
+    /// </summary>
+    private void PaintRange(MountainBand band)
+    {
+        var summits = band.Summits;
+        var seed = band.Seed;
+        var skyline = new float[Width];
+        var smooth = new float[Width];
         var owner = new int[Width];
         for (var x = 0; x < Width; x++)
         {
             var best = float.MaxValue;
-            for (var k = 0; k < peaks.Length; k++)
+            for (var k = 0; k < summits.Length; k++)
             {
-                var dx = x - peaks[k].X;
-                var height = peaks[k].Y + Mathf.Abs(dx) * peaks[k].Slope +
-                    (Fbm(x, 20 + k, 7) - 0.5f) * 7 * Mathf.Min(1, Mathf.Abs(dx) / 8f);
+                var height = summits[k].CrestY(x - summits[k].X);
                 if (height < best)
                 {
                     best = height;
                     owner[x] = k;
                 }
             }
-            ridge[x] = best;
+            smooth[x] = best;
+            // Crests are broken rock: roughen them, but keep each summit point clean.
+            var away = Mathf.Min(1, Mathf.Abs(x - summits[owner[x]].X) / 6f);
+            skyline[x] = best + away * ((Fbm(x, seed, 9) - 0.5f) * 5 + (Noise(x, seed + 3, 2.5f) - 0.5f) * 1.6f);
         }
-        for (var x = 0; x < Width; x++)
+
+        // Each summit's main ridge leans, bends and wanders as it comes down, so faces never meet on a plumb line.
+        var lean = new float[summits.Length];
+        var bend = new float[summits.Length];
+        for (var k = 0; k < summits.Length; k++)
         {
-            var (peakX, peakY, _) = peaks[owner[x]];
-            var snowLine = peakY + 7 + 6 * Fbm(x, 50 + owner[x], 3) + 3 * Fbm(x, 55, 11);
-            for (var y = (int)ridge[x]; y < 108; y++)
+            lean[k] = (PixelArt.Hash(k, 0, seed + 11) % 100 / 100f - 0.45f) * 0.45f;
+            bend[k] = (PixelArt.Hash(k, 1, seed + 11) % 100 / 100f - 0.5f) * 0.012f;
+        }
+        float MainRidgeX(int k, float y)
+        {
+            var down = Mathf.Max(0, y - summits[k].Y);
+            return summits[k].X + lean[k] * down + bend[k] * down * down +
+                (Fbm(down, seed + 20 + k, 9) - 0.5f) * 5 * Mathf.Min(1, down / 8f);
+        }
+
+        var spurs = Spurs(band, smooth, owner, MainRidgeX);
+        var top = band.Bottom;
+        for (var x = 0; x < Width; x++) top = Mathf.Min(top, (int)skyline[x]);
+        var rows = band.Bottom - top;
+        var inside = new bool[Width * rows];
+        var snowy = new bool[Width * rows];
+        var step = new int[Width * rows];
+
+        // Ridge and rib positions depend only on the row, so work them out once per row.
+        var ridgeAt = new float[summits.Length, rows];
+        for (var k = 0; k < summits.Length; k++)
+            for (var row = 0; row < rows; row++) ridgeAt[k, row] = MainRidgeX(k, top + row);
+        var ribsAt = new List<(float Crest, float Rise, float Sharpness)>[rows];
+        for (var row = 0; row < rows; row++)
+        {
+            ribsAt[row] = [];
+            foreach (var spur in spurs)
             {
-                var split = peakX + (Fbm(y, 40 + owner[x], 6) - 0.5f) * 5 + (y - peakY) * 0.1f;
-                var litFace = x < split;
-                var value = litFace ? lit : shaded;
-                if (y < snowLine) value = litFace ? snow : shadedSnow;
-                // The crease: the first shaded pixel below the summit.
-                else if (!litFace && x - 1 < split && y > peakY + 3) value = rib;
-                Put(x, y, value, Layer.Mountain);
+                var rise = spur.Rise(top + row);
+                if (rise > 0) ribsAt[row].Add((spur.CrestX(top + row), rise, spur.Sharpness));
             }
         }
-        // Rock ribs run down each face; their upper ends hold snow.
-        for (var k = 0; k < peaks.Length; k++)
-        {
-            var (peakX, peakY, _) = peaks[k];
-            for (var r = 0; r < 5; r++)
+
+        for (var x = 0; x < Width; x++)
+            for (var y = (int)skyline[x]; y < band.Bottom; y++)
             {
-                var litSide = r < 3;
-                var x = peakX + (litSide ? -(3 + (int)(PixelArt.Hash(k, r, 201) % 9)) : 2 + (int)(PixelArt.Hash(k, r, 202) % 7));
-                var y = peakY + 5 + (int)(PixelArt.Hash(k, r, 203) % 9);
-                var length = 12 + (int)(PixelArt.Hash(k, r, 204) % 18);
-                var slope = (0.55f + PixelArt.Hash(k, r, 205) % 30 / 100f) * (litSide ? -1 : 1);
-                var snowy = 5 + (int)(PixelArt.Hash(k, r, 206) % 6);
-                for (var step = 0; step < length; step++)
+                // The base relief: the summit whose cone is highest here owns the pixel.
+                var cone = float.MaxValue;
+                var face = 0;
+                var faceGx = 0f;
+                for (var k = 0; k < summits.Length; k++)
                 {
-                    var xx = Mathf.RoundToInt(x + slope * step + (Fbm(step, k * 7 + r, 4) - 0.5f) * 2);
-                    var yy = y + step;
-                    if (xx < 0 || xx >= Width || yy >= Height || LayerAt(xx, yy) != Layer.Mountain || yy < ridge[xx] + 1) continue;
-                    var value = step < snowy ? (litSide ? snow : shadedSnow) : litSide ? rib : shadedRib;
-                    Put(xx, yy, value, Layer.Mountain);
+                    var ridgeX = ridgeAt[k, y - top];
+                    var west = x < ridgeX;
+                    var height = summits[k].CrestY(x - ridgeX);
+                    if (height >= cone) continue;
+                    var slope = Mathf.Abs(x - ridgeX) > summits[k].Reach ? 1 : west ? summits[k].West : summits[k].East;
+                    cone = height;
+                    face = k;
+                    // A west face rises to the east, so it faces west into the light.
+                    faceGx = (west ? 1 : -1) * Mathf.Min(slope, 1.1f) * 0.65f;
+                }
+                // Erosion: shallow gullies and ribs that run down the fall line, fanning out from the summit.
+                var down = Mathf.Max(0, y - summits[face].Y);
+                var fall = x - down * (x < ridgeAt[face, y - top] ? -0.35f : 0.35f);
+                var depth = Mathf.Min(1, down / 10f) * (band.Detailed ? 2.2f : 1.2f);
+                var gx = faceGx + (Fbm(fall + 0.5f, seed + 32, 6, 2) - Fbm(fall - 0.5f, seed + 32, 6, 2)) * depth;
+                var gy = 0.3f;
+
+                // The rib that stands highest here, if any, adds its own two faces.
+                var rib = 0f;
+                var ribSide = 0;
+                var ribSharpness = 0f;
+                foreach (var (crest, rise, sharpness) in ribsAt[y - top])
+                {
+                    var offset = x - crest;
+                    var stand = rise - sharpness * Mathf.Abs(offset);
+                    if (stand <= rib) continue;
+                    rib = stand;
+                    ribSide = offset < 0 ? -1 : 1;
+                    ribSharpness = sharpness;
+                }
+                if (rib > 0) gx -= ribSide * ribSharpness;
+
+                var light = (LightWest * gx + LightUp * gy + LightFront) / Mathf.Sqrt(gx * gx + gy * gy + 1);
+                // Lower down, the valley's shadow and the forest's dark foot take the light away.
+                light -= Mathf.Max(0, y - band.ValleyShade + (Noise2(x, y, seed + 31, 12, 6) - 0.5f) * 12) * 0.009f;
+                var level = light >= 0.86f ? 4 : light >= 0.68f ? 3 : light >= 0.48f ? 2 : light >= 0.28f ? 1 : 0;
+
+                // Snow: altitude first, then aspect, couloirs, bare rib crests and a broken edge.
+                var summitY = summits[face].Y;
+                // Snowfields follow the ridges: the snow edge sits partly at a fixed altitude, partly a set depth under the crest.
+                var snow = band.SnowLine * 0.75f + (smooth[x] + 15) * 0.25f - y;
+                if (gx < 0) snow += 2.5f;
+                if (rib <= 0) snow += 5;
+                if (rib > 1.4f) snow -= 6;
+                snow += Mathf.Max(0, 5 - (y - summitY));
+                // Taller-than-wide noise breaks the snow edge into tongues running down the slope.
+                snow += (Noise2(x, y, seed + 5, 4, 10) - 0.5f) * 8;
+
+                var index = (y - top) * Width + x;
+                inside[index] = true;
+                snowy[index] = snow > 0;
+                step[index] = level;
+            }
+
+        // Snow and rock patches smaller than a few pixels read as noise: merge them into what surrounds them.
+        bool In(int x, int y) => x >= 0 && x < Width && y >= top && y < band.Bottom && inside[(y - top) * Width + x];
+        var cleanSnow = MergeSmallPatches(snowy, inside, rows, 14);
+        var cleanStep = (int[])step.Clone();
+        for (var y = top; y < band.Bottom; y++)
+            for (var x = 0; x < Width; x++)
+            {
+                if (!In(x, y)) continue;
+                var index = (y - top) * Width + x;
+                var left = In(x - 1, y) ? step[index - 1] : step[index];
+                var right = In(x + 1, y) ? step[index + 1] : step[index];
+                var up = In(x, y - 1) ? step[index - Width] : step[index];
+                var down = In(x, y + 1) ? step[index + Width] : step[index];
+                if (left == right && left != step[index]) cleanStep[index] = left;
+                else if (up == down && up != step[index]) cleanStep[index] = up;
+            }
+
+        var ledges = band.Detailed ? Ledges(band) : [];
+        for (var x = 0; x < Width; x++)
+            for (var y = (int)skyline[x]; y < band.Bottom; y++)
+            {
+                var index = (y - top) * Width + x;
+                var level = cleanStep[index];
+                var snow = cleanSnow[index];
+                if (!band.Detailed) level = Mathf.Clamp(level, 1, 3);
+                var crest = y == (int)skyline[x];
+                // The crest catches the light where the skyline rises to the east.
+                var litCrest = crest && x > 0 && x < Width - 1 && smooth[x + 1] < smooth[x - 1];
+                if (band.Detailed && litCrest) level = Mathf.Max(level, 3);
+                // Where a nearer peak stands in front of a farther one, its shaded crest is one step darker.
+                else if (crest && y > 0 && LayerAt(x, y - 1) is not Layer.Sky && LayerAt(x, y - 1) != band.OnLayer)
+                    level = Mathf.Min(level, 1);
+                if (!snow)
+                    foreach (var (fromX, toX, ledgeY, tilt) in ledges)
+                    {
+                        if (x < fromX || x > toX) continue;
+                        var row = Mathf.RoundToInt(ledgeY + tilt * (x - fromX));
+                        // A ledge: a dark step with a lit lip above it on sunlit rock.
+                        if (y == row) level = Mathf.Max(0, level - 1);
+                        else if (y == row - 1 && level >= 2) level = Mathf.Min(4, level + 1);
+                    }
+                var ramp = snow ? Night ? DuskSnowRamp : AlpineSnowRamp : Night ? DuskRockRamp : AlpineRockRamp;
+                Put(x, y, StepOf(ramp, level), band.OnLayer);
+            }
+    }
+
+    /// <summary>
+    /// Flips every four-connected patch of the mask smaller than
+    /// <paramref name="minimum"/> pixels, so snow and rock form clean shapes.
+    /// </summary>
+    private static bool[] MergeSmallPatches(bool[] mask, bool[] inside, int rows, int minimum)
+    {
+        var result = (bool[])mask.Clone();
+        var seen = new bool[mask.Length];
+        var patch = new List<int>();
+        var open = new Stack<int>();
+        for (var start = 0; start < mask.Length; start++)
+        {
+            if (!inside[start] || seen[start]) continue;
+            patch.Clear();
+            open.Push(start);
+            seen[start] = true;
+            while (open.Count > 0)
+            {
+                var index = open.Pop();
+                patch.Add(index);
+                var x = index % Width;
+                var y = index / Width;
+                foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                {
+                    var nx = x + dx;
+                    var ny = y + dy;
+                    if (nx < 0 || nx >= Width || ny < 0 || ny >= rows) continue;
+                    var next = ny * Width + nx;
+                    if (!inside[next] || seen[next] || mask[next] != mask[start]) continue;
+                    seen[next] = true;
+                    open.Push(next);
                 }
             }
+            if (patch.Count < minimum)
+                foreach (var index in patch) result[index] = !mask[start];
         }
+        return result;
     }
+
+    /// <summary>
+    /// The ribs of one band: a few from points along each summit's crest,
+    /// leaning away from the summit more the farther out they start, and on a
+    /// detailed band one spur branching off each side of the main ridge.
+    /// </summary>
+    private static List<Spur> Spurs(MountainBand band, float[] skyline, int[] owner, Func<int, float, float> mainRidgeX)
+    {
+        var spurs = new List<Spur>();
+        var seed = band.Seed;
+        for (var k = 0; k < band.Summits.Length; k++)
+        {
+            var summit = band.Summits[k];
+            foreach (var side in new[] { -1, 1 })
+            {
+                var d = 5f + PixelArt.Hash(k, side, seed + 40) % 4;
+                for (var n = 0; n < (band.Detailed ? 3 : 2); n++)
+                {
+                    var x = Mathf.RoundToInt(summit.X + side * d);
+                    if (x < 0 || x >= Width || owner[x] != k || d > 44) break;
+                    var salt = seed + 50 + k * 13 + n * 2 + (side > 0 ? 1 : 0);
+                    var jitter = PixelArt.Hash(k, n * 2 + side, seed + 41) % 100 / 100f;
+                    spurs.Add(new Spur(
+                        x, skyline[x] + 1,
+                        side * (0.15f + 0.7f * d / 40f + jitter * 0.15f),
+                        20 + PixelArt.Hash(k, n * 2 + side, seed + 42) % 22,
+                        Mathf.Max(2.5f, 5f - d / 14f),
+                        0.75f + PixelArt.Hash(k, n * 2 + side, seed + 43) % 4 * 0.07f,
+                        salt));
+                    d += 10 + PixelArt.Hash(k, n * 2 + side, seed + 44) % 8;
+                }
+                if (!band.Detailed) continue;
+                var branchY = summit.Y + 9 + PixelArt.Hash(k, side, seed + 45) % 9;
+                spurs.Add(new Spur(mainRidgeX(k, branchY), branchY, side * 0.85f,
+                    16 + PixelArt.Hash(k, side, seed + 46) % 14, 3.5f, 0.8f, seed + 90 + k * 3 + side));
+            }
+        }
+        if (!band.Detailed) return spurs;
+        // Buttresses: broad ribs that start partway down and reach the mountains' feet.
+        for (var x = 4 + (int)(PixelArt.Hash(0, 0, seed + 47) % 6); x < Width; x += 9 + (int)(PixelArt.Hash(x, 1, seed + 47) % 6))
+        {
+            var startY = skyline[x] + 4 + PixelArt.Hash(x, 2, seed + 47) % 7;
+            if (startY > band.Bottom - 26) continue;
+            var away = x < band.Summits[owner[x]].X ? -1 : 1;
+            spurs.Add(new Spur(x, startY, away * (0.15f + PixelArt.Hash(x, 3, seed + 47) % 20 / 100f),
+                24 + PixelArt.Hash(x, 4, seed + 47) % 12, 3.5f + PixelArt.Hash(x, 5, seed + 47) % 3 * 0.5f, 0.8f, seed + 120 + x));
+        }
+        return spurs;
+    }
+
+    /// <summary>
+    /// Short rock bands (ledges) across each summit's lower faces: two per
+    /// summit, four to nine pixels long, gently tilted like strata.
+    /// </summary>
+    private static List<(int FromX, int ToX, float Y, float Tilt)> Ledges(MountainBand band)
+    {
+        var ledges = new List<(int, int, float, float)>();
+        for (var k = 0; k < band.Summits.Length; k++)
+        {
+            var summit = band.Summits[k];
+            for (var n = 0; n < 2; n++)
+            {
+                var salt = band.Seed + 70 + k * 7 + n;
+                var fromX = (int)summit.X - 28 + (int)(PixelArt.Hash(k, n, salt) % 50);
+                var length = 4 + (int)(PixelArt.Hash(k, n, salt + 1) % 6);
+                var y = summit.Y + 12 + PixelArt.Hash(k, n, salt + 2) % 24;
+                var tilt = PixelArt.Hash(k, n, salt + 3) % 2 == 0 ? 0.15f : -0.12f;
+                ledges.Add((fromX, fromX + length, y, tilt));
+            }
+        }
+        return ledges;
+    }
+
+    /// <summary>A ramp step by number: 0 edge, 1 shade, 2 base, 3 light, 4 highlight.</summary>
+    private static Color StepOf(Ramp ramp, int level) => level switch
+    {
+        <= 0 => ramp.Edge,
+        1 => ramp.Shade,
+        2 => ramp.Base,
+        3 => ramp.Light,
+        _ => ramp.Highlight,
+    };
 
     /// <summary>
     /// The near ridge band: low rocky shoulders in front of the peaks' feet,
@@ -1361,13 +1686,15 @@ public sealed class MenuSceneProposed
 
     /// <summary>
     /// How much of the sky colour a layer takes on (rule M2): the far ridges
-    /// 45%, the middle peaks 25%, the near ridge and everything in front of it
+    /// 45%, the middle band 25% for its front peaks and 34% for the tall
+    /// massifs behind them, the near ridge and everything in front of it
     /// none by day. At dusk the valley floor keeps a little of the evening air
     /// so it does not sink into black.
     /// </summary>
     private float Haze(Layer onLayer) => onLayer switch
     {
         Layer.FarRidge => 0.45f,
+        Layer.BackPeaks => 0.34f,
         Layer.Mountain => 0.25f,
         Layer.NearRidge or Layer.TreeLine or Layer.Fields => Night ? 0.12f : 0f,
         Layer.Meadow => Night ? 0.06f : 0f,

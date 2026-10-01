@@ -9,9 +9,61 @@ fireflies (same seven homes) and the moon's reflection.
 
 Compare `valley.day` and `valley.dusk` with the baseline sheet.
 
-## What changed
+## Round 2: mountains
+
+You approved the valley but asked for better mountains, by day and at dusk.
+Only the mountains behind the near ridge are redrawn. The near ridge, the
+forest and everything in front of it are pixel for pixel as you approved
+them. So are the sky, sun, moon and every moving part: clouds, smoke,
+sparkles, stars, window glows, fireflies and the moon's reflection.
+
+- **A varied skyline instead of a row of triangles.** The big peaks are now
+  three massifs with a tall summit in the middle. Around them are a
+  shoulder by the sun, a long shelf, a notched forepeak and a steep horn
+  under the moon. In front stand lower peaks: a sharp spire and a flat-topped
+  block. Deep saddles between the massifs open onto the far range.
+- **Real form, lit from the upper left.** Every peak has a sunlit west face
+  and a shaded east face. The shade shifts toward blue-violet instead of
+  turning a darker grey. The faces meet along a main ridge that leans and
+  wanders down from each summit. Rock ribs and broad buttresses stand out of
+  the faces, each with a lit side and a shaded side. Couloirs and shallow
+  gullies run down between them, and the crest catches the light where the
+  skyline rises to the east.
+- **Snow that follows the mountain.** Snowfields cover the summits and lie
+  longer on the shaded faces and in the couloirs. The rib crests stay bare,
+  and lower down the snow breaks into rock in tongues. Tall peaks carry big
+  snowfields; low ones have only a dusting. A few short rock bands cross the
+  lower faces, and the feet of the mountains darken into the valley's shadow.
+- **Atmospheric depth.** The far range is the palest and bluest, at 45%
+  haze, and has the fewest steps. The tall massifs sit at 34% and the lower
+  peaks in front of them at 25%. Where a nearer peak overlaps a farther one,
+  its shaded crest is one step darker, so the planes stay apart.
+- **Dusk.** The same mountains use a dusk version of their colours, with
+  darker rock and paler snow. After the evening tint the snowfields still
+  glow lavender against indigo rock, and the lit west faces stay clearly
+  lighter than the east faces.
+- **Crisp pixels.** Each material uses at most five steps of its own ramp
+  (STYLE.md section 2). There is no anti-aliasing or dithering, and any
+  patch of snow or rock smaller than fourteen pixels is merged away, so
+  there is no speckle.
+
+### Choices you may want to check
+
+- **The light still comes from the west at dusk.** The moon is in the east,
+  but the near ridge, trees and roofs you approved are lit from the west, so
+  the mountains match them. They catch the last light of the western sky.
+- **The mountain colours are the round-1 blue-greys turned into full
+  ramps.** They are used only for the menu backdrop. The map's Rock, Peak and
+  Snow ramps are unchanged.
+- **The tall massifs are a little hazier than before** (34% instead of 25%),
+  so that the lower peaks in front of them read as nearer.
+
+## What changed in round 1
 
 ### Mountains and depth (rules M2, L1)
+
+The far ridges and big peaks described here were redrawn in round 2 (see
+above). The near ridge is as described.
 
 - **Three ridge bands instead of two.** The far ridges behind the big peaks
   now mix 45% toward the sky, so they show as a pale band between the

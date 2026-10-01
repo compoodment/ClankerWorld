@@ -1,4 +1,114 @@
-# Terrain: round-1 proposal
+# Terrain proposal
+
+## Round 2
+
+You approved grass, forest grass, both forest floors, sand, rock, snow and
+tundra as drawn. They are unchanged: every one of those tiles is pixel for
+pixel the picture you approved. Mountains, peaks and hills are being redesigned
+separately, so they still show the round-1 drawing here. This round redraws
+fertile soil and adds the six ground styles that were still using today's
+tiles.
+
+### Fertile soil
+
+You said it was "just lines". It now reads as ploughed farmland seen from
+above:
+
+- **Raised ridges.** Each tile has four soft ridges of turned earth running
+  east–west. A ridge has a lit north face, a flat top, a shaded south side and
+  a dark trough, so it looks raised rather than drawn on.
+- **Clods, not ruled lines.** The lit face is broken into lumps of earth a few
+  pixels long, and some lumps catch a brighter highlight on their north-west
+  corner. The trough deepens in short stretches, and the ridge swells over
+  them, so no row is perfectly straight or even.
+- **Things lying on the soil.** A few clods sit on the ridge tops, one has
+  rolled into a trough, and there is a small stone. One tile in four also has
+  a pale straw fleck and a pale root. These are rare on purpose, so they do not
+  line up in a grid across a big field.
+- **Damp patches.** A long, dark stretch of trough where water has soaked in;
+  the busier tile has two.
+- **Seamless.** Ridges run on into the next tile, and both variants match at
+  their edges.
+- **16 px.** The same four ridges per tile, squeezed into four rows each, with
+  one clod and the stone.
+
+**With crops on top.** The crop fields keep their own rows. At 32 px every soil
+ridge carries two crop rows, and its lit face and trough fall exactly on a crop
+row's lit and dark lines. At 16 px there is one crop row per ridge. I checked
+the sprouting, prepared, harvested and ripe grain fields and the ripe potato
+and greens fields over the new soil. The rows stay in step and nothing clashes.
+Under sprouts, alternate rows of soil look very slightly darker. That reads as
+crop rows on and between the ridges, not as a pattern.
+
+### The six new ground styles
+
+Each keeps today's overview colour; each tile's average colour stays within 2%
+of it. Each has soft patches in its own colours plus one motif that tells it
+apart from its neighbours, also at 16 px.
+
+- **Scrub grass.** Dry, yellow-green grassland with soft darker patches, dry
+  grass tufts with pale tips and two low olive scrub bushes. The busier variant
+  adds a third bush and more tufts.
+- **Scrub sand.** Paler sandy ground with soft patches, a wind ripple, a couple
+  of dry tufts and one small bush. The busier variant adds a second bush.
+- **Dry scrub.** Hard, bare dry ground with pale patches, small grey pebbles
+  and one dry tuft. The busier variant adds a pebble and a short crack.
+- **Dry brush.** The same dry ground with dense, dark, twiggy brush clumps that
+  have a few olive leaves on their lit side. The busier variant adds a third
+  clump and dry tufts.
+- **Desert brush.** Warmer desert ground with grey-green sage clumps and
+  hairline cracks. The busier variant adds a clump and a crack.
+- **Tundra snow.** Thin snow with small holes where the grey-green tundra shows
+  through. Each hole has a shaded north rim and a bright snow lip on its south
+  side. A few tufts of tundra grass poke through. The busier variant adds a
+  hole, a tuft and a stone.
+
+Dry scrub, dry brush and desert brush have almost the same overview colour, so
+their motifs keep them apart: grey pebbles, dark clumps and grey-green sage.
+
+New 3×3 samples: `ScrubGrass.tiling`, `DryScrub.tiling` and
+`FertileSoil.tiling`.
+
+### Style rules applied
+
+- **P1 and P3:** every colour is a ramp step; no dark overlays. Each tile
+  borrows at most two colours from other ramps (straw and stone on soil, the two
+  bush olives, the two sage greens, the two tundra greens, pebble greys).
+- **L1:** light from the north-west on ridges, clods, stones, bushes, brush,
+  sage and the snow holes.
+- **T1 and T2:** calm patches with no grain; motifs one pixel clear of the
+  edges; the variants share their edges, so tiles join without seams. I checked
+  this by comparing pixels across every tile edge.
+- **T5, T6, T7:** as described above.
+
+### Where I departed from the guide
+
+- **Soil ridges are eight pixels apart at 32 px, not four (T5).** Four-pixel
+  rows leave room only for one light and one dark line, which is what read as
+  "just lines". Eight pixels give each ridge a lit face, a top and a shaded
+  side. At 16 px they are four pixels apart, so the ridges are the same size on
+  the ground at both zooms, and they still line up with the crop rows.
+- **Soil uses four steps of its ramp plus a highlight** (edge, shade, base,
+  light, highlight), where T1 asks for two besides the base. The ridges are the
+  surface itself, not patches on it, like rock's facets in round 1.
+- **New ramps.** Scrub sand, dry brush, desert brush and tundra snow have no
+  row in the style guide. Each uses the nearest guide ramp, moved so that its
+  base is that style's overview colour. Approving these tiles approves those
+  shades.
+- **Bush colours** are the two olives of today's scrub bushes, not a guide
+  ramp, so the scrub keeps the bush you already know.
+- **Scrub grass patches cover about 13%**, like approved grass, below T1's 20%,
+  for the same reason: less repetition across big areas.
+
+### Not in this round
+
+Mountains, peaks and hills (being redesigned separately), the water styles
+(drawn by the water blocks) and Unknown.
+
+## Round 1
+
+Kept for reference. Round 2 above replaces the fertile-soil paragraph and the
+"not redrawn yet" list below.
 
 This redraws the ground tiles while keeping today's look: the same colours, calm
 ground and light from the north-west, with more life in the surfaces and
@@ -6,7 +116,7 @@ mountains drawn from above. Every tile keeps its exact overview colour. Each
 tile's average colour stays within 2% of that colour, well inside the 4% the
 style guide allows (T7).
 
-## What changed
+### What changed
 
 **Grass and forest grass.** Today these are flat colour with a few "^" tufts.
 Now each tile has small, soft, rounded patches one shade darker, covering about
@@ -64,7 +174,7 @@ single mound, the other two smaller ones.
 base colour and one identifying mark: patches, ripples, facets, a peak, a snow
 cap or furrows. Every surface can be told apart at 16 px.
 
-## Style rules applied
+### Style rules applied
 
 - **P1 and P3:** every colour comes from a style-guide ramp step, never a dark
   overlay. Each tile borrows at most two colours from other ramps, for pebbles,
@@ -83,7 +193,7 @@ cap or furrows. Every surface can be told apart at 16 px.
 - Everything is drawn from fixed seeds, the same on every run, and the whole set
   is generated in well under a second.
 
-## Where I departed from the guide, and what is left
+### Where I departed from the guide, and what is left
 
 - **Grass patch coverage is lower than T1 asks.** Grass has about 13% coverage
   (about 6% at 16 px) where T1 asks for 20–45%, and uses one shade step instead

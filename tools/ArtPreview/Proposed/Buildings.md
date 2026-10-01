@@ -1,12 +1,146 @@
-# Buildings: round-1 proposal
+# Buildings: rounds 1 and 2
 
 What to look at: `out/proposed/sheet-buildings.png` next to
 `out/baseline/sheet-buildings.png`, and the town in
 `out/scene/scene-buildings-32.x3.png` and `scene-buildings-16.x4.png` next to
-`scene-current-*`. Every entry is shown over grass, as in the baseline, and
-also on its own (the `.sprite` entries) so it can be placed in a scene.
+`scene-current-*`. Every entry is shown over grass (or water), as in the
+baseline, and also on its own (the `.sprite` entries) so it can be placed in a
+scene. Round 2 is described first; the round-1 note follows unchanged below it.
 
-## What stayed the same
+## Round 2
+
+You approved everything in round 1 except the Farmhouse's cart. Every approved
+picture is still exactly the same, pixel for pixel; only the Farmhouse changed.
+Round 2 adds 76 pictures, so there are now 108.
+
+### How big is the Market?
+
+Much bigger than the 2 × 2 picture. The agreed design is the 2 × 2 **Market
+building** plus separate 1 × 1 **stalls**, and the Town keeps a clear plot of
+about **10 × 12 tiles** free for the stalls. So a full Market covers about 120
+tiles, thirty times the ground of the 2 × 2 building on its own. The 2 × 2
+picture you saw is only the main building. The new `Market.plot` picture
+shows the whole thing: the Market at the head of the plot, a lane from its door
+to the plot's entrance, two cross lanes, and twelve stalls facing the lanes,
+with gaps where more stalls can appear later. The lanes are ordinary Road
+pieces, drawn the way the map joins them. How the plot is reserved, who owns a
+stall and how the plot fills up are still open design questions.
+
+### Farmhouse: no more painted cart
+
+You were right that a cart painted onto the building would look usable when it
+is not. The cart is gone from the Farmhouse, and the handcart is now its own
+sprite (below), so the game can show a real one parked beside the Farmhouse,
+or anywhere else, when one exists.
+
+- **Farmhouse.1x2:** the yard behind now holds bound sheaves of grain laid out
+  to dry, every other one turned round, the way a stack is laid. Each sheaf has
+  the shape of the grain item icon: three ears on their stalks, tied at the
+  waist with twine.
+- **Grain sacks by the door, on every footprint:** one lying on its side, its
+  tied neck pointing away from the step, one standing on the other side of the
+  step, and a few spilled grains. This is what marks the one-tile Farmhouse
+  (`Farmhouse.1x1`), which has no room for a yard.
+- To fit the sacks, the roof stands back a little further on the door side, so
+  the long Farmhouse roof is three pixels shorter than in round 1.
+- It works with the door on any side (`Farmhouse.1x2.door_East`, and the
+  north door in the scene).
+
+### The handcart, a vehicle of its own
+
+The agreed handcart (content list 4.8) is made by the Blacksmith from wood,
+iron fittings and rope, and can be pulled, parked, repaired and passed on. It is
+drawn in one tile, on its own, so the game can put it wherever it really is.
+
+- A plank bed with side boards and iron fittings at the corners, two
+  iron-rimmed wheels on an axle under the middle, and two shafts with
+  rope-wrapped grips.
+- **Empty** (`handcart.empty.S`, `.E`, `.N`, `.W`): a coil of rope lies in the
+  bed. **Loaded** (`handcart.loaded.*`): three logs lashed with rope, their cut
+  ends showing at the back, and a grain sack across the front.
+- The letter is the way the shafts point, which is the way it moves when
+  pulled. Parked, the shafts rest on the ground.
+- **Being pulled** (`handcart.pulled.E`, drawn loaded): the shafts are lifted
+  to hand height, so from above they look a little shorter and their shadow
+  falls away from them. An agent would stand between the shafts.
+
+### The rowing boat
+
+The agreed boat (content list 7.3) is made at a Port from wood, rope and iron
+fittings and carries one agent and their cargo.
+
+- `boat.S`, `.E`, `.N`, `.W` (the letter is the way the bow points), shown on a
+  river tile and on its own: a planked hull with a narrow stern and a pointed
+  bow, a lit gunwale, floorboards, two thwarts, iron oarlocks and oars resting
+  with their blades on the water, a soft shadow and a ripple where the hull
+  meets the water.
+- `boat.moored.E`: the boat tied up on the east side of the Port's pier, oars
+  pulled in, with a line from its bow to the pier's bollard. The column of open
+  water beside the Port is the docking space the design keeps clear.
+
+### Port in four rotations
+
+`Port.2x4.N`, `Port.4x2.E`, `Port.2x4.S` and `Port.4x2.W`. The letter is the
+side that stands on land, where the shed is and where its door faces the Road;
+the pier reaches over the water on the other three tiles. Each rotation is laid
+out the same way but lit from the north-west like everything else, so it is not
+simply the round-1 picture turned round. These Ports have no painted boat, so
+the real boat can tie up beside the pier instead (same reason as the cart).
+
+### The remaining footprints, kinds and door sides
+
+- **House.2x2:** a square hipped roof whose four hips meet at a point.
+  Also `House.1x2.door_North` and `House.1x2.door_West`.
+- **Warehouse.2x3** and `Warehouse.2x2.door_North`.
+- **Blacksmith.1x2:** the forge yard behind the roof keeps the hearth with its
+  embers and the anvil; there is no room for the water barrel. Also
+  `Blacksmith.2x2.door_West`, with the yard at the end away from the door.
+- **TailorShop.2x2**, **Store.1x2**, `Store.1x1.door_East`, **Clinic.1x2**: the
+  approved looks on their second footprints and other door sides.
+- **Workshop.2x2 (redrawn):** the Town's shared workshop. Green plank gable
+  roof, the hammer sign over the door, and a small work yard with a trestle
+  bench, a saw on it, shavings and a stack of planks.
+- **Generic.1x1 (redrawn):** for any building the game cannot name. Plain
+  grey-brown shingles and a door, nothing else, so it never looks like a real
+  kind.
+- **Restaurant.1x2 and Restaurant.2x2 (new):** the optional food business.
+  Clay tiles like the House, but a gable roof instead of a hip, a chimney, and
+  a sign with an iron pot of stew over the door. The larger one adds a paved
+  terrace with two tables and benches, and a bowl on each table.
+- **16 px:** `House.2x2.16`, `Warehouse.2x3.16` and `Market.2x2.16`.
+
+In the game's map, the redrawn look now covers every current kind, including
+Workshop and Generic, at any footprint, door side and size. Only the retired
+Shelter, Storehouse, Hearth, Path and Bedroll keep their old drawing.
+
+Style guide rules applied in round 2 are the same as in round 1 (B1 to B7,
+north-west light, south-east shadows, separately drawn 16 px versions). The
+handcart and boat also follow the sprite rules: each stays inside its tile,
+casts the small south-east shadow and has a one-pixel outline in the darkest
+step of its own material, and every facing is lit from the north-west.
+
+### Things to decide or know (round 2)
+
+- **Should the approved Port lose its painted boat too?** `Port.2x4` still
+  shows it, because you approved it as drawn. I recommend removing it, as the
+  rotations do, so only real boats appear at a Port. It is a one-line change.
+- **One stall look.** Every stall in the Market plot uses the approved
+  red-and-cream awning, because each design has one look; only the produce on
+  the counters differs. The Market building keeps its four coloured awnings.
+- **Restaurant colour.** It shares the House's clay tiles, as the style guide
+  says; the gable and the pot sign set it apart. A different roof colour would
+  make it stand out more on the overview map, if you prefer that.
+- **One new shade.** The Generic building's lightest step (a pale grey-brown)
+  is not in the style guide yet; every other colour comes from its ramps.
+- **Before these show in play,** the game needs a handcart and a boat as
+  objects with a place, a facing and a state (empty, loaded, pulled, moored);
+  today it has neither. Restaurant and the other new buildings still need their
+  game kinds, as in round 1.
+- **Not drawn yet:** 16 px versions of the handcart and the boat, for mid zoom.
+
+## Round 1 (approved, except the Farmhouse cart)
+
+### What stayed the same
 
 - Each building still fills its footprint the same way: the roof sits three
   pixels in from the edge, with a little more room on the south for the
@@ -22,7 +156,7 @@ also on its own (the `.sprite` entries) so it can be placed in a scene.
   round 1. The retired Shelter, Storehouse, Hearth, Path and Bedroll are not
   redrawn.
 
-## What changed
+### What changed
 
 **Roofs now show a material.** Instead of two flat tones with stripes, each
 roof is laid in courses that follow its eaves, so the lines turn the corner
@@ -72,7 +206,7 @@ stay visible, and the chimney, door, doorstep, ember and anvil stay as two or
 three pixels each (`House.1x1.16`, `Blacksmith.2x2.16`, and every building in
 the 16 px scene).
 
-## New buildings (no game kind yet, shown for review only)
+### New buildings (no game kind yet, shown for review only)
 
 - **Store:** a brown shingle roof with a red-and-cream striped awning across
   the shop front; the doorstep shows beyond the awning.
@@ -94,7 +228,7 @@ the 16 px scene).
 These use colours already in the style guide (timber, cloth, berry red,
 leaf green, gold, lake blue, fruit orange); no new colour family was added.
 
-## Style guide rules applied
+### Style guide rules applied
 
 Palette ramps (section 2), north-west light and south-east shadow (L1, L2),
 the roof edge in each ramp's darkest step (L5), separately drawn 16 px
@@ -102,7 +236,7 @@ versions (S1, S4), and the building rules B1 to B7: inset roof, eave shadow,
 material per kind, ridge and hips, door and doorstep, one feature per kind,
 and two tones at 16 px.
 
-## Things to decide or know
+### Things to decide or know
 
 - **Course lines are softened.** To keep roofs calm at full zoom, the lines
   between courses and the joints sit part of the way between two steps of the

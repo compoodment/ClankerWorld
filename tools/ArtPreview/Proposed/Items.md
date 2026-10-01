@@ -1,4 +1,157 @@
-# Item icons, round 1
+# Item icons
+
+## Round 2
+
+You approved every round-1 icon except grain. This round redraws grain and
+finishes the catalogue, so every item the game or the content list names now
+has an icon: **68 in all**.
+
+- **Grain, redrawn:** 1
+- **New icons:** 29
+- **Current icons redrawn:** 2 (wooden pickaxe, generic tool)
+- **Current icons kept unchanged:** 12
+- **Round-1 icons you approved:** 24, unchanged
+
+### Grain
+
+You said today's icon is clearer as grain, and round 1's looked better because
+of its shape. The new grain keeps round 1's full, rounded sheaf and its
+shading, and brings back what makes today's icon read as grain:
+
+- three separate, pointed ears with a checker of plump kernels
+- fine awns (the bristles) above each ear
+- thin stalks running down to a twine band
+- round 1's flared bundle of stalks below the band
+
+The kernels use the golden Gold ramp, so the sheaf no longer shares the pale
+straw colour of the basket.
+
+### New icons
+
+**Food and drink**
+
+- **Milk:** a wooden pail with iron hoops, full of white milk with a drip down
+  the side.
+- **Cultivated greens:** a full lettuce head with a pale heart and frilled
+  outer leaves. The wild greens stay a loose bunch of pointed leaves.
+- **Eggs:** two cream eggs in a straw nest.
+- **Restaurant meal:** a slice of bread and farmed greens on a blue-rimmed
+  plate, a step up from the plain meal on its cream plate.
+
+**Seeds**
+
+- **Grain seed:** golden kernels in the colours of the grain ears.
+- **Greens seed:** small dark seeds with a sprouting seedling.
+- **Orchard seed:** half an orchard pear showing its dark pips.
+
+**Materials**
+
+- **Gold:** a small pile of raw gold nuggets. The coin keeps the round shape.
+- **Wool:** a fleece of small cream curls, textured so it stays apart from the
+  smooth cloth.
+- **Hide:** a raw pelt stretched flat, with four legs.
+- **Leather:** a flat sheet of tanned leather with stitching and a curled
+  corner.
+
+**Tools**
+
+All tools share one handle and differ in the head (rule I3). The stone and
+wooden heads are lashed on with fiber cord; iron heads have a socket.
+
+- **Stone pickaxe:** the pickaxe layout with a grey stone head.
+- **Wooden hoe** and **iron hoe:** the same hoe shape, one carved from wood with
+  a pale edge, one in steel with a bright edge.
+- **Hammer:** a squared stone head on the handle, since the content list makes
+  the hammer from wood and stone.
+- **Knife:** a broad steel blade on a short handle with a rivet.
+
+**Weapons and protection**
+
+- **Spear:** a leaf-shaped steel head on the shared handle.
+- **Sword:** a steel blade with a cross guard, lying diagonally.
+- **Shield:** a wooden shield with an iron rim and boss.
+- **Armor:** a steel breastplate with shoulder plates, a belt and a plated
+  skirt.
+
+**Containers and carrying**
+
+- **Sack:** a burlap sack tied with rope. It is darker and coarser than the
+  white flour sack.
+- **Handcart:** a plank cart on a spoked wheel, with a pulling handle.
+- **Clay pot:** a round storage pot with a lid and a dark band. It is squat and
+  has no handle, so it stays apart from the water jug.
+
+**Clothing and care**
+
+- **Cold-weather clothing:** a long brown coat with a cream fur collar, cuffs
+  and hem.
+- **Wet-weather clothing:** a hooded cape of waxed green oilcloth, with rain
+  drops beside it.
+- **Medicinal herbs:** a tied bunch of blue-green sprigs with lilac flowers.
+
+**Knowledge and value**
+
+- **Paper:** a small stack of cool white sheets with a turned corner.
+- **Written record:** a parchment scroll with lines of writing and a red wax
+  seal.
+- **Ornament:** a gold ring set with a diamond.
+
+### Current icons redrawn
+
+- **Wooden pickaxe:** the head is now carved wood, as rule I3 asks. It uses the
+  iron pickaxe's layout, lashed on like the wooden axe.
+- **Tool (the generic tool):** it was a grey-headed hammer, which would look
+  like the new hammer. It is now a crossed mallet and pick.
+
+### Current icons kept unchanged
+
+I checked the 13 current icons not yet redrawn against the approved set. Only
+the generic tool clashed. These 12 already fit, so they appear exactly as the
+game draws them today:
+
+- clay, iron ore and iron
+- fiber, cloth and flour
+- seed and tree seed
+- food, fruit and berries
+- crate, the plain icon for any item without its own
+
+Iron ore no longer clashes with stone, because the round-1 stone moved to cool
+greys and a new shape.
+
+### Checks
+
+- Every one of the 24 round-1 icons you approved is pixel-for-pixel the same as
+  the version you reviewed.
+- The 12 kept icons are pixel-for-pixel the same as in the game today.
+- Every icon has the full dark outline and an empty one-pixel border.
+- I looked at the whole set on the parchment panel colour at full size and at
+  2× and 5×, and compared the pairs most likely to be confused:
+  - flour and sack
+  - cloth, wool, bandage and paper
+  - bread, clay and leather
+  - hide and leather
+  - the five seeds
+  - the hammer and the generic tool
+
+### Choices you may want to change
+
+1. **Orchard seed is half a pear with its pips.** Plain pips looked like the
+   generic seed. If it reads too much like fruit, it could be three dark pips
+   instead.
+2. **Gold is raw nuggets, not a bar.** The game mines gold and the Blacksmith
+   turns it into ornaments; there is no refined gold item.
+3. **Milk and paper use the cool Snow whites**, so they read whiter than the
+   cream items (cloth, flour, wool, bandage).
+4. **A few accents borrow from existing ramps:**
+   - the restaurant plate's blue rim (Lake)
+   - the herbs' lilac flowers (Tailor's dyed shingle)
+   - the wet-weather cape (Workshop's green plank)
+   - the orchard seed's pear (today's fruit icon)
+5. **Hide and leather are late-development items.** Their icons are ready for
+   when livestock arrives; nothing in the game uses them yet. The same goes for
+   milk, eggs and wool.
+
+## Round 1
 
 This is the round-1 reference set for item icons: 25 icons in all.
 
@@ -15,7 +168,7 @@ outline added around the shape. They are meant to sit beside the current
 icons, not replace their look. I checked them on the parchment panel colour at
 full size (what players see) and at 4×, mixed in with the current icons.
 
-## Rules from the style guide
+### Rules from the style guide
 
 - **I1, shading:** three or four shades per material, all taken from the style
   guide's colour ramps. Light comes from the top-left and shade falls to the
@@ -41,7 +194,7 @@ full size (what players see) and at 4×, mixed in with the current icons.
 - **L3, outline:** every icon gets the game's complete outline and keeps an
   empty border.
 
-## Icon by icon
+### Icon by icon
 
 **Food and drink**
 
@@ -106,7 +259,7 @@ full size (what players see) and at 4×, mixed in with the current icons.
 - **Coin:** a gold coin tilted to show its edge, with a raised rim and a small
   star.
 
-## Choices you may want to change
+### Choices you may want to change
 
 1. **Iron tools use the steel of the iron bar icon, not the style guide's
    Iron ramp.** The guide's Iron and Rock ramps are almost the same warm grey,
@@ -121,7 +274,7 @@ full size (what players see) and at 4×, mixed in with the current icons.
 4. **Clothing adds one darker blue** for the inside of the neck. Bread keeps
    its current crust colours, because the guide has no bread ramp.
 
-## Not done in this round
+### Not done in this round
 
 - **Wooden pickaxe:** it is not in the round-1 list, so it still has a grey
   head. Under rule I3 it should get a pale wooden head in round 2.

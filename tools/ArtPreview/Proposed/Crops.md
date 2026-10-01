@@ -92,3 +92,75 @@ seeds and takes well under a second.
 - The orchard outline uses the orchard ramp's own darkest colour, as rule L4
   says. That is a little lighter than today's shared tree outline, so on
   dark forest grass the orchard edge is softer than a wild tree's.
+
+## Round 2
+
+You approved every round-1 crop as drawn, so those are untouched: each one
+renders pixel for pixel as before. Round 2 completes the two remaining crops
+and adds the orchard sapling. Fields are shown over the Fertile soil tile and
+also on their own (`.sprite`). Everything is drawn at 32 px and separately
+at 16 px.
+
+### Potatoes and greens, all five states
+
+Every potato and greens plant stands on the same planting spots as the
+mature plants you approved: four staggered rows of four. That way the field
+grows in place from state to state instead of jumping around.
+
+- **Prepared**: the same tilled rows for all three crops. The potato and
+  greens pictures are identical to the grain one, because tilled soil does
+  not depend on what will be planted.
+- **Seeded**: greens share the grain picture: seed dotted along the furrows.
+  Potatoes are different. The design says potatoes are their own planting
+  stock, so a seeded potato field shows the planted potatoes: a small tan
+  seed potato set in at each planting spot, with turned soil beside it. At
+  16 px each one is a single pale dot, sparser and lighter than grain seed.
+- **Sprout, potatoes**: a small leafy clump at each spot, made of three
+  leaflets so the outline notches between them. It is darker and more ragged
+  than a greens sprout, and about two thirds the size of a grown plant.
+- **Sprout, greens**: a small round rosette at each spot, in the lighter leaf
+  green with a highlight to the north-west and a faint cream heart. At 16 px
+  potato sprouts are two dark pixels and greens sprouts one light pixel, both
+  outlined, so the two crops differ at mid zoom too.
+- **Harvested, potatoes**: the rows have been dug. Each plant leaves a turned
+  hollow with soil thrown up beside it. Clods lie between the hollows, and
+  three small potatoes the diggers missed lie on top. The hollows differ a
+  little in size and outline, so a dug field does not look stamped.
+- **Harvested, greens**: every head has been cut, leaving a stump at each
+  spot: a pale cream cut stem in a small ring of trimmed leaf bases. At 16 px
+  it is a cream dot ringed in dark green.
+
+### Orchard sapling
+
+- A newly planted orchard tree: a small lumpy crown in the orchard greens,
+  lit from the north-west, standing in a ring of dug soil that shows it was
+  planted (STYLE N6). It is smaller than the growing stage. I tried a stake
+  beside it too, but at 1× the stake read as a stray brown object, so I left
+  it out.
+- The game has no orchard sapling sprite yet, so the sapling appears on the
+  sheet but not in the reference scene.
+
+### Tiling checks
+
+- **`field.potato.tiling`** and **`field.greens.tiling`**, at 32 px and 16 px:
+  3 × 3 patches of the mature crop over the soil variants the map picks. They
+  join without seams.
+
+### Colours
+
+No new colours. Seed potatoes and left-over potatoes use the Timber steps
+the approved potato item icon uses (D2AC77, A77C52, 8A6440), outlined in the
+soil edge. Everything else comes from the soil, leaf, orchard and cloth
+ramps used in round 1.
+
+### What this replaces from round 1
+
+The round-1 note said potatoes and greens borrowed the grain's early states
+and had plain turned earth when harvested. They now have their own sprout,
+harvested and (for potatoes) seeded art, as described above.
+
+### Still not done
+
+- The reference scene still has no slot for fields, so fields can only be
+  judged on the sheet and in the tiling patches.
+- Checked only in the offline renderer. Not yet seen in the running game.
