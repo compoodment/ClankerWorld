@@ -227,7 +227,7 @@ public sealed class NamedCookingTests
     [Fact]
     public async Task GeneratedHarvestIsCarriedHomeCookedAndEatenThroughOrdinaryActions()
     {
-        var choices = new Choices(normalCooking: true);
+        var choices = new Choices(normalCooking: true, fieldCookingOnly: true);
         using var initial = NormalPathWorld.CreateGenerated("probe-a", _ => choices);
         Assert.All(initial.Society.Inventory.Lots.Where(lot => lot.Id is "food:camp-alpha" or "food:camp-beta"), lot => Assert.Equal(8, lot.Quantity));
         var state = initial.ExportState();
@@ -262,7 +262,8 @@ public sealed class NamedCookingTests
             Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 5_000, LastDecisionContext = null }).ToArray(),
         }, _ => choices);
         world = growing;
-        choices.Recipes.UnionWith(world.WorldContent.Recipes.Where(recipe => HouseCookingContent.IsMealRecipe(recipe) ||
+        // Follow the field recipe rather than filling the meal target from other starter or wild inputs.
+        choices.Recipes.UnionWith(world.WorldContent.Recipes.Where(recipe => HouseCookingContent.IsMealRecipe(recipe) && recipe.LocalId == "cultivated-greens-meal" ||
             recipe.LocalId == "mill-grain" || recipe.Tags.Contains("pottery") || recipe.Outputs.Any(output => ToolCapabilities.ForItem(output.ResourceId) is not null))
             .Select(recipe => "build:recipe:" + recipe.CanonicalId));
         for (var tick = 0; tick < 1_000 && !HasEatenCookedMeal(world); tick++)
@@ -278,6 +279,7 @@ public sealed class NamedCookingTests
             world.Society.Inventory.Lots.FirstOrDefault(lot => lot.Id == id)?.Quantity is null or < 8);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.StorageBuildingId == "first-town-warehouse" && FoodItems.IsEdible(lot.ItemKind));
         using var restored = Load(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.True(HasEatenCookedMeal(restored));
         restored.Validate();
     }
 
@@ -288,15 +290,17 @@ public sealed class NamedCookingTests
 
     private static bool HasEatenCookedMeal(PrivateWorldRuntime world)
     {
-        var harvestIds = (world.WorldSimulation.CropBuilds ?? []).Where(job => job.State == WorldProductionJobState.Completed &&
-            world.WorldContent.Recipes.Any(recipe => recipe.CanonicalId == job.RecipeId && recipe.IsCrop &&
-                recipe.Outputs.Any(output => output.ResourceId is "potatoes" or "cultivated_greens")))
-            .Select(job => job.JobId + ":output:00").ToHashSet(StringComparer.Ordinal);
+        // Fully consumed harvest lots disappear; their real field cycles and input reservations remain.
+        var harvestBatches = world.Fields.SelectMany(field => Enumerable.Range(1, field.Cycle).Select(cycle =>
+                (field.HouseholdId, LotId: $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}:crop")))
+            .ToArray();
         var cookedIds = world.WorldSimulation.ProductionJobs.Where(job => job.State == WorldProductionJobState.Completed &&
             world.WorldContent.Recipes.Any(recipe => recipe.CanonicalId == job.RecipeId &&
                 recipe.Tags.Contains("house-cooking") && recipe.Outputs.Any(output => output.ResourceId == "simple_meal")) &&
             job.InputReservationIds.Select(world.Society.Inventory.GetReservation).Any(reservation =>
-                harvestIds.Any(id => reservation.LotId == id || reservation.LotId.StartsWith(id + "#transfer:", StringComparison.Ordinal))))
+                reservation.State == InventoryReservationState.Completed &&
+                harvestBatches.Any(batch => reservation.OwnerId == batch.HouseholdId &&
+                    (reservation.LotId == batch.LotId || reservation.LotId.StartsWith(batch.LotId + "#transfer:", StringComparison.Ordinal)))))
             .Select(job => job.JobId + ":output:00").ToHashSet(StringComparer.Ordinal);
         return world.Society.Inventory.Reservations.Any(reservation => reservation.State == InventoryReservationState.Completed &&
             reservation.Purpose == "direct_consumption" && world.Society.Inhabitants.Any(person => person.Id == reservation.OwnerId) &&
@@ -343,7 +347,7 @@ public sealed class NamedCookingTests
     private static PrivateWorldRuntime Load(PrivateWorldRuntimeState state, Func<string, IDecisionProvider>? factory = null) =>
         PrivateWorldRuntime.Restore(state, factory ?? (_ => new Choices()));
 
-    private sealed class Choices(string first = "safe_idle", string second = "safe_idle", bool normalCooking = false) : IDecisionProvider
+    private sealed class Choices(string first = "safe_idle", string second = "safe_idle", bool normalCooking = false, bool fieldCookingOnly = false) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
@@ -352,7 +356,12 @@ public sealed class NamedCookingTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             Offered.UnionWith(request.Observation.Candidates.Select(candidate => candidate.Id));
-            var selected = request.Observation.Candidates.Where(candidate => candidate.Id == first || candidate.Id == second || normalCooking &&
+            var selected = request.Observation.Candidates
+                .Where(candidate => !fieldCookingOnly || candidate.Id is not ("supply_workstation:berries" or
+                    "supply_workstation:wild_greens" or "supply_workstation:potatoes" or "supply_workstation:fruit"))
+                .Where(candidate => !fieldCookingOnly || candidate.Id is not ("seek_food" or "harvest_food") || candidate.DeterministicPriority <= 2)
+                .Where(candidate => fieldCookingOnly && candidate.Id.StartsWith("assist:", StringComparison.Ordinal) ||
+                    candidate.Id == first || candidate.Id == second || normalCooking &&
                     (Recipes.Contains(candidate.Id) || candidate.Id.StartsWith("farm:", StringComparison.Ordinal) ||
                      candidate.Id.StartsWith("supply_workstation:", StringComparison.Ordinal) || candidate.Id.StartsWith("craft_tool:", StringComparison.Ordinal) ||
                      candidate.Id is "consume_food" or "collect_shared_food" or "seek_food" or "harvest_food" or "haul_household_stock" or

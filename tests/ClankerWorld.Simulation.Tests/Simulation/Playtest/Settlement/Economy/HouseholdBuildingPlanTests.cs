@@ -101,40 +101,37 @@ public sealed class HouseholdBuildingPlanTests
         Assert.Null(load.StorageBuildingId);
         Assert.InRange(load.Quantity, 1, 4);
         Assert.Equal(grainQuantity, BatchLots(carrying, harvest.JobId).Where(lot => lot.ItemKind == "grain").Sum(lot => lot.Quantity));
-        using var replay = LoadCarrying(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(carrying.ExportState())), harvest.Farmer);
-        var walked = new HashSet<GridPoint> { harvest.Field };
-        for (var tick = 0; tick < 120 && BatchLots(carrying, harvest.JobId).Any(lot => lot.StorageBuildingId != "alpha-silo" && Available(carrying, lot) > 0); tick++)
-        {
-            Assert.True((await carrying.AdvanceOneTickAsync()).Advanced);
-            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
-            walked.Add(carrying.Inhabitants.Single(person => person.InhabitantId == harvest.Farmer).Position);
-        }
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(carrying.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        using var delivery = await CarryHarvestBatchesIntoSilo(carrying.ExportState(),
+            harvest.Farmer, harvest.JobId, harvest.Field, 120);
+        var collected = delivery.World;
+        var replay = delivery.Replay;
+        var walked = delivery.Walked;
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(collected.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         Assert.True(walked.Count > 1);
-        Assert.Contains(carrying.WorldSimulation.Buildings.Single(building => building.InstanceId == "alpha-silo").Position, walked);
-        Assert.All(BatchLots(carrying, harvest.JobId).Where(lot => Available(carrying, lot) > 0), lot =>
+        Assert.Contains(collected.WorldSimulation.Buildings.Single(building => building.InstanceId == "alpha-silo").Position, walked);
+        Assert.All(BatchLots(collected, harvest.JobId).Where(lot => Available(collected, lot) > 0), lot =>
         {
             Assert.Equal(Alpha, lot.OwnerId);
             Assert.Equal("alpha-silo", lot.StorageBuildingId);
             Assert.Null(lot.GroundPosition);
             Assert.Null(lot.DeliveryBuildingId);
         });
-        var field = carrying.Fields.Single(field => field.Position == harvest.Field);
-        var replant = carrying.Society.Inventory.GetReservation(field.ReplantingReservationId!);
+        var field = collected.Fields.Single(field => field.Position == harvest.Field);
+        var replant = collected.Society.Inventory.GetReservation(field.ReplantingReservationId!);
         Assert.Equal(InventoryReservationState.Reserved, replant.State);
         Assert.Equal(1, replant.Quantity);
-        var reservedSeed = carrying.Society.Inventory.GetLot(replant.LotId);
+        var reservedSeed = collected.Society.Inventory.GetLot(replant.LotId);
         Assert.Equal("grain_seed", reservedSeed.ItemKind);
         Assert.Equal(1, reservedSeed.Quantity);
         Assert.Equal(Alpha, reservedSeed.OwnerId);
         Assert.Equal(new InventoryGroundPosition(harvest.Field.X, harvest.Field.Y), reservedSeed.GroundPosition);
         Assert.Null(reservedSeed.StorageBuildingId);
         foreach (var quantity in quantities)
-            Assert.Equal(quantity.Value, BatchLots(carrying, harvest.JobId).Where(lot => lot.ItemKind == quantity.Key).Sum(lot => lot.Quantity));
-        carrying.Validate();
+            Assert.Equal(quantity.Value, BatchLots(collected, harvest.JobId).Where(lot => lot.ItemKind == quantity.Key).Sum(lot => lot.Quantity));
+        collected.Validate();
 
-        var farmhouse = carrying.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
-        using var hauling = LoadChoices(carrying.ExportState(), harvest.Farmer, "haul_farm_grain", "haul_household_stock");
+        var farmhouse = collected.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
+        using var hauling = LoadChoices(collected.ExportState(), harvest.Farmer, "haul_farm_grain", "haul_household_stock");
         for (var tick = 0; tick < 96 && !BatchLots(hauling, harvest.JobId).Any(lot => lot.ItemKind == "grain" &&
             lot.StorageBuildingId == farmhouse.InstanceId); tick++)
             Assert.True((await hauling.AdvanceOneTickAsync()).Advanced);
@@ -160,6 +157,63 @@ public sealed class HouseholdBuildingPlanTests
         Assert.Equal(farmhouse.InstanceId, flour.StorageBuildingId);
         Assert.Equal(grainQuantity - 1, BatchLots(milling, harvest.JobId).Where(lot => lot.ItemKind == "grain").Sum(lot => lot.Quantity));
         milling.Validate();
+    }
+
+    private sealed record SiloDelivery(PrivateWorldRuntime World, PrivateWorldRuntime Replay,
+        HashSet<GridPoint> Walked) : IDisposable
+    {
+        public void Dispose()
+        {
+            World.Dispose();
+            Replay.Dispose();
+        }
+    }
+
+    private static async Task<SiloDelivery> CarryHarvestBatchesIntoSilo(PrivateWorldRuntimeState state,
+        string farmer, string jobId, GridPoint field, int ticks)
+    {
+        var world = LoadCarrying(state, farmer);
+        var replay = LoadCarrying(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), farmer);
+        var walked = new HashSet<GridPoint> { field };
+        static int Delivered(PrivateWorldRuntime current, string harvestJob) => BatchLots(current, harvestJob)
+            .Where(lot => lot.StorageBuildingId == "alpha-silo").Sum(lot => lot.Quantity);
+        static bool Remaining(PrivateWorldRuntime current, string harvestJob) => BatchLots(current, harvestJob)
+            .Any(lot => lot.StorageBuildingId != "alpha-silo" && Available(current, lot) > 0);
+        try
+        {
+            var delivered = Delivered(world, jobId);
+            for (var tick = 0; tick < ticks && Remaining(world, jobId); tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+                walked.Add(world.Inhabitants.Single(person => person.InhabitantId == farmer).Position);
+                var nowDelivered = Delivered(world, jobId);
+                Assert.Equal(nowDelivered, Delivered(replay, jobId));
+                if (nowDelivered > delivered && Remaining(world, jobId))
+                {
+                    // A real batch delivery completes this directed carrying phase.
+                    // Generic hauling can otherwise continue with unrelated supplies.
+                    // Compare both branches before separately restoring each checkpoint.
+                    var worldBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+                    var replayBytes = PrivateWorldRuntimeCodec.Encode(replay.ExportState());
+                    Assert.Equal(worldBytes, replayBytes);
+                    var saved = PrivateWorldRuntimeCodec.Decode(worldBytes);
+                    var replaySaved = PrivateWorldRuntimeCodec.Decode(replayBytes);
+                    world.Dispose();
+                    replay.Dispose();
+                    world = LoadCarrying(saved, farmer, freshChoice: true);
+                    replay = LoadCarrying(replaySaved, farmer, freshChoice: true);
+                }
+                delivered = nowDelivered;
+            }
+            return new SiloDelivery(world, replay, walked);
+        }
+        catch
+        {
+            world.Dispose();
+            replay.Dispose();
+            throw;
+        }
     }
 
     [Fact]
