@@ -387,6 +387,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 
+            WearEquippedClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
             DrainNeeds();

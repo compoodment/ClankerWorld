@@ -31,7 +31,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSkill>? Skills = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null);
 
 public sealed record PlaytestModelAttempt(
     string Status,

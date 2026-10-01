@@ -106,6 +106,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var inbound = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == houseForPickup.InstanceId).Sum(lot => lot.Quantity);
         var quantity = Math.Min(Math.Max(0, StorageRoom(houseForPickup.InstanceId) - inbound), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"house-haul-pickup:{WorldTick}:{actor}", householdId, actor,

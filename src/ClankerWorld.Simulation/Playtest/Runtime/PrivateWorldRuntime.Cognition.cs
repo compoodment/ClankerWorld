@@ -150,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
             return true;
         }
 
-        if (CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
+        if (CanContinueEquipmentRepair(inhabitantId) || CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
         {
             return false;
         }
@@ -204,6 +204,11 @@ public sealed partial class PrivateWorldRuntime
             }
             if (inhabitant.AgeBand == SocietyAgeBand.Infant)
             {
+                continue;
+            }
+            if (CanContinueEquipmentRepair(inhabitant.Id))
+            {
+                ContinueEquipmentRepair(inhabitant.Id);
                 continue;
             }
             if (CanContinueLesson(inhabitant.Id))
@@ -304,6 +309,11 @@ public sealed partial class PrivateWorldRuntime
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
+        }
+        if (inhabitants[inhabitantId].Equipment?.Repair is not null && candidateId != "repair_equipment")
+        {
+            CancelEquipmentRepair(inhabitantId);
+            state = inhabitants[inhabitantId];
         }
         if (candidateId.StartsWith("child_", StringComparison.Ordinal))
         {
@@ -448,7 +458,13 @@ public sealed partial class PrivateWorldRuntime
                 Explore(inhabitantId, state);
                 break;
             case "wear_clothing":
-                CollectEquipment(inhabitantId, state, "clothing");
+                EquipPrivateItem(inhabitantId, state, carryAid: false);
+                break;
+            case "equip_carry_aid":
+                EquipPrivateItem(inhabitantId, state, carryAid: true);
+                break;
+            case "repair_equipment":
+                RepairEquipment(inhabitantId, state);
                 break;
             case "tend_fire":
                 TendFire(inhabitantId, state);
@@ -598,7 +614,7 @@ public sealed partial class PrivateWorldRuntime
 
         var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
         // An optional reserve remains selectable without outranking ordinary activities.
-        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
+        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000 && FreeCarryCapacity(inhabitantId) > 0;
         var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
@@ -697,7 +713,7 @@ public sealed partial class PrivateWorldRuntime
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
                      (!item.IsCrop || canGrow)))
         {
-            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
+            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)))
             {
                 continue;
             }
@@ -717,7 +733,7 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
+                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

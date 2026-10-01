@@ -357,6 +357,8 @@ public sealed class SettlementSurvivalTests
         var actor = state.Inhabitants[0].InhabitantId;
         var clothedInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "test-clothing", "clothing", actor, 1);
         var clothed = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = clothedInventory } } };
+        clothed = clothed with { Inhabitants = clothed.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Equipment = new("test-clothing") } : person).ToArray() };
         using var exposedWorld = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         using var clothedWorld = PrivateWorldRuntime.Restore(clothed, _ => new IdleProvider());
         for (var tick = 0; tick < 80; tick++)

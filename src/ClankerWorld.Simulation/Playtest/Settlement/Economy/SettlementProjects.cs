@@ -677,6 +677,8 @@ public sealed partial class PrivateWorldRuntime
             }
             var quantity = Math.Min(WarehouseLoadQuantity,
                 Math.Min(input.Amount, AvailableLotQuantity(communal)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(inhabitantId));
+            if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"warehouse-pickup:{WorldTick}:{inhabitantId}", warehouse.TownId!, inhabitantId,
                 communal.Id, quantity, "town_resource_collected"));
@@ -720,6 +722,15 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
+        var gatheredQuantity = itemKind is "wood" && HasCarriedItem(inhabitantId, "wooden_axe") ||
+            itemKind is "stone" or "iron_ore" && HasCarriedItem(inhabitantId, "wooden_pickaxe") ? 6 : 4;
+        var seedQuantity = TreeGrowthRules.IsWoodTree(source.TreeKind) && ecology.Quantity == 1
+            ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
+        if (FreeCarryCapacity(inhabitantId) < gatheredQuantity + seedQuantity)
+        {
+            AppendEvent("carrying_full", inhabitantId);
+            return;
+        }
         var harvest = EcologyRules.Harvest(ecology, 1);
         if (!harvest.IsValid || harvest.Resource is null)
         {
@@ -876,6 +887,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, recipient, carried.Id, quantity, "project_request_fulfilled",

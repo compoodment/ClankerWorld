@@ -283,6 +283,13 @@ public sealed partial class PrivateWorldRuntime
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
             }
+            foreach (var person in inhabitants.Values)
+            {
+                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, person.Equipment);
+                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment);
+                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
+                    throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
+            }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
         });
     }

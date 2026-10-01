@@ -149,6 +149,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == input.ItemKind).Sum(AvailableLotQuantity);
         var target = input.ItemKind == "wood" ? 6 : 2;
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(target - stocked, AvailableLotQuantity(input)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,

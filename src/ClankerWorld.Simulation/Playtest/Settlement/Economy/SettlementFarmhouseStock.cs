@@ -47,6 +47,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-grain-pickup:{WorldTick}:{actor}", householdId, actor, grain.Id,
             quantity, "farm_grain_picked_up", destinationDeliveryBuildingId: farmhouse.InstanceId));

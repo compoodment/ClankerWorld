@@ -200,6 +200,7 @@ public sealed partial class PrivateWorldRuntime
                     MoveToward(actor, parent, camp, "care_food", interactionRange);
                     return;
                 }
+                if (FreeCarryCapacity(actor) == 0) return;
                 ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
                     HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
             }

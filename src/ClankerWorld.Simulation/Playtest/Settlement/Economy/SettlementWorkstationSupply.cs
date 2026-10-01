@@ -115,6 +115,8 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-pickup:{WorldTick}:{actor}", householdId, actor, stock.Id, quantity,
