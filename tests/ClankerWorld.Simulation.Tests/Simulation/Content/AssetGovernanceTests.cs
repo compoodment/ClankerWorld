@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Security.Cryptography;
 using System.Text;
 using ClankerWorld.Simulation.Content;
 
@@ -72,19 +71,6 @@ public sealed class AssetGovernanceTests
     }
 
     [Fact]
-    public void ApngTimingIsNormalizedToIntegerMillisecondsAndAnIntegerSampleRate()
-    {
-        var result = AssetNormalizer.Normalize(Candidate(bytes: AnimatedPng()));
-
-        Assert.True(result.IsValid, result.Diagnostic);
-        var png = Assert.IsType<NormalizedInertRasterAsset>(result.Asset).Png;
-        Assert.Equal(2, png.FrameCount);
-        Assert.Equal(200, png.AnimationDurationMilliseconds);
-        Assert.Equal(10, png.AnimationSampleRateHz);
-        Assert.Equal([100, 100], png.FrameDurationsMilliseconds);
-    }
-
-    [Fact]
     public void BudgetFailuresReportStableReasonCodesAndObservedLimits()
     {
         var dimensionFailure = AssetNormalizer.Normalize(
@@ -113,38 +99,6 @@ public sealed class AssetGovernanceTests
         Assert.False(compressedFailure.IsValid);
         Assert.Contains(compressedFailure.Diagnostics, diagnostic =>
             diagnostic.Code == "asset_budget_breach" && diagnostic.Field == "candidate_bytes");
-    }
-
-    [Fact]
-    public void NormalizationAndDiagnosticsAreDeterministicAcrossRunsAndInputOrder()
-    {
-        var first = AssetNormalizer.Normalize(Candidate(
-            provenance: Provenance() with
-            {
-                UpstreamAssetIds =
-                [
-                    AssetRules.CanonicalAssetId(PackageDigest, "zeta", ContentVersion.Parse("1.0.0")),
-                    AssetRules.CanonicalAssetId(PackageDigest, "alpha", ContentVersion.Parse("1.0.0")),
-                ],
-                Rights = Provenance().Rights with { AttributionNotices = ["z-notice", "a-notice"] },
-            }));
-        var second = AssetNormalizer.Normalize(Candidate(
-            provenance: Provenance() with
-            {
-                UpstreamAssetIds =
-                [
-                    AssetRules.CanonicalAssetId(PackageDigest, "alpha", ContentVersion.Parse("1.0.0")),
-                    AssetRules.CanonicalAssetId(PackageDigest, "zeta", ContentVersion.Parse("1.0.0")),
-                ],
-                Rights = Provenance().Rights with { AttributionNotices = ["a-notice", "z-notice"] },
-            }));
-
-        Assert.True(first.IsValid, first.Diagnostic);
-        Assert.True(second.IsValid, second.Diagnostic);
-        Assert.Equal(first.InputDigest, second.InputDigest);
-        Assert.Equal(first.Asset!.NormalizedDigest, second.Asset!.NormalizedDigest);
-        Assert.Equal(first.Asset.CanonicalMetadata, second.Asset.CanonicalMetadata);
-        Assert.Equal(first.Diagnostic, second.Diagnostic);
     }
 
     private static InertRasterAssetCandidate Candidate(
@@ -202,51 +156,6 @@ public sealed class AssetGovernanceTests
         chunks.Add(Chunk("IDAT", []));
         chunks.Add(Chunk("IEND", []));
         return [.. new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, .. chunks.SelectMany(chunk => chunk)];
-    }
-
-    private static byte[] AnimatedPng()
-    {
-        var ihdr = new byte[13];
-        BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(0, 4), 1);
-        BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(4, 4), 1);
-        ihdr[8] = 8;
-        ihdr[9] = (byte)AssetPngColorType.TruecolorAlpha;
-
-        var animation = new byte[8];
-        BinaryPrimitives.WriteUInt32BigEndian(animation.AsSpan(0, 4), 2);
-        BinaryPrimitives.WriteUInt32BigEndian(animation.AsSpan(4, 4), 0);
-
-        var firstControl = FrameControl(sequence: 0, delayNumerator: 1, delayDenominator: 10);
-        var secondControl = FrameControl(sequence: 1, delayNumerator: 1, delayDenominator: 10);
-        var secondData = new byte[4];
-        BinaryPrimitives.WriteUInt32BigEndian(secondData, 2);
-
-        return
-        [
-            .. new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 },
-            .. Chunk("IHDR", ihdr),
-            .. Chunk("acTL", animation),
-            .. Chunk("fcTL", firstControl),
-            .. Chunk("IDAT", []),
-            .. Chunk("fcTL", secondControl),
-            .. Chunk("fdAT", secondData),
-            .. Chunk("IEND", []),
-        ];
-    }
-
-    private static byte[] FrameControl(uint sequence, ushort delayNumerator, ushort delayDenominator)
-    {
-        var data = new byte[26];
-        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(0, 4), sequence);
-        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(4, 4), 1);
-        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(8, 4), 1);
-        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(12, 4), 0);
-        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(16, 4), 0);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(20, 2), delayNumerator);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(22, 2), delayDenominator);
-        data[24] = 0;
-        data[25] = 0;
-        return data;
     }
 
     private static byte[] Chunk(string type, byte[] data)

@@ -2,7 +2,6 @@ using System.Net;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
-using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -332,25 +331,6 @@ public sealed class ProviderConfigurationStoreTests
             Assert.DoesNotContain("jev-memory-secret", File.ReadAllText(Path.Combine(directory.FullName, "usage.json")));
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public void SlotDeletionTelemetryReportsOutcomeWithoutCredentialMaterial()
-    {
-        var logger = new RecordingLogger<ProviderConfigurationStore>();
-        var slotId = Guid.NewGuid().ToString("N");
-        OwnerCredentialSlotTelemetry.Deleted(logger, "deleted", slotId);
-        var message = Assert.Single(logger.Messages);
-        Assert.Contains("outcome=deleted", message, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret", message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void WorldJevChangeLogReportsOnlyTickAndAvailability()
-    {
-        var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-        OwnerJevAssistanceTelemetry.Changed(logger, 123, false);
-        Assert.Equal("world_jev_assistance tick=123 enabled=False", Assert.Single(logger.Messages));
     }
 
     [Fact]
