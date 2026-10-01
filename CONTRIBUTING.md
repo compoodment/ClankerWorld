@@ -129,7 +129,15 @@ not show which agent took it.
   any claim with no pushed commit, linked pull request activity or comment for
   4 hours. The issue goes back to `status:needs-pr` with a comment naming the
   draft or branch to continue from. Claims waiting on the owner
-  (`status:needs-decision`) are kept.
+  (`status:needs-decision` on the issue or pull request) are kept. Recent pull
+  request creation and activity count even when its commits have older dates;
+  the workflow's own cleanup notes do not count. The cleanup checks current
+  claims and handoffs again before and after changing labels.
+- An abandoned draft keeps `status:has-pr` alongside `status:needs-pr` until
+  someone claims its issue or a closing pull request becomes ready. Routine
+  draft edits and pushes do not hide that unclaimed work from the search.
+  The cleanup workflow can be previewed from Actions with its dry-run option;
+  select `main`, since it runs only main's checked-in script.
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
 - If you stop, push your branch, put `status:needs-pr` back in place of
