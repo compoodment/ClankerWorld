@@ -358,6 +358,12 @@ public sealed partial class PrivateWorldRuntimeService(
                 {
                     LogSettlementFamily(logger, result.WorldTick, worldEvent.Kind);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
+                             "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
+                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked"))
+                {
+                    LogSettlementHousing(logger, result.WorldTick, worldEvent.Kind);
+                }
             }
         }
 
@@ -550,6 +556,10 @@ public sealed partial class PrivateWorldRuntimeService(
     [LoggerMessage(EventId = 2208, Level = LogLevel.Information,
         Message = "settlement_council tick={WorldTick} event={EventKind}")]
     private static partial void LogSettlementCouncil(ILogger logger, long worldTick, string eventKind);
+
+    [LoggerMessage(EventId = 2211, Level = LogLevel.Information,
+        Message = "settlement_housing tick={WorldTick} event={EventKind}")]
+    private static partial void LogSettlementHousing(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2207, Level = LogLevel.Information,
         Message = "settlement_trade tick={WorldTick} event={EventKind}")]
