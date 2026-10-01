@@ -315,6 +315,10 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidateEquipment(PrivateWorldRuntimeState state)
     {
+        if (state.SchemaVersion < 32 && state.Inhabitants.Any(person => person.Equipment is { } equipment &&
+            (equipment.WornClothingLotId is not null || equipment.CarryAidLotId is not null || equipment.WeaponLotId is not null ||
+                equipment.ShieldLotId is not null || equipment.ArmorLotId is not null || equipment.OrnamentLotId is not null)))
+            throw new InvalidDataException("Equipped physical gear requires private-world schema 32.");
         foreach (var person in state.Inhabitants)
         {
             if (person.Equipment is not { } equipment) continue;

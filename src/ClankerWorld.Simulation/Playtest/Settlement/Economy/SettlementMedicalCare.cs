@@ -13,9 +13,16 @@ public sealed partial class PrivateWorldRuntime
 {
     private bool HasMedicalPermission(string caregiver, string patient) => caregiver == patient ||
         inhabitants[patient].MedicalCaregiverIds?.Contains(caregiver, StringComparer.Ordinal) == true ||
+        IsMedicalDependent(society.Checkpoint.GetInhabitant(patient).AgeBand) &&
         society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.State == SocietyRelationshipState.Accepted && edge.EffectiveTick <= WorldTick &&
             edge.ProposerId == caregiver && edge.TargetId == patient);
+
+    private static bool IsMedicalDependent(SocietyAgeBand age) =>
+        age is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent;
+
+    private static string MedicalDosePurpose(string caregiver, string patient, string kind) =>
+        $"medical_treatment:{caregiver}:{patient}:{kind}";
 
     public MedicalCareResult AllowMedicalCare(string patient, string caregiver, bool allowed)
     {
@@ -75,7 +82,7 @@ public sealed partial class PrivateWorldRuntime
             return new(false, $"Bring usable, unreserved {kind}; another household's Clinic stock requires an agreed purchase.");
         var id = $"medical-dose:{WorldTick}:{nextEventId}:{caregiver}:{patient}";
         ApplyInventoryTransition(inventory => InventoryFixture.ConsumeReservation(
-            InventoryFixture.Reserve(inventory, id, supply.OwnerId, supply.Id, 1, "medical_treatment", WorldTick), id));
+            InventoryFixture.Reserve(inventory, id, supply.OwnerId, supply.Id, 1, MedicalDosePurpose(caregiver, patient, kind), WorldTick), id));
         inhabitants[patient] = person with
         {
             MedicalTreatment = new(caregiver, supply.Id, id, kind, WorldTick, WorldTick, CareContent.TreatmentTicks),
@@ -235,24 +242,33 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateMedicalCare(PrivateWorldRuntimeState state)
     {
         var living = state.Inhabitants.Select(person => person.InhabitantId).ToHashSet(StringComparer.Ordinal);
+        var usedDoses = new HashSet<string>(StringComparer.Ordinal);
         foreach (var person in state.Inhabitants)
         {
             if (person.MedicalCaregiverIds is { } ids && (ids.Count > 16 || ids.Count != ids.Distinct(StringComparer.Ordinal).Count() ||
                 ids.Any(id => id == person.InhabitantId || !state.Society.Society.Inhabitants.Any(item => item.Id == id))))
                 throw new InvalidDataException("Medical permission must name distinct existing caregivers.");
             if (person.MedicalTreatment is not { } treatment) continue;
+            var dependent = state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == person.InhabitantId)?.AgeBand is
+                SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent;
             if (treatment.Kind is not ("bandage" or "medicine") || !living.Contains(treatment.CaregiverId) ||
+                !state.Society.Society.Inhabitants.Any(item => item.Id == treatment.CaregiverId &&
+                    item.Status == SocietyInhabitantStatus.Active && item.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
                 treatment.CaregiverId != person.InhabitantId &&
                 person.MedicalCaregiverIds?.Contains(treatment.CaregiverId, StringComparer.Ordinal) != true &&
-                !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                !(dependent && state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
                     edge.State == SocietyRelationshipState.Accepted && edge.ProposerId == treatment.CaregiverId &&
-                    edge.TargetId == person.InhabitantId && edge.EffectiveTick <= state.Society.Society.WorldTick) ||
+                    edge.TargetId == person.InhabitantId && edge.EffectiveTick <= state.Society.Society.WorldTick)) ||
                 treatment.StartedTick < 0 || treatment.StartedTick > state.Society.Society.WorldTick ||
-                treatment.LastProcessedTick < treatment.StartedTick || treatment.LastProcessedTick > state.Society.Society.WorldTick ||
+                treatment.LastProcessedTick != state.Society.Society.WorldTick ||
                 treatment.RemainingTicks is < 1 or > CareContent.TreatmentTicks ||
                 treatment.RemainingTicks != CareContent.TreatmentTicks - (treatment.LastProcessedTick - treatment.StartedTick) ||
+                !usedDoses.Add(treatment.DoseReservationId) ||
                 !state.Society.Society.Inventory.Reservations.Any(reservation => reservation.Id == treatment.DoseReservationId &&
-                    reservation.LotId == treatment.SupplyLotId && reservation.Quantity == 1 && reservation.State == InventoryReservationState.Completed))
+                    reservation.LotId == treatment.SupplyLotId && reservation.Quantity == 1 &&
+                    reservation.ExpiryTick == treatment.StartedTick &&
+                    reservation.Purpose == MedicalDosePurpose(treatment.CaregiverId, person.InhabitantId, treatment.Kind) &&
+                    reservation.State == InventoryReservationState.Completed))
                 throw new InvalidDataException("Medical treatment has invalid physical supply, work or patient state.");
         }
         if (state.SchemaVersion < 32 && state.Inhabitants.Any(person => person.MedicalTreatment is not null || person.MedicalCaregiverIds is not null))
