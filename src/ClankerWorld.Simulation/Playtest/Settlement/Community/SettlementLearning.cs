@@ -214,7 +214,7 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var person in state.Inhabitants)
         {
-            if (person.Lesson is { } lesson && (state.SchemaVersion < 8 || !known.Contains(lesson.TeacherId) ||
+            if (person.Lesson is { } lesson && (!known.Contains(lesson.TeacherId) ||
                 lesson.TeacherId == person.InhabitantId || lesson.Role is not (SocietyWorkRole.Builder or SocietyWorkRole.Farmer) ||
                 lesson.Stage is not ("requested" or "accepted" or "training" or "completed" or "cancelled" or "declined") ||
                 lesson.Progress is < 0 or > LessonWorkRequired || lesson.RequestedTick < 0 ||

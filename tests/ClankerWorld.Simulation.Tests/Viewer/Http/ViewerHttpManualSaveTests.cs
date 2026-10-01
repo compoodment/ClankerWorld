@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
@@ -257,23 +259,50 @@ public sealed partial class ViewerHttpTests
                 var firstPath = Path.Combine(host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".worlds",
                     firstId + ".save");
                 var originalBytes = File.ReadAllBytes(firstPath);
-                var older = PrivateWorldRuntimeCodec.Decode(originalBytes) with { SchemaVersion = 16 };
-                File.WriteAllBytes(firstPath, PrivateWorldRuntimeCodec.Encode(older));
+                var olderDocument = JsonNode.Parse(originalBytes)!.AsObject();
+                var olderState = olderDocument["state"]!.AsObject();
+                olderState["schemaVersion"] = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1;
+                olderState.Remove("bridges");
+                olderState.Remove("bridgeTraffic");
+                olderState["map"]!.AsObject().Remove("bridgeDecks");
+                var olderBytes = Encoding.UTF8.GetBytes(olderDocument.ToJsonString());
+                File.WriteAllBytes(firstPath, olderBytes);
                 using var olderList = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/list", listAction, OwnerHttpBinding.EmptyPayload("list-worlds"));
-                Assert.Equal("compatible", (await olderList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!
-                    .Worlds.Single(world => world.Id == firstId).Compatibility);
+                var blockedSnapshot = (await olderList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!;
+                var blockedWorld = blockedSnapshot.Worlds.Single(world => world.Id == firstId);
+                Assert.Equal("incompatible", blockedWorld.Compatibility);
+                Assert.Equal("The saved checkpoint or required content cannot be restored.",
+                    blockedWorld.CompatibilityReason);
+                var activeIdBeforeRefusal = host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId;
+                var activeWorldIdBeforeRefusal = runtime.Society.WorldId;
+                var activeBytesBeforeRefusal = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+                Assert.Equal(generatedId, activeIdBeforeRefusal);
+                var blockedAction = new OwnerManualSaveAction("select-world", firstId);
+                using var olderSelect = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/select", blockedAction,
+                    OwnerHttpBinding.ManualSavePayload(blockedAction));
+                Assert.Equal(HttpStatusCode.Conflict, olderSelect.StatusCode);
+                Assert.Equal(olderBytes, File.ReadAllBytes(firstPath));
+                Assert.Equal(activeIdBeforeRefusal,
+                    host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId);
+                Assert.Equal(activeWorldIdBeforeRefusal, runtime.Society.WorldId);
+                Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+
                 File.WriteAllText(firstPath, "unsupported checkpoint");
                 using var blockedList = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/list", listAction, OwnerHttpBinding.EmptyPayload("list-worlds"));
                 Assert.Equal("incompatible", (await blockedList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!
                     .Worlds.Single(world => world.Id == firstId).Compatibility);
-                var blockedAction = new OwnerManualSaveAction("select-world", firstId);
                 using var blocked = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/select", blockedAction,
                     OwnerHttpBinding.ManualSavePayload(blockedAction));
                 Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
                 Assert.Equal("unsupported checkpoint", File.ReadAllText(firstPath));
+                Assert.Equal(activeIdBeforeRefusal,
+                    host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId);
+                Assert.Equal(activeWorldIdBeforeRefusal, runtime.Society.WorldId);
+                Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
                 File.WriteAllBytes(firstPath, originalBytes);
 
                 var select = new OwnerManualSaveAction("select-world", firstId);

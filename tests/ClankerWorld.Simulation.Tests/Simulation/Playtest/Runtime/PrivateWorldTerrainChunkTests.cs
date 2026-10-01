@@ -10,31 +10,18 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PrivateWorldTerrainChunkTests
 {
     [Fact]
-    public void GeneratedMapRoundTripsThroughCompactChunksAndLegacySaveMigrates()
+    public void GeneratedMapRoundTripsThroughCurrentCompactChunks()
     {
         var geography = new GeographyOptions("chunked-private-world", WorldSizePreset.Small,
             WrapEastWest: true);
         using var world = new PrivateWorldRuntime(geography.Seed,
             startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         var state = world.ExportState();
-        var oldBytes = PrivateWorldRuntimeCodec.Encode(state with
-        {
-            SchemaVersion = 18,
-            Map = state.Map with
-            {
-                ElevationLevels = null,
-                HydrologyKinds = null,
-                SurfaceKinds = null,
-                VegetationKinds = null,
-            },
-        });
         var newBytes = PrivateWorldRuntimeCodec.Encode(state);
         var newText = Encoding.UTF8.GetString(newBytes);
 
         Assert.DoesNotContain("\"tiles\"", newText, StringComparison.Ordinal);
         Assert.Contains("\"terrainEncoding\":\"terrain-chunks/v1\"", newText, StringComparison.Ordinal);
-        Assert.True(newBytes.Length < oldBytes.Length / 4,
-            $"Chunked terrain should materially shrink this generated save: {oldBytes.Length} to {newBytes.Length} bytes.");
         var decoded = PrivateWorldRuntimeCodec.Decode(newBytes);
         Assert.Equal(state.Map.ManifestDigest, decoded.Map.ManifestDigest);
         Assert.Equal(state.Map.Tiles, decoded.Map.Tiles);
@@ -44,33 +31,35 @@ public sealed class PrivateWorldTerrainChunkTests
         Assert.Equal(state.Map.SurfaceKinds, decoded.Map.SurfaceKinds);
         Assert.Equal(state.Map.VegetationKinds, decoded.Map.VegetationKinds);
         Assert.Equal(newBytes, PrivateWorldRuntimeCodec.Encode(decoded));
+    }
 
-        var old = PrivateWorldRuntimeCodec.Decode(oldBytes);
-        using var migrated = PrivateWorldRuntime.Restore(old);
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, migrated.ExportState().SchemaVersion);
-        Assert.Equal(state.Map.ManifestDigest, migrated.ExportState().Map.ManifestDigest);
-        Assert.Equal(state.Map.ElevationLevels, migrated.ExportState().Map.ElevationLevels);
-        Assert.Equal(state.Map.HydrologyKinds, migrated.ExportState().Map.HydrologyKinds);
-        Assert.Equal(state.Map.SurfaceKinds, migrated.ExportState().Map.SurfaceKinds);
-        Assert.Equal(state.Map.VegetationKinds, migrated.ExportState().Map.VegetationKinds);
-        Assert.Contains("\"terrainEncoding\":\"terrain-chunks/v1\"",
-            Encoding.UTF8.GetString(PrivateWorldRuntimeCodec.Encode(migrated.ExportState())), StringComparison.Ordinal);
+    [Fact]
+    public void OlderAlphaCheckpointIsRefusedAtTheCurrentSchemaFloor()
+    {
+        var geography = new GeographyOptions("below-current-save-schema", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        var state = world.ExportState();
+        var unsupportedState = state with
+        {
+            SchemaVersion = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1,
+            Bridges = null,
+            BridgeTraffic = null,
+        };
 
-        var oldChunked = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(
-            state with
-            {
-                Map = state.Map with
-                {
-                    ElevationLevels = null,
-                    HydrologyKinds = null,
-                    SurfaceKinds = null,
-                    VegetationKinds = null,
-                }
-            }));
-        using var migratedChunked = PrivateWorldRuntime.Restore(oldChunked);
-        Assert.Equal(state.Map.ManifestDigest, migratedChunked.ExportState().Map.ManifestDigest);
-        Assert.Equal(state.Map.ElevationLevels, migratedChunked.ExportState().Map.ElevationLevels);
-        Assert.Equal(state.Map.HydrologyKinds, migratedChunked.ExportState().Map.HydrologyKinds);
+        var encodedError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(unsupportedState));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.MinimumSupportedStateSchemaVersion}",
+            encodedError.Message, StringComparison.Ordinal);
+
+        var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
+        var savedState = document["state"]!.AsObject();
+        savedState["schemaVersion"] = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1;
+        savedState.Remove("bridges");
+        savedState.Remove("bridgeTraffic");
+        var unsupportedBytes = Encoding.UTF8.GetBytes(document.ToJsonString());
+        var decodeError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(unsupportedBytes));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.MinimumSupportedStateSchemaVersion}",
+            decodeError.Message, StringComparison.Ordinal);
     }
 
     [Fact]

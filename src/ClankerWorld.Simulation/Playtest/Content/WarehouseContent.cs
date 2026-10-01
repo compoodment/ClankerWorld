@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Content;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-/// <summary>Town Warehouse; the legacy Storehouse definition remains loadable in old saves.</summary>
+/// <summary>Town Warehouse; the retired Storehouse definition is not offered for new projects.</summary>
 public static class WarehouseContent
 {
     public const string PackageId = "clankerworld-warehouse-v1";

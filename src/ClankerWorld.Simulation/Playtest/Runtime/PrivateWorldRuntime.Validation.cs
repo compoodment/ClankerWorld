@@ -74,21 +74,17 @@ public sealed partial class PrivateWorldRuntime
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
-        AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map);
+        AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
 
         foreach (var inhabitant in inhabitants.Values)
         {
-            ValidateProficiency(inhabitant, checkpointSchemaVersion);
-            ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), checkpointSchemaVersion, WorldTick);
-            ValidatePrivateThoughts(inhabitant.RecentThoughts, checkpointSchemaVersion, WorldTick);
+            ValidateProficiency(inhabitant);
+            ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), WorldTick);
+            ValidatePrivateThoughts(inhabitant.RecentThoughts, WorldTick);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
-                if (checkpointSchemaVersion < 5)
-                {
-                    throw new InvalidDataException("Persistent projects require private-world schema 5.");
-                }
             }
             if (!map.IsPassable(inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
@@ -223,49 +219,25 @@ public sealed partial class PrivateWorldRuntime
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion < 10 && (state.Society.Society.LifeClock is not null ||
-            state.Society.Society.Inhabitants.Any(person => person.BirthLifeTick is not null)))
-        {
-            throw new InvalidDataException("Biological life pacing requires private-world schema 10.");
-        }
-        if (state.SchemaVersion is < 1 or > StateSchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
+        ValidateMinimumSupportedSchemaVersion(state.SchemaVersion);
+        if (state.SchemaVersion > StateSchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
-        if (state.SchemaVersion < 20 && state.Society.Society.Beliefs is { Count: > 0 })
-            throw new InvalidDataException("Agent belief history requires private-world schema 20.");
-        if (state.SchemaVersion < 22 && state.Society.Society.MemoryCompactions is { Count: > 0 })
-            throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
-        if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
-            throw new InvalidDataException("Generated Roads require private-world schema 24.");
-        if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
-            throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
-        if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
-            throw new InvalidDataException(
-                $"Trees planted on new tiles require private-world schema {PlantedTreeSchemaVersion}.");
-        if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0 ||
-            state.SchemaVersion < 15 && (state.JevEnabled is not null || state.JevPolicyRevision != 0))
+        if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0)
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
-        if (state.SchemaVersion < 16 && state.FounderSetup is not null)
-            throw new InvalidDataException("Founder setup requires private-world schema 16.");
         if (state.Geography is not null &&
-            (state.SchemaVersion < 17 || state.FounderSetup is null ||
+            (state.FounderSetup is null ||
              !string.Equals(state.Geography.Seed, state.WorldSeed, StringComparison.Ordinal)))
             throw new InvalidDataException("Generated geography does not match the saved world setup.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
-        if (state.SchemaVersion >= 21 && state.Towns is null)
-            throw new InvalidDataException("Private-world schema 21 requires authoritative Town state.");
-        if (state.SchemaVersion >= 23 && state.Knowledge is null)
-            throw new InvalidDataException("Private-world schema 23 requires agent map-knowledge state.");
-        if (state.SchemaVersion >= 24 && state.RoadTiles is null)
-            throw new InvalidDataException("Private-world schema 24 requires authoritative Road state.");
-        if (state.SchemaVersion >= 28 && (state.Bridges is null || state.BridgeTraffic is null))
-            throw new InvalidDataException("Private-world schema 28 requires authoritative bridge state.");
+        if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
+            state.Bridges is null || state.BridgeTraffic is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing required Town, map-knowledge, Road or bridge state.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
         if ((hasArchivedEvents && state.HistoryArchiveHead is null) ||
-            (state.SchemaVersion < 4 && (hasArchivedEvents || state.HistoryArchiveHead is not null)) ||
             (state.HistoryArchiveHead is { } head && (head.Length != 64 || head.Any(character => character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')))))
         {
             throw new InvalidDataException("The private-world history reference or schema is invalid.");
@@ -282,75 +254,52 @@ public sealed partial class PrivateWorldRuntime
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
-            society.Checkpoint.WorldTick, state.SchemaVersion);
+            society.Checkpoint.WorldTick);
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {
-            if (person.IdentityChoicePending && state.SchemaVersion < 28)
-                throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
-            ValidateProficiency(person, state.SchemaVersion);
+            ValidateProficiency(person);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
-                state.SchemaVersion, state.Society.Society.WorldTick);
-            ValidatePrivateThoughts(person.RecentThoughts, state.SchemaVersion, state.Society.Society.WorldTick);
+                state.Society.Society.WorldTick);
+            ValidatePrivateThoughts(person.RecentThoughts, state.Society.Society.WorldTick);
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
+        if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
+            state.WorldSimulation is null || state.AssetReservations is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
         ContentPackageRegistry.Restore(state.Content);
-        if (state.SchemaVersion >= 3 && state.Content is null)
+
+        WorldSystemsRules.Validate(state.WorldSystems);
+        if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
+            !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal) ||
+            state.WorldSystems.Config.TicksPerDay != state.Society.Society.Config.TicksPerWorldDay ||
+            state.WorldSystems.Config.DaysPerYear != state.Society.Society.Config.DaysPerWorldYear)
         {
-            throw new InvalidDataException("The current private-world schema requires content governance state.");
+            throw new InvalidDataException("The saved world systems do not match the society clock, calendar, or seed.");
         }
 
-        if (state.WorldSystems is not null)
-        {
-            WorldSystemsRules.Validate(state.WorldSystems);
-            if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
-                !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal) ||
-                state.WorldSystems.Config.TicksPerDay != state.Society.Society.Config.TicksPerWorldDay ||
-                state.WorldSystems.Config.DaysPerYear != state.Society.Society.Config.DaysPerWorldYear)
-            {
-                throw new InvalidDataException("The saved world systems do not match the society clock, calendar, or seed.");
-            }
-        }
-        else if (state.SchemaVersion >= 3)
-        {
-            throw new InvalidDataException("The current private-world schema requires richer-systems state.");
-        }
+        state.WorldContent.Validate();
+        WorldContentSimulationRules.Validate(
+            state.WorldSimulation,
+            state.WorldContent,
+            state.Map,
+            state.Society.Society.WorldTick);
+        ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
+            state.WorldContent, state.Society.Society.Inhabitants);
+        if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
+            !state.Society.Society.Households.Any(household => household.Id == householdId)))
+            throw new InvalidDataException("A House references a missing household.");
+        ValidateTowns(state.Towns, state.Map, state.FounderSetup,
+            state.Society.Society, state.WorldSimulation, state.WorldContent);
+        ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
+        ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
+            state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
+            state.Inhabitants);
 
-        state.WorldContent?.Validate();
-        if (state.SchemaVersion >= 3 &&
-            (state.WorldContent is null || state.WorldSimulation is null || state.AssetReservations is null))
-        {
-            throw new InvalidDataException(
-                "The current private-world schema requires content simulation and world asset reservation state.");
-        }
-
-        if (state.WorldContent is not null && state.WorldSimulation is not null)
-        {
-            WorldContentSimulationRules.Validate(
-                state.WorldSimulation,
-                state.WorldContent,
-                state.Map,
-                state.Society.Society.WorldTick);
-            ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-                state.WorldContent, state.Society.Society.Inhabitants);
-            if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
-                !state.Society.Society.Households.Any(household => household.Id == householdId)))
-                throw new InvalidDataException("A House references a missing household.");
-            ValidateTowns(state.Towns ?? MigrateTowns(state), state.Map, state.FounderSetup,
-                state.Society.Society, state.WorldSimulation, state.WorldContent);
-            ValidateRoads(state.RoadTiles ?? [], state.Map, state.FounderSetup);
-            ValidateBridges(state.Bridges ?? [], state.BridgeTraffic ?? BridgeTrafficState.Empty, travelMap,
-                state.RoadTiles ?? [], state.WorldSimulation, state.WorldContent, state.Society.Society,
-                state.Inhabitants);
-        }
-
-        if (state.AssetReservations is not null)
-        {
-            WorldAssetReservationLedger.Restore(state.AssetReservations);
-        }
+        WorldAssetReservationLedger.Restore(state.AssetReservations);
         var activeIds = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .Select(item => item.Id)
@@ -362,37 +311,36 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
             {
-                if (state.SchemaVersion < 5)
-                {
-                    throw new InvalidDataException("Settlement projects require save schema 5.");
-                }
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
         }
     }
 
+    internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
+    {
+        if (schemaVersion < MinimumSupportedStateSchemaVersion)
+            throw new InvalidDataException(
+                $"Private-world save schema {schemaVersion} is older than the minimum supported schema {MinimumSupportedStateSchemaVersion}.");
+    }
+
     private static SeededMap TravelMap(PrivateWorldRuntimeState state)
     {
-        var bridges = state.Bridges ?? [];
-        RiverBridgeRules.ValidateSaved(bridges, state.Map, state.RoadTiles ?? [], state.Society.Society.WorldTick);
-        var decks = RiverBridgeRules.Decks(bridges);
+        RiverBridgeRules.ValidateSaved(state.Bridges!, state.Map, state.RoadTiles!, state.Society.Society.WorldTick);
+        var decks = RiverBridgeRules.Decks(state.Bridges!);
         return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 
     private static void ValidateDeceasedArchive(
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
-        SeededMap map,
-        int schemaVersion)
+        SeededMap map)
     {
         var archived = archive.ToArray();
-        if (archived.Length > 0 && schemaVersion < 13)
-            throw new InvalidDataException("Deceased inhabitant archives require private-world schema 13.");
         if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
             throw new InvalidDataException("The deceased inhabitant archive contains duplicate identities.");
         var deceasedById = society.Inhabitants
@@ -406,17 +354,17 @@ public sealed partial class PrivateWorldRuntime
                 !map.IsPassable(person.LastPhysical.Position) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
-            ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
         }
     }
 
     private static void ValidatePrivateThoughts(
-        IReadOnlyList<PlaytestPrivateThought>? thoughts, int schemaVersion, long latestTick)
+        IReadOnlyList<PlaytestPrivateThought>? thoughts, long latestTick)
     {
         if (thoughts is null) return;
-        if (schemaVersion < 14 || thoughts.Count > MaximumRecentThoughts)
-            throw new InvalidDataException("The private-thought history version or size is invalid.");
+        if (thoughts.Count > MaximumRecentThoughts)
+            throw new InvalidDataException("The private-thought history exceeds its size limit.");
         long previousTick = -1;
         foreach (var thought in thoughts)
         {

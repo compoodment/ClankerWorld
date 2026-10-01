@@ -213,11 +213,6 @@ public sealed class TreeGrowthAndPlantingTests
         var saved = world.ExportState();
         var treeId = TreeGrowthRules.PlantedTreeId(site);
 
-        // Schema 26 predates planted trees, regardless of later schema additions.
-        Assert.StartsWith("Trees planted on new tiles require", Assert.Throws<InvalidDataException>(() =>
-            PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 26 })).Message,
-            StringComparison.Ordinal);
-
         // A planted tree must be a plantable species on legal ground.
         var orchardMap = saved.Map with
         {

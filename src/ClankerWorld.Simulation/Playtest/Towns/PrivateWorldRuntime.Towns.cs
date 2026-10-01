@@ -313,16 +313,4 @@ public sealed partial class PrivateWorldRuntime
         checkpointSchemaVersion = StateSchemaVersion;
     }
 
-    private static IReadOnlyList<TownRuntimeState> MigrateTowns(PrivateWorldRuntimeState state)
-    {
-        if (state.FounderSetup is not { } setup) return [];
-        if (!setup.Started && setup.FounderIds.Count == 0 && state.Map.CampObjects.Count == 0)
-            return [];
-        var active = state.Society.Society.Inhabitants
-            .Where(person => person.Status == SocietyInhabitantStatus.Active)
-            .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        var residents = setup.FounderIds.Where(active.Contains).ToArray();
-        return [TownBorderRules.CreateFirstTown(state.Map, residents, founded: setup.Started)];
-    }
-
 }

@@ -59,9 +59,9 @@ public sealed class RetiredBuildingTests
     }
 
     [Fact]
-    public async Task OldSaveKeepsRetiredBuildingsAndFinishesProjectsUnderWay()
+    public async Task CurrentCheckpointKeepsRetiredBuildingsAndFinishesProjectsUnderWay()
     {
-        using var seed = new PrivateWorldRuntime("retired-old-save", _ => new IdleProvider());
+        using var seed = new PrivateWorldRuntime("retired-current-save", _ => new IdleProvider());
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
@@ -82,12 +82,7 @@ public sealed class RetiredBuildingTests
         {
             Society = state.Society with
             {
-                Society = state.Society.Society with
-                {
-                    Inventory = inventory,
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person =>
-                        person with { Name = "sk-retired-private-name" }).ToArray(),
-                },
+                Society = state.Society.Society with { Inventory = inventory },
             },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == builder.InhabitantId ? person with
             {
@@ -114,58 +109,12 @@ public sealed class RetiredBuildingTests
             building.DefinitionId == shelter.CanonicalId && building.Position == shelterSite);
         Assert.Equal("working", world.Inhabitants.Single(person => person.InhabitantId == helper.InhabitantId).Project!.Stage);
 
-        var directory = Directory.CreateTempSubdirectory("retired-buildings-log-");
-        try
-        {
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using (var service = new PrivateWorldRuntimeService(world,
-                       new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")),
-                       new OwnerClientPresenceLease(TimeSpan.FromSeconds(30)), logger))
-            {
-                await service.StartAsync(CancellationToken.None);
-                await service.StopAsync(CancellationToken.None);
-            }
-            Assert.Contains(logger.Messages, message => message ==
-                $"retired_buildings tick={world.WorldTick} standing=1 projects=1 outcome=kept_not_offered");
-            Assert.DoesNotContain(logger.Messages, message => message.Contains("sk-retired-private-name", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
-
         for (var tick = 0; tick < 15 && !world.WorldSimulation.Buildings.Any(building =>
                  building.DefinitionId == storehouse.CanonicalId); tick++)
             await world.AdvanceOneTickAsync();
         Assert.Contains(world.WorldSimulation.Buildings, building =>
             building.DefinitionId == storehouse.CanonicalId && building.Position == storehouseSite);
         Assert.Equal("completed", world.Inhabitants.Single(person => person.InhabitantId == helper.InhabitantId).Project!.Stage);
-    }
-
-    [Fact]
-    public async Task FreshWorldLogsNothingAboutRetiredBuildings()
-    {
-        using var world = new PrivateWorldRuntime("retired-quiet", _ => new IdleProvider());
-        world.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++) await world.AdvanceOneTickAsync();
-        Assert.Contains(world.WorldContent.Buildings, RetiredBuildings.Contains);
-        var directory = Directory.CreateTempSubdirectory("retired-buildings-quiet-");
-        try
-        {
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using (var service = new PrivateWorldRuntimeService(world,
-                       new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")),
-                       new OwnerClientPresenceLease(TimeSpan.FromSeconds(30)), logger))
-            {
-                await service.StartAsync(CancellationToken.None);
-                await service.StopAsync(CancellationToken.None);
-            }
-            Assert.DoesNotContain(logger.Messages, message => message.StartsWith("retired_buildings", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
     }
 
     [Fact]

@@ -210,13 +210,12 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(withoutBuilding.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         // A Road bridge whose Road ends were lost, a missing bridge list, an
-        // older schema carrying bridges, or a deck over dry land is refused.
+        // or a deck over dry land is refused.
         PrivateWorldRuntimeState[] damaged =
         [
             state with { RoadTiles = state.RoadTiles!.Where(tile => tile != bridge.Entrances[1]).ToArray() },
             state with { Bridges = null },
             state with { BridgeTraffic = null },
-            state with { SchemaVersion = 27 },
             state with { Bridges = [bridge with { Span = [bridge.Entrances[0], bridge.Span[1]] }] },
         ];
         foreach (var item in damaged)

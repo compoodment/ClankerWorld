@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Content;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-/// <summary>First household-owned House design; legacy Shelter stays loadable for existing saves.</summary>
+/// <summary>First household-owned House design; the retired Shelter definition is not offered for new projects.</summary>
 public static class HouseContent
 {
     public const string PackageId = "clankerworld-house-v1";
