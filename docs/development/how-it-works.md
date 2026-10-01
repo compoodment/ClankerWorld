@@ -30,7 +30,7 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 - **A tick commits all its accepted changes together.** A tick is one step of
   world time. Rejected, cancelled or stale model work cannot leave a half-applied
   action. Pause and loss of authenticated client presence invalidate in-flight
-  work. A failed or low-confidence reply uses only explicit `safe_idle`;
+  work. A failed or unusable reply uses only explicit `safe_idle`;
   it cannot execute a strategic candidate or complete an instruction.
 - **Time and spending require presence.** The host remains reachable while
   paused. Ticks and hosted model calls require an authenticated presence lease;
@@ -155,9 +155,11 @@ is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
 
-The response must select a legal candidate. Confidence below 0.5 permits only
-the safe-idle fallback; probabilities are validated/retained but do not select
-the action. A current reply that names a candidate never offered to it, or has
+The response must select a legal candidate. Any finite confidence from 0 to 1
+is accepted; confidence does not veto the choice or a valid chosen name.
+The personal prompt asks for no probability map. Both parsers accept its
+absence; a supplied valid map is retained in the existing response format,
+but does not select the action. A current reply that names a candidate never offered to it, or has
 invalid response values such as confidence outside 0–1, also completes with
 safe idle instead of repeatedly spending calls on the same decision. A choice
 that was offered but is no longer legal stays stale; request, provider and run
@@ -166,6 +168,29 @@ A reply for a different request cannot cancel the agent's current pending choice
 or replace its last accepted intention.
 No adapter can turn provider prose directly into a world mutation.
 Jev has a separate, smaller routine payload; it is not a persona/dialogue adapter.
+
+Each queued decision makes one hosted attempt. Malformed replies, timeouts and
+transport failures do not trigger a repair call or an unstructured alternate
+request. Every billable attempt is reserved in the durable usage store before
+HTTP; an absent key or exhausted limit sends no request. Future world decisions
+still follow the normal reevaluation rules. The separate, explicitly agreed
+duplicate-name request in [#456](https://github.com/compoodment/ClankerWorld/issues/456)
+is not a repair of an action reply.
+
+The owner agent card reports a bounded model status: ready, waiting, canceled,
+missing key, limit reached, unusable reply, timed out or unavailable. The latest
+attempt and last accepted model choice are saved separately, so safe-idle
+fallback does not erase the previous accepted choice. Pause/disconnect records
+cancellation; refreshed views and current-format reload preserve it. Exception
+messages, provider bodies and keys do not enter these fields.
+
+The personal adapter sends JSON-object response mode and omits temperature and
+output-token limits. The owner's 16-call sample in
+[#457](https://github.com/compoodment/ClankerWorld/issues/457) used 44,285 output
+tokens (about 2,768 per call), nearly its 43,576 input tokens. This does not
+establish a safe universal output cap, so the cap stays unset; output billing
+and truncation remain model-dependent. There is no smaller candidate list or
+wider Jev role in this change.
 
 Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
@@ -207,6 +232,17 @@ other model, possibly a costlier one, is chosen for them. An existing or
 hand-picked model the key can't use stays shown, greyed, with the same request.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
+
+**Test model** is a separate owner action in Add Agent and an agent's Model
+panel. It sends one request through the same OpenAI-compatible personal
+decision adapter used in play, including the required JSON response format.
+It sends no temperature or output-token limit. The host durably reserves a
+paid-call allowance before sending; every result after that point, including a
+timeout or rejected format, counts as one attempt. The check never tries an
+alternate request format, changes provider settings, or saves a pasted key.
+The response contains only a bounded result such as ready, missing key, usage
+limit, unsupported format, timed out, unavailable, or unusable reply. It does
+not include provider error text or response bodies.
 
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and

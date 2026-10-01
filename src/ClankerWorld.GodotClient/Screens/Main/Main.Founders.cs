@@ -166,6 +166,7 @@ public partial class Main
         founderProviderChoice.ItemSelected += _ =>
         {
             founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
+            ClearFounderModelSetupCheck();
             PopulateFounderCredentials();
         };
         body.AddChild(founderProviderChoice);
@@ -173,6 +174,7 @@ public partial class Main
         // The key comes before the model, since the key decides which models are offered.
         founderCredentialChoice.ItemSelected += _ =>
         {
+            ClearFounderModelSetupCheck();
             RenderFounderCredentialInputs();
             RequestFounderModels();
         };
@@ -186,7 +188,16 @@ public partial class Main
 
         founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
+        founderModelPicker.ModelChanged += ClearFounderModelSetupCheck;
         body.AddChild(founderModelPicker);
+        founderModelSetupCheckButton.Text = "Test model · 1 paid call";
+        founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(founderModelSetupCheckButton);
+        founderModelSetupCheckButton.Pressed += () => _ = RunFounderModelSetupCheckAsync();
+        body.AddChild(founderModelSetupCheckButton);
+        founderModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        founderModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(founderModelSetupCheckStatus);
         // Placement hints wrap differently as the pointer crosses the map.
         // Keep them after the fields so those click targets never move.
         body.AddChild(founderSetupHint);
@@ -211,6 +222,7 @@ public partial class Main
 
     private void PopulateFounderCredentials()
     {
+        ClearFounderModelSetupCheck();
         founderCredentialChoice.Clear();
         founderCredentialChoice.AddItem("Default key for this provider");
         founderCredentialChoice.SetItemMetadata(0, "default");

@@ -67,6 +67,13 @@ You can save both providers' keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 
+To check a selected model, press **Test model · 1 paid call** in Add Agent or
+an agent's Model panel. This sends one real request and counts toward the
+installation's paid-call limit, even if the provider times out or rejects it.
+A key pasted for this check is not saved. The result tells you whether the
+provider returned a reply the game can use; it does not show provider error
+details.
+
 ## Look around
 
 Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
