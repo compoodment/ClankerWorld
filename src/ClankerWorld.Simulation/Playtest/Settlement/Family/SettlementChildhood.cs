@@ -28,6 +28,8 @@ public sealed partial class PrivateWorldRuntime
             candidate.StartsWith("child_converse:", StringComparison.Ordinal) ||
             candidate.StartsWith("child_play:", StringComparison.Ordinal) ||
             candidate.StartsWith("child_learn:", StringComparison.Ordinal) ||
+            candidate.StartsWith("talk:", StringComparison.Ordinal) ||
+            candidate.StartsWith("conversation_", StringComparison.Ordinal) ||
             candidate == "child_help_food";
     }
 
