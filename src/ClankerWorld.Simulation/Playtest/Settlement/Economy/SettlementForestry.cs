@@ -234,6 +234,7 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .ToHashSet();
         return (buildings, occupied);
     }

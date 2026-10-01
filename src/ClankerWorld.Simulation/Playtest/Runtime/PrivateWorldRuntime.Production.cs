@@ -22,6 +22,7 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat(fields.Select(field => field.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -229,6 +230,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat(fields.Select(field => field.Position))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)

@@ -179,7 +179,7 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
             inventory,
             $"food:harvest:{WorldTick:D10}:{inhabitantId}",
-            source.Kind == "fruit" ? "fruit" : "food",
+            source.Kind == "fruit" ? "fruit" : source.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries",
             inhabitantId,
             harvestYield,
             WorldTick));
@@ -207,12 +207,13 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Contains(tag, StringComparer.Ordinal)))
         .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
 
-    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.StorageBuildingId is { } buildingId
+    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
+        : lot.StorageBuildingId is { } buildingId
         ? worldSimulation.Buildings.Single(building => building.InstanceId == buildingId).Position
         : SettlementStoragePosition;
 
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
-        lot.StorageBuildingId is null ? ResourceInteractionRange : 0;
+        lot.StorageBuildingId is null && lot.GroundPosition is null ? ResourceInteractionRange : 0;
 
     private InventoryLot? AvailableSharedFood(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && MayCollectSharedFood(actor)
@@ -253,7 +254,13 @@ public sealed partial class PrivateWorldRuntime
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, inhabitantId, lot.Id, 1));
         inhabitants[inhabitantId] = state with
         {
-            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + 3_000),
+            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + (lot.ItemKind switch
+            {
+                "berries" => 2_000,
+                "wild_greens" => 1_500,
+                "cultivated_greens" => 4_000,
+                _ => 3_000,
+            })),
             Survival = AfterMeal(state, lot)
         };
         AppendEvent("food_consumed", inhabitantId);

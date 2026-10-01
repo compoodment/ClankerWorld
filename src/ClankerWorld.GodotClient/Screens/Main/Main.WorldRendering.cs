@@ -115,6 +115,8 @@ public partial class Main
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
         terrainLayer.SetBridges(snapshot.Bridges);
+        terrainLayer.SetFields(snapshot.Fields);
+        worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);

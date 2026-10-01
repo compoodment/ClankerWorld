@@ -117,8 +117,8 @@ public sealed partial class PrivateWorldRuntime
                  package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
                 package.ActivationTick is not null) != true ||
             staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
-                resource.Kind is not ("stone" or "fiber" or "seed") ||
-                resource.IsRenewable != (resource.Kind is "fiber" or "seed") ||
+                resource.Kind is not ("stone" or "fiber" or "grain_seed") ||
+                resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed") ||
                 !baseline.IsBuildable(resource.Position))))
             return false;
         if (planted.Length > 0 && (state.SchemaVersion < PlantedTreeSchemaVersion ||
@@ -279,6 +279,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddSettlementResources()
     {
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
@@ -288,7 +289,7 @@ public sealed partial class PrivateWorldRuntime
         var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
             ChunkRules.ToChunkCoordinate(townStorage, chunk.ChunkSize));
         var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
-        foreach (var kind in new[] { "stone", "fiber", "seed" })
+        foreach (var kind in new[] { "stone", "fiber", "grain_seed" })
         {
             var id = "settlement-" + kind;
             if (map.Resources.Any(resource => resource.Id == id))
@@ -306,7 +307,7 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("settlement_resource_blocked", kind);
                 continue;
             }
-            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "seed"));
+            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "grain_seed"));
             occupied.Add(tile.Position);
         }
         if (additions.Count == 0)

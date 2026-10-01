@@ -35,6 +35,7 @@ public partial class WorldTerrainLayer : Control
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
+    private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
     private static readonly Color[] HouseholdPropertyColors =
     [
         new("4DC7B9"), new("9D89DF"), new("6AA6E8"), new("E69D70"),
@@ -90,6 +91,7 @@ public partial class WorldTerrainLayer : Control
         trees = new byte[checked(map.Width * map.Height)];
         naturalObjects = new byte[checked(map.Width * map.Height)];
         campResources.Clear();
+        fields.Clear();
         naturalStages = new byte[checked(map.Width * map.Height)];
         weatherRegions.Clear();
         HasActiveWeather = false;
@@ -116,6 +118,36 @@ public partial class WorldTerrainLayer : Control
         HasActiveWeather = weatherRegions.Values.Any(weather => weather is "rain" or "storm" or "snow");
         WeatherVersion++;
         QueueRedraw();
+    }
+
+    public void SetFields(IReadOnlyList<OwnerWorldFarmField> next)
+    {
+        var indexed = next.ToDictionary(field => new Vector2I(field.Position.X, field.Position.Y));
+        if (indexed.Count == fields.Count && indexed.All(entry => fields.TryGetValue(entry.Key, out var prior) && prior == entry.Value)) return;
+        fields.Clear();
+        foreach (var entry in indexed) fields.Add(entry.Key, entry.Value);
+        QueueRedraw();
+    }
+
+    private void DrawFields((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                if (!fields.TryGetValue(new(wrapsEastWest ? Mod(x, world!.Width) : x, y), out var field)) continue;
+                var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
+                DrawRect(tile, new Color(field.Stage == "preparing" ? "84765D" : "654931"));
+                if (tileSize >= 8)
+                    for (var row = 1; row <= 3; row++)
+                        DrawLine(tile.Position + new Vector2(1, tileSize * row / 4f),
+                            tile.Position + new Vector2(tileSize - 1, tileSize * row / 4f), new Color("9B7149"), Math.Max(1, tileSize / 24f));
+                if (field.Stage is not ("planted" or "growing" or "ready")) continue;
+                var color = new Color(field.Stage == "ready" && field.Crop == "grain" ? "D9BD57" : "67A847");
+                var radius = Math.Max(1, tileSize * (field.Stage == "planted" ? 0.04f : 0.1f));
+                for (var row = 1; row <= 2; row++)
+                    for (var column = 1; column <= 2; column++)
+                        DrawCircle(tile.Position + new Vector2(tileSize * column / 3f, tileSize * row / 3f), radius, color);
+            }
     }
 
     public void SetTownBorders(IReadOnlyList<OwnerWorldTown> towns)
@@ -449,6 +481,7 @@ public partial class WorldTerrainLayer : Control
                 }
             }
         }
+        DrawFields(bounds, stride);
         DrawRoads(bounds, stride);
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);

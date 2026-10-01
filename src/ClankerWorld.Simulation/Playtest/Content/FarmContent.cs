@@ -25,9 +25,9 @@ public static class FarmContent
         RecipeDefinition[] recipes =
         [
             new(digest, "universal-grain-field", version, "Grow universal grain",
-                [new("seed", 1)], [new("grain", 6), new("seed", 2)], 60, null, ["crop", "grain"]),
+                [new("grain_seed", 1)], [new("grain", 6), new("grain_seed", 2)], 60, null, ["crop", "grain"]),
             new(digest, "mill-grain", version, "Mill grain into flour",
-                [new("grain", 4)], [new("flour", 3)], 20, farmhouse.CanonicalId, ["grain-processing"]),
+                [new("grain", 1)], [new("flour", 1)], 20, farmhouse.CanonicalId, ["grain-processing"]),
         ];
         return StarterContent.BuildManifest(PackageId, version, digest, [farmhouse], recipes,
             [new ContentDependency(HouseContent.PackageId,
@@ -35,5 +35,5 @@ public static class FarmContent
     }
 
     private static string PackageDigest() => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes("clankerworld-farm-v1:1.0.0:farmhouse-grain-flour")));
+        Encoding.UTF8.GetBytes("clankerworld-farm-v1:1.0.0:tile-fields-named-planting-grain-flour")));
 }

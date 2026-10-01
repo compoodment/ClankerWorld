@@ -324,6 +324,8 @@ public sealed partial class PrivateWorldRuntime
             }
             if (recipe.Outputs.Any(output => output.ResourceId == "bedding"))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Bedding production was retired with sleep.");
+            if (recipe.IsCrop)
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Prepare and work a tilled field for crops; workstation production cannot grow them.");
 
             GridPoint workPosition;
             var isFertileLandBuild = recipe.IsCrop && recipe.WorkstationBuildingId is null;

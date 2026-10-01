@@ -29,6 +29,8 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
+            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical))
+                continue;
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
@@ -203,6 +205,7 @@ public sealed partial class PrivateWorldRuntime
                 ContinueLesson(inhabitant.Id);
                 continue;
             }
+            if (ContinueFarmWork(inhabitant.Id)) continue;
             if (CanContinueProject(state))
             {
                 ContinueProject(inhabitant.Id, state);
@@ -297,6 +300,12 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
         }
+        if (ContinueFarmWork(inhabitantId)) return;
+        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
+        {
+            ApplyFieldCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("child_", StringComparison.Ordinal))
         {
             ApplyChildCandidate(inhabitantId, state, candidateId);
@@ -372,10 +381,10 @@ public sealed partial class PrivateWorldRuntime
             DeliverBlacksmithOre(inhabitantId, state);
             return;
         }
-        if (candidateId == "collect_wooden_axe" || candidateId == "collect_wooden_pickaxe")
+        if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
             CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : "wooden_pickaxe");
+                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
@@ -633,6 +642,7 @@ public sealed partial class PrivateWorldRuntime
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
             AddFarmGrainCandidate(candidates, inhabitantId, state);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
+            AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
@@ -660,11 +670,9 @@ public sealed partial class PrivateWorldRuntime
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the
         // household holds or a communal one (see TryFindRecipeSite).
-        var canGrow = inhabitant.HouseholdId is { } farmingHousehold &&
-            HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     (!item.IsCrop || canGrow)))
+                     !item.IsCrop))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
             {
