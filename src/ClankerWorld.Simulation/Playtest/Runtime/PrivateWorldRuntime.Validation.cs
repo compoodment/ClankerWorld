@@ -175,7 +175,9 @@ public sealed partial class PrivateWorldRuntime
         if (town.BorderTiles.Any(point => !map.Contains(point)) ||
             town.OriginSite is { } site && !border.Contains(site) ||
             town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
-                WorldContentSimulationRules.Footprint(definition, byInstance[id]).Any(tile => !border.Contains(tile))))
+                (PortNavigationRules.IsPort(definition)
+                    ? PortNavigationRules.Geometry(map, definition, byInstance[id].Position).LandTiles
+                    : WorldContentSimulationRules.Footprint(definition, byInstance[id])).Any(tile => !border.Contains(tile))))
             throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
     }
 

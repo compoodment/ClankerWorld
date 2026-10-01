@@ -193,7 +193,9 @@ public static class TownLayoutService
         if (neighborDistance > TownLayoutContext.NeighborReach)
             return false;
         if (context.Town is { } town &&
-            !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))
+            (port ? !PortNavigationRules.Geometry(map, definition, position).LandTiles.All(tile =>
+                TownBorderRules.IsWithinOrAdjacent(town, tile, 1, 1)) :
+                !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height)))
             return false;
         var workPosition = port ? PortNavigationRules.Geometry(map, definition, position).WorkPosition : position;
         if (!context.ReachableFootCosts.TryGetValue(workPosition, out var routeCost))

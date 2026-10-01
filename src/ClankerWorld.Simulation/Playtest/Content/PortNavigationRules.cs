@@ -17,12 +17,12 @@ public static class PortNavigationRules
 {
     public static bool IsPort(BuildingDefinition definition) => definition.Tags.Contains("port", StringComparer.Ordinal);
 
-    public static PortFacing Facing(BuildingDefinition definition) => definition.Tags.FirstOrDefault(tag => tag.StartsWith("port-facing:", StringComparison.Ordinal)) switch
+    public static PortFacing Facing(BuildingDefinition definition) => definition.Tags.FirstOrDefault(tag => tag.StartsWith("port-facing-", StringComparison.Ordinal)) switch
     {
-        "port-facing:north" => PortFacing.North,
-        "port-facing:east" => PortFacing.East,
-        "port-facing:south" => PortFacing.South,
-        "port-facing:west" => PortFacing.West,
+        "port-facing-north" => PortFacing.North,
+        "port-facing-east" => PortFacing.East,
+        "port-facing-south" => PortFacing.South,
+        "port-facing-west" => PortFacing.West,
         _ => throw new InvalidDataException("The Port must save one of its four cardinal orientations."),
     };
 

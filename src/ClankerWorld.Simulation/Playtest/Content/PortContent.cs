@@ -19,7 +19,7 @@ public static class PortContent
         var buildings = directions.Select(direction => new BuildingDefinition(digest,
             "port-" + direction, version, "Port (" + direction + ")",
             direction is "east" or "west" ? 4 : 2, direction is "east" or "west" ? 2 : 4,
-            1, [new("wood", 16), new("stone", 4)], ["port", "boat-building", "port-facing:" + direction])).ToArray();
+            1, [new("wood", 16), new("stone", 4)], ["port", "boat-building", "port-facing-" + direction])).ToArray();
         var recipes = buildings.Select(building => new RecipeDefinition(digest,
             "small-boat-" + directions[Array.IndexOf(buildings, building)], version, "Build a communal boat",
             [new("wood", 8), new("rope", 2), new("iron", 2)], [new(BoatOutputKind, 1)], 48,
