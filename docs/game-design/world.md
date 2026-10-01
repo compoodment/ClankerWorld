@@ -334,7 +334,11 @@ a journey, return to the departure Port when it is usable. Otherwise the boat
 and traveler wait safely, keeping their carried goods together until a safe
 return or arrival becomes possible.
 
-Who grants a visitor permission remains to decide. Exact recipes, costs,
+**Agreed on October 1, 2026
+([#411](https://github.com/compoodment/ClankerWorld/issues/411)):** a visitor
+may use a Town's boat when its Council votes to allow it. A Town may also adopt
+a standing law that grants that permission, using the same Council process.
+Exact recipes, costs,
 travel speed and queueing remain open for implementation and playtesting.
 Later transport inventions do not silently change this first-stage Port rule.
 
@@ -363,6 +367,21 @@ groves are, and how far and how high the hill band around mountains reaches.
 The generator uses provisional values for these
 ([How it works](../development/how-it-works.md#terrain-layers-sand-groves-and-hills));
 they become decisions only after computment reviews generated maps.
+
+**Agreed on October 1, 2026
+([#628](https://github.com/compoodment/ClankerWorld/issues/628)):** mountains
+generate as **a few large massifs** instead of many small patches, because a
+mountain should read as one whole landform. Each massif has a centre, a long
+axis and a size, so it reads as a range rather than a round blob. Small leftover
+patches are flattened, peaks form each massif's crest, and the hill band around
+it widens with the massif's size. This replaces the earlier rule that the
+generator imposes no minimum mountain patch size. The agreed **5–12% mountain**
+target for Balanced Normal worlds is unchanged. The number of massifs (for
+example 1–2 on Small and 2–4 on Medium), their minimum size and how far hills
+reach stay provisional until computment reviews generated maps. Hills keep
+today's grass walking cost for now. A start far from stone may need a rule
+that keeps stone within reach of the first Town; that is checked when the
+generator is built.
 
 **Suggestion river-generation approach, not yet a locked algorithm:** generate
 elevation and long-run rainfall, route water downhill toward coasts or inland

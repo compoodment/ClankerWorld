@@ -471,8 +471,12 @@ and invented content are not silently approved. In particular:
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
   Market's main building is **2×2** with separate **1×1 stalls** and an
-  approximately **10×12 clear stall-reservation area**. Town Hall is
-  **3×4**. These are building/plot footprints, not interior rooms.
+  approximately **10×12 clear stall-reservation area**. **Agreed on
+  October 1, 2026:** a new Market comes with a starter set of stalls; more
+  stalls are built later as Town building projects inside that area, using
+  Town stock and labour like other Town buildings. The size of the starter
+  set stays provisional. Town Hall is **3×4**. These are building/plot
+  footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. A legal land
