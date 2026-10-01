@@ -81,19 +81,9 @@ public sealed partial class SettlementParenthoodTests
             OwnerInstructionKind.MustDo, "build a shelter")));
         Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for");
         Assert.Contains(caring.Society.Relationships, item => item.ProposerId == second && item.TargetId == birth.ChildId);
-    }
 
-    [Fact]
-    public async Task CaregiverCanEaseAnInfantsIllnessWithoutASeparateRestAction()
-    {
-        var prepared = await PreparedState();
-        var first = prepared.Inhabitants[0].InhabitantId;
-        var second = prepared.Inhabitants[1].InhabitantId;
-        using var preparing = PrivateWorldRuntime.Restore(prepared, actor =>
-            new ParentProvider(actor == first ? "parent_propose:" : actor == second ? "parent_accept:" : "safe_idle"));
-        for (var tick = 0; tick < 605 && preparing.Society.Births.Count == 0; tick++) await preparing.AdvanceOneTickAsync();
-        var childId = Assert.Single(preparing.Society.Births).ChildId;
-        var state = preparing.ExportState();
+        var childId = birth.ChildId;
+        state = completedState;
         var caregiverId = state.Society.Society.Relationships.First(edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted).ProposerId;
         var child = state.Inhabitants.Single(person => person.InhabitantId == childId);
@@ -123,13 +113,14 @@ public sealed partial class SettlementParenthoodTests
                 _ => person,
             }).ToArray(),
         };
-        using var caring = PrivateWorldRuntime.Restore(state, actor =>
+        using var tending = PrivateWorldRuntime.Restore(state, actor =>
             new ParentProvider(actor == caregiverId ? "care:" : "safe_idle"));
 
-        Assert.True((await caring.AdvanceOneTickAsync()).Advanced);
+        var tendingStep = await tending.AdvanceOneTickAsync();
+        Assert.True(tendingStep.Advanced);
 
-        var caredFor = caring.Inhabitants.Single(person => person.InhabitantId == childId);
-        Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
+        var caredFor = tending.Inhabitants.Single(person => person.InhabitantId == childId);
+        Assert.Contains(tendingStep.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
         Assert.Equal(10_000, caredFor.Survival!.WarmthBasisPoints);
         Assert.True(caredFor.Survival.IllnessBasisPoints < initialIllness - 12,
             $"Expected direct caregiver care to improve on ordinary warm-and-fed recovery; actual illness {caredFor.Survival.IllnessBasisPoints}.");

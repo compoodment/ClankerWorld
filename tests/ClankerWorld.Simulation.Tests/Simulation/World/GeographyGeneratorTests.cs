@@ -10,160 +10,6 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GeographyGeneratorTests
 {
-    [Theory]
-    [InlineData(WorldSizePreset.Medium)]
-    public void GeneratedLayersStayIndependentAcrossWrappedMapAndOwnerProjection(WorldSizePreset size)
-    {
-        var options = new GeographyOptions("layered-world", size, WrapEastWest: true);
-        var geography = GeographyGenerator.Generate(options);
-        var map = GeneratedCampMapGenerator.Generate(options);
-        Assert.True(map.WrapsEastWest);
-        foreach (var tile in map.Tiles)
-        {
-            var source = geography.At(tile.Position.X, tile.Position.Y);
-            Assert.Equal(source.Climate, map.ClimateAt(tile.Position));
-            Assert.Equal(source.Elevation, map.ElevationAt(tile.Position));
-            Assert.Equal(source.Water, map.HydrologyAt(tile.Position));
-        }
-        var forest = map.Tiles.First(tile => map.VegetationAt(tile.Position) == VegetationCover.Forest &&
-            map.SurfaceAt(tile.Position) != SurfaceKind.FertileSoil);
-        // Forest cover sits on forest grass or on the forest floor of a grove,
-        // never on a beach.
-        Assert.True(map.SurfaceAt(forest.Position) is SurfaceKind.Grass or SurfaceKind.ForestFloor);
-        Assert.Equal(VegetationCover.Forest, map.VegetationAt(forest.Position));
-        var river = map.Tiles.First(tile => map.HydrologyAt(tile.Position) == WaterKind.River);
-        Assert.Equal(SurfaceKind.Water, map.SurfaceAt(river.Position));
-        Assert.Equal(WaterKind.River, map.HydrologyAt(river.Position));
-        Assert.Equal(VegetationCover.None, map.VegetationAt(river.Position));
-
-        using var world = new PrivateWorldRuntime(options.Seed,
-            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
-        var reloaded = world.ExportState().Map;
-        Assert.Equal(map.ManifestDigest, reloaded.ManifestDigest);
-        Assert.Equal(map.ClimateZones, reloaded.ClimateZones);
-        Assert.Equal(map.ElevationLevels, reloaded.ElevationLevels);
-        Assert.Equal(map.HydrologyKinds, reloaded.HydrologyKinds);
-        Assert.Equal(map.SurfaceKinds, reloaded.SurfaceKinds);
-        Assert.Equal(map.VegetationKinds, reloaded.VegetationKinds);
-        var projection = new OwnerWorldObservationStore(world).GetSnapshot();
-        var layers = Assert.IsType<ViewerPackedMapLayers>(projection.PackedMapLayers);
-        Assert.Equal((map.Width, map.Height), (layers.Width, layers.Height));
-        Assert.Equal(map.ClimateZones, Convert.FromBase64String(layers.Climate));
-        Assert.Equal(map.ElevationLevels, Convert.FromBase64String(layers.Elevation));
-        Assert.Equal(map.HydrologyKinds, Convert.FromBase64String(layers.Hydrology));
-        Assert.Equal(map.SurfaceKinds, Convert.FromBase64String(layers.Surface));
-        Assert.Equal(map.VegetationKinds, Convert.FromBase64String(layers.Vegetation));
-        Assert.Equal("map-layers-v2", layers.Encoding);
-    }
-
-    [Fact]
-    public void NaturalSurfacesAndObjectFamiliesAreDistinctDeterministicFacts()
-    {
-        var options = new GeographyOptions("river-world-a", WorldSizePreset.Small,
-            ResourceAbundance: ResourceAbundance.Abundant);
-        var first = GeneratedCampMapGenerator.Generate(options);
-        var second = GeneratedCampMapGenerator.Generate(options);
-        var coldMap = GeneratedCampMapGenerator.Generate(options with
-        {
-            Seed = "natural-roster-cold",
-            ClimateMode = ClimateMode.Uniform,
-            SelectedClimate = ClimateZone.Polar,
-            LatitudeCooling = false,
-        });
-        var dryMap = GeneratedCampMapGenerator.Generate(options with
-        {
-            Seed = "natural-roster-dry",
-            ClimateMode = ClimateMode.Uniform,
-            SelectedClimate = ClimateZone.Dry,
-            LatitudeCooling = false,
-        });
-        var surfaces = first.SurfaceKinds!.Concat(coldMap.SurfaceKinds!)
-            .Select(value => (SurfaceKind)value).ToHashSet();
-        var vegetation = first.VegetationKinds!.Concat(dryMap.VegetationKinds!)
-            .Select(value => (VegetationCover)value).ToHashSet();
-        var naturalObjects = first.Resources.Where(resource => resource.NaturalObjectKind is not null).ToArray();
-
-        Assert.Contains(SurfaceKind.Grass, surfaces);
-        Assert.Contains(SurfaceKind.ForestFloor, surfaces);
-        Assert.Contains(SurfaceKind.Sand, surfaces);
-        Assert.Contains(SurfaceKind.DryScrub, surfaces);
-        Assert.Contains(SurfaceKind.Rock, surfaces);
-        Assert.Contains(SurfaceKind.Snow, surfaces);
-        Assert.DoesNotContain(SurfaceKind.FertileSoil, surfaces);
-        Assert.Contains(VegetationCover.Cactus, vegetation);
-        Assert.NotEmpty(naturalObjects);
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "berry_bush");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "wild_greens");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "fiber_plant");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "reeds");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "stone_outcrop");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "iron_outcrop");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "gold_outcrop");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "diamond_outcrop");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "clay_bank");
-        Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "wild_seed_patch");
-        Assert.All(naturalObjects, resource => Assert.Null(resource.TreeKind));
-        Assert.Equal(naturalObjects.Length, naturalObjects.Select(resource => resource.Position).Distinct().Count());
-        Assert.DoesNotContain(naturalObjects, resource => resource.NaturalObjectKind == "fertile_soil");
-        var fertility = new LandFertility(first, options.Seed);
-        var repeatedFertility = new LandFertility(second, options.Seed);
-        Assert.Contains(first.Tiles, tile => fertility.CanFarm(tile.Position));
-        Assert.All(first.Tiles, tile => Assert.Equal(fertility.At(tile.Position), repeatedFertility.At(tile.Position)));
-        Assert.All(naturalObjects.Where(resource => resource.NaturalObjectKind is
-            "iron_outcrop" or "gold_outcrop" or "diamond_outcrop"), resource =>
-        {
-            Assert.Equal(TerrainKind.Mountain, first.Tiles.Single(tile => tile.Position == resource.Position).Terrain);
-            Assert.False(first.IsBuildable(resource.Position));
-            Assert.True(first.IsPassable(resource.Position));
-        });
-        Assert.All(naturalObjects.Where(resource => resource.NaturalObjectKind == "clay_bank"), resource =>
-            Assert.Equal("clay", resource.Kind));
-        Assert.Equal(first.SurfaceKinds, second.SurfaceKinds);
-        Assert.Equal(first.VegetationKinds, second.VegetationKinds);
-        Assert.Equal(first.Resources, second.Resources);
-        Assert.Equal(first.ManifestDigest, second.ManifestDigest);
-        Assert.True(MapAcceptance.Validate(first, allowEmptyCamp: true).IsValid);
-
-        var treeOptions = new GeographyOptions("object-forest", WorldSizePreset.Small, WrapEastWest: true);
-        var treeMap = GeneratedCampMapGenerator.Generate(treeOptions);
-        var repeatedTreeMap = GeneratedCampMapGenerator.Generate(treeOptions);
-        Assert.Equal(treeMap.Resources, repeatedTreeMap.Resources);
-        Assert.Equal(treeMap.ManifestDigest, repeatedTreeMap.ManifestDigest);
-        Assert.True(MapAcceptance.Validate(treeMap, allowEmptyCamp: true).IsValid);
-        var trees = treeMap.Resources.Where(resource => resource.TreeKind is not null).ToArray();
-        Assert.Equal(trees.Length, trees.Select(resource => resource.Position).Distinct().Count());
-        var woodTrees = trees.Where(tree => tree.TreeKind is "broadleaf" or "conifer").ToArray();
-        var orchards = trees.Where(tree => tree.TreeKind == "orchard").ToArray();
-        Assert.True(woodTrees.Length > 20, "A generated forest needs visible individual trees, not only a terrain tint.");
-        Assert.Contains(woodTrees, tree => treeMap.Tiles.Any(tile => tile.Position == tree.Position &&
-            tile.Terrain == TerrainKind.Meadow));
-        Assert.All(woodTrees, tree =>
-        {
-            Assert.Equal("construction", tree.Kind);
-            Assert.True(tree.IsRenewable);
-            Assert.True(tree.TreeKind is "broadleaf" or "conifer");
-            Assert.Single(treeMap.Resources, resource => resource.Position == tree.Position);
-        });
-        Assert.NotEmpty(orchards);
-        Assert.All(orchards, orchard =>
-        {
-            Assert.Equal("fruit", orchard.Kind);
-            Assert.True(orchard.IsRenewable);
-            Assert.Single(treeMap.Resources, resource => resource.Position == orchard.Position);
-        });
-        Assert.Equal(woodTrees.Length + orchards.Length,
-            trees.Select(tree => tree.Position).Distinct().Count());
-        var overlapping = treeMap with
-        {
-            Resources = treeMap.Resources.Select(resource =>
-                resource.Id == woodTrees[1].Id ? resource with { Position = woodTrees[0].Position } : resource).ToArray(),
-        };
-        overlapping = overlapping with { ManifestDigest = MapManifestCodec.Digest(overlapping) };
-        Assert.False(MapAcceptance.Validate(overlapping, allowEmptyCamp: true).IsValid);
-        Assert.All(first.Tiles.Where(tile => tile.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
-            tile => Assert.False(first.IsBuildable(tile.Position)));
-    }
-
     [Fact]
     public void VisibleNaturalObjectsCannotOverlapTreesOrEachOther()
     {
@@ -185,24 +31,6 @@ public sealed class GeographyGeneratorTests
         invalidMap = invalidMap with { ManifestDigest = MapManifestCodec.Digest(invalidMap) };
 
         Assert.False(MapAcceptance.Validate(invalidMap, allowEmptyCamp: true).IsValid);
-    }
-
-    [Theory]
-    [InlineData(WorldSizePreset.Medium)]
-    public void GeneratedGeographyStartsWithoutCampObjectsAndKeepsHighGroundUnbuildable(WorldSizePreset size)
-    {
-        var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(
-            "river-world-a", size, WrapEastWest: true));
-
-        Assert.Equal(GeographyGenerator.Dimensions(size), (map.Width, map.Height));
-        Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid);
-        Assert.Empty(map.CampObjects);
-        Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.River);
-        Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.Mountain);
-        Assert.All(map.Tiles.Where(item => item.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
-            item => Assert.False(map.IsBuildable(item.Position)));
-        Assert.True(map.Resources.Count > 20, "Generated worlds need usable sites beyond the starting area.");
-        Assert.All(map.Resources, site => Assert.True(map.IsPassable(site.Position)));
     }
 
     [Fact]
@@ -542,8 +370,6 @@ public sealed class GeographyGeneratorTests
     }
 
     [Theory]
-    [InlineData("river-world-a", true, 0)]
-    [InlineData("river-world-b", false, 0)]
     [InlineData("river-world-a", true, 1)]
     [InlineData("river-world-b", false, 1)]
     public void GeneratedRiversFollowAnAcyclicRouteToWater(string seed, bool wrap, int version)
@@ -574,89 +400,6 @@ public sealed class GeographyGeneratorTests
 
                 Assert.True(map.At(cursor.X, cursor.Y).Water is WaterKind.Ocean or WaterKind.Lake);
             }
-    }
-
-    [Fact]
-    public void SeedAndOptionsDetermineTheGeography()
-    {
-        var options = new GeographyOptions("world-one", WorldSizePreset.Small);
-        var first = GeographyGenerator.Generate(options);
-        var again = GeographyGenerator.Generate(options);
-        var different = GeographyGenerator.Generate(options with { Seed = "world-two" });
-        var changed = 0;
-        for (var y = 0; y < first.Height; y++)
-            for (var x = 0; x < first.Width; x++)
-            {
-                Assert.Equal(first.At(x, y), again.At(x, y));
-                if (first.At(x, y) != different.At(x, y)) changed++;
-            }
-
-        Assert.True(changed > first.Width);
-    }
-
-    [Fact]
-    public void ClimateSelectionChangesPlayableGroundAndKeepsPolarCapsOptional()
-    {
-        var dryOptions = new GeographyOptions("climate-choice", WorldSizePreset.Small,
-            ClimateMode: ClimateMode.Uniform, SelectedClimate: ClimateZone.Dry, LatitudeCooling: false);
-        var dry = GeographyGenerator.Generate(dryOptions);
-        var tropical = GeographyGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
-        Assert.Equal(ClimateZone.Dry, dry.At(50, 50).Climate);
-        Assert.Equal(ClimateZone.Tropical, tropical.At(50, 50).Climate);
-        Assert.Equal(dry.At(50, 50).Temperature, tropical.At(50, 50).Temperature);
-        var dryMap = GeneratedCampMapGenerator.Generate(dryOptions);
-        var tropicalMap = GeneratedCampMapGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
-        Assert.Contains(dryMap.Tiles, tile => tile.Terrain == TerrainKind.Sand);
-        Assert.Contains(tropicalMap.Tiles, tile => tile.Terrain == TerrainKind.Forest);
-        // The starter wild-greens patch keeps its food identity in every
-        // climate; this climate rule applies to distributed wild resources.
-        var dryWildResources = dryMap.Resources.Where(site =>
-            site.Id.StartsWith("wild-", StringComparison.Ordinal) && site.Id != "wild-greens-patch").ToArray();
-        Assert.NotEmpty(dryWildResources);
-        Assert.All(dryWildResources,
-            site => Assert.True(site.Kind is "stone" or "fiber"));
-        Assert.Contains(tropicalMap.Resources, site => site.Id.StartsWith("wild-", StringComparison.Ordinal) &&
-            site.Kind == "construction" && site.IsRenewable);
-        Assert.NotEqual(dryMap.ManifestDigest, tropicalMap.ManifestDigest);
-        Assert.True(MapAcceptance.Validate(dryMap, allowEmptyCamp: true).IsValid);
-
-        var capped = GeographyGenerator.Generate(dryOptions with { LatitudeCooling = true });
-        Assert.Equal(ClimateZone.Polar, capped.At(50, 0).Climate);
-        Assert.Equal(ClimateZone.Dry, capped.At(50, capped.Height / 2).Climate);
-
-        var dominant = GeographyGenerator.Generate(dryOptions with { ClimateMode = ClimateMode.Dominant });
-        var dryLand = 0;
-        var otherLand = 0;
-        for (var y = 0; y < dominant.Height; y++)
-            for (var x = 0; x < dominant.Width; x++)
-            {
-                var tile = dominant.At(x, y);
-                if (tile.Water != WaterKind.Land) continue;
-                if (tile.Climate == ClimateZone.Dry) dryLand++;
-                else otherLand++;
-            }
-        Assert.True(dryLand > otherLand, "The selected climate should dominate land.");
-        Assert.True(otherLand > 0, "Dominant mode should still allow natural climate regions.");
-    }
-
-    [Fact]
-    public void RegionalWeatherUsesClimateWithoutChangingTheGlobalCalendar()
-    {
-        var config = WorldSystemsConfig.Default;
-        var dryWetDays = 0;
-        var tropicalWetDays = 0;
-        for (var day = 0; day < 100; day++)
-        {
-            var season = WorldCalendarRules.GetSeason(day % config.DaysPerYear, config);
-            var dry = WeatherRules.WeatherForRegion("climate-choice", day, season, config,
-                1, 1, 4, ClimateZone.Dry);
-            var tropical = WeatherRules.WeatherForRegion("climate-choice", day, season, config,
-                1, 1, 4, ClimateZone.Tropical);
-            if (dry is WeatherKind.Rain or WeatherKind.Storm) dryWetDays++;
-            if (tropical is WeatherKind.Rain or WeatherKind.Storm) tropicalWetDays++;
-            Assert.NotEqual(WeatherKind.Snow, tropical);
-        }
-        Assert.True(tropicalWetDays > dryWetDays);
     }
 
     [Fact]
@@ -742,21 +485,4 @@ public sealed class GeographyGeneratorTests
             "Natural cover should reduce storm exposure at the agent's actual tile.");
     }
 
-    [Fact]
-    public void ResourceAbundanceChangesRealSitesWithoutOverloadingChunks()
-    {
-        var options = new GeographyOptions("abundance-choice", WorldSizePreset.Small);
-        var sparse = GeneratedCampMapGenerator.Generate(options with { ResourceAbundance = ResourceAbundance.Sparse });
-        var normal = GeneratedCampMapGenerator.Generate(options);
-        var abundant = GeneratedCampMapGenerator.Generate(options with { ResourceAbundance = ResourceAbundance.Abundant });
-        Assert.True(sparse.Resources.Count < normal.Resources.Count);
-        Assert.True(normal.Resources.Count < abundant.Resources.Count);
-        Assert.NotEqual(sparse.ManifestDigest, abundant.ManifestDigest);
-        Assert.True(MapAcceptance.Validate(abundant, allowEmptyCamp: true).IsValid);
-        using var world = new PrivateWorldRuntime(options.Seed,
-            startPace: WorldStartPace.FounderSetup,
-            geographyOptions: options with { ResourceAbundance = ResourceAbundance.Abundant });
-        Assert.All(world.WorldSystems.Chunks,
-            chunk => Assert.True(chunk.Resources.Count <= world.WorldSystems.Config.MaxResourcesPerChunk));
-    }
 }

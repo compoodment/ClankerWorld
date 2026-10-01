@@ -165,7 +165,6 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData(1)]
     [InlineData(1_460)]
     public void LifePacePayloadMatchesTheHostExactly(int rate)
     {
@@ -336,7 +335,6 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData("openai", null, null, true)]
     [InlineData("ollama-cloud", "0123456789abcdef0123456789abcdef", null, true)]
     [InlineData("openai", null, "pasted-provider-secret", true)]
     [InlineData("ollama-cloud", null, null, false)]

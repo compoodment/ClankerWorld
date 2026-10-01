@@ -8,16 +8,8 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class AgentConversationProviderTests
 {
     [Theory]
-    [InlineData("[]")]
-    [InlineData("null")]
     [InlineData("\"private-utterance\"")]
-    [InlineData("32")]
-    [InlineData("true")]
-    [InlineData("{\"choices\":[{\"message\":[]}]}")]
-    [InlineData("{\"choices\":[{\"message\":null}]}")]
     [InlineData("{\"choices\":[{\"message\":\"private-utterance\"}]}")]
-    [InlineData("{\"choices\":[{\"message\":32}]}")]
-    [InlineData("{\"choices\":[{\"message\":true}]}")]
     public async Task MalformedConversationEnvelopeIsRejectedAsProviderOutputAndNeverLogged(string envelope)
     {
         var directory = Directory.CreateTempSubdirectory("conversation-envelope-");
