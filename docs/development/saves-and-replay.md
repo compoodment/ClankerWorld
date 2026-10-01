@@ -301,8 +301,9 @@ write cost are not yet measured.
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 these copies have no settled retention policy. Rotating autosaves are a separate
-mechanism and must not delete another world's checkpoints. Updating autosave
-configuration trims only that configured world, including rotation off.
+mechanism and must not delete another world's checkpoints, or another branch's.
+Updating autosave configuration trims only that configured world, including
+rotation off, and counts each branch's autosaves separately.
 
 Load and overwrite validate required manual-save metadata before creating a
 recovery backup or changing the active world. Malformed JSON, missing save
@@ -328,7 +329,7 @@ while the rest of the world list stays available.
 A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.
-- Named and rotating saves in `.manual`.
+- Named and rotating saves in `.manual`, with each world's branch record.
 - The adjacent `.autosave.json` schedule and saved-tick metadata.
 - The world catalog and its archived worlds.
 - Pairing authority, protected provider configuration and usage accounting.
@@ -344,6 +345,39 @@ The September 2026 internal-identifier reset was an explicitly approved
 pre-release fresh-save/new-pairing exception. It never permits deleting saves.
 During alpha an older save may stop loading, but it is refused with a reason and
 kept. Finished releases follow the migration promise in [Saves](../game-design/saves.md).
+
+### Save branches
+
+Loading an older save and playing on starts a new branch instead of mixing two
+histories in one list ([design](../game-design/saves.md#agreed)). Each save's
+metadata records its branch (an opaque ID, a number for display and the save it
+started from) and the save it continued from, with that save's creation time.
+A per-world record in `.manual` (`timeline-` plus a hash of the world ID) says
+which branch and save the running world continues from. Loading a save moves it
+to that save; every new save moves it to the new save. These are save metadata
+only: checkpoints, events and replay are unchanged.
+
+A new save continues the recorded branch unless something else on that branch
+already went on from the same point: a save with a later world tick, or another
+save made straight from the same save. The second test catches changes made
+while paused, which keep the tick. Otherwise the save starts a branch numbered
+one higher than any the world has used. Overwriting a slot moves it into the
+running world's branch; its recovery copy keeps the old branch.
+
+Before loading, the host saves the world being left as **Before loading**, so its
+unsaved progress stays on its own branch. It skips that copy when the world is
+byte-for-byte the save it continues from, with the same model routing and
+autosave choices, so browsing saves does not create empty branches. If loading
+fails, the branch record is restored along with the world.
+
+The branch record is written before a new save's metadata is published, so an
+interruption leaves it pointing at an unlisted save whose tick still keeps the
+next save on the same branch. A missing or damaged record never blocks saving:
+the next save starts a new branch, with a warning in the log. A save whose own
+branch fields are damaged stays listed, without a branch. Saves made before
+branches existed have none either; Load World groups them as **Earlier saves**,
+and playing on from one starts a new branch. Deleting a world removes its
+branch record with its saves.
 
 ## Validation boundaries
 

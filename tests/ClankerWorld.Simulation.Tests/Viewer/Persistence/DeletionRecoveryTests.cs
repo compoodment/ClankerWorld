@@ -56,7 +56,9 @@ public sealed class DeletionRecoveryTests
             Assert.Single(catalog.Capture().Worlds);
             Assert.Empty(saves.List(target.Society.WorldId));
             Assert.Equal(keepBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(keep.Id)));
-            Assert.Equal(2, Directory.GetFiles(path + ".manual").Length);
+            // The kept world's save, its metadata and its own branch record remain.
+            Assert.Equal(3, Directory.GetFiles(path + ".manual").Length);
+            Assert.Single(Directory.GetFiles(path + ".manual", "timeline-*.json"));
             var reopened = new WorldCatalogStore(path, active.ExportState(), [], settings);
             Assert.Single(reopened.Capture().Worlds);
             Assert.Throws<FileNotFoundException>(() => reopened.Read(entry.Id));
