@@ -1,1 +1,1 @@
-Household shops can exchange goods kept at their actual location. Both traders meet before the exchange, Store stock must be carried in, and the building card shows each offer and its outcome.
+Household shops can exchange goods kept at their actual location. Both traders meet before the exchange, Store stock must be carried in, and the building card shows each offer and its outcome. Unfinished exchanges stay visible ahead of recent completed or cancelled offers.

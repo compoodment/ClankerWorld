@@ -747,7 +747,8 @@ public sealed class OwnerWorldObservationStore
 
     private static ViewerBusinessTrade[] BusinessTradesAt(PrivateWorldRuntimeState state, string buildingId) =>
         (state.BusinessTrades ?? []).Where(trade => trade.BuildingInstanceId == buildingId)
-            .OrderByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal)
+            .OrderByDescending(trade => state.Society.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
+            .ThenByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal)
             .Take(8).Select(trade =>
             {
                 var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
@@ -760,7 +761,8 @@ public sealed class OwnerWorldObservationStore
     {
         foreach (var trade in (state.BusinessTrades ?? []).Where(trade =>
                      trade.BuyerId == person.Id || trade.SellerHouseholdId == person.HouseholdId)
-                     .OrderByDescending(trade => trade.ProposedTick).Take(4))
+                     .OrderByDescending(trade => state.Society.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
+                     .ThenByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal).Take(4))
         {
             var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
             var building = state.WorldSimulation?.Buildings.FirstOrDefault(item => item.InstanceId == trade.BuildingInstanceId);

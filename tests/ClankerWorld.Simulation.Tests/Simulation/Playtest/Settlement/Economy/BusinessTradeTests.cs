@@ -8,6 +8,44 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class BusinessTradeTests
 {
+    [Fact]
+    public async Task OlderOpenExchangeRemainsVisibleWhenRecentCancelledOffersFillHistory()
+    {
+        var (state, buyer, _, shopId) = CreateShopState();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == buyer
+            ? new ShopProvider("business_shop:") : new ShopProvider("safe_idle"));
+        for (var step = 0; step < 40 && world.BusinessTrades.Count == 0; step++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var open = Assert.Single(world.BusinessTrades);
+        for (var step = 0; step < 8; step++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        state = world.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        var trades = state.BusinessTrades!.ToList();
+        for (var index = 1; index <= 8; index++)
+        {
+            var proposed = open.ProposedTick + index;
+            var id = $"business-trade:{proposed}:{buyer}:{shopId}";
+            inventory = InventoryFixture.CreateDirectBarterOffer(inventory,
+                new(id, 1, open.SellerHouseholdId, buyer, "shop-axe", 1, "buyer-payment", 3,
+                    state.Society.Society.WorldTick + 120));
+            inventory = InventoryFixture.CancelDirectBarterOffer(inventory, id, 1, open.SellerHouseholdId);
+            trades.Add(open with { OfferId = id, ProposedTick = proposed, CancellationReason = "The seller declined." });
+        }
+        state = WithInventory(state, inventory) with
+        {
+            BusinessTrades = trades.OrderBy(trade => trade.OfferId, StringComparer.Ordinal).ToArray(),
+        };
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new ShopProvider("safe_idle"));
+        var snapshot = new OwnerWorldObservationStore(restored).GetSnapshot();
+        var visible = snapshot.PlacedBuildings.Single(building => building.InstanceId == shopId).Trades;
+        Assert.Equal(8, visible.Count);
+        Assert.Equal(open.OfferId, visible[0].OfferId);
+        Assert.Equal("open", visible[0].Status);
+        Assert.Contains(snapshot.Inhabitants.Single(person => person.Id == buyer).SocialNotes,
+            note => note.Contains("Both traders must meet there", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
