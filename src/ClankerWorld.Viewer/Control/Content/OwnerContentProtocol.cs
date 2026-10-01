@@ -51,6 +51,18 @@ public sealed record OwnerBuildingPlacementAction(
     int X,
     int Y);
 
+public sealed record OwnerBuildingRemovalAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId);
+
+public sealed record OwnerBuildingReassignmentAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string? TargetTownId,
+    string? TargetHouseholdId);
+
 public sealed record OwnerProductionStartAction(
     string RecipeId,
     string BuildingInstanceId,
@@ -179,6 +191,22 @@ public static class OwnerContentBinding
         $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
         $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string BuildingRemovalPayload(OwnerBuildingRemovalAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-removal.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}");
+
+    public static string BuildingReassignmentPayload(OwnerBuildingReassignmentAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-reassignment.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"target-town-id={EncodeOptional(action.TargetTownId)}",
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}");
 
     public static string ProductionStartPayload(OwnerProductionStartAction action) => string.Join(
         '\n',

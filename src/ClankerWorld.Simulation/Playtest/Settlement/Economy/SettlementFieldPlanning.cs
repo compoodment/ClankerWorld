@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
-            state.Project is { Stage: not ("completed" or "cancelled") }) return;
+            (state.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice)) return;
         var hasHoe = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is not null;
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
@@ -27,6 +27,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
             else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
             {
+                if (HasOtherInhabitantClaimedPlanting(field, actor)) continue;
                 var priority = 14;
                 foreach (var crop in PlantableCrops(actor, field))
                     candidates.Add(new(FarmCandidate(FarmWorkKind.Plant, field.Position, crop),
@@ -61,8 +62,31 @@ public sealed partial class PrivateWorldRuntime
             }
     }
 
-    private bool CanReachField(string actor, GridPoint from, GridPoint destination) => from == destination ||
-        FindUnoccupiedRoute(actor, from, destination, 0).Count > 0;
+    private bool HasOtherInhabitantClaimedPlanting(FarmFieldState field, string actor)
+    {
+        var runtimes = society.Capture().Cognition.Runtimes;
+        foreach (var runtime in runtimes.Where(item => item.InhabitantId != actor))
+        {
+            if (runtime.CurrentIntention is not { } intention) continue;
+            var crop = new[] { FarmFieldRules.Greens, FarmFieldRules.Grain, FarmFieldRules.Potatoes }
+                .FirstOrDefault(item => intention.CandidateId == FarmCandidate(FarmWorkKind.Plant, field.Position, item));
+            if (crop is null) continue;
+            var eligible = inhabitants.TryGetValue(runtime.InhabitantId, out var claimant) &&
+                AdultResident(runtime.InhabitantId) && HouseholdFor(runtime.InhabitantId) == field.HouseholdId &&
+                !NeedsUrgentFood(claimant) && !NeedsUrgentWarmth(claimant) &&
+                HasCarriedItem(runtime.InhabitantId, FarmFieldRules.Hoe) &&
+                claimant.Project is not { Stage: not ("completed" or "cancelled") } && FarmNeedsFood(field.HouseholdId);
+            var stock = eligible ? PlantingStock(runtime.InhabitantId, field, crop) : null;
+            if (stock is not null) return true;
+        }
+        return false;
+    }
+
+    // Other inhabitants can briefly occupy a destination or route tile. Keep
+    // the field and seed choice legal while they pass so the selected task can
+    // retry its physical route instead of being replaced by another crop.
+    private bool CanReachField(string actor, GridPoint from, GridPoint destination) =>
+        from == destination || map.IsReachableOnFoot(from, destination);
 
     private bool FarmNeedsFood(string householdId)
     {
@@ -90,7 +114,8 @@ public sealed partial class PrivateWorldRuntime
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
-            .FirstOrDefault(lot => lot.OwnerId == actor || CanReachField(actor, inhabitants[actor].Position, HouseholdStockPosition(lot)));
+            .FirstOrDefault(lot => lot.OwnerId == actor ||
+                map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot)));
     }
 
     private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate)

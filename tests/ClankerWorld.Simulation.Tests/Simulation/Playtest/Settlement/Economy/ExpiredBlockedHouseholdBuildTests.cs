@@ -11,6 +11,142 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ExpiredBlockedHouseholdBuildTests
 {
     [Fact]
+    public async Task ExpiredUnfillableHouseholdRecipePausesForFreshChoiceAndResumesAfterInputsReturn()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("expired-household-recipe-inputs", _ => new IdleProvider());
+        var state = setup.ExportState();
+        var blacksmith = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+        var household = blacksmith.HouseholdId!;
+        var recipe = setup.WorldContent.Recipes.Single(item => item.LocalId == "wooden-axe");
+        var candidateId = "build:recipe:" + recipe.CanonicalId;
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand == SocietyAgeBand.Adult).Id;
+        var members = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == household)
+            .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory;
+        var removedWood = inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
+                (lot.OwnerId == household || members.Contains(lot.OwnerId)))
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => !removedWood.Contains(lot.Id)).ToArray(),
+            Reservations = inventory.Reservations.Where(item => !removedWood.Contains(item.LotId)).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "blocked-axe-wood", "wood", household, 2,
+            storageBuildingId: blacksmith.InstanceId);
+        var resourceKinds = state.Map.Resources.Where(resource => resource.Kind is "construction" or "wood")
+            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+            Resources = state.Resources.Select(resource => resourceKinds.Contains(resource.ResourceId)
+                ? resource with { State = ResourceState.Depleted }
+                : resource).ToArray(),
+            WorldSystems = state.WorldSystems! with
+            {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource =>
+                        resource.Kind is "construction" or "wood"
+                            ? resource with { Quantity = 0, State = EcologyResourceState.Depleted, NextRegenerationDay = 100 }
+                            : resource).ToArray(),
+                },
+            },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = blacksmith.Position,
+                    HungerBasisPoints = 9_500,
+                    LastDecisionContext = null,
+                    Project = new SettlementProject(candidateId, recipe.DisplayName,
+                        state.Society.Society.WorldTick, "blocked", 4,
+                        "Waiting for ingredients at this household building",
+                        LastTransitionTick: state.Society.Society.WorldTick),
+                }
+                : members.Contains(person.InhabitantId)
+                    ? person with { HungerBasisPoints = 9_500 }
+                    : person).ToArray(),
+        };
+
+        var recorder = new ActionCoverageRecorder(chooseIdle: true);
+        using var blocked = PrivateWorldRuntime.Restore(state, _ => recorder);
+        var original = blocked.Inhabitants.Single(item => item.InhabitantId == actor).Project!;
+        for (var tick = 0; tick < 75 &&
+             !blocked.Inhabitants.Single(item => item.InhabitantId == actor).Project!.RequiresFreshChoice; tick++)
+            Assert.True((await blocked.AdvanceOneTickAsync()).Advanced);
+
+        var paused = blocked.Inhabitants.Single(item => item.InhabitantId == actor).Project!;
+        Assert.Equal("paused", paused.Stage);
+        Assert.True(paused.RequiresFreshChoice);
+        Assert.Equal("Materials for this work are unavailable. Choose another task for now.", paused.Blocker);
+        Assert.Equal(original.CandidateId, paused.CandidateId);
+        Assert.Equal(original.StartedTick, paused.StartedTick);
+        Assert.Equal(original.WorkDone, paused.WorkDone);
+        Assert.Null(paused.JobId);
+        Assert.DoesNotContain(blocked.WorldSimulation.ProductionJobs, job => job.WorkerId == actor &&
+            job.RecipeId == recipe.CanonicalId && job.State == WorldProductionJobState.Running);
+        Assert.DoesNotContain(recorder.OfferedByAgent.Values.SelectMany(items => items.Keys), id =>
+            id is "haul_smith_input" or "gather_smith_ore" or "deliver_smith_ore" or "supply_workstation:wood" ||
+            id == "gather_building_material:wood" || id == "assist:wood");
+
+        var encodedPaused = PrivateWorldRuntimeCodec.Encode(blocked.ExportState());
+        var savedPaused = PrivateWorldRuntimeCodec.Decode(encodedPaused);
+        Assert.Equal(encodedPaused, PrivateWorldRuntimeCodec.Encode(savedPaused));
+        Assert.Equal(paused, savedPaused.Inhabitants.Single(item => item.InhabitantId == actor).Project);
+        var invalidFlagState = savedPaused with
+        {
+            Inhabitants = savedPaused.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Project = paused with { Stage = "blocked" } }
+                : person).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(invalidFlagState, _ => new IdleProvider()));
+        var urgentPauseState = savedPaused with
+        {
+            Inhabitants = savedPaused.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { HungerBasisPoints = 1_000, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using (var urgentPause = PrivateWorldRuntime.Restore(urgentPauseState, _ => new IdleProvider()))
+        {
+            Assert.True((await urgentPause.AdvanceOneTickAsync()).Advanced);
+            var urgentProject = urgentPause.Inhabitants.Single(item => item.InhabitantId == actor).Project!;
+            Assert.True(urgentProject.RequiresFreshChoice);
+            Assert.Equal("Meeting food needs", urgentProject.Blocker);
+        }
+        var replenishedInventory = InventoryFixture.AddLot(savedPaused.Society.Society.Inventory,
+            "returned-axe-wood", "wood", household, 1, storageBuildingId: blacksmith.InstanceId);
+        savedPaused = savedPaused with
+        {
+            Society = savedPaused.Society with
+            {
+                Society = savedPaused.Society.Society with { Inventory = replenishedInventory },
+            },
+            Inhabitants = savedPaused.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var resumeProvider = new SelectCandidateProvider(candidateId);
+        using var resumed = PrivateWorldRuntime.Restore(savedPaused, id => id == actor ? resumeProvider : new IdleProvider());
+        for (var tick = 0; tick < 75 && !resumed.WorldSimulation.ProductionJobs.Any(job =>
+                 job.WorkerId == actor && job.RecipeId == recipe.CanonicalId &&
+                 job.State is WorldProductionJobState.Running or WorldProductionJobState.Completed); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(candidateId, resumeProvider.SelectedCandidateIds);
+        var resumedProject = resumed.Inhabitants.Single(item => item.InhabitantId == actor).Project!;
+        Assert.False(resumedProject.RequiresFreshChoice);
+        Assert.Equal(original.CandidateId, resumedProject.CandidateId);
+        Assert.Equal(original.StartedTick, resumedProject.StartedTick);
+        Assert.InRange(resumedProject.WorkDone, original.WorkDone, 10);
+        Assert.Contains(resumed.WorldSimulation.ProductionJobs, job => job.WorkerId == actor &&
+            job.RecipeId == recipe.CanonicalId && job.State is WorldProductionJobState.Running or WorldProductionJobState.Completed);
+        resumed.Validate();
+    }
+
+    [Fact]
     public async Task ExpiredBlockedPlanOffersANewSiteToItsOwnerAndKeepsTheHouseholdClaim()
     {
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new IdleProvider());
@@ -211,5 +347,27 @@ public sealed class ExpiredBlockedHouseholdBuildTests
                     Candidates = [request.Observation.Candidates.Single(item => item.Id == "safe_idle")],
                 },
             }, cancellationToken);
+    }
+
+    private sealed class SelectCandidateProvider(string candidateId) : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public List<string> SelectedCandidateIds { get; } = [];
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var candidates = request.Observation.Candidates;
+            var selected = candidates.FirstOrDefault(item => item.Id == candidateId) ??
+                candidates.Single(item => item.Id == "safe_idle");
+            SelectedCandidateIds.Add(selected.Id);
+            var probabilities = candidates.ToDictionary(item => item.Id,
+                item => item.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId,
+                request.Observation.InhabitantId, Kind, ProviderEpoch, request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
+                selected.Id, 1, probabilities));
+        }
     }
 }
