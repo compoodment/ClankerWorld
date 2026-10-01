@@ -678,6 +678,13 @@ public sealed class OwnerWorldObservationStore
         var borrowed = state.Society.Society.Inventory.Lots.Where(lot => lot.CarrierId == inhabitant.Id && lot.OwnerId != inhabitant.Id).Sum(lot => lot.Quantity);
         decisionFactors.Add(new("personal-goods-awaiting-collection", $"{personalStored} units; ownership stays personal"));
         decisionFactors.Add(new("borrowed-goods", $"{borrowed} units; ownership stays with the lender"));
+        if (physical.Departures?.Any(departure => departure.SharedProject is not null) == true)
+            decisionFactors.Add(new("departed-household-work", "Previous work stays recorded with its original household."));
+        var ownedBuildings = state.WorldSimulation!.Buildings.Where(building => building.HouseholdId == inhabitant.HouseholdId && inhabitant.HouseholdId is not null)
+            .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        var pausedWork = state.WorldSimulation.ProductionJobs.Count(job => job.State == WorldProductionJobState.Paused && ownedBuildings.Contains(job.BuildingInstanceId)) +
+            (state.WorldSimulation.BuildingExpansions ?? []).Count(job => job.State == WorldProductionJobState.Paused && ownedBuildings.Contains(job.BuildingInstanceId));
+        if (pausedWork > 0) decisionFactors.Add(new("paused-household-work", $"{pausedWork} jobs; members can take over at the site when the committed inputs are available to them."));
         if (inhabitant.PrimaryCaregiverId is { } primary)
             decisionFactors.Add(new("primary-caregiver", state.Society.Society.GetInhabitant(primary).Name));
         var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)

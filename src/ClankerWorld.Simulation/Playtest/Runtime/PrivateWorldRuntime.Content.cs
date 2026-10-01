@@ -334,7 +334,7 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
             var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
             if (worldSimulation.ProductionJobs.Count(item => item.BuildingInstanceId == placed.InstanceId &&
-                    item.State == WorldProductionJobState.Running) >= buildingDefinition.Capacity)
+                    (item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)) >= buildingDefinition.Capacity)
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
             var workPosition = placed.Position;
 

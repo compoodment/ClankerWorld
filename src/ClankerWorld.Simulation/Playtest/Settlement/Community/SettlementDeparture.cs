@@ -8,7 +8,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>A completed membership exit, including the once-only allowance and limited collection right.</summary>
 public sealed record SettlementDeparture(string HouseholdId, long Tick, string Cause,
-    IReadOnlyList<string> CareGroup, IReadOnlyList<string> AllowanceLotIds, int AllowancePortions);
+    IReadOnlyList<string> CareGroup, IReadOnlyList<string> AllowanceLotIds, int AllowancePortions,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProject? SharedProject = null);
 
 public sealed partial class PrivateWorldRuntime
 {
@@ -38,6 +39,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return false;
         var group = MovingCareGroup(actor);
+        var sharedProject = inhabitants[actor].Project;
         if (group.Any(id => society.Checkpoint.GetInhabitant(id).HouseholdId != householdId)) return false;
         var allowanceIds = new List<string>();
         var allowance = 0;
@@ -67,7 +69,7 @@ public sealed partial class PrivateWorldRuntime
             var person = inhabitants[id];
             inhabitants[id] = person with
             {
-                Project = person.Project is { } project ? project with { Stage = "paused", Blocker = "Left the owning household" } : null,
+                Project = null,
                 Housing = new(Blocker: id == actor ? HousingBlockers.NoHousehold : HousingBlockers.NoAuthorizedHome),
                 LastDecisionContext = null,
             };
@@ -75,8 +77,27 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[actor] = inhabitants[actor] with
         {
             Departures = (inhabitants[actor].Departures ?? []).Append(
-                new SettlementDeparture(householdId, WorldTick, cause, group, allowanceIds, allowance)).ToArray(),
+                new SettlementDeparture(householdId, WorldTick, cause, group, allowanceIds, allowance, sharedProject)).ToArray(),
         };
+        var ownedBuildings = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId)
+            .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        worldSimulation = worldSimulation with
+        {
+            ProductionJobs = worldSimulation.ProductionJobs.Select(job => job.WorkerId == actor &&
+                ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running
+                ? job with { State = WorldProductionJobState.Paused, PausedAtTick = WorldTick } : job).ToArray(),
+            BuildingExpansions = worldSimulation.BuildingExpansions?.Select(job => job.WorkerId == actor &&
+                job.OwnerId == householdId && job.State == WorldProductionJobState.Running
+                ? job with { State = WorldProductionJobState.Paused, PausedAtTick = WorldTick } : job).ToArray(),
+        };
+        var heldReservations = worldSimulation.ProductionJobs.Where(job => job.WorkerId == actor &&
+                ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Paused)
+            .SelectMany(job => job.InputReservationIds)
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.WorkerId == actor &&
+                job.OwnerId == householdId && job.State == WorldProductionJobState.Paused).SelectMany(job => job.InputReservationIds))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (heldReservations.Length > 0)
+            ApplyInventoryTransition(inventory => InventoryFixture.HoldReservations(inventory, heldReservations));
         // A carried delivery is borrowed household stock, never a personal windfall on leaving.
         foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                      lot.DeliveryBuildingId is { } delivery && worldSimulation.Buildings.Any(building =>
@@ -93,9 +114,14 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
+    private int PhysicalUnreservedQuantity(InventoryLot lot) => Math.Max(0, lot.Quantity -
+        society.Checkpoint.Inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
+            InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
+            .Sum(item => item.Quantity));
+
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
-        lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+        lot.DeliveryBuildingId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
             worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
@@ -104,9 +130,101 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId != actor && lot.CarrierId == actor && lot.Quantity > 0);
 
+    private IEnumerable<(string Id, string BuildingId, string Worker, long Completion, long PausedAt, IReadOnlyList<string> Reservations)> PausedHouseholdWork(string actor)
+    {
+        var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        if (household is null) yield break;
+        foreach (var job in worldSimulation.ProductionJobs.Where(job => job.State == WorldProductionJobState.Paused &&
+                     worldSimulation.Buildings.Any(building => building.InstanceId == job.BuildingInstanceId && building.HouseholdId == household)))
+            yield return (job.JobId, job.BuildingInstanceId, job.WorkerId, job.CompletionTick, job.PausedAtTick!.Value, job.InputReservationIds);
+        foreach (var job in (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Paused && job.OwnerId == household))
+            yield return (job.JobId, job.BuildingInstanceId, job.WorkerId, job.CompletionTick, job.PausedAtTick!.Value, job.InputReservationIds);
+    }
+
+    private bool CanResumeHeldInputs(string actor, string buildingId, IReadOnlyList<string> reservationIds)
+    {
+        var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
+        var site = new InventoryGroundPosition(building.Position.X, building.Position.Y);
+        return reservationIds.All(id =>
+        {
+            var reservation = society.Checkpoint.Inventory.GetReservation(id);
+            var lot = society.Checkpoint.Inventory.GetLot(reservation.LotId);
+            return reservation.State == InventoryReservationState.Reserved && lot.Quantity >= reservation.Quantity &&
+                lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
+                (lot.OwnerId == building.HouseholdId || lot.OwnerId == actor) &&
+                (lot.StorageBuildingId == buildingId || lot.GroundPosition == site || PersonalEquipmentRules.IsCarried(lot, actor));
+        });
+    }
+
+    private void ResumePausedHouseholdWork(string actor, string jobId)
+    {
+        var matches = PausedHouseholdWork(actor).Where(job => job.Id == jobId).ToArray();
+        if (matches.Length != 1) return;
+        var job = matches[0];
+        if (!CanResumeHeldInputs(actor, job.BuildingId, job.Reservations)) return;
+        var building = worldSimulation.Buildings.Single(item => item.InstanceId == job.BuildingId);
+        if (inhabitants[actor].Position != building.Position)
+        {
+            MoveToward(actor, inhabitants[actor], building.Position, "resume_household_work");
+            return;
+        }
+        var expansion = (worldSimulation.BuildingExpansions ?? []).SingleOrDefault(item => item.JobId == jobId);
+        if (expansion is not null && !CanFitExpansion(building, expansion.TargetPosition, expansion.TargetFootprint, out _, expansion.JobId)) return;
+        var deadline = checked(WorldTick + Math.Max(1, job.Completion - job.PausedAt));
+        ApplyInventoryTransition(inventory => InventoryFixture.SetReservationDeadline(inventory, job.Reservations, deadline));
+        worldSimulation = worldSimulation with
+        {
+            ProductionJobs = worldSimulation.ProductionJobs.Select(item => item.JobId == jobId
+                ? item with { WorkerId = actor, State = WorldProductionJobState.Running, CompletionTick = deadline, PausedAtTick = null } : item).ToArray(),
+            BuildingExpansions = worldSimulation.BuildingExpansions?.Select(item => item.JobId == jobId
+                ? item with { WorkerId = actor, State = WorldProductionJobState.Running, CompletionTick = deadline, PausedAtTick = null } : item).ToArray(),
+        };
+        AppendEvent("household_work_resumed", $"{actor}|{jobId}|{building.HouseholdId}");
+    }
+
+    private void ReconcilePausedHouseholdWork()
+    {
+        bool Available(IReadOnlyList<string> ids) => ids.All(id =>
+        {
+            var reservation = society.Checkpoint.Inventory.Reservations.SingleOrDefault(item => item.Id == id);
+            var lot = reservation is null ? null : society.Checkpoint.Inventory.Lots.SingleOrDefault(item => item.Id == reservation.LotId);
+            return reservation is { State: InventoryReservationState.Reserved } && lot is { ConditionBasisPoints: > 0, FreshnessBasisPoints: > 0 } &&
+                reservation.OwnerId == lot.OwnerId && lot.Quantity >= reservation.Quantity;
+        });
+        var cancelledProduction = worldSimulation.ProductionJobs.Where(job => job.State == WorldProductionJobState.Paused &&
+            !Available(job.InputReservationIds)).ToArray();
+        var cancelledExpansions = (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Paused &&
+            (!Available(job.InputReservationIds) || job.InputReservationIds.Any(id =>
+                society.Checkpoint.Inventory.Reservations.SingleOrDefault(item => item.Id == id) is { } reservation &&
+                reservation.OwnerId != job.OwnerId && reservation.OwnerId != job.WorkerId))).ToArray();
+        foreach (var ids in cancelledProduction.Select(job => job.InputReservationIds).Concat(cancelledExpansions.Select(job => job.InputReservationIds)))
+            ApplyInventoryTransition(inventory =>
+            {
+                foreach (var id in ids)
+                    if (inventory.Reservations.SingleOrDefault(item => item.Id == id) is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed })
+                        inventory = InventoryFixture.ReleaseReservation(inventory, id, "paused_work_materials_unavailable");
+                return inventory;
+            });
+        var productionIds = cancelledProduction.Select(job => job.JobId).ToHashSet(StringComparer.Ordinal);
+        var expansionIds = cancelledExpansions.Select(job => job.JobId).ToHashSet(StringComparer.Ordinal);
+        worldSimulation = worldSimulation with
+        {
+            ProductionJobs = worldSimulation.ProductionJobs.Select(job => productionIds.Contains(job.JobId)
+                ? job with { State = WorldProductionJobState.Cancelled } : job).ToArray(),
+            BuildingExpansions = worldSimulation.BuildingExpansions?.Select(job => expansionIds.Contains(job.JobId)
+                ? job with { State = WorldProductionJobState.Cancelled, Failure = "Paused expansion materials are no longer available." } : job).ToArray(),
+        };
+        foreach (var job in cancelledProduction) AppendEvent("recipe_cancelled", $"{job.JobId}:{job.RecipeId}");
+        foreach (var job in cancelledExpansions) AppendEvent("building_expansion_cancelled", $"{job.BuildingInstanceId}:{job.JobId}:Paused expansion materials are no longer available.");
+    }
+
     private void AddDepartureCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor)) return;
+        foreach (var job in PausedHouseholdWork(actor))
+            if (CanResumeHeldInputs(actor, job.BuildingId, job.Reservations))
+                candidates.Add(new("household_resume_work:" + job.Id,
+                    "Go to your household's building and take over its paused work using the same committed materials.", 17, job.BuildingId));
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null)
             candidates.Add(new("household_leave", "Leave your household without a vote; keep responsibility for your dependent children and collect your personal belongings physically.", 115));
         else if (inhabitants[actor].Housing?.Request is null && !AskableHouseholds(actor).Any())
@@ -125,7 +243,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                          PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                          lot.Id != inhabitants[actor].Equipment?.ClothingLotId && lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
-                         !IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+                         !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
         }
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
@@ -137,6 +255,11 @@ public sealed partial class PrivateWorldRuntime
 
     private void ApplyDepartureCandidate(string actor, string candidate)
     {
+        if (candidate.StartsWith("household_resume_work:", StringComparison.Ordinal))
+        {
+            ResumePausedHouseholdWork(actor, candidate["household_resume_work:".Length..]);
+            return;
+        }
         if (candidate == "household_leave") { DepartHousehold(actor, "voluntary"); return; }
         if (candidate == "household_found")
         {
@@ -178,7 +301,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, inhabitants[actor], destination, "personal_goods", range);
             return;
         }
-        var quantity = Math.Min(AvailableLotQuantity(lot), collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId));
+        var quantity = Math.Min(PhysicalUnreservedQuantity(lot), collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
             $"personal:{actor}:{WorldTick}:{lot.Id}", lot.Id, lot.OwnerId, quantity,
@@ -194,6 +317,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in physical)
         {
             if (person.Departures is not { } departures) continue;
+            foreach (var departure in departures)
+                if (departure?.SharedProject is { } plan) ValidateProject(plan, society.WorldTick);
             if (schemaVersion < 39 || departures.Count == 0 || departures.Any(item => item is null ||
                 !households.Contains(item.HouseholdId) || item.Tick < 0 || item.Tick > society.WorldTick ||
                 item.Cause is not ("voluntary" or "displaced") || item.AllowancePortions is < 0 or > 2 ||
@@ -212,8 +337,10 @@ public sealed partial class PrivateWorldRuntime
         var goods = PersonalGoodsAwaitingCollection(actor).Sum(lot => lot.Quantity);
         var borrowed = BorrowedGoods(actor).Sum(lot => lot.Quantity);
         var children = MovingCareGroup(actor).Count(id => id != actor);
-        return $"Personal goods awaiting collection: {goods} units; borrowed goods to return: {borrowed} units. " +
-            (children > 0 ? $"Primary care: {children} dependents; they move with you unless another adult explicitly accepts care." : "No dependent care group.");
+        var paused = PausedHouseholdWork(actor).ToArray();
+        var blocked = paused.Count(job => !CanResumeHeldInputs(actor, job.BuildingId, job.Reservations));
+        return $"Personal collection: {goods} units; borrowed returns: {borrowed} units. Paused household work: {paused.Length}; {blocked} blocked by unavailable or privately held inputs. " +
+            (children > 0 ? $"Primary care: {children} dependents move with you unless care is explicitly accepted." : "No dependent care group.");
     }
 
     private void MaintainMovingCareGroups()

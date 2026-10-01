@@ -427,6 +427,36 @@ public static partial class InventoryFixture
             eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
     }
 
+    /// <summary>Unavailable carriers set down all custody at their last real position; ownership and reservations stay intact.</summary>
+    /// <summary>Paused shared work keeps its exact committed inputs instead of losing them at the former worker's deadline.</summary>
+    public static InventoryCheckpoint HoldReservations(InventoryCheckpoint checkpoint, IReadOnlyList<string> reservationIds) =>
+        SetReservationDeadline(checkpoint, reservationIds, long.MaxValue);
+
+    public static InventoryCheckpoint SetReservationDeadline(InventoryCheckpoint checkpoint,
+        IReadOnlyList<string> reservationIds, long deadline)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, checkpoint.WorldTick);
+        var ids = reservationIds.ToHashSet(StringComparer.Ordinal);
+        if (ids.Count != reservationIds.Count || ids.Any(id => checkpoint.Reservations.All(item => item.Id != id ||
+            item.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed))))
+            throw new InvalidOperationException("Only existing active work reservations can be held.");
+        var reservations = checkpoint.Reservations.Select(item => ids.Contains(item.Id)
+            ? item with { ExpiryTick = deadline } : item).ToArray();
+        return Commit(checkpoint, reservations: reservations, eventKind: "work_reservation_deadline_changed", detail: $"{deadline}:{string.Join(',', reservationIds)}");
+    }
+
+    public static InventoryCheckpoint DropCarrierGoods(InventoryCheckpoint checkpoint, string carrierId, InventoryGroundPosition position)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
+        var lots = checkpoint.Lots.Select(lot => lot.CarrierId == carrierId
+            ? lot with { CarrierId = null, GroundPosition = position, StorageBuildingId = null, DeliveryBuildingId = null }
+            : lot).ToArray();
+        ValidateLots(lots);
+        return Commit(checkpoint, lots: lots, eventKind: "carrier_goods_set_down", detail: carrierId);
+    }
+
     public static InventoryCheckpoint ReleaseExpiredReservations(InventoryCheckpoint checkpoint, long targetTick)
     {
         ValidateCheckpoint(checkpoint);

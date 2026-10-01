@@ -25,6 +25,7 @@ public enum WorldProductionJobState
     Running,
     Completed,
     Cancelled,
+    Paused,
 }
 
 public sealed record WorldProductionJob(
@@ -35,7 +36,11 @@ public sealed record WorldProductionJob(
     long StartedTick,
     long CompletionTick,
     WorldProductionJobState State,
-    IReadOnlyList<string> InputReservationIds);
+    IReadOnlyList<string> InputReservationIds)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? PausedAtTick { get; init; }
+}
 
 public sealed record WorldContentSimulationState(
     IReadOnlyList<PlacedBuilding> Buildings,
@@ -153,7 +158,11 @@ public static class WorldContentSimulationRules
                 throw new InvalidDataException("Production jobs must have unique IDs and registered references.");
             }
 
-            if (string.IsNullOrWhiteSpace(job.WorkerId) || job.StartedTick < 0 ||
+            if (job.State == WorldProductionJobState.Paused &&
+                (job.PausedAtTick is not { } paused || paused < job.StartedTick || paused > worldTick || paused >= job.CompletionTick) ||
+                job.State != WorldProductionJobState.Paused && job.PausedAtTick is not null && job.State != WorldProductionJobState.Cancelled)
+                throw new InvalidDataException("The saved production pause is invalid.");
+            if (!Enum.IsDefined(job.State) || string.IsNullOrWhiteSpace(job.WorkerId) || job.StartedTick < 0 ||
                 job.CompletionTick <= job.StartedTick || job.CompletionTick < worldTick &&
                 job.State == WorldProductionJobState.Running ||
                 job.InputReservationIds is null ||

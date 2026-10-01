@@ -74,6 +74,7 @@ public static class WorldEventText
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
+            "household_work_resumed" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} took over paused household work at its building.",
             "household_left" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} left their household and may collect their personal belongings.",
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",

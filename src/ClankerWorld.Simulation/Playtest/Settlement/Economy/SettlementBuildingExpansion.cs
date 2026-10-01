@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
@@ -13,7 +14,11 @@ public sealed record BuildingExpansionJob(
     int ExpectedRevision, GridPoint ExpectedPosition, GridPoint TargetPosition,
     BuildingFootprintRevision TargetFootprint, long StartedTick, long CompletionTick,
     WorldProductionJobState State, IReadOnlyList<string> InputReservationIds,
-    string? Failure = null);
+    string? Failure = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? PausedAtTick { get; init; }
+}
 
 public static class BuildingStorageRules
 {
@@ -68,7 +73,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
-        .Where(job => job.BuildingInstanceId == buildingId && job.State == WorldProductionJobState.Running)
+        .Where(job => job.BuildingInstanceId == buildingId && (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         .Sum(job =>
         {
             var recipe = worldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
@@ -228,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
         }
         else return false;
         if ((worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == building.InstanceId &&
-                job.State == WorldProductionJobState.Running))
+                (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)))
         {
             failure = "An expansion is already in progress for this building.";
             return false;
@@ -270,7 +275,7 @@ public sealed partial class PrivateWorldRuntime
         var original = WorldContentSimulationRules.Footprint(definition, building);
         if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
             fields.Any(field => tiles.Contains(field.Position)) ||
-            (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
+            (worldSimulation.BuildingExpansions ?? []).Where(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);
         if (town is not null && (!TownBorderRules.IsWithinOrAdjacent(town, position, target.Width, target.Height) ||

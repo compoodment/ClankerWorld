@@ -40,7 +40,7 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var job in worldSimulation.ProductionJobs
                      .Concat(worldSimulation.CropBuilds ?? [])
-                     .Where(item => item.State == WorldProductionJobState.Running))
+                     .Where(item => item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         {
             if (job.InputReservationIds.Any(id => !inventoryReservationIds.Contains(id)))
             {
