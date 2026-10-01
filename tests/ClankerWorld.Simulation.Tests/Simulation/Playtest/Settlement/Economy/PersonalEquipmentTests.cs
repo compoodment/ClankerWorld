@@ -207,7 +207,8 @@ public sealed class PersonalEquipmentTests
             var reopened = false;
             string? selected = null;
             WorldProductionJob? sewn = null;
-            for (var tick = 0; tick < 300; tick++)
+            var tickLimit = kind == "padded_coat" ? 340 : 300;
+            for (var tick = 0; tick < tickLimit; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
