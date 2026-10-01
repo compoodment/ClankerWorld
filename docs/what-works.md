@@ -33,7 +33,7 @@ test alone does not make it available in the game.
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
-| Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
+| Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches and date/time formats. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
@@ -149,10 +149,25 @@ Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
 playtest values, not settled population balance.
 
-On death, a bounded final model choice can leave the estate to the household or
-name one living recipient for the whole estate. Interrupted or invalid choices
-use the household path. Per-item bequests, debts, minors and inheritance law
-remain unfinished. Memories do not automatically pass to children.
+When an agent with a personal model dies owning something, their model is
+asked once for a final will. It can leave everything to the household or name
+up to three heirs: living people of any age, including children, or the Town
+the agent lived in when that Town has a Warehouse. The will either shares every
+item equally or gives each item to one heir, and anything it leaves out is
+shared equally. The estate is divided when its seven-day hold ends. Heirs,
+children included, own what they inherit as their own property: goods on the
+ground stay there, and goods the agent was carrying pass to the heir to carry.
+A Town keeps its share in its Warehouse while there is room. Food, goods that
+do not fit, and shares for heirs who have died since follow the household
+path, as do interrupted, unknown or invalid choices, so no goods are created
+or lost.
+
+The will may also leave short final words. When the estate is divided, each
+person who inherits keeps them as a private memory, such as "Rowan Hale's final
+words were: 'Keep the orchard going.'" Nobody else learns them. The dead
+agent's profile shows the will, what it leaves each heir and the final words.
+Debts, conflicts with Town law and guardians for orphaned children remain
+unfinished. Memories do not automatically pass to children.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a

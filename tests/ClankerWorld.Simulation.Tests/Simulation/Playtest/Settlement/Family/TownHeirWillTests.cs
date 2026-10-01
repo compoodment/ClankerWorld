@@ -138,6 +138,34 @@ public sealed class TownHeirWillTests
         Assert.Equal(settled, SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(settled)), SocietyCheckpointComparer.Instance);
     }
 
+    [Fact]
+    public void AnHeirWhoAlsoTakesAHouseholdShareOfTheSameLotGetsOneMergedLot()
+    {
+        var config = new SocietyConfig(TicksPerWorldDay: 2, DaysPerWorldYear: 2, BaseNaturalMortalityBasisPoints: 0);
+        var checkpoint = SocietyFixture.CreateGenesis("merged-heir-fixture",
+        [
+            SocietyFixture.CreateFounder("alice", "Alice", "model:a", config: config),
+            SocietyFixture.CreateFounder("bob", "Bob", "model:b", config: config),
+        ], config: config);
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
+        checkpoint = checkpoint with { Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "bread-lot", "bread", "alice", 5) };
+        checkpoint = SocietyFixture.Kill(checkpoint, "alice", SocietyDeathCause.Hazard).Checkpoint;
+        const string estateId = "estate:alice:0";
+        checkpoint = SocietyFixture.MarkWillStarted(checkpoint, estateId).Checkpoint;
+        checkpoint = SocietyFixture.ResolveWill(checkpoint, estateId,
+            new SocietyWillDirective(["town:first", "bob"], "equal"), "accepted",
+            townHeirIds: new HashSet<string>(["town:first"])).Checkpoint;
+        Assert.Equal([new SocietyWillBequest("bread-lot", "town:first", 3), new SocietyWillBequest("bread-lot", "bob", 2)],
+            checkpoint.GetEstate(estateId).WillBequests);
+
+        var settled = SocietyFixture.AdvanceTo(checkpoint, config.EstateEscrowDays * config.TicksPerWorldDay,
+            [new SocietyTownStore("town:first", "warehouse", 10, new HashSet<string>(["bread"]))]).Checkpoint;
+
+        var bread = Assert.Single(settled.Inventory.Lots, lot => lot.ProvenanceLotId == "bread-lot");
+        Assert.Equal(("bob", 5, "bread-lot#estate:estate:alice:0:bob"), (bread.OwnerId, bread.Quantity, bread.Id));
+        Assert.Empty(settled.Memories);
+    }
+
     private sealed class SocietyCheckpointComparer : IEqualityComparer<SocietyCheckpoint>
     {
         public static readonly SocietyCheckpointComparer Instance = new();

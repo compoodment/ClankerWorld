@@ -56,6 +56,18 @@ choice after its inputs become unavailable; validation only accepts that flag
 on a paused project without a linked job. Older schemas carrying equipment
 records are refused. No migration is added.
 
+Schema 38 saves wills with several heirs. An estate keeps its household
+default beneficiaries and adds, for an accepted will, the named heirs in order,
+the split, the exact quantity of each frozen lot each heir receives, and any
+final words. The deceased archive records the Town the agent lived in. Loading
+checks that only an accepted will has heirs and a division, that the division
+covers every frozen lot exactly with no other lots, that person heirs are known
+agents and Town heirs existing Towns, and that final words are already
+normalized. Final words become private memories only at settlement, so a
+current-format save taken between the will and settlement replays the same
+transfers and memories. Older schemas carrying these records are refused; no
+migration is added.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -229,14 +241,15 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, bounded conversations with daily allowances, and
-selected garments/carry aids with timed equipment repairs and exact reservations.
+with ground harvest lots, bounded conversations with daily allowances,
+selected garments/carry aids with timed equipment repairs and exact reservations,
+and wills with up to three heirs, exact divisions and final words.
 These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
@@ -269,6 +282,7 @@ current alpha cutoff.
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 38 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -286,14 +300,17 @@ decision may be retried and incur another attempt.
 
 The post-death will path is intentionally different: it freezes personally owned
 lot IDs/kinds/quantities in estate escrow. A cancellable final choice runs outside
-the death tick. Validate the living recipient and still-escrowed frozen lots.
+the death tick. Validate the living heirs or offered Town and the still-escrowed
+frozen lots, then store the exact division
+([how wills divide an estate](how-it-works.md#wills)).
 Death cancels only open barter offers through the ordinary cancellation
 transition, releasing both parties' reservations. Completed trades and unrelated
 surviving reservations remain.
 A persisted pending will is not reissued on restore; interrupted work resolves
 to the household default on the next active tick. Failure/deadline does likewise.
-Estate settlement waits for the pending will and commits once. Per-lot bequests,
-debts, minors and inheritance-law policy remain open.
+Estate settlement waits for the pending will and commits once, applying the
+saved division to the lots then in escrow; it never asks the model again.
+Debts, conflicts with Town law and guardianship remain open.
 
 A quantity-one physical map or field record retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
