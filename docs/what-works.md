@@ -146,8 +146,13 @@ summaries remain unfinished.
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
-death by day 60 from birth. Added adults begin at a nonzero age. These are
-playtest values, not settled population balance.
+death by day 60 from birth. Nobody dies of old age before day 45; from then
+the daily chance starts at 1% and rises a quarter of a point a day. Each
+founder and each adult added later arrives at an age from day 15 to day 25,
+chosen from the world seed. The four founders always get different ages, and
+the same seed gives the same founder ages in placement order. The agent card
+shows the age, such as **Adult · 19 days**. These are playtest values, not
+settled population balance.
 
 On death, a bounded final model choice can leave the estate to the household or
 name one living recipient for the whole estate. Interrupted or invalid choices
