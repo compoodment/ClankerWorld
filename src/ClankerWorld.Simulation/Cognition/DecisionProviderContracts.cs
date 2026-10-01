@@ -152,7 +152,7 @@ public sealed record InhabitantObservation(
             self.Personality is null || self.Personality.Length > 256 ||
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
-            self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 200 ||
+            self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 

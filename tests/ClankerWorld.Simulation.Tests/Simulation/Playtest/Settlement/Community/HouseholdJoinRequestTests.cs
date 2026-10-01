@@ -321,6 +321,15 @@ public sealed class HouseholdJoinRequestTests
         var state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         var request = Housing(state, agent)!.Request!;
 
+        // Null collection elements must be rejected as damaged checkpoint data,
+        // rather than escaping as an argument exception about the save ID.
+        var document = System.Text.Json.Nodes.JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
+        var savedApplicant = document["state"]!["inhabitants"]!.AsArray()
+            .Single(item => item!["inhabitantId"]!.GetValue<string>() == agent)!;
+        savedApplicant["housing"]!["request"]!["members"]![0] = null;
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+            System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
+
         var old = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 30 }));
         Assert.Contains("Housing", old.Message, StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(WithHousing(state, agent,
@@ -347,6 +356,36 @@ public sealed class HouseholdJoinRequestTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(housed));
         using var intact = PrivateWorldRuntime.Restore(state);
         Assert.Equal(request, Housing(intact, agent)!.Request);
+    }
+
+    [Fact]
+    public async Task WaitingForHousingWithABoundedHouseholdNameKeepsModelContextValid()
+    {
+        var provider = new ScriptedProvider();
+        using var world = NormalPathWorld.CreateGenerated("housing-long-name", _ => provider);
+        var agent = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(world.AddAgent(agent, TownTileBeside(world, "first-town-house-a")));
+        provider.Choices[agent] = "household_ask:" + Alpha;
+        await AdvanceUntil(world, () => Housing(world, agent)?.Request is not null);
+        provider.Choices[agent] = "safe_idle";
+        world.Pause();
+        var householdName = new string('A', 128);
+        var state = world.ExportState();
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Households = state.Society.Society.Households.Select(household => household.Id == Alpha
+                        ? household with { Name = householdName } : household).ToArray(),
+                },
+            },
+        };
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        restored.Resume();
+        await AdvanceUntil(restored, () => provider.HousingNotes.GetValueOrDefault(agent)?.Contains(householdName, StringComparison.Ordinal) == true);
+        Assert.Contains("Every adult member must agree", provider.HousingNotes[agent], StringComparison.Ordinal);
     }
 
     private static SettlementHousing? Housing(PrivateWorldRuntime world, string agent) =>

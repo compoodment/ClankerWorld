@@ -318,7 +318,7 @@ public sealed partial class PrivateWorldRuntime
                 request.ExpiryTick - request.RequestedTick != HousingRequestTicks ||
                 request.Members is null || answers is null || request.Members.Count == 0 ||
                 request.Members.Distinct(StringComparer.Ordinal).Count() != request.Members.Count ||
-                request.Members.Any(id => !people.ContainsKey(id) || id == person.InhabitantId) ||
+                request.Members.Any(id => string.IsNullOrWhiteSpace(id) || !people.ContainsKey(id) || id == person.InhabitantId) ||
                 answers.Distinct(StringComparer.Ordinal).Count() != answers.Length ||
                 answers.Any(id => !request.Members.Contains(id, StringComparer.Ordinal)))
                 throw new InvalidDataException("The saved housing request is invalid.");
