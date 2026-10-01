@@ -6,9 +6,11 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class EquipmentSchemaTests
 {
     [Theory]
-    [InlineData("clothing")]
-    [InlineData("spear")]
-    public void CurrentEquipmentCannotBeStoredUnderTheOlderSkillsSchema(string kind)
+    [InlineData("clothing", 31)]
+    [InlineData("spear", 31)]
+    [InlineData("clothing", 32)]
+    [InlineData("spear", 32)]
+    public void CurrentEquipmentCannotBeStoredUnderTheOlderSkillsOrHousingSchema(string kind, int schema)
     {
         using var initial = new PrivateWorldRuntime("equipment-version");
         var state = initial.ExportState();
@@ -16,7 +18,7 @@ public sealed class EquipmentSchemaTests
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "versioned-gear", kind, actor, 1);
         state = state with
         {
-            SchemaVersion = 31,
+            SchemaVersion = schema,
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             { Equipment = kind == "clothing" ? new("versioned-gear", null) : new(null, null, WeaponLotId: "versioned-gear") } : person).ToArray()

@@ -117,7 +117,7 @@ generated memory summaries and full conversations are unfinished.
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from fiber and actual jug water; an adult writes a map, one-site record or book at their own House, consuming on-site paper and a cloth book cover. The item can be carried, read, copied, shared or traded. Copies keep the actual source's contents and original discoverer. The generated-world runtime probe followed exploration, paper-making, book writing, transfer, reading, copying and save/reload; a hands-on playtest remains pending. |
 | Trade, relationships and teaching | Basic version | Physical barter and business catalogues use actual offered goods and exact payments, with room reserved at both destinations. Adults carry stock into their Store or household Market stall; other Town residents can buy without taking private stock. A stall remains held while goods or receipts are stocked and is released when empty. Positive trust and accepted/refused partnerships are also available. Adults can ask a free, healthy agent with a saved skill for a practical lesson. The learner keeps the skill, teacher and time; the agent card shows them. Skills currently change no access or work speed. Prices are provisional barter quantities. Agent-created currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership and household stores are available. A completed Town Hall supports local councils: all adults below eight adults, then three representatives elected for one game year. Proposals need a majority and tied votes keep the current rule; enacted laws can be read at the Hall. Laws do not bypass physical ownership or permissions. Multiple Town founding, currencies and land disputes remain unfinished. Council rules are provisional. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership and household stores are available. An adult with no household can ask to join a household holding a House; every adult member must agree. A completed Town Hall supports local councils: all adults below eight adults, then three representatives elected for one game year. Proposals need a majority and tied votes keep the current rule; enacted laws can be read at the Hall. Laws do not bypass physical ownership or permissions. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. Council balance values are provisional. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -137,10 +137,25 @@ Town border also gives Town membership. Unclaimed land in one Town gives Town
 membership without a household; land outside a Town starts an independent
 household. Overlapping household footprints or Town borders are refused, and
 the server checks the preview against current records again when the adult is
-placed. Walking does not change membership. Finding existing suitable housing
-before proposing a new House is not finished. Agents without a household
-cannot build a House; in fresh worlds they rely on clothing and natural storm
-cover until housing is resolved. New Shelters, Storehouses,
+placed. Walking does not change membership. An adult with no household cannot
+build a House. Instead they can ask a household that holds a House in their
+Town to take them in. Every adult member of that household must agree within
+the same short window as other proposals; one refusal or no answer ends the
+request, and that household is not asked again for two world days. Standing
+beside a House grants nothing, and a pending request grants no access to the
+household's food, stock or shelter. Once every adult agrees, the newcomer is a
+member of that household. The agent's profile and its own model request say
+the real blocker: no household, a House still to plan, missing materials or no
+legal site. [Solo formation and departure](game-design/towns.md#household-membership),
+with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
+are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+The agreed [House resident limits and relocation rules](game-design/towns.md#house-resident-capacity-and-relocation)
+likewise await [#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+Until solo formation works, an adult nobody takes in relies on clothing and
+natural storm cover. This is a basic
+version: it has not been checked by hand in the Windows game yet. New Shelters,
+Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a

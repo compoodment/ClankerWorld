@@ -477,6 +477,40 @@ A workstation project that finds its work site busy waits with the blocker
 "Waiting for a free work site". While anyone waits, another recipe of the same
 workstation design is withheld so the waiting agent gets the next turn.
 
+**Housing requests** (`SettlementHousing`). An adult whose household holds no
+House has a saved `Housing` record on their physical state: a pending request,
+recent refusals and the current blocker. Each tick `MaintainHousing` resolves
+requests, then recomputes the blocker and appends `housing_blocked` when it
+changes. The blocker codes are `no_household`, `no_authorized_home` (the
+household can plan or is building a House), `missing_materials`,
+`no_legal_site` (the household has the build costs but `TownLayoutService`
+ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+card and sent to the agent's own model as a `housing` line in its self context.
+An adult with no household is offered `household_ask:{household}` for each
+household that holds a House in the same Town, has an adult who can answer and
+has not refused within the last two world days. Asking records that household's
+adult members in the request, which expires after 120 ticks like other
+proposals. Adults who join the household or reach adulthood while it is pending
+must also answer; existing answers are retained and adults who die or leave no
+longer need to answer. Each current adult is offered `household_admit:{applicant}` and
+`household_refuse:{applicant}` and cannot continue a project or lesson until
+they answer. An ongoing lesson waits while either participant owes a housing
+answer, retaining its progress and already learned skills.
+One refusal by a living member ends the request; when every living
+member has agreed, `SocietyFixture.JoinHousehold` records the membership and
+`household_joined` is appended. A refusal or an unanswered request is remembered
+as a refusal for the cooldown. The request grants nothing while pending: stock,
+shelter and route rules still check household membership. Adults who already
+have a household are never offered a request in the current implementation.
+[Household departure and solo formation](../game-design/towns.md#household-membership),
+including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
+are agreed but remain implementation work in
+[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
+and overcrowding relocation are follow-ups in
+[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
 Recipes do not depend on a role or on personality or aspiration text. An adult
 resident is offered a crop recipe only when their household holds a Farmhouse,
 and a workstation recipe only at a building their household holds or at a

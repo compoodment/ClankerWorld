@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidatePhysicalKnowledgeWriting(PrivateWorldRuntimeState state)
     {
         if (state.Knowledge is not { } ledger) return;
-        if (state.SchemaVersion < 32)
+        if (state.SchemaVersion < 33)
         {
             if (ledger.Artifacts is { Count: > 0 })
                 throw new InvalidDataException("Older alpha knowledge items have no physical paper-writing proof and cannot be restored.");

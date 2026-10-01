@@ -69,7 +69,8 @@ public sealed partial class PrivateWorldRuntime
                 physical.Survival?.WarmthBasisPoints, physical.Survival?.IllnessBasisPoints,
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
-                towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name);
+                towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
+                HousingNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -346,6 +347,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("partner_", StringComparison.Ordinal))
         {
             ApplyFamilyCandidate(inhabitantId, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith("household_", StringComparison.Ordinal))
+        {
+            ApplyHousingCandidate(inhabitantId, candidateId);
             return;
         }
         if (candidateId.StartsWith("learn:", StringComparison.Ordinal) || candidateId.StartsWith("lesson_", StringComparison.Ordinal))
@@ -788,6 +794,7 @@ public sealed partial class PrivateWorldRuntime
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);
             AddFamilyCandidates(candidates, inhabitantId);
+            AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))

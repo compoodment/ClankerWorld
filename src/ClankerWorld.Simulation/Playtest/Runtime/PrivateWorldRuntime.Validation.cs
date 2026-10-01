@@ -86,6 +86,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion, boatTransport);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
+        ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -275,9 +276,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
         if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
-        if (state.SchemaVersion < 32 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
+        if (state.SchemaVersion < 33 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
             state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
-            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 32.");
+            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 33.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
@@ -330,6 +331,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCouncil(state);
         ValidateTownCouncils(state);
         ValidateLessons(state);
+        ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&

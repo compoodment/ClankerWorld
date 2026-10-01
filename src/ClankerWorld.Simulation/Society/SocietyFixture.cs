@@ -238,6 +238,49 @@ public static partial class SocietyFixture
         return Commit(next, "agent_added", $"{id}:{home ?? "no_household"}", id);
     }
 
+    /// <summary>
+    /// Adds an active adult who has no household to a household that agreed
+    /// to take them in. The caller records that agreement; this only commits
+    /// the resulting membership.
+    /// </summary>
+    public static SocietyOperationResult JoinHousehold(
+        SocietyCheckpoint checkpoint, string inhabitantId, string householdId)
+    {
+        Validate(checkpoint);
+        var id = NormalizeRequiredText(inhabitantId, nameof(inhabitantId));
+        var home = NormalizeRequiredText(householdId, nameof(householdId));
+        EnsureActive(checkpoint, id);
+        if (checkpoint.GetInhabitant(id).HouseholdId is not null)
+            return Reject(checkpoint, "household_join_rejected", $"{id}:existing_household");
+        var household = checkpoint.Households.FirstOrDefault(item => item.Id == home);
+        if (household is null)
+            return Reject(checkpoint, "household_join_rejected", $"{id}:missing_household");
+
+        var membershipId = $"{home}:membership:{id}";
+        if (checkpoint.Relationships.Any(item => item.Id == membershipId))
+            membershipId = $"{membershipId}:{checkpoint.WorldTick}";
+        var membership = new SocietyRelationship(
+            membershipId, 1, SocietyRelationshipType.HouseholdMembership,
+            home, id, SocietyRelationshipState.Accepted,
+            SocietyConsentState.Accepted, checkpoint.WorldTick, checkpoint.WorldTick,
+            "household", home, new[] { home, id }.Order(StringComparer.Ordinal).ToArray());
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person =>
+                person.Id == id ? person with { HouseholdId = home } : person).ToArray(),
+            Households = checkpoint.Households.Select(item => item.Id == home
+                ? item with
+                {
+                    MemberIds = item.MemberIds.Append(id).Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal).ToArray(),
+                }
+                : item).ToArray(),
+            Relationships = checkpoint.Relationships.Append(membership)
+                .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        };
+        return Commit(next, "household_joined", $"{id}:{home}", id);
+    }
+
     public static SocietyOperationResult RenameInhabitant(
         SocietyCheckpoint checkpoint, string inhabitantId, string name)
     {

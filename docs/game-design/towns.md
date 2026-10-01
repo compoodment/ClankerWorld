@@ -38,17 +38,20 @@ everything that is available in the current build. See [what works today](../wha
   access to the household's private inventory. Invited guests may shelter from
   storms but get no access to the House's stock or cooking. Any adult member of
   the household may invite a named guest and revoke that invitation later.
-  Invitations are saved and last until revoked. **There is no
-  fixed occupant limit for a House**, including invited visitors; prior
-  capacity and crowding ideas are superseded. It has no bed or sleep-recovery
+  Invitations are saved and last until revoked. **Agreed on
+  October 1:** a House has a permanent-resident limit that scales with its
+  footprint and a dominant family's needs; the [capacity and relocation
+  rules](#house-resident-capacity-and-relocation) replace the earlier unlimited
+  resident count. Invited visitors and temporary storm guests do not take
+  resident places. The House has no bed or sleep-recovery
   role. A selected building exposes inspectable occupants, stock and ownership in a panel
   ([quick card and Details](interface-and-art.md));
   there are **no visible/enterable room interiors**.
-- **Storage-driven building expansion:** a House starts at **1×1** and can
-  expand to **1×2** or **2×2** when its household needs more storage.
-  This increases storage, not its unlimited occupant count. A Warehouse starts
+- **Building expansion:** a House starts at **1×1** and can expand to **1×2**
+  or **2×2** when its household needs more storage or resident places.
+  Completed expansion increases storage and the agreed resident limit. A Warehouse starts
   at **2×2** and can expand to **2×3** for more storage. A Store may be **1×1**
-  or **1×2**, likewise tied to storage. Exact capacity per footprint, costs,
+  or **1×2**, likewise tied to storage. Exact storage capacity per footprint, costs,
   expansion triggers other than the agreed Warehouse rule (any Town resident may
   plan its expansion once its stock is nearly full), and other building footprints belong in the full content
   catalogue; do not invent those values yet.
@@ -73,31 +76,37 @@ everything that is available in the current build. See [what works today](../wha
   than choosing tiles.
 - **Housing priority for a newly added adult:** when the adult has no
   home, seek suitable existing household housing first; start a new House
-  project only if none is suitable. Moving into another household's House
-  after setup needs that household's agreement, while placing an agent with Add
-  Agent on household property still joins that household without consent. How
-  an adult forms a new household remains open. There is no
-  occupancy-capacity gate.
+  project only if none is suitable. Joining, leaving and starting a household
+  follow the [agreed membership rules](#household-membership) and
+  [House resident limits](#house-resident-capacity-and-relocation).
+  Only a household can plan a House. The adult is told
+  the real blocker: no household, no House their household holds yet, missing
+  materials or no legal site.
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
-  are Town residents with access to its Warehouse. Towns have generated,
+  are Town residents with access to its Warehouse. Later membership follows the
+  [agreed Town rules](#town-membership). Towns have generated,
   inspectable borders with room to grow. The border follows the
   Town's assigned buildings, includes spare space around them, and expands
   when new buildings join that Town. **Agreed after the September 30 road
   review:** the border keeps about **three tiles** of spare land beyond every
   building and road (tuned in playtests) and follows the Town's shape rather
   than a rectangle, so there is room, and a reason, to build inside it.
-  Assignment and overlap handling remain open.
+  Removing a building does not automatically shrink the existing border;
+  later construction may expand it. Assignment and overlap handling remain open.
   When its last resident leaves or dies, the Town becomes **abandoned**, not
   erased. Its identity, buildings, border and infrastructure remain in the
-  world, and later residents can revive that same Town. Exact treatment of
-  abandoned stock and claims still needs its own decision.
+  world, and later residents can revive that same Town under the
+  [agreed abandonment and salvage rules](#borders-abandoned-towns-and-salvage).
 - **Warehouse** replaces Storehouse. It is communal: it holds actual
   inspectable resource stock at its location for agents/households resident in
-  its Town, within that Town's borders. Food belongs at home instead. It is for
-  residents only, checked when they pick something up; what someone already
-  carries stays theirs. Residency and border-change access cases remain open.
+  its recorded Town. Food belongs at home instead. Ordinary access is for
+  residents, with the agreed abandoned-Town salvage exception below, checked
+  when they pick something up; what someone already
+  carries stays theirs. Use [recorded Town membership](#town-membership),
+  including homeless residents. The recorded Town controls access even if a
+  formal border change leaves the Warehouse outside its border.
 - **Household buildings and who may use them:** work roles do not decide what
   an agent may do. One household holds each household building: the Farmhouse,
   Blacksmith, Store and Tailor Shop. Any adult resident of that household may
@@ -147,6 +156,291 @@ everything that is available in the current build. See [what works today](../wha
   undecided, so generated worlds receive no starter herd yet. Breeding and
   mortality schedules are also unfinished. Slaughter and hunting remain outside
   the plan; the accepted leather path uses naturally deceased livestock only.
+
+### Household membership
+
+**Agreed with the owner on October 1:**
+
+- An agent belongs to **at most one household at a time**. They can also have
+  no household. Visiting, helping or trading with another household does not
+  grant membership or access to its private stock. Household membership and
+  family ancestry are separate records.
+- An adult joining an existing household through an ordinary move needs
+  **every current adult member's agreement**. This includes relatives joining
+  from another household. The separately agreed Add Agent exception remains:
+  placing an agent on household property joins that household without a
+  consent step. It still needs a valid free resident place under the agreed
+  capacity checks; consent and room are separate requirements.
+  An ordinary request is bounded: one refusal, or no answer within the usual
+  proposal window, ends it, and that household is not asked again for a while.
+  Standing nearby grants nothing; a pending request grants no membership or
+  access to the household's stock or shelter.
+- An adult may **leave voluntarily without the household's permission**.
+  Personal goods, shared stock, access and dependent care follow the
+  [agreed departure rules](#household-goods-and-departure).
+- **One adult may start a household alone**; a partner or second founder is
+  not required. A newly added homeless adult still seeks suitable existing
+  household housing first. If none is suitable or accepts them, they may form
+  their own household and pursue a House through the ordinary materials,
+  terrain, access and land-use rules. Founding a household creates neither a
+  free House nor building materials.
+
+The household's existing limit of one planned House remains separate from the
+number of people in its family. Splitting into two households does not erase
+parentage or other family relationships. Care during a living adult's departure
+is agreed below. Town affiliation follows the [Town membership rules](#town-membership);
+care after death and other guardianship cases still need their own decisions.
+
+### Household goods and departure
+
+**Agreed with the owner on October 1, answers 10A–14A:**
+
+- **Ownership and location are separate.** A person may keep recorded personal
+  belongings in the House without donating them to the household. Shared food,
+  materials and household equipment remain household property. For example,
+  Rowan's own coat remains Rowan's beside the shared grain in House storage.
+  Carrying a borrowed household axe does not make the axe personal property.
+- **Moving out ends the old household membership.** This applies to voluntary
+  departure and overcrowding displacement. The person keeps their personal
+  belongings and the departure allowance below; they get no automatic equal
+  share of shared stock. Shared goods and buildings remain with their recorded
+  household owner, including when its last member leaves. Moving out does not
+  settle abandoned-property claims or transfer buildings to a new household.
+- **Personal belongings remain retrievable after departure.** The former
+  member retains limited access to collect their recorded personal goods,
+  without needing to rejoin or obtain a new permission for each collection.
+  Ordinary shared-stock and cooking access end with membership. Retrieval is
+  physical, follows carrying limits and may take repeated trips; it grants no
+  remote transfer or access to other people's goods. Borrowed goods keep their
+  original owner and must be physically returned rather than silently becoming
+  the departing person's property. Leaving itself needs no household vote.
+- **A small food allowance supports the move.** The initial trial is up to
+  **two ready-to-eat food portions**, from available **unreserved** household
+  stock, for both voluntary departures and evictions. Existing care and work
+  reservations are respected. Missing food is not created. The allowance is
+  allocated once for the departure and collected physically within carrying
+  limits; repeated requests, collection trips or a saved-and-resumed move
+  cannot multiply it.
+- **Care continues when a caregiver leaves.** A departing sole caregiver
+  remains responsible: dependent children move with them unless another capable
+  adult explicitly accepts their care. An accepting destination must have room
+  for the whole moving care group under the resident rules. Travel and care
+  happen physically; no child is left alone, teleported or assigned to an adult
+  who has not accepted. If no home is ready, the housing task remains visible
+  while that adult continues care. Parentage is unchanged. The overcrowding
+  timer still cannot expel a child alone or remove their only caregiver.
+
+Adult departure, personal ownership, limited collection access, the food
+allowance and solo formation are implementation work in
+[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+Death, wills and other guardianship cases remain separate choices in
+[Agents and families](agents-and-families.md#still-to-decide).
+
+### House resident capacity and relocation
+
+**Agreed with the owner on October 1, answers 5A–8A and 9B:** three ordinary
+resident places or four with a dominant family **per tile of the House
+footprint**. These are total resident limits, not separate family and outsider
+allowances. This replaces unlimited House residency. Storage quantities and
+construction costs remain provisional; they are separate from these approved
+resident counts.
+
+| House footprint | Ordinary resident limit | With a dominant family |
+| --- | ---: | ---: |
+| 1×1 | 3 | 4 |
+| 1×2, either orientation | 6 | 8 |
+| 2×2 | 12 | 16 |
+
+- **Count permanent residents, not people currently inside.** Traveling
+  residents keep their places. Every child, including an infant, takes one
+  place from birth. Invited visitors and temporary storm shelter do not create
+  residence, household stock access or a place in the count.
+- **A dominant family gets the larger limit.** One recorded
+  domestic family unit must contain at least two residents and more than half
+  the House's permanent residents. The unit is partners and their
+  children, including siblings who belong to that unit; marriage is not
+  required. Each person has one primary unit for this housing calculation,
+  separately from their full ancestry. Taking a partner creates a new unit;
+  it does not merge both ancestral family trees. A shared surname, household
+  membership or distant ancestor does not by itself qualify. Nonresident
+  relatives do not count toward dominance. A tie gives neither family
+  priority. Extended ancestry does not automatically join that domestic unit.
+- **Displace only when there is no room.** In a 1×1 House, two partners, their
+  baby and an unrelated adult can use all four places. A second baby makes
+  five, so the crowding must be resolved by completed expansion or relocation.
+  Becoming a family majority does not itself expel anyone. Admission considers
+  all residents after the move: a newcomer cannot use a family bonus their
+  own arrival would remove. Ordinary adult newcomers still need unanimous agreement;
+  family status alone cannot bypass it.
+- **Births always complete, even if the home is full.** The parents establish
+  a primary caregiver and intended home before birth. The newborn joins that
+  caregiver's actual household at birth; the other parent's residence does
+  not automatically change. A full or unavailable home creates a visible
+  housing need, not a lost or rejected baby. A House that exceeds its limit is
+  marked overcrowded and accepts no further voluntary residents. Once an
+  overcrowding case opens, a birth or age change does not restart its deadline.
+- **Adults relocate; dependents are not sent away alone.** Volunteers go
+  first, then the most recently admitted eligible unrelated adult, with a
+  stable tie-break for equal arrival times. Without a dominant family, use
+  that same volunteer-then-arrival order without favoring a family. A dependent
+  moves with a caregiver when needed, and an arrival cannot gain a place by
+  displacing people in its destination House. Recheck current residents and
+  the completed footprint before acting so a death, departure, expansion or
+  new family relationship cannot cause an unnecessary eviction. Continue
+  relocating eligible adults only until the remaining residents fit.
+- **One unpaused world day of notice for displaced adults** is the initial
+  trial period. During notice they look for a suitable
+  accepting household with room; otherwise they may form their own household
+  and build normally. If notice ends with no home ready, the eligible adult
+  leaves residence and the old household membership, and continues a visible
+  homeless housing task. Immediate storm
+  shelter is still possible under the guest rules. No person or goods are
+  teleported to a new home. Goods, collection access and care follow the
+  [departure rules](#household-goods-and-departure).
+- **Expansion can solve crowding.** The household may plan its next supported
+  footprint for a storage or housing need, under the ordinary terrain,
+  overlap, land-use, materials and work rules. Reserved space or an unfinished
+  project creates no resident places yet and does not restart the notice
+  period. A completed expansion cancels any remaining relocation that is no
+  longer needed. Adults who already left do not automatically rejoin.
+- **An all-family full House needs a family housing plan.** A birth beyond
+  the current footprint's family limit permits temporary overcrowding.
+  Suitable adults arrange expansion or, if the House cannot expand further,
+  a split into another household and House while preserving dependent care.
+  With no safe care arrangement, legal site or materials, the home stays
+  visibly overcrowded and blocked;
+  it cannot admit additional voluntary residents. Do not apply the unrelated
+  adult's notice deadline to a child or to remove their only caregiver.
+  This adds no housing prerequisite for starting pregnancy, automatic birth
+  cap or change to the agreed continuity safeguard. At 2×2, a seventeenth
+  family resident therefore needs a housing split, not an invented larger
+  base-game footprint.
+- **Add Agent respects resident capacity.** It retains the agreed consent
+  exception but needs a valid free resident place. A full-house placement
+  explains the blocker instead of bypassing capacity or silently evicting
+  someone. Placement on a household's other property likewise cannot avoid
+  its House's resident limit.
+
+| Case | Agreed result |
+| --- | --- |
+| Three unrelated adults in a 1×1 House; another wants to join | No free resident place until expansion completes. Seek another household or build if none is suitable. |
+| Two partners and one unrelated adult in a 1×1 House; first baby | Four residents with a family majority. Nobody is displaced. |
+| Two parents, one child and one unrelated adult in a 1×1 House; second baby | Five temporarily. Completed expansion can keep everyone; otherwise the unrelated adult relocates, leaving four family residents. |
+| Four family residents in a 1×1 House; another baby | Birth completes. Expand or arrange a housing split with safe care. |
+| Eight family residents in a 1×2 House; another baby | Birth completes. A finished 2×2 expansion gives sixteen family places; otherwise arrange another home. |
+| Sixteen family residents in a 2×2 House; another baby | Birth completes. No larger standard footprint; a family housing split is needed. |
+| Two unrelated adults in a 1×1 House; one has a baby whose other parent lives elsewhere | Baby joins the primary caregiver. Three residents fit; the other parent does not automatically move. |
+| Four residents in two equally sized family units in a 1×1 House | No family majority. A voluntary fourth admission is refused; an existing birth-related case needs expansion or relocation with no family favored. |
+| A resident is away gathering; a guest is invited | The traveler still occupies their resident place. The guest gains shelter only. |
+
+The resident counts, family scope, birth exceptions, notice and departure
+rules are agreed. The existing
+[housing-admission work](https://github.com/compoodment/ClankerWorld/issues/464)
+and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/463)
+remain their original implementation slices; the new residence and relocation
+rules require their own follow-up work, without competing with active claims.
+Resident limits and housing-driven expansion are tracked in [#598](https://github.com/compoodment/ClankerWorld/issues/598),
+and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
+### Town membership
+
+**Agreed with the owner on October 1, answers 15A–18A:**
+
+- **Residence is recorded membership in one Town, or none.** A journey, visit
+  or border crossing does not change that record. Household membership,
+  permanent House residence, physical location and Town membership are separate
+  facts. Rowan can gather near another Town for three days while remaining a
+  resident of the original Town.
+- **Homeless residents keep their Town membership.** Leaving a household,
+  eviction or losing a House does not alone remove Town membership, ordinary
+  eligibility to collect communal Warehouse stock or adult voting rights.
+  The person can seek another accepting household or build normally while
+  remaining a Town resident. Available stock, physical collection, carrying
+  limits, access and ordinary construction rules still apply.
+- **An ordinary adult newcomer needs Town approval.** The current council or
+  other legitimate Town government accepts them. Household admission is a
+  separate decision: an accepting household alone cannot grant Town membership,
+  communal stock access or a vote. A homeless newcomer may request Town
+  membership before finding a House. A request or model claim is not approval;
+  walking into the border does not register a resident. The council's voting
+  procedure remains a separate governance choice.
+- **Dependent children follow their primary caregiver.** A newborn joins that
+  caregiver's Town without a separate admission vote; the other parent's Town
+  membership is unchanged. Approval for a caregiver moving Towns with dependent
+  children covers the care group. Keep the group's membership consistent with
+  actual caregiver placement, preserve parentage and count everyone as a
+  resident. Children gain no adult council or voting rights before adulthood.
+  The household still needs agreement and places for the complete care group;
+  Town approval creates no free House, private access or extra resident places.
+
+The separately agreed New World and Add Agent placement rules still initialize
+Town membership: the first four agents belong to the first Town, and confirmed
+Add Agent placement uses the recorded household property/Town precedence. Those
+setup exceptions do not turn later travel into membership or bypass the agreed
+House capacity checks.
+
+The [initial council and elections](#town-laws-and-governance) use these recorded
+adult residents rather than the agents physically inside a border. Admission
+to an abandoned Town follows the [revival exception](#borders-abandoned-towns-and-salvage).
+The approved membership work is tracked in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602); council voting and
+election procedures follow separately in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+
+### Borders, abandoned Towns and salvage
+
+**Agreed with the owner on October 1, answers 19A, 20A, 21B, 22A and 23A:**
+
+- **Removing a building does not shrink the border automatically.** Keep the
+  existing boundary and room for rebuilding; assigned new construction may
+  expand it under the existing layout rules. A formal boundary change does
+  not by itself change Town membership, title, household use rights or the
+  owner of buildings and goods.
+- **A Warehouse's recorded Town controls ordinary access.** If a formal
+  boundary change leaves the Warehouse outside that Town's border, its residents
+  may still collect stock under the usual physical pickup rules. Do not suspend
+  access merely because of geometry or grant it to a neighboring Town.
+  Reassignment remains a separate validated change; it cannot erase stock or
+  bypass the agreed removal/reassignment safeguards.
+- **An empty Town permits public salvage of unreserved communal stock.** When
+  no recorded living residents remain, any agent may physically collect that
+  stock, including from its Warehouse, within carrying and availability limits.
+  This is the owner's chosen exception to resident-only communal access. Check
+  the current abandoned state and reservations when pickup actually happens;
+  no missing goods are created and no reserved lot is silently released.
+  Visiting or salvaging creates no Town membership, council vote or access to
+  private household goods/buildings. Salvage does not erase the Town's identity,
+  stock history, claims or existing ownership records.
+- **One adult may explicitly resettle an abandoned Town.** The adult must be
+  physically there and choose residence, rather than merely visit or collect
+  salvage. Record the deliberate membership change, preserving the one-Town
+  limit and dependent-care rules, revive the same Town identity and restart its
+  council from the returning adult residents. No previous council approval or
+  second adult is required for this first-resident exception. Later ordinary
+  newcomers need the restored government's approval. Resettling grants no free
+  House, materials or ownership of old private buildings; ordinary housing,
+  care, construction and rights rules still apply.
+- **Revival ends public salvage access.** Remaining communal stock again uses
+  ordinary resident eligibility, checked at the next physical pickup. Goods
+  already collected legitimately stay with the person carrying them; revival
+  neither duplicates those goods nor confiscates them. A stale salvage plan
+  cannot collect new stock after the Town is occupied unless it now has normal
+  resident access.
+- **The Town's existing laws survive abandonment.** The restored council may
+  amend or repeal them through the agreed governing process once that process
+  is defined. Old councillors or offices are not resurrected automatically.
+  The laws remain social rules that can be broken; their persistence does not
+  rewrite fixed world facts or grant agents knowledge they have not learned.
+
+For example, a visitor may collect five available unreserved logs from an
+abandoned Town without joining it. An adult later chooses to settle there;
+the remaining logs become resident-only communal stock again, the same Town
+revives, and its protected-grove law still exists until validly repealed.
+Private coats, Houses and household equipment retain their recorded owners.
+Abandonment/revival and salvage implementation remains recorded in
+[#410](https://github.com/compoodment/ClankerWorld/issues/410), which the owner
+previously parked until play reaches this stage; these design answers do not
+claim that it is implemented or change that timing.
 
 ### Agreed content and building sizes
 
@@ -348,7 +642,7 @@ must not pass through blocked corners. Playable foot movement now uses the stric
 
 Further structure effects; exact configurations and unchosen footprints;
 building
-inspection fields, invitation details, access to other non-residential
+inspection fields, access to other non-residential
 buildings, reservations and queues;
 claim boundaries, shared-use grants and mayoral powers; Town borders and
 governance; currency/land pricing;
@@ -413,7 +707,10 @@ when they read or discuss them at the Hall.
 
 ### Still to decide
 
-How governments may change; which other laws apply to whom and where; how a
+Town residency and newcomer approval are agreed in [Town membership](#town-membership).
+The first elected council size, one-year term and majority proposal/repeal
+procedure are agreed above. Still open: how governments may change; which
+other laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
@@ -689,12 +986,18 @@ These remain open; they are not new decisions.
    is already agreed. What remains open is exact inter-Town route timing,
    layout and rendering.
 
-- **Home invitations and later membership.** Add Agent placement on household
-   land still joins the household without a consent step, while moving into
-   another household's House after setup needs that household's agreement.
-   Invited guests may shelter from storms but cannot use the House's stock or
-   cooking. Both rules are agreed above. Decide how agents later leave or
-   change households, beyond that agreement rule.
+- **Homes, membership and family growth.** The [membership rules](#household-membership)
+   settle one household at a time, unanimous adult admission, voluntary adult
+   departure and solo formation. The [resident-capacity rules](#house-resident-capacity-and-relocation)
+   settle footprint-scaled places, family priority, births and relocation. The
+   [goods and departure rules](#household-goods-and-departure) settle personal
+   ownership, collection access, the food allowance and care during a living
+   adult's departure. [Town membership](#town-membership) settles recorded
+   affiliation, homeless residents, ordinary newcomer approval and dependent
+   children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
+   settle the empty-Town exception and communal access. Care after death,
+   other guardianship cases, private abandoned-property transfers and remaining
+   border assignment/dispute cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
@@ -703,7 +1006,10 @@ These remain open; they are not new decisions.
 
 - **Building storage catalogue.** Houses start at 1×1 and may expand to
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
-    choices raise storage, not House occupancy. The other chosen building
-    footprints are in the accepted roster above. Decide capacities, costs,
-    other expansion triggers. Port clearance follows the first boat rule above;
-    Market stalls follow the approved physical-stock reservation rule.
+    choices raise storage and House resident capacity under the agreed
+    footprint table above; enforcing resident limits and relocation remains
+    work in #598 and #599. The other chosen building footprints are in the
+    accepted roster above. Storage capacities and costs use provisional trial
+    values; other expansion triggers remain open. Port clearance follows the
+    first boat rule above; Market stalls follow the approved physical-stock
+    reservation rule.
