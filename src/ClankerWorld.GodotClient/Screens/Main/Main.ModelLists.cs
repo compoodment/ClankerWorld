@@ -102,6 +102,7 @@ public partial class Main
     // A pasted key is looked up once the owner stops typing, not per keystroke.
     private void OnFounderKeyEdited()
     {
+        ClearFounderModelSetupCheck();
         var stamp = ++founderKeyEdits;
         GetTree().CreateTimer(PastedKeyPause).Timeout += () =>
         {
@@ -111,6 +112,7 @@ public partial class Main
 
     private void OnCognitionKeyEdited()
     {
+        ClearCognitionModelSetupCheck();
         var stamp = ++cognitionKeyEdits;
         GetTree().CreateTimer(PastedKeyPause).Timeout += () =>
         {

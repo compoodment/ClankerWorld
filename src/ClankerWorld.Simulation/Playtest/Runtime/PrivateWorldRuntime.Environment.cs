@@ -130,7 +130,6 @@ public sealed partial class PrivateWorldRuntime
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
@@ -180,8 +179,7 @@ public sealed partial class PrivateWorldRuntime
             checkpoint,
             providerFactory,
             maxCognitionQueueLength,
-            maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            maxCognitionDispatchPerCycle);
     }
 
     private void CreatePhysicalState()

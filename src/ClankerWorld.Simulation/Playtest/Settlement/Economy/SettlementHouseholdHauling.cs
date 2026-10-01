@@ -27,14 +27,14 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (householdId is null)
             return;
-        if (CarriedHouseDelivery(actor) is { } carried)
+        if (CarriedHouseDelivery(actor) is { } carried && StorageRoom(carried.DeliveryBuildingId!) > 0)
         {
             candidates.Add(new("haul_household_stock",
                 "Deliver already collected household supplies to their building.", 18,
                 carried.DeliveryBuildingId));
             return;
         }
-        if (HouseForHousehold(householdId) is not { } house)
+        if (HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0)
             return;
         var camp = SettlementStoragePosition;
         if (UnlocatedHouseholdStock(householdId) is not null &&
@@ -63,7 +63,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, house.Position, "household_food", 0);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(food) - 1);
+        var quantity = Math.Min(StorageRoom(house.InstanceId), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(food) - 1));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"house-food-storage:{WorldTick}:{actor}", actor, householdId, food.Id,
             quantity, "household_food_stored", house.InstanceId));
@@ -75,7 +76,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null)
             return;
-        if (CarriedHouseDelivery(actor) is { } carried)
+        if (CarriedHouseDelivery(actor) is { } carried && StorageRoom(carried.DeliveryBuildingId!) > 0)
         {
             var house = worldSimulation.Buildings.Single(building =>
                 building.InstanceId == carried.DeliveryBuildingId);
@@ -84,7 +85,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, house.Position, "household_stock", 0);
                 return;
             }
-            var deliveredQuantity = AvailableLotQuantity(carried);
+            var deliveredQuantity = Math.Min(StorageRoom(house.InstanceId), AvailableLotQuantity(carried));
+            if (deliveredQuantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"house-haul-delivery:{WorldTick}:{actor}", actor, householdId,
                 carried.Id, deliveredQuantity, "household_stock_delivered", house.InstanceId));
@@ -102,7 +104,9 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, camp, "household_stock", ResourceInteractionRange);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock));
+        var inbound = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == houseForPickup.InstanceId).Sum(lot => lot.Quantity);
+        var quantity = Math.Min(Math.Max(0, StorageRoom(houseForPickup.InstanceId) - inbound), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock)));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"house-haul-pickup:{WorldTick}:{actor}", householdId, actor,
             stock.Id, quantity, "household_stock_picked_up",
