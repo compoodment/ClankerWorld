@@ -503,6 +503,12 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+When moving stock between household buildings, an adult leaves enough at the
+source for one currently needed recipe batch. The House also keeps its paper
+and cloth for current writing needs. Only quantities above those reserves are
+spare supplies for another building, preventing writing and workshop hauling
+from repeatedly carrying the same cloth back and forth.
+
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their
 belongings while they have no legal trade response. The society transaction

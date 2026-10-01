@@ -1,0 +1,1 @@
+Household hauling keeps the next needed recipe batch at its workstation and the paper and cloth needed for writing at the House. Writing and workshops collect only surplus stock from another building, preventing the same cloth from being carried back and forth before either task can finish. Batch quantities and writing costs remain provisional.

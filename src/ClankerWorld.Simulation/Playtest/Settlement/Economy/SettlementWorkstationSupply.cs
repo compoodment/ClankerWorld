@@ -77,7 +77,7 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId != destinationId && AvailableLotQuantity(lot) > 0 &&
+                lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId != destinationId && HouseholdSupplySpareQuantity(lot, destinationId) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
@@ -132,7 +132,8 @@ public sealed partial class PrivateWorldRuntime
             }
             var incoming = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
             var quantity = Math.Min(Math.Max(0, StorageRoom(building.InstanceId) - incoming),
-                Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, CookingSupplyQuantity(stock, householdId)))));
+                Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, Math.Min(CookingSupplyQuantity(stock, householdId),
+                    HouseholdSupplySpareQuantity(stock, building.InstanceId))))));
             if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,

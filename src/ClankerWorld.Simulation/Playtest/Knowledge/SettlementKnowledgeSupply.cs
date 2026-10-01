@@ -14,15 +14,9 @@ public sealed partial class PrivateWorldRuntime
             !knowledge.Facts.Any(fact => fact.OwnerId == actor) ||
             knowledge.Artifacts.Count(item => item.CreatorId == actor) >= AgentKnowledgeRules.MaximumArtifactsPerCreator)
             return null;
-        var wantsBook = !knowledge.Artifacts.Any(item => item.CreatorId == actor && item.Kind == "book");
-        var copy = AccessibleKnowledgeArtifacts(actor, requirePresence: false).FirstOrDefault(item =>
-            item.CreatorId != actor && item.Facts.All(fact => KnowsMapFact(actor, fact.Position)) &&
-            !knowledge.Artifacts.Any(existing => existing.CreatorId == actor && existing.CopiedFromArtifactId == item.Id));
-        var unrecorded = knowledge.Facts.Any(fact => fact.OwnerId == actor && !knowledge.Artifacts.Any(item =>
-            item.CreatorId == actor && item.Facts.Any(written => written.Position == fact.Position)));
-        if (!wantsBook && !unrecorded && copy is null) return null;
+        if (WantedKnowledgeWritingCosts(actor) is not { } costs) return null;
         var inventory = society.Checkpoint.Inventory;
-        foreach (var cost in WritingCosts(wantsBook ? "book" : copy?.Kind ?? "field_map"))
+        foreach (var cost in costs)
         {
             var stocked = inventory.Lots.Where(lot => lot.OwnerId == house.HouseholdId &&
                 lot.StorageBuildingId == house.InstanceId && lot.ItemKind == cost.ResourceId).Sum(AvailableLotQuantity);
@@ -32,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
                     lot.GroundPosition is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                     (lot.OwnerId == actor && lot.StorageBuildingId is null ||
                      lot.OwnerId == house.HouseholdId && lot.StorageBuildingId != house.InstanceId &&
-                     CarryingRoom(actor) > 0 && CanReachSharedItem(actor, lot)))
+                     HouseholdSupplySpareQuantity(lot, house.InstanceId) > 0 && CarryingRoom(actor) > 0 && CanReachSharedItem(actor, lot)))
                 .OrderBy(lot => lot.OwnerId == actor ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (source is not null) return new(house, cost.ResourceId, missing, source);
         }
@@ -72,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, location, "knowledge_supply", range);
             return;
         }
-        var amount = Math.Min(CarryingRoom(actor), Math.Min(need.Missing, AvailableLotQuantity(source)));
+        var amount = Math.Min(CarryingRoom(actor), Math.Min(need.Missing, HouseholdSupplySpareQuantity(source, need.House.InstanceId)));
         if (amount == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"knowledge-supply-pickup:{WorldTick}:{actor}", source.OwnerId, actor, source.Id, amount,
