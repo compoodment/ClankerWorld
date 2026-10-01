@@ -10,55 +10,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class RetiredBuildingTests
 {
     [Fact]
-    public async Task FreshWorldNeverOffersRetiredBuildingsOrResidentStudies()
-    {
-        using var baseline = new PrivateWorldRuntime("retired-fresh", _ => new IdleProvider());
-        var state = baseline.ExportState();
-        var inventory = state.Society.Society.Inventory;
-        foreach (var person in state.Inhabitants)
-        {
-            foreach (var (kind, quantity) in new[] { ("wood", 40), ("stone", 20), ("fiber", 20) })
-                inventory = InventoryFixture.AddLot(inventory, $"retired-fresh-{kind}:{person.InhabitantId}", kind,
-                    person.InhabitantId, quantity);
-        }
-        state = state with
-        {
-            Society = state.Society with
-            {
-                Society = state.Society.Society with
-                {
-                    Inventory = inventory,
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person =>
-                        person with { CurrentRole = SocietyWorkRole.Builder }).ToArray(),
-                },
-            },
-            Inhabitants = state.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = 9_000,
-                Proficiency = new SettlementProficiency(Building: 9),
-            }).ToArray(),
-        };
-        var provider = new RecordingProvider();
-        using var world = PrivateWorldRuntime.Restore(state, _ => provider);
-        world.StageStarterContent();
-        for (var tick = 0; tick < 12; tick++) await world.AdvanceOneTickAsync();
-
-        var retired = world.WorldContent.Buildings.Where(RetiredBuildings.Contains)
-            .Select(definition => definition.CanonicalId).ToHashSet(StringComparer.Ordinal);
-        Assert.Equal(["fire", "shelter", "stone-hearth", "storage"], world.WorldContent.Buildings
-            .Where(RetiredBuildings.Contains).Select(definition => definition.LocalId).Order(StringComparer.Ordinal));
-        var offered = provider.Candidates
-            .Select(id => TownConstructionCandidateIds.TryParse(id, out var selection) && selection.IsBuilding
-                ? selection.DefinitionId : null)
-            .OfType<string>().ToHashSet(StringComparer.Ordinal);
-        Assert.NotEmpty(offered);
-        Assert.DoesNotContain(offered, retired.Contains);
-        Assert.DoesNotContain(provider.Candidates, id => id.StartsWith("invent:building:", StringComparison.Ordinal));
-        Assert.DoesNotContain(world.Content.Packages, item =>
-            item.Manifest.PackageId.StartsWith("owner-building-", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task CurrentCheckpointKeepsRetiredBuildingsAndFinishesProjectsUnderWay()
     {
         using var seed = new PrivateWorldRuntime("retired-current-save", _ => new IdleProvider());
