@@ -66,12 +66,25 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Owner instructions are suggestions (**Suggest** on the agent card,
-`Suggestive`) or orders (**Order**, `MustDo`).
-The model does not receive their text. `InstructionCandidate` reads whole words
-only: *harvest* or *gather* means `harvest_food`; *berry* means `seek_food`;
-*eat*, *food* or *hungry* means `consume_food`; and *go*, *travel* or *move*
-means `seek_food`, so travel always heads toward food. A few plain inflections
-such as *gathering* and *berries* also count.
+`Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
+planning request for that agent can include the exact original words with an
+outside-observer label. The request contains only messages for its target
+agent. Guidance bypasses Jev's routine route, while adults still use their
+normal planning assignment or inherited world planning provider. A child
+without an explicit personal-model choice and an agent whose planning model is
+set to deterministic stay local; neither receives a forced hosted call.
+
+`InstructionCandidate` reads whole words only: *harvest* or *gather* means
+`harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
+`consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel
+always heads toward food. A few plain inflections such as *gathering* and
+*berries* also count. A recognized order includes that understood task beside
+the original wording, but the host still checks current legal choices and
+whether the physical action actually succeeds. Text about a place or resource
+does not create map knowledge. A personal model can return a short optional
+reply tied to one exact message ID; that reply is saved separately from private
+thoughts and conversation speech. A local deterministic choice does not mark a
+message as heard.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -82,18 +95,22 @@ instructions to that agent.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses: acquiring food or orchard fruit, eating, or taking a travel
-step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
-including across reload. Travel completion here is one step, not a full-route
-goal. Instructions to one agent apply in submission order, so a pending order
-holds later ones back. A Suggestion completes at the agent's next accepted
-decision, whatever that decision is.
+step. An unrelated action, blocked movement or unavailable food leaves the
+instruction pending, including across reload. Travel completion here is one
+step, not a full-route goal. Recognized orders to one agent apply in submission
+order, so a pending order holds later orders back. Suggestions do not block
+orders. A suggestion completes only after the addressed personal model accepts
+a request containing it; local choices and provider failures do not claim it
+was heard.
 
-A pending instruction prompts one fresh decision: it schedules cognition only
-until the agent has an accepted intention observed after the submission tick.
-After that, `NeedsCognition` applies its usual rules. For example, active agents
-reevaluate every 30 ticks, and idle agents reevaluate when their legal choices
-change or after 300 ticks. An order that cannot progress therefore cannot
-request a decision, or a paid model call, on every tick.
+A newly submitted message triggers one fresh cognition request. Its prompt
+marker only prevents a new request every tick; it is not a read receipt. The
+same pending message remains available on the agent's later ordinary planning
+requests until a personal-model result is accepted. After the fresh request,
+`NeedsCognition` applies its usual rules. For example, active agents reevaluate
+every 30 ticks, and idle agents reevaluate when their legal choices change or
+after 300 ticks. A blocked order therefore cannot request a paid model call on
+every tick.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture

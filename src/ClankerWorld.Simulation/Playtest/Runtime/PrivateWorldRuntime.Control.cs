@@ -159,11 +159,20 @@ public sealed partial class PrivateWorldRuntime
     private OwnerQueuedInstruction? PendingInstructionFor(string inhabitantId) =>
         instructionsByIdempotency.Values
             .Where(item => item.TargetInhabitantId == inhabitantId &&
+                item.Kind == OwnerInstructionKind.MustDo &&
                 !completedInstructionIds.Contains(item.InstructionId))
+            .Where(item => InstructionCandidate(item.Text) is not null)
             .OrderBy(item => item.SubmissionSequence)
             .FirstOrDefault();
 
-    private IReadOnlyList<CognitionObserverGuidance> ObserverGuidanceFor(string inhabitantId) =>
+    private bool HasNewObserverGuidanceFor(string inhabitantId) =>
+        instructionsByIdempotency.Values.Any(item =>
+            item.TargetInhabitantId == inhabitantId &&
+            !completedInstructionIds.Contains(item.InstructionId) &&
+            (item.Kind == OwnerInstructionKind.Suggestive || InstructionCandidate(item.Text) is not null) &&
+            item.GuidancePromptedTick is null);
+
+    private CognitionObserverGuidance[] ObserverGuidanceFor(string inhabitantId) =>
         instructionsByIdempotency.Values
             .Where(item => item.TargetInhabitantId == inhabitantId &&
                 !completedInstructionIds.Contains(item.InstructionId) &&

@@ -132,6 +132,18 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 36 sets the strict terrain/weather checkpoint cutoff for
+the current generator. Earlier alpha maps that fail current deterministic map
+validation are refused and preserved; no terrain or weather migration is
+provided. Schema 37 records each owner's exact pending message, target,
+submission identity, whether a personal model observed it, and its optional
+short reply. The one-fresh-decision prompt tick is scheduling state, not a read
+receipt. Accepted replies stay attached to the original message ID; pause,
+reload or a stale result cannot transfer them to a newer message. Current
+schema saves require the instruction and completion records and validate their
+target, ordering and tick bounds. Earlier alpha instruction records need not
+load; no message migration is provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. Compatibility

@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -38,7 +39,7 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task DirectOrderTheGameCannotActOnClosesAtOnceAndDoesNotHoldUpLaterInstructions()
+    public async Task DirectOrderTheGameCannotActOnClosesAtOnceAndLocalChoicesDoNotMarkSuggestionsHeard()
     {
         var provider = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
         using var world = new PrivateWorldRuntime("unknown-order", _ => provider);
@@ -55,14 +56,15 @@ public sealed partial class PrivateWorldRuntimeTests
 
         var suggestion = world.SubmitInstruction(new OwnerInstructionRequest("rest", "owner:test",
             OrderedAgent, OwnerInstructionKind.Suggestive, "rest"));
-        for (var tick = 0; tick < 3 &&
-             !(world.ExportState().CompletedInstructionIds ?? []).Contains(suggestion.InstructionId); tick++)
+        for (var tick = 0; tick < 3; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         var state = world.ExportState();
-        Assert.Contains(suggestion.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.Single(state.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail.StartsWith(suggestion.InstructionId + ":", StringComparison.Ordinal));
+        var savedSuggestion = Assert.Single(state.Instructions!, item => item.InstructionId == suggestion.InstructionId);
+        Assert.DoesNotContain(suggestion.InstructionId, state.CompletedInstructionIds ?? []);
+        Assert.Null(savedSuggestion.ObservedTick);
+        Assert.Null(savedSuggestion.ObserverReply);
+        Assert.NotNull(savedSuggestion.GuidancePromptedTick);
         Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied" &&
             item.Detail.StartsWith(order.InstructionId + ":", StringComparison.Ordinal));
         world.Validate();
@@ -73,6 +75,93 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Contains(order.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
         Assert.Single(restored.ExportState().Events, item => item.Kind == "instruction_not_understood");
         restored.Validate();
+    }
+
+    [Fact]
+    public async Task UnheardSuggestionDoesNotBlockRecognizedMustDoWithoutAPersonalModel()
+    {
+        using var genesis = new PrivateWorldRuntime("unheard-suggestion-before-order");
+        var state = genesis.ExportState();
+        const string foodLotId = "guidance-test-berries";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            foodLotId, "berries", OrderedAgent, 1);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == OrderedAgent
+                ? item with { HungerBasisPoints = 3_000 }
+                : item).ToArray(),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+        var provider = new GuidanceRecordingProvider();
+        using var world = PrivateWorldRuntime.Restore(state, id =>
+            id == OrderedAgent ? provider : new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+
+        var suggestion = world.SubmitInstruction(new OwnerInstructionRequest(
+            "unheard-suggestion", "owner:test", OrderedAgent, OwnerInstructionKind.Suggestive,
+            "Try the berries when you feel like it."));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var afterSuggestion = world.ExportState();
+        var pendingSuggestion = Assert.Single(afterSuggestion.Instructions!, item => item.InstructionId == suggestion.InstructionId);
+        Assert.NotNull(pendingSuggestion.GuidancePromptedTick);
+        Assert.Null(pendingSuggestion.ObservedTick);
+        Assert.DoesNotContain(suggestion.InstructionId, afterSuggestion.CompletedInstructionIds ?? []);
+
+        var callsAfterSuggestion = provider.Requests.Count;
+        for (var tick = 0; tick < 4; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(callsAfterSuggestion, provider.Requests.Count);
+
+        var order = world.SubmitInstruction(new OwnerInstructionRequest(
+            "recognized-order-after-suggestion", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo,
+            "Please eat the food now."));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var stateAfterOrder = world.ExportState();
+        Assert.Contains(order.InstructionId, stateAfterOrder.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(suggestion.InstructionId, stateAfterOrder.CompletedInstructionIds ?? []);
+        Assert.Null(Assert.Single(stateAfterOrder.Instructions!, item => item.InstructionId == suggestion.InstructionId).ObservedTick);
+        var orderPrompt = Assert.Single(provider.Requests, request =>
+            request.ObserverGuidance?.Any(message => message.InstructionId == order.InstructionId) == true);
+        Assert.Contains(orderPrompt.ObserverGuidance!, message => message.InstructionId == suggestion.InstructionId);
+        Assert.DoesNotContain(stateAfterOrder.Society.Society.Inventory.Lots,
+            lot => lot.Id == foodLotId);
+        Assert.Contains(stateAfterOrder.Events, item => item.Kind == "food_consumed" && item.Detail == OrderedAgent);
+        Assert.Single(stateAfterOrder.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail == order.InstructionId + ":consume_food");
+        world.Validate();
+    }
+
+    [Fact]
+    public async Task GuidanceIsTargetOnlyAndItsExactWordsChangeTheObservationDigest()
+    {
+        var targetProvider = new GuidanceRecordingProvider();
+        var otherProvider = new GuidanceRecordingProvider();
+        using var first = new PrivateWorldRuntime("guidance-digest", id => id switch
+        {
+            OrderedAgent => targetProvider,
+            "founder-mira" => otherProvider,
+            _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true),
+        });
+        _ = first.SubmitInstruction(new OwnerInstructionRequest("digest-message", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Try the berries beside the river."));
+        Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+
+        var targetObservation = Assert.Single(targetProvider.Requests);
+        Assert.Equal("Try the berries beside the river.", Assert.Single(targetObservation.ObserverGuidance!).Text);
+        Assert.Empty(Assert.Single(otherProvider.Requests).ObserverGuidance ?? []);
+
+        var changedProvider = new GuidanceRecordingProvider();
+        using var changed = new PrivateWorldRuntime("guidance-digest", id => id == OrderedAgent
+            ? changedProvider
+            : new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        _ = changed.SubmitInstruction(new OwnerInstructionRequest("digest-message", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Try the berries beside the old bridge."));
+        Assert.True((await changed.AdvanceOneTickAsync()).Advanced);
+
+        Assert.NotEqual(targetObservation.ObservationDigest, Assert.Single(changedProvider.Requests).ObservationDigest);
     }
 
     [Fact]
@@ -152,6 +241,32 @@ public sealed partial class PrivateWorldRuntimeTests
             Assert.DoesNotContain(world.ExportState().Events, item => item.Kind is "instruction_applied" or "instruction_not_understood");
         }
         return ordered.CallCount - callsBefore;
+    }
+
+    private sealed class GuidanceRecordingProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 1;
+        public List<InhabitantObservation> Requests { get; } = [];
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request.Observation);
+            var selected = request.Observation.Candidates
+                .OrderBy(candidate => candidate.Id == "safe_idle" ? int.MinValue : candidate.DeterministicPriority)
+                .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .First();
+            return ValueTask.FromResult(new CognitionDecisionResponse(
+                request.RequestId, request.Observation.InhabitantId, Kind, ProviderEpoch,
+                request.Observation.RunEpoch, request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest, selected.Id, 1d,
+                request.Observation.Candidates.ToDictionary(candidate => candidate.Id,
+                    candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal)));
+        }
     }
 
     private static async Task AdvanceWithHostedDecisionsAsync(PrivateWorldRuntime world)

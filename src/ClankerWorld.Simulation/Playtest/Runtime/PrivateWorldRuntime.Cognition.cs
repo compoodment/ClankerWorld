@@ -69,8 +69,7 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 candidates);
             var observerGuidance = ObserverGuidanceFor(inhabitant.Id);
-            var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id) ||
-                observerGuidance.Count > 0;
+            var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
                 physical.Personality, physical.Aspiration, inhabitant.HouseholdId,
@@ -143,6 +142,20 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
+                foreach (var message in observerGuidance)
+                {
+                    var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+                        item.InstructionId == message.InstructionId);
+                    if (instruction is not null && instruction.GuidancePromptedTick is null)
+                    {
+                        instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+                        {
+                            GuidancePromptedTick = WorldTick,
+                        };
+                    }
+                }
+                if (observerGuidance.Length > 0)
+                    checkpointSchemaVersion = StateSchemaVersion;
                 inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
                 {
                     LastDecisionContext = DecisionContext(physical, candidates, conversationChoiceContext),
@@ -166,8 +179,7 @@ public sealed partial class PrivateWorldRuntime
         // A new instruction prompts one fresh decision. If it cannot progress
         // yet, it waits for the agent's usual decisions instead of requesting
         // another (possibly paid) decision on every tick.
-        if (PendingInstructionFor(inhabitantId) is { } instruction &&
-            (current is null || current.WorldTick <= instruction.SubmittedTick))
+        if (HasNewObserverGuidanceFor(inhabitantId))
         {
             return true;
         }
@@ -342,7 +354,7 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private IReadOnlyList<string> ApplyObserverGuidanceResult(
+    private List<string> ApplyObserverGuidanceResult(
         string inhabitantId,
         CognitionAdmissionResult admission)
     {
@@ -361,24 +373,19 @@ public sealed partial class PrivateWorldRuntime
         var completedSuggestions = new List<string>();
         foreach (var message in result.Messages)
         {
-            if (!instructionsByIdempotency.Values.Any(instruction =>
-                    instruction.InstructionId == message.InstructionId &&
-                    instruction.IssuerId == message.IssuerId &&
-                    instruction.TargetInhabitantId == inhabitantId &&
-                    instruction.TargetInhabitantId == message.TargetInhabitantId &&
-                    ToWireValue(instruction.Kind) == message.Kind &&
-                    instruction.Text == message.Text &&
-                    instruction.SubmittedTick == message.SubmittedTick &&
-                    instruction.RunEpoch == message.RunEpoch &&
-                    instruction.SubmissionSequence == message.SubmissionSequence &&
-                    (instruction.Kind != OwnerInstructionKind.MustDo ||
-                     UnderstoodTaskFor(InstructionCandidate(instruction.Text)) == message.UnderstoodTask) &&
-                    (instruction.ObserverReply is null) == message.ReplyAllowed))
-                continue;
-
             var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
                 item.InstructionId == message.InstructionId);
-            if (instruction is null || completedInstructionIds.Contains(instruction.InstructionId))
+            if (instruction is null || instruction.IssuerId != message.IssuerId ||
+                instruction.TargetInhabitantId != inhabitantId ||
+                instruction.TargetInhabitantId != message.TargetInhabitantId ||
+                ToWireValue(instruction.Kind) != message.Kind || instruction.Text != message.Text ||
+                instruction.SubmittedTick != message.SubmittedTick || instruction.RunEpoch != message.RunEpoch ||
+                instruction.SubmissionSequence != message.SubmissionSequence ||
+                (instruction.Kind == OwnerInstructionKind.MustDo &&
+                 UnderstoodTaskFor(InstructionCandidate(instruction.Text)) != message.UnderstoodTask) ||
+                (instruction.Kind == OwnerInstructionKind.Suggestive && message.UnderstoodTask is not null) ||
+                (instruction.ObserverReply is null) != message.ReplyAllowed ||
+                completedInstructionIds.Contains(instruction.InstructionId))
                 continue;
 
             var observerReply = replies.TryGetValue(instruction.InstructionId, out var reply)
@@ -386,7 +393,7 @@ public sealed partial class PrivateWorldRuntime
                 : instruction.ObserverReply;
             instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
             {
-                ObservedTick = instruction.ObservedTick ?? WorldTick,
+                ObservedTick = instruction.ObservedTick ?? admission.Intention.WorldTick,
                 ObserverReply = observerReply,
             };
             checkpointSchemaVersion = StateSchemaVersion;

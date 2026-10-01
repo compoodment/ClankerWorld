@@ -2046,6 +2046,25 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            var messageSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-suggestion", founder.Id, "suggestive",
+                        "Try the riverbank berries.", "completed", 0, 0, 1, 1, "I will look there."),
+                    new OwnerWorldInstruction("message-other-agent", "agent:other", "suggestive",
+                        "Private message for someone else.", "pending", 0, 0, 2),
+                ],
+            };
+            RenderSelectedInhabitantCard(messageSnapshot);
+            var renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Try the riverbank berries.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
+                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                instructionText.MaxLength != 512)
+                throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;

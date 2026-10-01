@@ -256,6 +256,59 @@ public sealed class CognitionTests
     }
 
     [Fact]
+    public async Task OpenAiCompatibleAdapterSendsExactOutsideObserverMessagesAndParsesOnlyExactReplies()
+    {
+        const string suggestionId = "private-instruction-0000000001";
+        const string orderId = "private-instruction-0000000002";
+        var handler = new RecordingHandler(
+            """
+            {"model":"test-model","choices":[{"message":{"role":"assistant","content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1,\"observer_replies\":[{\"instruction_id\":\"private-instruction-0000000001\",\"text\":\"I will keep that in mind.\"}] }"}}]}
+            """);
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(
+            client, () => "guidance-provider-secret", new Uri("https://model.test/v1/chat/completions"), "test-model");
+        var suggestion = new CognitionObserverGuidance(suggestionId, "owner:private", "actor-scout",
+            "suggestive", "Try the shore berries after the rain.", 9, 1, 1, null, true);
+        var order = new CognitionObserverGuidance(orderId, "owner:private", "actor-scout",
+            "must_do", "Please eat one carried food item now.", 9, 1, 2,
+            "eat one carried food item", true);
+        var observation = new InhabitantObservation(
+            "actor-scout", 9, 1, 3, "sha256:guidance-provider-test", 3_000,
+            [new CognitionCandidate("safe_idle", "Continue safely.")])
+        {
+            WorldId = "world-guidance-provider-test",
+            ObserverGuidance = [suggestion, order],
+        };
+
+        var response = await provider.DecideAsync(new("guidance-provider-request", 2, observation));
+        using var outer = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var input = JsonDocument.Parse(outer.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+        var guidance = input.RootElement.GetProperty("observer_guidance");
+        Assert.Equal("world-guidance-provider-test", input.RootElement.GetProperty("world_id").GetString());
+        Assert.Equal("actor-scout", input.RootElement.GetProperty("agent_id").GetString());
+        Assert.Contains("outside observer", outer.RootElement.GetProperty("messages")[0].GetProperty("content").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, guidance.GetArrayLength());
+        Assert.Equal(suggestionId, guidance[0].GetProperty("instruction_id").GetString());
+        Assert.Equal("outside_observer", guidance[0].GetProperty("source").GetString());
+        Assert.Equal("suggestive", guidance[0].GetProperty("kind").GetString());
+        Assert.Equal("Try the shore berries after the rain.", guidance[0].GetProperty("text").GetString());
+        Assert.True(guidance[0].GetProperty("reply_allowed").GetBoolean());
+        Assert.Equal(orderId, guidance[1].GetProperty("instruction_id").GetString());
+        Assert.Equal("Please eat one carried food item now.", guidance[1].GetProperty("text").GetString());
+        Assert.Equal("eat one carried food item", guidance[1].GetProperty("understood_task").GetString());
+        var retrievedMemories = input.RootElement.GetProperty("retrieved_memories");
+        var knownMapFacts = input.RootElement.GetProperty("known_map_facts");
+        Assert.True(retrievedMemories.ValueKind == JsonValueKind.Null ||
+            retrievedMemories.ValueKind == JsonValueKind.Array && retrievedMemories.GetArrayLength() == 0);
+        Assert.True(knownMapFacts.ValueKind == JsonValueKind.Null ||
+            knownMapFacts.ValueKind == JsonValueKind.Array && knownMapFacts.GetArrayLength() == 0);
+        Assert.Equal(new CognitionObserverReply(suggestionId, "I will keep that in mind."),
+            Assert.Single(response.ObserverReplies!));
+        Assert.DoesNotContain("owner:private", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NamingHintVariesBetweenAgentsButStaysStableForRetries()
     {
         var handler = new RecordingHandler(OpenAiCompatibleJsonResponse());

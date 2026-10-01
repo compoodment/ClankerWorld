@@ -282,6 +282,10 @@ public sealed partial class PrivateWorldRuntime
         var travelMap = TravelMap(state);
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
+        if (state.SchemaVersion >= ObserverGuidanceSchemaVersion &&
+            (state.Instructions is null || state.CompletedInstructionIds is null))
+            throw new InvalidDataException($"Private-world schema {ObserverGuidanceSchemaVersion} requires authoritative instruction state.");
+        ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
@@ -358,6 +362,52 @@ public sealed partial class PrivateWorldRuntime
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
         }
+    }
+
+    private static void ValidateSavedInstructions(
+        IReadOnlyList<OwnerQueuedInstruction> instructions,
+        IReadOnlyList<string> completedInstructionIds,
+        SocietyCheckpoint checkpoint)
+    {
+        var people = checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        var instructionIds = new HashSet<string>(StringComparer.Ordinal);
+        var idempotencyKeys = new HashSet<string>(StringComparer.Ordinal);
+        var sequences = new HashSet<long>();
+        foreach (var instruction in instructions)
+        {
+            if (instruction is null || string.IsNullOrWhiteSpace(instruction.InstructionId) ||
+                instruction.InstructionId.Length > 128 ||
+                instruction.InstructionId != $"private-instruction-{instruction.SubmissionSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}" ||
+                !instructionIds.Add(instruction.InstructionId) ||
+                string.IsNullOrWhiteSpace(instruction.IdempotencyKey) || instruction.IdempotencyKey.Length > 128 ||
+                instruction.IdempotencyKey.Any(char.IsControl) || !idempotencyKeys.Add(instruction.IdempotencyKey) ||
+                string.IsNullOrWhiteSpace(instruction.IssuerId) || instruction.IssuerId.Length > 128 ||
+                instruction.IssuerId.Any(char.IsControl) ||
+                !people.Contains(instruction.TargetInhabitantId) ||
+                instruction.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo) ||
+                instruction.State != OwnerInstructionState.Queued ||
+                string.IsNullOrWhiteSpace(instruction.Text) || instruction.Text.Length > OwnerQueuedInstruction.MaximumTextLength ||
+                instruction.Text != instruction.Text.Trim() || instruction.Text.Any(char.IsControl) ||
+                instruction.SubmittedTick < 0 || instruction.SubmittedTick > checkpoint.WorldTick ||
+                instruction.GuidancePromptedTick is { } promptedTick &&
+                    (promptedTick < instruction.SubmittedTick || promptedTick > checkpoint.WorldTick) ||
+                instruction.RunEpoch < 0 || instruction.RunEpoch > checkpoint.RunEpoch ||
+                instruction.SubmissionSequence <= 0 || !sequences.Add(instruction.SubmissionSequence) ||
+                instruction.ObservedTick is { } observedTick &&
+                    (observedTick < instruction.SubmittedTick || observedTick > checkpoint.WorldTick) ||
+                instruction.ObserverReply is not null &&
+                    (instruction.ObservedTick is null ||
+                     CognitionDecisionResponse.NormalizeObserverReply(instruction.ObserverReply) != instruction.ObserverReply))
+                throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
+        }
+
+        if (completedInstructionIds.Any(id => string.IsNullOrWhiteSpace(id) || !instructionIds.Contains(id)) ||
+            completedInstructionIds.Distinct(StringComparer.Ordinal).Count() != completedInstructionIds.Count)
+            throw new InvalidDataException("The completed owner instruction list is invalid.");
+        var completed = completedInstructionIds.ToHashSet(StringComparer.Ordinal);
+        if (instructions.Any(item => item.Kind == OwnerInstructionKind.Suggestive &&
+                completed.Contains(item.InstructionId) && item.ObservedTick is null))
+            throw new InvalidDataException("A suggestion cannot be completed before an agent's personal model observes it.");
     }
 
     private static void ValidateConversationState(PrivateWorldRuntimeState state, SocietyCheckpoint checkpoint)
