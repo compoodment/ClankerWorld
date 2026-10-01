@@ -1,0 +1,39 @@
+name: Release stale claims
+
+# Every hour, release issue claims (status:in-progress) with no work for 4 hours
+# and review claims (status:reviewing) with no work for 2 hours, so the labels
+# show what is really being worked on. See CONTRIBUTING.md, "Claim an issue".
+# It reads GitHub data only and runs main's copy of the script.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only list what would be released
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: stale-claims
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Release claims that have gone quiet
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const releaseStaleClaims = require('./.github/scripts/stale-claims.js');
+            await releaseStaleClaims({ github, context, core, dryRun: ${{ inputs.dry_run == true }} });
