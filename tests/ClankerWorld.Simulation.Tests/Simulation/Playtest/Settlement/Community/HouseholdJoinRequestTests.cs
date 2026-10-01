@@ -193,6 +193,74 @@ public sealed class HouseholdJoinRequestTests
     }
 
     [Fact]
+    public async Task RestoredHousingApprovalCannotOutliveItsWorldTickDeadline()
+    {
+        var provider = new ScriptedProvider();
+        using var world = NormalPathWorld.CreateGenerated("housing-restore-expiry", _ => provider);
+        var agent = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(world.AddAgent(agent, TownTileBeside(world, "first-town-house-a")));
+        provider.Choices[agent] = "household_ask:" + Alpha;
+        await AdvanceUntil(world, () => Housing(world, agent)?.Request is not null);
+        provider.Choices[agent] = "safe_idle";
+        var request = Housing(world, agent)!.Request!;
+        await AdvanceUntil(world, () => world.WorldTick == request.ExpiryTick - 1,
+            PrivateWorldRuntime.HousingRequestTicks);
+        world.Pause();
+        var beforeExpiry = world.ExportState();
+        world.Resume();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(request.ExpiryTick, world.WorldTick);
+        world.Pause();
+        var atExpiry = world.ExportState();
+
+        // The last eligible tick is a legitimate pending checkpoint and must
+        // still load unchanged; paused wall time does not expire the request.
+        using (var exactExpiry = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(atExpiry)), _ => provider))
+        {
+            Assert.Equal(request.ExpiryTick, exactExpiry.WorldTick);
+            Assert.NotNull(Housing(exactExpiry, agent)!.Request);
+            Assert.False((await exactExpiry.AdvanceOneTickAsync()).Advanced);
+        }
+
+        world.Resume();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        world.Pause();
+        var afterExpiry = world.ExportState();
+        foreach (var (checkpoint, mayJoin) in new[]
+                     { (beforeExpiry, true), (atExpiry, false), (afterExpiry, false) })
+        {
+            // A malformed checkpoint may carry completed answers on an old
+            // request. Its answers cannot grant access after the deadline.
+            var answered = WithHousing(checkpoint, agent, housing => housing with
+            {
+                Request = request with { Approvals = request.Members.ToArray() },
+                Refusals = null,
+                Blocker = HousingBlockers.AwaitingAnswer,
+            });
+            using var restored = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(answered)), _ => provider);
+            restored.Resume();
+            var step = await restored.AdvanceOneTickAsync();
+            Assert.True(step.Advanced);
+            Assert.Equal(mayJoin ? Alpha : null, restored.Society.GetInhabitant(agent).HouseholdId);
+            Assert.Null(Housing(restored, agent)?.Request);
+            if (mayJoin)
+            {
+                Assert.Equal(request.ExpiryTick, restored.WorldTick);
+                Assert.Contains(step.Events, item => item.Kind == "household_joined");
+            }
+            else
+            {
+                Assert.Contains(step.Events, item => item.Kind == "housing_request_expired");
+                Assert.DoesNotContain(step.Events, item => item.Kind == "household_joined");
+                Assert.DoesNotContain(agent, restored.Society.GetHousehold(Alpha).MemberIds);
+                Assert.Equal(restored.WorldTick, Assert.Single(Housing(restored, agent)!.Refusals!).Tick);
+            }
+        }
+    }
+
+    [Fact]
     public async Task AdultPlacedOnHouseholdPropertyJoinsWithoutConsentAndIsNeverAsked()
     {
         var provider = new ScriptedProvider();

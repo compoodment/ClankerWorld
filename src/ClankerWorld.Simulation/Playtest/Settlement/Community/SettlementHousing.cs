@@ -195,6 +195,12 @@ public sealed partial class PrivateWorldRuntime
         {
             EndHousingRequest(actor, request, "housing_request_cancelled", remember: false);
         }
+        else if (WorldTick > request.ExpiryTick)
+        {
+            // Restored answers, or the loss of the last unanswered adult,
+            // cannot grant membership after the request's world-tick deadline.
+            EndHousingRequest(actor, request, "housing_request_expired", remember: true);
+        }
         else if (request.Rejections.Any(id => living.Contains(id, StringComparer.Ordinal)))
         {
             EndHousingRequest(actor, request, "housing_request_refused", remember: true);
@@ -209,10 +215,6 @@ public sealed partial class PrivateWorldRuntime
             }
             SetHousing(actor, housing with { Request = null, Refusals = null, Blocker = null });
             AppendEvent("household_joined", $"{actor}:{request.HouseholdId}");
-        }
-        else if (WorldTick > request.ExpiryTick)
-        {
-            EndHousingRequest(actor, request, "housing_request_expired", remember: true);
         }
     }
 
