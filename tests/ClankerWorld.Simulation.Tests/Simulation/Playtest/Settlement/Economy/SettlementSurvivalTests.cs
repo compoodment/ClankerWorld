@@ -272,31 +272,22 @@ public sealed class SettlementSurvivalTests
     }
 
     [Fact]
-    public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
+    public async Task ColdSettlementUsesFuelAndToolsAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        static bool GarmentWorn(PlaytestWorldEvent item) => item.Kind == "equipment_equipped" &&
-            (item.Detail.EndsWith("|clothing", StringComparison.Ordinal) || item.Detail.EndsWith("|padded_coat", StringComparison.Ordinal) ||
-                item.Detail.EndsWith("|rain_cloak", StringComparison.Ordinal));
-        // Expansion changes travel and work timing. Require the actual clothing
-        // recovery chain within a bounded run rather than at one exact tick.
+        // Exercise autonomous survival separately from the finite Tailor
+        // production/equipment chains in PersonalEquipmentTests.
         for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
-            if (tick >= 599 && world.ExportState().Events.Any(GarmentWorn))
-                break;
         }
         var state = world.ExportState();
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
         Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
-        // This small world starts without clothing: its household builds a
-        // Tailor Shop, weaves cloth and sews the garment that is worn here.
-        Assert.True(state.Events.Any(GarmentWorn), "Jobs: " + string.Join(",", world.WorldSimulation.ProductionJobs.Select(job => job.RecipeId + ":" + job.State)) +
-            " People: " + string.Join(";", state.Inhabitants.Select(person => person.InhabitantId + " " + person.Project + " " + person.Equipment)));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));

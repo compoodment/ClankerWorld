@@ -9,7 +9,7 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? CarriedHouseDelivery(string actor) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == actor && lot.DeliveryBuildingId is not null &&
+            .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is not null &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 

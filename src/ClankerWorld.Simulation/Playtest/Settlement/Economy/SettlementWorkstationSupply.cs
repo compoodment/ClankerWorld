@@ -52,7 +52,7 @@ public sealed partial class PrivateWorldRuntime
                 if (missing <= 0)
                     continue;
                 var carried = society.Checkpoint.Inventory.Lots
-                    .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
