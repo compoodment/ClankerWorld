@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -135,6 +136,66 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Equal(1, collected.Quantity);
         Assert.Null(collected.StorageBuildingId);
         Assert.Null(collected.GroundPosition);
+    }
+
+    [Theory]
+    [InlineData("wooden_hoe", true, true)]
+    [InlineData("wooden_hoe", false, false)]
+    [InlineData("tool", true, false)]
+    [InlineData("tool", false, false)]
+    public async Task SharedHoeGoesToAFarmHouseholdAndObsoleteGenericToolIsNotCollectedAcrossReload(
+        string kind, bool farmHousehold, bool offered)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("tool-work-eligibility", _ => new CandidateProvider("safe_idle"));
+        var state = setup.ExportState();
+        var farmhouse = setup.WorldSimulation.Buildings.Single(building => setup.WorldContent.Buildings
+            .Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("farmhouse"));
+        var actor = state.Society.Society.Inhabitants.First(person =>
+            (person.HouseholdId == farmhouse.HouseholdId) == farmHousehold &&
+            person.HouseholdId is not null && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var warehouse = setup.WorldSimulation.Buildings.Single(building => setup.WorldContent.Buildings
+            .Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("warehouse"));
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId != warehouse.InstanceId &&
+                lot.OwnerId != actor).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "eligible-work-tool", kind, warehouse.TownId!, 1,
+            storageBuildingId: warehouse.InstanceId);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = warehouse.Position,
+                    HungerBasisPoints = 10_000,
+                    Equipment = null,
+                    LastDecisionContext = null,
+                    Project = null,
+                } : person).ToArray(),
+        };
+        var total = inventory.Lots.Sum(lot => lot.Quantity);
+        var candidateId = "collect_tool:" + kind;
+        var chooser = new CandidateProvider(candidateId);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 10 && (offered ? world.Society.Inventory.GetLot("eligible-work-tool").OwnerId != actor
+                 : chooser.ObservedCandidateSets.Count == 0); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.NotEmpty(chooser.ObservedCandidateSets);
+        Assert.Equal(offered, chooser.ObservedCandidateSets.Any(candidates => candidates.Contains(candidateId)));
+        var stock = world.Society.Inventory.GetLot("eligible-work-tool");
+        Assert.Equal(offered ? actor : warehouse.TownId, stock.OwnerId);
+        Assert.Equal(offered ? null : warehouse.InstanceId, stock.StorageBuildingId);
+        Assert.Equal(1, stock.Quantity);
+        Assert.Equal(total, world.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        Assert.Equal(offered, world.ExportState().Events.Any(item => item.Kind == "equipment_collected" &&
+            item.Detail == actor + ":" + kind));
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        resumed.Validate();
     }
 
     [Theory]

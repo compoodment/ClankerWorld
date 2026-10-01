@@ -855,8 +855,8 @@ public sealed class PersonalEquipmentTests
     }
 
     [Theory]
-    [InlineData(5, false)]
-    [InlineData(4, true)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
     public async Task HelpingAProjectOffersGatheringOnlyWhenTheWholeLoadFits(int cargo, bool fits)
     {
         using var initial = new PrivateWorldRuntime("settlement-acquisition", _ => new Choices([]));
@@ -876,6 +876,7 @@ public sealed class PersonalEquipmentTests
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != helper && lot.ItemKind != "wood").ToArray(),
         };
         inventory = InventoryFixture.AddLot(inventory, "helper-unrelated-cargo", "fiber", helper, cargo);
+        inventory = InventoryFixture.AddLot(inventory, "helper-gathering-axe", "wooden_axe", helper, 1);
         state = WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
@@ -899,7 +900,7 @@ public sealed class PersonalEquipmentTests
         if (fits) Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("assist:wood", StringComparer.Ordinal));
         else Assert.All(provider.Offers, offer => Assert.DoesNotContain("assist:wood", offer.Split(',')));
         Assert.Equal(fits ? 1 : 0, world.ExportState().Events.Count(item => item.Kind == "material_gathered" &&
-            item.Detail.StartsWith(helper + ":wood:4", StringComparison.Ordinal)));
+            item.Detail.StartsWith(helper + ":wood:6", StringComparison.Ordinal)));
         Assert.Equal(cargo, world.Society.Inventory.GetLot("helper-unrelated-cargo").Quantity);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == helper);
         world.Validate();
