@@ -51,7 +51,10 @@ single, unreserved units physically carried by their recorded owner; repair
 work also needs its private work site and exact live inputs. Broken gear and
 existing overloads remain valid property. Carry capacity and weather protection
 are derived from the selected lots rather than saved as a second authority.
-Older schemas carrying equipment records are refused. No migration is added.
+An unpaid household recipe may also keep a paused plan that requires a fresh
+choice after its inputs become unavailable; validation only accepts that flag
+on a paused project without a linked job. Older schemas carrying equipment
+records are refused. No migration is added.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -258,7 +261,7 @@ current alpha cutoff.
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
-| Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
