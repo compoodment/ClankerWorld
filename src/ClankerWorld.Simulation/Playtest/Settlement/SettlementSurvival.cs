@@ -344,6 +344,8 @@ public sealed partial class PrivateWorldRuntime
     {
         if (ToolCapabilities.ForItem(output.ResourceId) is not null)
             return NeedsToolOutput(output.ResourceId, ownerId);
+        if (ownerId is not null && HouseCookingContent.IsMealRecipe(recipe))
+            return NeedsCookedMeals(ownerId, recipe.Tags.Contains("restaurant-cooking", StringComparer.Ordinal));
         if (output.ResourceId == "iron" && ownerId is not null)
             return NeedsSmithIron(ownerId);
         if (OrnamentContent.IsOrnament(output.ResourceId) || CombatGearContent.IsGear(output.ResourceId))
@@ -376,6 +378,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string FoodSource(InventoryLot lot)
     {
+        if (IsPreparedMeal(lot.ItemKind)) return IsEnrichedPorridge(lot) ? "fruit_porridge" : lot.ItemKind;
+        if (lot.ItemKind is "berries" or "wild_greens" or "cultivated_greens") return lot.ItemKind;
         var inventory = society.Checkpoint.Inventory;
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var originId = lot.Id;
@@ -437,7 +441,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Survival is { } condition && (state.SchemaVersion < 6 || state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
-                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard")))
+                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard" or
+                    "berries" or "wild_greens" or "cultivated_greens" or "simple_meal" or "porridge" or "fruit_porridge" or "bread" or "vegetable_stew" or "restaurant_meal")))
             {
                 throw new InvalidDataException("The saved inhabitant survival condition is invalid.");
             }

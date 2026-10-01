@@ -324,6 +324,7 @@ public sealed partial class PrivateWorldRuntime
             StageTailorContent();
             StagePotteryContent();
             StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");
+            StageRestaurantContent();
             StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
             StageBuiltInContent(CombatGearContent.PackageId, BlacksmithContent.PackageId, CombatGearContent.Create, "combat_gear_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);

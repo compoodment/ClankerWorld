@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), HouseCraftingContent.Create(), SiloContent.Create(), TailorContent.Create(), PotteryContent.Create(),
-                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(),
+                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -326,6 +326,9 @@ public sealed partial class PrivateWorldRuntime
             if (recipe.Outputs.Any(output => output.ResourceId == "bedding"))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Bedding production was retired with sleep.");
 
+            if (IsLegacyCampCooking(recipe))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Cook named meals at the household House or Restaurant.");
+
             GridPoint workPosition;
             var isFertileLandBuild = recipe.IsCrop && recipe.WorkstationBuildingId is null;
             PlacedBuilding? placed = null;
@@ -403,9 +406,11 @@ public sealed partial class PrivateWorldRuntime
                     "The household workshop must be claimed before production.");
 
             var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            if (onSiteHouseholdRecipe && !KeepsPlantingReserve(recipe, worker.HouseholdId!))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Keep some potatoes to replant the household fields.");
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
-                    "The household building lacks the required ingredients in its on-site stock.");
+                    $"The household building lacks {MissingWorkstationIngredients(recipe, worker.HouseholdId!, placed!.InstanceId)} in its on-site stock.");
 
             if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != workPosition)
             {

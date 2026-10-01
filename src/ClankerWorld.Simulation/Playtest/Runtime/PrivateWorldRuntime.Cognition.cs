@@ -760,6 +760,7 @@ public sealed partial class PrivateWorldRuntime
             HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
+                     !IsLegacyCampCooking(item) &&
                      (!item.IsCrop || canGrow && founderSetup is null &&
                          !item.Tags.Contains("farm-crop", StringComparer.Ordinal))))
         {
@@ -772,7 +773,7 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
             var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
-            if (!NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
+            if (!KeepsPlantingReserve(recipe, recipeOwner) || !NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation &&
@@ -784,7 +785,9 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)) ? 25 : 30,
+                recipe.IsCrop ? 20 : recipe.Tags.Contains("fruit-enriched", StringComparer.Ordinal) ? 27 :
+                    HouseCookingContent.IsMealRecipe(recipe) ? 28 :
+                    WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

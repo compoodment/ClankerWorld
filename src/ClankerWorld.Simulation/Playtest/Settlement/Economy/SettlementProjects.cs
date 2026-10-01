@@ -526,7 +526,12 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
         {
-            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for ingredients at this household building" });
+            SetProject(inhabitantId, project with
+            {
+                Stage = "blocked",
+                Blocker =
+                $"Waiting for {MissingWorkstationIngredients(recipe, constructionOwner, recipeBuilding.InstanceId)} at this household building"
+            });
             return;
         }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));

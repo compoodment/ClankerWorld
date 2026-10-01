@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (householdId is null)
             return;
-        if (CarriedHouseDelivery(actor) is { } carried && StorageRoom(carried.DeliveryBuildingId!) > 0)
+        if (CarriedHouseDelivery(actor) is { } carried && CanDeliverHouseholdLoad(carried))
         {
             candidates.Add(new("haul_household_stock",
                 "Deliver already collected household supplies to their building.", 18,
@@ -71,12 +71,16 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("household_food_stored", $"{actor}:{food.Id}:{quantity}:{house.InstanceId}");
     }
 
+    private bool CanDeliverHouseholdLoad(InventoryLot lot) => lot.ContainerCapacity > 0
+        ? InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, lot.Id, 1) <= StorageRoom(lot.DeliveryBuildingId!)
+        : StorageRoom(lot.DeliveryBuildingId!) > 0;
+
     private void HaulHouseholdStock(string actor, PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null)
             return;
-        if (CarriedHouseDelivery(actor) is { } carried && StorageRoom(carried.DeliveryBuildingId!) > 0)
+        if (CarriedHouseDelivery(actor) is { } carried && CanDeliverHouseholdLoad(carried))
         {
             var house = worldSimulation.Buildings.Single(building =>
                 building.InstanceId == carried.DeliveryBuildingId);
@@ -85,7 +89,7 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, house.Position, "household_stock", 0);
                 return;
             }
-            var deliveredQuantity = Math.Min(StorageRoom(house.InstanceId), AvailableLotQuantity(carried));
+            var deliveredQuantity = carried.ContainerCapacity > 0 ? 1 : Math.Min(StorageRoom(house.InstanceId), AvailableLotQuantity(carried));
             if (deliveredQuantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"house-haul-delivery:{WorldTick}:{actor}", actor, householdId,
