@@ -34,11 +34,11 @@ public enum NatureSprite : byte
 /// Top-down pixel-art sprites for trees and natural sites, generated
 /// deterministically at 32×32 (and 16×16 for mid zoom) on a transparent
 /// background. Each sprite stays inside its tile and keeps a soft shadow to
-/// the south-east. The sprites the owner approved in the first art review
-/// (see <see cref="IsApproved"/>) are lit from the north-west and carry a
-/// one-pixel outline in their darkest colour (the fibre plant's blades take a
-/// dark south-east edge instead); the others keep their earlier provisional
-/// drawing with a darker disc behind the shape.
+/// the south-east. The sprites the owner approved in the first and second art
+/// reviews (see <see cref="IsApproved"/>) are lit from the north-west and carry
+/// a one-pixel outline in their darkest colour (the fibre plant's blades and
+/// the reeds take a dark south-east edge instead); the others keep their
+/// earlier provisional drawing with a darker disc behind the shape.
 /// </summary>
 public static class NatureSprites
 {
@@ -122,39 +122,6 @@ public static class NatureSprites
     {
         switch (sprite)
         {
-            case NatureSprite.ConiferStump:
-                canvas.Ellipse(17, 18, 7, 5, Shadow);
-                canvas.Disc(16, 16, 6, new Color("4E3524"));
-                canvas.Disc(16, 16, 5, new Color("8C6A48"));
-                canvas.Ring(16, 16, 3, new Color("735036"));
-                canvas.Disc(16, 16, 1, new Color("735036"));
-                canvas.Dot(14, 13, new Color("C09A6B"));
-                break;
-            case NatureSprite.ConiferSapling:
-                var radius = 5.5f;
-                canvas.Ellipse(17, 19, radius, radius * 0.7f, Shadow);
-                canvas.Disc(16, 17, 1, new Color("735036"));
-                canvas.Star(16, 16, radius, radius * 0.5f, new Color("2F5B45"), 7);
-                canvas.Lumpy(15, 15, radius * 0.6f, new Color("7BA88B"), 4, 3);
-                break;
-            case NatureSprite.Reeds:
-                canvas.Ellipse(17, 19, 10, 6, Shadow);
-                foreach (var (x, y) in new[] { (10, 12), (15, 9), (21, 11), (12, 19), (18, 17), (23, 20), (16, 23) })
-                {
-                    canvas.Line(x, y + 4, x - 1, y - 2, new Color("6E7F46"));
-                    canvas.Line(x + 1, y + 4, x + 2, y - 1, new Color("8A9A55"));
-                    canvas.Disc(x, y - 2, 1, new Color("7A5534"));
-                }
-                break;
-            case NatureSprite.DiamondOutcrop:
-                canvas.Ellipse(18, 20, 11, 7, Shadow);
-                var (dark, mid, light) = (new Color("4C5356"), new Color("6A7276"), new Color("98A2A6"));
-                canvas.Boulder(12, 18, 7, dark, mid, light);
-                canvas.Boulder(20, 15, 8, dark, mid, light);
-                canvas.Boulder(18, 22, 5, dark, mid, light);
-                foreach (var (x, y) in new[] { (20, 13), (12, 17), (19, 21) })
-                    canvas.Crystal(x, y, new Color("7FD3DC"), new Color("E8FFFF"));
-                break;
             case NatureSprite.WildSeedPatch:
                 canvas.Ellipse(17, 20, 9, 6, Shadow);
                 foreach (var (x, y) in new[] { (11, 13), (16, 10), (21, 13), (13, 19), (19, 18), (16, 23) })
@@ -170,11 +137,6 @@ public static class NatureSprites
                     canvas.Line(8, 11 + row * 3.5f, 24, 11 + row * 3.5f, new Color("4A3A2A"));
                 canvas.Dot(12, 12, new Color("8E7552"));
                 canvas.Dot(20, 19, new Color("8E7552"));
-                break;
-            case NatureSprite.Depleted:
-                canvas.Ellipse(16, 17, 8, 5, new Color("6C6452", 0.7f));
-                foreach (var (x, y) in new[] { (12, 16), (18, 15), (15, 19), (20, 19) })
-                    canvas.Disc(x, y, 1, new Color("8C8577"));
                 break;
             case NatureSprite.WoodPile:
                 // Seen from above: logs lying side by side, a second layer
@@ -192,17 +154,11 @@ public static class NatureSprites
                     if (canvas.Unit >= 1) canvas.Dot(right, y, new Color("9C7447"));
                 }
                 break;
-            case NatureSprite.Regrowing:
-                canvas.Ellipse(16, 19, 5, 3, new Color("5A4635", 0.55f));
-                canvas.Line(16, 19, 16, 14, new Color("587D40"));
-                canvas.Leaf(13, 14, 3, 1.8f, -0.6f, new Color("6E9A4B"), new Color("A6C77A"));
-                canvas.Leaf(19, 14, 3, 1.8f, 0.6f, new Color("6E9A4B"), new Color("A6C77A"));
-                break;
         }
     }
 
     // ----------------------------------------------------------------------
-    // Approved art (first art review, 2026-10-01).
+    // Approved art (first and second art reviews, 2026-10-01).
     // ----------------------------------------------------------------------
 
     /// <summary>A five-step colour ramp from the art style guide: edge (outline), shade, base, light, highlight.</summary>
@@ -228,6 +184,20 @@ public static class NatureSprites
     private static readonly Ramp Berry = Ramp.Of("7A2A2E", "A33A3F", "C4474B", "F08A8A", "FFC2C2");
     private static readonly Ramp Fiber = Ramp.Of("3B5E3A", "556E3C", "6E8A4B", "8FA863", "A8BE78");
     private static readonly Ramp Fruit = Ramp.Of("9A4E1E", "C8702E", "E0893F", "F6C27A", "FFE0A8");
+    private static readonly Ramp Diamond = Ramp.Of("3F7E86", "5FB4BE", "7FD3DC", "B4EEF2", "E8FFFF");
+
+    /// <summary>Host rock of the diamond outcrop: the style guide's Slate ramp, cool blue-grey to set off the pale crystals.</summary>
+    private static readonly Ramp Slate = Ramp.Of("2B2E33", "4A4E55", "62666E", "80858E", "9A9FA7");
+
+    /// <summary>The Fertile soil ramp, for loosened earth under a regrowing sprout and a bare depleted patch.</summary>
+    private static readonly Ramp Soil = Ramp.Of("4A3A2A", "5C4B35", "735F45", "86704F", "9A8460");
+
+    /// <summary>
+    /// Reed stems and blades: the earlier reeds' two olive greens as the base
+    /// and light steps, with a darker shade, an olive edge and one pale
+    /// highlight added around them, the way the fibre plant ramp was built.
+    /// </summary>
+    private static readonly Ramp Reed = Ramp.Of("3D4A2B", "57653A", "6E7F46", "8A9A55", "A6B36C");
 
     /// <summary>
     /// The weathered top of a clay bank: each step is halfway between the Clay
@@ -245,14 +215,15 @@ public static class NatureSprites
     /// <summary>Light grass tufts growing on a weathered bank.</summary>
     private static readonly Color GrassTuft = new("6FA069");
 
-    private enum Ore { None, Iron, Gold }
+    private enum Ore { None, Iron, Gold, Diamond }
 
-    /// <summary>The sprites the owner approved in the first art review; the rest keep the earlier drawing.</summary>
+    /// <summary>The sprites the owner approved in the art reviews; the rest keep the earlier drawing.</summary>
     private static bool IsApproved(NatureSprite sprite) => sprite is NatureSprite.Broadleaf or NatureSprite.Conifer or
         NatureSprite.BroadleafStump or NatureSprite.BroadleafSapling or NatureSprite.OrchardGrowing or
         NatureSprite.OrchardFruiting or NatureSprite.OrchardPicked or NatureSprite.BerryBush or NatureSprite.WildGreens or
         NatureSprite.FiberPlant or NatureSprite.StoneOutcrop or NatureSprite.IronOutcrop or NatureSprite.GoldOutcrop or
-        NatureSprite.ClayBank;
+        NatureSprite.ClayBank or NatureSprite.ConiferStump or NatureSprite.ConiferSapling or NatureSprite.Reeds or
+        NatureSprite.DiamondOutcrop or NatureSprite.Regrowing or NatureSprite.Depleted;
 
     /// <summary>Draws an approved sprite into its atlas cell.</summary>
     private static void PaintApproved(Layers layers, NatureSprite sprite)
@@ -277,6 +248,14 @@ public static class NatureSprites
             case NatureSprite.IronOutcrop: Outcrop(layers, Ore.Iron); layers.Compose(Iron.Edge); break;
             case NatureSprite.GoldOutcrop: Outcrop(layers, Ore.Gold); layers.Compose(Rock.Edge); break;
             case NatureSprite.ClayBank: ClayBank(layers); layers.Compose(Bank.Edge); break;
+            case NatureSprite.ConiferStump: ConiferStump(layers); layers.Compose(Timber.Edge); break;
+            // Like the conifer, the 16 px sapling draws its own edge star so its points stay apart.
+            case NatureSprite.ConiferSapling: ConiferSapling(layers); layers.Compose(Needle.Edge, outline: layers.Fine); break;
+            // Reed blades carry their own south-east edge copy, like the fibre plant, so they stay slender.
+            case NatureSprite.Reeds: Reeds(layers); layers.Compose(Reed.Edge, outline: false); break;
+            case NatureSprite.DiamondOutcrop: Outcrop(layers, Ore.Diamond); layers.Compose(Slate.Edge); break;
+            case NatureSprite.Regrowing: Regrowing(layers); layers.Compose(Canopy.Edge); break;
+            case NatureSprite.Depleted: BareGround(layers); layers.Compose(Soil.Edge); break;
             default: throw new ArgumentOutOfRangeException(nameof(sprite), sprite, "Not an approved sprite.");
         }
     }
@@ -285,7 +264,9 @@ public static class NatureSprites
     /// The two layers of one approved sprite: the body, which gets the edge
     /// outline, and the ground (the atlas cell itself), which holds only the
     /// soft shadow and ground marks so the outline never wraps them.
-    /// Coordinates are in 32-unit tile space at both sizes.
+    /// Coordinates are in 32-unit tile space at both sizes. Every blended
+    /// pixel is snapped to an 8-bit step (<see cref="PixelArt.Snap"/>), so
+    /// shadows and part-transparent ground marks match the reviewed pictures.
     /// </summary>
     private sealed class Layers
     {
@@ -300,8 +281,8 @@ public static class NatureSprites
             Unit = Size / 32f;
             Body = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
             Body.Fill(Colors.Transparent);
-            Canvas = new PixelCanvas(Body, new Rect2I(0, 0, Size, Size), Unit);
-            GroundCanvas = new PixelCanvas(atlas, cell, Unit);
+            Canvas = new PixelCanvas(Body, new Rect2I(0, 0, Size, Size), Unit, snap: true);
+            GroundCanvas = new PixelCanvas(atlas, cell, Unit, snap: true);
         }
 
         public Image Body { get; }
@@ -330,7 +311,7 @@ public static class NatureSprites
                     var over = Body.GetPixel(x, y);
                     if (over.A <= 0) continue;
                     var target = cell.Position + new Vector2I(x, y);
-                    atlas.SetPixelv(target, atlas.GetPixelv(target).Blend(over));
+                    atlas.SetPixelv(target, PixelArt.Snap(atlas.GetPixelv(target).Blend(over)));
                 }
         }
 
@@ -350,7 +331,7 @@ public static class NatureSprites
         public void Blend(int x, int y, Color color)
         {
             if (x < 0 || y < 0 || x >= Size || y >= Size) return;
-            Body.SetPixel(x, y, Body.GetPixel(x, y).Blend(color));
+            Body.SetPixel(x, y, PixelArt.Snap(Body.GetPixel(x, y).Blend(color)));
         }
 
         /// <summary>
@@ -719,13 +700,17 @@ public static class NatureSprites
         else c.Dot(cx - rx * 0.5f, cy - ry * 0.55f, stone.Highlight);
     }
 
-    /// <summary>Stone, iron or gold outcrop: three boulders with loose stones; ore shows as rust veins or gold flecks.</summary>
+    /// <summary>
+    /// Stone, iron, gold or diamond outcrop: three boulders with loose stones;
+    /// ore shows as rust veins, gold flecks or pale faceted crystals.
+    /// </summary>
     private static void Outcrop(Layers s, Ore ore)
     {
         s.Shadow(17, 20, 11, 7);
         var c = s.Canvas;
         // Plain stone is the lightest, gold-bearing rock mid grey, iron rock darkest, so the three differ in value as well as flecks.
-        var stone = ore switch { Ore.Iron => Iron, Ore.Gold => Rock, _ => Boulders };
+        // Diamond-bearing rock is the cool blue-grey slate.
+        var stone = ore switch { Ore.Iron => Iron, Ore.Gold => Rock, Ore.Diamond => Slate, _ => Boulders };
         Color? tint = ore == Ore.Iron ? Rust.Shade : null;
         // Back to front, so each nearer boulder creases over the one behind it.
         Boulder(s, 20, 14, 7.5f, 7, stone, 0.3f, tint);
@@ -759,7 +744,58 @@ public static class NatureSprites
                     Mark(s, x, y, Gold.Light, Gold.Highlight, dash16: true);
                 if (s.Fine) foreach (var (x, y) in new[] { (14, 20), (22, 11), (8, 20) }) c.Dot(x, y, Gold.Base);
                 break;
+            case Ore.Diamond:
+                if (s.Fine)
+                {
+                    // A cluster of two crystals on the big boulder, one on each of the others.
+                    Gem(s, 20, 13, large: true);
+                    Gem(s, 23, 16, large: false);
+                    Gem(s, 10, 18, large: true);
+                    Gem(s, 19, 22, large: false);
+                }
+                else
+                    foreach (var (x, y) in new[] { (19, 12), (10, 17), (18, 22) })
+                        Mark(s, x, y, Diamond.Light, Diamond.Highlight, dash16: true);
+                break;
         }
+    }
+
+    /// <summary>
+    /// One crystal at 32 px, seen from above: a small rhombus whose north-west
+    /// facets are Diamond highlight and light and whose south-east facets are
+    /// Diamond base and shade, with a Diamond-edge pixel or two where it meets
+    /// the rock on its shaded side. The large one is five pixels across, the
+    /// small one three. Pixel coordinates.
+    /// </summary>
+    private static void Gem(Layers s, int x, int y, bool large)
+    {
+        var c = s.Canvas;
+        if (large)
+        {
+            // Rows from north to south: H highlight, L light, B base, S shade, E edge, '.' rock.
+            ReadOnlySpan<string> rows = ["..H..", ".HLB.", "HLLBS", ".BBSE", "..SE."];
+            for (var row = 0; row < rows.Length; row++)
+                for (var col = 0; col < rows[row].Length; col++)
+                {
+                    Color? color = rows[row][col] switch
+                    {
+                        'H' => Diamond.Highlight,
+                        'L' => Diamond.Light,
+                        'B' => Diamond.Base,
+                        'S' => Diamond.Shade,
+                        'E' => Diamond.Edge,
+                        _ => null,
+                    };
+                    if (color is { } pixel) c.Dot(x - 2 + col, y - 2 + row, pixel);
+                }
+            return;
+        }
+        c.Dot(x, y - 1, Diamond.Highlight);
+        c.Dot(x - 1, y, Diamond.Highlight);
+        c.Dot(x, y, Diamond.Light);
+        c.Dot(x + 1, y, Diamond.Shade);
+        c.Dot(x, y + 1, Diamond.Shade);
+        c.Dot(x + 1, y + 1, Diamond.Edge);
     }
 
     /// <summary>
@@ -796,5 +832,204 @@ public static class NatureSprites
         // Dug-out clods of fresh clay: one thrown up on the bank, one left on the floor.
         Mark(s, 12, 19, Clay.Base, Clay.Light);
         Mark(s, 26, 23, Clay.Base, Clay.Light);
+    }
+
+    /// <summary>
+    /// Conifer stump: told apart from the broadleaf stump by a darker cut face
+    /// (Timber base, as the earlier conifer stump was darker) with two close rings,
+    /// a scaly bark ring with dark plate notches, five slender roots spread
+    /// evenly, and a bead of amber resin on the rim as its colour accent.
+    /// </summary>
+    private static void ConiferStump(Layers s)
+    {
+        s.Shadow(17, 18.5f, 8.5f, 6);
+        var c = s.Canvas;
+        // Root directions in radians clockwise from east, spread evenly round the trunk.
+        foreach (var angle in new[] { 0.3f, 1.5f, 2.65f, 3.85f, 5.1f })
+        {
+            var lit = FacesLight(angle, -0.3f);
+            // At 16 px only the roots on the shadow side stay, as on the broadleaf stump.
+            if (!s.Fine && lit) continue;
+            var dir = Vector2.FromAngle(angle);
+            var color = lit ? Timber.Base : Timber.Shade;
+            c.Leaf(16 + dir.X * 5.8f, 16 + dir.Y * 5.8f, 2.3f, 1.5f, angle, color, color);
+        }
+        c.Disc(16, 16, 6.2f, Timber.Shade);
+        c.Disc(16, 16, 5, Timber.Light);
+        c.Disc(16.5f, 16.5f, 4.6f, Timber.Base);
+        if (s.Fine)
+        {
+            // Bark plates: dark notches round the bark ring, on every side but the lit north-west.
+            foreach (var (x, y) in new[] { (22, 13), (21, 20), (17, 22), (12, 21), (10, 18), (22, 17) }) c.Dot(x, y, Timber.Edge);
+            // Two close growth rings and the pith.
+            c.Ring(16.4f, 16.4f, 3.4f, Timber.Shade);
+            c.Ring(16.4f, 16.4f, 1.8f, Timber.Shade);
+            c.Dot(16, 16, Timber.Edge);
+            // The resin bead on the north-east rim: gold base with a bright top pixel.
+            c.Dot(19, 12, Gold.Base);
+            c.Dot(20, 12, Gold.Shade);
+            c.Dot(19, 11, Gold.Highlight);
+            return;
+        }
+        c.Dot(16, 16, Timber.Shade);
+        c.Dot(19, 12, Gold.Base);
+    }
+
+    /// <summary>
+    /// Conifer sapling: a small seven-point star in the lighter needle steps,
+    /// each inner layer stepped toward the north-west light like the grown
+    /// conifer. At 16 px it draws its own edge star so the points stay apart.
+    /// </summary>
+    private static void ConiferSapling(Layers s)
+    {
+        s.Shadow(17.5f, 19.5f, 6.5f, 4.6f);
+        var c = s.Canvas;
+        if (!s.Fine) c.Star(16, 16, 8.4f, 4.6f, Needle.Edge, 7);
+        c.Star(16, 16, 7.2f, 3.8f, Needle.Base, 7);
+        c.Star(15.4f, 15.4f, 5.2f, 2.8f, Needle.Light, 7);
+        c.Star(14.9f, 14.9f, 2.6f, 1.4f, Needle.Highlight, 7);
+        if (!s.Fine) return;
+        // Shade on the south-east points, where they turn away from the light.
+        foreach (var (x, y) in new[] { (20, 19), (17, 21), (21, 16) }) c.Dot(x, y, Needle.Shade);
+    }
+
+    /// <summary>
+    /// One reed stem or blade: a one-pixel line from <paramref name="from"/>
+    /// along <paramref name="angle"/> that bends by <paramref name="bend"/>
+    /// radians over its length. Drawn in two passes like the fibre plant:
+    /// pass 0 lays an edge-step copy one pixel south-east, pass 1 the stem,
+    /// lit when it leans toward the light. Tile units.
+    /// </summary>
+    private static void ReedStem(Layers s, int pass, Vector2 from, float angle, float length, float bend = 0)
+    {
+        var offset = pass == 0 ? s.Pixel : 0;
+        var color = pass == 0 ? Reed.Edge : FacesLight(angle, 0.3f) ? Reed.Light : Reed.Base;
+        const int Segments = 3;
+        var point = from;
+        for (var i = 0; i < Segments; i++)
+        {
+            var next = point + Vector2.FromAngle(angle + bend * (i + 0.5f) / Segments) * (length / Segments);
+            s.Canvas.Line(point.X + offset, point.Y + offset, next.X + offset, next.Y + offset, color);
+            point = next;
+        }
+    }
+
+    /// <summary>
+    /// Reeds: three clumps of standing stems, kept from the earlier sprite
+    /// because the brown cattail head is what tells reeds from the fibre
+    /// plant. Each clump is a small olive tuft (edge rim, shade, lit
+    /// north-west) with stems fanning up and out of it, two low leaves
+    /// splaying sideways, and cattail heads on the tallest stems: a dark
+    /// Timber-shade spike along the stem with a Timber-edge copy to the
+    /// south-east, a lit north-west pixel and a pale stalk tip beyond. Stems
+    /// leaning toward the light are lighter. At 16 px each head is a brown
+    /// pixel over an edge pixel.
+    /// </summary>
+    private static void Reeds(Layers s)
+    {
+        var c = s.Canvas;
+        // Clump bases and their stems: angle (radians clockwise from east, -1.57 is north), length, and whether a head tops it.
+        var clumps = new (Vector2 Base, (float Angle, float Length, bool Head)[] Stems)[]
+        {
+            (new Vector2(10.5f, 21), [(-2.05f, 10, true), (-1.62f, 12.5f, true), (-1.25f, 9, false)]),
+            (new Vector2(17, 19.5f), [(-1.8f, 12, true), (-1.4f, 10, false), (-2.3f, 8, false), (-1.0f, 11, true)]),
+            (new Vector2(22.5f, 22.5f), [(-1.55f, 10.5f, true), (-1.15f, 8.5f, false), (-0.75f, 9, false)]),
+        };
+        s.Shadow(17.5f, 23, 9.5f, 4);
+        for (var pass = 0; pass < 2; pass++)
+            foreach (var (root, stems) in clumps)
+            {
+                // Two low leaves splaying west and east, drooping a little.
+                ReedStem(s, pass, root, Mathf.Pi + 0.35f, 5.5f, -0.5f);
+                ReedStem(s, pass, root, -0.35f, 5, 0.5f);
+                for (var i = 0; i < stems.Length; i++)
+                {
+                    var (angle, length, _) = stems[i];
+                    // At 16 px only the first two stems of each clump stay, so the rest do not merge.
+                    if (!s.Fine && i >= 2) continue;
+                    ReedStem(s, pass, root, angle, length);
+                }
+            }
+        // The tuft at the foot of each clump.
+        foreach (var (root, _) in clumps)
+        {
+            s.Lobed(root.X, root.Y, 2.4f + s.Pixel, Reed.Edge, 5, 1, 0.15f);
+            s.Lobed(root.X, root.Y, 2.4f, Reed.Shade, 5, 1, 0.15f);
+            if (s.Fine) c.Dot(root.X - 1, root.Y - 1, Reed.Light);
+        }
+        foreach (var (root, stems) in clumps)
+            foreach (var (angle, length, head) in stems)
+            {
+                if (!head) continue;
+                var dir = Vector2.FromAngle(angle);
+                var at = root + dir * (length - 2.6f);
+                if (!s.Fine)
+                {
+                    c.Dot(at.X, at.Y, Timber.Shade);
+                    c.Dot(at.X + 2, at.Y + 2, Timber.Edge);
+                    continue;
+                }
+                c.Dot(root.X + dir.X * (length + 0.6f), root.Y + dir.Y * (length + 0.6f), Reed.Highlight);
+                c.Leaf(at.X + 1, at.Y + 1, 2.2f, 1.15f, angle, Timber.Edge, Timber.Edge);
+                c.Leaf(at.X, at.Y, 2.2f, 1.15f, angle, Timber.Shade, Timber.Shade);
+                c.Dot(at.X - 1 - dir.X, at.Y - dir.Y, Timber.Base);
+            }
+    }
+
+    /// <summary>
+    /// Regrowing: a generic sprout for any regrowing site. A patch of
+    /// loosened earth on the ground layer holds a fresh sprout seen from
+    /// above: two seed leaves spreading almost flat to the west and east (the
+    /// west one lit) and a young leaf rising to the north-east, outlined in
+    /// the canopy edge, with two tiny shoots coming up beside it at 32 px.
+    /// </summary>
+    private static void Regrowing(Layers s)
+    {
+        var g = s.GroundCanvas;
+        g.Lumpy(16.4f, 17.6f, 7, Soil.Shade with { A = 0.5f }, 5, 1);
+        g.Ellipse(16, 17.2f, 5.8f, 4, Soil.Base with { A = 0.75f });
+        if (s.Fine) foreach (var (x, y) in new[] { (11, 18), (20, 20), (13, 20), (21, 15) }) g.Dot(x, y, Soil.Light);
+        s.Shadow(17, 18.6f, 4.6f, 2.6f);
+        var c = s.Canvas;
+        // Seed leaves spreading almost flat to the west and east (the west one lit), and a young leaf rising to the north-east.
+        c.Leaf(12.9f, 16.6f, 3, 2.1f, Mathf.Pi + 0.15f, Canopy.Light, Canopy.Highlight);
+        c.Leaf(19.1f, 16.6f, 3, 2.1f, -0.15f, Canopy.Base, Canopy.Light);
+        c.Leaf(16.8f, 14, 2.2f, 1.4f, -1.25f, Canopy.Highlight, Canopy.Highlight);
+        c.Disc(16, 16.8f, 1.1f, Canopy.Shade);
+        if (!s.Fine) return;
+        // Two tiny shoots coming up beside it.
+        c.Dot(11, 21, Canopy.Light);
+        c.Dot(22, 19, Canopy.Light);
+    }
+
+    /// <summary>
+    /// Depleted (generic fallback): for a used-up site with no depleted art of
+    /// its own, a bare scuffed patch of dry earth on the ground layer (soft
+    /// soil-shade rim, soil-light floor, a few crumbs and dents), with two small
+    /// pebbles and a broken twig left on it. Neutral and low, so it reads as
+    /// "nothing left here" for any plant.
+    /// </summary>
+    private static void BareGround(Layers s)
+    {
+        var g = s.GroundCanvas;
+        g.Lumpy(16.5f, 17.5f, 8.5f, Soil.Shade with { A = 0.4f }, 5, 3);
+        g.Ellipse(16, 17, 7.2f, 5f, Soil.Light with { A = 0.6f });
+        if (s.Fine)
+        {
+            foreach (var (x, y) in new[] { (12, 15), (19, 14), (14, 20), (21, 19) }) g.Dot(x, y, Soil.Highlight);
+            foreach (var (x, y) in new[] { (13, 16), (20, 15), (17, 19) }) g.Dot(x, y, Soil.Edge with { A = 0.6f });
+        }
+        s.Shadow(17, 19, 6, 3.5f);
+        var c = s.Canvas;
+        // Two pebbles.
+        c.Disc(11.5f, 18, 1.5f, Rock.Base);
+        c.Dot(11, 17, Rock.Highlight);
+        c.Disc(21, 20.5f, 1.2f, Rock.Base);
+        if (s.Fine) c.Dot(20, 20, Rock.Light);
+        // A broken twig lying north-west to south-east, lit on its north end.
+        if (!s.Fine) return;
+        c.Line(15, 13, 20, 16, Timber.Light);
+        c.Dot(15, 13, Timber.Highlight);
+        c.Line(18, 15, 19, 13, Timber.Base);
     }
 }

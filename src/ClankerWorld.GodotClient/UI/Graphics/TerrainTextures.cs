@@ -32,12 +32,13 @@ public enum TerrainStyle : byte
 /// <summary>
 /// Pixel-art ground tiles: two calm variants per terrain style, generated at
 /// 32×32 and drawn separately at 16×16 for mid zoom. Grass, forest ground,
-/// sand, rock, snow and tundra carry soft, rounded mottling in neighbouring
-/// steps of their own colour ramp, which repeats seamlessly across tile edges
-/// and between the two variants, plus a few small motifs kept one pixel clear
-/// of the edges. The other styles keep the provisional look: a few deliberate
-/// pixel clusters on flat colour. Every tile keeps its style's base colour,
-/// which the overview palette uses.
+/// sand, rock, snow, tundra, the scrub and brush styles and tundra snow carry
+/// soft, rounded mottling in neighbouring steps of their own colour ramp,
+/// which repeats seamlessly across tile edges and between the two variants,
+/// plus a few small motifs kept one pixel clear of the edges; fertile soil is
+/// tilled ridges running east–west. Mountains, peaks and water keep the
+/// provisional look: a few deliberate pixel clusters on flat colour. Every
+/// tile keeps its style's base colour, which the overview palette uses.
 /// </summary>
 public static class TerrainTextures
 {
@@ -182,18 +183,6 @@ public static class TerrainTextures
         var busy = variant == 1;
         switch (style)
         {
-            case TerrainStyle.ScrubGrass:
-            case TerrainStyle.ScrubSand:
-            case TerrainStyle.DryBrush:
-                painter.Bushes(busy ? 3 : 2, new Color("6E7040"), new Color("8D9152"));
-                painter.Specks(busy ? 4 : 2, PixelArt.Shade(baseColor, -0.10f));
-                break;
-            case TerrainStyle.DryScrub:
-            case TerrainStyle.DesertBrush:
-                painter.Specks(busy ? 5 : 3, PixelArt.Shade(baseColor, -0.12f));
-                painter.Pebbles(busy ? 2 : 1, new Color("7B7462"));
-                if (busy) painter.Bushes(1, new Color("6E7040"), new Color("8D9152"));
-                break;
             case TerrainStyle.Mountain:
                 painter.Mountains(busy, PixelArt.Shade(baseColor, 0.16f), PixelArt.Shade(baseColor, -0.20f),
                     PixelArt.Shade(baseColor, -0.34f), null);
@@ -202,15 +191,6 @@ public static class TerrainTextures
             case TerrainStyle.Peak:
                 painter.Mountains(busy, new Color("8E8A85"), new Color("5F5955"), new Color("4A4542"),
                     new Color("EEF3F1"));
-                break;
-            case TerrainStyle.TundraSnow:
-                painter.Ripples(busy ? 3 : 2, new Color("B8C6C4"), 3, 5);
-                painter.Specks(busy ? 3 : 2, new Color("F4F8F6"));
-                painter.Specks(2, new Color("98A796"));
-                break;
-            case TerrainStyle.FertileSoil:
-                painter.Pebbles(busy ? 4 : 3, PixelArt.Shade(baseColor, -0.16f));
-                painter.Specks(busy ? 4 : 2, PixelArt.Shade(baseColor, 0.12f));
                 break;
             case TerrainStyle.Ocean:
                 painter.Ripples(busy ? 3 : 2, PixelArt.Shade(baseColor, 0.12f), 3, 5);
@@ -243,29 +223,6 @@ public static class TerrainTextures
             {
                 var (x, y) = Spot(1, 1);
                 PixelArt.Put(image, x, y, color);
-            }
-        }
-
-        public void Pebbles(int count, Color color)
-        {
-            for (var index = 0; index < Count(count); index++)
-            {
-                var (x, y) = Spot(2, 2);
-                PixelArt.Put(image, x, y + 1, color);
-                PixelArt.Put(image, x + 1, y + 1, color);
-                PixelArt.Put(image, x, y, color.Lightened(0.18f));
-            }
-        }
-
-        public void Bushes(int count, Color dark, Color light)
-        {
-            for (var index = 0; index < Count(count); index++)
-            {
-                var (x, y) = Spot(3, 2);
-                PixelArt.Put(image, x, y + 1, dark);
-                PixelArt.Put(image, x + 1, y + 1, dark);
-                PixelArt.Put(image, x + 2, y + 1, dark);
-                PixelArt.Put(image, x + 1, y, light);
             }
         }
 
@@ -322,20 +279,24 @@ public static class TerrainTextures
     }
 
     /// <summary>
-    /// Mottled ground for grass, forest grass, forest floor, sand, rock, snow
-    /// and tundra. Each tile carries soft, rounded patches in one or two
-    /// neighbouring steps of its own colour ramp instead of isolated specks,
-    /// keeps its style's base colour, repeats seamlessly with itself and with
-    /// its other variant, and is drawn deterministically from
-    /// <see cref="PixelArt.Hash"/> and <see cref="PixelArt.Stream"/>. The 16 px
-    /// tiles are drawn separately rather than shrunk.
+    /// Mottled ground for grass, forest grass, forest floor, sand, rock, snow,
+    /// tundra, the scrub and brush styles and tundra snow, and tilled fertile
+    /// soil. Each tile carries soft, rounded patches in one or two neighbouring
+    /// steps of its own colour ramp instead of isolated specks, keeps its
+    /// style's base colour, repeats seamlessly with itself and with its other
+    /// variant, and is drawn deterministically from <see cref="PixelArt.Hash"/>
+    /// and <see cref="PixelArt.Stream"/>. The 16 px tiles are drawn separately
+    /// rather than shrunk.
     /// </summary>
     private static class Ground
     {
         private static readonly TerrainStyle[] Drawn =
         [
             TerrainStyle.Grass, TerrainStyle.ForestGrass, TerrainStyle.ForestFloor, TerrainStyle.DenseForestFloor,
-            TerrainStyle.Sand, TerrainStyle.Rock, TerrainStyle.Snow, TerrainStyle.Tundra,
+            TerrainStyle.Sand, TerrainStyle.Rock, TerrainStyle.Snow, TerrainStyle.Tundra, TerrainStyle.FertileSoil,
+            // Second art review: the scrub, brush and tundra-snow styles.
+            TerrainStyle.ScrubGrass, TerrainStyle.ScrubSand, TerrainStyle.DryScrub, TerrainStyle.DryBrush,
+            TerrainStyle.DesertBrush, TerrainStyle.TundraSnow,
         ];
 
         // Accent colours borrowed from other ramps for motifs (at most two per tile).
@@ -344,6 +305,15 @@ public static class TerrainTextures
         private static readonly Color TimberShade = new("6E4E31");
         private static readonly Color ScrubLight = new("A8975F");
         private static readonly Color ScrubShade = new("86784C");
+        // Straw on tilled soil is Thatch shade; scrub bushes keep the olive of
+        // the earlier bush motif; desert sage borrows the Tundra shade and light.
+        private static readonly Color Straw = new("A98A45");
+        private static readonly Color RockHighlight = new("A49C95");
+        private static readonly Color BushDark = new("6E7040");
+        private static readonly Color BushLight = new("8D9152");
+        private static readonly Color TundraBase = new("869586");
+        private static readonly Color TundraShade = new("757F75");
+        private static readonly Color TundraLight = new("96A596");
 
         public static bool Draws(TerrainStyle style) => Array.IndexOf(Drawn, style) >= 0;
 
@@ -364,6 +334,15 @@ public static class TerrainTextures
             TerrainStyle.Rock => Ramp.Of(style, "4A4542", "625B56", "8B837D", "A49C95"),
             TerrainStyle.Snow => Ramp.Of(style, "9AAAA8", "B8C6C4", "DCE5E0", "F4F8F6"),
             TerrainStyle.Tundra => Ramp.Of(style, "5A675B", "757F75", "96A596", "A8B6A8"),
+            TerrainStyle.FertileSoil => Ramp.Of(style, "4A3A2A", "5C4B35", "86704F", "9A8460"),
+            TerrainStyle.ScrubGrass => Ramp.Of(style, "66593A", "86784C", "A8975F", "BBAA70"),
+            TerrainStyle.DryScrub => Ramp.Of(style, "5E5339", "7E7250", "9C8E64", "B0A275"),
+            // These styles have no row of their own in the style guide; each uses the
+            // neighbouring guide ramp moved so that its base is the style's overview colour.
+            TerrainStyle.ScrubSand => Ramp.Of(style, "6E5F38", "948450", "B9A86F", "CBBC8A"),   // between Scrub grass and Sand
+            TerrainStyle.DryBrush => Ramp.Of(style, "584C32", "786B48", "96875C", "AA9B6D"),    // Dry scrub / brush, one shade darker
+            TerrainStyle.DesertBrush => Ramp.Of(style, "5F4F37", "7F6C4C", "9F8B62", "B39F76"), // Dry scrub / brush, a touch warmer
+            TerrainStyle.TundraSnow => Ramp.Of(style, "A1ADA5", "BEC8BF", "E2E8E0", "F4F8F6"),  // Snow, a touch greener
             _ => throw new ArgumentOutOfRangeException(nameof(style), style, "This style is not drawn as mottled ground."),
         };
 
@@ -417,6 +396,44 @@ public static class TerrainTextures
                     if (busy) painter.Pebbles(1, ramp.Highlight, ramp.Edge);
                     if (busy) painter.Tufts(2, ScrubShade, ScrubLight);
                     break;
+                case TerrainStyle.FertileSoil:
+                    painter.Tilth(salt, variant, ramp);
+                    painter.SoilMotifs(busy, ramp, RockLight, Straw);
+                    break;
+                case TerrainStyle.ScrubGrass:
+                    painter.Mottle(salt, variant, 0.13f, 0f, ramp.Shade, ramp.Light);
+                    painter.Tufts(busy ? 4 : 3, ramp.Shade, ramp.Highlight);
+                    painter.Bushes(busy ? 3 : 2, BushDark, BushLight, ramp.Edge);
+                    break;
+                case TerrainStyle.ScrubSand:
+                    painter.Mottle(salt, variant, 0.06f, 0.14f, ramp.Shade, ramp.Light, broad: true);
+                    painter.Ripples(1, ramp.Light, ramp.Shade);
+                    painter.Tufts(busy ? 4 : 2, ramp.Shade, ramp.Highlight);
+                    painter.Bushes(busy ? 2 : 1, BushDark, BushLight, ramp.Edge);
+                    break;
+                case TerrainStyle.DryScrub:
+                    painter.Mottle(salt, variant, 0.07f, 0.13f, ramp.Shade, ramp.Light, broad: true);
+                    painter.Gravel(busy ? 3 : 2, RockHighlight, RockLight, ramp.Edge);
+                    painter.Tufts(1, ramp.Shade, ramp.Highlight);
+                    if (busy) painter.Cracks(1, ramp.Edge, ramp.Highlight);
+                    break;
+                case TerrainStyle.DryBrush:
+                    painter.Mottle(salt, variant, 0.08f, 0.12f, ramp.Shade, ramp.Light);
+                    painter.Brush(busy ? 3 : 2, ramp.Edge, BushDark, BushLight);
+                    if (busy) painter.Tufts(2, ramp.Shade, ramp.Highlight);
+                    break;
+                case TerrainStyle.DesertBrush:
+                    painter.Mottle(salt, variant, 0.05f, 0.13f, ramp.Shade, ramp.Light, broad: true);
+                    painter.Bushes(busy ? 3 : 2, TundraShade, TundraLight, ramp.Edge);
+                    painter.HairlineCracks(busy ? 2 : 1, ramp.Shade);
+                    break;
+                case TerrainStyle.TundraSnow:
+                    // Like snow, both variants share v0's soft patches.
+                    painter.Mottle(salt, 0, 0.05f, 0.12f, ramp.Shade, ramp.Light, broad: true);
+                    painter.Peeks(busy ? 3 : 2, TundraBase, TundraShade, ramp.Highlight);
+                    if (size >= 32) painter.Tufts(busy ? 2 : 1, TundraShade, TundraBase); // at 16 px a tuft would read as a second peek
+                    if (busy) painter.Pebbles(1, ramp.Highlight, ramp.Edge);
+                    break;
             }
             return image;
         }
@@ -438,6 +455,22 @@ public static class TerrainTextures
             {
                 if (x < 0 || y < 0 || x >= size || y >= size) return;
                 image.SetPixel(x, y, color);
+            }
+
+            /// <summary>
+            /// Draws a small motif from text rows: 'l', 'd' and 's' pick the first,
+            /// second and third colour, any other character leaves the ground.
+            /// </summary>
+            private readonly void Stamp(int x, int y, string[] rows, Color l, Color d, Color s)
+            {
+                for (var row = 0; row < rows.Length; row++)
+                    for (var column = 0; column < rows[row].Length; column++)
+                    {
+                        var mark = rows[row][column];
+                        if (mark == 'l') Put(x + column, y + row, l);
+                        else if (mark == 'd') Put(x + column, y + row, d);
+                        else if (mark == 's') Put(x + column, y + row, s);
+                    }
             }
 
             /// <summary>A random spot for a motif of the given pixel size, one pixel clear of every edge.</summary>
@@ -706,6 +739,276 @@ public static class TerrainTextures
                         else if (level > 0) Put(x, y, ramp.Light);
                         else if (level < 0) Put(x, y, ramp.Shade);
                     }
+            }
+
+            /// <summary>Rows per ridge of tilled soil: eight at 32 px, four at 16 px, so ridges keep the same spacing on the ground at both zooms.</summary>
+            private readonly int RidgePeriod => Small ? 4 : 8;
+
+            /// <summary>
+            /// Tilled farmland seen from above: soft ridges of turned earth
+            /// running east–west, four to a tile at both sizes. At 32 px each
+            /// eight-row ridge has a lit north face (light step, two rows), a flat top
+            /// (base), a shaded south shoulder (shade step) and a trough (shade, edge
+            /// step where it runs deeper); at 16 px the same profile is squeezed into
+            /// four rows. The ridge rows line up with the crop field rows drawn on
+            /// top: every ridge's lit face and trough fall on a crop row's lit and
+            /// shaded lines, so a field sits two crop rows to a ridge at 32 px and one
+            /// at 16 px. The lit face is broken into clods three to seven pixels long
+            /// by one-pixel dips, and some clods start with a highlight pixel where
+            /// their north-west corner catches the light; the trough deepens to the
+            /// edge step in short runs and the shoulder swells over them, so ridges
+            /// thicken and thin along their length. One or two damp patches lie in
+            /// the troughs, where every step drops by one and the next lit face loses
+            /// its shine. Ridge pattern decisions are made per column, so ridges run
+            /// on into the next tile, and columns within three pixels of an edge use
+            /// a pattern shared by both variants, so the variants meet without a seam.
+            /// </summary>
+            public void Tilth(int salt, int variant, Ramp ramp)
+            {
+                Color[] steps = [ramp.Edge, ramp.Shade, ramp.Base, ramp.Light, ramp.Highlight]; // index = level + 2
+                var period = RidgePeriod;
+                var width = size;
+                int Own(int x) => x > 2 && x < width - 3 ? salt + 1000 * (variant + 1) : salt;
+                int Wrap(int x) => (x % width + width) % width;
+                // A dip between two clods on a ridge's lit face.
+                bool Dip(int x, int ridge) => PixelArt.Hash(Wrap(x), ridge, Own(Wrap(x))) % (width >= 32 ? 5 : 4) == 0;
+                // A deeper stretch of trough, in runs of three pixels (two at 16 px).
+                bool Deep(int x, int ridge) => PixelArt.Hash(Wrap(x) / (width >= 32 ? 3 : 2), ridge, Own(Wrap(x)) + 7) % 4 == 0;
+                // Roughness in two-pixel runs, for the edges of the lit face and the shoulder.
+                bool Rough(int x, int ridge, int which, int oneIn) => PixelArt.Hash(Wrap(x) / 2, ridge, Own(Wrap(x)) + which) % oneIn == 0;
+                var levels = new int[size, size];
+                for (var y = 0; y < size; y++)
+                    for (var x = 0; x < size; x++)
+                    {
+                        var ridge = y / period;
+                        // The 32 px profile row; the 16 px tile keeps rows 0 (lit face), 3 (top), 6 (shoulder) and 7 (trough).
+                        var row = Small ? (y % period) switch { 0 => 0, 1 => 3, 2 => 6, _ => 7 } : y % period;
+                        levels[x, y] = row switch
+                        {
+                            // Lit face: a dip shows the base; the first pixel after a dip may catch the light.
+                            0 => Dip(x, ridge) ? 0 : Dip(x - 1, ridge) && PixelArt.Hash(x, ridge, Own(x) + 3) % 2 == 0 ? 2 : 1,
+                            // Lower lit face, ragged where it meets the top.
+                            1 => Rough(x, ridge, 5, 3) ? 0 : 1,
+                            // Upper shoulder: shaded only over part of a deep stretch.
+                            5 => Deep(x, ridge) && PixelArt.Hash(x, ridge, Own(x) + 13) % 2 == 0 ? -1 : 0,
+                            // Shoulder: shaded, with short breaks at 32 px; at 16 px only over deep stretches.
+                            6 => Small ? (Deep(x, ridge) && PixelArt.Hash(x, ridge, Own(x) + 11) % 3 != 0 ? -1 : 0) : Rough(x, ridge, 11, 4) ? 0 : -1,
+                            7 => Deep(x, ridge) ? -2 : -1,
+                            _ => 0,
+                        };
+                    }
+                // Damp patches: a long, low stretch of one trough where water has soaked in, one
+                // pixel clear of every edge. The trough and shoulder drop a step (the shoulder only
+                // away from the tips), and the lit face just south loses its shine.
+                for (var patch = 0; patch < (variant == 1 && !Small ? 2 : 1); patch++)
+                {
+                    var half = Small ? 3 : random.Range(6, 10);
+                    var centre = random.Range(half + 1, size - half - 1);
+                    var trough = random.Range(0, size / period - 1) * period + period - 1;
+                    for (var x = centre - half; x <= centre + half; x++)
+                    {
+                        var reach = half - Math.Abs(x - centre); // 0 at the tips
+                        levels[x, trough] = Math.Max(-2, levels[x, trough] - 1);
+                        if (reach >= 2) levels[x, trough - 1] = Math.Max(-2, levels[x, trough - 1] - 1);
+                        if (reach >= 3) levels[x, trough + 1] = Math.Min(levels[x, trough + 1], 0);
+                    }
+                }
+                for (var y = 0; y < size; y++)
+                    for (var x = 0; x < size; x++)
+                        Put(x, y, steps[levels[x, y] + 2]);
+            }
+
+            /// <summary>
+            /// The small things lying on tilled soil, all on the ridge tops and one
+            /// pixel clear of the edges: clods (a highlight pixel, a light pixel and
+            /// shaded pixels to the south-east), a clod fallen into a trough that
+            /// breaks its dark line and a small stone (Rock light with a shadow in
+            /// the soil edge step). The busier variant, about one tile in four, adds
+            /// the occasional pale straw fleck and pale root, so they never line up
+            /// in a grid across a field. At 16 px each is one pixel and the root is
+            /// left out.
+            /// </summary>
+            public void SoilMotifs(bool busy, Ramp ramp, Color stone, Color straw)
+            {
+                var period = RidgePeriod;
+                for (var index = 0; index < (Small ? 1 : 3); index++)
+                {
+                    var (x, y) = OnRidge(3);
+                    Put(x, y, ramp.Highlight);
+                    if (Small) continue;
+                    Put(x + 1, y, ramp.Light);
+                    Put(x + 1, y + 1, ramp.Shade);
+                    Put(x + 2, y + 1, ramp.Shade);
+                }
+                if (!Small)
+                {
+                    var x = random.Range(2, size - 4);
+                    var y = random.Range(0, size / period - 1) * period + period - 1;
+                    Put(x, y, ramp.Light);
+                    Put(x + 1, y, ramp.Base);
+                    Put(x + 2, y, ramp.Edge);
+                }
+                {
+                    var (x, y) = OnRidge(2);
+                    Put(x, y, stone);
+                    if (!Small)
+                    {
+                        Put(x + 1, y, stone);
+                        Put(x + 1, y + 1, ramp.Edge);
+                    }
+                }
+                if (busy)
+                {
+                    var (x, y) = OnRidge(3);
+                    Put(x, y, straw);
+                    if (!Small)
+                    {
+                        Put(x + 1, y, straw);
+                        Put(x + 2, y + 1, straw);
+                    }
+                }
+                if (busy && !Small)
+                {
+                    // A pale root: a short kinked line in the soil highlight.
+                    var (x, y) = OnRidge(4);
+                    Put(x, y + 1, ramp.Highlight);
+                    Put(x + 1, y, ramp.Highlight);
+                    Put(x + 2, y, ramp.Highlight);
+                    Put(x + 3, y + 1, ramp.Highlight);
+                }
+            }
+
+            /// <summary>
+            /// A spot on a ridge top of tilled soil for a motif of the given width
+            /// and up to two rows tall: rows 2–3 of a 32 px ridge, row 1 of a 16 px
+            /// one, one pixel clear of every edge.
+            /// </summary>
+            private (int X, int Y) OnRidge(int width) =>
+                (random.Range(1, size - width - 1), random.Range(0, size / RidgePeriod) * RidgePeriod + (Small ? 1 : random.Range(2, 4)));
+
+            /// <summary>
+            /// Low scrub bushes seen from above (scrub keeps its bush motif):
+            /// a rounded clump four pixels across, lit on its north-west and darker
+            /// on its south-east, with two pixels of ground shadow to the south-east.
+            /// At 16 px a bush is a lit pixel, two dark pixels and the shadow.
+            /// </summary>
+            public void Bushes(int count, Color dark, Color light, Color shadow)
+            {
+                for (var index = 0; index < Count(count); index++)
+                {
+                    if (!Small)
+                    {
+                        // Rows of a 5 × 4 cell: l lit leaves, d shaded leaves, s ground shadow.
+                        var (x, y) = Spot(5, 4);
+                        Stamp(x, y, [" ll  ", "llld ", "lldds", " dds "], light, dark, shadow);
+                    }
+                    else
+                    {
+                        var (x, y) = Spot(3, 3);
+                        Put(x, y, light);
+                        Put(x + 1, y, dark);
+                        Put(x, y + 1, dark);
+                        Put(x + 1, y + 1, shadow);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Dry brush: a dense, solid clump of dark olive twigs, lit with a few
+            /// olive leaves on its north-west, its south-east side and a few twig
+            /// tips poking out of the crown in the dark twig colour. Wider, darker
+            /// and spikier than a scrub bush, so brush reads at 16 px as dark clumps.
+            /// At 16 px a clump is three pixels wide: a leaf pixel, two core pixels
+            /// and a dark twig base, wider and darker than a 16 px scrub bush.
+            /// </summary>
+            public void Brush(int count, Color twig, Color core, Color leaf)
+            {
+                for (var index = 0; index < Count(count); index++)
+                {
+                    if (!Small)
+                    {
+                        // l olive leaf, d dark olive core, s dark twigs, tips and south-east edge.
+                        var (x, y) = Spot(6, 5);
+                        Stamp(x, y, [" s  s ", " llds ", "slddds", " ddds ", "  ss  "], leaf, core, twig);
+                    }
+                    else
+                    {
+                        var (x, y) = Spot(3, 2);
+                        Stamp(x, y, ["ldd", " ss"], leaf, core, twig);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Gravel: a small pebble lit on its north-west (two stone tones) with a
+            /// shadow pixel to the east, and one loose grit pixel beside it. At
+            /// 16 px one lit pixel and its shadow.
+            /// </summary>
+            public void Gravel(int count, Color stone, Color stoneShade, Color shadow)
+            {
+                for (var index = 0; index < Count(count); index++)
+                {
+                    if (!Small)
+                    {
+                        var (x, y) = Spot(4, 3);
+                        Stamp(x, y, ["ll  ", "lds ", "   d"], stone, stoneShade, shadow);
+                    }
+                    else
+                    {
+                        var (x, y) = Spot(2, 2);
+                        Put(x, y, stone);
+                        Put(x + 1, y + 1, shadow);
+                    }
+                }
+            }
+
+            /// <summary>Hairline cracks in baked ground: a short forked line in one dark step (shorter at 16 px).</summary>
+            public void HairlineCracks(int count, Color crack)
+            {
+                for (var index = 0; index < Count(count); index++)
+                {
+                    if (!Small)
+                    {
+                        var (x, y) = Spot(7, 4);
+                        Put(x, y + 1, crack);
+                        Put(x + 1, y + 1, crack);
+                        Put(x + 2, y + 2, crack);
+                        Put(x + 3, y + 2, crack);
+                        Put(x + 4, y + 1, crack);
+                        Put(x + 5, y, crack);
+                        Put(x + 4, y + 3, crack);
+                    }
+                    else
+                    {
+                        var (x, y) = Spot(3, 2);
+                        Put(x, y, crack);
+                        Put(x + 1, y + 1, crack);
+                        Put(x + 2, y + 1, crack);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Tundra peeking through thin snow: a small rounded hole in the snow
+            /// showing the Tundra base, its north rim in the Tundra shade where the
+            /// snow wall shades it, and a lit snow lip (the given highlight) on the
+            /// south rim that faces the light. A 2 × 2 patch at 16 px.
+            /// </summary>
+            public void Peeks(int count, Color ground, Color shade, Color lip)
+            {
+                for (var index = 0; index < Count(count); index++)
+                {
+                    if (!Small)
+                    {
+                        var (x, y) = Spot(5, 4);
+                        Stamp(x, y, [" ddd ", "dllll", " lll ", "  ss "], ground, shade, lip);
+                    }
+                    else
+                    {
+                        var (x, y) = Spot(2, 2);
+                        Stamp(x, y, ["dd", "ll"], ground, shade, lip);
+                    }
+                }
             }
 
             /// <summary>

@@ -181,24 +181,32 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// Farm fields. Where the map draws ground textures, each field tile shows
+    /// the tilled Fertile soil tile with the approved overlay for its crop and
+    /// stage on top (<see cref="FieldSprites"/>); at overview zoom it is one
+    /// flat colour taken from that same art.
+    /// </summary>
     private void DrawFields((int Left, int Top, int Width, int Height) bounds, int stride)
     {
+        if (world is null || fields.Count == 0) return;
+        var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
+        var soil = DrawsGroundTextures ? TerrainTextures.Atlas(atlasSize) : null;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
-                if (!fields.TryGetValue(new(wrapsEastWest ? Mod(x, world!.Width) : x, y), out var field)) continue;
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                if (!fields.TryGetValue(new(mapX, y), out var field)) continue;
                 var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
-                DrawRect(tile, new Color(field.Stage == "preparing" ? "84765D" : "654931"));
-                if (tileSize >= 8)
-                    for (var row = 1; row <= 3; row++)
-                        DrawLine(tile.Position + new Vector2(1, tileSize * row / 4f),
-                            tile.Position + new Vector2(tileSize - 1, tileSize * row / 4f), new Color("9B7149"), Math.Max(1, tileSize / 24f));
-                if (field.Stage is not ("planted" or "growing" or "ready")) continue;
-                var color = new Color(field.Stage == "ready" && field.Crop == "grain" ? "D9BD57" : "67A847");
-                var radius = Math.Max(1, tileSize * (field.Stage == "planted" ? 0.04f : 0.1f));
-                for (var row = 1; row <= 2; row++)
-                    for (var column = 1; column <= 2; column++)
-                        DrawCircle(tile.Position + new Vector2(tileSize * column / 3f, tileSize * row / 3f), radius, color);
+                var crop = FieldSprites.CropFor(field.Crop);
+                var growth = FieldSprites.GrowthFor(field.Stage);
+                if (soil is null)
+                {
+                    DrawRect(tile, FieldSprites.OverviewColor(crop, growth));
+                    continue;
+                }
+                DrawTextureRectRegion(soil, tile, TerrainTextures.Region(TerrainStyle.FertileSoil, TerrainTextures.VariantAt(mapX, y), atlasSize));
+                DrawTextureRect(FieldSprites.Texture(crop, growth, atlasSize), tile, false);
             }
     }
 

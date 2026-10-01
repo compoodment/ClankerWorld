@@ -1827,6 +1827,27 @@ public partial class Main
             for (byte kind = 1; kind <= 11; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
+            // Farm fields: every crop and growth state draws its overlay over the
+            // tilled soil at both sizes, and the host's names pick the right art.
+            foreach (var atlasSize in new[] { 16, 32 })
+                foreach (var crop in Enum.GetValues<FieldCrop>())
+                    foreach (var growth in Enum.GetValues<FieldGrowth>())
+                    {
+                        var overlay = FieldSprites.Overlay(crop, growth, atlasSize);
+                        var drawn = 0;
+                        for (var oy = 0; oy < overlay.GetHeight(); oy++)
+                            for (var ox = 0; ox < overlay.GetWidth(); ox++)
+                                if (overlay.GetPixel(ox, oy).A > 0.05f) drawn++;
+                        if (overlay.GetWidth() != atlasSize || overlay.GetHeight() != atlasSize || drawn == 0 ||
+                            FieldSprites.Texture(crop, growth, atlasSize).GetWidth() != atlasSize)
+                            throw new InvalidOperationException($"The {crop} field must draw its {growth} overlay at {atlasSize}px.");
+                    }
+            if (FieldSprites.CropFor("grain") != FieldCrop.Grain || FieldSprites.CropFor("potatoes") != FieldCrop.Potato ||
+                FieldSprites.CropFor("cultivated_greens") != FieldCrop.Greens || FieldSprites.CropFor(null) != FieldCrop.Grain ||
+                FieldSprites.GrowthFor("preparing") != FieldGrowth.Prepared || FieldSprites.GrowthFor("prepared") != FieldGrowth.Prepared ||
+                FieldSprites.GrowthFor("planted") != FieldGrowth.Seeded || FieldSprites.GrowthFor("growing") != FieldGrowth.Sprout ||
+                FieldSprites.GrowthFor("ready") != FieldGrowth.Mature || FieldSprites.GrowthFor("harvested") != FieldGrowth.Harvested)
+                throw new InvalidOperationException("Field crops and stages must pick the matching field art.");
             var buildingData = new HashSet<string>(StringComparer.Ordinal);
             foreach (var tilePixels in new[] { 16, 32 })
                 foreach (var kind in Enum.GetValues<BuildingKind>())
