@@ -411,6 +411,11 @@ public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, 
 public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
+public sealed record OwnerProviderSetupCheckAction(
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+
+public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
+
 /// <summary>One listed model, and whether the checked key can use it.</summary>
 public sealed record OwnerProviderModelChoice(string Model, bool Available);
 
@@ -449,9 +454,10 @@ public sealed record OwnerFirstTownLayoutAction(int X, int Y);
 public sealed record OwnerFirstTownLayoutReceipt(int X, int Y, int Buildings, int RoadTiles);
 
 public sealed record OwnerAgentPlacementAction(
-    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition,
+    string? ExpectedHouseholdId, string? ExpectedTownId);
 
-public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId);
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId, string? TownId = null);
 
 public sealed record OwnerAgentRenameAction(string AgentId, string Name);
 

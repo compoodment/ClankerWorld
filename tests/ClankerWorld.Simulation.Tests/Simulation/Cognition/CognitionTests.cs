@@ -72,10 +72,15 @@ public sealed class CognitionTests
         Assert.True((await runtime.AdvanceOneActionAsync()).Advanced);
     }
 
-    [Fact]
-    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage(bool includesProbabilityMap)
     {
-        var handler = new RecordingHandler(JsonResponse());
+        var reply = System.Text.Json.Nodes.JsonNode.Parse(JsonResponse())!;
+        if (!includesProbabilityMap)
+            reply["answers"]!["selected_candidate"]!.AsObject().Remove("probabilities");
+        var handler = new RecordingHandler(reply.ToJsonString());
         using var client = new HttpClient(handler);
         var provider = new JevDecisionProvider(
             client,
@@ -273,11 +278,24 @@ public sealed class CognitionTests
         var retry = await SystemPrompt(Request("actor-alpha", true, "retry"));
         var other = await SystemPrompt(Request("actor-gamma", true, "other"));
         var named = await SystemPrompt(Request("actor-alpha", false, "named"));
+        var regularNameRequest = Request("actor-alpha", true, "name-retry");
+        var nameRetryRequest = regularNameRequest with
+        {
+            Observation = regularNameRequest.Observation with { IsNameRetry = true },
+        };
+        var nameRetry = await SystemPrompt(nameRetryRequest);
+        using var retryPayload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var retryInput = JsonDocument.Parse(
+            retryPayload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
 
         Assert.Equal(first, retry);
         Assert.NotEqual(first, other);
+        Assert.NotEqual(first, nameRetry);
         Assert.Contains("given name starting with", first, StringComparison.Ordinal);
         Assert.DoesNotContain("given name starting with", named, StringComparison.Ordinal);
+        Assert.Contains("full name you chose is already taken", nameRetry, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Do not list or ask for anyone else’s name", nameRetry, StringComparison.Ordinal);
+        Assert.True(retryInput.RootElement.GetProperty("name_retry").GetBoolean());
     }
 
     [Fact]
@@ -307,7 +325,7 @@ public sealed class CognitionTests
     public void CognitionAdmissionRejectsJevCompactionScoresForAnotherOwner()
     {
         var provider = new ThrowingProvider();
-        var runtime = new CognitionRuntime("actor-scout", provider, minimumConfidence: 0);
+        var runtime = new CognitionRuntime("actor-scout", provider);
         var observation = new InhabitantObservation(
             "actor-scout", 9, 0, 1, "sha256:owner-check", 2_000,
             [new CognitionCandidate("safe_idle", "Continue safely.")],
