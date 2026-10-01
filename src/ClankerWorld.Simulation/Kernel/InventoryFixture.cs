@@ -107,7 +107,8 @@ public static class InventoryContainerRules
 
     private static readonly HashSet<string> FoodKinds = new(StringComparer.Ordinal)
     {
-        "food", "fruit", "grain", "flour", "potato", "greens", "bread", "porridge", "stew",
+        "food", "berries", "wild_greens", "fruit", "grain", "flour", "potato", "potatoes",
+        "greens", "cultivated_greens", "bread", "porridge", "stew",
     };
 
     public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug;
@@ -249,14 +250,19 @@ public static class InventoryFixture
             }
 
             var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0 : freshnessLossPerTick;
+            var elapsedAtRate = elapsed;
             if (lot.ContainerLotId is { } containerId &&
                 checkpoint.Lots.Any(container => container.Id == containerId && container.ItemKind == InventoryContainerRules.StoragePot))
-                rate /= 2;
+            {
+                // Use a stable two-tick cadence so a one-point-per-tick decay
+                // rate still decays at half speed instead of truncating to zero.
+                elapsedAtRate = targetTick / 2 - lot.LastProcessedTick / 2;
+            }
             if (protectedOwnerIds?.Contains(lot.OwnerId) == true)
             {
                 rate /= 2;
             }
-            var freshnessLoss = checked(elapsed * rate);
+            var freshnessLoss = checked(elapsedAtRate * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0
                 : lot.FreshnessBasisPoints - checked((int)freshnessLoss);
@@ -843,8 +849,10 @@ public static class InventoryFixture
         }
         foreach (var offer in checkpoint.Offers.Where(offer => offer.State == DirectBarterState.Open))
         {
-            if (IsContainerRelated(lotsById.GetValueOrDefault(offer.FirstLotId)!) ||
-                IsContainerRelated(lotsById.GetValueOrDefault(offer.SecondLotId)!))
+            if (!lotsById.TryGetValue(offer.FirstLotId, out var firstLot) ||
+                !lotsById.TryGetValue(offer.SecondLotId, out var secondLot))
+                throw new InvalidDataException($"Open barter offer '{offer.Id}' references a missing lot.");
+            if (IsContainerRelated(firstLot) || IsContainerRelated(secondLot))
                 throw new InvalidDataException($"Open barter offer '{offer.Id}' references a vessel or contained lot.");
         }
     }
@@ -966,6 +974,7 @@ public static class InventoryCheckpointCodec
     public static byte[] Encode(InventoryCheckpoint checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint);
         var document = new InventoryCheckpointDocument(
             checkpoint.WorldTick,
             checkpoint.Lots.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
