@@ -83,7 +83,7 @@ public sealed class ArchivedContentSchemaTests
         Assert.Equal(HousingBlockers.NoHousehold, prepared.Inhabitants.Single(person => person.InhabitantId == actor).Housing!.Blocker);
         using var world = PrivateWorldRuntime.Restore(DiesNextTick(prepared.ExportState(), actor), _ => new ActionCoverageRecorder(true));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var saved = world.ExportState() with { TownCouncils = [] };
+        var saved = world.ExportState();
         var deceased = Assert.Single(saved.DeceasedInhabitants!, person => person.InhabitantId == actor);
         Assert.Equal(HousingBlockers.NoHousehold, deceased.LastPhysical.Housing!.Blocker);
         Assert.All(saved.Inhabitants, person => Assert.Null(person.Housing));

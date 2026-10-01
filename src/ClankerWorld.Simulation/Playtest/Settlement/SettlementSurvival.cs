@@ -258,23 +258,24 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
+    private bool CollectEquipment(string actor, PlaytestInhabitantState person, string kind, bool allowAdditional = false)
     {
-        if (HasCarriedItem(actor, kind) || SharedItem(kind, actor) is not { } item)
+        if (!allowAdditional && HasCarriedItem(actor, kind) || SharedItem(kind, actor) is not { } item)
         {
-            return;
+            return false;
         }
         var storage = HouseholdStockPosition(item);
         var interactionRange = HouseholdStockInteractionRange(item);
         if (!IsWithinInteractionRange(person.Position, storage, interactionRange))
         {
             MoveToward(actor, person, storage, "equipment", interactionRange);
-            return;
+            return false;
         }
-        if (CarryingRoom(actor) == 0) return;
+        if (CarryingRoom(actor) == 0) return false;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
             item.OwnerId, actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
+        return true;
     }
 
     private void TendFire(string actor, PlaytestInhabitantState person)

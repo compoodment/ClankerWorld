@@ -169,8 +169,9 @@ public sealed partial class PrivateWorldRuntime
         if (BestSharedClothing(actor, current) is { } kind && SharedItem(kind, actor) is { } stock &&
             CarryEquipmentRules.Protection(stock, WeatherAt(person.Position)) > current && CarryingRoom(actor) > 0)
         {
-            CollectEquipment(actor, person, kind);
-            if (BestPersonalClothing(actor) is { } collected) _ = EquipItemCore(actor, collected.Id);
+            if (CollectEquipment(actor, person, kind, allowAdditional: true) && BestPersonalClothing(actor) is { } collected &&
+                CarryEquipmentRules.Protection(collected, WeatherAt(inhabitants[actor].Position)) > current)
+                _ = EquipItemCore(actor, collected.Id);
         }
     }
 
