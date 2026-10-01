@@ -20,9 +20,16 @@ public sealed class StoredFuelRoutingTests
         initial.AcceptFirstTownLayout(new GridPoint(136, 14));
         var setupMap = initial.ExportState().Map;
         var storagePosition = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
-        var localTree = setupMap.Resources.Single(resource => resource.Id == "wild-128-16").Position;
+        var hearth = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a").Position;
+        // Use a real nearby tree on the Town's disconnected component. Legacy
+        // resource IDs can move farther from this hearth when generation changes.
+        var localTree = setupMap.Resources.Where(resource => resource.Kind == "construction" &&
+            resource.TreeKind is "broadleaf" or "conifer" && !setupMap.IsReachableFromCampOnFoot(resource.Position) &&
+            setupMap.IsReachableOnFoot(resource.Position, hearth) && setupMap.FootDistance(resource.Position, hearth) <= 8)
+            .OrderBy(resource => setupMap.FootDistance(resource.Position, hearth))
+            .ThenBy(resource => resource.Id, StringComparer.Ordinal).First();
         var actorPosition = setupMap.Tiles.First(tile => setupMap.IsBuildable(tile.Position) &&
-            setupMap.FootDistance(tile.Position, storagePosition) > 1 && setupMap.FootDistance(tile.Position, localTree) <= 1 &&
+            setupMap.FootDistance(tile.Position, storagePosition) > 1 && setupMap.FootDistance(tile.Position, localTree.Position) <= 1 &&
             !setupMap.Resources.Any(resource => resource.Position == tile.Position)).Position;
         var positions = new[] { actorPosition, new GridPoint(131, 9), new GridPoint(132, 9), new GridPoint(133, 9) };
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
@@ -79,7 +86,10 @@ public sealed class StoredFuelRoutingTests
             },
         };
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Snow);
-        var local = state.Map.Resources.Single(resource => resource.Id == "wild-128-16");
+        var local = state.Map.Resources.Single(resource => resource.Id == localTree.Id);
+        Assert.True(state.Map.FootDistance(local.Position, hearth) <= 8);
+        Assert.True(state.Map.FootDistance(positions[0], local.Position) <= 1);
+        Assert.True(state.Map.IsReachableOnFoot(local.Position, hearth));
         Assert.True(state.Map.IsReachableOnFoot(positions[0], local.Position));
         Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
         var provider = new HeatProvider(ids[0]);

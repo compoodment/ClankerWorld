@@ -163,7 +163,20 @@ public sealed class PrivateWorldDeferredCognitionTests
             item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        Assert.Equal(2, provider.CallCount);
+        // A changed food route can still prompt ordinary planning. The exhausted
+        // naming attempt must stay closed through that normal tick.
+        var namingRequests = provider.ObservedRequests.Where(observation =>
+            observation.NeedsName || observation.IsNameRetry).ToArray();
+        Assert.Equal(2, namingRequests.Length);
+        Assert.False(namingRequests[0].IsNameRetry);
+        Assert.True(namingRequests[1].IsNameRetry);
+        var after = world.ExportState();
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.Single(after.Events, item => item.Kind == "agent_name_retry_requested" && item.Detail == NameTargetId);
+        Assert.Single(after.Events, item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
+        Assert.DoesNotContain(after.Society.Cognition.Queue, entry => entry.InhabitantId == NameTargetId &&
+            entry.TriggerIds.Contains(SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal));
     }
 
     [Fact]

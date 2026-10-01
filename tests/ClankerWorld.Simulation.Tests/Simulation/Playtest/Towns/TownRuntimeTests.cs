@@ -402,11 +402,18 @@ public sealed class TownRuntimeTests
             .Select(item => item.Entrance!.Value).ToHashSet();
         var blocked = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
             .Concat(Footprints()).ToHashSet();
-        foreach (var end in network.Where(road => Linked(road).Count() == 1))
+        var deadEnds = network.Where(road => Linked(road).Count() == 1).ToArray();
+        Assert.Contains(deadEnds, end => Linked(end).Any(from =>
+            Math.Max(Math.Abs(end.X - from.X), Math.Abs(end.Y - from.Y)) > 1));
+        Assert.Contains(deadEnds, end => StepsToDoor(Linked, doors, end) == TownStreets.RunOnTiles &&
+            Linked(end).Any(from => Math.Max(Math.Abs(end.X - from.X), Math.Abs(end.Y - from.Y)) == 1));
+        foreach (var end in deadEnds)
         {
             if (StepsToDoor(Linked, doors, end) >= TownStreets.RunOnTiles) continue;
             var from = Linked(end).Single();
-            var ahead = new GridPoint(end.X + (end.X - from.X), end.Y + (end.Y - from.Y));
+            // A bridge links its two banks across several tiles; continuation
+            // still starts one adjacent tile beyond this end, along that heading.
+            var ahead = new GridPoint(end.X + Math.Sign(end.X - from.X), end.Y + Math.Sign(end.Y - from.Y));
             Assert.True(!map.IsBuildable(ahead) || blocked.Contains(ahead) || network.Contains(ahead) ||
                 TownStreets.Directions.Any(step => new GridPoint(ahead.X + step.X, ahead.Y + step.Y) is var near &&
                     near != end && near != from && network.Contains(near)),

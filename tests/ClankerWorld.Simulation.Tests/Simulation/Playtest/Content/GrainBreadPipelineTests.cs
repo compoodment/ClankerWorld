@@ -65,9 +65,8 @@ public sealed class GrainBreadPipelineTests
             Assert.Equal(farmhouse.InstanceId, processing.Society.Inventory.GetLot(flourId).StorageBuildingId);
             flourIds.Add(flourId);
         }
-        using var hauling = Load(FreshChoice(processing.ExportState(), actor), actor, "haul_farm_flour", "haul_household_stock");
-        await AdvanceUntil(hauling, () => hauling.Society.Inventory.Lots.Where(lot => flourIds.Any(id => From(lot.Id, id)) &&
-            lot.OwnerId == house.HouseholdId && lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity) == 2, 96);
+        using var hauling = await CarryFlourBatchesHome(processing.ExportState(), actor,
+            house.HouseholdId!, house.InstanceId, flourIds, 96);
         Assert.Contains(hauling.ExportState().Events, item => item.Kind == "farm_flour_picked_up");
         using var filling = Load(FreshChoice(hauling.ExportState(), actor), actor, "water_collect_jug", "water_fill", "water_deliver");
         await AdvanceUntil(filling, () => filling.Society.Inventory.Lots.Any(lot => lot.ContainerLotId == "pipeline-jug" &&
@@ -106,6 +105,40 @@ public sealed class GrainBreadPipelineTests
         Assert.Equal(1, eating.Society.Inventory.Lots.Where(lot => From(lot.Id, breadId)).Sum(lot => lot.Quantity));
         using var saved = Load(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(eating.ExportState())));
         saved.Validate();
+    }
+
+    private static async Task<PrivateWorldRuntime> CarryFlourBatchesHome(PrivateWorldRuntimeState state,
+        string actor, string household, string houseId, IReadOnlyList<string> flourIds, int ticks)
+    {
+        var world = Load(FreshChoice(state, actor), actor, "haul_farm_flour", "haul_household_stock");
+        int Delivered() => world.Society.Inventory.Lots.Where(lot => flourIds.Any(id => From(lot.Id, id)) &&
+            lot.OwnerId == household && lot.StorageBuildingId == houseId).Sum(lot => lot.Quantity);
+        try
+        {
+            var delivered = Delivered();
+            for (var tick = 0; tick < ticks && delivered < 2; tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                var nowDelivered = Delivered();
+                if (nowDelivered > delivered && nowDelivered < 2)
+                {
+                    // A real flour delivery completes this directed pipeline phase.
+                    // The same generic hauling candidate can otherwise continue with
+                    // unrelated tool/wood pickup until the next ordinary decision.
+                    var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+                    world.Dispose();
+                    world = Load(FreshChoice(saved, actor), actor, "haul_farm_flour", "haul_household_stock");
+                }
+                delivered = nowDelivered;
+            }
+            Assert.Equal(2, delivered);
+            return world;
+        }
+        catch
+        {
+            world.Dispose();
+            throw;
+        }
     }
 
     private static bool From(string id, string source) => id == source || id.StartsWith(source + "#transfer:", StringComparison.Ordinal);

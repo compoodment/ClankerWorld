@@ -23,7 +23,7 @@ public partial class Main
         var port = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
         portProbe.Stop();
         var origin = $"http://127.0.0.1:{port}/";
-        using var listener = new System.Net.HttpListener();
+        using var listener = new SmokeHttpListener();
         listener.Prefixes.Add(origin);
         listener.Start();
         try
@@ -3087,7 +3087,7 @@ public partial class Main
         }
         catch (Exception exception)
         {
-            GD.PushError(exception.Message);
+            GD.PushError(exception.ToString());
             GetTree().Quit(1);
         }
     }

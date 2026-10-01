@@ -110,6 +110,7 @@ public sealed class FarmFieldTests
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
+        var consumedLotIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
             FoodItems.IsEdible(lot.ItemKind) && !FoodItems.IsPlantingStock(lot.ItemKind)).ToArray())
         {
@@ -121,8 +122,21 @@ public sealed class FarmFieldTests
             var reservationId = $"test-household-meal:{inventory.WorldTick}:{lot.Id}";
             inventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(inventory, reservationId, household,
                 lot.Id, available, "household_meals", checked(inventory.WorldTick + 1)), reservationId);
+            consumedLotIds.Add(lot.Id);
         }
-        return WithInventory(state, inventory);
+        var fed = WithInventory(state, inventory);
+        if (fed.BusinessTrade is not { } business) return fed;
+        // This fixture accounts for actual available meals outside runtime stock
+        // transitions. Retire only listings whose consumed lot can no longer
+        // cover its advertised quantity; reserved goods and other trade state stay.
+        return fed with
+        {
+            BusinessTrade = business with
+            {
+                Listings = business.Listings.Where(listing => !consumedLotIds.Contains(listing.GoodsLotId) ||
+                    inventory.Lots.Any(lot => lot.Id == listing.GoodsLotId && lot.Quantity >= listing.GoodsQuantity)).ToArray(),
+            },
+        };
     }
 
     [Fact]

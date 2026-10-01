@@ -37,22 +37,21 @@ public sealed class TiledFarmingTests
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => recorder);
         var household = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse").HouseholdId!;
         using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(setup.ExportState(), household), _ => recorder);
-        // Two generated days prove the real bootstrap and ripening. The farmer
-        // may still be finishing a valid 30-tick hauling intention, then must
-        // physically return to harvest and carry the crop within the existing
-        // 1,800-tick ordinary farming bound.
+        // Two generated days prove real tilling, planting and tending. Growth
+        // starts after actual planting, so ripening and the physical return to
+        // harvest and carry remain inside the existing 1,800-tick farming bound.
         for (var tick = 0; tick < world.WorldSystems.Config.TicksPerDay * 2 &&
             !world.ExportState().Events.Any(item => item.Kind == "field_harvest_collected"); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(world.ExportState().Events, item => item.Kind == "field_prepared");
         Assert.Contains(world.ExportState().Events, item => item.Kind == "field_planted");
         Assert.Contains(world.ExportState().Events, item => item.Kind == "field_tended");
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_ready");
         while (world.WorldTick < 1_800 && !world.ExportState().Events.Any(item => item.Kind == "field_harvest_collected"))
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var state = world.ExportState();
         Assert.Contains(state.Events, item => item.Kind == "field_prepared");
         Assert.Contains(state.Events, item => item.Kind == "field_planted");
+        Assert.Contains(state.Events, item => item.Kind == "field_ready");
         Assert.Contains(state.Events, item => item.Kind == "field_harvested");
         Assert.Contains(state.Events, item => item.Kind == "field_harvest_collected");
         Assert.NotEmpty(world.Fields);
@@ -82,9 +81,9 @@ public sealed class TiledFarmingTests
         Assert.Contains(first.ExportState().Events, item => item.Kind == "field_prepared");
         Assert.Contains(first.ExportState().Events, item => item.Kind == "field_planted");
         Assert.Contains(first.ExportState().Events, item => item.Kind == "field_tended");
-        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_ready");
         while (first.WorldTick < 1_800 && !first.Fields.Any(field => field.Cycle > 0))
             Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_ready");
         Assert.Contains(first.Fields, field => field.Cycle > 0);
         var initialHarvest = first.Fields.First(field => field.Cycle > 0);
         var initialReserve = first.Society.Inventory.GetReservation(initialHarvest.ReplantingReservationId!);

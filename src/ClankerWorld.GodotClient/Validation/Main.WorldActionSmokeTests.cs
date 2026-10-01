@@ -140,7 +140,7 @@ public partial class Main
     private sealed class WorldActionSmokeHost : IDisposable
     {
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-        private readonly HttpListener listener = new();
+        private readonly SmokeHttpListener listener = new();
         private readonly string publicKey;
         private int pauseCount;
         private int deleteCount;
@@ -187,7 +187,7 @@ public partial class Main
             catch (ObjectDisposedException) { }
         }
 
-        private async Task ReplyAsync(HttpListenerContext context)
+        private async Task ReplyAsync(SmokeHttpContext context)
         {
             using var body = await JsonDocument.ParseAsync(context.Request.InputStream).ConfigureAwait(false);
             var envelope = body.RootElement;

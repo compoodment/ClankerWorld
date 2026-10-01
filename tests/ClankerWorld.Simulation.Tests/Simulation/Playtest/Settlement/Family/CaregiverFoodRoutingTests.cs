@@ -10,9 +10,9 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CaregiverFoodRoutingTests
 {
     [Theory]
-    [InlineData("berries", 2_000)]
-    [InlineData("wild_greens", 1_500)]
-    [InlineData("cultivated_greens", 4_000)]
+    [InlineData("berries", 1_800)]
+    [InlineData("wild_greens", 1_800)]
+    [InlineData("cultivated_greens", 2_400)]
     public async Task FeedingAnInfantKeepsTheNamedFoodsNourishmentAcrossReload(string kind, int nourishment)
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("named-infant-food");
@@ -21,11 +21,22 @@ public sealed class CaregiverFoodRoutingTests
         society = SocietyFixture.ProposeRelationship(society, new("named-care-parents", 1,
             SocietyRelationshipType.Partnership, actor, partner, society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "named-care-parents", 1, partner).Checkpoint;
-        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
+        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind) &&
+            lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 && lot.Quantity - society.Inventory.Reservations
+                .Where(reservation => reservation.LotId == lot.Id && reservation.State is
+                    InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
+                .Sum(reservation => reservation.Quantity) >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{actor}:{society.WorldTick}", 1,
             actor, partner, household, [actor, partner], [actor, partner], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
+        Assert.Equal(birthFood.Quantity - 4, society.Inventory.GetLot(birthFood.Id).Quantity);
+        var birthReservation = society.Inventory.GetReservation($"birth:family:{actor}:{society.WorldTick}:food");
+        Assert.Equal(birthFood.Id, birthReservation.LotId);
+        Assert.Equal(household, birthReservation.OwnerId);
+        Assert.Equal(4, birthReservation.Quantity);
+        Assert.Equal(InventoryReservationState.Completed, birthReservation.State);
+        Assert.Equal(SocietyAgeBand.Infant, society.GetInhabitant(childId).AgeBand);
         var childPosition = state.Map.FootNeighbors(point).First(tile => state.Map.IsBuildable(tile) &&
             !state.Inhabitants.Any(person => person.Position == tile));
         society = society with { Inventory = InventoryFixture.AddLot(society.Inventory, "named-child-serving", kind, actor, 1) };

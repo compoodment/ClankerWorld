@@ -22,8 +22,8 @@ public sealed class TownBridgeRuntimeTests
     private static readonly GridPoint GrowthBuildingSite = new(89, 5);
     private const string GrowthBridgeId = "bridge-90-3-ew-2";
     private static readonly GridPoint RunOnTownSite = new(85, 5);
-    private static readonly GridPoint RunOnBuildingSite = new(89, 4);
-    private const string RunOnBridgeId = "bridge-90-5-ew-2";
+    private static readonly GridPoint RunOnBuildingSite = new(89, 3);
+    private const string RunOnBridgeId = "bridge-90-4-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -165,7 +165,12 @@ public sealed class TownBridgeRuntimeTests
         using var world = await GrowthWorldAsync(townSite: RunOnTownSite);
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var roadsBefore = world.RoadTiles.ToHashSet();
-        var eventsBefore = world.ExportState().Events.Count;
+        var before = world.ExportState();
+        var eventsBefore = before.Events.Count;
+        // The generated stone source occupies (89,5), and the existing street
+        // ends at (89,4). Its free north frontage still proves a real run-on
+        // across the adjacent two-tile river, without adding a side street.
+        Assert.DoesNotContain(RunOnBuildingSite, roadsBefore);
         Assert.Contains(roadsBefore, tile => WorldContentSimulationRules.IsEntrance(workshop, RunOnBuildingSite, tile));
 
         var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, RunOnBuildingSite);
@@ -180,7 +185,14 @@ public sealed class TownBridgeRuntimeTests
         Assert.DoesNotContain("town_road_generated", events);
         Assert.Contains("town_road_extended", events);
         Assert.Contains("bridge_built", events);
-        var map = world.ExportState().Map;
+        var state = world.ExportState();
+        var map = state.Map;
+        var spent = Totals(before).ToDictionary(item => item.Key,
+            item => item.Value - Totals(state).GetValueOrDefault(item.Key));
+        Assert.Equal(workshop.BuildCosts.ToDictionary(item => item.ResourceId, item => item.Amount),
+            spent.Where(item => item.Value != 0).ToDictionary());
+        Assert.Equal(new[] { new GridPoint(90, 4), new GridPoint(91, 4) }, bridge.Span);
+        Assert.All(bridge.Span, tile => Assert.False(before.Map.IsPassable(tile)));
         Assert.True(roadsBefore.IsSubsetOf(world.RoadTiles));
         Assert.All(bridge.Entrances, entrance => Assert.Contains(entrance, world.RoadTiles));
         Assert.All(world.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
@@ -190,9 +202,15 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(map.CanFootStep(bridge.Span[^1], bridge.Entrances[1]));
         // The far bank is inside the Town border, which grew around the new street.
         Assert.Contains(bridge.Entrances[1], Assert.Single(world.Towns).BorderTiles);
-        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
         Assert.Equal([bridge.Id], reloaded.Bridges.Select(item => item.Id));
+        Assert.Equal(world.RoadTiles, reloaded.RoadTiles);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
     [Fact]

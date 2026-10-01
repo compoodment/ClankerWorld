@@ -413,7 +413,8 @@ public sealed partial class PrivateWorldConversationTests
         {
             InitiatorId, InviteeId,
         });
-        using var setup = NewWorld(seed, provider);
+        // Only the two participants can speak; bystanders keep their real hearing positions.
+        using var setup = NewWorld(seed, _ => provider);
         setup.StartWorld();
         var initial = setup.ExportState();
         var society = initial.Society.Society;
@@ -449,7 +450,7 @@ public sealed partial class PrivateWorldConversationTests
             Society = initial.Society with { Society = society },
             Conversations = conversations,
             ConversationBudgets = [],
-        }, id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+        }, _ => provider);
         for (var attempt = 0; attempt < 50 && world.Conversations.All(item =>
                  item.Status != AgentConversationStatus.Proposed); attempt++)
         {
@@ -483,8 +484,7 @@ public sealed partial class PrivateWorldConversationTests
         var fileDirectory = Directory.CreateTempSubdirectory("clankerworld-trimmed-conversation-");
         try
         {
-            var file = new PrivateWorldStateFile(Path.Combine(fileDirectory.FullName, "world.json"), id =>
-                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            var file = new PrivateWorldStateFile(Path.Combine(fileDirectory.FullName, "world.json"), _ => provider);
             file.Save(world);
             using var reloaded = file.LoadOrCreate(seed);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()), File.ReadAllBytes(file.Path));
@@ -519,7 +519,7 @@ public sealed partial class PrivateWorldConversationTests
             var roundTripState = reloaded.ExportState();
             var roundTripBytes = PrivateWorldRuntimeCodec.Encode(roundTripState);
             using var finalRestore = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(roundTripBytes),
-                id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+                _ => provider);
             var expectedAfterRestore = roundTripState with
             {
                 Conversations = roundTripState.Conversations!.Select(item => item.Id == newConversation.Id
