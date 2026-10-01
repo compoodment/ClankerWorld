@@ -167,7 +167,7 @@ test("the script's own comments never count as work, and a dry run changes nothi
   assert.deepEqual(real.records.get(1).labels, ['status:needs-pr']);
 });
 
-test('review claims are released after 2 hours without a push or comment', async () => {
+test('review claims are released after 2 hours without a push', async () => {
   const reviewing = (number, hours) => ({ [number]: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(hours) }] });
   const state = world({
     prs: [
@@ -185,6 +185,19 @@ test('review claims are released after 2 hours without a push or comment', async
   assert.ok(state.records.get(10).labels.includes('status:reviewing'));
   assert.equal(state.posted.length, 1);
   assert.match(state.posted[0].body, /Review claim released/);
+});
+
+test('comments and edits keep no review claim, so claims cannot hold a place in the queue', async () => {
+  const state = world({
+    prs: [{ number: 9, labels: ['status:reviewing', 'status:needs-review'], created_at: hoursAgo(10),
+      updated_at: hoursAgo(0.2), head: { sha: 'old', ref: 'codex/9' } }],
+    events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(5) }] },
+    comments: { 9: [{ body: 'Still reviewing; waiting for CI.', created_at: hoursAgo(0.5), updated_at: hoursAgo(0.2) }] },
+    commits: { old: hoursAgo(6) },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(9).labels, ['status:needs-review']);
+  assert.match(state.posted.find(note => note.number === 9).body, /Review claim released: nothing was pushed/);
 });
 
 test('owner-wait review claims remain claimed', async () => {

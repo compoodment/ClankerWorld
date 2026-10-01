@@ -287,20 +287,25 @@ reviewed the current head.
 
 More than one reviewer may be merging at the same time, so:
 
-- **Claim a pull request before reviewing it.** Take the highest-priority one
-  from `is:pr is:open draft:false -label:"status:reviewing"`, add
-  `status:reviewing`, and comment with who is reviewing and the commit you
+- **Claim a pull request when you start reviewing it.** Take the
+  highest-priority one from `is:pr is:open draft:false -label:"status:reviewing"`,
+  add `status:reviewing`, and comment with who is reviewing and the commit you
   started from. Then read the comments again: if someone else's claim came
-  first, leave the label alone and pick another pull request. A review claim
-  with no pushed commit or comment for 2 hours is released automatically;
-  unlike issue claims, comments count here. The label also comes off when the
-  pull request closes or goes back to draft; remove it yourself if you stop
-  without merging.
+  first, leave the label alone and pick another pull request.
+- **One review claim at a time.** A claim is not a place in the queue. Take a
+  second pull request only while the first waits on CI or a prerequisite pull
+  request.
+- **Quiet review claims are released automatically.** A review claim with
+  nothing pushed for 2 hours is released; as with issue claims, comments do
+  not count. Merging main in or pushing a fix counts. The label also comes off
+  when the pull request closes or goes back to draft; remove it yourself if
+  you stop without merging.
 - **Never use draft as a hold.** Your `status:reviewing` claim already keeps
   others away while you merge main in, add a fix or wait for a prerequisite
-  pull request; if you are waiting, say which pull request in a comment.
-  Convert to draft only to hand a pull request back
-  ([Drafts and readiness](#drafts-and-readiness)).
+  pull request; if you are waiting, say which pull request in a comment. A
+  wait longer than 2 hours lets the claim lapse, and anyone may claim the pull
+  request again once it can move. Convert to draft only to hand a pull request
+  back ([Drafts and readiness](#drafts-and-readiness)).
 - **Merge only on top of current main.** Two pull requests can each pass on
   their own and still break main together, for example by both raising the
   save format to the same new version. Just before merging, check whether main

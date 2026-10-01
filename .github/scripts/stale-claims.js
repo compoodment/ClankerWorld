@@ -12,12 +12,13 @@
 //   not pull request work, and a comment names the draft pull request or
 //   branch to continue from.
 // - A pull request's status:reviewing claim is released after 2 hours without
-//   the claim, a pushed commit or a comment.
+//   the claim or a push to the pull request's branch. Comments do not count
+//   here either, so a claim cannot hold a place in the review queue.
 // - Anything waiting on the owner (status:needs-decision on the issue or its
 //   pull request) keeps its claim.
 // Push times come from the repository's activity log, so commits made earlier
 // and pushed later count from the push. Comments this script writes carry a
-// marker and never count as work.
+// marker, so the branches they name are never read as someone's work.
 
 const { closingIssueNumbers } = require('./pr-labels.js');
 
@@ -73,14 +74,11 @@ function newest(times) {
   return times.filter(Boolean).map(time => Date.parse(time)).filter(Number.isFinite).reduce((a, b) => Math.max(a, b), 0);
 }
 
+// Comments are read only to find the branches they name; they are not work.
 async function commentsFor(github, repo, number) {
   const comments = await github.paginate(github.rest.issues.listComments, { ...repo, issue_number: number, per_page: 100 });
-  const work = comments.filter(comment => !(comment.body ?? '').includes(Marker));
-  return { work, automated: comments.filter(comment => (comment.body ?? '').includes(Marker)) };
+  return comments.filter(comment => !(comment.body ?? '').includes(Marker));
 }
-
-const commentTimes = comments => comments.flatMap(comment => [comment.created_at, comment.updated_at]);
-const commentSignature = comments => comments.map(comment => [comment.id, comment.created_at, comment.updated_at]);
 
 async function lastLabeled(github, repo, number, name) {
   const events = await github.paginate(github.rest.issues.listEvents, { ...repo, issue_number: number, per_page: 100 });
@@ -128,27 +126,13 @@ function age(now, last) {
   return last === 0 ? 'longer than the records show' : `${Math.floor((now - last) / Hour)} hours`;
 }
 
-// `pushed` is the pull request's pushed work, which is all an issue claim
-// counts. `last` adds comments and edits, which a review claim also counts.
+// A pull request's pushed work: opening it and pushes to its branch. Both
+// kinds of claim count only this. The signature also catches a new head
+// whose push the activity log has not recorded yet.
 async function prActivity(github, repo, pr) {
-  const comments = await commentsFor(github, repo, pr.number);
-  const events = await github.paginate(github.rest.issues.listEvents, { ...repo, issue_number: pr.number, per_page: 100 });
   const ownBranch = !pr.head.repo || pr.head.repo.full_name?.toLowerCase() === `${repo.owner}/${repo.repo}`.toLowerCase();
   const head = await pushActivity(github, repo, pr.head.sha, ownBranch ? pr.head.ref : null);
-  const pushed = Math.max(newest([pr.created_at]), head.pushed);
-  // The PR's update time also captures edits and pushes the activity log
-  // misses. Release comments and label writes update it too, so exclude
-  // updates explained by those actions. Explicit claims still count below.
-  // Neither these updates nor the proxy enter the work signature: this
-  // cleanup must not undo itself because it changed a label or posted a note.
-  const nonWorkTime = Math.max(newest(commentTimes(comments.automated)),
-    newest(events.filter(event => event.event === 'labeled' || event.event === 'unlabeled').map(event => event.created_at)));
-  const updateTime = newest([pr.updated_at]);
-  const last = Math.max(pushed, newest(commentTimes(comments.work)), updateTime > nonWorkTime ? updateTime : 0);
-  const reviewClaim = newest(events.filter(event => event.event === 'labeled' && event.label?.name === Reviewing).map(event => event.created_at));
-  return { last, pushed, reviewClaim,
-    pushSignature: [pr.number, pr.head.sha, head.pushed],
-    signature: [pr.number, pr.head.sha, head.pushed, commentSignature(comments.work)] };
+  return { pushed: Math.max(newest([pr.created_at]), head.pushed), signature: [pr.number, pr.head.sha, head.pushed] };
 }
 
 async function issueSnapshot(github, repo, repoName, number) {
@@ -159,7 +143,7 @@ async function issueSnapshot(github, repo, repoName, number) {
   const closing = open.filter(pr => closingIssueNumbers(pr.body, repoName).has(number));
   const linked = [...closing, ...open.filter(pr => !closing.includes(pr) && referencedIssueNumbers(pr.body, repoName).has(number))];
   const keep = labels.includes(NeedsDecision) || linked.some(pr => labelNames(pr.labels).includes(NeedsDecision));
-  const comments = (await commentsFor(github, repo, number)).work;
+  const comments = await commentsFor(github, repo, number);
   const claim = await lastLabeled(github, repo, number, InProgress);
   // Only drafts are the claimant's work: a ready pull request belongs to its
   // reviewer, and a ready one that closes the issue ends the claim anyway.
@@ -170,11 +154,10 @@ async function issueSnapshot(github, repo, repoName, number) {
   for (const name of branchNames(comments).filter(name => !prBranches.has(name))) {
     branches.push([name, await pushActivity(github, repo, name)]);
   }
-  // Comments are read only to find named branches; they are not work.
   return { labels, keep, closing, linked, comments,
     ready: closing.some(pr => !pr.draft),
     last: Math.max(claim, ...activities.map(activity => activity.pushed), ...branches.map(([, activity]) => activity.pushed)),
-    signature: JSON.stringify([claim, activities.map(activity => activity.pushSignature), branches]),
+    signature: JSON.stringify([claim, activities.map(activity => activity.signature), branches]),
   };
 }
 
@@ -255,9 +238,9 @@ async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun })
 async function reviewSnapshot(github, repo, number) {
   const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
   const labels = labelNames(pr.labels);
+  const claim = await lastLabeled(github, repo, number, Reviewing);
   const activity = await prActivity(github, repo, pr);
-  const claim = activity.reviewClaim;
-  return { pr, labels, keep: labels.includes(NeedsDecision), last: Math.max(claim, activity.last),
+  return { pr, labels, keep: labels.includes(NeedsDecision), last: Math.max(claim, activity.pushed),
     signature: JSON.stringify([claim, activity.signature]) };
 }
 
@@ -276,13 +259,13 @@ async function releaseReviewClaims({ github, core, repo, now, dryRun }) {
     if (before.pr.state !== 'open' || before.pr.draft || !before.labels.includes(Reviewing) || before.keep || now - before.last < ReviewHours * Hour) continue;
     const checked = await reviewSnapshot(github, repo, pr.number);
     if (checked.pr.state !== 'open' || checked.pr.draft || !checked.labels.includes(Reviewing) || checked.keep || changedOrRecent(before, checked, ReviewHours, now)) continue;
-    core.info(`Releasing the review claim on #${pr.number}: no work for ${age(now, checked.last)}.${dryRun ? ' (dry run)' : ''}`);
+    core.info(`Releasing the review claim on #${pr.number}: nothing pushed for ${age(now, checked.last)}.${dryRun ? ' (dry run)' : ''}`);
     if (dryRun) continue;
     if (!await removeLabel(github, repo, pr.number, Reviewing)) continue;
     if (await restoreActiveReview(github, repo, pr.number, checked, now)) continue;
     await github.rest.issues.createComment({
       ...repo, issue_number: pr.number,
-      body: `${Marker}\nReview claim released: no pushed commit or comment for ${ReviewHours} hours. Another reviewer may claim it.`,
+      body: `${Marker}\nReview claim released: nothing was pushed for ${ReviewHours} hours. Another reviewer may claim it when they start reviewing.`,
     });
     await restoreActiveReview(github, repo, pr.number, checked, now);
   }

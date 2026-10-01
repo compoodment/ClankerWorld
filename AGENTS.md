@@ -80,8 +80,10 @@ What each job adds:
   ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are paused, push
   before you stop, so another agent can continue it.
 - **Review and merge:** another reviewer may be merging at the same time, so
-  claim each pull request with `status:reviewing` before you start and merge
-  only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).
+  claim each pull request with `status:reviewing` when you start reviewing it,
+  one at a time, and merge only on top of current main
+  ([Review and merge](CONTRIBUTING.md#review-and-merge)). Only pushes keep a
+  review claim; one with nothing pushed for 2 hours is released.
   Fix what you find yourself instead of handing it back, and never convert a
   pull request to draft to hold it; draft only to hand it back. After each
   merge, check main's CI; later pull requests may need main merged in again.
