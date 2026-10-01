@@ -37,7 +37,7 @@ public sealed partial class ViewerHttpTests
             selection.WarmUp(CancellationToken.None);
 
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=finished checked=2 incompatible=1 skipped=0 failed=0", StringComparison.Ordinal));
+                "world_list_warmup outcome=finished checked=2 unrestorable=1 skipped=0 failed=0", StringComparison.Ordinal));
             var listed = selection.List();
             Assert.Contains("world_list outcome=checked worlds=3 cache_hits=2 scans=0", LastList(log));
             Assert.Equal("compatible", listed.Worlds.Single(world => world.Id == healthyEntry.Id).Compatibility);
@@ -45,7 +45,7 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(bytes, File.ReadAllBytes(damagedPath));
             selection.WarmUp(CancellationToken.None);
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=finished checked=0 incompatible=0 skipped=2 failed=0", StringComparison.Ordinal));
+                "world_list_warmup outcome=finished checked=0 unrestorable=0 skipped=2 failed=0", StringComparison.Ordinal));
             Assert.DoesNotContain(log.Messages, message =>
                 message.Contains("warmup-healthy-world", StringComparison.Ordinal) ||
                 message.Contains("warmup-damaged-world", StringComparison.Ordinal));
@@ -66,8 +66,9 @@ public sealed partial class ViewerHttpTests
             var selection = host.Services.GetRequiredService<WorldSelectionCoordinator>();
             var gate = host.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate;
             var log = RecordWorldListLog(host);
-            // Medium worlds take about a second each to restore, far longer than a probe waits.
-            for (var n = 0; n < 3; n++)
+            // A Medium world takes hundreds of milliseconds to decode and restore,
+            // while the gate is needed only for a few milliseconds of reading.
+            for (var n = 0; n < 2; n++)
             {
                 var seed = "warmup-gate-medium-" + n;
                 using var other = new PrivateWorldRuntime(seed, startPace: WorldStartPace.FounderSetup,
@@ -82,7 +83,7 @@ public sealed partial class ViewerHttpTests
             while (!warmUp.IsCompleted)
             {
                 // Ticks, saves and owner actions take this gate; they must not wait for a restore.
-                Assert.True(Monitor.TryEnter(gate, TimeSpan.FromMilliseconds(500)));
+                Assert.True(Monitor.TryEnter(gate, TimeSpan.FromMilliseconds(100)));
                 Monitor.Exit(gate);
                 probes++;
                 await Task.Delay(20);
@@ -91,7 +92,7 @@ public sealed partial class ViewerHttpTests
 
             Assert.True(probes > 1);
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=finished checked=3 incompatible=0 skipped=0 failed=0", StringComparison.Ordinal));
+                "world_list_warmup outcome=finished checked=2 unrestorable=0 skipped=0 failed=0", StringComparison.Ordinal));
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -155,7 +156,7 @@ public sealed partial class ViewerHttpTests
             selection.WarmUp(CancellationToken.None);
 
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=finished checked=1 incompatible=0 skipped=0 failed=1", StringComparison.Ordinal));
+                "world_list_warmup outcome=finished checked=1 unrestorable=0 skipped=0 failed=1", StringComparison.Ordinal));
             Assert.Contains(log.Messages, message => message.Contains(
                 $"world_list_warmup outcome=world_failed catalog_id={unreadableEntry.Id} error=UnauthorizedAccessException",
                 StringComparison.Ordinal));
@@ -198,7 +199,7 @@ public sealed partial class ViewerHttpTests
                 }
             });
             await holding.WaitAsync();
-            var service = new WorldCatalogWarmUpService(selection);
+            using var service = new WorldCatalogWarmUpService(selection);
             await service.StartAsync(CancellationToken.None);
             var deadline = DateTime.UtcNow.AddSeconds(60);
             while (!log.Messages.Any(message => message.Contains("world_list_warmup outcome=started", StringComparison.Ordinal)) &&
@@ -211,7 +212,7 @@ public sealed partial class ViewerHttpTests
             await holder;
 
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=canceled checked=0 incompatible=0 skipped=0 failed=0", StringComparison.Ordinal));
+                "world_list_warmup outcome=canceled checked=0 unrestorable=0 skipped=0 failed=0", StringComparison.Ordinal));
             selection.List();
             Assert.Contains("cache_hits=0 scans=2", LastList(log));
         }
@@ -249,7 +250,7 @@ public sealed partial class ViewerHttpTests
                    DateTime.UtcNow < deadline)
                 Thread.Sleep(50);
             Assert.Contains(log.Messages, message => message.Contains(
-                "world_list_warmup outcome=finished checked=1 incompatible=0 skipped=0 failed=0", StringComparison.Ordinal));
+                "world_list_warmup outcome=finished checked=1 unrestorable=0 skipped=0 failed=0", StringComparison.Ordinal));
         }
         finally { directory.Delete(recursive: true); }
     }

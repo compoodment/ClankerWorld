@@ -84,16 +84,16 @@ public sealed class WorldSelectionCoordinator(
     public void WarmUp(CancellationToken cancellationToken)
     {
         var elapsed = Stopwatch.StartNew();
-        var (checks, incompatible, skipped, failed) = (0, 0, 0, 0);
+        var (checks, unrestorable, skipped, failed) = (0, 0, 0, 0);
+        var outcome = "finished";
         WorldSelectionTelemetry.WarmUpStarted(logger);
         var snapshot = catalog.Capture();
         foreach (var world in snapshot.Worlds.Where(world => world.Id != snapshot.ActiveId))
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                WorldSelectionTelemetry.WarmUpCanceled(logger, checks, incompatible, skipped, failed,
-                    elapsed.ElapsedMilliseconds);
-                return;
+                outcome = "canceled";
+                break;
             }
             // Skip worlds deleted or opened since the warm-up began, and worlds a
             // list already checked: its result is at least as recent.
@@ -112,7 +112,7 @@ public sealed class WorldSelectionCoordinator(
                 else
                 {
                     checks++;
-                    if (!result.Restorable) incompatible++;
+                    if (!result.Restorable) unrestorable++;
                 }
             }
             catch (Exception exception)
@@ -121,10 +121,15 @@ public sealed class WorldSelectionCoordinator(
                 // itself and reports it as it would without the warm-up.
                 failed++;
                 WorldSelectionTelemetry.WarmUpFailed(logger, world.Id, exception.GetType().Name);
-                if (exception is OutOfMemoryException) break;
+                if (exception is OutOfMemoryException)
+                {
+                    outcome = "stopped";
+                    break;
+                }
             }
         }
-        WorldSelectionTelemetry.WarmedUp(logger, checks, incompatible, skipped, failed, elapsed.ElapsedMilliseconds);
+        WorldSelectionTelemetry.WarmUpEnded(logger, outcome, checks, unrestorable, skipped, failed,
+            elapsed.ElapsedMilliseconds);
     }
 
     private static string Digest(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
