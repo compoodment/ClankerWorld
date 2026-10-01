@@ -142,8 +142,14 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials or no
-legal site. How an adult forms a new household is still open, so an adult
-nobody takes in relies on clothing and natural storm cover. This is a basic
+legal site. [Solo formation and departure](game-design/towns.md#household-membership),
+with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
+are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+The agreed [House resident limits and relocation rules](game-design/towns.md#house-resident-capacity-and-relocation)
+likewise await [#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+Until solo formation works, an adult nobody takes in relies on clothing and
+natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
