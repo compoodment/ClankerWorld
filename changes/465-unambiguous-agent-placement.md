@@ -1,0 +1,1 @@
+- Add Agent now refuses tiles where household ownership or Town borders overlap. Its preview shows where the adult will belong, and the server checks the current placement again when you confirm.

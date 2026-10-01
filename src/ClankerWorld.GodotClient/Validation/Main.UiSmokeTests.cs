@@ -1099,6 +1099,25 @@ public partial class Main
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+
+            var overlappingProperties = ownedMap with
+            {
+                PlacedBuildings = [.. ownedMap.PlacedBuildings,
+                    new("other-house", "house", new(2, 2), 0, "Other House", ["house"], 1, 1,
+                        HouseholdId: "household:two")],
+            };
+            PreviewAddAgentPlacement(overlappingProperties, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household property overlaps", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a footprint claimed by two households.");
+
+            var secondTown = sample.Towns[0] with { Id = "town:second", Name = "Second Town" };
+            PreviewAddAgentPlacement(sample with { Towns = [.. sample.Towns, secondTown] }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Town borders overlap", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a tile inside two Town borders.");
+
+            PreviewAddAgentPlacement(ownedMap, new Vector2I(2, 2));
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (placementFields.Where((field, index) => field.GetGlobalRect() != placementFieldRects[index]).Any())
