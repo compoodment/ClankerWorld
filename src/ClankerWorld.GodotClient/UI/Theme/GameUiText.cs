@@ -9,6 +9,18 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    public static string ModelStatus(string? status) => status switch
+    {
+        "waiting" => "Waiting for the model",
+        "canceled" => "Canceled by pause or disconnect",
+        "missing_key" => "Missing key",
+        "usage_limit" => "Usage limit reached",
+        "unusable_reply" => "Unusable reply",
+        "timed_out" => "Timed out",
+        "model_unavailable" => "Model unavailable",
+        _ => "Ready",
+    };
+
     public static string ActorMapLabel(string displayName)
     {
         var words = displayName.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);

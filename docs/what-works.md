@@ -80,10 +80,14 @@ people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
 
-One slow model can wait while other agents and the world continue. A failed or
-low-confidence response uses only the explicit safe fallback; it does not invent
-an important choice or complete a firm instruction. The paired Windows/model-wait
-check remains in [the playtest list](../playtest/windows-and-paired-world.md).
+One slow model can wait while other agents and the world continue. A legal
+choice is accepted even when the model reports low confidence. A failed or
+unusable reply uses the safe fallback and finishes that attempt without another
+paid repair request. The agent card shows whether the model is ready, waiting,
+canceled, missing a key, out of allowed calls, unable to give a usable reply,
+timed out or unavailable. It shows the last accepted model choice separately.
+Those facts survive a refresh and save/reload. The paired Windows/model-wait
+check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. This is a basic version. The game understands only orders to gather

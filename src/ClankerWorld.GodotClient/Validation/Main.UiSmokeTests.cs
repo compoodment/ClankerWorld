@@ -897,6 +897,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyModelPicker();
+            VerifyModelSetupCheckControls();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
@@ -1762,6 +1763,21 @@ public partial class Main
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             if (!quickWarmthMeter.Visible || !profileWarmthMeter.Visible)
                 throw new InvalidOperationException("Reported agent condition must be shown again.");
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Inhabitants = [founder with
+                {
+                    DecisionFactors = [.. founder.DecisionFactors.Where(factor => factor.Key != "model-status"),
+                        new("model-status", "unusable_reply"), new("last-model-choice", "seek_food")],
+                    PublicIntention = new("safe_idle", "keeping a safe routine", "deterministic", 1),
+                }],
+            });
+            if (!quickCardActivityLabel.Text.Contains("Model: Unusable reply", StringComparison.Ordinal) ||
+                !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Last model choice:", StringComparison.Ordinal) ||
+                quickCardActivityLabel.Text.Contains("unusable_reply", StringComparison.Ordinal))
+                throw new InvalidOperationException("Agent cards must distinguish a failed model attempt, the safe activity and the last accepted model choice.");
+            RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             UpdateTileHover(founderButton.Position + mapStage.Position + founderButton.Size / 2);
             if (terrainLayer.HoveredTile is not null)
                 throw new InvalidOperationException("An agent marker must take hover priority over its ground tile.");

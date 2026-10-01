@@ -417,6 +417,11 @@ public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, 
 public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
+public sealed record OwnerProviderSetupCheckAction(
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+
+public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
+
 /// <summary>One listed model, and whether the checked key can use it.</summary>
 public sealed record OwnerProviderModelChoice(string Model, bool Available);
 
