@@ -1,0 +1,2 @@
+- Agents start with no skills and first learn building, farming, crafting or smithing by finishing that kind of work. Adults can ask a free, healthy agent who knows a skill for a lesson. A completed lesson keeps the teacher and time on the agent card, without assigning a job role. Skills do not yet change action access or work speed.
+- Skills and lesson progress survive current save/load. Older alpha lesson records may stop loading; no migration is included.
