@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # What works today
@@ -80,7 +80,7 @@ or thought quality from these changes has not been proven in live play.
 One slow model can wait while other agents and the world continue. A failed or
 low-confidence response uses only the explicit safe fallback; it does not invent
 an important choice or complete a firm instruction. The paired Windows/model-wait
-check remains in [the playtest checklist](https://github.com/compoodment/ClankerWorld/issues/285).
+check remains in [the playtest list](../playtest/windows-and-paired-world.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. This is a basic version. The game understands only orders to gather
@@ -224,8 +224,8 @@ been chosen. Multiplayer and public worlds are outside the current plan.
 ## Work and testing still to do
 
 [Issues](https://github.com/compoodment/ClankerWorld/issues) holds bugs, work,
-experiments and open decisions. [The Windows and paired-world checklist](https://github.com/compoodment/ClankerWorld/issues/285)
-records tests still needed for source fixes. Code, tests and exports are evidence
+experiments and open decisions. [The playtest list](../playtest/README.md)
+records hands-on checks still needed for merged changes. Code, tests and exports are evidence
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
 
