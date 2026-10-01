@@ -138,8 +138,9 @@ the world's date, so **Save** works straight away; type another name first if
 you like. To overwrite a save, choose its card, then **Overwrite**, and confirm;
 typing the same name does not overwrite it. World Settings offers rotating
 autosaves as well as automatic recovery. **Load World** shows each world as a
-card with when it was last saved and its seed, and marks the current world and
-any it cannot open. Double-click a card, or choose it and **Open World**. Open
+card with a small map of it, when it was last saved and its seed, and marks the
+current world and any it cannot open. Double-click a card, or choose it and
+**Open World**. Open
 and Delete are unavailable while another world action finishes.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the

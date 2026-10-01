@@ -9,7 +9,8 @@ public sealed record CatalogWorld(
     string Id, string Name, string WorldId, string Seed, DateTimeOffset UpdatedUtc,
     IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings,
-    string Compatibility = "unknown", string? CompatibilityReason = null);
+    string Compatibility = "unknown", string? CompatibilityReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorldThumbnail? Thumbnail = null);
 
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CatalogWorld>? PendingDeletions = null);
@@ -51,7 +52,7 @@ public sealed class WorldCatalogStore
         {
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), "First World",
                 activeState.Society.Society.WorldId, activeState.WorldSeed, DateTimeOffset.UtcNow,
-                assignments.ToArray(), autosaveSettings);
+                assignments.ToArray(), autosaveSettings, Thumbnail: WorldThumbnail.From(activeState.Map));
             index = new WorldCatalogSnapshot(entry.Id, [entry]);
             WriteSnapshot(entry.Id, activeState);
             WriteIndex(index);
@@ -113,7 +114,8 @@ public sealed class WorldCatalogStore
             if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world => world.WorldId == state.Society.Society.WorldId))
                 throw new InvalidOperationException("This world already exists.");
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), name,
-                state.Society.Society.WorldId, state.WorldSeed, DateTimeOffset.UtcNow, [], null);
+                state.Society.Society.WorldId, state.WorldSeed, DateTimeOffset.UtcNow, [], null,
+                Thumbnail: WorldThumbnail.From(state.Map));
             WriteSnapshot(entry.Id, state);
             WriteIndex(index with { Worlds = [.. index.Worlds, entry] });
             index = index with { Worlds = [.. index.Worlds, entry] };
@@ -134,9 +136,29 @@ public sealed class WorldCatalogStore
                 UpdatedUtc = DateTimeOffset.UtcNow,
                 Assignments = assignments.ToArray(),
                 AutosaveSettings = autosaveSettings,
+                Thumbnail = active.Thumbnail ?? WorldThumbnail.From(state.Map),
             };
             WriteSnapshot(active.Id, state);
             var next = index with { Worlds = index.Worlds.Select(world => world.Id == active.Id ? updated : world).ToArray() };
+            WriteIndex(next);
+            index = next;
+        }
+    }
+
+    /// <summary>
+    /// Keeps a thumbnail for a world catalogued before thumbnails existed, so
+    /// later lists show it without working it out again.
+    /// </summary>
+    public void RememberThumbnail(string id, WorldThumbnail thumbnail)
+    {
+        ArgumentNullException.ThrowIfNull(thumbnail);
+        lock (gate)
+        {
+            if (!index.Worlds.Any(world => world.Id == id && world.Thumbnail is null)) return;
+            var next = index with
+            {
+                Worlds = index.Worlds.Select(world => world.Id == id ? world with { Thumbnail = thumbnail } : world).ToArray(),
+            };
             WriteIndex(next);
             index = next;
         }
