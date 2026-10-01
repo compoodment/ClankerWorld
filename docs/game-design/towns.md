@@ -1172,6 +1172,24 @@ object that an agent pulls, parks, repairs and transfers ownership of. Worn
 clothing still does not change the agent's map sprite. Exact carrying amounts,
 cart movement costs, protection and repair quantities are tuned in playtests.
 
+The current equipment trial allows 8 cargo units without an aid, 16 with a
+basket and 24 with a sack. The equipped garment and aid each occupy their own
+slot; other goods, delivery loads and vessel contents count as cargo. Stored
+or ground goods do not count as carried. Broken aids give no extra capacity.
+When an aid breaks or is replaced, excess cargo and the old aid stay real
+property; the agent must make room before collecting more.
+
+The House trial uses 3 fiber for a rope and 3 fiber plus 1 rope for a basket.
+The Tailor trial keeps 3 fiber per cloth and 2 cloth per basic garment, uses
+4 cloth per padded coat, 2 cloth plus 1 fiber per rain cloak, and 2 cloth plus
+1 rope per sack. Only the equipped garment protects against weather, with
+less protection as it wears. Garments wear during exposure and carry aids
+wear during travel with cargo. Adult household members repair garments and
+sacks at their Tailor Shop with 1 cloth, or baskets at their House with
+1 fiber and 1 rope. Eight work ticks restore 60% condition, up to full
+condition. Interrupted repairs release unspent materials. These quantities,
+capacities, wear rates and repair effects remain provisional.
+
 #### Care and later goods
 
 | Product | Complete path |

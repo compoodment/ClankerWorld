@@ -67,6 +67,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(AvailableLotQuantity(grain), FarmStorageFree(farmhouse.InstanceId)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-grain-pickup:{WorldTick}:{actor}", householdId, actor, grain.Id,
             quantity, "farm_grain_picked_up", destinationDeliveryBuildingId: farmhouse.InstanceId));
@@ -111,6 +113,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var inbound = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
         var quantity = Math.Min(Math.Max(0, StorageRoom(house.InstanceId) - inbound), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(flour)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-flour-pickup:{WorldTick}:{actor}", householdId, actor, flour.Id,

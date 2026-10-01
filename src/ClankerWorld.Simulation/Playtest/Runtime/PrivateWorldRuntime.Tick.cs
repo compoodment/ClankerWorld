@@ -461,6 +461,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessProduction(targetTick);
             MaintainFarmFields();
 
+            WearEquippedClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
             DrainNeeds();

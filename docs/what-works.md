@@ -137,7 +137,7 @@ summaries remain unfinished.
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. Quantities, work times, yields and farm planning remain provisional. |
+| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Quantities, work times, yields and farm planning remain provisional. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
@@ -189,6 +189,34 @@ Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
+
+Agents can now equip a padded coat for cold weather, a rain cloak for wet
+weather, or a basic garment. The House makes rope and baskets; the Tailor Shop
+makes cloth, garments and sacks from physically delivered private inputs.
+The agent card shows the worn garment, carrying aid, their condition, cargo
+amount and carrying limit, and an active repair. Garments do not change map
+sprites.
+
+The trial carrying limits are 8 cargo units, 16 with an equipped basket, or 24
+with an equipped sack. Other carried goods and delivery loads count toward
+that limit; stored and ground goods do not. Wear can break an aid and reduce
+its capacity, but existing cargo and replaced gear remain owned and intact.
+Full carriers decline pickups that would add excess cargo. Food harvests need
+room for the whole yield, including orchard seeds. A hungry adult without that
+room first sets down spare supplies for their household, in the House if it
+has room or on the camp pile otherwise. Tools go last; maps, field records,
+worn gear and reserved goods stay carried. Exploring still teaches
+personal knowledge when there is no room to carry a new map or field record.
+Broken or spoiled spare cargo can also be set down without losing it.
+Before the first House, builders carry their construction materials to the camp
+pile in loads. A helper meets the adult who requested materials and transfers only
+what that adult has room to carry. Once a House exists, helpers can deliver to its
+storage. Household adults
+can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
+and rope to repair a basket at their House. Work, reservations, equipment and
+overloaded cargo survive saving and reopening. These paths have automated
+checks; Windows playtesting and balance tuning remain pending.
+Choosing a conversation interrupts a repair and releases its unspent materials.
 
 ## Maps, weather and appearance
 
