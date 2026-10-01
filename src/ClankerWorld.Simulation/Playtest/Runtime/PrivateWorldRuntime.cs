@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 40;
+    public const int StateSchemaVersion = 41;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
@@ -73,6 +73,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
     private HashSet<GridPoint> roadTiles = [];
+    private List<HandcartHitch> handcartHitches = [];
     private List<AgentConversation> conversations = [];
     private List<AgentConversationDailyBudget> conversationBudgets = [];
     private GridPoint SettlementStoragePosition =>
@@ -283,6 +284,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.worldContent = state.WorldContent!;
         runtime.worldSimulation = state.WorldSimulation! with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
+        runtime.handcartHitches = state.HandcartHitches!.ToList();
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -425,7 +427,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray());
 
     private void AppendEvent(string kind, string detail)
     {

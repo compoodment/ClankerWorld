@@ -77,6 +77,7 @@ public partial class Main
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -146,6 +147,25 @@ public partial class Main
                     ? ResourceGlyph(resource.Kind, resource.NaturalObjectKind) : string.Empty,
                 GameUiText.ResourceMapCaption(resource, currentTileSize),
                 GameUiText.ResourceTooltip(resource));
+        }
+
+        foreach (var cart in snapshot.Handcarts)
+        {
+            var id = "handcart:" + cart.Id;
+            AddMapObjectVisual(id, cart.Position, string.Empty, string.Empty, GameUiText.HandcartDescription(cart));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("HandcartSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect { Name = "HandcartSprite", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest };
+                marker.AddChild(sprite);
+            }
+            var size = currentTileSize >= 64 ? 32 : 16;
+            sprite.Texture = ItemIcons.Texture("handcart", size);
+            sprite.Size = new(size, size);
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
         foreach (var mapObject in snapshot.Objects)

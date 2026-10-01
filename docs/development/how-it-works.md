@@ -872,6 +872,27 @@ does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
 
+## Physical handcarts
+
+`InventoryContainerRules.Handcart` is a single ground-position inventory lot.
+Its condition, owner and child cargo lots are authoritative inventory facts;
+`HandcartHitch` saves only the exclusive cart/puller attachment. The runtime
+checks the owner has physically reached the cart, verifies every load source's
+position and household authorization, and moves the cart with each admitted
+legal cardinal step. Ground cart contents never become carried recipe inputs,
+fuel, planting seeds or equipped gear. Loading a partial quantity preserves
+the untouched remainder's original location and reservations.
+
+Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
+wood, fittings and rope. Exact inputs are reserved through the production job;
+the personal cart appears on the work site's ground after completion. Repair
+consumes three carried material reservations atomically. Unloading can retain
+damaged goods on the ground and works after the cart breaks. Property transfer
+and inheritance keep the entire cart/cargo family at its existing position.
+A death, break or ownership change removes the attachment without dropping or
+teleporting the goods. Owner observation derives cart inspection from those
+same saved inventory lots, rather than maintaining a second cargo ledger.
+
 ## Trees and planting
 
 Each tree is one map resource with one saved growth record

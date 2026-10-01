@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Playing the current game
@@ -92,6 +92,12 @@ where you choose **Suggest** or **Order**. The crosshair centers the camera on
 them, and back (or **Escape**) returns from the Profile to the small card.
 Inspection does not pause time, and reading private thoughts does not tell
 other agents.
+
+Handcarts appear as small wheeled carts on the map. Hover over one or inspect
+its tile to see its owner, parked or pulled state, condition and actual cargo.
+The owner's agent card also lists their carts. A broken cart keeps its goods;
+its owner can unload here or repair it with carried wood, iron fittings and rope.
+A cart holds loose goods separately from the agent's own carrying limit.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is

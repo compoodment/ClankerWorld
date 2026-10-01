@@ -285,6 +285,8 @@ public partial class Main
             lines.Add($"Used by: {snapshot.Stockpiles.FirstOrDefault(stock => stock.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
             if (field.WorkerId is { } worker) lines.Add($"Worker: {snapshot.Inhabitants.FirstOrDefault(person => person.Id == worker)?.DisplayName ?? worker}");
         }
+        foreach (var cart in snapshot.Handcarts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
+            lines.Add(GameUiText.HandcartDescription(cart));
         foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
             lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");

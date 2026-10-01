@@ -272,6 +272,7 @@ public sealed partial class PrivateWorldRuntime
         map = proposed.map;
         fertility = proposed.fertility;
         fields = proposed.fields;
+        handcartHitches = proposed.handcartHitches;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -464,6 +465,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            ReconcileHandcartHitches();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             MaintainLessons();

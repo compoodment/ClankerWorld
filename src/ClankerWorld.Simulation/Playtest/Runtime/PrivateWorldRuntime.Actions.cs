@@ -32,6 +32,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (AttachedHandcart(inhabitantId) is { } heldCart && !CanPullHandcart(heldCart))
+        {
+            ParkHandcart(inhabitantId, "equipment_unusable");
+            RecordMovementBlocked(inhabitantId, state, "cart_unusable");
+            return;
+        }
         var route = FindUnoccupiedRoute(inhabitantId, state.Position, destination, interactionRange);
         if (route.Count < 2)
         {
@@ -40,11 +46,13 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var next = route[1];
+        var travelCost = TravelStepCost(inhabitantId, state.Position, next);
+        MoveAttachedHandcart(inhabitantId, state.Position, next);
         inhabitants[inhabitantId] = state with
         {
             Position = next,
             MoveWaitTicks = 0,
-            TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
+            TravelCooldownTicks = (travelCost + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
         RecordBridgeTraffic(inhabitantId, state.Position, next);
@@ -97,7 +105,8 @@ public sealed partial class PrivateWorldRuntime
 
             foreach (var next in map.FootNeighbors(current))
             {
-                if (occupied.Contains(next) ||
+                if (handcartHitches.Any(hitch => hitch.PullerId == inhabitantId) && !LegalHandcartStep(current, next) ||
+                    occupied.Contains(next) ||
                     map.IsDiagonalFootStep(current, next) &&
                     (occupied.Contains(new GridPoint(next.X, current.Y)) ||
                      occupied.Contains(new GridPoint(current.X, next.Y))))
@@ -105,7 +114,7 @@ public sealed partial class PrivateWorldRuntime
                     continue;
                 }
 
-                var cost = checked(priority.Cost + RoadStepCost(current, next));
+                var cost = checked(priority.Cost + TravelStepCost(inhabitantId, current, next));
                 if (best.TryGetValue(next, out var previous) && previous <= cost)
                     continue;
                 best[next] = cost;
@@ -126,6 +135,8 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[inhabitantId] = state with { MoveWaitTicks = waitTicks };
         if (waitTicks == 1 || waitTicks % 30 == 0)
         {
+            if (AttachedHandcart(inhabitantId) is not null || reason == "cart_unusable")
+                AppendEvent("handcart_blocked", $"{inhabitantId}:{reason}");
             AppendEvent("movement_blocked", $"{inhabitantId}:{reason}:wait={waitTicks}");
         }
     }

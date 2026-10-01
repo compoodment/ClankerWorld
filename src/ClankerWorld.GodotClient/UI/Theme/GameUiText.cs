@@ -45,9 +45,21 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string HandcartDescription(OwnerWorldHandcart cart)
+    {
+        var cargo = cart.Cargo.Count == 0 ? "Empty" : string.Join(", ",
+            cart.Cargo.Select(item => $"{ItemName(item.Kind)} {item.Quantity}"));
+        var status = cart.ConditionPercent == 0 ? "Broken; unload here or repair with wood, iron fittings and rope" :
+            cart.PullerName is { } puller ? "Pulled by " + puller : "Parked";
+        return $"Handcart · {status}\nOwner: {cart.OwnerName} · Position: {cart.Position.X}, {cart.Position.Y}" +
+            $"\nCondition: {cart.ConditionPercent}% · Cargo: {cart.Cargo.Sum(item => item.Quantity)}/{cart.Capacity} · {cargo}";
+    }
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",
+        "handcart" => "Handcart",
+        "iron_fittings" => "Iron fittings",
         "water_jug" => "Water jug",
         "fresh_water" => "Fresh water",
         _ => HumanizeIdentifier(kind),
@@ -184,6 +196,8 @@ public static class GameUiText
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
+            "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
+            "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
             "housing_blocked" or "paused" or "resumed";
     }
 

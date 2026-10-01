@@ -810,6 +810,7 @@ public partial class Main
         try
         {
             VerifyEventLogAgentNames();
+            VerifyHandcartInspection();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.

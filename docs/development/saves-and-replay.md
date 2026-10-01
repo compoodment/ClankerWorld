@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Saves and replay
@@ -26,6 +26,15 @@ may fail the existing regeneration checks and are refused and preserved; no
 terrain migration is provided. New saves with default weather store a null
 profile list to select the reduced built-in preset. Explicit profile lists
 keep their configured weather weights.
+
+Private-world schema 41 adds exclusive physical handcart attachments. A cart
+and its cargo are existing inventory lot relationships, with the cart's ground
+position retained while pulled or parked. Loading verifies one cart per puller,
+one puller per cart, living ownership, condition and shared position. In-flight
+crafting and repair inputs use the normal exact inventory reservations. Current
+roundtrips retain loaded parked carts and mid-journey hitches; rollback retains
+the previous physical position and every cargo quantity. Earlier alpha saves
+are refused and preserved; no migration is added.
 
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and

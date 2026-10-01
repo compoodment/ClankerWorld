@@ -221,6 +221,13 @@ public static class ItemIcons
             "................",
             "................",
         ]),
+        ["handcart"] = new("wC89054 d795030 i75818A k30251D",
+        [
+            "................", "...i........i...", "...iwwwwwwwwi...", "...iddddddddi...",
+            "..kiwwwwwwwwik..", "..kiwddddddwik..", "..kiwwwwwwwwik..", "..kiwddddddwik..",
+            "..kiwwwwwwwwik..", "...iddddddddi...", "...iiiiiiiiii...", "....w......w....",
+            "....w......w....", "....w......w....", "................", "................",
+        ]),
         ["water_jug"] = new("hF0D69A lC58B50 m965B39 d75432B k32241D w65B6D5",
         [
             "................",

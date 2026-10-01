@@ -171,7 +171,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var requested in quantities)
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId)
+                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
+                    !IsHandcartCargo(inventory, lot))
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
@@ -188,7 +189,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var requested in quantities.GroupBy(item => item.ResourceId, StringComparer.Ordinal))
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) &&
                     lot.DeliveryBuildingId is null && lot.ItemKind == requested.Key)
                 .Sum(lot => (long)AvailableLotQuantity(lot));
             if (available < requested.Sum(item => (long)item.Amount))
@@ -305,7 +306,7 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
             foreach (var lot in lots)
@@ -365,7 +366,8 @@ public sealed partial class PrivateWorldRuntime
         long expiryTick,
         string ownerId,
         out IReadOnlyList<string> reservationIds,
-        string? requiredStorageBuildingId = null)
+        string? requiredStorageBuildingId = null,
+        bool requireCarried = false)
     {
         var current = inventory;
         var created = new List<string>();
@@ -375,6 +377,7 @@ public sealed partial class PrivateWorldRuntime
             var remaining = requested.Amount;
             var lots = current.Lots
                 .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
+                    !IsHandcartCargo(current, lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
                     (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -497,11 +500,13 @@ public sealed partial class PrivateWorldRuntime
                     current,
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
-                    productionOwner,
+                    output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
                     output.Amount,
                     targetTick,
-                    storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
-                        : null);
+                    storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
+                        ? productionBuilding.InstanceId : null,
+                    groundPosition: output.ResourceId == InventoryContainerRules.Handcart
+                        ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
             }
 
             return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,

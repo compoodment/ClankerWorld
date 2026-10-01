@@ -608,9 +608,9 @@ public sealed partial class PrivateWorldRuntime
             }
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
         }
-        var constructionOwner = recipe is not null ? ProductionOwnerFor(recipeBuilding, inhabitantId)
+        var constructionOwner = recipe is not null ? IsHandcartRecipe(recipe) ? inhabitantId : ProductionOwnerFor(recipeBuilding, inhabitantId)
             : BuildingConstructionOwner(inhabitantId, building!);
-        if (recipe is not null && recipeBuilding?.HouseholdId is not null &&
+        if (recipe is not null && !IsHandcartRecipe(recipe) && recipeBuilding?.HouseholdId is not null &&
             worldContent.Buildings.Any(definition => definition.CanonicalId == recipeBuilding.DefinitionId &&
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))

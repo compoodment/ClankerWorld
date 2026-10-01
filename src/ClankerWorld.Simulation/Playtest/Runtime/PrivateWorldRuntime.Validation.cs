@@ -29,6 +29,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateAssetReservationsAgainstActivePackages();
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
@@ -288,6 +289,8 @@ public sealed partial class PrivateWorldRuntime
         // New worlds can only be created at these sizes, so any other saved size is damage.
         if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
             throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
+        if (state.HandcartHitches is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing cart attachments.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)
@@ -364,6 +367,7 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society.WorldTick);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
+        ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map);
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,

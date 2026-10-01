@@ -358,7 +358,11 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household workshop must be claimed before production.");
 
-            var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            var personalCartRecipe = IsHandcartRecipe(recipe);
+            if (personalCartRecipe && !HasCarriedUnreservedQuantities(normalizedWorkerId, recipe.Inputs))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Carry the wood, iron fittings and rope to the Blacksmith before building a handcart.");
+            var onSiteHouseholdRecipe = !personalCartRecipe && placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household building lacks the required ingredients in its on-site stock.");
@@ -387,9 +391,10 @@ public sealed partial class PrivateWorldRuntime
                     recipe.Inputs,
                     $"{jobId}:input",
                     completionTick,
-                    ProductionOwnerFor(placed, normalizedWorkerId),
+                    personalCartRecipe ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId),
                     out reservationIds,
-                    onSiteHouseholdRecipe ? placed!.InstanceId : null);
+                    onSiteHouseholdRecipe ? placed!.InstanceId : null,
+                    requireCarried: personalCartRecipe);
                 return reserved;
             });
 
