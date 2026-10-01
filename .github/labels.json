@@ -21,6 +21,7 @@
     { "name": "status:in-progress", "color": "fbca04", "description": "Claimed by someone working on an issue or pull request.", "aliases": [] },
     { "name": "status:has-pr", "color": "0052cc", "description": "An open pull request closes this issue (Closes, Fixes or Resolves). Added automatically.", "aliases": [] },
     { "name": "status:needs-review", "color": "e4b429", "description": "Pull request is ready and waiting for review. Added automatically.", "aliases": [] },
+    { "name": "status:reviewing", "color": "8250df", "description": "A reviewer has claimed this pull request; other reviewers skip it.", "aliases": [] },
     { "name": "status:parked", "color": "cfd3d7", "description": "Closed for now; agreed work for a later stage. Search closed issues to find it again.", "aliases": [] },
     { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a hands-on Windows playtest.", "aliases": [] },
     { "name": "priority:p0", "color": "b60205", "description": "Broken now: crash, lost or damaged saves or keys, security, or can't play. Drop other work.", "aliases": ["priority:blocker", "gate:blocker", "severity:data-loss"] },

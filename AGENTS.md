@@ -57,9 +57,11 @@ What each job adds:
   fixing a CI failure or review comment; those are still your work. If you are
   paused, push your branch before you stop, so another agent on another machine
   can continue it ([Claim an issue](CONTRIBUTING.md#claim-an-issue)).
-- **Review and merge:** fix what you find yourself instead of handing it back.
-  After each merge, later pull requests may need main merged in and CI run
-  again.
+- **Review and merge:** another reviewer may be merging at the same time, so
+  claim each pull request with `status:reviewing` before you start and merge
+  only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).
+  Fix what you find yourself instead of handing it back. After each merge,
+  check main's CI; later pull requests may need main merged in again.
 - **Owner requests:** the owner asks you directly for something, such as a
   change to how the repository works or a set of decisions. It needs no issue;
   say so in the pull request. Turn agreed work into Implementation issues:

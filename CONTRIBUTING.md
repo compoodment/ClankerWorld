@@ -50,7 +50,7 @@ one, and a workflow updates the repository.
 | Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs` |
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
-| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:parked` (closed for a later stage) |
+| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:reviewing` ([claimed by a reviewer](#review-and-merge)), `status:needs-decision`, `status:blocked` (say by what), `status:parked` (closed for a later stage) |
 | Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
 - **Automatic:** the templates set the type and `priority:p2`. A pull request
@@ -58,7 +58,8 @@ one, and a workflow updates the repository.
   changes [how we work](#priorities); at most two areas from the code it
   changes, set when it opens and again when it is marked ready (fix them by
   hand if they are wrong); one type, from the first ticked **Type of change**
-  box; and `status:needs-review` while it is ready. An issue it closes
+  box; and `status:needs-review` while it is ready. `status:reviewing` comes off
+  when it closes or goes back to draft. An issue it closes
   (`Closes`, `Fixes` or `Resolves`) gets `status:has-pr`; once the pull request
   is ready for review, the issue's `status:in-progress` claim is removed.
   `status:has-pr` is removed when the last such pull request closes; if none
@@ -246,12 +247,32 @@ is prepared, or whenever the changelog should catch up.
 Review and merge higher-priority pull requests first. The reviewer is not the
 pull request's author and normally merges. An author
 merges only when the owner explicitly asks and someone else has already
-reviewed the current head. Before merging, check that:
+reviewed the current head.
+
+More than one reviewer may be merging at the same time, so:
+
+- **Claim a pull request before reviewing it.** Take the highest-priority one
+  from `is:pr is:open draft:false -label:"status:reviewing"`, add
+  `status:reviewing`, and comment with who is reviewing and the commit you
+  started from. Then read the comments again: if someone else's claim came
+  first, leave the label alone and pick another pull request. A claim with no
+  activity for 2 hours is stale: say you are taking it over, then claim it
+  again. The label comes off automatically when the pull request closes or
+  goes back to draft; remove it yourself if you stop without merging.
+- **Merge only on top of current main.** Two pull requests can each pass on
+  their own and still break main together, for example by both raising the
+  save format to the same new version. Just before merging, check whether main
+  has changed since the pull request's last CI run. If it has, merge main in,
+  fix any clash and wait for CI to pass again. Pull requests that change only
+  documentation may skip this.
+
+Before merging, check that:
 
 1. The pull request is ready for review, not a draft, and nobody has pushed to
    it since it was marked ready, other than you.
-2. CI is green on the current head. If main was merged in or the branch changed
-   after review, review and check the new head.
+2. CI is green on the current head and, unless the pull request changes only
+   documentation, that head includes the latest main. If main was merged in or
+   the branch changed after review, review and check the new head.
 3. Someone other than the author reviewed that exact head. Record who reviewed
    which commit and what they checked, in the squash commit body or a comment.
 4. The description links its issues correctly
@@ -265,7 +286,9 @@ the new head.
 
 Squash-merge with the PR title as the commit subject, delete the branch, then:
 
-- Fetch main and confirm the squash commit is there.
+- Fetch main and confirm the squash commit is there, then check that main's
+  CI passes on it. If it fails, whoever merged last fixes or reverts it before
+  anything else, as a P0.
 - Check every `Closes` issue closed. The
   [Close fixed issues](.github/workflows/close-fixed-issues.yml) workflow closes
   any GitHub missed; if one is still open, close it with a comment naming the
