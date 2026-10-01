@@ -1,0 +1,392 @@
+<title>ClankerWorld Panel Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<style>
+/* Layout: one review sheet; each item reads notes first, then Now beside Proposed, then the answer. */
+:root {
+  --bg: #EDE3CC;
+  --sheet: #F8F2E3;
+  --ink: #2F2418;
+  --muted: #6B5843;
+  --line: #D6C49F;
+  --wood: #7A4B2A;
+  --accent: #3F6B2E;
+  --accent-ink: #F7F1E1;
+  --warn: #9A5B12;
+  --bad: #A23A28;
+  --chip: #E6D8B6;
+  --shadow: rgba(60, 40, 20, 0.12);
+  --font-display: "Pixelify Sans", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1B1612; --sheet: #251E18; --ink: #EADFC4; --muted: #B4A283; --line: #43372B;
+    --wood: #C99A62; --accent: #8DBA6A; --accent-ink: #1B1612; --warn: #E0A84A; --bad: #E58A72;
+    --chip: #32291F; --shadow: rgba(0, 0, 0, 0.35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1B1612; --sheet: #251E18; --ink: #EADFC4; --muted: #B4A283; --line: #43372B;
+  --wood: #C99A62; --accent: #8DBA6A; --accent-ink: #1B1612; --warn: #E0A84A; --bad: #E58A72;
+  --chip: #32291F; --shadow: rgba(0, 0, 0, 0.35); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+a { color: var(--accent); }
+.wrap { max-width: 1240px; margin: 0 auto; min-width: 0; }
+main { display: block; min-width: 0; }
+.item h2, .lede, .changes li { overflow-wrap: anywhere; }
+
+/* Screenshot theme: show the light or dark game capture. */
+.shot-d { display: none !important; }
+html[data-shots="d"] .shot-d { display: inline-block !important; }
+html[data-shots="d"] .shot-l { display: none !important; }
+html[data-shots="d"] .glyph-pics.shot-d { display: inline-flex !important; }
+
+header.intro { padding-block: 40px 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.eyebrow { font: 600 12px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--wood); }
+h1 { font: 600 clamp(32px, 5vw, 48px)/1.05 var(--font-display); margin: 0; text-wrap: balance; }
+.lede { max-width: 68ch; margin: 0; color: var(--ink); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.facts li { font: 13px/1 var(--font-mono); padding: 7px 10px; background: var(--chip); border-radius: 3px; color: var(--muted); }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px; margin-block: 20px 8px; }
+.note-box { background: var(--sheet); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; min-width: 0; }
+.note-box h2 { font: 600 18px/1.2 var(--font-display); margin: 0 0 8px; }
+.note-box p, .note-box ul { margin: 0; }
+.note-box ul { padding-left: 18px; display: grid; gap: 4px; }
+.note-box.ask { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+
+/* Sticky toolbar */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  margin-block: 18px; padding: 10px 14px;
+  background: color-mix(in srgb, var(--sheet) 94%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-radius: 4px;
+  box-shadow: 0 6px 18px var(--shadow);
+}
+.progress { font: 600 14px/1 var(--font-mono); font-variant-numeric: tabular-nums; flex: 1 1 auto; min-width: 140px; }
+.progress .meter { display: block; height: 6px; margin-top: 7px; background: var(--chip); border-radius: 3px; overflow: hidden; max-width: 260px; }
+.progress .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.25s ease; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { font: 14px/1 var(--font-body); padding: 8px 12px; background: transparent; color: var(--ink); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--wood); color: var(--sheet); }
+.btn { font: 700 14px/1 var(--font-body); padding: 10px 14px; border-radius: 4px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); }
+button:focus-visible, input:focus-visible, label.choice:focus-within { outline: 2px solid var(--wood); outline-offset: 2px; }
+.bar-label { font-size: 13px; color: var(--muted); }
+
+/* Items */
+.item { background: var(--sheet); border: 1px solid var(--line); border-radius: 4px; padding: 20px clamp(14px, 2.5vw, 28px) 18px; margin-block: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; scroll-margin-top: 90px; }
+.item-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.num { font: 600 14px/1 var(--font-mono); color: var(--wood); font-variant-numeric: tabular-nums; }
+.item h2 { font: 600 24px/1.15 var(--font-display); margin: 0; text-wrap: balance; }
+.flag { font: 600 11px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 7px; border-radius: 3px; border: 1px solid var(--wood); color: var(--wood); }
+.changes { margin: 0; padding-left: 20px; display: grid; gap: 5px; max-width: 78ch; }
+.changes li::marker { color: var(--wood); }
+
+.pair-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
+.shot-caption { margin: 4px 0 0; font: 600 13px/1.2 var(--font-mono); color: var(--muted); }
+.pair { display: grid; gap: 14px; align-items: start; }
+.pair.side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pair.stack { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) { .pair.side { grid-template-columns: minmax(0, 1fr); } }
+figure { margin: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; justify-items: start; }
+figcaption { font: 600 12px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+figure.new figcaption { color: var(--accent); }
+figure.new figcaption::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.shot { padding: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); cursor: zoom-in; max-width: 100%; display: block; line-height: 0; }
+.shot img { max-width: 100%; height: auto; width: auto; display: inline-block; }
+
+.glyph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 12px; }
+.glyph { border: 1px solid var(--line); border-radius: 3px; padding: 12px; display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.glyph-pics { display: inline-flex; align-items: end; gap: 12px; }
+.glyph-pics img { image-rendering: pixelated; border-radius: 2px; }
+.glyph-name { margin: 0; font: 600 15px/1.2 var(--font-display); }
+.glyph-use { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* Answer row */
+.decide { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding-top: 12px; border-top: 1px dashed var(--line); }
+.choices { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.choice { position: relative; cursor: pointer; }
+.choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.choice span { display: inline-block; font: 700 14px/1 var(--font-body); padding: 9px 13px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); }
+.choice.yes input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.choice.no input:checked + span { background: var(--bad); border-color: var(--bad); color: var(--sheet); }
+.choice.change input:checked + span { background: var(--warn); border-color: var(--warn); color: var(--sheet); }
+.note { flex: 1 1 240px; min-width: 0; font: 15px/1.3 var(--font-body); padding: 9px 11px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.item.answered .num::after { content: " ✓"; color: var(--accent); }
+
+footer.out { margin-top: 28px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+
+/* Full-size viewer */
+.viewer[hidden] { display: none; }
+.viewer { position: fixed; inset: 0; z-index: 50; background: rgba(20, 14, 9, 0.86); display: grid; grid-template-rows: auto 1fr; }
+.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--sheet); border-bottom: 1px solid var(--line); }
+.viewer-title { font: 600 18px/1.2 var(--font-display); flex: 1 1 200px; min-width: 0; }
+.viewer-hint { font-size: 13px; color: var(--muted); }
+.viewer-stage { overflow: auto; padding: 16px; display: grid; place-items: start center; }
+.viewer-stage img { display: block; max-width: none; }
+.viewer-stage.fit img { max-width: 100%; height: auto; }
+.viewer-stage.x2 img { image-rendering: pixelated; }
+.copy-fallback { width: 100%; min-height: 140px; font: 13px/1.4 var(--font-mono); margin-top: 10px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+@media (prefers-reduced-motion: reduce) { .progress .meter i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <p class="eyebrow">ClankerWorld · interface review · October 2</p>
+    <h1>Panel Review</h1>
+    <p class="lede">Proposed redesigns for the panels we had not touched yet: the tile card, World Map, Agents list, Event Log, Controls, World Info, Memories, Family Tree, Profile, model settings, Add an agent, Mod Library, dialogs, status messages and developer tools. Each one is built in the real game, so every picture is a screenshot, not a drawing.</p>
+    <ul class="facts">
+      <li>{{COUNT}} items</li>
+      <li>1920 × 1080, automatic UI size</li>
+      <li>same sample world in every picture</li>
+      <li>light and dark theme</li>
+    </ul>
+  </header>
+
+  <section class="notes" aria-label="About this review">
+    <div class="note-box ask">
+      <h2>What I need from you</h2>
+      <p>Answer each item with Yes, No or Yes with changes, add a note where you want something different, then press <strong>Copy answers</strong> and paste the result into chat. Nothing gets built until you answer. Your answers stay in this browser if you leave and come back.</p>
+    </div>
+    <div class="note-box">
+      <h2>How to read the pictures</h2>
+      <ul>
+        <li><strong>Now</strong> is current main with the approved October 1 art from #629. <strong>Proposed</strong> is the same screen with the change.</li>
+        <li>Click any picture to see it full size. Press Space or the arrow keys there to flip between Now and Proposed.</li>
+        <li>Switch the pictures between the game’s light and dark theme in the bar below.</li>
+      </ul>
+    </div>
+    <div class="note-box">
+      <h2>Changed since I started</h2>
+      <ul>
+        <li>The World Map button is no longer an item: #629’s approved folded-map icon already replaces the envelope.</li>
+        <li>Main fixed the blank Family Tree (#607), so that item is now about the look only.</li>
+        <li>Everything is rebuilt on top of main and #629, so accepted items will not conflict with that art.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="bar" role="toolbar" aria-label="Review controls">
+    <div class="progress" aria-live="polite"><span id="progress-text">0 of {{COUNT}} answered</span><span class="meter" aria-hidden="true"><i id="progress-meter"></i></span></div>
+    <span class="bar-label" id="shots-label">Pictures</span>
+    <div class="seg" role="group" aria-labelledby="shots-label">
+      <button type="button" id="shots-l" data-shots="l" aria-pressed="true">Light game</button>
+      <button type="button" id="shots-d" data-shots="d" aria-pressed="false">Dark game</button>
+    </div>
+    <button type="button" class="btn" id="copy">Copy answers</button>
+  </div>
+  <div id="copy-area" hidden>
+    <p class="bar-label">Your browser blocked copying. Select this text and copy it yourself:</p>
+    <textarea class="copy-fallback" id="copy-text" readonly aria-label="Your answers as text"></textarea>
+  </div>
+
+  <main>
+    {{ITEMS}}
+  </main>
+
+  <footer class="out">
+    <div class="note-box">
+      <h2>Not in this round</h2>
+      <ul>
+        <li>Building cards and Details: redesigned in an earlier round.</li>
+        <li>Settings and the New, Load and Save World screens: already done.</li>
+        <li>The pairing screen: rarely seen, left as it is for now.</li>
+        <li>Terrain art and the agents-in-buildings badge: separate mockups later.</li>
+      </ul>
+    </div>
+    <div class="note-box">
+      <h2>After you answer</h2>
+      <ul>
+        <li>Each accepted item becomes a pull request on current main, grouped where items share code.</li>
+        <li>Items with changes get reworked first and shown to you again.</li>
+        <li>The developer tools panel is a mock-up; if you say yes, I will build it as its own pull request.</li>
+      </ul>
+    </div>
+  </footer>
+</div>
+
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <span class="viewer-title" id="viewer-title"></span>
+    <div class="seg" role="group" aria-label="Which picture">
+      <button type="button" id="view-b" aria-pressed="true">Now</button>
+      <button type="button" id="view-a" aria-pressed="false">Proposed</button>
+    </div>
+    <div class="seg" role="group" aria-label="Size">
+      <button type="button" id="zoom-fit" aria-pressed="true">Fit</button>
+      <button type="button" id="zoom-1" aria-pressed="false">Actual</button>
+      <button type="button" id="zoom-2" aria-pressed="false">2×</button>
+    </div>
+    <span class="viewer-hint">Space flips · Esc closes</span>
+    <button type="button" class="btn ghost" id="viewer-close">Close</button>
+  </div>
+  <div class="viewer-stage fit" id="viewer-stage"><img id="viewer-img" alt=""></div>
+</div>
+
+<script>
+(function () {
+  var NAMES = {{NAMES}};
+  var COUNT = {{COUNT}};
+  var KEY = 'cw-panel-review-v2';
+  var root = document.documentElement;
+
+  function load(name, fallback) {
+    try { var raw = localStorage.getItem(name); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; }
+  }
+  function save(name, value) {
+    try { localStorage.setItem(name, JSON.stringify(value)); } catch (e) { /* storage blocked: answers last this visit */ }
+  }
+
+  // Which game theme the pictures show.
+  var shots = load('cw-panel-review-shots', null);
+  if (shots !== 'l' && shots !== 'd') {
+    var dark = root.getAttribute('data-theme') === 'dark' ||
+      (root.getAttribute('data-theme') !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    shots = dark ? 'd' : 'l';
+  }
+  function setShots(value) {
+    shots = value;
+    root.setAttribute('data-shots', value);
+    document.getElementById('shots-l').setAttribute('aria-pressed', String(value === 'l'));
+    document.getElementById('shots-d').setAttribute('aria-pressed', String(value === 'd'));
+    if (!viewer.hidden) showViewer();
+  }
+  document.getElementById('shots-l').addEventListener('click', function () { setShots('l'); save('cw-panel-review-shots', 'l'); });
+  document.getElementById('shots-d').addEventListener('click', function () { setShots('d'); save('cw-panel-review-shots', 'd'); });
+
+  // Answers
+  var answers = load(KEY, {});
+  var items = Array.prototype.slice.call(document.querySelectorAll('.item'));
+  function refresh() {
+    var done = 0;
+    items.forEach(function (item) {
+      var n = item.getAttribute('data-n');
+      var answered = !!(answers[n] && answers[n].v);
+      item.classList.toggle('answered', answered);
+      if (answered) done++;
+    });
+    document.getElementById('progress-text').textContent = done + ' of ' + COUNT + ' answered';
+    document.getElementById('progress-meter').style.width = (100 * done / COUNT) + '%';
+  }
+  items.forEach(function (item) {
+    var n = item.getAttribute('data-n');
+    var saved = answers[n] || {};
+    item.querySelectorAll('input[type=radio]').forEach(function (radio) {
+      if (radio.value === saved.v) radio.checked = true;
+      radio.addEventListener('change', function () {
+        answers[n] = answers[n] || {};
+        answers[n].v = radio.value;
+        save(KEY, answers); refresh();
+      });
+    });
+    var note = item.querySelector('.note');
+    note.value = saved.note || '';
+    note.addEventListener('input', function () {
+      answers[n] = answers[n] || {};
+      answers[n].note = note.value;
+      save(KEY, answers);
+    });
+  });
+  refresh();
+
+  var WORDS = { yes: 'yes', no: 'no', change: 'yes, with changes' };
+  function answerText() {
+    var lines = ['Panel review answers'];
+    var missing = [];
+    Object.keys(NAMES).forEach(function (n) {
+      var a = answers[n] || {};
+      if (!a.v) { missing.push(n); return; }
+      var note = (a.note || '').trim();
+      lines.push(n + ' ' + NAMES[n] + ': ' + WORDS[a.v] + (note ? ' (' + note + ')' : ''));
+    });
+    if (missing.length) lines.push('Not answered: ' + missing.join(', '));
+    return lines.join('\n');
+  }
+  var copyButton = document.getElementById('copy');
+  copyButton.addEventListener('click', function () {
+    var text = answerText();
+    function fallback() {
+      var area = document.getElementById('copy-area');
+      var box = document.getElementById('copy-text');
+      box.value = text; area.hidden = false; box.focus(); box.select();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        copyButton.textContent = 'Copied';
+        setTimeout(function () { copyButton.textContent = 'Copy answers'; }, 1800);
+      }, fallback);
+    } else { fallback(); }
+  });
+
+  // Full-size viewer with a Now / Proposed flip
+  var viewer = document.getElementById('viewer');
+  var stage = document.getElementById('viewer-stage');
+  var viewImg = document.getElementById('viewer-img');
+  var state = { key: null, side: 'b', zoom: 'fit', title: '', opener: null };
+  function source(key, side) {
+    var img = document.querySelector('.shot[data-key="' + key + '"][data-side="' + side + '"] img.shot-' + shots);
+    return img ? img.src : '';
+  }
+  function showViewer() {
+    viewImg.src = source(state.key, state.side);
+    viewImg.alt = state.title + ', ' + (state.side === 'b' ? 'now' : 'proposed');
+    document.getElementById('viewer-title').textContent = state.title + ' · ' + (state.side === 'b' ? 'Now' : 'Proposed');
+    document.getElementById('view-b').setAttribute('aria-pressed', String(state.side === 'b'));
+    document.getElementById('view-a').setAttribute('aria-pressed', String(state.side === 'a'));
+    stage.className = 'viewer-stage ' + (state.zoom === 'fit' ? 'fit' : state.zoom === '2' ? 'x2' : '');
+    ['fit', '1', '2'].forEach(function (z) { document.getElementById('zoom-' + z).setAttribute('aria-pressed', String(state.zoom === z)); });
+    function size() {
+      if (state.zoom === '2') { viewImg.style.width = (viewImg.naturalWidth * 2) + 'px'; }
+      else if (state.zoom === '1') { viewImg.style.width = viewImg.naturalWidth + 'px'; }
+      else { viewImg.style.width = ''; }
+    }
+    if (viewImg.complete) size(); else viewImg.onload = size;
+  }
+  document.querySelectorAll('.shot').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var item = button.closest('.item');
+      state.key = button.getAttribute('data-key');
+      state.side = button.getAttribute('data-side');
+      state.title = item ? item.getAttribute('data-name') : '';
+      state.opener = button;
+      viewer.hidden = false;
+      showViewer();
+      document.getElementById('viewer-close').focus();
+    });
+  });
+  function closeViewer() { viewer.hidden = true; if (state.opener) state.opener.focus(); }
+  function flip() { state.side = state.side === 'b' ? 'a' : 'b'; showViewer(); }
+  document.getElementById('viewer-close').addEventListener('click', closeViewer);
+  document.getElementById('view-b').addEventListener('click', function () { state.side = 'b'; showViewer(); });
+  document.getElementById('view-a').addEventListener('click', function () { state.side = 'a'; showViewer(); });
+  ['fit', '1', '2'].forEach(function (z) {
+    document.getElementById('zoom-' + z).addEventListener('click', function () { state.zoom = z; showViewer(); });
+  });
+  viewer.addEventListener('click', function (event) { if (event.target === stage) closeViewer(); });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); closeViewer(); }
+    else if (event.key === ' ' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (event.target && event.target.tagName === 'BUTTON' && event.key === ' ' && event.target.id !== 'viewer-close') return;
+      event.preventDefault(); flip();
+    }
+  });
+
+  setShots(shots);
+})();
+</script>

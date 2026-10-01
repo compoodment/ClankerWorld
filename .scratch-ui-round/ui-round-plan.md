@@ -40,10 +40,19 @@ Before shots: $S/audit/{l,d}-a2-*.png (taken before any change).
 - [x] Found live bug: Family Tree blank on main (scroll 0 height) -> filed #607 (P1); redesign fixes it
 - [x] Crops done: $S/page/img/<key>-<l|d>-<b|a>.png (22 keys, 88 files, ~1 MB)
 - [x] $S/page/build.py written: 19 items with change notes; embeds images as data URIs; reads template.html ({{ITEMS}}, {{COUNT}}, {{NAMES}})
-- [ ] NEXT: write $S/page/template.html (title, tokens light/dark, sticky bar: answered count, Light/Dark screenshot switch, Copy answers; intro + "not in this round"; lightbox with Now/Proposed flip + 2x; localStorage answers), run `cd $S/page && python3 build.py`, publish index.html (icon "review")
+- [x] (done) write $S/page/template.html (title, tokens light/dark, sticky bar: answered count, Light/Dark screenshot switch, Copy answers; intro + "not in this round"; lightbox with Now/Proposed flip + 2x; localStorage answers), run `cd $S/page && python3 build.py`, publish index.html (icon "review")
 - [ ] Ask owner accept/reject per item in chat; then PRs (rebase on main, drop harness, update smoke tests)
 
 ## Resume notes
 - Xvfb: `rm -f /tmp/.X99-lock /tmp/.X11-unix/X99; nohup setsid Xvfb :99 -screen 0 2600x1500x24 &`
 - Recapture: `bash $S/shoot.sh <names|all> "light dark"`, then copy $S/audit/?-a2-<name>.png to $S/after/
 - Shots without a redesign: house, house-details, warehouse-details, card (quick card doesn't open in harness), pause, speak (covered by profile)
+
+## Round 2 (October 1 evening)
+- Rebuilt on main + #629 as local branch scratch/ui-round2 (fresh from origin/main, merged origin/claude/exciting-carson-u13ktz, cherry-picked fa3d105).
+- Base worktree $S/base at 9d465b0 (main + #629) with harness; now shots in $S/before3, proposed in $S/after3.
+- Map icon item dropped (#629 approved Map glyph). Heart/Hammer/Check/Warning use approved drawings. 8 new glyphs (Basket, Grave, Flag, Mouse, Road, Bridge, Thought, Bulb) shown as item 18.
+- Main fixed #607; family item reframed; PositionFamilyTreePanel extended (fits tree, beside Profile).
+- Fixed: Event Log/Agents list caps (FitHudLists + next-frame refit), Controls keycaps rebuild on theme change.
+- Published review page: https://claude.ai/artifact/8Q2oZDiiQrrwxEYrm1avq2 (source $S/page/index.html via build.py)
+- NEXT: #680 save-branch timeline mockups (blocked by #679 for function; mockup first).

@@ -7,50 +7,49 @@ from PIL import Image
 IMG = 'img'
 
 ITEMS = [
-    dict(n=1, name='World Map button', shots=[('mapicon', None)], changes=[
-        'The top-left button shows a folded map instead of an envelope. The envelope looked like a messages button.',
-    ]),
-    dict(n=2, name='Ground label under the pointer', shots=[('hover', None)], changes=[
+    dict(n=1, name='Ground label under the pointer', shots=[('hover', None)], changes=[
         'A small swatch of the ground sits beside its name, cut from the same tile art as the map.',
     ]),
-    dict(n=3, name='Selected tile card', shots=[('tile', 'Open meadow'), ('tiletree', 'Forest tile with a tree')], changes=[
+    dict(n=2, name='Selected tile card', shots=[('tile', 'Open meadow'), ('tiletree', 'Forest tile with a tree')], changes=[
         'The heading is the ground itself (Meadow, Forest) with a swatch of that tile, instead of “Selected tile”.',
         'Tile position and climate move to one dim line under the heading.',
         'Facts become short labelled rows: Ground, Plants, Height, Weather. Height says Low, Middle or High as well as the number.',
         'Anything on the tile gets its own Here list with its sprite and whether it can be gathered.',
     ]),
-    dict(n=4, name='World Map panel', shots=[('worldmap', None)], changes=[
+    dict(n=3, name='World Map panel', shots=[('worldmap', None)], changes=[
         'Parchment around the map instead of a black box, so it matches the other panels.',
         'Towns show as a small House mark and agents as dots.',
         'A legend underneath: Town, Agent, Your view.',
     ]),
-    dict(n=5, name='Map filters and every on/off switch', shots=[('filters', None)], changes=[
+    dict(n=4, name='Map filters and every on/off switch', shots=[('filters', None)], changes=[
         'Each filter has a small picture of what it draws and one line saying what it does. The long note at the bottom goes.',
         'The switch is redrawn as a sunken track with a raised knob. Every switch in the game uses it, so the Settings switches change too.',
     ]),
-    dict(n=6, name='Agents list', shots=[('agents', None)], changes=[
+    dict(n=5, name='Agents list', shots=[('agents', None)], changes=[
         'One row per agent: their map sprite as a portrait, their name, and what they are doing in sentence case.',
         'Tags on the right show who needs attention: Hungry, Cold, Ill.',
         'The header counts the hungry as well as the living.',
         'Click a row to select the agent; double-click or press Enter to open their Profile.',
+        'The list grows with the agents and scrolls only when it would reach the bottom of the screen.',
     ]),
-    dict(n=7, name='Event Log', shots=[('events', None)], changes=[
+    dict(n=6, name='Event Log', shots=[('events', None)], changes=[
         'Each event has an icon for its kind: a death, food, weather, building, family or the Town.',
         'Each day gets a heading with a rule, so days are easy to tell apart.',
         'Events with a place get a Find button on the right instead of underlined green text.',
         'Events that arrived since you last opened the log keep a small dot (none in this shot).',
+        'The log stops above the bottom of the screen and scrolls. Today’s log is shorter than it needs to be.',
     ]),
-    dict(n=8, name='Controls list', shots=[('controls', None)], changes=[
+    dict(n=7, name='Controls list', shots=[('controls', None)], changes=[
         'Keys are drawn as keycaps; mouse actions get a mouse icon.',
         'Grouped into Map, Time and agents, Mouse and Panels, in two columns.',
         'About half the height, so it no longer covers the clock in the top bar.',
     ]),
-    dict(n=9, name='World Info: World page', shots=[('world', None)], changes=[
+    dict(n=8, name='World Info: World page', shots=[('world', None)], changes=[
         'A Today card at the top: date and time, the season with its icon, the weather where you are looking, and the year length.',
         'The counts become eight tiles with icons: living agents, Towns, households, buildings, road tiles, bridges, resource sites, map size.',
         'The F1 hint uses a keycap.',
     ]),
-    dict(n=10, name='World Info: Towns page', shots=[('towns', None)], changes=[
+    dict(n=9, name='World Info: Towns page', shots=[('towns', None)], changes=[
         'Residents’ portraits under the Town name.',
         'Household stores as item slots with counts, like the building Details panel, instead of a line of text.',
         'Projects get the worker’s portrait, a progress bar with a percentage, and the blocker in red.',
@@ -58,7 +57,7 @@ ITEMS = [
         'The “Playing · date · season · weather” line goes, since the top bar and World page already show it.',
         'Stores and projects scroll inside the panel once it would reach the bottom of the screen.',
     ]),
-    dict(n=11, name='Memories and maps', shots=[('memories', None)], changes=[
+    dict(n=10, name='Memories and maps', shots=[('memories', None)], changes=[
         'Tabs for All, Memories, Beliefs and Maps, each with a count.',
         'Each entry is a card with an icon for its kind: the text first, then the date and where it came from on one dim line.',
         'How sure the agent is shows as a small five-step meter instead of a percentage.',
@@ -66,47 +65,61 @@ ITEMS = [
         'Map entries show each place with a ground swatch and icons of what is there.',
         'Private memories get a Private tag.',
     ]),
-    dict(n=12, name='Family tree', fix='Fixes #607', shots=[('family', None)], changes=[
-        'Today the panel is blank. The tree is built, but its scroll area comes out zero pixels tall, so nothing shows. I filed this as <a href="https://github.com/compoodment/ClankerWorld/issues/607">#607</a>.',
+    dict(n=11, name='Family tree', shots=[('family', None)], changes=[
+        'Main fixed the blank panel this week (#607), so the left picture now shows the tree. This keeps that fix and changes the look.',
         'Smaller name boxes with the agent’s portrait. “Living” is dropped; only the dead get “· died”.',
-        'A heart marks a partnership. The legend uses the real line colours.',
-        'The panel fits the tree instead of filling the screen, and opens beside the Profile.',
-        'If you say no to the new look, I will still fix #607 on its own.',
+        'A heart marks a partnership. The legend shows the real line and heart instead of “Green: parent–child · Pink: partnership”.',
+        'The panel fits the tree instead of spanning the screen, and opens beside the Profile so you can see both.',
+        'Long or wide trees still scroll inside the panel, using main’s new sizing.',
     ]),
-    dict(n=13, name='Profile details', shots=[('profile', None)], changes=[
+    dict(n=12, name='Profile details', shots=[('profile', None)], changes=[
         '“Chosen by OpenAI” joins the Model line instead of taking its own line.',
         'The thoughts preview shows the newest thought on two lines, with no scrollbar.',
         'People become rows with icons: a heart for a partner, Parent of or Child of, Lives with, and Trusts with a small meter.',
         'Suggest and Order sit in one joined switch.',
     ]),
-    dict(n=14, name='Agent model settings', fix='Fixes overflow', shots=[('model', None)], changes=[
+    dict(n=13, name='Agent model settings', fix='Fixes overflow', shots=[('model', None)], changes=[
         'Today the box is wider than the Profile and gets a sideways scrollbar (bottom of the left picture).',
         'Each drop-down gets a caption: Who decides, API key, Model.',
         'Long choices are cut short with “…” instead of widening the box, and the buttons wrap.',
         'On an agent’s page, Refresh and the world-wide Routine and Planning line are hidden. They stay in the world settings.',
         '“Named key saved on host” becomes “This key is saved on the host.” and “Delete named key” becomes “Delete this key”.',
     ]),
-    dict(n=15, name='Add an agent', shots=[('addagent', None)], changes=[
+    dict(n=14, name='Add an agent', shots=[('addagent', None)], changes=[
         'Captions on the fields: Who decides, API key, Model.',
         'The four-line hint becomes one short line under a divider, with a mouse icon: “Then click on land to place them. Point first to see which household and Town they would join.”',
         'While you point at land it says: “Click to place them here. They would join Reed household in Riverbend.” (not in this shot).',
         'The overlap rules leave the hint. You still get them when you point at a tile where property or borders overlap, with the reason.',
     ]),
-    dict(n=16, name='Mod Library', shots=[('mods', None)], changes=[
+    dict(n=15, name='Mod Library', shots=[('mods', None)], changes=[
         'Each mod is a card: a box icon, its name as a heading, who proposed it with their portrait, the version, and a status tag (In use, Proposed).',
         'The internal package name, such as riverbend.pottery, is no longer shown.',
         'A shorter introduction in plain words.',
     ]),
-    dict(n=17, name='Confirmation dialogs', fix='Fixes clipped ×', shots=[('delete', 'Delete a world'), ('quit', 'Quit to Main Menu')], changes=[
+    dict(n=16, name='Confirmation dialogs', fix='Fixes clipped ×', shots=[('delete', 'Delete a world'), ('quit', 'Quit to Main Menu')], changes=[
         'The message is centred under the centred title.',
         'Cancel and the action button sit closer together.',
         'The close button is a framed button inside the frame, level with the title. Today it is a bare × cut off by the frame edge.',
         'World names use straight quotes. The pixel font draws curly quotes full width, which left the gaps around ‘Riverbend’.',
     ]),
-    dict(n=18, name='Status messages', shots=[('toast', 'Good news'), ('toastbad', 'A problem')], changes=[
+    dict(n=17, name='Status messages', shots=[('toast', 'Good news'), ('toastbad', 'A problem')], changes=[
         'A green tick for good news and an amber warning sign for problems.',
         'The text is plain ink instead of green or red, so it reads clearly in both themes.',
         'The box fits the message instead of stretching wide.',
+    ]),
+    dict(n=18, name='New small icons', glyphs=[
+        ('basket', 'Basket', 'Food in the Event Log: gathered or eaten'),
+        ('grave', 'Grave', 'A death in the Event Log'),
+        ('flag', 'Flag', 'Towns: the World page count and “Town founded” events'),
+        ('mouse', 'Mouse', 'Mouse actions in Controls, and placing an agent'),
+        ('road', 'Road', 'Road tiles on the World page'),
+        ('bridge', 'Bridge', 'Bridges on the World page'),
+        ('thought', 'Thought', 'A memory in Memories and maps'),
+        ('bulb', 'Bulb', 'A belief in Memories and maps'),
+    ], changes=[
+        'Eight icons the panels above need that the game does not have yet. Each follows the style guide: a 12 × 12 grid with nothing in the outer pixel, ink outline and a coloured accent.',
+        'Shown here in ink and green, at real size and enlarged. In the game each takes its panel’s accent, as in the Event Log picture.',
+        'Heart, Hammer, Check and Warning also appear above. They use your approved October 1 drawings from #629, so they are not up for review here.',
     ]),
     dict(n=19, name='Developer tools', fix='Mock-up', shots=[('devtools', None)], changes=[
         'Today: a Settings page of technical controls (aging override, retry recovery).',
@@ -142,10 +155,21 @@ def pair(item, key, caption):
     return f'<div class="pair-wrap">{head}<div class="pair {layout}">{shot_button(item, key, "b")}{shot_button(item, key, "a")}</div></div>'
 
 
+def glyph_grid(item):
+    cards = []
+    for key, name, use in item['glyphs']:
+        imgs = ''.join(
+            f'<span class="glyph-pics shot-{t}"><img class="glyph-big" src="{data_uri(f"{IMG}/glyph-{key}-{t}-big.png")}" width="72" height="72" alt="{name} icon enlarged">'
+            f'<img class="glyph-real" src="{data_uri(f"{IMG}/glyph-{key}-{t}-real.png")}" width="24" height="24" alt="{name} icon at real size"></span>'
+            for t in 'ld')
+        cards.append(f'<div class="glyph">{imgs}<p class="glyph-name">{html.escape(name)}</p><p class="glyph-use">{html.escape(use)}</p></div>')
+    return f'<div class="glyph-grid">{"".join(cards)}</div>'
+
+
 def item_html(item):
     fix = f'<span class="flag">{html.escape(item["fix"])}</span>' if item.get('fix') else ''
     changes = ''.join(f'<li>{c}</li>' for c in item['changes'])
-    pairs = ''.join(pair(item, key, caption) for key, caption in item['shots'])
+    pairs = glyph_grid(item) if 'glyphs' in item else ''.join(pair(item, key, caption) for key, caption in item['shots'])
     n = item['n']
     choices = ''.join(
         f'<label class="choice {cls}"><input type="radio" name="d{n}" id="d{n}-{cls}" value="{cls}"><span>{text}</span></label>'
