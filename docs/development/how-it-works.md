@@ -396,7 +396,11 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand follow the dry climate; cacti additionally need hot desert
-   sand, never dry scrub, ordinary beaches, water or rock.
+   sand, never dry scrub, ordinary beaches, water or rock. The client draws
+   cactus cover as desert brush and puts a cactus sprite on about one cover
+   tile in five, chosen from the tile's position, skipping Roads, bridges,
+   doorsteps, fields and buildings (`WorldTerrainLayer.CactusAt`). The cacti
+   are decoration only; the server does not track them.
 4. **Object placement.** The starter berry patch, tree and grain seed patch must
    stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
@@ -421,11 +425,14 @@ neighbours and wrap east/west only on a wrapped map. Hills are a visual layer
 only: nothing is saved for them, they keep their own surface, and they cost the
 same to walk and build on as grass. `TerrainPlacementRules.ClassifyHills`
 (used by `SeededMap.IsHillAt`) and the Godot client's `UI/Map/HillBand.cs`
-apply the same rule to the saved elevation and water layers;
-`MountainMassifTests` checks that they mark exactly the same tiles on generated
-maps. The client draws a relief overlay on hill tiles, warms their overview
-color and shows "Landform: Hills" in tile inspection. Hill travel cost and
-passability are not decided.
+(used by `WorldTerrainMap.IsHillAt`) apply the same rule to the saved elevation
+and water layers; `MountainMassifTests` checks that they mark exactly the same
+tiles on generated maps. The client draws mountains, peaks and hills as one
+relief layer from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders
+16×16-tile chunks on worker threads, caches one texture per chunk and atlas
+size, and shows the per-tile mountain and hill art for a chunk until its relief
+is ready. It also warms hills' overview color and shows "Landform: Hills" in
+tile inspection. Hill travel cost and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
@@ -940,8 +947,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   [saves and replay](saves-and-replay.md#current-formats-and-older-worlds).
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
-  status. The map reads its sprites and stage names from it. Every entry is a
-  provisional code-drawn placeholder; the tree-seed item has no art yet.
+  status. The map reads its sprites and stage names from it. Broadleaf and
+  conifer mature, sapling and stump sprites and the three orchard stages are
+  approved art from the October 1 review; the tree-seed item has no art yet. The
+  [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
 
