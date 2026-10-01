@@ -187,10 +187,9 @@ public sealed partial class PrivateWorldRuntime
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
         if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
-        // Existing household supplies remain usable; new supplies stay personally
-        // carried until a household has a physical House to receive them.
-        return HouseForHousehold(household) is not null || HasAvailableQuantities(definition.BuildCosts, household)
-            ? household : actor;
+        // Before its first House, the household stages delivered construction
+        // materials at the camp. No one must carry the whole building cost.
+        return household;
     }
 
     private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
