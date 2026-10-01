@@ -392,6 +392,7 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            worldSelectionList.Placeholder != "Checking saved worlds…" ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
@@ -402,8 +403,15 @@ public partial class Main
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        // Each world is a card, current world first; the arrow keys move between them.
+        if (worldSelectionList.GetItemTitle(0) != "World 0" || worldSelectionList.GetItemTitle(6) != "World 6")
+            throw new InvalidOperationException("World cards must show each world's name, the current world first.");
+        worldSelectionList.Select(0);
+        worldSelectionList._GuiInput(new InputEventAction { Action = "ui_down", Pressed = true });
+        if (worldSelectionList.GetSelectedItems() is not [1])
+            throw new InvalidOperationException("The down arrow must choose the next world card.");
         worldSelectionList.Select(6);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
         worldMenuOverlay.Hide();
@@ -493,7 +501,7 @@ public partial class Main
                     !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
                     throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
                 worldAdvancedToggle.ButtonPressed = true;
-                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);

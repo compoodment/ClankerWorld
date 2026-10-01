@@ -80,7 +80,7 @@ public partial class Main
                 var deleting = DeleteConfirmedAsync();
                 await host.DeleteReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 ChooseWorldActionSmokeRow(2);
-                worldSelectionList.EmitSignal(ItemList.SignalName.ItemActivated, 2L);
+                worldSelectionList.EmitSignal(SlotList.SignalName.ItemActivated, 2L);
                 worldSelectButton.EmitSignal(BaseButton.SignalName.Pressed);
                 await SelectListedWorldAsync();
                 if (!worldSelectButton.Disabled || !worldDeleteButton.Disabled || host.PauseCount != 0)
@@ -130,7 +130,7 @@ public partial class Main
     private void ChooseWorldActionSmokeRow(int row)
     {
         worldSelectionList.Select(row);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, (long)row);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, (long)row);
     }
 
     private static WorldCatalogSnapshot WorldActionSmokeCatalog(string[] ids) => new("A", ids.Select((id, index) =>
