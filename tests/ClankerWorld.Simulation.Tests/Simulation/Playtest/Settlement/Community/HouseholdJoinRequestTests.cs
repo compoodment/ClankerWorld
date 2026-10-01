@@ -11,7 +11,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 /// <summary>
 /// An adult with no home asks a household that holds a House before any
-/// construction is considered (#464). Every adult member must agree; nothing
+/// private construction is considered (#464). Every adult member must agree; nothing
 /// is granted by standing nearby or while the request is pending.
 /// </summary>
 public sealed class HouseholdJoinRequestTests
@@ -142,7 +142,14 @@ public sealed class HouseholdJoinRequestTests
         var offered = provider.Offered[agent];
         Assert.Contains("household_ask:" + Alpha, offered.Keys);
         Assert.Contains("household_ask:" + Beta, offered.Keys);
-        Assert.DoesNotContain(offered.Keys, id => id.StartsWith("build:", StringComparison.Ordinal));
+        // Recorded Town residents may still build shared civic buildings with
+        // communal materials. Pending housing grants no private building or recipe.
+        Assert.All(offered.Keys.Where(id => id.StartsWith("build:", StringComparison.Ordinal)), id =>
+        {
+            Assert.True(TownConstructionCandidateIds.TryParse(id, out var selection));
+            var definition = Assert.Single(world.WorldContent.Buildings, building => building.CanonicalId == selection.DefinitionId);
+            Assert.Contains("communal", definition.Tags);
+        });
         Assert.All(offered.Values, description => Assert.Null(RetiredWording.Find(description)));
         Assert.Contains("no household", provider.HousingNotes[agent], StringComparison.Ordinal);
         Assert.Contains(world.ExportState().Events, item => item.Kind == "housing_blocked" && item.Detail == $"{agent}:no_household");
