@@ -34,6 +34,8 @@ public enum DirectBarterState
 /// Immutable inventory identity. A split retains the source lot as provenance;
 /// quantities, condition and freshness are never fabricated by a transfer.
 /// </summary>
+public readonly record struct InventoryGroundPosition(int X, int Y);
+
 public sealed record InventoryLot(
     string Id,
     string ItemKind,
@@ -45,7 +47,8 @@ public sealed record InventoryLot(
     string? ProvenanceLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StorageBuildingId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -187,7 +190,8 @@ public static partial class InventoryFixture
         int conditionBasisPoints = 10_000,
         int freshnessBasisPoints = 10_000,
         string? storageBuildingId = null,
-        string? containerLotId = null)
+        string? containerLotId = null,
+        InventoryGroundPosition? groundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
@@ -216,7 +220,9 @@ public static partial class InventoryFixture
             freshnessBasisPoints,
             nextTick,
             StorageBuildingId: storageBuildingId,
-            ContainerLotId: containerLotId);
+            ContainerLotId: containerLotId,
+            GroundPosition: groundPosition);
+        ValidateLots([lot]);
         var lots = checkpoint.Lots
             .Append(lot)
             .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
@@ -383,7 +389,8 @@ public static partial class InventoryFixture
         int quantity,
         string purpose,
         string? destinationStorageBuildingId = null,
-        string? destinationDeliveryBuildingId = null)
+        string? destinationDeliveryBuildingId = null,
+        InventoryGroundPosition? destinationGroundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(transferId);
@@ -414,6 +421,7 @@ public static partial class InventoryFixture
                     OwnerId = recipientId,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
                 })
                 .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
             return Commit(
@@ -430,6 +438,7 @@ public static partial class InventoryFixture
                         OwnerId = recipientId,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
+                        GroundPosition = destinationGroundPosition,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -445,6 +454,7 @@ public static partial class InventoryFixture
                     ProvenanceLotId = source.Id,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = destinationGroundPosition,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
@@ -486,7 +496,7 @@ public static partial class InventoryFixture
         if (quantity == source.Quantity)
         {
             lots = checkpoint.Lots.Select(lot => lot.Id == source.Id
-                    ? lot with { ContainerLotId = container.Id }
+                    ? lot with { ContainerLotId = container.Id, GroundPosition = null }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         }
@@ -504,6 +514,7 @@ public static partial class InventoryFixture
                     Quantity = quantity,
                     ProvenanceLotId = source.Id,
                     ContainerLotId = container.Id,
+                    GroundPosition = null,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         }
@@ -552,6 +563,7 @@ public static partial class InventoryFixture
                         ContainerLotId = null,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
+                        GroundPosition = null,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
@@ -573,6 +585,7 @@ public static partial class InventoryFixture
                     ContainerLotId = null,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = null,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         }
@@ -897,7 +910,10 @@ public static partial class InventoryFixture
         if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.Quantity != 1 ||
             container.ContainerLotId is not null || container.OwnerId != ownerId || content.OwnerId != ownerId ||
             container.StorageBuildingId != content.StorageBuildingId ||
-            container.DeliveryBuildingId != content.DeliveryBuildingId)
+            container.DeliveryBuildingId != content.DeliveryBuildingId ||
+            (content.ContainerLotId == container.Id
+                ? content.GroundPosition is not null
+                : container.GroundPosition != content.GroundPosition))
             throw new InvalidOperationException("The vessel and contents must share an owner and physical location.");
     }
 
@@ -923,7 +939,7 @@ public static partial class InventoryFixture
                 !InventoryContainerRules.IsContainer(container.ItemKind) || container.ContainerLotId is not null ||
                 !InventoryContainerRules.Allows(container.ItemKind, lot.ItemKind) ||
                 container.OwnerId != lot.OwnerId || container.StorageBuildingId != lot.StorageBuildingId ||
-                container.DeliveryBuildingId != lot.DeliveryBuildingId)
+                container.DeliveryBuildingId != lot.DeliveryBuildingId || lot.GroundPosition is not null)
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid container relationship.");
         }
 
@@ -957,6 +973,9 @@ public static partial class InventoryFixture
             {
                 throw new ArgumentOutOfRangeException(nameof(lots));
             }
+            if (lot.GroundPosition is { } ground &&
+                (ground.X < 0 || ground.Y < 0 || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
         }
     }
 

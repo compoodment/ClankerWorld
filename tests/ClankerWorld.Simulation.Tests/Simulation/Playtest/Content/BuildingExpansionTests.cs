@@ -11,6 +11,56 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class BuildingExpansionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HouseExpansionCannotReserveHouseholdFields(bool foreignFields)
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var state = seed.ExportState();
+        var fertility = new LandFertility(state.Map, state.WorldSeed);
+        var occupied = state.WorldSimulation!.Buildings.Where(building => building.InstanceId != house.InstanceId)
+            .SelectMany(building => WorldContentSimulationRules.Footprint(state.WorldContent!.Buildings.Single(
+                definition => definition.CanonicalId == building.DefinitionId), building))
+            .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(state.RoadTiles!)
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var site = state.Map.Tiles.Select(tile => tile.Position).First(point =>
+            Enumerable.Range(-1, 3).SelectMany(dy => Enumerable.Range(-1, 3).Select(dx => new GridPoint(point.X + dx, point.Y + dy)))
+                .All(tile => fertility.CanFarm(tile) && !occupied.Contains(tile) &&
+                    !state.Inhabitants.Any(person => person.InhabitantId != actor && person.Position == tile)));
+        var relocated = house with { Position = site, Entrance = null };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = site } : person).ToArray(),
+            WorldSimulation = state.WorldSimulation with
+            {
+                Buildings = state.WorldSimulation.Buildings.Select(building => building.InstanceId == house.InstanceId ? relocated : building).ToArray(),
+            },
+            Towns = state.Towns!.Select(town => town.Id == house.TownId ? town with
+            {
+                BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, 2, 2),
+            } : town).ToArray(),
+        };
+        using var clear = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        Assert.True(clear.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        var owner = foreignFields ? state.Society.Society.Households.First(item => item.Id != house.HouseholdId).Id : house.HouseholdId!;
+        state = state with
+        {
+            Fields = new[] { new GridPoint(site.X, site.Y - 1), new(site.X - 1, site.Y),
+                new(site.X + 1, site.Y), new(site.X, site.Y + 1) }
+                .OrderBy(point => point.Y).ThenBy(point => point.X)
+                .Select(point => new FarmFieldState(point, owner, FarmFieldStage.Prepared)).ToArray(),
+        };
+        using var blocked = ReloadState(state);
+        var before = PrivateWorldRuntimeCodec.Encode(blocked.ExportState());
+        Assert.False(blocked.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        Assert.Empty(blocked.WorldSimulation.BuildingExpansions ?? []);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(blocked.ExportState()));
+        using var restored = Reload(blocked);
+        Assert.Equal(state.Fields, restored.Fields);
+        Assert.False(restored.StartBuildingExpansion(actor, house.InstanceId).Applied);
+    }
+
     [Fact]
     public async Task AHouseCanGrowAgainToTwoByTwoWithoutCreatingAnotherHouse()
     {
@@ -435,6 +485,9 @@ public sealed class BuildingExpansionTests
 
     private static PrivateWorldRuntime Reload(PrivateWorldRuntime world) => PrivateWorldRuntime.Restore(
         PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new IdleProvider());
+
+    private static PrivateWorldRuntime ReloadState(PrivateWorldRuntimeState state) => PrivateWorldRuntime.Restore(
+        PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
 
     private sealed class IdleProvider(string preferred = "safe_idle") : IDecisionProvider
     {

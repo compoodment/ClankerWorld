@@ -5,6 +5,30 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class InventoryFixtureTests
 {
+    [Fact]
+    public void PickingUpPartOfAFieldHarvestKeepsTheRemainderAtTheFieldAcrossReload()
+    {
+        var harvest = InventoryFixture.CreateGenesis([new("field-harvest", "grain", "farm-household", 6,
+            10_000, 10_000, 0, GroundPosition: new(4, 5))]);
+        var before = InventoryCheckpointCodec.Encode(harvest);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Transfer(harvest, "theft", "outsider",
+            "carrier", "field-harvest", 2, "pickup"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(harvest));
+        var pickedUp = InventoryFixture.Transfer(harvest, "pickup", "farm-household", "carrier",
+            "field-harvest", 2, "pickup", destinationDeliveryBuildingId: "farmhouse");
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(pickedUp));
+        var remainder = restored.GetLot("field-harvest");
+        Assert.Equal(4, remainder.Quantity);
+        Assert.Equal(new InventoryGroundPosition(4, 5), remainder.GroundPosition);
+        var carried = Assert.Single(restored.Lots, lot => lot.OwnerId == "carrier");
+        Assert.Equal(2, carried.Quantity);
+        Assert.Null(carried.GroundPosition);
+        Assert.Equal("farmhouse", carried.DeliveryBuildingId);
+        Assert.Equal("field-harvest", carried.ProvenanceLotId);
+        Assert.Throws<InvalidDataException>(() => InventoryFixture.AddLot(restored, "conflicting-position", "grain",
+            "farm-household", 1, storageBuildingId: "silo", groundPosition: new(4, 5)));
+    }
+
     [Theory]
     [InlineData("alpha")]
     public void EitherPartyCanDeclineWithoutTransferringOrRetainingReservations(string party)

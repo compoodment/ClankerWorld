@@ -29,7 +29,11 @@ public sealed partial class PrivateWorldRuntime
         var otherInbound = inventory.Lots.Where(lot => lot.DeliveryBuildingId == buildingId &&
                 !familyIds.Contains(lot.Id))
             .Sum(lot => lot.Quantity);
-        return Math.Max(0, StorageRoom(buildingId) - otherInbound);
+        var room = Math.Max(0, StorageRoom(buildingId) - otherInbound);
+        if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == buildingId) is { } building &&
+            IsFarmStorage(building))
+            room = Math.Min(room, Math.Max(0, FarmStorageFree(buildingId, includeDeliveries: false) - otherInbound));
+        return room;
     }
 
     private static int HouseDeliveryPhysicalQuantity(InventoryCheckpoint inventory, InventoryLot carried) =>
@@ -49,6 +53,9 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var inbound = InboundDeliveryQuantity(inventory, destinationId);
         var room = Math.Max(0, StorageRoom(destinationId) - inbound);
+        if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId) is { } building &&
+            IsFarmStorage(building))
+            room = Math.Min(room, FarmStorageFree(destinationId));
         var capacity = Math.Min(HouseHaulLoadQuantity, Math.Min(FreeCarryCapacity(actor), room));
         if (capacity == 0)
             return 0;
@@ -60,10 +67,11 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? UnlocatedHouseholdStock(string householdId) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ContainerLotId is null && lot.StorageBuildingId is null &&
+                lot.DeliveryBuildingId is null &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
                     ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)
                     : AvailableLotQuantity(lot) > 0) &&
-                (lot.ItemKind != "grain" || FarmhouseForHousehold(householdId) is null))
+                (!FarmFieldRules.IsFarmStock(lot.ItemKind) || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -83,11 +91,11 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0)
             return;
-        var camp = SettlementStoragePosition;
         if (UnlocatedHouseholdStock(householdId) is { } stock &&
             HouseHaulPickupQuantity(actor, stock, house.InstanceId) > 0 &&
-            FindUnoccupiedRoute(actor, state.Position, camp, ResourceInteractionRange).Count > 0 &&
-            FindUnoccupiedRoute(actor, camp, house.Position, 0).Count > 0)
+            (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
+             FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
+            FindUnoccupiedRoute(actor, HouseholdStockPosition(stock), house.Position, 0).Count > 0)
             candidates.Add(new("haul_household_stock",
                 "Carry a load of household supplies to the household's House.", 28, house.InstanceId));
         if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
@@ -152,10 +160,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         if (UnlocatedHouseholdStock(householdId) is not { } stock)
             return;
-        var camp = SettlementStoragePosition;
-        if (!IsWithinInteractionRange(state.Position, camp, ResourceInteractionRange))
+        var source = HouseholdStockPosition(stock);
+        var range = HouseholdStockInteractionRange(stock);
+        if (!IsWithinInteractionRange(state.Position, source, range))
         {
-            MoveToward(actor, state, camp, "household_stock", ResourceInteractionRange);
+            MoveToward(actor, state, source, "household_stock", range);
             return;
         }
         var quantity = HouseHaulPickupQuantity(actor, stock, houseForPickup.InstanceId);

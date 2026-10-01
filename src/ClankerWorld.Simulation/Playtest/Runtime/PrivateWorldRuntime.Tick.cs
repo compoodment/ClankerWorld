@@ -240,6 +240,8 @@ public sealed partial class PrivateWorldRuntime
         (society, proposed.society) = (proposed.society, society);
         worldSeed = proposed.worldSeed;
         map = proposed.map;
+        fertility = proposed.fertility;
+        fields = proposed.fields;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -346,7 +348,6 @@ public sealed partial class PrivateWorldRuntime
             StageBlacksmithContent();
             StageHouseCookingContent();
             StagePotteryContent();
-            StageForestryContent();
             StageSiloContent();
             StageTailorContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -419,7 +420,7 @@ public sealed partial class PrivateWorldRuntime
             CancelUnavailableWorkers();
             ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
-            ProcessCropBuilds(targetTick);
+            MaintainFarmFields();
 
             WearEquippedClothing();
             AdvanceSettlementSurvival();

@@ -54,6 +54,30 @@ public sealed class InventoryContainerTests
     }
 
     [Fact]
+    public void GroundContainerTransfersKeepOneSharedPhysicalLocationForTheFamily()
+    {
+        var ground = new InventoryGroundPosition(8, 12);
+        var inventory = InventoryFixture.CreateGenesis(
+        [
+            new InventoryLot("pot", InventoryContainerRules.StoragePot, "alpha", 1, 10_000, 10_000, 0,
+                GroundPosition: ground),
+            new InventoryLot("berries", "berries", "alpha", 2, 10_000, 10_000, 0,
+                GroundPosition: ground),
+        ]);
+        inventory = InventoryFixture.PutIntoContainer(inventory, "put", "alpha", "pot", "berries", 1);
+
+        Assert.Null(inventory.GetLot("berries").GroundPosition);
+        var carried = InventoryFixture.Transfer(inventory, "carry", "alpha", "bravo", "pot", 1, "pickup");
+        Assert.Null(carried.GetLot("pot").GroundPosition);
+        Assert.Null(carried.GetLot("berries").GroundPosition);
+
+        var dropped = InventoryFixture.Transfer(carried, "drop", "bravo", "alpha", "pot", 1, "drop",
+            destinationGroundPosition: ground);
+        Assert.Equal(ground, dropped.GetLot("pot").GroundPosition);
+        Assert.Null(dropped.GetLot("berries").GroundPosition);
+    }
+
+    [Fact]
     public void ReservedJugContentsBlockVesselMovementAndCanBeConsumedWithoutLosingTheJug()
     {
         var inventory = InventoryFixture.CreateGenesis(

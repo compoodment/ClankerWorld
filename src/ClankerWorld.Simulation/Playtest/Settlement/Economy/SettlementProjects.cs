@@ -120,8 +120,8 @@ public sealed partial class PrivateWorldRuntime
             staged.Any(resource =>
             {
                 if (resource.Id != "settlement-" + resource.Kind ||
-                    resource.Kind is not ("stone" or "fiber" or "seed" or "clay") ||
-                    resource.IsRenewable != (resource.Kind is "fiber" or "seed"))
+                    resource.Kind is not ("stone" or "fiber" or "grain_seed" or "clay") ||
+                    resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed"))
                     return true;
                 return resource.Kind == "clay"
                     ? !IsReachableClayBank(baseline, resource.Position)
@@ -162,21 +162,6 @@ public sealed partial class PrivateWorldRuntime
         contentRegistry.Approve(manifest.PackageId, WorldTick);
         contentRegistry.Stage(manifest.PackageId, WorldTick);
         AppendEvent("settlement_content_staged", manifest.PackageId);
-    }
-
-    private void StageForestryContent()
-    {
-        var packages = contentRegistry.ExportState().Packages;
-        if (packages.Any(package => package.Manifest.PackageId == ForestryContent.PackageId) ||
-            !packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
-            return;
-        var manifest = ForestryContent.Create();
-        var resolution = ContentPackageResolver.Resolve(packages.Select(package => package.Manifest).Append(manifest), [manifest.PackageId]);
-        contentRegistry.Propose(manifest, WorldTick);
-        contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
-        contentRegistry.Approve(manifest.PackageId, WorldTick);
-        contentRegistry.Stage(manifest.PackageId, WorldTick);
-        AppendEvent("forestry_content_staged", manifest.PackageId);
     }
 
     private void StageHouseContent()
@@ -299,6 +284,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddSettlementResources()
     {
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
@@ -322,7 +308,7 @@ public sealed partial class PrivateWorldRuntime
                 occupied.Add(bank.Value);
             }
         }
-        foreach (var kind in new[] { "stone", "fiber", "seed" })
+        foreach (var kind in new[] { "stone", "fiber", "grain_seed" })
         {
             var id = "settlement-" + kind;
             if (map.Resources.Any(resource => resource.Id == id))
@@ -340,7 +326,7 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("settlement_resource_blocked", kind);
                 continue;
             }
-            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "seed"));
+            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "grain_seed"));
             occupied.Add(tile.Position);
         }
         if (additions.Count == 0)
