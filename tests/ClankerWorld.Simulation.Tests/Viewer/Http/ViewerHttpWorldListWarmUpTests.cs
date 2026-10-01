@@ -54,7 +54,7 @@ public sealed partial class ViewerHttpTests
     }
 
     [Fact]
-    public void WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
+    public async Task WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
     {
         var directory = Directory.CreateTempSubdirectory("world-list-warmup-gate-");
         try
@@ -91,7 +91,7 @@ public sealed partial class ViewerHttpTests
                 probes++;
                 Thread.Sleep(20);
             }
-            warmUp.GetAwaiter().GetResult();
+            await warmUp;
 
             Assert.True(probes > 1);
             Assert.Contains(log.Messages, message => message.Contains(
