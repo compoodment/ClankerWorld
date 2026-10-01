@@ -75,15 +75,16 @@ on the owner.
   issue, it gets `status:needs-pr` back next to `status:has-pr`. When the last
   such pull request closes, `status:has-pr` comes off; if none merged, the
   issue goes back to `status:needs-pr`, unless it has another status or is a
-  decision or owner task. `Refs` changes no labels. Quiet claims are
+  decision or owner task. `Refs` changes no issue labels. Quiet claims are
   [released automatically](#claim-an-issue).
 - **Automatic on pull requests:** a priority (the highest of the open issues it
   closes; if none has one, of the open issues it refers to; otherwise P2; P0 if
   it changes [how we work](#priorities)); one type, from the first ticked
   **Type of change** box, or `type:docs` when none is ticked and only
   documentation changes; at most two areas from the files it changes, set when
-  it opens and when it is marked ready, unless someone has changed its areas by
-  hand; and `status:needs-review` while it is ready. `status:needs-review`,
+  it opens, reopens, is marked ready or changes base, unless someone has
+  changed its areas by hand; and `status:needs-review` while it is ready. A
+  priority added by hand is never removed, and wins when it is higher. `status:needs-review`,
   `status:reviewing` and `status:merging` come off when it closes or goes back
   to draft. A pull request stacked on another's branch is judged by what it
   would change on main.
