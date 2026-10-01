@@ -22,6 +22,73 @@ public sealed class HouseholdJoinRequestTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
+    public async Task HousingAnswerSuspendsBothParticipantsOfAnOngoingLesson(bool memberIsTeacher)
+    {
+        var provider = new ScriptedProvider();
+        using var world = NormalPathWorld.CreateGenerated("housing-learning-pause", _ => provider);
+        var applicant = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(world.AddAgent(applicant, TownTileBeside(world, "first-town-house-a")));
+        provider.Choices[applicant] = "household_ask:" + Alpha;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request is not null);
+        provider.Choices[applicant] = "safe_idle";
+        world.Pause();
+        var state = world.ExportState();
+        var member = world.Society.GetHousehold(Alpha).MemberIds[0];
+        var other = world.Society.GetHousehold(Beta).MemberIds[0];
+        var teacher = memberIsTeacher ? member : other;
+        var learner = memberIsTeacher ? other : member;
+        var camp = world.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
+        const int progress = 3;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == teacher || person.InhabitantId == learner
+                ? person with
+                {
+                    Position = camp,
+                    HungerBasisPoints = 9_000,
+                    Project = null,
+                    LastDecisionContext = null,
+                    Skills = person.InhabitantId == teacher ? [new(SettlementSkillKind.Building, world.WorldTick)] : null,
+                    Lesson = person.InhabitantId == learner
+                        ? new(teacher, SettlementSkillKind.Building, "training", progress, world.WorldTick, world.WorldTick) : null,
+                } : person).ToArray(),
+        };
+        provider.Choices[teacher] = "lesson_teach:" + learner;
+        provider.Choices[learner] = "lesson_attend";
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Resume();
+        for (var tick = 0; tick < 5; tick++)
+        {
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(progress, restored.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress);
+        }
+        Assert.Empty(restored.Inhabitants.Single(person => person.InhabitantId == learner).Skills ?? []);
+        Assert.NotNull(Housing(restored, applicant)!.Request);
+        foreach (var adult in restored.Society.GetHousehold(Alpha).MemberIds)
+            provider.Choices[adult] = "household_admit:" + applicant;
+        restored.Pause();
+        var readyToAnswer = restored.ExportState();
+        readyToAnswer = readyToAnswer with
+        {
+            Inhabitants = readyToAnswer.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray(),
+        };
+        using var answered = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(readyToAnswer)), _ => provider);
+        answered.Resume();
+        await AdvanceUntil(answered, () => answered.Society.GetInhabitant(applicant).HouseholdId == Alpha);
+        await AdvanceUntil(answered, () => answered.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage == "completed");
+        var skill = Assert.Single(answered.Inhabitants.Single(person => person.InhabitantId == learner).Skills!);
+        Assert.Equal(SettlementSkillKind.Building, skill.Kind);
+        Assert.Equal(teacher, skill.TeacherId);
+        var shown = new OwnerWorldObservationStore(answered).GetSnapshot();
+        Assert.Equal(teacher, Assert.Single(shown.Inhabitants.Single(person => person.Id == learner).Skills).TeacherId);
+        Assert.DoesNotContain(shown.Inhabitants.Single(person => person.Id == applicant).DecisionFactors, factor => factor.Key == "housing");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
     public async Task AdultAddedToHouseholdMustAnswerAnAlreadyPendingRequest(bool agrees)
     {
         var provider = new ScriptedProvider();

@@ -18,6 +18,9 @@ public sealed class BuildingExpansionTests
         Assert.True(seed.StartBuildingExpansion(actor, original.InstanceId).Applied);
         for (var tick = 0; tick < 20; tick++) Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
         var state = seed.ExportState();
+        var firstWorker = state.Inhabitants.Single(person => person.InhabitantId == actor);
+        var firstSkill = Assert.Single(firstWorker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
+        Assert.Equal(1, firstWorker.Proficiency!.Building);
         var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == original.InstanceId);
         var stored = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
         state = state with
@@ -42,6 +45,9 @@ public sealed class BuildingExpansionTests
         Assert.Single(reloaded.WorldSimulation.Buildings, item => item.HouseholdId == house.HouseholdId && item.DefinitionId == house.DefinitionId);
         Assert.Equal(256, new OwnerWorldObservationStore(reloaded).GetSnapshot().PlacedBuildings.Single(item => item.InstanceId == house.InstanceId).StorageCapacity);
         Assert.All(reloaded.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId), lot => Assert.Equal(house.HouseholdId, lot.OwnerId));
+        var secondWorker = reloaded.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Equal(2, secondWorker.Proficiency!.Building);
+        Assert.Equal(firstSkill, Assert.Single(secondWorker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building));
         Assert.False(reloaded.StartBuildingExpansion(actor, house.InstanceId).Applied);
     }
 
@@ -156,12 +162,20 @@ public sealed class BuildingExpansionTests
         Assert.True(started.Applied, started.Failure);
         var initial = world.ExportState();
         var expansion = Assert.Single(initial.WorldSimulation!.BuildingExpansions!);
+        var initialWorker = initial.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Empty(initialWorker.Skills ?? []);
+        Assert.Equal(0, initialWorker.Proficiency?.Building ?? 0);
         var cookingJob = Assert.Single(initial.WorldSimulation.ProductionJobs);
         Assert.Equal(WorldProductionJobState.Running, cookingJob.State);
         Assert.All(expansion.InputReservationIds, id => Assert.Equal(InventoryReservationState.Reserved,
             initial.Society.Society.Inventory.GetReservation(id).State));
         using var restored = Reload(world);
-        for (var tick = 0; tick < 20; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        for (var tick = 0; tick < 19; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        var working = restored.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.DoesNotContain(working.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
+        Assert.Equal(0, working.Proficiency?.Building ?? 0);
+        Assert.Equal(WorldProductionJobState.Running, restored.WorldSimulation.BuildingExpansions!.Single().State);
+        Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
 
         var after = restored.WorldSimulation.Buildings.Single(item => item.InstanceId == building.InstanceId);
         Assert.Equal(building.DefinitionId, after.DefinitionId);
@@ -171,6 +185,11 @@ public sealed class BuildingExpansionTests
         Assert.Equal(2, after.Footprint.Width * after.Footprint.Height);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.ProductionJobs.Single(item => item.JobId == cooking.JobId).State);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.BuildingExpansions!.Single().State);
+        var worker = restored.Inhabitants.Single(person => person.InhabitantId == actor);
+        var learned = Assert.Single(worker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
+        Assert.Equal(expansion.CompletionTick, learned.LearnedTick);
+        Assert.Null(learned.TeacherId);
+        Assert.Equal(1, worker.Proficiency!.Building);
         Assert.All(expansion.InputReservationIds, id => Assert.Equal(InventoryReservationState.Completed,
             restored.Society.Inventory.GetReservation(id).State));
         Assert.Equal(initial.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity) - 5,
@@ -182,6 +201,9 @@ public sealed class BuildingExpansionTests
             Assert.Equal(lot.StorageBuildingId, actual.StorageBuildingId);
         });
         using var completed = Reload(restored);
+        var savedWorker = completed.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Equal(learned, Assert.Single(savedWorker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building));
+        Assert.Equal(worker.Proficiency, savedWorker.Proficiency);
         var visible = new OwnerWorldObservationStore(completed).GetSnapshot().PlacedBuildings.Single(item => item.InstanceId == building.InstanceId);
         Assert.Equal(128, visible.StorageCapacity);
         Assert.Equal(after.Footprint.Width, visible.Width);
@@ -195,6 +217,8 @@ public sealed class BuildingExpansionTests
         using var world = PreparedWorld("first-town-house-a", out var actor, out var building);
         Assert.True(world.StartBuildingExpansion(actor, building.InstanceId).Applied);
         var saved = world.ExportState();
+        var initialWorker = saved.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Empty(initialWorker.Skills ?? []);
         var job = saved.WorldSimulation!.BuildingExpansions!.Single();
         var extra = Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
                 Enumerable.Range(0, job.TargetFootprint.Width).Select(dx => new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)))
@@ -207,8 +231,14 @@ public sealed class BuildingExpansionTests
         Assert.Contains("Road", stale.WorldSimulation.BuildingExpansions!.Single().Failure);
         Assert.All(job.InputReservationIds, id => Assert.Equal(InventoryReservationState.Released, stale.Society.Inventory.GetReservation(id).State));
         Assert.Equal(saved.Society.Society.Inventory.Lots.Sum(lot => lot.Quantity), stale.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        var worker = stale.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Empty(worker.Skills ?? []);
+        Assert.Equal(initialWorker.Proficiency, worker.Proficiency);
         using var cancelled = Reload(stale);
         Assert.Equal(building, cancelled.WorldSimulation.Buildings.Single(item => item.InstanceId == building.InstanceId));
+        var savedWorker = cancelled.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Empty(savedWorker.Skills ?? []);
+        Assert.Equal(initialWorker.Proficiency, savedWorker.Proficiency);
     }
 
     [Fact]
@@ -217,10 +247,16 @@ public sealed class BuildingExpansionTests
         using var world = PreparedWorld("first-town-warehouse", out var actor, out var building);
         var started = world.StartBuildingExpansion(actor, building.InstanceId);
         Assert.True(started.Applied, started.Failure);
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == actor).Skills ?? []);
         using var reloaded = Reload(world);
         for (var tick = 0; tick < 20; tick++) Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(WorldProductionJobState.Completed, reloaded.WorldSimulation.BuildingExpansions!.Single().State);
         Assert.Null(reloaded.WorldSimulation.BuildingExpansions!.Single().Failure);
+        var worker = reloaded.Inhabitants.Single(person => person.InhabitantId == actor);
+        var learned = Assert.Single(worker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
+        Assert.Equal(reloaded.WorldSimulation.BuildingExpansions!.Single().CompletionTick, learned.LearnedTick);
+        Assert.Null(learned.TeacherId);
+        Assert.Equal(1, worker.Proficiency!.Building);
         var expanded = reloaded.WorldSimulation.Buildings.Single(item => item.InstanceId == building.InstanceId);
         Assert.Equal(6, expanded.Footprint!.Width * expanded.Footprint.Height);
         Assert.Equal(building.TownId, expanded.TownId);
@@ -232,6 +268,10 @@ public sealed class BuildingExpansionTests
             Assert.Equal(building.TownId, lot.OwnerId);
             Assert.False(lot.ItemKind is "food" or "grain" or "flour");
         });
+        using var completed = Reload(reloaded);
+        var savedWorker = completed.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Equal(learned, Assert.Single(savedWorker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building));
+        Assert.Equal(worker.Proficiency, savedWorker.Proficiency);
         var state = world.ExportState();
         var outsiderId = "agent:00000000000000000000000000000099";
         var placement = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&

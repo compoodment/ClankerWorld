@@ -84,6 +84,8 @@ public sealed class BlacksmithContentTests
         Assert.True(started.Applied, started.Failure);
         for (var tick = 0; tick < axeRecipe.DurationTicks; tick++)
             Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(delivering.Inhabitants.Single(person => person.InhabitantId == alpha).Skills!,
+            skill => skill.Kind == SettlementSkillKind.Smithing && skill.TeacherId is null);
         Assert.Contains(new OwnerWorldObservationStore(delivering).GetSnapshot().PlacedBuildings
             .Single(item => item.InstanceId == placed.InstanceId).StoredItems!,
             item => item.Kind == "wooden_axe" && item.Quantity == 1);

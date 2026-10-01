@@ -473,7 +473,9 @@ proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
 longer need to answer. Each current adult is offered `household_admit:{applicant}` and
 `household_refuse:{applicant}` and cannot continue a project or lesson until
-they answer. One refusal by a living member ends the request; when every living
+they answer. An ongoing lesson waits while either participant owes a housing
+answer, retaining its progress and already learned skills.
+One refusal by a living member ends the request; when every living
 member has agreed, `SocietyFixture.JoinHousehold` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered
 as a refusal for the cooldown. The request grants nothing while pending: stock,
@@ -735,6 +737,25 @@ Owner world-creation signing uses payload v2 to bind all settings. Preview and
 Create use the same validated options and digest; old clients need an update.
 Small and Medium remain the only playable sizes; no continent-count control
 is exposed for them. Existing saved water settings are not rewritten.
+
+## Skills and practical lessons
+
+Agents start with no skills, including added adults and newborn children.
+Finishing construction first records building; finishing a Farmhouse recipe
+records farming, a Blacksmith recipe records smithing, and other production
+records crafting. The record keeps the first learning time. Learning by work
+has no teacher; completing an accepted lesson records the teacher's agent ID.
+
+Lesson candidates use saved skills and the existing food/warmth readiness
+rules, independently of work roles. A mentor cannot be working on an active
+project, handling another social decision, or reserved for another lesson.
+Request, refusal, acceptance, cancellation and pause/reload retain their normal
+flow. A completed lesson changes neither the agent's role nor work proficiency.
+Stored skills currently affect only teaching availability, never ordinary
+action access or work speed. The agent card and Event Log describe the record.
+The owner observation keeps its existing JSON `role` field for the lesson's
+skill name so older clients can still display it; new code calls it `Skill`.
+This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
 
