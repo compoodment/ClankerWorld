@@ -385,7 +385,7 @@ public partial class Main
         }
         else if (building.AllowsHouseholdOwner || building.HouseholdId is not null)
         {
-            var isHouse = building.Tags.Contains("house", StringComparer.Ordinal);
+            var isHouse = building.Tags?.Contains("house", StringComparer.Ordinal) == true;
             buildingManagementNote.Text = "Changing a private building's household owner keeps its recorded Town assignment and title. Stock, deliveries and active work block the change.";
             foreach (var household in snapshot.Stockpiles.Where(item => item.OwnerId != building.HouseholdId)
                          .OrderBy(item => item.Name, StringComparer.CurrentCulture))
