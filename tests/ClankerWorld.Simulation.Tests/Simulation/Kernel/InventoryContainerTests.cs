@@ -65,16 +65,19 @@ public sealed class InventoryContainerTests
                 GroundPosition: ground),
         ]);
         inventory = InventoryFixture.PutIntoContainer(inventory, "put", "alpha", "pot", "berries", 1);
+        var contained = Assert.Single(inventory.Lots, lot => lot.ContainerLotId == "pot");
 
-        Assert.Null(inventory.GetLot("berries").GroundPosition);
+        Assert.Equal(ground, inventory.GetLot("berries").GroundPosition);
+        Assert.Null(contained.GroundPosition);
         var carried = InventoryFixture.Transfer(inventory, "carry", "alpha", "bravo", "pot", 1, "pickup");
         Assert.Null(carried.GetLot("pot").GroundPosition);
-        Assert.Null(carried.GetLot("berries").GroundPosition);
+        Assert.Null(carried.GetLot(contained.Id).GroundPosition);
+        Assert.Equal(ground, carried.GetLot("berries").GroundPosition);
 
         var dropped = InventoryFixture.Transfer(carried, "drop", "bravo", "alpha", "pot", 1, "drop",
             destinationGroundPosition: ground);
         Assert.Equal(ground, dropped.GetLot("pot").GroundPosition);
-        Assert.Null(dropped.GetLot("berries").GroundPosition);
+        Assert.Null(dropped.GetLot(contained.Id).GroundPosition);
     }
 
     [Fact]
