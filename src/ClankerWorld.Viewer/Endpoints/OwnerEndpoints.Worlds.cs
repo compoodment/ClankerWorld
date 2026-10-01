@@ -14,7 +14,8 @@ internal static partial class OwnerEndpoints
         app.MapPost("/api/v1/owner/worlds/list", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,
-            IServiceProvider services) =>
+            IServiceProvider services,
+            HttpContext context) =>
         {
             if (!IsControl(request, "list-worlds"))
                 return Results.BadRequest(new { error = "A world-list action is required." });
@@ -22,7 +23,15 @@ internal static partial class OwnerEndpoints
                 OwnerHttpBinding.EmptyPayload("list-worlds"));
             if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
             if (!isPrivateWorld) return Results.Conflict(new { error = "World selection requires a private world." });
-            return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().List());
+            try
+            {
+                return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().List(context.RequestAborted));
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                // The client left Load World; listing changed nothing and nobody reads this reply.
+                return Results.StatusCode(StatusCodes.Status499ClientClosedRequest);
+            }
         });
 
         app.MapPost("/api/v1/owner/worlds/create", (
