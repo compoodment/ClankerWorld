@@ -66,19 +66,25 @@ public sealed partial class SettlementParenthoodTests
             var forgedRequest = reloadedState with
             {
                 Inhabitants = reloadedState.Inhabitants.Select(person => person.InhabitantId == birth.ChildId
-                    ? person with { Housing = new SettlementHousing(Request: new SettlementHousingRequest(
+                    ? person with
+                    {
+                        Housing = new SettlementHousing(Request: new SettlementHousingRequest(
                         householdId, reloaded.Society.WorldTick,
-                        reloaded.Society.WorldTick + PrivateWorldRuntime.HousingRequestTicks, members, [], [])) }
+                        reloaded.Society.WorldTick + PrivateWorldRuntime.HousingRequestTicks, members, [], []))
+                    }
                     : person).ToArray(),
             };
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forgedRequest));
             var forgedRefusal = reloadedState with
             {
                 Inhabitants = reloadedState.Inhabitants.Select(person => person.InhabitantId == birth.ChildId
-                    ? person with { Housing = (person.Housing ?? new()) with
+                    ? person with
                     {
-                        Refusals = [new SettlementHousingRefusal(householdId, reloaded.Society.WorldTick)],
-                    } }
+                        Housing = (person.Housing ?? new()) with
+                        {
+                            Refusals = [new SettlementHousingRefusal(householdId, reloaded.Society.WorldTick)],
+                        }
+                    }
                     : person).ToArray(),
             };
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forgedRefusal));
