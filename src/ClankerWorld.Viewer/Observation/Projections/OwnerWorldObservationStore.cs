@@ -278,6 +278,7 @@ public sealed class OwnerWorldObservationStore
             latestEventId)
         {
             PackedTerrain = packedTerrain,
+            ContinuityRuleActive = state.Continuity?.Active,
             PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed),
             MapLayersDigest = mapLayersDigest,
             Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,

@@ -286,6 +286,12 @@ public partial class Main
             placingAddedAgent = false;
             return;
         }
+        await OpenAddAgentAsync();
+    }
+
+    private async Task OpenAddAgentAsync()
+    {
+        if (founderSetupPanel.Visible && placingAddedAgent) return;
         if (observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } }) return;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>

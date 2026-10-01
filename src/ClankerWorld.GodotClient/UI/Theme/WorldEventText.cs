@@ -3,6 +3,11 @@ namespace ClankerWorld.GodotClient.UI;
 /// <summary>Player event descriptions, derived without rewriting accepted history.</summary>
 public static class WorldEventText
 {
+    public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
+        snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
+
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);

@@ -352,6 +352,8 @@ public sealed record ViewerWorldSnapshot(
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
+    /// <summary>The current saved rule state, independent of retained event history.</summary>
+    public bool? ContinuityRuleActive { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
