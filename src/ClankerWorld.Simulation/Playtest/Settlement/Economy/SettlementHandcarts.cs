@@ -121,9 +121,14 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new("park_handcart", "Park the handcart here with its cargo kept inside.", 28));
             foreach (var building in worldSimulation.Buildings.OrderBy(item => item.InstanceId, StringComparer.Ordinal))
-                if (building.Position != person.Position && FindUnoccupiedRoute(actor, person.Position, building.Position, 0).Count > 0)
-                    candidates.Add(new(PullCartPrefix + building.InstanceId,
-                        "Pull the handcart and its cargo to this building along a legal route.", 26, building.InstanceId));
+            {
+                if (building.Position == person.Position) continue;
+                var reachable = FindUnoccupiedRoute(actor, person.Position, building.Position, 0).Count > 0;
+                candidates.Add(new(PullCartPrefix + building.InstanceId,
+                    reachable ? "Pull the handcart and its cargo to this building along a legal route." :
+                        "The cart's route to this building is blocked. Wait for a route or park the cart here.",
+                    reachable ? 26 : 85, building.InstanceId));
+            }
         }
         var worn = inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart &&
             lot.OwnerId == actor && lot.ConditionBasisPoints < 10_000 &&

@@ -12,7 +12,7 @@ public partial class Main
             Enumerable.Range(0, 16).Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(), [], [], null, 0)
         {
             Inhabitants = [new("cart-owner", "Rowan", "active", position, 10_000, [], [],
-                new("idle", null, null, [], ""), new(position, [], []))],
+                new("idle", null, null, [], ""), new(position, [], []), false)],
             Handcarts = [new("cart", "cart-owner", "Rowan", position, 32, 83,
                 "cart-owner", "Rowan", [new("wood", 16)])],
         };

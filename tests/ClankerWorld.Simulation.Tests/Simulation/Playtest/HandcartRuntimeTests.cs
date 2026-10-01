@@ -27,8 +27,32 @@ public sealed class HandcartRuntimeTests
         inventory = InventoryFixture.AddLot(inventory, "cart-load", "stone", household, 32,
             groundPosition: new(smith.Position.X, smith.Position.Y));
         state = AtPosition(state, actor, smith.Position, inventory);
+        var held = InventoryFixture.Reserve(inventory, "held-cart-wood", actor, "cart-wood", 1,
+            "other_work", inventory.WorldTick + 100);
+        using (var unavailable = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, held),
+                   _ => new CartChooser("safe_idle")))
+        {
+            var rejectedStart = unavailable.StartProduction(recipe.CanonicalId, smith.InstanceId, actor);
+            Assert.False(rejectedStart.Applied);
+            Assert.Contains("Carry the wood", rejectedStart.Failure, StringComparison.Ordinal);
+            Assert.Equal(InventoryDigest.State(held), InventoryDigest.State(unavailable.Society.Inventory));
+            Assert.DoesNotContain(unavailable.WorldSimulation.ProductionJobs, job => job.RecipeId == recipe.CanonicalId);
+        }
         var chooser = new CartChooser("build:recipe:" + recipe.CanonicalId);
         using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? chooser : new CartChooser("safe_idle"));
+        await Until(world, () => world.WorldSimulation.ProductionJobs.Any(job => job.RecipeId == recipe.CanonicalId), 80);
+        var running = world.ExportState();
+        var job = Assert.Single(running.WorldSimulation!.ProductionJobs, job => job.RecipeId == recipe.CanonicalId);
+        Assert.All(job.InputReservationIds, id =>
+        {
+            var reservation = world.Society.Inventory.GetReservation(id);
+            Assert.Equal(actor, reservation.OwnerId);
+            Assert.True(ToolProgressionRules.IsTopLevelCarriedLot(world.Society.Inventory.GetLot(reservation.LotId), actor));
+        });
+        var productionBytes = PrivateWorldRuntimeCodec.Encode(running);
+        using (var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(productionBytes),
+                   id => id == actor ? new CartChooser(chooser.Preferred) : new CartChooser("safe_idle")))
+            Assert.Equal(productionBytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         await Until(world, () => world.Society.Inventory.Lots.Any(lot => lot.ItemKind == "handcart"), 140);
         var cart = Assert.Single(world.Society.Inventory.Lots, lot => lot.ItemKind == "handcart");
         Assert.Equal(actor, cart.OwnerId);
@@ -108,6 +132,64 @@ public sealed class HandcartRuntimeTests
         Assert.Equal(7, world.Society.Inventory.GetLot("cart-food").Quantity);
         Assert.Equal(position, world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
         Assert.Empty(world.ExportState().HandcartHitches!);
+    }
+
+    [Fact]
+    public async Task BlockedTravelAndMidJourneyBreakageKeepLoadedCartAtItsActualPosition()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("blocked-visible-handcart", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var owner = state.Society.Society.Inhabitants.First(person => person.HouseholdId != smith.HouseholdId).Id;
+        var obstacle = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
+        var obstacleOriginal = state.Inhabitants.Single(person => person.InhabitantId == obstacle).Position;
+        var position = state.Inhabitants.Single(person => person.InhabitantId == owner).Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "journey-cart", "handcart", owner, 1,
+            groundPosition: new(position.X, position.Y));
+        inventory = InventoryFixture.AddLot(inventory, "journey-cargo", "wood", owner, 32, containerLotId: "journey-cart");
+        state = AtPosition(state, owner, position, inventory) with
+        {
+            Inhabitants = AtPosition(state, owner, position, inventory).Inhabitants.Select(person => person.InhabitantId == obstacle
+                ? person with { Position = smith.Position } : person).ToArray(),
+            HandcartHitches = [new("journey-cart", owner)],
+        };
+        using var blocked = PrivateWorldRuntime.Restore(state,
+            id => new CartChooser(id == owner ? "pull_handcart:" + smith.InstanceId : "safe_idle"));
+        await Until(blocked, () => blocked.ExportState().Events.Any(item => item.Kind == "handcart_blocked"));
+        Assert.Equal(new InventoryGroundPosition(position.X, position.Y), blocked.Society.Inventory.GetLot("journey-cart").GroundPosition);
+        Assert.Equal(32, blocked.Society.Inventory.GetLot("journey-cargo").Quantity);
+        Assert.Single(blocked.ExportState().HandcartHitches!);
+        var released = blocked.ExportState();
+        released = released with
+        {
+            Society = released.Society with
+            {
+                Society = released.Society.Society with
+                {
+                    Inventory = released.Society.Society.Inventory with
+                    {
+                        Lots = released.Society.Society.Inventory.Lots.Select(lot => lot.Id == "journey-cart"
+                            ? lot with { ConditionBasisPoints = 1 } : lot).ToArray(),
+                    },
+                },
+            },
+            Inhabitants = released.Inhabitants.Select(person => person.InhabitantId == obstacle
+                ? person with { Position = obstacleOriginal }
+                : person).ToArray(),
+        };
+        using var breaking = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(released)),
+            id => new CartChooser(id == owner ? "pull_handcart:" + smith.InstanceId : "safe_idle"));
+        await Until(breaking, () => breaking.Society.Inventory.GetLot("journey-cart").ConditionBasisPoints == 0);
+        var broken = breaking.Society.Inventory.GetLot("journey-cart");
+        var ownerPosition = breaking.Inhabitants.Single(person => person.InhabitantId == owner).Position;
+        Assert.NotEqual(position, ownerPosition);
+        Assert.Equal(new InventoryGroundPosition(ownerPosition.X, ownerPosition.Y), broken.GroundPosition);
+        Assert.Empty(breaking.ExportState().HandcartHitches!);
+        Assert.Equal(32, breaking.Society.Inventory.GetLot("journey-cargo").Quantity);
+        Assert.Equal("journey-cart", breaking.Society.Inventory.GetLot("journey-cargo").ContainerLotId);
+        var bytes = PrivateWorldRuntimeCodec.Encode(breaking.ExportState());
+        using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
     }
 
     [Fact]
