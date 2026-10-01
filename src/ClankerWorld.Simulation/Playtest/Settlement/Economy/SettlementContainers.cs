@@ -136,6 +136,7 @@ public sealed partial class PrivateWorldRuntime
     private PotFoodChoice? FindFoodToStore(string actor, string householdId, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
+        var houseStorageRoom = Math.Max(0, StorageRoom(houseId));
         var pots = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == InventoryContainerRules.StoragePot && lot.StorageBuildingId == houseId &&
                 lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
@@ -143,16 +144,16 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal);
         foreach (var pot in pots)
         {
-            var room = Math.Min(
-                InventoryContainerRules.StoragePotCapacity - ContainerContentsQuantity(inventory, pot.Id),
-                Math.Max(0, StorageRoom(houseId)));
-            if (room <= 0)
+            var contentRoom = InventoryContainerRules.StoragePotCapacity -
+                ContainerContentsQuantity(inventory, pot.Id);
+            if (contentRoom <= 0)
                 continue;
             var food = inventory.Lots.Where(lot =>
                     InventoryContainerRules.IsFood(lot.ItemKind) && lot.ContainerLotId is null &&
                     lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                     AvailableLotQuantity(lot) > (lot.OwnerId == actor ? 1 : 0) &&
-                    (PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
+                    (lot.OwnerId == actor && houseStorageRoom > 0 &&
+                         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
                      lot.OwnerId == householdId && lot.StorageBuildingId == houseId))
                 .OrderBy(lot => lot.OwnerId == actor ? 0 : 1)
                 .ThenBy(lot => lot.Id, StringComparer.Ordinal)
@@ -280,7 +281,7 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var contentRoom = InventoryContainerRules.StoragePotCapacity -
             ContainerContentsQuantity(inventory, choice.Pot.Id);
-        var storageRoom = StorageRoom(house.InstanceId);
+        var storageRoom = choice.Food.OwnerId == actor ? StorageRoom(house.InstanceId) : int.MaxValue;
         var available = AvailableLotQuantity(choice.Food) - (choice.Food.OwnerId == actor ? 1 : 0);
         var quantity = Math.Min(available, Math.Min(contentRoom, storageRoom));
         if (quantity <= 0)
