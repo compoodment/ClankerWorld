@@ -419,8 +419,8 @@ public sealed class OwnerWorldObservationStore
                     item.PlacedTick,
                     buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.DisplayName,
                     buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
+                    item.Footprint?.Width ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
+                    item.Footprint?.Height ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
                     item.TownId,
                     item.HouseholdId,
                     item.HouseholdId is { } householdId
@@ -428,7 +428,15 @@ public sealed class OwnerWorldObservationStore
                         : item.TownId is { } townId && buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?
                             .Tags.Contains("warehouse", StringComparer.Ordinal) == true
                             ? InventoryFor(state, townId, item.InstanceId) : null,
-                    item.Entrance is { } entrance ? ToPosition(entrance) : null))
+                    item.Entrance is { } entrance ? ToPosition(entrance) : null,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId) is { } storageDefinition
+                        ? BuildingStorageRules.Capacity(storageDefinition, item) : null,
+                    state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == item.InstanceId).Sum(lot => lot.Quantity),
+                    item.Footprint?.Revision ?? 0,
+                    (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
+                        .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
