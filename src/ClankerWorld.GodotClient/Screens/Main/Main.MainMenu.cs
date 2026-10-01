@@ -630,7 +630,13 @@ public partial class Main
     /// </summary>
     private static ImageTexture? WorldThumbnailTexture(WorldThumbnail? thumbnail)
     {
-        if (thumbnail is null) return null;
+        // The host limits thumbnails to 96 columns and checkpoint maps to
+        // 2048 rows. Check these before decoding or creating a texture; this
+        // optional catalog copy must never prevent healthy cards from drawing.
+        if (thumbnail is null || thumbnail.Width is < 1 or > 96 || thumbnail.Height is < 1 or > 2048 ||
+            thumbnail.Encoding != "terrain-kind-v1" || thumbnail.Data is null ||
+            thumbnail.Data.Length != ((thumbnail.Width * thumbnail.Height + 2) / 3) * 4)
+            return null;
         try
         {
             return WorldOverview.Thumbnail(WorldTerrainMap.FromPacked(

@@ -222,7 +222,8 @@ the world's own terrain (`terrain-kind-v1`) and at most 96 pixels wide, so Load
 World can show it without reading the world's checkpoint. Worlds catalogued
 before thumbnails existed get one the first time they are listed, from the
 checkpoint that listing already reads. It is a convenience copy, not world
-state: an older host ignores it, and a missing thumbnail shows a globe.
+state: an older host ignores it, and a missing or damaged thumbnail shows a globe
+while the rest of the world list stays available.
 
 A full recovery backup must keep together:
 
