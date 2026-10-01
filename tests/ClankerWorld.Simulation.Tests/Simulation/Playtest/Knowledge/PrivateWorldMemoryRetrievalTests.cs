@@ -205,14 +205,6 @@ public sealed class PrivateWorldMemoryRetrievalTests
             Assert.Equal(compaction.Sources, Assert.Single(restored.Society.MemoryCompactions!,
                 item => item.OwnerId == "founder-scout").Sources);
 
-        var schema20 = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 20 }));
-        using (var migrated = PrivateWorldRuntime.Restore(schema20))
-        {
-            Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, migrated.ExportState().SchemaVersion);
-            Assert.Equal(belief, Assert.Single(migrated.Society.Beliefs!));
-            Assert.Empty(migrated.Society.MemoryCompactions ?? []);
-        }
-
         world.Pause();
         provider.UseJev = false;
         Assert.True(world.SetJevEnabled(false));

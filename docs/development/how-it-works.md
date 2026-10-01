@@ -198,6 +198,47 @@ A separate belief record retains firsthand/hearsay/inference evidence and
 superseded corrections. Inspection never broadcasts these records or turns
 them into public events.
 
+Ordinary conversation is a host-controlled activity, not free-form world
+commands. The normal provider router requires an explicit personal planning
+assignment for the current speaker and sends only that speaker's identity and
+the accepted public history. A proposal and acceptance each use that agent's
+saved daily allowance. The host admits at most two pending conversation calls
+per world tick and six alternating public turns per conversation, followed by
+one wrap-up. Responses must match the saved conversation revision, run epoch,
+request and speaker; stale or malformed replies are not admitted. Public turns
+carry a bounded list of agents who were actually close enough to hear. A
+separate memory extraction gives those listeners hearsay claims tied to the
+turn ID, with duplicate and owner checks. Private thoughts, provider payloads
+and unaccepted replies never enter that history. Prose has no world effect; the
+only ordinary-dialogue effect is mutual trust, offered during wrap-up and
+applied only after both participants accept the same proposal.
+
+The saved revision, status and next-speaker fields are the conversation cursor.
+The checkpoint keeps the complete admitted history (up to six public turns and
+one accepted wrap-up), and each later provider request receives the committed
+public history so far. The wrap-up request receives the six public turns; a
+pending answer is never included or saved.
+
+Saving by itself keeps an unaccepted invitation pending, with its original
+deadline and the inviter's saved daily allowance. It has no current speaker;
+only acceptance assigns the first turn. When the 64-session save limit is
+reached, the oldest closed session is removed before a new one starts. A
+listener's private hearsay claim, its correction links and any memory-compaction
+reference remain saved. Only the link from that private claim to the removed
+public turn is cleared; its statement and speaker attribution stay private to
+its owner, while the old turn text leaves the shared conversation history.
+
+Pausing, disconnect, a provider failure, urgent need, separation or an
+unavailable participant interrupts or closes the activity according to its
+state. A save contains accepted bounded turns and daily allowances, not a live
+provider task. Restore leaves accepted active conversations suspended and clears
+any earlier resume choice; no model request starts until both participants choose
+to resume again. A pending invitation retains its original deadline and still
+requires normal acceptance and the invitee's daily allowance. Both agents receive
+the same public wrap-up and proposed effect before accepting. Lessons wait while
+either participant is talking. Conversation logs record only purpose, bounded
+turn count, latency and usage totals, including reported usage for rejected speech.
+
 Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
 previously unassessed records; only linked salience/confidence values are saved.

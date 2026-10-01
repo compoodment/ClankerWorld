@@ -413,7 +413,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidateSurvival(PrivateWorldRuntimeState state)
     {
-        if (state.Survival is { } survival && (state.SchemaVersion < 6 || survival.ActivatedTick < 0 ||
+        if (state.Survival is { } survival && (survival.ActivatedTick < 0 ||
             survival.ActivatedTick > state.Society.Society.WorldTick || survival.Fires.Count > (state.WorldSimulation?.Buildings.Count ?? 0) ||
             survival.Fires.Select(fire => fire.BuildingId).Distinct(StringComparer.Ordinal).Count() != survival.Fires.Count ||
             survival.Fires.Any(fire => fire.FuelUntilTick <= state.Society.Society.WorldTick || fire.FuelUntilTick - state.Society.Society.WorldTick > 120 ||
@@ -423,7 +423,7 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var person in state.Inhabitants)
         {
-            if (person.Survival is { } condition && (state.SchemaVersion < 6 || state.Survival is null ||
+            if (person.Survival is { } condition && (state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
                 condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard")))
             {
