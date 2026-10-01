@@ -694,8 +694,9 @@ adult residents should retain a vote in those elections.
   approval then, the proposal does not pass. Paused time does not consume the
   window. Agents vote through their ordinary personal-model turns; make no extra
   paid calls merely to poll for votes. Proposal delivery follows the agreed
-  [notice rules](#election-eligibility-ballots-and-notices). How changes in the
-  council roster affect an open proposal still needs a decision.
+  [notice rules](#election-eligibility-ballots-and-notices). Changes to the
+  council roster follow the agreed
+  [proposal and scheduling rules](#council-changes-and-election-scheduling).
 - **The first elected council has three seats.** Use the already agreed
   eight-adult trial threshold to begin representation. A Town may later change
   its governing arrangement through the agreed in-world process; three seats
@@ -713,8 +714,11 @@ Use recorded Town adult residents for civic eligibility, including homeless
 residents and travelers, under the agreed membership work in
 [#602](https://github.com/compoodment/ClankerWorld/issues/602).
 These proposal, voting-window, seat-count and ballot choices are settled.
-Remaining election/roster and governing procedures are tracked in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+The remaining ordinary council-process rules are agreed in
+[Council changes and election scheduling](#council-changes-and-election-scheduling).
+The completed voting and election decision is tracked in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601); broader changes
+to the governing arrangement remain a separate interview topic.
 
 ### Election terms and council continuity
 
@@ -731,9 +735,9 @@ Remaining election/roster and governing procedures are tracked in
 - **A vacant seat needs a replacement election for the remainder of the
   existing term.** Do not automatically promote a runner-up from an earlier
   election or restart the term. If three willing representatives cannot be
-  formed, temporarily return to the all-adult council. How to count proposal
-  majorities while a seat is vacant, and when to retry an election after too
-  few candidates volunteer, remain to be decided.
+  formed, temporarily return to the all-adult council. Proposal majorities
+  during vacancies and election retries follow the agreed
+  [scheduling rules](#council-changes-and-election-scheduling).
 - **Falling below eight adults does not immediately end representation.**
   Keep the elected arrangement until only three or fewer adult Town residents
   remain. Then use the all-adult council until the Town reaches eight adults
@@ -748,9 +752,8 @@ Remaining election/roster and governing procedures are tracked in
 
 Candidate and voter eligibility, turnout and ballot handling follow the
 [agreed rules below](#election-eligibility-ballots-and-notices). Vacancy proposal
-majorities, election retries and the treatment of pending proposals when the
-council changes still need answers in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+majorities, election retries and pending proposals follow
+[Council changes and election scheduling](#council-changes-and-election-scheduling).
 
 ### Election eligibility, ballots and notices
 
@@ -759,8 +762,9 @@ council changes still need answers in
 - **Any willing adult Town resident may stand for election and vote for
   themselves.** Homeless residents and travelers qualify through recorded
   membership. Standing requires the candidate's recorded agreement; another
-  agent cannot make them a willing candidate by merely naming them. The
-  nomination process and its timing remain to be decided.
+  agent cannot make them a willing candidate by merely naming them. Use the
+  [continuing candidate register](#council-changes-and-election-scheduling)
+  rather than a separate nomination period.
 - **There is no minimum election turnout, including for a runoff.** Each
   winner must have received at least one vote in the main election. If a full
   council of three eligible, willing, supported representatives cannot be
@@ -792,10 +796,65 @@ council changes still need answers in
   affected voter to submit again. A ballot for Mira, Sol and Ash becomes a
   ballot for Sol and Ash if Mira withdraws.
 
-These eligibility, ballot and delivery rules are settled. Nomination timing,
-vacancy majority counting, pending proposals, repeated requests and retry
-timing are the remaining ordinary council-process choices in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+These eligibility, ballot and delivery rules are settled. The remaining
+ordinary process choices are agreed below; this completes
+[#601](https://github.com/compoodment/ClankerWorld/issues/601)'s voting and
+election interview.
+
+### Council changes and election scheduling
+
+**Agreed with the owner on October 1, answers 40A–42A, 43B and 44A–45A:**
+
+- **A representative council still needs two yes votes while seats are
+  vacant.** One remaining representative cannot approve an ordinary proposal
+  alone. When the all-adult fallback governs, use a strict majority of its
+  own adult membership instead of the representative council's threshold.
+- **Close unfinished proposals without passage when the council changes.**
+  This applies to changes in eligible council membership, representatives or
+  governing form. An agent may submit the proposal afresh to the current
+  council, with fresh votes and a new one-unpaused-day window. Previously
+  settled decisions stay settled. For example, an admission into an all-adult
+  council changes its membership and closes other unfinished proposals.
+- **Merge equivalent pending requests without resetting the deadline.**
+  After failure or withdrawal, wait one unpaused world day before retrying the
+  same request. Material new information or changed circumstances, including
+  a changed council, allow earlier reconsideration. Merely rewording the same
+  admission request does not restart its window.
+- **Keep a continuing register of willing candidates; there is no separate
+  nomination period.** Agents may nominate themselves or explicitly accept
+  another agent's nomination through ordinary personal-model turns and actual
+  notices. Regular voting opens one unpaused world day before the scheduled
+  term ends. Initial or replacement voting can open immediately using the
+  eligible registered candidates, subject to the one-contest rule below.
+  Candidate and voter lists still become fixed when each voting window opens.
+  Registration during that window is for a later contest. A cutoff runoff
+  remains limited to its original eligible tied candidates.
+- **Retry an unsuccessful election after one unpaused world day; materially
+  improved circumstances allow an earlier attempt.** Use the continuing
+  register for the new attempt, with no added nomination phase. A failed
+  regular election does not shorten the incumbents' remaining term; after
+  that term ends, use the all-adult fallback while retrying. An unfinished
+  runoff retains the existing council under the agreed continuity rule.
+  Candidate-related fallback may retry below eight residents while more than
+  three adults remain. If representation ended because the population fell
+  to three or fewer, elections still wait until eight adults again.
+- **Keep one active election process per Town; the scheduled full election
+  takes priority when its voting opens.** Stop unresolved replacement voting
+  and use fresh ballots for the full election. Already decided replacement
+  seats remain valid for the old term's remainder; do not undo them while
+  cancelling an unresolved round for another seat. A vacancy arising during
+  the full election is handled by that contest. Agreement to fill a short
+  vacancy does not automatically mean agreement to stand for the next full
+  term. With the continuing register, priority starts at regular voting, not
+  at an invented nomination phase.
+
+These rules complete the initial ordinary proposal and election process.
+Government changes, law scope, enforcement and the other topics below remain
+separate design choices; settling a ballot mechanism does not settle them.
+Implementation is tracked in
+[#618](https://github.com/compoodment/ClankerWorld/issues/618), followed by
+Town membership and admission integration in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
 
 ### Still to decide
 
@@ -804,14 +863,16 @@ Election terms, ties, replacements and population transitions are agreed in
 [Election terms and council continuity](#election-terms-and-council-continuity).
 Eligibility, ballots, election roster changes and delivery are agreed in
 [Election eligibility, ballots and notices](#election-eligibility-ballots-and-notices).
-Still open: nominations and their timing, proposal majorities during vacancies,
-retry timing after too few candidates or an invalid result,
-repeated requests and pending proposals when the council changes; repeal details;
+Ordinary proposal changes, candidate registration, retries and election overlap
+are agreed in [Council changes and election scheduling](#council-changes-and-election-scheduling).
+Still open: repeal details;
 how governments may change; which laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
+The next law and government interview is tracked separately in
+[#619](https://github.com/compoodment/ClankerWorld/issues/619).
 
 ## Item and resource pipelines
 
