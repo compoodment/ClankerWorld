@@ -1,0 +1,1 @@
+- Adults use ingredients they already carry for household work before gathering more, and supply food before other recipes when both inputs are equally ready.

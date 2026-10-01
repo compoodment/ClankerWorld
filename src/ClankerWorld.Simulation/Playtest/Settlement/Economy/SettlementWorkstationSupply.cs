@@ -88,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddWorkstationSupplyCandidate(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault() is not { } need)
+            PrioritizedWorkstationSupplyNeeds(actor).FirstOrDefault() is not { } need)
             return;
         candidates.Add(new CognitionCandidate(SupplyWorkstationPrefix + need.ItemKind,
             $"Bring {need.ItemKind} into the household {need.Definition.DisplayName} for its work.",
@@ -98,7 +98,7 @@ public sealed partial class PrivateWorldRuntime
     private void SupplyWorkstation(string actor, PlaytestInhabitantState state, string itemKind)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind) is not { } need)
+            PrioritizedWorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind) is not { } need)
             return;
         var building = need.Building;
         if (itemKind is "water" or "milk")
@@ -145,4 +145,15 @@ public sealed partial class PrivateWorldRuntime
         if (need.Source is { } source)
             GatherProjectMaterial(actor, state, itemKind, source);
     }
+
+    // Use what is already carried before making another collecting trip. Food
+    // inputs then take precedence over discretionary craft stock at the same cost.
+    private IOrderedEnumerable<WorkstationSupplyNeed> PrioritizedWorkstationSupplyNeeds(string actor) =>
+        WorkstationSupplyNeeds(actor)
+            .OrderBy(need => need.Carried is not null ? 0 :
+                need.ItemKind is "water" or "milk" ? WaterJugForWorkstation(actor, need.Building, need.ItemKind)?.OwnerId == actor ? 0 : 1 :
+                need.HouseholdStock is not null ? 1 : 2)
+            .ThenBy(need => FoodItems.IsEdible(need.ItemKind) || need.ItemKind is "water" or "grain" or "flour" ? 0 : 1)
+            .ThenBy(need => need.Building.InstanceId, StringComparer.Ordinal)
+            .ThenBy(need => need.ItemKind, StringComparer.Ordinal);
 }

@@ -567,6 +567,10 @@ Generated Houses start with eight cooked meal portions each. The household
 aims to keep two prepared portions per living member, including personally
 carried meals and running cooking jobs; Restaurant work allows another two
 portions for sale. This prevents preparing every recipe after needs are covered.
+Workstation supply uses personally carried inputs first, then reachable
+household stock, then new gathering. Food inputs come before other recipe
+inputs with the same source priority; candidate selection and delivery use
+the same ordering.
 Different named meals count toward dietary variety. Fruit-enriched porridge
 retains its extra fullness and variety through the production job and item
 provenance when portions are carried or reloaded. Food given to a child uses
