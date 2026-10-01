@@ -17,14 +17,20 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
-    [InlineData("\"32\"")]
-    [InlineData("null")]
-    [InlineData("true")]
-    [InlineData("[]")]
-    [InlineData("{}")]
-    [InlineData("32.5")]
-    [InlineData("2147483648")]
-    public async Task MalformedSaveSchemaIsReportedAsInvalidWhilePausedAndPreservesTheWorld(string schemaJson)
+    [InlineData(false, "\"32\"")]
+    [InlineData(false, "null")]
+    [InlineData(false, "true")]
+    [InlineData(false, "[]")]
+    [InlineData(false, "{}")]
+    [InlineData(false, "32.5")]
+    [InlineData(false, "2147483648")]
+    [InlineData(true, "[]")]
+    [InlineData(true, "null")]
+    [InlineData(true, "\"checkpoint\"")]
+    [InlineData(true, "32")]
+    [InlineData(true, "true")]
+    public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
+        bool malformedEnvelope, string malformedJson)
     {
         var directory = Directory.CreateTempSubdirectory("malformed-save-schema-");
         try
@@ -45,9 +51,15 @@ public sealed partial class ViewerHttpTests
             var saved = saves.Create("Recoverable", runtime, []);
             var path = Path.Combine(file.Path + ".manual", saved.Id + ".save");
             var healthy = File.ReadAllBytes(path);
-            var document = JsonNode.Parse(healthy)!.AsObject();
-            document["state"]!["schemaVersion"] = JsonNode.Parse(schemaJson);
-            var damaged = Encoding.UTF8.GetBytes(document.ToJsonString());
+            byte[] damaged;
+            if (malformedEnvelope)
+                damaged = Encoding.UTF8.GetBytes(malformedJson);
+            else
+            {
+                var document = JsonNode.Parse(healthy)!.AsObject();
+                document["state"]!["schemaVersion"] = JsonNode.Parse(malformedJson);
+                damaged = Encoding.UTF8.GetBytes(document.ToJsonString());
+            }
             File.WriteAllBytes(path, damaged);
 
             var action = new OwnerManualSaveAction("load", saved.Id);

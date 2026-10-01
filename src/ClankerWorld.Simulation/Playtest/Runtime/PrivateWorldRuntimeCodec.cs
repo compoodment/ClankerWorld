@@ -48,6 +48,8 @@ public static class PrivateWorldRuntimeCodec
         try
         {
             using var header = JsonDocument.Parse(bytes);
+            if (header.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("The private-world runtime checkpoint envelope is invalid.");
             if (header.RootElement.TryGetProperty("state", out var state) && state.ValueKind == JsonValueKind.Object &&
                 state.TryGetProperty("schemaVersion", out var schemaVersion) &&
                 schemaVersion.ValueKind == JsonValueKind.Number &&
