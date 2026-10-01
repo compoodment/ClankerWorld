@@ -46,7 +46,7 @@ public static class HousingBlockers
 /// </summary>
 public sealed partial class PrivateWorldRuntime
 {
-    private const int HousingSchemaVersion = 31;
+    private const int HousingSchemaVersion = 32;
     public const int HousingRequestTicks = 120;
     private const string HousingAskPrefix = "household_ask:";
     private const string HousingAdmitPrefix = "household_admit:";

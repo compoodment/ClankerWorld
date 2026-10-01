@@ -330,7 +330,7 @@ public sealed class HouseholdJoinRequestTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
             System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
 
-        var old = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 30 }));
+        var old = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 31 }));
         Assert.Contains("Housing", old.Message, StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(WithHousing(state, agent,
             housing => housing with { Request = request with { Approvals = [agent] } })));
