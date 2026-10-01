@@ -186,7 +186,7 @@ function typeLabel(body) {
   const ticked = box => new RegExp(`^\\s*[-*] \\[[xX]\\] ${box}\\s*$`, 'm').test(body ?? '');
   if (ticked('Bug fix')) return 'type:bug';
   if (ticked('New or changed gameplay') || ticked('UI or game text')) return 'type:feature';
-  if (ticked('Documentation') && !ticked('Refactor or tooling')) return 'type:docs';
+  if (ticked('Documentation')) return 'type:docs';
   return null;
 }
 
