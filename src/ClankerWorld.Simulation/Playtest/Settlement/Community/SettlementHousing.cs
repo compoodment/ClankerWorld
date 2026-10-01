@@ -260,12 +260,13 @@ public sealed partial class PrivateWorldRuntime
             return HousingBlockers.AwaitingAnswer;
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return HousingBlockers.NoHousehold;
-        if (HouseholdBuildingProjectInProgress(householdId, "house"))
+        if (HouseholdBuildingProjectInProgress(householdId, "house", actor))
             return HousingBlockers.NoAuthorizedHome;
-        var house = PlannableHouseholdBuildings(householdId).FirstOrDefault(definition => HouseholdBuildingKind(definition) == "house");
+        var house = PlannableHouseholdBuildings(householdId, actor)
+            .FirstOrDefault(definition => HouseholdBuildingKind(definition) == "house");
         if (house is null)
             return HousingBlockers.NoAuthorizedHome;
-        if (!HouseholdHasMaterialsInHand(householdId, house.BuildCosts))
+        if (!HouseholdHasMaterialsInHand(householdId, house.BuildCosts, house))
             return HousingBlockers.MissingMaterials;
         if (TownLayoutService.RankConstructionSites(CreateTownLayoutContext(actor), house).Count == 0)
             return HousingBlockers.NoLegalSite;

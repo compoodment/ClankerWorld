@@ -85,6 +85,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion, boatTransport);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -325,13 +326,13 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);
-        ValidateEquipment(state);
         ValidateBusinessTrade(state);
         ValidatePersonalGear(state);
         ValidateCouncil(state);
         ValidateTownCouncils(state);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
@@ -492,12 +493,12 @@ public sealed partial class PrivateWorldRuntime
             // actual stock passes into an estate. Check the format here, without
             // reapplying a living actor's current lot ownership or permissions.
             var physical = person.LastPhysical;
-            if (schemaVersion < 37 && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
+            if (schemaVersion < PersonalEquipmentSchemaVersion && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
                 physical.MedicalTreatment is not null || physical.MedicalCaregiverIds is not null ||
-                physical.Equipment is { } equipment && (equipment.WornClothingLotId is not null ||
-                    equipment.CarryAidLotId is not null || equipment.WeaponLotId is not null || equipment.ShieldLotId is not null ||
-                    equipment.ArmorLotId is not null || equipment.OrnamentLotId is not null)))
-                throw new InvalidDataException("Archived physical content requires private-world schema 37.");
+                physical.Equipment is { } archivedEquipment && (archivedEquipment.ClothingLotId is not null ||
+                    archivedEquipment.CarryAidLotId is not null || archivedEquipment.WeaponLotId is not null || archivedEquipment.ShieldLotId is not null ||
+                    archivedEquipment.ArmorLotId is not null || archivedEquipment.OrnamentLotId is not null || archivedEquipment.Repair is not null)))
+                throw new InvalidDataException($"Archived physical content requires private-world schema {PersonalEquipmentSchemaVersion}.");
             if (schemaVersion < HousingSchemaVersion && physical.Housing is not null)
                 throw new InvalidDataException($"Archived housing state requires private-world schema {HousingSchemaVersion}.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
@@ -505,6 +506,8 @@ public sealed partial class PrivateWorldRuntime
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
+            if (person.LastPhysical.Equipment is { } equipment)
+                ValidateEquipmentShape(equipment, person.DeathTick, schemaVersion);
         }
     }
 

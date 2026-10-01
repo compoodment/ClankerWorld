@@ -764,7 +764,7 @@ public sealed partial class OwnerWorldObservationStore
                 : null,
             Survival = physical.Survival is { } survival
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
-                    EquipmentItem(state, physical, physical.Equipment?.WornClothingLotId) is { ConditionBasisPoints: > 0 },
+                    EquipmentItem(state, physical, physical.Equipment?.ClothingLotId) is { ConditionBasisPoints: > 0 },
                     inventory.Any(item => (item.Kind == "tool" || ToolCapabilities.ForItem(item.Kind) is not null) &&
                         item.Quantity > item.BrokenQuantity), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Equipment = EquipmentFor(state, physical),
@@ -1048,21 +1048,21 @@ public sealed partial class OwnerWorldObservationStore
     private static ViewerEquippedItem? EquipmentItem(PrivateWorldRuntimeState state,
         PlaytestInhabitantState person, string? lotId)
     {
-        var lot = state.Society.Society.Inventory.Lots.FirstOrDefault(item => item.Id == lotId &&
-            item.OwnerId == person.InhabitantId && item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
-            item.ContainerLotId is null && item.GroundPosition is null && item.Quantity == 1);
+        var lot = PersonalEquipmentRules.EquippedUnit(state.Society.Society.Inventory, person.InhabitantId, lotId);
         return lot is null ? null : new(lot.ItemKind, lot.ConditionBasisPoints);
     }
 
     private static ViewerEquipment EquipmentFor(PrivateWorldRuntimeState state, PlaytestInhabitantState person) =>
-        new(CarryEquipmentRules.Load(state.Society.Society.Inventory, person.InhabitantId),
-            CarryEquipmentRules.Capacity(state.Society.Society.Inventory, person),
-            EquipmentItem(state, person, person.Equipment?.WornClothingLotId),
+        new(PersonalEquipmentRules.CarriedQuantity(state.Society.Society.Inventory, person.InhabitantId, person.Equipment),
+            PersonalEquipmentRules.Capacity(state.Society.Society.Inventory, person.InhabitantId, person.Equipment),
+            EquipmentItem(state, person, person.Equipment?.ClothingLotId),
             EquipmentItem(state, person, person.Equipment?.CarryAidLotId),
             EquipmentItem(state, person, person.Equipment?.WeaponLotId),
             EquipmentItem(state, person, person.Equipment?.ShieldLotId),
             EquipmentItem(state, person, person.Equipment?.ArmorLotId),
-            EquipmentItem(state, person, person.Equipment?.OrnamentLotId));
+            EquipmentItem(state, person, person.Equipment?.OrnamentLotId),
+            state.Society.Society.Inventory.Lots.FirstOrDefault(lot => lot.Id == person.Equipment?.Repair?.LotId)?.ItemKind,
+            person.Equipment?.Repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks);
 
     private static bool HasCondition(string kind) => ToolCapabilities.ForItem(kind) is not null ||
         CarryEquipmentRules.IsClothing(kind) || CarryEquipmentRules.IsCarryAid(kind) || CombatGearContent.IsGear(kind);
@@ -1073,7 +1073,7 @@ public sealed partial class OwnerWorldObservationStore
         string? storageBuildingId = null) => state.Society.Society.Inventory.Lots
         .Where(lot => lot.OwnerId == ownerId && lot.Quantity > 0 && lot.ContainerLotId is null &&
             (!state.Inhabitants.Any(person => person.InhabitantId == ownerId) ||
-                lot.StorageBuildingId is null && lot.GroundPosition is null) &&
+                PersonalEquipmentRules.IsCarried(lot, ownerId)) &&
             (storageBuildingId is null || lot.StorageBuildingId == storageBuildingId))
         .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal)

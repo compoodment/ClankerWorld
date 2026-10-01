@@ -30,7 +30,7 @@ public sealed class ArchivedContentSchemaTests
         Assert.Equal(SocietyInhabitantStatus.Dead, world.Society.GetInhabitant(actor).Status);
         var saved = world.ExportState();
         var deceased = Assert.Single(saved.DeceasedInhabitants!, person => person.InhabitantId == actor);
-        Assert.Equal(garment.Id, deceased.LastPhysical.Equipment!.WornClothingLotId);
+        Assert.Equal(garment.Id, deceased.LastPhysical.Equipment!.ClothingLotId);
         Assert.DoesNotContain(saved.Inhabitants, person => person.InhabitantId == actor);
         Assert.All(saved.Inhabitants, person => Assert.Null(person.Equipment));
         var estate = Assert.Single(world.Society.Estates, item => item.DeceasedId == actor);

@@ -175,7 +175,7 @@ public sealed class PersonalGearTests
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Equipment = new EquipmentState(OrnamentLotId: "saved-ornament") } : person).ToArray()
+            ? person with { Equipment = new PersonalEquipment(OrnamentLotId: "saved-ornament") } : person).ToArray()
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state));
         state = ChangeInventory(state, InventoryFixture.Transfer(state.Society.Society.Inventory, "take-ornament",

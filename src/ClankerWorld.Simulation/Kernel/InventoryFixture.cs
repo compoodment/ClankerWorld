@@ -383,7 +383,12 @@ public static partial class InventoryFixture
         }
 
         var source = checkpoint.GetLot(lotId);
-        EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        // Moving physical stock does not make worn or spoiled goods usable.
+        // They retain condition and freshness and still need real repair or
+        // disposal. Consumption and barter keep their usable-stock checks.
+        if (source.OwnerId != senderId || source.Quantity < quantity)
+            throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
+        EnsureUnreservedQuantity(checkpoint, source, quantity);
         EnsurePortableTransfer(checkpoint, source);
         var lots = quantity == source.Quantity
             ? checkpoint.Lots.Select(lot => lot.Id == source.Id

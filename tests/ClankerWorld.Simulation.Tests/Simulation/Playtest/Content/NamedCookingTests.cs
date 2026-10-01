@@ -184,18 +184,32 @@ public sealed class NamedCookingTests
         var placed = builder.PlaceBuilding("cooking-restaurant", definition.CanonicalId, site, house.HouseholdId);
         Assert.True(placed.Applied, placed.Failure);
         state = MoveActor(builder.ExportState(), actor, house.Position);
+        var basketInventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "restaurant-water-basket", "basket", actor, 1);
+        using var equipped = Load(WithInventory(state, basketInventory));
+        var basket = equipped.EquipItem(actor, "restaurant-water-basket");
+        Assert.True(basket.Applied, basket.Failure);
+        var equipment = equipped.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+        Assert.Equal("restaurant-water-basket", equipment!.CarryAidLotId);
+        Assert.Equal(16, PersonalEquipmentRules.Capacity(equipped.Society.Inventory, actor, equipment));
+        Assert.True(PersonalEquipmentRules.FreeCapacity(equipped.Society.Inventory, actor, equipment) >= 9);
+        state = equipped.ExportState();
         var restaurant = builder.WorldSimulation.Buildings.Single(item => item.InstanceId == "cooking-restaurant");
         var inventory = AddJug(UseStarterRations(state.Society.Society.Inventory, house.HouseholdId!), house, 8);
+        inventory = InventoryFixture.AddLot(inventory, "source-reserve-jug", "water_jug", house.HouseholdId!, 1,
+            storageBuildingId: house.InstanceId, containerCapacity: 8);
+        inventory = InventoryFixture.AddLot(inventory, "source-reserve-water", "water", house.HouseholdId!, 2,
+            storageBuildingId: house.InstanceId, containerLotId: "source-reserve-jug");
         inventory = Add(inventory, "restaurant-grain", "grain", restaurant, 1);
         inventory = Add(inventory, "restaurant-fuel", "wood", restaurant, 1);
-        inventory = Add(inventory, "restaurant-filler", "stone", restaurant, 246); // Eight free spaces, but a full jug weighs nine.
+        inventory = Add(inventory, "restaurant-filler", "stone", restaurant, 252); // Even the smaller jug needs three spaces.
         var choices = new Choices("supply_workstation:water");
         using var full = Load(WithInventory(state, inventory), id => id == actor ? choices : new Choices());
         for (var tick = 0; tick < 8; tick++) Assert.True((await full.AdvanceOneTickAsync()).Advanced);
         Assert.DoesNotContain("supply_workstation:water", choices.Offered);
         Assert.Equal(house.InstanceId, full.Society.Inventory.GetLot("cooking-jug").StorageBuildingId);
         state = full.ExportState();
-        inventory = InventoryFixture.Reserve(state.Society.Society.Inventory, "jug-room", house.HouseholdId!, "restaurant-filler", 1, "test", 100);
+        inventory = InventoryFixture.Reserve(state.Society.Society.Inventory, "jug-room", house.HouseholdId!, "restaurant-filler", 7, "test", 100); // Exactly nine spaces for the eight-water jug.
         inventory = InventoryFixture.ConsumeReservation(inventory, "jug-room");
         state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray() };
         using var pickup = Load(WithInventory(state, inventory), id => id == actor ? new Choices("supply_workstation:water") : new Choices());
@@ -220,6 +234,10 @@ public sealed class NamedCookingTests
         Assert.True(cooked.Applied, cooked.Failure);
         for (var tick = 0; tick < 16; tick++) Assert.True((await delivery.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(7, delivery.Society.Inventory.GetLot("cooking-water").Quantity);
+        Assert.Equal(house.InstanceId, delivery.Society.Inventory.GetLot("source-reserve-jug").StorageBuildingId);
+        Assert.Equal(house.InstanceId, delivery.Society.Inventory.GetLot("source-reserve-water").StorageBuildingId);
+        Assert.Equal("source-reserve-jug", delivery.Society.Inventory.GetLot("source-reserve-water").ContainerLotId);
+        Assert.Equal(2, delivery.Society.Inventory.GetLot("source-reserve-water").Quantity);
         Assert.Equal(restaurant.InstanceId, delivery.Society.Inventory.GetLot(cooked.JobId + ":output:00").StorageBuildingId);
         delivery.Validate();
     }

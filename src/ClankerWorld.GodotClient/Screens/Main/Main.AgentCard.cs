@@ -616,6 +616,8 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (!isDeceased && inhabitant.Equipment is { RepairItemKind: { } repairItem } repairingEquipment)
+            details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {repairingEquipment.RepairWorkDone}/{repairingEquipment.RepairWorkRequired}");
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")

@@ -9,7 +9,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!AdultResident(actor) || FreeCarryCapacity(actor) == 0) return;
         foreach (var kind in Enum.GetValues<ToolKind>())
         {
             if (SharedTool(actor, kind) is not { } shared ||
@@ -34,8 +34,8 @@ public sealed partial class PrivateWorldRuntime
             lot.StorageBuildingId == blacksmithId && lot.ItemKind == "iron_ore").Sum(AvailableLotQuantity);
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "iron_ore" &&
-            lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
+            lot.DeliveryBuildingId is null && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private void AddBlacksmithOreCandidates(List<CognitionCandidate> candidates, string actor,
@@ -47,10 +47,12 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= 8) return;
         if (PersonalSmithOre(actor) is not null)
         {
-            candidates.Add(new("deliver_smith_ore", "Carry mined iron ore into the household Blacksmith.", 22, blacksmith.InstanceId));
+            if (state.Position == blacksmith.Position || FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count > 0)
+                candidates.Add(new("deliver_smith_ore", "Carry mined iron ore into the household Blacksmith.", 22, blacksmith.InstanceId));
             return;
         }
-        if (MaterialSource("iron_ore", actor) is not { } source) return;
+        if (MaterialSource("iron_ore", actor) is not { } source ||
+            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source)) return;
         candidates.Add(new("gather_smith_ore", "Mine iron ore with a stone or iron pickaxe for the household Blacksmith.", 30, source.Id));
     }
 
@@ -78,7 +80,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, blacksmith.Position, "smith_ore", 0);
             return;
         }
-        var quantity = Math.Min(8 - stocked, AvailableLotQuantity(ore));
+        var quantity = Math.Min(StorageRoom(blacksmith.InstanceId), Math.Min(8 - stocked, AvailableLotQuantity(ore)));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-ore-delivery:{WorldTick}:{actor}", actor, householdId, ore.Id,
             quantity, "smith_ore_delivered", blacksmith.InstanceId));
@@ -117,13 +120,17 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == kind).Sum(AvailableLotQuantity);
             var missing = target - stocked - incoming;
             if (missing <= 0) continue;
-            var personal = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                lot.ItemKind == kind && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            var personal = society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+                lot.ContainerLotId is null && lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
                 AvailableLotQuantity(lot) > 0 && !IsEquippedLot(actor, lot.Id)).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             var stock = personal is null ? society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == kind && lot.StorageBuildingId != smithId && AvailableLotQuantity(lot) > 0)
+                lot.ItemKind == kind && lot.StorageBuildingId != smithId && lot.ContainerLotId is null &&
+                lot.GroundPosition is null && lot.CartId is null && lot.AnimalId is null && lot.DeliveryBuildingId is null &&
+                AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault() : null;
             var source = personal is null && stock is null ? MaterialSource(kind, actor) : null;
+            if (stock is not null && FreeCarryCapacity(actor) == 0) stock = null;
+            if (source is not null && FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, kind, source)) source = null;
             if (personal is not null || stock is not null || source is not null)
                 return (kind, missing, personal, stock, source);
         }
@@ -137,6 +144,10 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             BlacksmithForHousehold(householdId) is not { } smith ||
             BlacksmithInputNeed(actor, householdId, smith.InstanceId) is not { } need) return;
+        if (need.Stock is { } input &&
+            ((!IsWithinInteractionRange(state.Position, HouseholdStockPosition(input), HouseholdStockInteractionRange(input)) &&
+              FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(input), HouseholdStockInteractionRange(input)).Count == 0) ||
+             FindUnoccupiedRoute(actor, HouseholdStockPosition(input), smith.Position, 0).Count == 0)) return;
         candidates.Add(new("haul_smith_input",
             $"Bring {need.Kind.Replace('_', ' ')} into the household Blacksmith for making and repairing tools.", 24, smith.InstanceId));
     }
@@ -171,7 +182,9 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, source, "smith_input", range);
                 return;
             }
-            var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(input))));
+            var incoming = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == smith.InstanceId).Sum(lot => lot.Quantity);
+            var quantity = Math.Min(Math.Max(0, StorageRoom(smith.InstanceId) - incoming),
+                Math.Min(FreeCarryCapacity(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(input)))));
             if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,
@@ -191,7 +204,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var kind in new[] { "stone", "iron_ore", "gold_ore", "diamond" })
             if (CarriedTool(actor, ToolKind.Pickaxe, ToolCapabilities.RequiredMiningTier(kind)) is not null &&
                 society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
-                    .Sum(AvailableLotQuantity) < 2 && MaterialSource(kind, actor) is { } source)
+                    .Sum(AvailableLotQuantity) < 2 && MaterialSource(kind, actor) is { } source &&
+                FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, kind, source))
                 candidates.Add(new(MineMaterialPrefix + kind,
                     $"Extract {kind.Replace('_', ' ')} from the finite outcrop with the carried pickaxe.", 35, source.Id));
     }

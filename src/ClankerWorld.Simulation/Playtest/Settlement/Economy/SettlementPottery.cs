@@ -16,8 +16,8 @@ public sealed partial class PrivateWorldRuntime
         HouseContent.PackageId, PotteryContent.Create, "pottery_content_staged");
 
     private InventoryLot? PersonalJug(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "water_jug" && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
+        .Where(lot => PersonalEquipmentRules.IsCarriedRoot(lot, actor) && lot.ItemKind == "water_jug" &&
+            lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
             society.Checkpoint.Inventory.Lots.Where(item => item.ContainerLotId == lot.Id).All(item => item.ItemKind == "water"))
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -25,6 +25,16 @@ public sealed partial class PrivateWorldRuntime
         .Where(lot => lot.ItemKind == kind && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
             (lot.OwnerId == ownerId || inhabitants.ContainsKey(lot.OwnerId) && HouseholdFor(lot.OwnerId) == ownerId))
         .Sum(lot => lot.Quantity);
+
+    // Water and milk each occupy a real jug. Only presently needed recipe
+    // outputs add a workstation/liquid pair above the initial two-jug target.
+    private int HouseholdWaterJugTarget(string householdId) => Math.Max(2,
+        NeededWorkstationLiquids(householdId).Select(need => (need.Building.InstanceId, need.Liquid)).Distinct().Count());
+
+    private bool HouseholdNeedsWorkstationWater(string householdId) => NeededWorkstationLiquids(householdId)
+        .Any(need => need.Liquid == "water" && AvailableWorkstationLiquid(householdId, need.Building.InstanceId, need.Liquid) +
+            society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == "water" &&
+                lot.DeliveryBuildingId == need.Building.InstanceId).Sum(AvailableLotQuantity) < need.Quantity);
 
     private bool IsFreshWaterShore(GridPoint shore) => IsFreshWaterShore(map, shore);
 
@@ -62,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!worldContent.Recipes.Any(recipe => recipe.Tags.Contains("pottery", StringComparer.Ordinal)))
             return null;
-        if (HouseholdVesselQuantity(householdId, "water_jug") >= 2 &&
+        if (HouseholdVesselQuantity(householdId, "water_jug") >= HouseholdWaterJugTarget(householdId) &&
             HouseholdVesselQuantity(householdId, "storage_pot") >= 1)
             return null;
         foreach (var (kind, target) in new[] { ("clay", 2), ("wood", 1) })
@@ -102,7 +112,8 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("water_fill", "Take the jug to a river or lake and collect fresh water.", 23,
                     $"water-shore:{shore.X},{shore.Y}"));
         }
-        else if (householdWater < 4 && CarryingRoom(actor) > 0 && EmptyHouseholdJug(actor) is not null &&
+        else if ((householdWater < 4 || HouseholdNeedsWorkstationWater(householdId)) &&
+            CarryingRoom(actor) > 0 && EmptyHouseholdJug(actor) is not null &&
             ReachableFreshWaterShore(actor, person.Position) is not null)
             candidates.Add(new("water_collect_jug", "Collect an empty household jug to bring back fresh water.", 22));
 
@@ -113,7 +124,8 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? EmptyHouseholdJug(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == "water_jug" &&
-            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot) &&
+            lot.GroundPosition is null && lot.CartId is null && lot.AnimalId is null && lot.ContainerLotId is null &&
+            AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot) &&
             !society.Checkpoint.Inventory.Lots.Any(item => item.ContainerLotId == lot.Id))
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 

@@ -201,6 +201,7 @@ public sealed partial class PrivateWorldRuntime
                     MoveToward(actor, parent, camp, "care_food", interactionRange);
                     return;
                 }
+                if (CarryingRoom(actor) == 0) return;
                 _ = CollectHouseholdServing(actor, sharedFood, $"care-food:{WorldTick}:{actor}", "caregiver_food");
             }
             else

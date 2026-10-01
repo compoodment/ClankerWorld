@@ -172,18 +172,42 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
-    private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
+    private InventoryGroundPosition? ConstructionGroundStock(string ownerId, BuildingDefinition? definition) =>
+        definition?.Tags.Contains("house", StringComparer.Ordinal) == true &&
+        society.Checkpoint.Households.Any(household => household.Id == ownerId) && HouseForHousehold(ownerId) is null
+            ? new(SettlementStoragePosition.X, SettlementStoragePosition.Y) : null;
+
+    private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null,
+        InventoryGroundPosition? allowedGroundStock = null)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var requested in quantities)
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId && lot.GroundPosition is null)
+                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
+                    lot.CartId is null && lot.AnimalId is null &&
+                    (lot.GroundPosition is null || allowedGroundStock is not null && lot.GroundPosition == allowedGroundStock))
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    private bool HasCarriedUnreservedQuantities(string actor, IReadOnlyList<ContentQuantity> quantities)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var requested in quantities.GroupBy(item => item.ResourceId, StringComparer.Ordinal))
+        {
+            var available = inventory.Lots
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                    lot.DeliveryBuildingId is null && lot.ItemKind == requested.Key)
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            if (available < requested.Sum(item => (long)item.Amount))
+                return false;
         }
 
         return true;
@@ -195,10 +219,11 @@ public sealed partial class PrivateWorldRuntime
         if (household is null) return actor;
         if (definition.Tags.Contains("market", StringComparer.Ordinal) || definition.Tags.Contains("town_hall", StringComparer.Ordinal)) return household;
         if (!definition.Tags.Any(IsHouseholdBuildingTag) && !PortNavigationRules.IsPort(definition)) return HouseholdId;
-        // Existing household supplies remain usable; new supplies stay personally
-        // carried until a household has a physical House to receive them.
-        return HouseForHousehold(household) is not null || HasAvailableQuantities(definition.BuildCosts, household)
-            ? household : actor;
+        if (definition.Tags.Contains("house", StringComparer.Ordinal) && HouseForHousehold(household) is null &&
+            HasCarriedUnreservedQuantities(actor, definition.BuildCosts))
+            return actor;
+        // A first House can receive real supplies in multiple trips at camp.
+        return household;
     }
 
     private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
@@ -278,8 +303,10 @@ public sealed partial class PrivateWorldRuntime
         ArgumentNullException.ThrowIfNull(transition);
         society.Apply(checkpoint =>
         {
+            var equipmentBefore = inhabitants.Values.ToDictionary(person => person.InhabitantId,
+                person => person.Equipment, StringComparer.Ordinal);
             var updated = transition(checkpoint.Inventory);
-            ValidateCarryingTransition(checkpoint.Inventory, updated, committedBusinessOfferId);
+            ValidateCarryingTransition(checkpoint.Inventory, updated, committedBusinessOfferId, equipmentBefore);
             foreach (var building in worldSimulation.Buildings)
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
@@ -298,7 +325,8 @@ public sealed partial class PrivateWorldRuntime
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
-        string ownerId)
+        string ownerId,
+        InventoryGroundPosition? allowedGroundStock = null)
     {
         var current = inventory;
         for (var quantityIndex = 0; quantityIndex < quantities.Count; quantityIndex++)
@@ -306,7 +334,9 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.GroundPosition is null &&
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
+                    lot.CartId is null && lot.AnimalId is null && lot.ContainerLotId is null &&
+                    (lot.GroundPosition is null || allowedGroundStock is not null && lot.GroundPosition == allowedGroundStock) &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();

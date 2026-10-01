@@ -179,7 +179,8 @@ public sealed record OwnerWorldMedicalCare(int HealthBasisPoints, string? Treatm
 public sealed record OwnerWorldEquippedItem(string Kind, int ConditionBasisPoints);
 public sealed record OwnerWorldEquipment(long Load, int Capacity, OwnerWorldEquippedItem? Clothing,
     OwnerWorldEquippedItem? CarryAid, OwnerWorldEquippedItem? Weapon, OwnerWorldEquippedItem? Shield,
-    OwnerWorldEquippedItem? Armor, OwnerWorldEquippedItem? Ornament);
+    OwnerWorldEquippedItem? Armor, OwnerWorldEquippedItem? Ornament,
+    string? RepairItemKind = null, int RepairWorkDone = 0, int RepairWorkRequired = 0);
 
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);

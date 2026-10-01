@@ -629,6 +629,13 @@ and cloth for current writing needs. Only quantities above those reserves are
 spare supplies for another building, preventing writing and workshop hauling
 from repeatedly carrying the same cloth back and forth.
 
+If an unpaid household recipe remains blocked for 60 ticks and no household
+member has an actionable way to supply its missing ingredients, the runtime
+pauses its saved plan and stops trying to continue it automatically. The adult
+can choose other work. After ingredients return to the building, choosing the
+recipe again resumes the saved plan. This does not interrupt a running
+production job.
+
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their
 belongings while they have no legal trade response. The society transaction
@@ -671,6 +678,13 @@ and pickups account for free storage, incoming loads and carrying room. A filled
 water jug moves as a whole vessel, preserving the water lot and vessel IDs;
 reserved contents prevent hauling it. Cooking consumes only reserved water,
 leaving the jug for another refill.
+
+A full carrier may set down unreserved spare cargo to make room for actual
+food. The House needs room for the whole load, including vessel contents;
+otherwise the goods go to the household's real camp pile. Recovery protects
+all six selected equipment slots, maps, field records, repair targets and
+committed delivery loads. After each transfer, the runtime checks real
+carrying room again so a moved jug's contents are never handled a second time.
 
 House cooking uses potatoes or greens with wood for simple meals. Grain,
 water and wood make porridge, optionally enriched with berries or fruit;
@@ -1050,7 +1064,7 @@ Spears use 2 wood and 1 iron; swords use 1 wood and 2 iron; shields use 2 wood,
 actual on-site household stock and produces one household-owned item there.
 Amounts, job duration, reserves and repair thresholds remain provisional.
 
-`EquipmentState` refers to individual personally carried lots in clothing,
+`PersonalEquipment` refers to individual personally carried lots in clothing,
 carrying aid, weapon, shield, armor and ornament slots. Equipping a stack splits
 off one item; replacing a slot retains the previous item. Normal choices collect
 accessible household gear, equip it and replace broken gear. Worn combat gear

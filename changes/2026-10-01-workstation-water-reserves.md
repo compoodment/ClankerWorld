@@ -1,0 +1,1 @@
+- Household water supply keeps the source's needed liquid when carrying whole jugs to another workstation. Households make and refill enough reusable jugs for their currently needed water and milk recipes, so a House, Restaurant and Clinic can retain their actual supplies.

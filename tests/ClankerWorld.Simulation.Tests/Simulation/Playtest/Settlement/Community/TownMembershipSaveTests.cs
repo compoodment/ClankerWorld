@@ -79,7 +79,7 @@ public sealed partial class TownHallTests
     [Fact]
     public void FounderSetupStillRequiresOnlyTheOriginalFirstTown()
     {
-        var geography = new GeographyOptions("two-towns-before-start", WorldSizePreset.Small);
+        var geography = new GeographyOptions("starter-layout-accept", WorldSizePreset.Small);
         using var world = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         world.InitializeFirstTownContent();
         world.AcceptFirstTownLayout(world.ExportState().Map.Resources.Single(resource => resource.Id == "berry-patch").Position);

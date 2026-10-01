@@ -63,6 +63,36 @@ public sealed partial class PrivateWorldRuntime
     private bool IsLegacyCampCooking(RecipeDefinition recipe) => geographyOptions is not null && founderSetup is not null &&
         recipe.PackageDigest == LegacyCookingPackageDigest && recipe.LocalId == "meal";
 
+    private IEnumerable<(PlacedBuilding Building, string Liquid, int Quantity)> NeededWorkstationLiquids(string householdId)
+    {
+        foreach (var building in worldSimulation.Buildings.Where(site => site.HouseholdId == householdId))
+            foreach (var input in worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == building.DefinitionId &&
+                         recipe.Inputs.Any(item => item.ResourceId is "water" or "milk") && NeedsRecipeOutput(recipe, householdId))
+                         .SelectMany(recipe => recipe.Inputs).Where(input => input.ResourceId is "water" or "milk")
+                         .GroupBy(input => input.ResourceId))
+                yield return (building, input.Key, input.Max(item => item.Amount) * SupplyBatches);
+    }
+
+    private int AvailableWorkstationLiquid(string householdId, string buildingId, string liquid) =>
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId == buildingId &&
+                lot.ItemKind == liquid && lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
+                lot.CartId is null && lot.AnimalId is null && lot.ContainerLotId is { } vesselId &&
+                society.Checkpoint.Inventory.Lots.Any(vessel => vessel.Id == vesselId && AvailableLotQuantity(vessel) > 0))
+            .Sum(AvailableLotQuantity);
+
+    // Moving an indivisible vessel must leave the source's own needed liquid
+    // batches intact. A different vessel's reserved contents are not spare stock.
+    private bool KeepsWorkstationLiquidReserve(InventoryLot jug)
+    {
+        if (jug.StorageBuildingId is not { } sourceId) return true;
+        var source = worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == sourceId);
+        if (source?.HouseholdId != jug.OwnerId) return false;
+        var needs = NeededWorkstationLiquids(jug.OwnerId).Where(need => need.Building.InstanceId == sourceId).ToArray();
+        return society.Checkpoint.Inventory.Lots.Where(lot => lot.ContainerLotId == jug.Id).GroupBy(lot => lot.ItemKind)
+            .All(contents => AvailableWorkstationLiquid(jug.OwnerId, sourceId, contents.Key) - contents.Sum(AvailableLotQuantity) >=
+                needs.Where(need => need.Liquid == contents.Key).Select(need => need.Quantity).DefaultIfEmpty(0).Max());
+    }
+
     /// <summary>Only filled, unreserved whole jugs are moved; water contents never leave their vessel.</summary>
     private InventoryLot? WaterJugForWorkstation(string actor, PlacedBuilding building, string liquid = "water")
     {
@@ -70,7 +100,8 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
         return inventory.Lots.Where(jug => jug.ItemKind == "water_jug" && jug.ContainerLotId is null &&
-                jug.StorageBuildingId != building.InstanceId && jug.GroundPosition is null && AvailableLotQuantity(jug) == 1 &&
+                jug.StorageBuildingId != building.InstanceId && jug.GroundPosition is null && jug.CartId is null &&
+                jug.AnimalId is null && AvailableLotQuantity(jug) == 1 && KeepsWorkstationLiquidReserve(jug) &&
                 (jug.OwnerId == actor && jug.StorageBuildingId is null && jug.DeliveryBuildingId is null ||
                  jug.OwnerId == householdId && CanReachSharedItem(actor, jug)) &&
                 inventory.Lots.Any(water => water.ContainerLotId == jug.Id && water.ItemKind == liquid && AvailableLotQuantity(water) > 0) &&

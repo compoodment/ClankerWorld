@@ -278,7 +278,8 @@ public sealed partial class PrivateWorldRuntime
                 inventory,
                 definition.BuildCosts,
                 $"building:{normalizedInstanceId}",
-                constructionOwnerId ?? householdId ?? HouseholdId));
+                constructionOwnerId ?? householdId ?? HouseholdId,
+                ConstructionGroundStock(constructionOwnerId ?? householdId ?? HouseholdId, definition)));
             var placed = new PlacedBuilding(
                 normalizedInstanceId,
                 definition.CanonicalId,

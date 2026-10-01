@@ -210,9 +210,10 @@ public sealed partial class PrivateWorldRuntime
     });
 
     private bool TradeQuantityAvailable(InventoryLot lot) =>
-        lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-        lot.ContainerLotId is null && lot.GroundPosition is null &&
-        (!inhabitants.ContainsKey(lot.OwnerId) || !IsEquippedLot(lot.OwnerId, lot.Id)) &&
+        PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.DeliveryBuildingId is null &&
+        lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null &&
+        (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
+         !IsEquippedLot(lot.OwnerId, lot.Id) && carrier.Equipment?.Repair?.LotId != lot.Id) &&
         AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" or "book" ||
             OrnamentContent.IsOrnament(lot.ItemKind) || CombatGearContent.IsGear(lot.ItemKind) ? 1 : 2);
 
@@ -228,7 +229,10 @@ public sealed partial class PrivateWorldRuntime
                 (Owner: offer.SecondPartyId, Lot: offer.SecondLotId, Quantity: offer.SecondQuantity, Reservation: offer.Id + ":second"),
             };
             if (parties.Any(party => !society.Checkpoint.Inhabitants.Any(person => person.Id == party.Owner && person.Status == SocietyInhabitantStatus.Active) ||
-                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && lot.OwnerId == party.Owner && lot.Quantity >= party.Quantity &&
+                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && PersonalEquipmentRules.IsCarried(lot, party.Owner) &&
+                        lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null &&
+                        lot.DeliveryBuildingId is null && !IsEquippedLot(party.Owner, lot.Id) &&
+                        inhabitants[party.Owner].Equipment?.Repair?.LotId != lot.Id && lot.Quantity >= party.Quantity &&
                         lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0) ||
                     !currentInventory.Reservations.Any(reservation => reservation.Id == party.Reservation && reservation.State == InventoryReservationState.Reserved)))
             {

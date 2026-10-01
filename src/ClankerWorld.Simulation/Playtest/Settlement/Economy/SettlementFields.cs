@@ -32,7 +32,8 @@ public sealed partial class PrivateWorldRuntime
         if (worker.Position != position) return new(false, "The worker must stand on the field tile.");
         if (FarmWorkTool(workerId, kind) is null) return new(false, "The worker needs a usable hoe, or a sickle for harvest.");
         if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || IsConversationBusy(workerId) ||
-            worker.Project is { Stage: not ("completed" or "cancelled") } || FarmWorkFor(workerId) is not null)
+            (worker.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) ||
+            FarmWorkFor(workerId) is not null)
             return new(false, "The worker must finish other work or meet urgent needs first.");
         var field = fields.SingleOrDefault(item => item.Position == position);
         if (kind == FarmWorkKind.Till)

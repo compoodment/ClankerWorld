@@ -105,10 +105,17 @@ public sealed class PotteryWaterTests
         var jug = Lot("collection-jug", "water_jug", actor, 1, capacity: 8);
         state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, jug.Id, jug.ItemKind,
             actor, 1, containerCapacity: 8));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "water-collection-basket", "basket", actor, 1));
         state = MoveActor(state, actor, shore);
         var world = PrivateWorldRuntime.Restore(state, _ => new ActionCoverageRecorder(true));
         try
         {
+            var equipped = world.EquipItem(actor, "water-collection-basket");
+            Assert.True(equipped.Applied, equipped.Failure);
+            var equipment = world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+            Assert.Equal("water-collection-basket", equipment!.CarryAidLotId);
+            Assert.Equal(16, PersonalEquipmentRules.Capacity(world.Society.Inventory, actor, equipment));
             Assert.False(world.FillWaterJug(actor, jug.Id, ocean).Applied);
             Assert.False(world.FillWaterJug(state.Inhabitants[1].InhabitantId, jug.Id, shore).Applied);
             Assert.True(world.FillWaterJug(actor, jug.Id, shore).Applied);

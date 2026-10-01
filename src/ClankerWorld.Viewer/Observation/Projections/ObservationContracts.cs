@@ -172,7 +172,8 @@ public sealed record ViewerMedicalCare(int HealthBasisPoints, string? TreatmentK
 public sealed record ViewerEquippedItem(string Kind, int ConditionBasisPoints);
 public sealed record ViewerEquipment(long Load, int Capacity, ViewerEquippedItem? Clothing,
     ViewerEquippedItem? CarryAid, ViewerEquippedItem? Weapon, ViewerEquippedItem? Shield,
-    ViewerEquippedItem? Armor, ViewerEquippedItem? Ornament);
+    ViewerEquippedItem? Armor, ViewerEquippedItem? Ornament,
+    string? RepairItemKind = null, int RepairWorkDone = 0, int RepairWorkRequired = 0);
 
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);

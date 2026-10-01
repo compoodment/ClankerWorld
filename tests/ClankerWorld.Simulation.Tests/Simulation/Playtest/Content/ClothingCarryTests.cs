@@ -14,7 +14,7 @@ public sealed class ClothingCarryTests
     [Fact]
     public async Task BetterSharedGarmentIsWalkedToCollectedOnceAndWornAcrossReload()
     {
-        var state = Initial("same-kind-garment-upgrade");
+        var state = WithWeather(Initial("same-kind-garment-upgrade"), WeatherKind.Snow);
         var actor = Actor(state);
         state = Stock(state, "old-worn-clothing", "clothing", actor, 1);
         var home = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House);
@@ -42,30 +42,31 @@ public sealed class ClothingCarryTests
         state = setup.ExportState();
         var shared = state.Society.Society.Inventory.Lots.First(lot => lot.OwnerId == Alpha &&
             lot.ItemKind == "clothing" && lot.StorageBuildingId == House);
-        var oldWearEvents = state.Events.Count(item => item.Kind == "equipment_worn");
+        var oldWearEvents = state.Events.Count(item => item.Kind == "equipment_equipped");
 
         // A garment upgrade cannot create carrying room or take stock without it.
         var fullState = Stock(state, "full-garment-load", "wood", actor,
-            checked((int)(CarryEquipmentRules.BasicCapacity - CarryEquipmentRules.Load(state.Society.Society.Inventory, actor))));
+            PersonalEquipmentRules.FreeCapacity(state.Society.Society.Inventory, actor,
+                state.Inhabitants.Single(person => person.InhabitantId == actor).Equipment));
         using var full = PrivateWorldRuntime.Restore(fullState, Provider);
         for (var tick = 0; tick < 4; tick++) Assert.True((await full.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(shared.Quantity, full.Society.Inventory.GetLot(shared.Id).Quantity);
-        Assert.Equal("old-worn-clothing", full.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.WornClothingLotId);
-        Assert.DoesNotContain(full.ExportState().Events, item => item.Kind == "equipment_collected");
+        Assert.Equal("old-worn-clothing", full.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.ClothingLotId);
+        Assert.DoesNotContain(full.Society.Inventory.Events, item => item.Kind == "equipment_collected");
 
         using var walking = PrivateWorldRuntime.Restore(state, Provider);
         Assert.True((await walking.AdvanceOneTickAsync()).Advanced);
         Assert.NotEqual(start, walking.Inhabitants.Single(person => person.InhabitantId == actor).Position);
-        Assert.Equal("old-worn-clothing", walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.WornClothingLotId);
-        Assert.Equal(oldWearEvents, walking.ExportState().Events.Count(item => item.Kind == "equipment_worn"));
+        Assert.Equal("old-worn-clothing", walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.ClothingLotId);
+        Assert.Equal(oldWearEvents, walking.ExportState().Events.Count(item => item.Kind == "equipment_equipped"));
         var saved = PrivateWorldRuntimeCodec.Encode(walking.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
-        for (var tick = 0; tick < 24 && walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.WornClothingLotId == "old-worn-clothing"; tick++)
+        for (var tick = 0; tick < 24 && walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.ClothingLotId == "old-worn-clothing"; tick++)
         {
             Assert.True((await walking.AdvanceOneTickAsync()).Advanced);
             Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
         }
-        var equipped = walking.Society.Inventory.GetLot(walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.WornClothingLotId!);
+        var equipped = walking.Society.Inventory.GetLot(walking.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.ClothingLotId!);
         Assert.NotEqual("old-worn-clothing", equipped.Id);
         Assert.Equal(shared.Id, equipped.ProvenanceLotId);
         Assert.Equal(actor, equipped.OwnerId);
@@ -73,8 +74,8 @@ public sealed class ClothingCarryTests
         Assert.Null(equipped.StorageBuildingId);
         Assert.Equal(shared.Quantity - 1, walking.Society.Inventory.GetLot(shared.Id).Quantity);
         Assert.Equal(1, walking.Society.Inventory.GetLot("old-worn-clothing").Quantity);
-        Assert.Single(walking.ExportState().Events, item => item.Kind == "equipment_collected");
-        Assert.Equal(oldWearEvents + 1, walking.ExportState().Events.Count(item => item.Kind == "equipment_worn"));
+        Assert.Single(walking.Society.Inventory.Events, item => item.Kind == "equipment_collected");
+        Assert.Equal(oldWearEvents + 1, walking.ExportState().Events.Count(item => item.Kind == "equipment_equipped"));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(walking.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
@@ -86,7 +87,7 @@ public sealed class ClothingCarryTests
         state = Stock(state, "house-craft-fiber", "fiber", Alpha, 6, House);
         var rope = state.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "twist-rope");
         var basket = state.WorldContent.Recipes.Single(recipe => recipe.LocalId == "weave-basket");
-        var allowed = new[] { "equip_carry:basket", "build:recipe:" + basket.CanonicalId,
+        var allowed = new[] { "equip_carry_aid", "build:recipe:" + basket.CanonicalId,
             "build:recipe:" + rope.CanonicalId, "supply_workstation:fiber", "haul_household_stock" };
         IDecisionProvider Provider(string id) => new Preferred(id == actor ? allowed : []);
         var world = PrivateWorldRuntime.Restore(state, Provider);
@@ -111,7 +112,7 @@ public sealed class ClothingCarryTests
             Assert.Equal("basket", aid.ItemKind);
             Assert.Equal(actor, aid.OwnerId);
             Assert.Null(aid.StorageBuildingId);
-            Assert.Equal(48, CarryEquipmentRules.Capacity(world.Society.Inventory, person));
+            Assert.Equal(16, CarryEquipmentRules.Capacity(world.Society.Inventory, person));
             Assert.Contains(world.WorldSimulation.ProductionJobs, job => job.RecipeId == rope.CanonicalId && job.State == WorldProductionJobState.Completed);
             Assert.Contains(world.WorldSimulation.ProductionJobs, job => job.RecipeId == basket.CanonicalId && job.State == WorldProductionJobState.Completed);
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == "household:camp-beta" && lot.ItemKind is "rope" or "basket");
@@ -161,23 +162,23 @@ public sealed class ClothingCarryTests
         var state = Initial("carry-slot");
         var actor = Actor(state);
         state = Stock(Stock(Stock(state, "carried-sack", "sack", actor, 1), "carried-basket", "basket", actor, 1),
-            "carried-wood", "wood", actor, 50);
+            "carried-wood", "wood", actor, 20);
         using var world = PrivateWorldRuntime.Restore(state, _ => new Preferred([]));
         Assert.True(world.EquipItem(actor, "carried-sack").Applied);
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.False(world.EquipItem(actor, "carried-basket").Applied);
         Assert.False(world.RemoveCarryAid(actor).Applied);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        Assert.Equal(50, world.Society.Inventory.GetLot("carried-wood").Quantity);
+        Assert.Equal(20, world.Society.Inventory.GetLot("carried-wood").Quantity);
         var after = world.ExportState();
         var moved = InventoryFixture.Transfer(after.Society.Society.Inventory, "reduce-cargo", actor, Alpha,
-            "carried-wood", 20, "stored", House);
+            "carried-wood", 14, "stored", House);
         after = after with { Society = after.Society with { Society = after.Society.Society with { Inventory = moved } } };
         using var unloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(after)));
         Assert.True(unloaded.RemoveCarryAid(actor).Applied);
-        Assert.Equal(50, unloaded.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
+        Assert.Equal(20, unloaded.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
             (lot.Id == "carried-wood" || lot.ProvenanceLotId == "carried-wood")).Sum(lot => lot.Quantity));
-        Assert.Equal(20, unloaded.Society.Inventory.Lots.Single(lot => lot.ProvenanceLotId == "carried-wood").Quantity);
+        Assert.Equal(14, unloaded.Society.Inventory.Lots.Single(lot => lot.ProvenanceLotId == "carried-wood").Quantity);
     }
 
     [Fact]
@@ -204,7 +205,7 @@ public sealed class ClothingCarryTests
         for (var tick = 0; tick < 3 && !equipped.Society.Inventory.Lots.Any(lot => lot.OwnerId == actor && lot.ItemKind == "berries"); tick++)
             Assert.True((await equipped.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(equipped.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "berries" && lot.Quantity == 4);
-        Assert.Equal(32, equipped.Society.Inventory.GetLot("full-load").Quantity);
+        Assert.Equal(8, equipped.Society.Inventory.GetLot("full-load").Quantity);
         Assert.Equal(1, equipped.Society.Inventory.GetLot("new-sack").Quantity);
         equipped.Validate();
     }
@@ -229,13 +230,20 @@ public sealed class ClothingCarryTests
         Assert.True((await carried.AdvanceOneTickAsync()).Advanced);
         Assert.True((await worn.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(4_940, carried.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints);
-        Assert.Equal(5_020, worn.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints);
+        Assert.Equal(4_994, worn.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints);
 
-        state = Stock(worn.ExportState(), "repair-cloth", "cloth", Alpha, 1, House);
+        state = Stock(worn.ExportState(), "repair-shop-fiber", "fiber", Alpha, 2, House);
+        using var shopSetup = PrivateWorldRuntime.Restore(state, _ => new Preferred([]));
+        var definition = shopSetup.WorldContent.Buildings.Single(building => building.LocalId == "tailor-shop-1x1");
         var home = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House);
+        Assert.Contains(Enumerable.Range(-5, 11).SelectMany(dy => Enumerable.Range(-5, 11).Select(dx =>
+            new GridPoint(home.Position.X + dx, home.Position.Y + dy))),
+            point => shopSetup.PlaceBuilding("repair-tailor", definition.CanonicalId, point, Alpha).Applied);
+        state = Stock(shopSetup.ExportState(), "repair-cloth", "cloth", Alpha, 1, "repair-tailor");
+        var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "repair-tailor");
         state = state with
         {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = home.Position } : person).ToArray(),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = shop.Position } : person).ToArray(),
             Society = state.Society with
             {
                 Society = state.Society.Society with
@@ -246,12 +254,25 @@ public sealed class ClothingCarryTests
             },
         };
         using var repair = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-            id => new Preferred(id == actor ? ["repair_gear:"] : []));
-        for (var tick = 0; tick < 60 && !repair.ExportState().Events.Any(item => item.Kind == "equipment_repaired"); tick++)
+            id => new Preferred(id == actor ? ["repair_equipment"] : []));
+        for (var tick = 0; tick < 60 && repair.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair is null; tick++)
             Assert.True((await repair.AdvanceOneTickAsync()).Advanced);
+        var work = Assert.IsType<EquipmentRepairWork>(repair.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(shop.InstanceId, work.BuildingId);
+        var saved = PrivateWorldRuntimeCodec.Encode(repair.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved),
+            id => new Preferred(id == actor ? ["repair_equipment"] : []));
+        for (var tick = 0; tick < 60 && !repair.ExportState().Events.Any(item => item.Kind == "equipment_repaired"); tick++)
+        {
+            Assert.True((await repair.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        }
         Assert.DoesNotContain(repair.Society.Inventory.Lots, lot => lot.Id == "repair-cloth");
-        Assert.InRange(repair.Society.Inventory.GetLot("worn-coat").ConditionBasisPoints, 9_999, 10_000);
-        Assert.Equal("worn-coat", repair.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.WornClothingLotId);
+        Assert.InRange(repair.Society.Inventory.GetLot("worn-coat").ConditionBasisPoints, 8_800, 9_000);
+        Assert.All(work.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed,
+            repair.Society.Inventory.GetReservation(id).State));
+        Assert.Equal("worn-coat", repair.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.ClothingLotId);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(repair.ExportState()), PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
     }
 
     [Fact]
@@ -263,14 +284,14 @@ public sealed class ClothingCarryTests
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Equipment = new EquipmentState(CarryAidLotId: "other-sack") } : person).ToArray()
+            ? person with { Equipment = new PersonalEquipment(CarryAidLotId: "other-sack") } : person).ToArray()
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state));
         state = Stock(state, "personal-clothes", "clothing", actor, 1);
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Equipment = new EquipmentState(CarryAidLotId: "personal-clothes") } : person).ToArray()
+            ? person with { Equipment = new PersonalEquipment(CarryAidLotId: "personal-clothes") } : person).ToArray()
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state));
     }

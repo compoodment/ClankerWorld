@@ -143,13 +143,18 @@ public sealed partial class PrivateWorldRuntime
 
     private MapResource? AvailableFoodSource(string actor, GridPoint position) => map.Resources
         .Where(resource => FoodItems.IsEdible(resource.Kind) &&
-            CarryingRoom(actor) >= (resource.TreeKind == TreeGrowthRules.Orchard ? 2 : 1) &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
             map.IsReachableOnFoot(position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
         .ThenBy(resource => resource.Id, StringComparer.Ordinal)
         .FirstOrDefault(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||
             FindUnoccupiedRoute(actor, position, resource.Position, ResourceInteractionRange).Count > 0);
+
+    private static int FoodHarvestQuantity(MapResource source) => source.TreeKind == TreeGrowthRules.Orchard
+        ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
+
+    private static int FoodHarvestCarryUnits(MapResource source) => FoodHarvestQuantity(source) +
+        (source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardSeedsPerPick : 0);
 
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
@@ -165,9 +170,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var harvestYield = Math.Min(Math.Max(0, CarryingRoom(inhabitantId) - (source.TreeKind == TreeGrowthRules.Orchard ? 1 : 0)), source.TreeKind == TreeGrowthRules.Orchard
-            ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield);
-        if (harvestYield == 0)
+        var harvestYield = FoodHarvestQuantity(source);
+        if (CarryingRoom(inhabitantId) < FoodHarvestCarryUnits(source))
         {
             AppendEvent("carrying_full", inhabitantId);
             return;
@@ -252,18 +256,19 @@ public sealed partial class PrivateWorldRuntime
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
         lot.GroundPosition is not null ? 0 : lot.StorageBuildingId is null ? ResourceInteractionRange : 0;
 
-    private InventoryLot? AvailableSharedFood(string actor) =>
+    private InventoryLot? AvailableSharedFood(string actor, bool ignoreCarryingRoom = false) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && MayCollectSharedFood(actor)
         ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
             (lot.StorageBuildingId is null ||
              society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-            CanCollectHouseholdServing(actor, lot) &&
+            CanCollectHouseholdServing(actor, lot, ignoreCarryingRoom) &&
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                 HouseholdStockInteractionRange(lot)).Count > 0)
         : null;
 
     private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
     {
+        if (FreeCarryCapacity(inhabitantId) == 0) return;
         if (AvailableSharedFood(inhabitantId) is not { } lot)
             return;
         var supplyPoint = HouseholdStockPosition(lot);
@@ -283,11 +288,12 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("household_food_collected", $"{inhabitantId}:{lot.Id}:1");
     }
 
-    private bool CanCollectHouseholdServing(string actor, InventoryLot food) => CarryingRoom(actor) > 0 &&
+    private bool CanCollectHouseholdServing(string actor, InventoryLot food, bool ignoreCarryingRoom = false) =>
+        (ignoreCarryingRoom || CarryingRoom(actor) > 0) &&
         (food.ContainerLotId is null || society.Checkpoint.Inventory.Lots.Any(vessel =>
             vessel.Id == food.ContainerLotId && AvailableLotQuantity(vessel) == 1)) &&
         (food.ItemKind != "milk" || food.ContainerLotId is null || MilkJugIsUnreserved(food.ContainerLotId) &&
-            InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, food.ContainerLotId, 1) <= CarryingRoom(actor));
+            (ignoreCarryingRoom || InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, food.ContainerLotId, 1) <= CarryingRoom(actor)));
 
     // A solid serving can leave its pot. Milk travels with the whole jug;
     // after collection, consuming its contents keeps the actual vessel.

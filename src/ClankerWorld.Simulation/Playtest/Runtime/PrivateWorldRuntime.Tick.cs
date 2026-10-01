@@ -476,7 +476,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainFarmFields();
             AdvanceLivestock(targetTick);
 
-            WearClothing();
+            WearEquippedClothing();
             AdvanceSettlementSurvival();
             AdvanceMedicalTreatments();
             MaintainSettlementTrades();

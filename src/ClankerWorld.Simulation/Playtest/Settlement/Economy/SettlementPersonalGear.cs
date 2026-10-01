@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
     private static string? GearSlot(string kind) => OrnamentContent.IsOrnament(kind) ? "ornament"
         : CombatGearContent.IsWeapon(kind) ? "weapon" : kind == "shield" ? "shield" : kind == "basic_armor" ? "armor" : null;
 
-    private static string? EquippedGearId(EquipmentState equipment, string slot) => slot switch
+    private static string? EquippedGearId(PersonalEquipment equipment, string slot) => slot switch
     {
         "ornament" => equipment.OrnamentLotId,
         "weapon" => equipment.WeaponLotId,
@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
         _ => null,
     };
 
-    private static EquipmentState SetGearSlot(EquipmentState equipment, string slot, string? id) => slot switch
+    private static PersonalEquipment SetGearSlot(PersonalEquipment equipment, string slot, string? id) => slot switch
     {
         "ornament" => equipment with { OrnamentLotId = id },
         "weapon" => equipment with { WeaponLotId = id },
@@ -33,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
     };
 
     private InventoryLot? PersonalGear(string actor, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.StorageBuildingId is null &&
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null && lot.ItemKind == kind &&
             lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 

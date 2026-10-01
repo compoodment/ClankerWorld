@@ -1143,7 +1143,10 @@ items per vessel. A House fires one vessel from two clay and one wood over 18
 periods of work. Filling a jug takes six periods beside fresh water; ocean
 water is excluded. A pot halves spoilage only for its actual contents. A
 household initially aims for two reusable jugs and one storage pot. These are
-playtest values, not a settled demand or balance rule.
+playtest values, not a settled demand or balance rule. It makes additional jugs
+for currently needed water and milk recipes at its workstations, and leaves
+each source's needed liquid in place when supplying another building. Empty
+jugs can be filled for those stations even when the House already has water.
 
 #### Tools, clothing and transport
 
@@ -1176,13 +1179,23 @@ object that an agent pulls, parks, repairs and transfers ownership of. Worn
 clothing still does not change the agent's map sprite. Exact carrying amounts,
 cart movement costs, protection and repair quantities are tuned in playtests.
 
-The first carrying trial is 32 item units without an aid, 48 with a basket and
-64 with a sack, including goods inside carried vessels. Existing oversized
-loads are retained and can be reduced; new pickups need room. A smaller aid or
-removing the aid requires delivering enough cargo first. Clothing loses one
-condition point per world step, and a basket or sack loses one per travel step.
-House or Tailor Shop repairs use one cloth for a garment or sack, or one fiber
-for a basket. These amounts and rates are provisional.
+The current equipment trial allows 8 cargo units without an aid, 16 with a
+basket and 24 with a sack. The equipped garment and aid each occupy their own
+slot; other goods, delivery loads and vessel contents count as cargo. Stored
+or ground goods do not count as carried. Broken aids give no extra capacity.
+When an aid breaks or is replaced, excess cargo and the old aid stay real
+property; the agent must make room before collecting more.
+
+The House trial uses 3 fiber for a rope and 3 fiber plus 1 rope for a basket.
+The Tailor trial keeps 3 fiber per cloth and 2 cloth per basic garment, uses
+4 cloth per padded coat, 2 cloth plus 1 fiber per rain cloak, and 2 cloth plus
+1 rope per sack. Only the equipped garment protects against weather, with
+less protection as it wears. Garments wear during exposure and carry aids
+wear during travel with cargo. Adult household members repair garments and
+sacks at their Tailor Shop with 1 cloth, or baskets at their House with
+1 fiber and 1 rope. Eight work ticks restore 60% condition, up to full
+condition. Interrupted repairs release unspent materials. These quantities,
+capacities, wear rates and repair effects remain provisional.
 
 #### Care and later goods
 
@@ -1241,7 +1254,8 @@ such a death from missed care. One hide and one wood make two leather. Two
 leather make a leather coat; two leather and one rope make a carrying satchel.
 Leather gear wears at half the cloth gear rate, a trial balance value, and uses
 leather for repair. The coat gives forty-five percent exposure protection;
-the satchel holds sixty-four item units including vessel contents.
+the satchel allows twenty-four cargo units including vessel contents, with its
+own equipped slot.
 
 A horse accepts one permitted adult rider and sixty-four units of physical
 cargo, including jug contents. Household adults can grant and revoke named

@@ -58,15 +58,18 @@ public sealed partial class PrivateWorldRuntime
                     continue;
                 }
                 var carried = society.Checkpoint.Inventory.Lots
-                    .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
-                        lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId is null &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
+                        lot.ContainerLotId is null &&
                         lot.DeliveryBuildingId is null && WorkstationCarriedSupplyQuantity(actor, lot, householdId) > 0)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
-                if (stock is not null && (CookingSupplyQuantity(stock, householdId) == 0 || CarryingRoom(actor) == 0)) stock = null;
+                if (stock is not null && (CookingSupplyQuantity(stock, householdId) == 0 || FreeCarryCapacity(actor) == 0)) stock = null;
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
-                if (CarryingRoom(actor) == 0) source = null;
+                if (FreeCarryCapacity(actor) == 0) source = null;
                 if (carried is null && stock is null && source is null)
+                    continue;
+                if (stock is not null && FreeCarryCapacity(actor) == 0 || source is not null &&
+                    FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, input.Key, source))
                     continue;
                 yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, carried, stock, source);
             }
@@ -91,7 +94,8 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId != destinationId && HouseholdSupplySpareQuantity(lot, destinationId) > 0 &&
+                lot.ContainerLotId is null && lot.GroundPosition is null && lot.CartId is null && lot.AnimalId is null &&
+                lot.StorageBuildingId != destinationId && HouseholdSupplySpareQuantity(lot, destinationId) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
@@ -146,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
             }
             var incoming = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
             var quantity = Math.Min(Math.Max(0, StorageRoom(building.InstanceId) - incoming),
-                Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, Math.Min(CookingSupplyQuantity(stock, householdId),
+                Math.Min(FreeCarryCapacity(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, Math.Min(CookingSupplyQuantity(stock, householdId),
                     HouseholdSupplySpareQuantity(stock, building.InstanceId))))));
             if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.

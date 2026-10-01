@@ -16,6 +16,8 @@ public sealed class EquipmentSchemaTests
     [InlineData("spear", 34)]
     [InlineData("clothing", 36)]
     [InlineData("spear", 36)]
+    [InlineData("clothing", 37)]
+    [InlineData("spear", 37)]
     public void CurrentEquipmentRoundTripsWhileOlderAlphaFormatsAreRefused(string kind, int schema)
     {
         using var initial = new PrivateWorldRuntime("equipment-version");
@@ -75,7 +77,7 @@ public sealed class EquipmentSchemaTests
         };
         using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(SettlementSkillKind.Crafting, Assert.Single(loaded.Inhabitants.Single(person => person.InhabitantId == actor).Skills!).Kind);
-        Assert.Equal(new EquipmentState(null, null), loaded.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+        Assert.Equal(new PersonalEquipment(null, null), loaded.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 31 }));
         loaded.Validate();
     }
