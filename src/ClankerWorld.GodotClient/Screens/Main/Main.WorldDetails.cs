@@ -31,7 +31,8 @@ public partial class Main
             lines.Add(new(TownStyle.Body, $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}"));
             if (person.Project.Blocker is { } blocker) lines.Add(new(TownStyle.Warning, blocker));
         }
-        if (snapshot.Council is { } council)
+        AddCivicAndBusinessDetails(snapshot, lines);
+        if (snapshot.Towns.Count == 0 && snapshot.TownCouncils.Count == 0 && snapshot.Council is { } council)
         {
             lines.Add(new(TownStyle.Heading, "Household council"));
             lines.Add(new(TownStyle.Body, $"Steward: {council.StewardName ?? "awaiting a contributor"}"));

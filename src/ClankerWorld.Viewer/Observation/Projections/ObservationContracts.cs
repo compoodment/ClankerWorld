@@ -337,6 +337,7 @@ public sealed record ViewerWorldSnapshot(
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerTownCouncil> TownCouncils { get; init; } = [];
+    public ViewerBusinessTrade? BusinessTrade { get; init; }
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public IReadOnlyList<ViewerCart> Carts { get; init; } = [];
@@ -378,6 +379,15 @@ public sealed record ViewerTownCouncil(string TownId, string? HallId, string Foo
     long? ElectionExpiryTick, int ElectionVotes, int ElectionVoters, string? ProposedRule,
     int Approvals, int Rejections, int Voters, IReadOnlyList<ViewerTownLaw> Laws);
 public sealed record ViewerTownLaw(string Key, string Text, long AdoptedTick);
+public sealed record ViewerBusinessListing(string Id, string SellerId, string BuildingId, string HouseholdId,
+    string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, long ExpiryTick,
+    IReadOnlyList<ViewerInventoryContent> Contents);
+public sealed record ViewerBusinessOffer(string Id, string SellerId, string BuyerId, string BuildingId,
+    string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, string State, string? Blocker);
+public sealed record ViewerMarketStall(string MarketId, string BuildingId, string HouseholdId, int StoredQuantity);
+public sealed record ViewerBusinessToolOrder(string Id, string BuyerId, string BuildingId, string ToolKind, string State, string? Blocker);
+public sealed record ViewerBusinessTrade(IReadOnlyList<ViewerBusinessListing> Listings, IReadOnlyList<ViewerBusinessOffer> Offers,
+    IReadOnlyList<ViewerMarketStall> Stalls, IReadOnlyList<ViewerBusinessToolOrder> ToolOrders);
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);

@@ -12,7 +12,7 @@ namespace ClankerWorld.Viewer.Observation;
 /// distinction between the live fixture topology, cognition state, and paused
 /// authoring state.
 /// </summary>
-public sealed class OwnerWorldObservationStore
+public sealed partial class OwnerWorldObservationStore
 {
     private const int AgentKnowledgeArtifactLimit = 8;
     private static readonly string[] OwnerServerCapabilities =
@@ -318,7 +318,7 @@ public sealed class OwnerWorldObservationStore
                     ("household:camp-beta", "Camp Beta") => "Second household",
                     _ => household.Name,
                 }, InventoryFor(state, household.Id))).ToArray(),
-            Council = state.Council is { } council ? new ViewerCouncil(
+            Council = (state.Towns ?? []).Count == 0 && state.Council is { } council ? new ViewerCouncil(
                 state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == council.StewardId)?.Name,
                 council.FoodPolicy, council.Ballot?.Policy, council.Ballot?.Approvals.Count ?? 0,
                 council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
@@ -332,6 +332,7 @@ public sealed class OwnerWorldObservationStore
                 current.Election?.Votes.Count ?? 0, current.Election?.Electorate.Count ?? 0, current.Ballot?.Text,
                 current.Ballot?.Approvals.Count ?? 0, current.Ballot?.Rejections.Count ?? 0, current.Ballot?.Electorate.Count ?? 0,
                 (current.Laws ?? []).Select(law => new ViewerTownLaw(law.Key, law.Text, law.AdoptedTick)).ToArray())).ToArray(),
+            BusinessTrade = BusinessSnapshot(state),
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
             JevEnabled = state.JevEnabled ?? true,
             FounderSetup = state.FounderSetup is { } setup

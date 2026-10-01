@@ -169,6 +169,16 @@ public static class GameUiText
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
             "council_policy_adopted" or "settlement_trade_completed" or
+            "business_goods_listed" or "business_offer_accepted" or "business_exchange_completed" or "business_offer_cancelled" or
+            "business_stock_withdrawn" or "business_stock_cleared" or "business_tool_requested" or "market_plot_reserved" or
+            "market_stall_stocked" or "market_stall_released" or "town_election_started" or "town_council_elected" or
+            "town_law_proposed" or "town_law_adopted" or "town_law_rejected" or
+            "equipment_worn" or "equipment_repaired" or "carry_aid_removed" or "carrying_full" or
+            "cart_deployed" or "cart_loaded" or "cart_unloaded" or "cart_repaired" or "cart_given" or "cart_cargo_put_down" or
+            "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or "medical_care_allowed" or "medical_care_revoked" or
+            "communal_boat_launched" or "boat_departed" or "boat_arrived" or "boat_returned" or "boat_waiting" or "boat_return_started" or "boat_departure_blocked" or
+            "livestock_acquired" or "livestock_natural_death" or "livestock_product_ready" or "livestock_product_spoiled" or "livestock_product_collected" or
+            "field_prepared" or "field_harvested" or "field_harvest_collected" or "crop_ready" or "crop_weather_loss" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
@@ -266,9 +276,25 @@ public static class GameUiText
         }
         if (normalized.StartsWith("council_", StringComparison.Ordinal))
         {
+            if (normalized == "council_town_elect") return "vote in the Town election";
+            if (normalized == "council_town_author") return "propose a Town rule";
+            if (normalized.StartsWith("council_town_propose:", StringComparison.Ordinal)) return "propose a Town food rule";
+            if (normalized == "council_town_vote_yes") return "support the proposed Town rule";
+            if (normalized == "council_town_vote_no") return "keep the current Town rule";
             return normalized.StartsWith("council_propose:", StringComparison.Ordinal) ? "suggest a food rule"
                 : normalized == "council_vote_yes" ? "vote for a food rule" : "vote against a food rule";
         }
+        if (normalized.StartsWith("business_", StringComparison.Ordinal))
+            return normalized.StartsWith("business_buy:", StringComparison.Ordinal) ? "agree to an exact business exchange"
+                : normalized.StartsWith("business_payment:", StringComparison.Ordinal) ? "collect the agreed business payment"
+                : normalized.StartsWith("business_collect:", StringComparison.Ordinal) || normalized.StartsWith("business_serve:", StringComparison.Ordinal)
+                    ? "meet for the agreed business exchange"
+                : normalized.StartsWith("business_list:", StringComparison.Ordinal) ? "offer surplus goods for barter"
+                : normalized.StartsWith("business_make_tool:", StringComparison.Ordinal) ? "make a requested tool"
+                : normalized.StartsWith("business_clear:", StringComparison.Ordinal) ? "clear unusable business stock"
+                : normalized.StartsWith("business_receipts:", StringComparison.Ordinal) ? "collect business payments"
+                : "move or manage business goods";
+        if (normalized.StartsWith("market_deliver:", StringComparison.Ordinal)) return "bring goods to a Market stall";
         if (normalized.StartsWith("trade_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("trade_propose:", StringComparison.Ordinal) ? "offer a trade"

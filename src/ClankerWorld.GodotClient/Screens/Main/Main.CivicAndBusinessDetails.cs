@@ -1,0 +1,50 @@
+using ClankerWorld.GodotClient.UI;
+
+namespace ClankerWorld.GodotClient;
+
+public partial class Main
+{
+    private void AddCivicAndBusinessDetails(OwnerWorldSnapshot snapshot, List<TownLine> lines)
+    {
+        foreach (var council in snapshot.TownCouncils)
+        {
+            lines.Add(new(TownStyle.Heading, GameUiText.PartyName(snapshot, council.TownId) + " council"));
+            lines.Add(new(TownStyle.Body, council.MemberNames.Count == 0 ? "No adult residents yet." : string.Join(", ", council.MemberNames)));
+            lines.Add(new(TownStyle.Body, council.FoodPolicy == "essential_first" ? "Shared food: hungry residents first" : "Shared food: open access"));
+            if (council.HallId is null) lines.Add(new(TownStyle.Note, "Build a Town Hall so residents can meet and vote."));
+            if (council.TermExpiryTick is { } expiry) lines.Add(new(TownStyle.Detail, "Representative term ends " + DisplayWorldClock(expiry)));
+            if (council.ElectionExpiryTick is { } electionExpiry)
+                lines.Add(new(TownStyle.Body, $"Election: {council.ElectionVotes}/{council.ElectionVoters} ballots · closes {DisplayWorldClock(electionExpiry)}"));
+            if (council.ProposedRule is { } rule)
+                lines.Add(new(TownStyle.Body, $"Proposed: {rule} · {council.Approvals} yes / {council.Rejections} no / {council.Voters} eligible voters"));
+            foreach (var law in council.Laws) lines.Add(new(TownStyle.Detail, law.Text));
+        }
+        if (snapshot.BusinessTrade is not { } business) return;
+        string Person(string id) => GameUiText.PartyName(snapshot, id);
+        string Site(string id) => snapshot.PlacedBuildings.FirstOrDefault(building => building.InstanceId == id)?.DisplayName ?? "Business";
+        lines.Add(new(TownStyle.Heading, "Goods offered for barter"));
+        if (business.Listings.Count == 0) lines.Add(new(TownStyle.Note, "No business goods are offered yet."));
+        foreach (var listing in business.Listings.Take(16))
+        {
+            lines.Add(new(TownStyle.Body, $"{Site(listing.BuildingId)} · {Person(listing.SellerId)}: " +
+                $"{Pretty(listing.GoodsKind)} × {listing.GoodsQuantity} for {Pretty(listing.PaymentKind)} × {listing.PaymentQuantity}"));
+            if (listing.Contents.Count > 0) lines.Add(new(TownStyle.Detail, "Contains " + string.Join(", ", listing.Contents.Select(item =>
+                $"{Pretty(item.Kind)} × {item.Quantity}"))));
+        }
+        if (business.Listings.Count > 16) lines.Add(new(TownStyle.Note, $"{business.Listings.Count - 16} more offers are available."));
+        foreach (var offer in business.Offers.Where(offer => offer.State == "open").Take(12))
+        {
+            lines.Add(new(TownStyle.Body, $"{Person(offer.BuyerId)} and {Person(offer.SellerId)}: " +
+                $"meet at {Site(offer.BuildingId)} for {Pretty(offer.GoodsKind)} × {offer.GoodsQuantity} ↔ {Pretty(offer.PaymentKind)} × {offer.PaymentQuantity}"));
+            if (offer.Blocker is { } blocker) lines.Add(new(TownStyle.Warning, blocker));
+        }
+        if (business.Stalls.Count > 0) lines.Add(new(TownStyle.Heading, "Market stalls"));
+        foreach (var stall in business.Stalls)
+            lines.Add(new(TownStyle.Body, $"{Person(stall.HouseholdId)} holds a stall · {stall.StoredQuantity} goods and receipts still there"));
+        foreach (var order in business.ToolOrders.Where(order => order.State is "queued" or "running" or "ready").Take(12))
+        {
+            lines.Add(new(TownStyle.Body, $"{Person(order.BuyerId)} requested {Pretty(order.ToolKind)} at {Site(order.BuildingId)} · {Pretty(order.State)}"));
+            if (order.Blocker is { } blocker) lines.Add(new(TownStyle.Warning, blocker));
+        }
+    }
+}

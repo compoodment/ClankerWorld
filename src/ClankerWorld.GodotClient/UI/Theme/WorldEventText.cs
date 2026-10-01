@@ -13,6 +13,13 @@ public static class WorldEventText
             IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "Building";
         var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
+        var fields = worldEvent.Detail.Split('|');
+        string Field(int index) => index < fields.Length ? fields[index] : string.Empty;
+        string Party(int index) => snapshot?.Towns.FirstOrDefault(town => town.Id == Field(index))?.Name ??
+            snapshot?.Stockpiles.FirstOrDefault(stockpile => stockpile.OwnerId == Field(index))?.Name ??
+            (Field(index).StartsWith("town:", StringComparison.Ordinal) ? "The Town" :
+                Field(index).StartsWith("household:", StringComparison.Ordinal) ? "A household" : Name(snapshot, Field(index)));
+        string Business(int index) => snapshot?.PlacedBuildings.FirstOrDefault(building => building.InstanceId == Field(index))?.DisplayName ?? "the business";
 
         return worldEvent.Kind switch
         {
@@ -51,6 +58,53 @@ public static class WorldEventText
             "caregiver_assigned" => "A child has a new caregiver.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
+            "business_goods_listed" => $"{Party(0)} offered {Field(3)} {GameUiText.HumanizeIdentifier(Field(2))} for {Field(5)} {GameUiText.HumanizeIdentifier(Field(4))} at {Business(1)}.",
+            "business_offer_accepted" => $"{Party(0)} agreed to a business exchange and will bring the payment.",
+            "business_exchange_completed" => $"{Party(0)} and {Party(1)} exchanged their goods at {Business(3)}.",
+            "business_offer_cancelled" => $"{Party(0)}'s business exchange ended; its goods were released without a trade.",
+            "business_stock_withdrawn" => $"{Party(0)} collected {Field(3)} {GameUiText.HumanizeIdentifier(Field(2))} from {Business(1)}.",
+            "business_stock_cleared" => $"{Party(0)} moved unusable stock from {Business(1)} onto nearby ground.",
+            "business_tool_requested" => $"{Party(0)} requested {GameUiText.HumanizeIdentifier(Field(2))} from {Business(1)}.",
+            "market_plot_reserved" => "The shared Market is ready with a clear area for household stalls.",
+            "market_stall_stocked" => $"{Party(0)} brought {Field(4)} {GameUiText.HumanizeIdentifier(Field(3))} to a Market stall.",
+            "market_stall_released" => $"{Party(0)} withdrew its last stall goods; the Market stall is free.",
+            "town_election_started" => $"{Party(0)} began an election for three representatives.",
+            "town_council_elected" => $"{Party(0)} elected three representatives for one game year.",
+            "town_law_proposed" => $"{Party(2)} proposed a rule at {Party(0)}'s Hall.",
+            "town_law_adopted" => Field(2) == "True" ? $"{Party(0)} repealed a rule by council majority." : $"{Party(0)} adopted a rule by council majority.",
+            "town_law_rejected" => $"{Party(0)} kept its current rule after the council vote.",
+            "equipment_worn" => $"{Party(0)} equipped {GameUiText.HumanizeIdentifier(Field(1))}.",
+            "equipment_repaired" => $"{Party(0)} repaired {GameUiText.HumanizeIdentifier(Field(1))}.",
+            "carry_aid_removed" => $"{Name(snapshot, worldEvent.Detail)} removed their carry aid.",
+            "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} needs to unload before carrying more goods.",
+            "cart_deployed" => $"{Party(0)} put a cart into use.",
+            "cart_loaded" => $"{Party(0)} loaded {Field(3)} {GameUiText.HumanizeIdentifier(Field(2))} into a cart.",
+            "cart_unloaded" => $"{Party(0)} unloaded {Field(3)} {GameUiText.HumanizeIdentifier(Field(2))} from a cart.",
+            "cart_repaired" => $"{Party(0)} repaired a cart.",
+            "cart_given" => $"{Party(0)} gave a cart to {Party(1)}.",
+            "cart_cargo_put_down" => $"{Party(0)} put cart cargo onto nearby ground without discarding it.",
+            "medical_treatment_started" => $"{Party(1)} began {GameUiText.HumanizeIdentifier(Field(2))} care for {Party(0)}.",
+            "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished receiving care.",
+            "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)}'s treatment stopped; unused supplies were released.",
+            "medical_care_allowed" => $"{Party(0)} agreed to receive care from {Party(1)}.",
+            "medical_care_revoked" => $"{Party(0)} ended permission for care from {Party(1)}.",
+            "communal_boat_launched" => $"{LeadingName(snapshot, worldEvent.Detail)} finished a shared boat at the Port.",
+            "boat_departed" => $"{LeadingName(snapshot, worldEvent.Detail)} departed by boat for another Port.",
+            "boat_arrived" => $"{LeadingName(snapshot, worldEvent.Detail)} reached the destination Port by boat.",
+            "boat_returned" => $"{LeadingName(snapshot, worldEvent.Detail)} returned to the original Port by boat.",
+            "boat_waiting" => $"{LeadingName(snapshot, worldEvent.Detail)} is waiting aboard a boat for a safe route or landing.",
+            "boat_return_started" => $"{LeadingName(snapshot, worldEvent.Detail)}'s boat is returning to its original Port.",
+            "boat_departure_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} could not begin the boat trip safely.",
+            "livestock_acquired" => $"{Party(1)} acquired {GameUiText.HumanizeIdentifier(Field(2)).ToLowerInvariant()} livestock.",
+            "livestock_natural_death" => "A farm animal died of natural causes.",
+            "livestock_product_ready" => $"A farm animal has {GameUiText.HumanizeIdentifier(parts[^1]).ToLowerInvariant()} ready to collect.",
+            "livestock_product_spoiled" => "Uncollected farm produce spoiled.",
+            "livestock_product_collected" => $"{LeadingName(snapshot, worldEvent.Detail)} collected produce from a farm animal.",
+            "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} prepared a farm field with a hoe.",
+            "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested a planted field.",
+            "field_harvest_collected" => $"{LeadingName(snapshot, worldEvent.Detail)} carried a field harvest into storage.",
+            "crop_ready" => "A planted field is ready to harvest.",
+            "crop_weather_loss" => "Bad weather destroyed a planted crop.",
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
@@ -107,5 +161,5 @@ public static class WorldEventText
     }
 
     private static bool IsLeadingId(string detail, string id) =>
-        detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal);
+        detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal) || detail.StartsWith(id + "|", StringComparison.Ordinal);
 }

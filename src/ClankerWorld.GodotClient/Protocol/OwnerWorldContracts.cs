@@ -331,6 +331,8 @@ public sealed record OwnerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
+    public IReadOnlyList<OwnerWorldTownCouncil> TownCouncils { get; init; } = [];
+    public OwnerBusinessTrade? BusinessTrade { get; init; }
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public IReadOnlyList<OwnerWorldCart> Carts { get; init; } = [];
@@ -368,6 +370,20 @@ public sealed record OwnerWorldEventSlice(
     bool ResetRequired = false);
 
 public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
+public sealed record OwnerWorldTownCouncil(string TownId, string? HallId, string FoodPolicy,
+    IReadOnlyList<string> MemberIds, IReadOnlyList<string> MemberNames, long? TermStartedTick, long? TermExpiryTick,
+    long? ElectionExpiryTick, int ElectionVotes, int ElectionVoters, string? ProposedRule,
+    int Approvals, int Rejections, int Voters, IReadOnlyList<OwnerWorldTownLaw> Laws);
+public sealed record OwnerWorldTownLaw(string Key, string Text, long AdoptedTick);
+public sealed record OwnerBusinessListing(string Id, string SellerId, string BuildingId, string HouseholdId,
+    string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, long ExpiryTick,
+    IReadOnlyList<OwnerWorldInventoryContent> Contents);
+public sealed record OwnerBusinessOffer(string Id, string SellerId, string BuyerId, string BuildingId,
+    string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, string State, string? Blocker);
+public sealed record OwnerMarketStall(string MarketId, string BuildingId, string HouseholdId, int StoredQuantity);
+public sealed record OwnerBusinessToolOrder(string Id, string BuyerId, string BuildingId, string ToolKind, string State, string? Blocker);
+public sealed record OwnerBusinessTrade(IReadOnlyList<OwnerBusinessListing> Listings, IReadOnlyList<OwnerBusinessOffer> Offers,
+    IReadOnlyList<OwnerMarketStall> Stalls, IReadOnlyList<OwnerBusinessToolOrder> ToolOrders);
 
 public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
 
