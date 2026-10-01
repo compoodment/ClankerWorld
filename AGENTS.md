@@ -34,6 +34,22 @@ is:open label:"status:needs-decision"
 is:issue is:open label:owner-task
 ```
 
+## Sign your comments
+
+Many sessions share one GitHub account, so sign every claim, review claim and
+hand-off comment with your tool and a session ID, for example: "Claude Code
+session d1496bec is working on this on branch `claude/123-fix`." Other
+sessions can then tell your claim apart from their own.
+
+- Use the ID your tool gives this session if you can find one; Claude Code
+  sets `CLAUDE_CODE_SESSION_ID`, so use its first 8 characters. Otherwise make
+  one up once, for example with `openssl rand -hex 4`, and use it for the
+  rest of the session. If you lose track of it, the branch you are on tells
+  you which claim is yours.
+- A comment with your ID is yours, even after a pause or a context reset. A
+  different ID, or just "Codex" or "Claude", is another session: don't take
+  over its claim while it is still active.
+
 ## Know your job
 
 Several agents usually work at once, each given one job. Every job follows
@@ -58,12 +74,16 @@ What each job adds:
   or convert it to draft once a reviewer has claimed it
   ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)). Push your
   branch and open the draft within the first hour, then push at least every 2
-  hours: a claim with no pushed work or comment for 4 hours is released
-  automatically ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are
-  paused, push before you stop, so another agent can continue it.
+  hours: only pushes keep a claim, and one with nothing pushed for 4 hours is
+  released automatically. Comments don't count; while you wait on the owner,
+  add `status:needs-decision`, which keeps it
+  ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are paused, push
+  before you stop, so another agent can continue it.
 - **Review and merge:** another reviewer may be merging at the same time, so
-  claim each pull request with `status:reviewing` before you start and merge
-  only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).
+  claim each pull request with `status:reviewing` when you start reviewing it,
+  one at a time, and merge only on top of current main
+  ([Review and merge](CONTRIBUTING.md#review-and-merge)). Only pushes keep a
+  review claim; one with nothing pushed for 2 hours is released.
   Fix what you find yourself instead of handing it back, and never convert a
   pull request to draft to hold it; draft only to hand it back. After each
   merge, check main's CI; later pull requests may need main merged in again.

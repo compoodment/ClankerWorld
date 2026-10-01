@@ -290,6 +290,126 @@ public sealed class PersonalEquipmentTests
     }
 
     [Fact]
+    public async Task WaitingForHostedInstructionCannotKeepAnExpiredRepairInTheCheckpoint()
+    {
+        var (state, shopId) = TailorTestWorld.Create("held-planning-repair-probe", 0);
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
+        var position = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == shopId).Position;
+        var started = state.Society.Society.WorldTick;
+        const string coatId = "planning-probe-coat";
+        const string clothId = "planning-probe-cloth";
+        const string reservationId = "planning-probe-reservation";
+        var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe");
+        var pausedPlan = new SettlementProject("build:recipe:" + recipe.CanonicalId, recipe.DisplayName, started,
+            "paused", 4, "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: started, RequiresFreshChoice: true);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, coatId, "padded_coat", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, coatId, 8_000);
+        inventory = InventoryFixture.AddLot(inventory, clothId, "cloth", actor, 2);
+        inventory = InventoryFixture.Reserve(inventory, reservationId, actor, clothId, 1,
+            "equipment_repair", started + 120);
+        state = WithWeather(WithInventory(state, inventory), WeatherKind.Clear) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            {
+                Position = position,
+                HungerBasisPoints = 10_000,
+                Survival = new(),
+                Project = pausedPlan,
+                LastDecisionContext = null,
+                Equipment = new(ClothingLotId: coatId,
+                    Repair: new(coatId, shopId, started, 0, [reservationId])),
+            } : person).ToArray(),
+        };
+        var provider = new HeldRepairPlanningProvider();
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new Choices([]));
+        var receipt = world.SubmitInstruction(new OwnerInstructionRequest("planning-probe-order", "owner:test",
+            actor, OwnerInstructionKind.MustDo, "harvest food"));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        for (var tick = 0; tick < 120; tick++)
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+
+        Assert.Equal(1, provider.Calls);
+        Assert.True(world.WorldTick - started > 120);
+        var final = world.ExportState();
+        Assert.DoesNotContain(receipt.InstructionId, final.CompletedInstructionIds ?? []);
+        var saved = PrivateWorldRuntimeCodec.Encode(final);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
+        Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(coatId, restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
+        Assert.Equal(pausedPlan, restored.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        Assert.Equal(InventoryReservationState.Released, restored.Society.Inventory.GetReservation(reservationId).State);
+        Assert.Equal(2, restored.Society.Inventory.GetLot(clothId).Quantity);
+        Assert.Equal(2_000, restored.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
+        Assert.Contains(final.Events, item => item.Kind == "equipment_repair_interrupted" &&
+            item.Detail == actor + "|" + coatId);
+        restored.Validate();
+    }
+
+    [Fact]
+    public async Task AcceptingConversationReleasesRepairMaterialsAndKeepsTheBusyWorldSaveable()
+    {
+        var (state, shopId) = TailorTestWorld.Create("repair-conversation-expiry", 0);
+        var people = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == Alpha).ToArray();
+        var actor = people[0].Id;
+        var other = people[1].Id;
+        var position = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == shopId).Position;
+        var started = state.Society.Society.WorldTick;
+        const string coatId = "conversation-repair-coat";
+        const string clothId = "conversation-repair-cloth";
+        const string reservationId = "conversation-repair-input";
+        const string conversationId = "conversation:repair-interruption";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, coatId, "padded_coat", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, coatId, 8_000);
+        inventory = InventoryFixture.AddLot(inventory, clothId, "cloth", actor, 2);
+        inventory = InventoryFixture.Reserve(inventory, reservationId, actor, clothId, 1,
+            "equipment_repair", started + 120);
+        var repair = new EquipmentRepairWork(coatId, shopId, started, 0, [reservationId]);
+        state = WithWeather(WithInventory(state, inventory), WeatherKind.Clear) with
+        {
+            Conversations = [AgentConversationRules.Propose(conversationId, other, actor,
+                started, state.Society.Society.RunEpoch)],
+            ConversationBudgets = [new(other, started / state.Society.Society.Config.TicksPerWorldDay, 1)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor || person.InhabitantId == other
+                ? person with
+                {
+                    Position = position,
+                    HungerBasisPoints = 10_000,
+                    Survival = new(),
+                    Project = null,
+                    LastDecisionContext = null,
+                    Equipment = person.InhabitantId == actor ? new(ClothingLotId: coatId, Repair: repair) : person.Equipment,
+                } : person).ToArray(),
+        };
+        var provider = new HeldRepairConversationProvider(new HashSet<string>([actor, other], StringComparer.Ordinal));
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "conversation_accepted" &&
+            item.Detail.StartsWith(conversationId, StringComparison.Ordinal));
+        for (var tick = 0; tick < 120; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.Equal(AgentConversationStatus.AwaitingSpeaker, Assert.Single(world.Conversations).Status);
+        }
+        Assert.True(world.WorldTick - started > 120);
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var decoded = PrivateWorldRuntimeCodec.Decode(saved);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(decoded));
+        using var restored = PrivateWorldRuntime.Restore(decoded, _ => provider);
+        Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(InventoryReservationState.Released, restored.Society.Inventory.GetReservation(reservationId).State);
+        Assert.Equal(2, restored.Society.Inventory.GetLot(clothId).Quantity);
+        Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(InventoryReservationState.Released, world.Society.Inventory.GetReservation(reservationId).State);
+        Assert.Equal(2, world.Society.Inventory.GetLot(clothId).Quantity);
+        Assert.Equal(2_000, world.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
+    }
+
+    [Fact]
     public async Task ReplacingABrokenBasketKeepsItsOverloadedCargoAndTheOldBasket()
     {
         using var generated = NormalPathWorld.CreateGenerated("equipment-replacement", _ => new ActionCoverageRecorder(chooseIdle: true));
@@ -605,6 +725,70 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(cargo + (fits ? 4 : 0), PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
         Assert.Equal(cargo, world.Society.Inventory.GetLot("harvest-cargo").Quantity);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
+    }
+
+    [Theory]
+    [InlineData("clothing", 0, 10_000)]
+    [InlineData("food", 10_000, 0)]
+    public async Task AHungryCarrierSetsDownBrokenOrSpoiledUnselectedCargoWithoutLosingIt(
+        string kind, int condition, int freshness)
+    {
+        using var initial = new PrivateWorldRuntime("food-capacity-boundary", _ => new Choices([]));
+        initial.StageStarterContent();
+        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+        var source = state.Map.Resources.First(item => item.Kind == "food" && item.TreeKind is null);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor &&
+                !(lot.OwnerId == household && lot.ItemKind == "food")).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "unusable-spare-cargo", kind, actor, 8,
+            conditionBasisPoints: condition, freshnessBasisPoints: freshness);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = source.Position,
+                    HungerBasisPoints = 6_000,
+                    Equipment = null,
+                    LastDecisionContext = null
+                } : person).ToArray(),
+        };
+        var provider = new Choices(["make_room_for_food", "harvest_food", "seek_food"]);
+        var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new Choices([]));
+        try
+        {
+            for (var tick = 0; tick < 60 && !world.ExportState().Events.Any(item => item.Kind == "food_harvested" &&
+                     item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                if (tick == 1)
+                {
+                    var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+                    world.Dispose();
+                    world = PrivateWorldRuntime.Restore(saved, id => id == actor ? provider : new Choices([]));
+                }
+            }
+
+            Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("make_room_for_food", StringComparer.Ordinal));
+            Assert.Single(world.ExportState().Events, item => item.Kind == "spare_cargo_stored" &&
+                item.Detail.StartsWith(actor + ":" + kind + ":4:", StringComparison.Ordinal));
+            Assert.Single(world.ExportState().Events, item => item.Kind == "food_harvested" &&
+                item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+            var unchangedCargo = world.Society.Inventory.Lots.Where(lot => lot.ItemKind == kind &&
+                lot.ConditionBasisPoints == condition && lot.FreshnessBasisPoints == freshness &&
+                (lot.OwnerId == actor || lot.OwnerId == household)).ToArray();
+            Assert.Equal(8, unchangedCargo.Sum(lot => lot.Quantity));
+            Assert.Equal(4, unchangedCargo.Where(lot => lot.OwnerId == household).Sum(lot => lot.Quantity));
+            Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+            world.Validate();
+        }
+        finally { world.Dispose(); }
     }
 
     [Fact]
@@ -926,6 +1110,42 @@ public sealed class PersonalEquipmentTests
 
     private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>
         state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+
+    private sealed class HeldRepairPlanningProvider : IDecisionProvider
+    {
+        private readonly TaskCompletionSource<CognitionDecisionResponse> held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Calls;
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref Calls);
+            Started.TrySetResult(true);
+            return new(held.Task.WaitAsync(cancellationToken));
+        }
+    }
+
+    private sealed class HeldRepairConversationProvider(IReadOnlySet<string> participants)
+        : IDecisionProvider, IAgentConversationProvider
+    {
+        private readonly Choices planner = new(["conversation_accept:"]);
+        private readonly TaskCompletionSource<AgentConversationTurnResponse> held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DecisionProviderKind Kind => planner.Kind;
+        public long ProviderEpoch => planner.ProviderEpoch;
+        public bool CanSpeakAs(string agentId) => participants.Contains(agentId);
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default) => planner.DecideAsync(request, cancellationToken);
+        public ValueTask<AgentConversationTurnResponse> SpeakAsync(AgentConversationTurnRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            Started.TrySetResult(true);
+            return new(held.Task.WaitAsync(cancellationToken));
+        }
+    }
 
     private sealed class Choices(IReadOnlyList<string> allowed) : IDecisionProvider
     {

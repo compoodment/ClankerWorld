@@ -210,6 +210,7 @@ room first sets down spare supplies for their household, in the House if it
 has room or on the camp pile otherwise. Tools go last; maps, field records,
 worn gear and reserved goods stay carried. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
+Broken or spoiled spare cargo can also be set down without losing it.
 Before the first House, builders carry their construction materials to the camp
 pile in loads. A helper meets the adult who requested materials and transfers only
 what that adult has room to carry. Once a House exists, helpers can deliver to its
@@ -218,6 +219,7 @@ can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
 and rope to repair a basket at their House. Work, reservations, equipment and
 overloaded cargo survive saving and reopening. These paths have automated
 checks; Windows playtesting and balance tuning remain pending.
+Choosing a conversation interrupts a repair and releases its unspent materials.
 
 ## Maps, weather and appearance
 

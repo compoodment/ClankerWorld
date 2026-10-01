@@ -92,6 +92,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
             return;
         if (MaterialSource("iron_ore", actor) is not { } source ||
+            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) ||
             !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(actor, state.Position, source.Position, ResourceInteractionRange).Count == 0)
             return;
@@ -198,7 +199,8 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
+        if (!AdultResident(actor) || householdId is null || FreeCarryCapacity(actor) == 0 ||
+            CarriedHouseDelivery(actor) is not null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor) is not { } input)
         {

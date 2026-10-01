@@ -75,7 +75,8 @@ public sealed partial class PrivateWorldRuntime
                 AdultResident(runtime.InhabitantId) && HouseholdFor(runtime.InhabitantId) == field.HouseholdId &&
                 !NeedsUrgentFood(claimant) && !NeedsUrgentWarmth(claimant) &&
                 HasCarriedItem(runtime.InhabitantId, FarmFieldRules.Hoe) &&
-                claimant.Project is not { Stage: not ("completed" or "cancelled") } && FarmNeedsFood(field.HouseholdId);
+                (claimant.Project is not { Stage: not ("completed" or "cancelled") } project || project.RequiresFreshChoice) &&
+                FarmNeedsFood(field.HouseholdId);
             var stock = eligible ? PlantingStock(runtime.InhabitantId, field, crop) : null;
             if (stock is not null) return true;
         }
