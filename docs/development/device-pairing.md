@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Device pairing
@@ -196,6 +196,13 @@ cover capacity recovery and signed owner availability; chunked-body enforcement
 is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
 
 ## Bounded owner actions
+
+Starting pairing, polling its status and activating the device each have a
+15-second deadline, or the HTTP client's shorter configured timeout. The
+deadline includes reading the response body after successful headers. A stalled
+body releases the connection controls so the player can try again; caller
+cancellation also stops the request. A lost activation reply can still be
+recovered through the existing active-pairing status check.
 
 Signed actions have a 15-second deadline over the complete challenge/sign/send/read
 operation, or the HTTP client's shorter configured timeout. Load World allows up
