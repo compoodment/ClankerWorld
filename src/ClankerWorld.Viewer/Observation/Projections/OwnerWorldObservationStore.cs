@@ -643,6 +643,12 @@ public sealed class OwnerWorldObservationStore
         };
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("birth-model-provider", birthProvider));
+            if (birthModel.ModelId is { } modelId)
+                decisionFactors.Add(new ViewerDecisionFactor("birth-model-id", modelId));
+        }
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         var modelStatus = physical.LastModelAttempt?.Status ?? "ready";

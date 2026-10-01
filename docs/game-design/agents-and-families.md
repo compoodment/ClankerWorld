@@ -94,14 +94,16 @@ everything that is available in the current build. See [what works today](../wha
   it a prerequisite for having a child.
 - **A child uses their own selected personal AI model once they leave infancy.**
   Infants do not make calls to their personal model. The parents' provider/model
-  choice can be stored at birth, then used when that agent enters the child
-  stage. This resolves the earlier open question about *whether* children use
+  choice is recorded at birth, then used when that agent enters the child stage.
+  This resolves the earlier open question about *whether* children use
   their own models; initial age-up thresholds are below. Jev must not be
   required for infant care, because Jev is optional per world. If the two
   parents choose different models, the **initiating parent's model** is used,
   as a disclosed tie-break. If the chosen model has no working key, the child
   shows "model needs setup" and idles safely. The game never substitutes a
-  different paid model.
+  different paid model. The owner can later select another personal model or
+  leave the child without one; an explicitly unconfigured child keeps using
+  built-in choices and does not inherit the world's default provider.
 - **Children are real social agents, not silent placeholders.** Their personal
   models can converse, play, learn, form friendships, and choose age-appropriate
   simple helping tasks. Adult-only decisions such as land deals and parenthood

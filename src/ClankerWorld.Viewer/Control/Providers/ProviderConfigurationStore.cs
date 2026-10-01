@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -13,6 +14,7 @@ public static class PlayerDecisionProviders
     public const string RoutineRole = "routine";
     public const string PlanningRole = "planning";
     public const string PersonalRole = "personal";
+    public const string Inherit = "inherit";
     public const string Deterministic = "deterministic";
     public const string Jev = "jev";
     public const string OpenAi = "openai";
@@ -108,6 +110,10 @@ public sealed record RuntimeProviderConfiguration(
     long Revision,
     IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
     IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null);
+
+internal sealed record FrozenChildModelBinding(
+    ChildPersonalModelSelection Selection,
+    string? CopiedDefaultApiKey);
 
 /// <summary>
 /// Keeps player-supplied hosted-provider credentials outside world saves and
@@ -227,7 +233,7 @@ public sealed class ProviderConfigurationStore
             var slots = state.CredentialSlots ?? [];
             if (!slots.Any(item => item.Id == slotId))
                 throw new ArgumentException("That named credential slot no longer exists.", nameof(slotId));
-            if ((state.Assignments ?? []).Any(item => item.CredentialSlotId == slotId))
+            if ((state.Assignments ?? []).Any(item => item.CredentialSlotId == slotId && item.SelectionReason is null))
                 throw new InvalidOperationException("This key is assigned to an agent. Choose another key or world default for that agent before deleting it.");
 
             var next = state with
@@ -267,12 +273,162 @@ public sealed class ProviderConfigurationStore
         }
     }
 
+    /// <summary>Stores a child's inherited model and commits its world descriptor as one owner operation.</summary>
+    public ChildPersonalModelSelection ConfigureChildModelSelectionWithCommit(
+        string childId,
+        ChildPersonalModelSelection selection,
+        Action<ChildPersonalModelSelection> commit)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(commit);
+        var frozen = FreezeChildModelSelection(selection, CaptureRuntimeConfiguration());
+        return ConfigureChildModelSelectionWithCommit(childId, frozen, commit);
+    }
+
+    internal static FrozenChildModelBinding FreezeChildModelSelection(
+        ChildPersonalModelSelection selection,
+        RuntimeProviderConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (selection.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud) ||
+            selection.CredentialSlotId is not null)
+        {
+            return new FrozenChildModelBinding(selection, null);
+        }
+
+        var provider = PlayerDecisionProviders.Normalize(selection.Provider);
+        var credential = provider switch
+        {
+            PlayerDecisionProviders.OpenAi => configuration.OpenAi,
+            PlayerDecisionProviders.OllamaCloud => configuration.OllamaCloud,
+            _ => throw new InvalidOperationException("A child model provider is unsupported."),
+        };
+        var slotId = Guid.NewGuid().ToString("N");
+        return new FrozenChildModelBinding(
+            selection with { Provider = provider, CredentialSlotId = slotId },
+            string.IsNullOrWhiteSpace(credential.ApiKey) ? null : credential.ApiKey);
+    }
+
+    internal ChildPersonalModelSelection ConfigureChildModelSelectionWithCommit(
+        string childId,
+        FrozenChildModelBinding frozen,
+        Action<ChildPersonalModelSelection> commit)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(childId);
+        ArgumentNullException.ThrowIfNull(frozen);
+        ArgumentNullException.ThrowIfNull(commit);
+        if (childId.Length > 128 || childId != childId.Trim())
+            throw new ArgumentException("A child model choice requires a valid inhabitant ID.", nameof(childId));
+        var boundSelection = frozen.Selection;
+        if (boundSelection.ChoiceReason is not (PrivateWorldRuntime.ChildModelChoiceParentsAgreed or
+            PrivateWorldRuntime.ChildModelChoiceInitiatingParent or PrivateWorldRuntime.ChildModelChoiceNoParentModel))
+            throw new ArgumentException("The child model choice has an unsupported reason.", nameof(frozen));
+
+        lock (gate)
+        {
+            var before = state;
+            var credentialSlots = (state.CredentialSlots ?? []).ToList();
+            var existingRows = (state.Assignments ?? []).Where(item =>
+                item.InhabitantId == childId && item.SelectionReason is not null).ToArray();
+            if (existingRows.Length > 0 && existingRows.Any(item =>
+                    item.Provider != boundSelection.Provider || item.Model != boundSelection.ModelId ||
+                    item.CredentialSlotId != boundSelection.CredentialSlotId ||
+                    item.SelectionReason != boundSelection.ChoiceReason))
+            {
+                throw new InvalidDataException("The saved child model assignment does not match its birth choice.");
+            }
+            if (boundSelection.Provider is { } selectedProvider &&
+                selectedProvider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud)
+            {
+                selectedProvider = PlayerDecisionProviders.Normalize(selectedProvider);
+                if (boundSelection.CredentialSlotId is not { } slotId || !Guid.TryParseExact(slotId, "N", out _))
+                    throw new InvalidDataException("A hosted child model must keep its birth-bound credential slot.");
+                if (frozen.CopiedDefaultApiKey is { } copiedApiKey)
+                {
+                    var existingSlot = credentialSlots.SingleOrDefault(item => item.Id == slotId);
+                    if (existingSlot is not null)
+                    {
+                        if (existingSlot.Provider != selectedProvider || existingSlot.ApiKey != copiedApiKey)
+                            throw new InvalidDataException("A child's birth-bound credential slot conflicts with local provider storage.");
+                    }
+                    else
+                    {
+                        if ((state.DeletedCredentialSlotIds ?? []).Contains(slotId))
+                            throw new InvalidDataException("A child's birth-bound credential slot was already deleted.");
+                        var suffix = 1;
+                        string label;
+                        do
+                        {
+                            label = $"Child model key {suffix++}";
+                        } while (credentialSlots.Any(item => item.Provider == selectedProvider && item.Label == label));
+                        credentialSlots.Add(new ProviderCredentialSlot(slotId, selectedProvider, label,
+                            NormalizeRequiredApiKey(copiedApiKey)));
+                    }
+                }
+            }
+            var assignments = (state.Assignments ?? [])
+                .Where(item => item.InhabitantId != childId ||
+                    item.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) ||
+                    item.SelectionReason is null)
+                .ToList();
+            if (boundSelection.Provider is { } provider)
+            {
+                provider = PlayerDecisionProviders.Normalize(provider);
+                if (provider == PlayerDecisionProviders.Jev ||
+                    provider is not (PlayerDecisionProviders.Deterministic or PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                    throw new ArgumentException("A child needs a personal model provider.", nameof(frozen));
+                if (boundSelection.ChoiceReason == PrivateWorldRuntime.ChildModelChoiceNoParentModel)
+                    throw new ArgumentException("An unconfigured child cannot have a provider assignment.", nameof(frozen));
+                if (provider == PlayerDecisionProviders.Deterministic &&
+                    (boundSelection.ModelId is not null || boundSelection.CredentialSlotId is not null))
+                    throw new ArgumentException("Built-in child decisions cannot reference a model or key slot.", nameof(frozen));
+                if (provider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud &&
+                    (string.IsNullOrWhiteSpace(boundSelection.ModelId) ||
+                     boundSelection.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _)))
+                    throw new ArgumentException("The inherited child model choice is incomplete.", nameof(frozen));
+                foreach (var role in new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole })
+                {
+                    if (assignments.Any(item => item.InhabitantId == childId && item.Role == role))
+                        continue;
+                    assignments.Add(new InhabitantProviderAssignment(childId, role, provider,
+                        boundSelection.ModelId, boundSelection.CredentialSlotId, boundSelection.ChoiceReason));
+                }
+            }
+            else if (boundSelection.ChoiceReason == PrivateWorldRuntime.ChildModelChoiceParentsAgreed)
+            {
+                throw new ArgumentException("Agreed parents must have selected a model.", nameof(frozen));
+            }
+
+            var next = state with
+            {
+                CredentialSlots = credentialSlots,
+                Assignments = assignments.OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
+                    .ThenBy(item => item.Role, StringComparer.Ordinal).ToArray(),
+                Revision = checked(state.Revision + 1),
+            };
+            SaveUnsafe(next);
+            state = next;
+            try
+            {
+                commit(boundSelection);
+            }
+            catch
+            {
+                SaveUnsafe(before);
+                state = before;
+                throw;
+            }
+            return boundSelection;
+        }
+    }
+
     private ProviderConfigurationState PreparedWorldAssignments(IReadOnlyList<InhabitantProviderAssignment> assignments)
     {
         // Historical assignments to explicitly deleted keys fall back to
         // deterministic cognition, never another hosted account's credential.
         var deleted = state.DeletedCredentialSlotIds ?? [];
-        var ordered = assignments.Select(item => item.CredentialSlotId is { } slot && deleted.Contains(slot)
+        var ordered = assignments.Select(item => item.CredentialSlotId is { } slot && deleted.Contains(slot) && item.SelectionReason is null
                 ? item with { Provider = PlayerDecisionProviders.Deterministic, Model = null, CredentialSlotId = null }
                 : item)
             .OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
@@ -331,13 +487,15 @@ public sealed class ProviderConfigurationStore
         var assignments = (state.Assignments ?? [])
             .Where(item => item.InhabitantId != id || !roles.Contains(item.Role, StringComparer.Ordinal)).ToList();
         var next = state;
-        if (action.Provider == "inherit")
+        if (action.Provider == PlayerDecisionProviders.Inherit)
         {
             if (action.Model is not null || action.ApiKey is not null ||
                 action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
             {
                 throw new ArgumentException("Inheritance does not accept a model or key.", nameof(action));
             }
+            foreach (var assignedRole in roles)
+                assignments.Add(new InhabitantProviderAssignment(id, assignedRole, PlayerDecisionProviders.Inherit));
         }
         else
         {
@@ -517,7 +675,7 @@ public sealed class ProviderConfigurationStore
         next = next with
         {
             Assignments = (next.Assignments ?? [])
-                .Where(item => item.Provider != provider || item.CredentialSlotId is not null).ToArray(),
+                .Where(item => item.Provider != provider || item.CredentialSlotId is not null || item.SelectionReason is not null).ToArray(),
         };
         if (next.RoutineProvider == provider)
             next = next with { RoutineProvider = PlayerDecisionProviders.Deterministic };
@@ -620,13 +778,27 @@ public sealed class ProviderConfigurationStore
             {
                 throw new InvalidDataException("Provider assignments must have unique inhabitant/role identities.");
             }
+            if (assignment.Provider == PlayerDecisionProviders.Inherit)
+            {
+                if (assignment.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) ||
+                    assignment.Model is not null || assignment.CredentialSlotId is not null || assignment.SelectionReason is not null)
+                    throw new InvalidDataException("An inherited assignment cannot carry a model or credential.");
+                continue;
+            }
             PlayerDecisionProviders.ValidateRoleProvider(assignment.Role, assignment.Provider);
+            if (assignment.SelectionReason is not null &&
+                (assignment.SelectionReason is not (PrivateWorldRuntime.ChildModelChoiceParentsAgreed or
+                    PrivateWorldRuntime.ChildModelChoiceInitiatingParent) ||
+                 assignment.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole)))
+                throw new InvalidDataException("A child model assignment has an invalid selection reason.");
+            var retainsRequestedModelWithoutKey = assignment.SelectionReason is not null;
             if (assignment.CredentialSlotId is not null &&
-                !(state.CredentialSlots ?? []).Any(item => item.Id == assignment.CredentialSlotId && item.Provider == assignment.Provider))
+                !(state.CredentialSlots ?? []).Any(item => item.Id == assignment.CredentialSlotId && item.Provider == assignment.Provider) &&
+                !(retainsRequestedModelWithoutKey && Guid.TryParseExact(assignment.CredentialSlotId, "N", out _)))
                 throw new InvalidDataException("An agent assignment references a missing provider credential slot.");
             if (assignment.Provider != PlayerDecisionProviders.Deterministic &&
                 assignment.CredentialSlotId is null &&
-                string.IsNullOrWhiteSpace(CredentialFor(state, assignment.Provider)?.ApiKey))
+                string.IsNullOrWhiteSpace(CredentialFor(state, assignment.Provider)?.ApiKey) && !retainsRequestedModelWithoutKey)
             {
                 throw new InvalidDataException("An assigned provider has no stored credential.");
             }
@@ -634,6 +806,24 @@ public sealed class ProviderConfigurationStore
             {
                 _ = NormalizeModel(assignment.Model, string.Empty);
             }
+        }
+        var assignments = state.Assignments ?? [];
+        foreach (var group in assignments.Where(item => item.SelectionReason is not null)
+                     .GroupBy(item => item.InhabitantId, StringComparer.Ordinal))
+        {
+            var rows = group.ToArray();
+            var pairedBirthChoice = rows.Length == 2 &&
+                rows.Any(item => item.Role == PlayerDecisionProviders.RoutineRole) &&
+                rows.Any(item => item.Role == PlayerDecisionProviders.PlanningRole) &&
+                rows.Select(item => (item.Provider, item.Model, item.CredentialSlotId, item.SelectionReason)).Distinct().Count() == 1;
+            var preservedBirthChoiceWithOwnerOverride = rows.Length == 1 &&
+                rows[0].Role is (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) &&
+                assignments.Any(item => item.InhabitantId == group.Key &&
+                    item.Role == (rows[0].Role == PlayerDecisionProviders.RoutineRole
+                        ? PlayerDecisionProviders.PlanningRole : PlayerDecisionProviders.RoutineRole) &&
+                    item.SelectionReason is null);
+            if (!pairedBirthChoice && !preservedBirthChoiceWithOwnerOverride)
+                throw new InvalidDataException("A child birth model must retain both routine and planning assignments.");
         }
         if ((routine != PlayerDecisionProviders.Deterministic &&
                 string.IsNullOrWhiteSpace(CredentialFor(state, routine)?.ApiKey)) ||
@@ -1231,10 +1421,19 @@ public sealed partial class ConfigurableDecisionProvider(
         var routine = IsRoutine(observation);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
+        if (assigned?.Provider == PlayerDecisionProviders.Inherit)
+        {
+            if (observation.RequiresPersonalProvider)
+                return (PlayerDecisionProviders.Deterministic, assigned);
+            assigned = null;
+        }
         // Children born in this world never inherit a potentially billable
         // world default. Their own explicit assignment is the only route to a
         // personal model after infancy; until then they use local safe choices.
         if (observation.RequiresPersonalProvider && assigned is null)
+            return (PlayerDecisionProviders.Deterministic, null);
+        if (observation.RequiresPersonalProvider && assigned?.SelectionReason is not null &&
+            !HasUsableCredential(configuration, assigned))
             return (PlayerDecisionProviders.Deterministic, null);
         var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
         if (observation.RequiresPersonalProvider && provider == PlayerDecisionProviders.Jev)
@@ -1245,13 +1444,25 @@ public sealed partial class ConfigurableDecisionProvider(
             // continue. Prefer this agent's personal planner, then the world
             // planner, and finally local safe decisions when no model is set.
             assigned = AssignmentFor(configuration, observation.InhabitantId, PlayerDecisionProviders.PlanningRole);
-            provider = assigned?.Provider ?? configuration.PlanningProvider;
+            provider = assigned?.Provider == PlayerDecisionProviders.Inherit
+                ? configuration.PlanningProvider
+                : assigned?.Provider ?? configuration.PlanningProvider;
         }
         return (provider, assigned);
     }
 
     private static InhabitantProviderAssignment? AssignmentFor(RuntimeProviderConfiguration configuration, string inhabitantId, string role) =>
         configuration.Assignments?.FirstOrDefault(item => item.InhabitantId == inhabitantId && item.Role == role);
+
+    private static bool HasUsableCredential(
+        RuntimeProviderConfiguration configuration,
+        InhabitantProviderAssignment assignment)
+    {
+        if (assignment.Provider == PlayerDecisionProviders.Deterministic) return true;
+        if (assignment.CredentialSlotId is { } slotId)
+            return configuration.CredentialSlots?.Any(item => item.Id == slotId && item.Provider == assignment.Provider) == true;
+        return !string.IsNullOrWhiteSpace(CredentialFor(configuration, assignment.Provider).ApiKey);
+    }
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         !observation.NeedsPersonality && !observation.NeedsAspiration &&
