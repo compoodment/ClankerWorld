@@ -80,7 +80,7 @@ public sealed class ProjectInputBoundaryTests
                     Inventory = state.Society.Society.Inventory with
                     {
                         Lots = state.Society.Society.Inventory.Lots.Select(lot =>
-                        lot.OwnerId == "household:camp-beta" && lot.ItemKind is "food" or "wood"
+                        lot.OwnerId == "household:camp-beta" && lot.ItemKind is "potatoes" or "wood"
                             ? lot with { StorageBuildingId = "cook-home" } : lot).ToArray()
                     },
                 }

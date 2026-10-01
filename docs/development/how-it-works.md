@@ -532,7 +532,7 @@ their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Building plans follow what a household needs, not a role. An adult whose
-household lacks a House, Farmhouse, Blacksmith, Silo or Tailor Shop is offered ranked sites
+household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
 owns anywhere, plus what its members carry. Each kind is planned at most once
 at a time and a household never holds two of a kind; a second member choosing
@@ -657,14 +657,36 @@ saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
+Farmhouse and Blacksmith, so today the Tailor Shop and Restaurant) is kept stocked by the
 `supply_workstation:<item>` choice. It is offered to an adult of the holding
 household while the building holds less of an input than two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
-or Silo (the existing delivery step then carries it in), or gathers from a
-reachable source. Stock already set aside at another workstation is left
-alone.
+or private farm or cooking stock (the existing delivery step then carries it
+in), or gathers from a reachable source. House pottery and named cooking also
+use this supply path. A vessel and its contents move together only when the
+whole family fits the person and destination; loose inputs use four-unit loads.
+Protected planting reserves stay unavailable. Grain already delivered to a
+House or Restaurant is left there rather than hauled back into farm stock.
+
+House cooking and Restaurants use the named recipes in the
+[agreed food pipeline](../game-design/towns.md#food-and-replanting). Generic
+food-to-food production is refused. Production reserves exact usable on-site
+inputs and room for its net storage growth; finishing consumes the reservations
+and stores two named servings, leaving water jugs intact. A runnable named meal
+has priority over input replenishment, so one shared jug cannot shuttle between
+House and Restaurant indefinitely before anyone cooks. The trial cooked-food
+reserve is two servings per living household resident across prepared kinds.
+A recipe that improves already prepared food, such as Restaurant meals from
+bread, checks its own finished dish so an existing bread reserve cannot hide
+that choice. Meals give 40% fullness, stew and fruit/berry porridge 50%, and
+Restaurant meals 60%; decorated porridge and Restaurant meals also improve
+nutrition. These values remain provisional.
+
+Concrete meal names are retained for dietary variety. Grain loses freshness
+more slowly than bread, flour and cooked meals. Protected odd-rate goods use
+a stable two-tick cadence, combined with the pot cadence, rather than rounding
+their spoilage rate to zero.
 
 ## Fertility and household fields
 
@@ -697,10 +719,9 @@ yield. It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
-satisfy this food reserve while their cooking paths remain unfinished, so they
-do not stop farmers planting fresh greens. Grain is milled into flour
-at the Farmhouse, one grain to one flour. Prepared meals and tool tiers are
-separate work.
+satisfy this ready-food reserve directly; their prepared meals can, so raw
+stock does not stop farmers planting fresh greens. Grain is milled into flour
+at the Farmhouse, one grain to one flour. Tool tiers remain separate work.
 
 Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard

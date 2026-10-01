@@ -364,7 +364,7 @@ public sealed partial class PrivateWorldRuntime
             var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
-                    "The household building lacks the required ingredients in its on-site stock.");
+                    MissingProductionIngredients(recipe, worker.HouseholdId!, placed!.InstanceId));
 
             if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != workPosition)
             {

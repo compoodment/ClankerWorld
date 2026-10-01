@@ -355,6 +355,20 @@ public sealed partial class PrivateWorldRuntime
         return current;
     }
 
+    private const string MissingHouseholdIngredientsPrefix = "The household building needs ";
+
+    private static bool IsIngredientBlocker(string? blocker) =>
+        blocker == "Waiting for ingredients at this household building" ||
+        blocker?.StartsWith(MissingHouseholdIngredientsPrefix, StringComparison.Ordinal) == true;
+
+    private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
+    {
+        var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
+        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
+                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
+    }
+
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,
         string ownerId, string buildingId) => inputs.All(input =>
         society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == ownerId &&

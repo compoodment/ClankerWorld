@@ -374,9 +374,9 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitants[inhabitantId].Project is not
             {
                 Stage: "blocked",
-                Blocker: "Waiting for ingredients at this household building",
                 JobId: null,
-            } project || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
+            } project || !IsIngredientBlocker(project.Blocker) ||
+            WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
             !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) || selection.IsBuilding)
             return false;
 
@@ -616,7 +616,7 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
         {
-            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for ingredients at this household building" });
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = MissingProductionIngredients(recipe, constructionOwner, recipeBuilding.InstanceId) });
             return;
         }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));

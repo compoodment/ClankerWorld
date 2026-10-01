@@ -473,6 +473,7 @@ public sealed class PotteryContentTests
 
     [Theory]
     [InlineData(3, true)]
+    [InlineData(4, true)]
     [InlineData(4, false)]
     public async Task WorkstationWaterSupplyMovesOnlyContainerFamiliesWithinTheHaulLoad(int waterQuantity,
         bool familyFits)
@@ -505,6 +506,9 @@ public sealed class PotteryContentTests
         Assert.True(placed?.Applied, "A reachable test workstation should fit beside the household House.");
 
         var state = SetActorCondition(setup.ExportState(), actor, 10_000, sourceHouse.Position);
+        state = state with { Society = state.Society with { Society = state.Society.Society with
+        { Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "water-supply-ready-meals",
+            "simple_meal", householdId, 4, storageBuildingId: sourceHouseId) } } };
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, jugId,
             InventoryContainerRules.WaterJug, householdId, 1, state.Society.Society.WorldTick,
             storageBuildingId: sourceHouseId);
@@ -513,7 +517,7 @@ public sealed class PotteryContentTests
         {
             var definition = setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
             foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId)
-                         .SelectMany(recipe => recipe.Inputs).GroupBy(item => item.ResourceId))
+                         .SelectMany(recipe => recipe.Inputs).Where(item => item.ResourceId != InventoryContainerRules.FreshWater).GroupBy(item => item.ResourceId))
                 inventory = InventoryFixture.AddLot(inventory,
                     $"supply-fixture-buffer:{building.InstanceId}:{input.Key}", input.Key, householdId,
                     input.Max(item => item.Amount) * 2, state.Society.Society.WorldTick,
@@ -530,6 +534,14 @@ public sealed class PotteryContentTests
             },
         };
 
+        if (!familyFits)
+        {
+            var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
+            var ballast = PersonalEquipmentRules.FreeCapacity(inventory, actor, person.Equipment) - waterQuantity;
+            if (ballast > 0)
+                inventory = InventoryFixture.AddLot(inventory, "water-supply-ballast", "test_cargo", actor, ballast);
+            state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        }
         var provider = new ContainerSupplyProvider();
         using var world = PrivateWorldRuntime.Restore(state, id => id == actor
             ? provider : new IdleProvider());
@@ -539,6 +551,7 @@ public sealed class PotteryContentTests
                  : !provider.OfferedCandidates.Contains("supply_workstation:fresh_water")); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
+        Assert.NotEmpty(provider.OfferedCandidates);
         if (!familyFits)
         {
             Assert.DoesNotContain(provider.OfferedCandidates, id => id == "supply_workstation:fresh_water");
@@ -562,7 +575,7 @@ public sealed class PotteryContentTests
         Assert.Equal(shopId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
         Assert.Equal(shopId, world.Society.Inventory.GetLot(waterId).StorageBuildingId);
         Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
-        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.Id == jugId || lot.ContainerLotId == jugId)
+        Assert.Equal(1 + waterQuantity, world.Society.Inventory.Lots.Where(lot => lot.Id == jugId || lot.ContainerLotId == jugId)
             .Sum(lot => lot.Quantity));
 
         var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "water-input-fixture");

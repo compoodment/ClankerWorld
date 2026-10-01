@@ -14,9 +14,9 @@ public sealed class SettlementSurvivalTests
     {
         var (state, actor, _, _) = FarmFieldTests.PreparedFarmer("named-food-spoilage");
         string[] readyFoods = ["food", "fruit", "berries", "wild_greens", "cultivated_greens"];
-        string[] dryStock = ["grain", "grain_seed", "cultivated_green_seed", "orchard_seed"];
+        string[] dryStock = [ "grain_seed", "cultivated_green_seed", "orchard_seed"];
         var inventory = state.Society.Society.Inventory;
-        foreach (var kind in readyFoods.Concat(dryStock))
+        foreach (var kind in readyFoods.Concat(dryStock).Append("grain"))
             inventory = InventoryFixture.AddLot(inventory, "spoilage:" + kind, kind, actor, 1);
         using var first = FarmFieldTests.Restore(FarmFieldTests.WithInventory(state, inventory));
         for (var tick = 0; tick < 4; tick++) Assert.True((await first.AdvanceOneTickAsync()).Advanced);
@@ -25,6 +25,7 @@ public sealed class SettlementSurvivalTests
         var generic = second.Society.Inventory.GetLot("spoilage:food").FreshnessBasisPoints;
         Assert.True(generic < 10_000);
         Assert.All(readyFoods, kind => Assert.Equal(generic, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
+        Assert.InRange(second.Society.Inventory.GetLot("spoilage:grain").FreshnessBasisPoints, generic + 1, 9_999);
         Assert.All(dryStock, kind => Assert.Equal(10_000, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
         Assert.All(readyFoods.Concat(dryStock), kind => Assert.Equal(1, second.Society.Inventory.GetLot("spoilage:" + kind).Quantity));
     }
@@ -37,7 +38,7 @@ public sealed class SettlementSurvivalTests
     {
         using var seed = new PrivateWorldRuntime("worker-death", _ => new IdleProvider());
         seed.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
+        for (var tick = 0; tick < 8; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
         var site = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
@@ -57,17 +58,18 @@ public sealed class SettlementSurvivalTests
             },
         };
         using var preparing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var recipe = preparing.WorldContent.Recipes.Single(item => item.LocalId == "meal");
-        var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "fire");
-        var placement = preparing.PlaceBuilding("death-test-fire", fire.CanonicalId, site);
+        var recipe = preparing.WorldContent.Recipes.Single(item => item.LocalId == "house-meal");
+        var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "house-1x1");
+        var placement = preparing.PlaceBuilding("death-test-fire", fire.CanonicalId, site, "household:camp-alpha");
         Assert.True(placement.Applied, placement.Failure);
         var workstation = placement.InstanceId;
-        var started = preparing.StartProduction(recipe.CanonicalId, workstation, worker.InhabitantId);
+        using var cooking = StockPotatoMeal(preparing, placement.InstanceId);
+        var started = cooking.StartProduction(recipe.CanonicalId, workstation, worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
         if (completionDue)
-            for (var tick = 1; tick < recipe.DurationTicks; tick++) await preparing.AdvanceOneTickAsync();
-        if (completedBeforeDeath) await preparing.AdvanceOneTickAsync();
-        state = preparing.ExportState();
+            for (var tick = 1; tick < recipe.DurationTicks; tick++) await cooking.AdvanceOneTickAsync();
+        if (completedBeforeDeath) await cooking.AdvanceOneTickAsync();
+        state = cooking.ExportState();
         var practice = state.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Proficiency;
         if (completedBeforeDeath)
         {
@@ -163,7 +165,7 @@ public sealed class SettlementSurvivalTests
     {
         using var seed = new PrivateWorldRuntime("spoiled-production", _ => new IdleProvider());
         seed.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
+        for (var tick = 0; tick < 8; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
         var position = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
@@ -175,13 +177,14 @@ public sealed class SettlementSurvivalTests
             ? person with { Position = position } : person).ToArray()
         };
         using var preparing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "fire");
-        var placed = preparing.PlaceBuilding("spoilage-test-fire", fire.CanonicalId, position);
+        var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "house-1x1");
+        var placed = preparing.PlaceBuilding("spoilage-test-fire", fire.CanonicalId, position, "household:camp-alpha");
         Assert.True(placed.Applied, placed.Failure);
-        var recipe = preparing.WorldContent.Recipes.Single(recipe => recipe.LocalId == "meal");
-        var started = preparing.StartProduction(recipe.CanonicalId, placed.InstanceId, worker.InhabitantId);
+        var recipe = preparing.WorldContent.Recipes.Single(recipe => recipe.LocalId == "house-meal");
+        using var cooking = StockPotatoMeal(preparing, placed.InstanceId);
+        var started = cooking.StartProduction(recipe.CanonicalId, placed.InstanceId, worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
-        var pending = preparing.ExportState();
+        var pending = cooking.ExportState();
         pending = pending with
         {
             Society = pending.Society with
@@ -191,7 +194,7 @@ public sealed class SettlementSurvivalTests
                     Inventory = pending.Society.Society.Inventory with
                     {
                         Lots = pending.Society.Society.Inventory.Lots.Select(lot =>
-                    lot.ItemKind == "food" ? lot with { FreshnessBasisPoints = 0 } : lot).ToArray()
+                    lot.ItemKind == "potatoes" ? lot with { FreshnessBasisPoints = 0 } : lot).ToArray()
                     }
                 }
             }
@@ -468,6 +471,19 @@ public sealed class SettlementSurvivalTests
         for (var tick = 0; tick < 8; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         return world.ExportState().Events.Count(item => item.Kind == "inhabitant_moved" &&
             item.Detail.StartsWith(scout.InhabitantId + ":", StringComparison.Ordinal));
+    }
+
+    private static PrivateWorldRuntime StockPotatoMeal(PrivateWorldRuntime preparing, string houseId)
+    {
+        var state = preparing.ExportState();
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "cooking-test-potatoes", "potatoes",
+            "household:camp-alpha", 2, storageBuildingId: houseId);
+        inventory = InventoryFixture.AddLot(inventory, "cooking-test-wood", "wood",
+            "household:camp-alpha", 1, storageBuildingId: houseId);
+        return PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        }, _ => new IdleProvider());
     }
 
     private sealed class IdleProvider : IDecisionProvider

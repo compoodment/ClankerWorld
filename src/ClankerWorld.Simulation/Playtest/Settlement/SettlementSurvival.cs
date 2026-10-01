@@ -354,8 +354,8 @@ public sealed partial class PrivateWorldRuntime
                 (ownerId is null || lot.OwnerId == ownerId))
             .Sum(AvailableLotQuantity);
         var residentCount = ownerId is null ? inhabitants.Count :
-            society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == ownerId);
-        if (IsPreparedMeal(output.ResourceId))
+            inhabitants.Values.Count(person => society.Checkpoint.GetInhabitant(person.InhabitantId).HouseholdId == ownerId);
+        if (IsPreparedMeal(output.ResourceId) && !recipe.Inputs.Any(input => IsPreparedMeal(input.ResourceId)))
             available = society.Checkpoint.Inventory.Lots.Where(lot => IsPreparedMeal(lot.ItemKind) &&
                     (ownerId is null || lot.OwnerId == ownerId)).Sum(AvailableLotQuantity);
         var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)

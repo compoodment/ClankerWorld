@@ -37,7 +37,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                     lot.ContainerLotId is null && lot.DeliveryBuildingId is null)
+                     lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+                     (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
+                         building.InstanceId == lot.StorageBuildingId && IsFarmStorage(building))))
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {

@@ -9,17 +9,17 @@ public static class RestaurantContent
 {
     public const string PackageId = "clankerworld-restaurant-v1";
 
-    public static BuildingDefinition Restaurant1x1()
+    public static BuildingDefinition Restaurant1x2()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.0:porridge-bread-stew-meals")));
-        return new BuildingDefinition(digest, "restaurant-1x1", ContentVersion.Parse("1.0.0"),
-            "Restaurant", 1, 1, 1, [new("wood", 8), new("stone", 2)], ["restaurant", "cooking", "food-stock"]);
+            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.0:restaurant-1x2-porridge-bread-stew-meals")));
+        return new BuildingDefinition(digest, "restaurant-1x2", ContentVersion.Parse("1.0.0"),
+            "Restaurant", 1, 2, 1, [new("wood", 8), new("stone", 2)], ["restaurant", "cooking", "food-stock"]);
     }
 
     public static ContentPackageManifest Create()
     {
-        var restaurant = Restaurant1x1();
+        var restaurant = Restaurant1x2();
         var recipes = HouseCookingContent.Recipes(restaurant.PackageDigest, restaurant.Version,
             restaurant.CanonicalId, false).Append(new RecipeDefinition(restaurant.PackageDigest,
                 "restaurant-meal", restaurant.Version, "Prepare a Restaurant meal",

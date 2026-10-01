@@ -142,15 +142,15 @@ public sealed class HouseContentTests
                     Inventory = state.Society.Society.Inventory with
                     {
                         Lots = state.Society.Society.Inventory.Lots.Select(lot =>
-                            lot.OwnerId == "household:camp-beta" && (lot.ItemKind is "food" or "wood")
+                            lot.OwnerId == "household:camp-beta" && (lot.ItemKind is "potatoes" or "wood")
                                 ? lot with { StorageBuildingId = "meal-home-beta" } : lot).ToArray(),
                     },
                 },
             },
         };
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var alphaFood = HouseholdQuantity(world, "household:camp-alpha", "food");
-        var betaFood = HouseholdQuantity(world, "household:camp-beta", "food");
+        var alphaFood = HouseholdQuantity(world, "household:camp-alpha", "potatoes");
+        var betaFood = HouseholdQuantity(world, "household:camp-beta", "potatoes");
         var betaWood = HouseholdQuantity(world, "household:camp-beta", "wood");
         var rejected = world.StartProduction(recipe.CanonicalId, "meal-home-beta", alpha);
         Assert.False(rejected.Applied);
@@ -165,20 +165,21 @@ public sealed class HouseContentTests
         using var resumed = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
         for (var tick = 0; tick < recipe.DurationTicks; tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(alphaFood, HouseholdQuantity(resumed, "household:camp-alpha", "food"));
-        Assert.Equal(betaFood + 2, HouseholdQuantity(resumed, "household:camp-beta", "food"));
+        Assert.Equal(alphaFood, HouseholdQuantity(resumed, "household:camp-alpha", "potatoes"));
+        Assert.Equal(betaFood - 2, HouseholdQuantity(resumed, "household:camp-beta", "potatoes"));
         Assert.Equal(betaWood - 1, HouseholdQuantity(resumed, "household:camp-beta", "wood"));
+        Assert.Equal(2, HouseholdQuantity(resumed, "household:camp-beta", "simple_meal"));
         Assert.Equal(WorldProductionJobState.Completed,
             resumed.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
         var cookedLotId = $"{started.JobId}:output:00";
         Assert.Equal("meal-home-beta", resumed.Society.Inventory.GetLot(cookedLotId).StorageBuildingId);
         var projected = new OwnerWorldObservationStore(resumed).GetSnapshot().PlacedBuildings
             .Single(building => building.InstanceId == "meal-home-beta");
-        Assert.Contains(projected.StoredItems!, item => item.Kind == "food" && item.Quantity == betaFood + 2);
+        Assert.Contains(projected.StoredItems!, item => item.Kind == "simple_meal" && item.Quantity == 2);
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var client = JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldPlacedBuilding>(
             JsonSerializer.Serialize(projected, options), options)!;
-        Assert.Contains(client.StoredItems!, item => item.Kind == "food" && item.Quantity == betaFood + 2);
+        Assert.Contains(client.StoredItems!, item => item.Kind == "simple_meal" && item.Quantity == 2);
 
         var finished = resumed.ExportState();
         var invalid = finished with
@@ -201,8 +202,16 @@ public sealed class HouseContentTests
             person.HouseholdId == "household:camp-beta" && person.Id != beta).Id;
         var houseApproach = finished.Map.FootNeighbors(site).First(point =>
             finished.Inhabitants.All(person => person.InhabitantId == beta || person.Position != point));
+        var pickupInventory = finished.Society.Society.Inventory;
+        foreach (var ration in pickupInventory.Lots.Where(lot => lot.OwnerId == "household:camp-beta" && lot.ItemKind == "food").ToArray())
+        {
+            var reservationId = "pickup-fixture:" + ration.Id;
+            pickupInventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(pickupInventory,
+                reservationId, ration.OwnerId, ration.Id, ration.Quantity, "fixture", finished.Society.Society.WorldTick), reservationId);
+        }
         var pickupState = finished with
         {
+            Society = finished.Society with { Society = finished.Society.Society with { Inventory = pickupInventory } },
             Inhabitants = finished.Inhabitants.Select(person => person.InhabitantId == beta
                 ? person with { Position = houseApproach, HungerBasisPoints = 2_000 }
                 : person.InhabitantId == otherBeta ? person with { Position = site }
@@ -211,17 +220,17 @@ public sealed class HouseContentTests
         using var pickup = PrivateWorldRuntime.Restore(pickupState,
             _ => new PreferredCandidateProvider("collect_shared_food"));
         for (var tick = 0; tick < 40 && !pickup.ExportState().Events.Any(item =>
-                 item.Kind == "household_food_collected" && item.Detail.StartsWith(beta + ":", StringComparison.Ordinal)); tick++)
+                 item.Kind == "household_food_collected" && item.Detail.StartsWith(beta + ":" + cookedLotId + ":", StringComparison.Ordinal)); tick++)
             Assert.True((await pickup.AdvanceOneTickAsync()).Advanced);
         var pickupEvents = pickup.ExportState().Events;
         var collection = pickupEvents.FirstOrDefault(item =>
-            item.Kind == "household_food_collected" && item.Detail.StartsWith(beta + ":", StringComparison.Ordinal));
+            item.Kind == "household_food_collected" && item.Detail.StartsWith(beta + ":" + cookedLotId + ":", StringComparison.Ordinal));
         Assert.NotNull(collection);
         Assert.NotNull(collection.Position);
         Assert.Equal(site, collection.Position!.Value);
         Assert.Equal(site, pickup.Inhabitants.Single(person => person.InhabitantId == otherBeta).Position);
         Assert.Contains(pickup.Society.Inventory.Lots, lot => lot.OwnerId == beta &&
-            lot.ProvenanceLotId == cookedLotId && lot.StorageBuildingId is null);
+            (lot.Id == cookedLotId || lot.ProvenanceLotId == cookedLotId) && lot.StorageBuildingId is null);
     }
 
     [Fact]

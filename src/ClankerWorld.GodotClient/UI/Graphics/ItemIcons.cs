@@ -464,6 +464,13 @@ public static class ItemIcons
         ]),
     };
 
+    static ItemIcons()
+    {
+        // Concrete meals share the shipped meal icon while keeping separate stock names.
+        foreach (var kind in new[] { "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "bread", "stew", "restaurant_meal" })
+            Icons[kind] = Icons["food"];
+    }
+
     /// <summary>The item kinds that have their own icon.</summary>
     public static IReadOnlyCollection<string> Kinds => Icons.Keys.Where(kind => kind != Fallback).ToArray();
 

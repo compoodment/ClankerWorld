@@ -50,6 +50,9 @@ public static class GameUiText
         "storage_pot" => "Storage pot",
         "water_jug" => "Water jug",
         "fresh_water" => "Fresh water",
+        "simple_meal" => "Simple meal",
+        "stew" => "Vegetable stew",
+        "restaurant_meal" => "Restaurant meal",
         _ => HumanizeIdentifier(kind),
     };
 
