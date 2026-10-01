@@ -486,13 +486,23 @@ and invented content are not silently approved. In particular:
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
-  Market's main building is **2×2** with separate **1×1 stalls** and an
-  approximately **10×12 clear stall-reservation area**. Town Hall is
+  Market's main building is **2×2** with separate **1×1 stalls**.
+  **Agreed after the October 1 art review:** the Market building is a hall
+  without stalls, and its stalls stand on an open plaza of packed earth around
+  it, the same ground as Roads laid as an area rather than as streets. The
+  market need not be as large as the earlier approximately 10×12 reservation;
+  how the plaza grows remains open. For eight stalls computment settled on a
+  **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
+  eight stalls", and 5×4 lost the open column on each side that it needed.
+  The stalls stand in two back-to-back rows of four, each facing an aisle,
+  with a path from the hall's door down the middle. Town Hall is
   **3×4**. These are building/plot footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
-  space along both long sides of that three-tile water section. A legal land
-  approach and clear docking space are required. Boats are communal Town
+  space along both long sides of that three-tile water section. **Agreed after
+  the October 1 art review:** a Port can hold up to **six moored boats**,
+  three along each long side. A legal land approach and clear docking space
+  are required. Boats are communal Town
   property, usable by residents or visitors with permission; the first
   [boat journey](world.md#first-boat-and-port-travel) needs a completed Port at
   each end. Exact queue and construction-cost rules remain open.
@@ -1140,9 +1150,11 @@ The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
 
-A storage pot slows spoilage for the food within its limited capacity. A water
-jug holds a limited quantity of water. Both remain after their contents are
-used; filling, emptying and carrying them must preserve the vessel and its goods.
+A storage pot slows spoilage for the food within its limited capacity, a trial
+8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
+Both remain after their contents are used; filling, emptying and carrying them
+must preserve the vessel and its goods. Adults dig clay from a finite clay bank
+and make either vessel at a household House.
 
 #### Tools, clothing and transport
 

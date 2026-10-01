@@ -38,13 +38,20 @@ public sealed partial class PrivateWorldRuntime
     private bool FamilyResourcesReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
         AccessibleShelters(actor).Any() &&
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind))
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) &&
+            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot))
             .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
                 person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
         BirthFood(actor) is not null;
 
+    // Birth reserves and consumes its food in place, which the inventory
+    // allows for food in a usable storage pot as well as loose food.
     private InventoryLot? BirthFood(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+        lot.OwnerId == HouseholdFor(actor) && InUsableVesselOrLoose(lot) &&
+        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+
+    private bool InUsableVesselOrLoose(InventoryLot lot) => lot.ContainerLotId is not { } containerId ||
+        society.Checkpoint.Inventory.GetLot(containerId).ConditionBasisPoints > 0;
 
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -203,6 +210,23 @@ public sealed partial class PrivateWorldRuntime
                 if (FreeCarryCapacity(actor) == 0) return;
                 ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
                     HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
+            }
+            else if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
+                     HouseForHousehold(householdId) is { } house &&
+                     FindFoodInPot(householdId, house.InstanceId) is { } potFood &&
+                     (parent.Position == house.Position ||
+                      FindUnoccupiedRoute(actor, parent.Position, house.Position, 0).Count > 0))
+            {
+                // Food kept in the household pot can feed the child too.
+                if (parent.Position != house.Position)
+                {
+                    MoveToward(actor, parent, house.Position, "care_food", 0);
+                    return;
+                }
+                if (FreeCarryCapacity(actor) == 0) return;
+                ApplyInventoryTransition(inventory => InventoryFixture.TakeFromContainer(inventory,
+                    $"care-food-pot:{WorldTick}:{actor}", householdId, actor, potFood.Pot.Id, potFood.Food.Id, 1));
+                AppendEvent("food_taken_from_pot", $"{actor}:{potFood.Pot.Id}:{potFood.Food.Id}:1");
             }
             else
             {

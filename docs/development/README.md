@@ -2,7 +2,7 @@
 title: Developer guide
 type: development-index
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Developer guide
@@ -15,6 +15,7 @@ For the game itself, start with [playing](../playing.md),
 | --- | --- |
 | Understand the components and rules to preserve | [How the game works](how-it-works.md) |
 | Restore dependencies, build and check a change | [Build and test](build-and-test.md) |
+| Draw, review or change game art | [Pixel-art style guide](art-style.md) |
 | Approve devices or understand request security | [Device pairing](device-pairing.md) |
 | Change saves, recovery or replay | [Saves and replay](saves-and-replay.md) |
 | Update a private server with backups and rollback | [Private-server deployment](private-server-deployment.md) |
