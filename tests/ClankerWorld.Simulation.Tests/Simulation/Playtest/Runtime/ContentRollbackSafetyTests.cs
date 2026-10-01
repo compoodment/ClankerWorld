@@ -95,7 +95,7 @@ public sealed partial class PrivateWorldRuntimeTests
         await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
-        var site = crop ? state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position :
+        var site = crop ? new GridPoint(2, 3) :
             state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
                 !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !state.Map.Resources.Any(item => item.Position == tile.Position) &&
@@ -105,9 +105,10 @@ public sealed partial class PrivateWorldRuntimeTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId ? person with { Position = site }
                 : person.Position == site ? person with { Position = worker.Position } : person).ToArray(),
         };
+        if (crop) state = FarmTestFields.Prepare(state, worker.InhabitantId, site, cropRecipe);
         var world = PrivateWorldRuntime.Restore(state,
             _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
-        var workstation = WorldBuildSiteRules.FertileLandSiteId(site);
+        var workstation = WorldBuildSiteRules.FieldSiteId(site);
         if (!crop)
         {
             var placed = world.PlaceBuilding("rollback-workshop", building.CanonicalId, site);

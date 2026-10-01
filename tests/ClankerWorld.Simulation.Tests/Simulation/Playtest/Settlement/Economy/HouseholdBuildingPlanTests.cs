@@ -70,7 +70,7 @@ public sealed class HouseholdBuildingPlanTests
     }
 
     [Fact]
-    public async Task HouseholdHarvestIsStoredInItsSilo()
+    public async Task HouseholdHarvestMustBeCarriedFromItsFieldIntoItsSilo()
     {
         using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(chooseIdle: true));
         var initial = generated.ExportState();
@@ -89,28 +89,45 @@ public sealed class HouseholdBuildingPlanTests
 
         var state = setup.ExportState();
         var farmer = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
-        var field = state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position;
+        var occupied = setup.WorldSimulation.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(setup.WorldContent.Buildings.Single(definition =>
+                definition.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
+        var field = setup.Towns.Single().BorderTiles.OrderBy(point => state.Map.FootDistance(point, farmhouse.Position)).First(point => LandFertilityRules.IsFarmable(state.Map, point) &&
+            !occupied.Contains(point) && !setup.RoadTiles.Contains(point) && !state.Map.Resources.Any(resource => resource.Position == point));
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == farmer
                 ? person with { Position = field, HungerBasisPoints = 9_000 } : person).ToArray(),
         };
+        state = FarmTestFields.Prepare(state, farmer, field, setup.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field"));
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => new ActionCoverageRecorder(chooseIdle: true));
         var crop = world.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
-        var started = world.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FertileLandSiteId(field), farmer);
+        var started = world.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FieldSiteId(field), farmer);
         Assert.True(started.Applied, started.Failure);
         for (var tick = 0; tick < crop.DurationTicks; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
+        await FarmTestFields.Harvest(world, farmer, field);
         var harvest = world.Society.Inventory.Lots.Where(lot =>
             lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal)).ToArray();
         Assert.Contains(harvest, lot => lot.ItemKind == "grain");
         Assert.All(harvest, lot =>
         {
             Assert.Equal(Alpha, lot.OwnerId);
-            Assert.Equal("alpha-silo", lot.StorageBuildingId);
+            Assert.Null(lot.StorageBuildingId);
+            Assert.Equal(new InventoryGroundPosition(field.X, field.Y), lot.GroundPosition);
         });
+        using var carrying = PrivateWorldRuntime.Restore(world.ExportState(), id => new FarmCarryProvider(id == farmer));
+        for (var tick = 0; tick < 120 && carrying.Society.Inventory.Lots.Any(lot =>
+            lot.GroundPosition is not null || lot.DeliveryBuildingId == "alpha-silo"); tick++)
+            Assert.True((await carrying.AdvanceOneTickAsync()).Advanced);
+        Assert.All(carrying.Society.Inventory.Lots.Where(lot => lot.Quantity > 0 &&
+            (lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal) ||
+             lot.ProvenanceLotId?.StartsWith(started.JobId + ":output:", StringComparison.Ordinal) == true)),
+            lot => Assert.Equal("alpha-silo", lot.StorageBuildingId));
+        carrying.Validate();
         world.Validate();
         _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }

@@ -13,6 +13,7 @@ public partial class WorldOverview : Control
     private int mapHeight;
     private Rect2 visibleTiles;
     private readonly HashSet<Vector2I> roadTiles = [];
+    private readonly HashSet<Vector2I> fieldTiles = [];
     private bool dragging;
     private Vector2 dragOffset;
 
@@ -37,6 +38,7 @@ public partial class WorldOverview : Control
         mapWidth = world.Width;
         mapHeight = world.Height;
         roadTiles.Clear();
+        fieldTiles.Clear();
         // The overview is data art, not a second sprite set. Each atlas pixel
         // summarizes its part of the world, so redraw cost is bounded by the
         // atlas resolution instead of millions of canvas rectangles.
@@ -105,6 +107,13 @@ public partial class WorldOverview : Control
         DrawRect(atlas, new Color("273A3D"));
         if (atlasTexture is not null) DrawTextureRect(atlasTexture, atlas, tile: false);
 
+        foreach (var tile in fieldTiles)
+        {
+            var point = atlas.Position + new Vector2(tile.X * atlas.Size.X / mapWidth, tile.Y * atlas.Size.Y / mapHeight);
+            DrawRect(new Rect2(point, new Vector2(Math.Max(1, atlas.Size.X / mapWidth),
+                Math.Max(1, atlas.Size.Y / mapHeight))), TerrainTextures.BaseColor(TerrainStyle.FertileSoil));
+        }
+
         var roadColor = new Color("D9BC87");
         foreach (var tile in roadTiles)
         {
@@ -147,6 +156,15 @@ public partial class WorldOverview : Control
                 atlas.Position.X + start * atlas.Size.X / mapWidth, top,
                 Math.Max(2, (end - start) * atlas.Size.X / mapWidth), height));
         }
+    }
+
+    public void SetFields(IReadOnlyList<OwnerWorldField> fields)
+    {
+        var next = fields.Select(field => new Vector2I(field.Position.X, field.Position.Y)).ToHashSet();
+        if (next.SetEquals(fieldTiles)) return;
+        fieldTiles.Clear();
+        fieldTiles.UnionWith(next);
+        QueueRedraw();
     }
 
     private void DrawCameraBounds(Rect2 bounds)

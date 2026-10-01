@@ -23,6 +23,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat(FarmFields.Select(field => field.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -130,21 +131,14 @@ public sealed partial class PrivateWorldRuntime
     {
         if (recipe.IsCrop)
         {
-            foreach (var resource in map.Resources
-                         .Where(item => item.Id == SeededMapGenerator.FertileLandResourceId &&
-                             item.Kind == "fertile_land")
-                         .OrderBy(item => item.Id, StringComparer.Ordinal))
+            foreach (var field in FarmFields.Where(item =>
+                         item.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested &&
+                         (actorId is null || item.HouseholdId == HouseholdFor(actorId)))
+                         .OrderBy(item => item.Position.Y).ThenBy(item => item.Position.X))
             {
-                if (resources.TryGetValue(resource.Id, out var resourceState) &&
-                    resourceState == ResourceState.Available &&
-                    !(worldSimulation.CropBuilds ?? []).Any(job =>
-                        job.State == WorldProductionJobState.Running &&
-                        job.BuildingInstanceId == WorldBuildSiteRules.FertileLandSiteId(resource.Position)))
-                {
-                    siteId = WorldBuildSiteRules.FertileLandSiteId(resource.Position);
-                    position = resource.Position;
-                    return true;
-                }
+                siteId = WorldBuildSiteRules.FieldSiteId(field.Position);
+                position = field.Position;
+                return true;
             }
 
             siteId = string.Empty;
@@ -242,6 +236,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat(FarmFields.Select(field => field.Position))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
@@ -444,7 +439,7 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
             AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }
@@ -464,7 +459,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException($"Crop build '{job.JobId}' references a recipe that is no longer active.");
             }
 
-            var completed = CompleteProductionJob(job, recipe, targetTick);
+            var completed = PrepareFieldHarvest(job, recipe, targetTick);
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs,
@@ -474,13 +469,13 @@ public sealed partial class PrivateWorldRuntime
                         ? candidate with { State = completed ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled }
                         : candidate)
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
-                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
             AppendEvent(completed ? "build_completed" : "build_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }
 
     private GridPoint CropSite(WorldProductionJob job) =>
-        WorldBuildSiteRules.TryGetFertileLandPosition(job.BuildingInstanceId, out var position)
+        WorldBuildSiteRules.TryGetFieldPosition(job.BuildingInstanceId, out var position)
             ? position
             : worldSimulation.Buildings.Single(building => building.InstanceId == job.BuildingInstanceId).Position;
 

@@ -276,6 +276,14 @@ public partial class Main
         };
         if (climate is not null) lines.Add($"Climate: {climate}");
         if (surface is not null) lines.Add($"Surface: {surface}");
+        if (terrainMap.FertilityNameAt(tile.X, tile.Y) is { } fertility) lines.Add($"Fertility: {fertility}");
+        if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
+        {
+            lines.Add($"Field: {Pretty(field.State)}" + (field.Crop is null ? string.Empty : $" · {field.Crop}"));
+            lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
+            if (field.GroundItems.Count > 0)
+                lines.Add("Harvest waiting here: " + string.Join(", ", field.GroundItems.Select(item => $"{item.Quantity} {Pretty(item.Kind)}")));
+        }
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
         if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");

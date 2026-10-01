@@ -374,6 +374,11 @@ public sealed partial class PrivateWorldRuntime
             StoreTownResources(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
+        {
+            ApplyFieldCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId == "haul_farm_grain")
         {
             HaulFarmGrain(inhabitantId, state);
@@ -463,6 +468,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId == "replant_tree")
         {
             ReplantTree(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "plant_orchard")
+        {
+            PlantTreeNearby(inhabitantId, state, orchard: true);
             return;
         }
         if (candidateId == "plant_tree")
@@ -691,6 +701,7 @@ public sealed partial class PrivateWorldRuntime
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
+            AddFieldCandidates(candidates, inhabitantId, state);
             AddFarmGrainCandidate(candidates, inhabitantId, state);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
@@ -727,12 +738,14 @@ public sealed partial class PrivateWorldRuntime
             HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     (!item.IsCrop || canGrow)))
+                     (!item.IsCrop || canGrow && founderSetup is null &&
+                         !item.Tags.Contains("farm-crop", StringComparer.Ordinal))))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)))
             {
                 continue;
             }
+            if (recipe.IsCrop && FarmHoe(inhabitant.Id) is null) continue;
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));

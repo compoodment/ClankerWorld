@@ -8,9 +8,9 @@ public sealed class SeededHarnessTests
 {
     public static IEnumerable<object[]> SeedCorpus =>
     [
-        ["camp-alpha", "249b2930ffe84b64271803eae490bc28d25b7e00f3969f6ffa064727c50e299c"],
-        ["camp-beta", "bdc5341c4244ed1dfa2ec5dd4c3a359a8b0ae3e168b14934a34ec2701d048d37"],
-        ["camp-gamma", "aa516f4770adda5d1eeded2764ebe8fced8c643cb86c0d05ec0c3276faa977d6"],
+        ["camp-alpha", "79691f6372f92de5ccb6614c40cf5e947b902f3a0aaccff151ef0c3a91d92df8"],
+        ["camp-beta", "933b656d9affa7456c997e2b7ed0f0c34d71e3c3d9009780294caf2a02835691"],
+        ["camp-gamma", "7ce99b8fcc2668741e629d54882002636c47e63bca9e9291d410e4b0943a04a7"],
     ];
 
     [Theory]

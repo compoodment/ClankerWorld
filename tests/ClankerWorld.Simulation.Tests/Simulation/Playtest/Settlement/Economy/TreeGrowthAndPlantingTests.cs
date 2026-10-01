@@ -161,7 +161,7 @@ public sealed class TreeGrowthAndPlantingTests
 
         foreach (var (species, lot, destination, planter, expected) in new[]
                  {
-                     ("orchard", SeedLotId, site, actor, TreePlantingRefusal.UnsupportedSpecies),
+                     ("orchard", SeedLotId, site, actor, TreePlantingRefusal.NotATreeSeed),
                      ("palm", SeedLotId, site, actor, TreePlantingRefusal.UnsupportedSpecies),
                      (TreeGrowthRules.Broadleaf, SeedLotId, water, actor, TreePlantingRefusal.Water),
                      (TreeGrowthRules.Broadleaf, SeedLotId, sand, actor, TreePlantingRefusal.Sand),
@@ -225,7 +225,7 @@ public sealed class TreeGrowthAndPlantingTests
                 ? resource with { Kind = "fruit", TreeKind = TreeGrowthRules.Orchard } : resource).ToArray(),
         };
         orchardMap = orchardMap with { ManifestDigest = MapManifestCodec.Digest(orchardMap) };
-        Assert.Contains("deterministic regeneration", Assert.Throws<InvalidDataException>(() =>
+        Assert.Contains(treeId, Assert.Throws<InvalidDataException>(() =>
             PrivateWorldRuntime.Restore(saved with { Map = orchardMap })).Message, StringComparison.Ordinal);
 
         // A planted tree cannot share its tile with a Road.

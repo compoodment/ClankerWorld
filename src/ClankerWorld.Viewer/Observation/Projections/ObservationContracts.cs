@@ -18,7 +18,10 @@ public sealed record ViewerTile(int X, int Y, string Terrain);
 public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding, string Data);
 /// <summary>Independent row-major byte layers; terrain remains a compatibility projection.</summary>
 public sealed record ViewerPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation,
+    string? Fertility = null);
+public sealed record ViewerField(ViewerPosition Position, string HouseholdId, string State, string? Crop,
+    int WorkDone, int WorkRequired, IReadOnlyList<ViewerInventoryEntry> GroundItems);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
 {
@@ -317,6 +320,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
+    public IReadOnlyList<ViewerField> Fields { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
     /// <summary>

@@ -303,8 +303,7 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand are unchanged.
-4. **Object placement.** The starter berry bush, tree and fertile patch must
-   stand off sand. Every forest-floor tile then gets a tree. Wild sites come
+4. **Object placement.** The starter berry bush and tree must stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
    picks another tile rather than stand on sand, water or mountain rock, and
    map acceptance refuses one that does. Stone outcrops and clay banks are not
@@ -407,15 +406,27 @@ adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
 kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
 it follows the same rules once its content exists.
-A crop's outputs other than ready-to-eat food go into its household's Silo when
-it holds one; ready food stays unlocated until it is carried to the House.
+Fields are saved owned tiles, with tilling, prepared, planted, growing, ready
+and harvested stages. An adult of the household holding the Farmhouse must
+stand on free farmable ground with a usable hoe to till it. Field sites use
+`field:x,y`; there is no `fertile_land` resource object. Fertility is derived
+from the saved world seed and terrain/climate/rainfall layers, and affects yield.
+The observation sends a derived fertility layer for inspection, while saves
+record field ownership, work progress and crop jobs instead of storing fertility
+per tile.
 
-A recipe project that finds its work site busy waits with the blocker "Waiting
-for a free work site". While anyone waits, no one else is offered a new recipe
-for the same kind of site (fertile land for crops, or the same workstation
-design), so the waiting agent gets the next turn instead of losing it each time
-the site frees. Every map still has a single fertile-land site, so this queue
-matters once more than one household farms.
+Named grain, potato and greens crops consume personally carried planting stock
+when planting begins. Growth runs on the saved clock; tending at the field can
+shorten it. Completed growth makes the crop ready, then actual field work
+creates harvest lots at a `GroundPosition`. Those lots belong to the household
+and remain there until four-unit pickups carry them into its Silo, Farmhouse or
+House. A harvested field cannot be replanted while stock is still on its tile.
+The planner considers population, expected yield, planting reserve, distance
+and fertility, and keeps enough hoe condition for harvest before adding soil.
+
+A workstation project that finds its work site busy waits with the blocker
+"Waiting for a free work site". While anyone waits, another recipe of the same
+workstation design is withheld so the waiting agent gets the next turn.
 
 Recipes do not depend on a role or on personality or aspiration text. An adult
 resident is offered a crop recipe only when their household holds a Farmhouse,
@@ -425,8 +436,8 @@ household holds is nobody's workstation. First-Town setup gives the Farmhouse
 to the first starting household and the Blacksmith to the second. The offline
 check in `HouseholdBuildingUseCoverageTests` builds generated worlds the normal
 way and runs two world days with the built-in rule-based chooser and no model
-calls, failing if these offers disappear or cross households. The owner's direct
-production request keeps its own checks and does not apply the crop rule.
+calls, failing if these offers disappear or cross households. The owner's direct production request also requires owned prepared soil, a
+present adult, a usable hoe and personally carried planting stock.
 
 For workstation recipes, site selection checks the actor’s current walking route as well as
 ownership and unused production capacity. An occupied or inaccessible workstation
@@ -621,8 +632,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
   serves broadleaf and conifer.
 - **Planting** is the typed `PlantTree` action. It checks, in order, the
-  species (broadleaf or conifer only; orchard propagation is still open), that
-  the planter is an adult, that the seed lot is a tree seed they own with one
+  species (broadleaf, conifer or orchard), that
+  the planter is an adult, that the seed lot is the matching tree or orchard seed they carry with one
   free, the ground (grass, forest floor or fertile soil; never water, sand,
   rock, snow or dry scrub), buildings, Roads and existing objects, that the
   planter stands on or next to the tile, and the chunk's resource budget. A
@@ -632,11 +643,13 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 - **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
-  `replant_tree` also uses a tree seed.
+  `replant_tree` also uses a tree seed. Orchard propagation uses the separate
+  `plant_orchard` choice and `orchard_seed` stock.
 - **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
-  orchards start without fruit.
+  orchards start without fruit. Picking returns one orchard seed. A planted
+  orchard matures after three days but still bears fruit only in autumn.
 - **Saves.** Planted trees are part of the saved map. On load, the map must
   still match regeneration apart from the settlement's staged sites and valid
   planted trees; each planted tree must be a plantable species on legal ground,

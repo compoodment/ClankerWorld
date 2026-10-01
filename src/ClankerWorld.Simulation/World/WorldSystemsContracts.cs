@@ -534,9 +534,10 @@ public static class EcologyRules
                 return resource;
             return resource with
             {
-                Quantity = 1,
+                Quantity = resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason ? 0 : 1,
                 NextRegenerationDay = checked(calendar.DayIndex + resource.RegenerationIntervalDays),
-                State = EcologyResourceState.Available,
+                State = resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason
+                    ? EcologyResourceState.Regenerating : EcologyResourceState.Available,
                 IsPlanted = false,
             };
         }

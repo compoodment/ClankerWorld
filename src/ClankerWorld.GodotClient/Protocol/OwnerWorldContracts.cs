@@ -23,7 +23,10 @@ public sealed record OwnerWorldPosition(int X, int Y);
 public sealed record OwnerWorldTile(int X, int Y, string Terrain);
 public sealed record OwnerWorldPackedTerrain(int Width, int Height, string Encoding, string Data);
 public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation,
+    string? Fertility = null);
+public sealed record OwnerWorldField(OwnerWorldPosition Position, string HouseholdId, string State, string? Crop,
+    int WorkDone, int WorkRequired, IReadOnlyList<OwnerWorldInventoryEntry> GroundItems);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
 
@@ -312,6 +315,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
+    public IReadOnlyList<OwnerWorldField> Fields { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];

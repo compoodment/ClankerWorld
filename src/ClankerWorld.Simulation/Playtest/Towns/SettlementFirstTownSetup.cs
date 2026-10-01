@@ -71,7 +71,7 @@ public sealed partial class PrivateWorldRuntime
         };
         foreach (var (lotId, location) in foodLocations)
         {
-            if (!source.Lots.Any(lot => lot.Id == lotId && lot.ItemKind == "food" &&
+            if (!source.Lots.Any(lot => lot.Id == lotId && FoodItems.IsEdible(lot.ItemKind) &&
                     lot.OwnerId == location.OwnerId && lot.Quantity > 0 &&
                     lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0))
                 throw new InvalidOperationException("The starting households need usable food before a Town site can be accepted.");
@@ -98,6 +98,10 @@ public sealed partial class PrivateWorldRuntime
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-pickaxe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-pickaxe", "wooden_pickaxe",
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
+        foreach (var household in new[] { HouseholdId, SecondHouseholdId })
+            if (!stock.Lots.Any(lot => lot.Id == "first-town-hoe:" + household))
+                stock = InventoryFixture.AddLot(stock, "first-town-hoe:" + household, "wooden_hoe",
+                    household, 1, storageBuildingId: household == HouseholdId ? firstHouse : secondHouse);
         return stock;
     }
 }

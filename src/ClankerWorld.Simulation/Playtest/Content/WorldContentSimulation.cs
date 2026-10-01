@@ -38,18 +38,14 @@ public sealed record WorldProductionJob(
     IReadOnlyList<string> InputReservationIds);
 
 /// <summary>
-/// A production job can use a generated fertile-land site when its recipe is
-/// tagged <c>crop</c>. The existing BuildingInstanceId field on
-/// <see cref="WorldProductionJob"/> stores the canonical site ID for that
-/// case, so the same deterministic completion and inventory path handles
-/// both workstation production and cultivation.
+/// Crop jobs refer to an owned, tilled tile using a canonical field site ID.
 /// </summary>
 public static class WorldBuildSiteRules
 {
-    public static string FertileLandSiteId(GridPoint position) =>
-        $"{SeededMapGenerator.FertileLandResourceId}:{position.X},{position.Y}";
+    public static string FieldSiteId(GridPoint position) =>
+        $"field:{position.X},{position.Y}";
 
-    public static bool TryGetFertileLandPosition(string siteId, out GridPoint position)
+    public static bool TryGetFieldPosition(string siteId, out GridPoint position)
     {
         position = default;
         if (string.IsNullOrWhiteSpace(siteId))
@@ -57,7 +53,7 @@ public static class WorldBuildSiteRules
             return false;
         }
 
-        var prefix = SeededMapGenerator.FertileLandResourceId + ":";
+        const string prefix = "field:";
         if (!siteId.StartsWith(prefix, StringComparison.Ordinal))
         {
             return false;
@@ -72,7 +68,7 @@ public static class WorldBuildSiteRules
         }
 
         position = new GridPoint(x, y);
-        return string.Equals(siteId, FertileLandSiteId(position), StringComparison.Ordinal);
+        return string.Equals(siteId, FieldSiteId(position), StringComparison.Ordinal);
     }
 }
 
@@ -82,7 +78,8 @@ public sealed record WorldContentSimulationState(
     long NextProductionJobSequence,
     IReadOnlyList<WorldProductionJob>? CropBuilds = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BuildingExpansionJob>? BuildingExpansions = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null,
+    IReadOnlyList<FarmFieldTile>? Fields = null)
 {
     public static WorldContentSimulationState Empty { get; } = new([], [], 1, []);
 }
@@ -188,7 +185,7 @@ public static class WorldContentSimulationRules
             ContentPackageRules.ValidateLocalId(job.JobId);
             if (!jobIds.Add(job.JobId) || !recipeDefinitions.TryGetValue(job.RecipeId, out var recipe) ||
                 (!buildingIds.Contains(job.BuildingInstanceId) &&
-                    !IsValidFertileLandJobSite(recipe, job.BuildingInstanceId, map)))
+                    !IsValidFieldJobSite(recipe, job.BuildingInstanceId, map)))
             {
                 throw new InvalidDataException("Production jobs must have unique IDs and registered references.");
             }
@@ -204,6 +201,34 @@ public static class WorldContentSimulationRules
         }
 
         var cropBuilds = state.CropBuilds ?? [];
+        var fields = state.Fields ?? [];
+        if (fields.Select(field => field.Position).Distinct().Count() != fields.Count ||
+            !fields.Select(field => field.Position).SequenceEqual(fields.OrderBy(field => field.Position.Y)
+                .ThenBy(field => field.Position.X).Select(field => field.Position)))
+            throw new InvalidDataException("Field tiles must be unique and in map order.");
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.HouseholdId) || !Enum.IsDefined(field.Stage) ||
+                !LandFertilityRules.IsFarmable(map, field.Position) || field.PreparedTick < 0 ||
+                field.PreparedTick > worldTick || field.LastWorkedTick < -1 || field.LastWorkedTick > worldTick ||
+                field.WorkDone < 0 || field.WorkDone > (field.Stage == FarmFieldStage.Ready ? 3 : 8) ||
+                field.TendingWork is < 0 or > 4 ||
+                field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready &&
+                    (field.RecipeId is null || field.JobId is null) ||
+                field.Harvest is not null && (field.Stage != FarmFieldStage.Ready ||
+                    field.Harvest.Select(output => output.ResourceId).Distinct(StringComparer.Ordinal).Count() != field.Harvest.Count ||
+                    field.Harvest.Any(output => output.Amount <= 0 || string.IsNullOrWhiteSpace(output.ResourceId) ||
+                        field.RecipeId is null || !recipeDefinitions.TryGetValue(field.RecipeId, out var harvestRecipe) ||
+                        !harvestRecipe.Outputs.Any(expected => expected.ResourceId == output.ResourceId))) ||
+                field.Stage == FarmFieldStage.Ready && field.Harvest is null ||
+                field.RecipeId is { } recipeId && !recipeDefinitions.ContainsKey(recipeId) ||
+                field.JobId is { } jobId && !cropBuilds.Any(job => job.JobId == jobId &&
+                    job.BuildingInstanceId == WorldBuildSiteRules.FieldSiteId(field.Position)) ||
+                state.Buildings.Any(building => Footprint(buildingDefinitions[building.DefinitionId], building.Position)
+                    .Contains(field.Position)) || map.Resources.Any(resource => resource.Position == field.Position) ||
+                map.CampObjects.Any(item => item.Position == field.Position))
+                throw new InvalidDataException("A saved field has invalid ground, work or crop state.");
+        }
         var cropJobIds = new HashSet<string>(StringComparer.Ordinal);
         var activeCropSites = new HashSet<string>(StringComparer.Ordinal);
         foreach (var cropBuild in cropBuilds)
@@ -222,8 +247,9 @@ public static class WorldContentSimulationRules
                 cropBuild.CompletionTick < worldTick && cropBuild.State == WorldProductionJobState.Running ||
                 cropBuild.InputReservationIds is null ||
                 cropBuild.InputReservationIds.Count != cropBuild.InputReservationIds.Distinct(StringComparer.Ordinal).Count() ||
-                !WorldBuildSiteRules.TryGetFertileLandPosition(cropBuild.BuildingInstanceId, out var cropPosition) ||
-                !IsFertileLandPosition(map, cropPosition) ||
+                !WorldBuildSiteRules.TryGetFieldPosition(cropBuild.BuildingInstanceId, out var cropPosition) ||
+                !IsFieldPosition(map, cropPosition) ||
+                !fields.Any(field => field.Position == cropPosition) ||
                 cropBuild.State == WorldProductionJobState.Running &&
                     !activeCropSites.Add(cropBuild.BuildingInstanceId))
             {
@@ -314,18 +340,15 @@ public static class WorldContentSimulationRules
         return state;
     }
 
-    public static bool IsFertileLandPosition(SeededMap map, GridPoint position) =>
-        map.IsBuildable(position) && map.Resources.Any(resource =>
-            resource.Id == SeededMapGenerator.FertileLandResourceId &&
-            resource.Kind == "fertile_land" &&
-            resource.Position == position);
+    public static bool IsFieldPosition(SeededMap map, GridPoint position) =>
+        LandFertilityRules.IsFarmable(map, position);
 
-    private static bool IsValidFertileLandJobSite(
+    private static bool IsValidFieldJobSite(
         RecipeDefinition recipe,
         string siteId,
         SeededMap map) =>
         recipe.IsCrop &&
         recipe.WorkstationBuildingId is null &&
-        WorldBuildSiteRules.TryGetFertileLandPosition(siteId, out var position) &&
-        IsFertileLandPosition(map, position);
+        WorldBuildSiteRules.TryGetFieldPosition(siteId, out var position) &&
+        IsFieldPosition(map, position);
 }

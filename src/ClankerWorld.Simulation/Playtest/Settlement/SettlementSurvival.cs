@@ -51,7 +51,7 @@ public static class SettlementIllnessRules
 public sealed partial class PrivateWorldRuntime
 {
     private SettlementSurvivalState? survivalState;
-    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal) { "food" };
+    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal) { "food", "fruit", "berries", "wild_greens", "cultivated_greens", "potatoes", "flour", "simple_meal", "porridge", "bread", "vegetable_stew", "restaurant_meal", "eggs", "milk" };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -206,15 +206,14 @@ public sealed partial class PrivateWorldRuntime
             Fires = survivalState.Fires.Where(fire =>
             fire.FuelUntilTick > WorldTick && existingIds.Contains(fire.BuildingId)).ToArray()
         };
-        var sharedStorage = BuildingsWithTag("storage").Any(building => building.HouseholdId is null);
-        var shelteredOwners = sharedStorage
-            ? society.Checkpoint.Households.Select(household => household.Id).ToHashSet(StringComparer.Ordinal)
-            : BuildingsWithTag("storage").Where(building => building.HouseholdId is not null)
-                .Select(building => building.HouseholdId!).ToHashSet(StringComparer.Ordinal);
+        var shelteredStorage = BuildingsWithTag("storage").Select(building => building.InstanceId)
+            .ToHashSet(StringComparer.Ordinal);
         ApplyInventoryTransition(inventory => InventoryFixture.ProcessSpoilage(inventory, WorldTick, 4,
-            PerishableKinds, shelteredOwners, society.Checkpoint.Inventory.Lots
+            PerishableKinds, protectedContainerIds: society.Checkpoint.Inventory.Lots
                 .Where(lot => lot.ItemKind == "storage_pot" && lot.ConditionBasisPoints > 0)
-                .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal)));
+                .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal), freshnessLossForLot: lot =>
+                lot.StorageBuildingId is { } buildingId && shelteredStorage.Contains(buildingId)
+                    ? FoodItems.FreshnessLoss(lot.ItemKind) / 2 : FoodItems.FreshnessLoss(lot.ItemKind)));
         foreach (var person in inhabitants.Values.ToArray())
         {
             var old = person.Survival ?? new SurvivalCondition();
@@ -353,14 +352,14 @@ public sealed partial class PrivateWorldRuntime
             .Sum(AvailableLotQuantity);
         if (ownerId is not null && VesselRules.IsVessel(output.ResourceId))
             return HouseholdVesselQuantity(ownerId, output.ResourceId) < (output.ResourceId == "water_jug" ? 2 : 1);
-        var target = output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
+        var target = FoodItems.IsEdible(output.ResourceId) ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
     });
 
     private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather,
         int soilMoisture)
     {
-        if (!recipe.IsCrop || survivalState is null || output.ResourceId != "food")
+        if (!recipe.IsCrop || survivalState is null || FoodItems.IsPlantingStock(output.ResourceId) && output.ResourceId != "potatoes")
             return output.Amount;
         return weather switch
         {
@@ -396,7 +395,7 @@ public sealed partial class PrivateWorldRuntime
         return originId.StartsWith("food:harvest:", StringComparison.Ordinal) ? "foraged" : "camp_rations";
     }
 
-    private static bool IsEdibleFood(string kind) => kind is "food" or "fruit";
+    private static bool IsEdibleFood(string kind) => FoodItems.IsEdible(kind);
 
     private IEnumerable<InventoryLot> PreferredFood(string owner, string? actor = null)
     {

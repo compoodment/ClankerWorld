@@ -9,7 +9,7 @@ public sealed partial class PrivateWorldRuntime
     private static readonly HashSet<string> WarehouseResourceKinds =
         new(StringComparer.Ordinal) { "wood", "stone", "fiber", "seed", "iron_ore", "iron", "gold_ore", "gold", "diamond" };
     private static readonly HashSet<string> WarehouseFoodKinds =
-        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potato", "greens", "bread", "porridge", "stew" };
+        new(StringComparer.Ordinal) { "food", "fruit", "berries", "wild_greens", "grain", "grain_seed", "greens_seed", "flour", "potatoes", "cultivated_greens", "simple_meal", "bread", "porridge", "vegetable_stew", "restaurant_meal", "eggs", "milk" };
 
     private PlacedBuilding? WarehouseForResident(string actor)
     {

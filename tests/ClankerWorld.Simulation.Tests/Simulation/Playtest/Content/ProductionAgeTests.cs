@@ -52,9 +52,14 @@ public sealed class ProductionAgeTests
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.ProductionJobs
             .Concat(restored.WorldSimulation.CropBuilds ?? []).Single(item => item.JobId == jobId).State);
         var recipe = restored.WorldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
+        if (recipe.IsCrop && WorldBuildSiteRules.TryGetFieldPosition(job.BuildingInstanceId, out var field))
+            await FarmTestFields.Harvest(restored, job.WorkerId, field);
         foreach (var output in recipe.Outputs)
             Assert.Contains(restored.Society.Inventory.Lots, lot => lot.Id.StartsWith(jobId + ":", StringComparison.Ordinal) &&
-                lot.ItemKind == output.ResourceId && lot.Quantity == output.Amount);
+                lot.ItemKind == output.ResourceId && lot.Quantity == (recipe.IsCrop
+                    ? Math.Max(1, output.Amount * ClankerWorld.Simulation.Harness.LandFertilityRules.YieldPercent(
+                        state.Map.FertilityAt(state.Inhabitants.Single(person => person.InhabitantId == job.WorkerId).Position)) / 100)
+                    : output.Amount));
         var completed = restored.ExportState();
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(completed)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(completed), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
@@ -67,7 +72,7 @@ public sealed class ProductionAgeTests
         for (var tick = 0; tick < 5; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
-        var site = crop ? state.Map.GetResource(ClankerWorld.Simulation.Harness.SeededMapGenerator.FertileLandResourceId).Position :
+        var site = crop ? new ClankerWorld.Simulation.Harness.GridPoint(2, 3) :
             state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
                 !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !state.Map.Resources.Any(item => item.Position == tile.Position) &&
@@ -77,8 +82,10 @@ public sealed class ProductionAgeTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId
                 ? person with { Position = site } : person).ToArray(),
         };
+        if (crop) state = FarmTestFields.Prepare(state, worker.InhabitantId, site,
+            seed.WorldContent.Recipes.Single(item => item.LocalId == "vegetables"));
         using var placing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var workstation = WorldBuildSiteRules.FertileLandSiteId(site);
+        var workstation = WorldBuildSiteRules.FieldSiteId(site);
         if (!crop)
         {
             var workshop = placing.WorldContent.Buildings.Single(item => item.LocalId == "workshop");

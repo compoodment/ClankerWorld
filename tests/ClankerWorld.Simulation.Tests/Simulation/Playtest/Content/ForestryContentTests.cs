@@ -39,7 +39,7 @@ public sealed class ForestryContentTests
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
-        var site = state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position;
+        var site = new GridPoint(2, 3);
         var worker = state.Inhabitants[0];
         state = state with
         {
@@ -53,19 +53,21 @@ public sealed class ForestryContentTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId
                 ? person with { Position = site } : person.Position == site ? person with { Position = worker.Position } : person).ToArray(),
         };
+        state = FarmTestFields.Prepare(state, worker.InhabitantId, site, seed.WorldContent.Recipes.Single(item => item.LocalId == "managed-coppice"));
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var recipe = world.WorldContent.Recipes.Single(recipe => recipe.LocalId == "managed-coppice");
         Assert.Equal(KernelClock.TicksPerDay, recipe.DurationTicks);
         var wildWood = world.WorldSystems.Ecology.Resources.Single(resource => resource.Kind == "construction").Quantity;
-        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FertileLandSiteId(site), worker.InhabitantId);
+        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(site), worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
         for (var tick = 1; tick < recipe.DurationTicks; tick++) await world.AdvanceOneTickAsync();
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == started.JobId + ":output:00");
         using var restored = PrivateWorldRuntime.Restore(world.ExportState(), _ => new IdleProvider());
         await restored.AdvanceOneTickAsync();
+        await FarmTestFields.Harvest(restored, worker.InhabitantId, site);
         var wood = restored.Society.Inventory.Lots.Single(lot => lot.ItemKind == "wood" && lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
         Assert.Equal("wood", wood.ItemKind);
-        Assert.Equal(24, wood.Quantity);
+        Assert.Equal(24 * LandFertilityRules.YieldPercent(state.Map.FertilityAt(site)) / 100, wood.Quantity);
         Assert.Equal(wildWood, restored.WorldSystems.Ecology.Resources.Single(resource => resource.Kind == "construction").Quantity);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.CropBuilds!.Single(job => job.JobId == started.JobId).State);
     }

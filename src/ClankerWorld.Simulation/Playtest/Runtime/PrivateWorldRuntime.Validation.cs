@@ -34,6 +34,9 @@ public sealed partial class PrivateWorldRuntime
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
+        if (FarmFields.Any(field => !society.Checkpoint.Households.Any(household => household.Id == field.HouseholdId) ||
+            RoadAndBridgeTiles().Contains(field.Position)))
+            throw new InvalidDataException("A field has a missing household or overlaps a Road.");
         var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
@@ -202,6 +205,9 @@ public sealed partial class PrivateWorldRuntime
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var lot in inventory.Lots)
         {
+            if (lot.GroundPosition is { } ground && !(simulation.Fields ?? []).Any(field =>
+                field.Position == new GridPoint(ground.X, ground.Y) && field.HouseholdId == lot.OwnerId))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' is not on its household's field.");
             if (lot.StorageBuildingId is { } storageId)
             {
                 if (!buildings.TryGetValue(storageId, out var storage) ||
@@ -240,6 +246,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
         if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
+        if (state.SchemaVersion < 29 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
+            state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
+            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 29.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))

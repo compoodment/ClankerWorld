@@ -17,6 +17,10 @@ public sealed partial class PrivateWorldRuntime
     private void AddForestryCandidates(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
+        if ((HasCarriedItem(actor, TreeGrowthRules.OrchardSeedItem) ||
+            SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) && PlantingSite(actor, state.Position) is not null)
+            candidates.Add(new CognitionCandidate("plant_orchard",
+                "Plant an orchard seed on open ground.", 34));
         if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem) &&
             SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)
             return;
@@ -112,7 +116,8 @@ public sealed partial class PrivateWorldRuntime
         var seed = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == seedLotId);
         if (seed is null)
             return TreePlantingResult.Refused(TreePlantingRefusal.NoSeedLeft);
-        if (seed.ItemKind != TreeGrowthRules.TreeSeedItem)
+        if (seed.ItemKind != TreeGrowthRules.SeedFor(species) || seed.GroundPosition is not null ||
+            seed.StorageBuildingId is not null)
             return TreePlantingResult.Refused(TreePlantingRefusal.NotATreeSeed);
         if (seed.OwnerId != planterId)
             return TreePlantingResult.Refused(TreePlantingRefusal.SeedNotOwned);
@@ -128,7 +133,8 @@ public sealed partial class PrivateWorldRuntime
 
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint,
             planterId, seed.Id, 1, "tree_planting"));
-        var tree = new MapResource(TreeGrowthRules.PlantedTreeId(destination), "construction", destination, true,
+        var tree = new MapResource(TreeGrowthRules.PlantedTreeId(destination),
+            species == TreeGrowthRules.Orchard ? "fruit" : "construction", destination, true,
             species);
         map = map with
         {
@@ -161,12 +167,13 @@ public sealed partial class PrivateWorldRuntime
         return TreePlantingResult.Success(tree.Id, species);
     }
 
-    private void PlantTreeNearby(string actor, PlaytestInhabitantState state)
+    private void PlantTreeNearby(string actor, PlaytestInhabitantState state, bool orchard = false)
     {
+        var seedKind = orchard ? TreeGrowthRules.OrchardSeedItem : TreeGrowthRules.TreeSeedItem;
         if (PlantingSite(actor, state.Position) is not { } site) return;
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem))
+        if (!HasCarriedItem(actor, seedKind))
         {
-            CollectEquipment(actor, state, TreeGrowthRules.TreeSeedItem);
+            CollectEquipment(actor, state, seedKind);
             return;
         }
         if (!IsWithinInteractionRange(state.Position, site, ResourceInteractionRange))
@@ -175,10 +182,10 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var seed = society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == actor && lot.ItemKind == TreeGrowthRules.TreeSeedItem &&
+            .Where(lot => lot.OwnerId == actor && lot.ItemKind == seedKind &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).First();
-        var result = PlantTreeCore(actor, PlantingSpecies(site), seed.Id, site);
+        var result = PlantTreeCore(actor, orchard ? TreeGrowthRules.Orchard : PlantingSpecies(site), seed.Id, site);
         if (!result.Planted)
             AppendEvent("tree_planting_refused", $"{actor}:{result.Refusal}");
     }
@@ -235,6 +242,7 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
+            .Concat(FarmFields.Select(field => field.Position))
             .ToHashSet();
         return (buildings, occupied);
     }

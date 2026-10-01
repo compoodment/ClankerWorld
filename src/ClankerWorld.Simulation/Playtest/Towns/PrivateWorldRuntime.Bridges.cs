@@ -29,6 +29,7 @@ public sealed partial class PrivateWorldRuntime
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         return map.Resources.Select(item => item.Position)
             .Concat(map.CampObjects.Select(item => item.Position))
+            .Concat(FarmFields.Select(field => field.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
@@ -125,6 +126,7 @@ public sealed partial class PrivateWorldRuntime
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var blocked = map.Resources.Select(item => item.Position)
             .Concat(map.CampObjects.Select(item => item.Position))
+            .Concat((simulation.Fields ?? []).Select(field => field.Position))
             .Concat(simulation.Buildings.SelectMany(building =>
                 definitions.TryGetValue(building.DefinitionId, out var definition)
                     ? WorldContentSimulationRules.Footprint(definition, building.Position)

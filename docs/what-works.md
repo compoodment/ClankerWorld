@@ -101,7 +101,7 @@ generated memory summaries and full conversations are unfinished.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect accessible tools. They carry grain to the Farmhouse, flour back to the House, and wood, stone and iron ore into the Blacksmith. Loose fallen wood can be collected by hand. Stone, ore, gold and diamond extraction require progressively better pickaxes; deposits run out. Houses craft rope and carrying baskets; Tailor Shops make larger sacks. One basket or sack can be equipped at a time. Carrying limits preserve existing oversized loads and refuse incoming goods until there is room. |
 | Pottery and fresh water | Basic version | Adults gather clay and fuel, make reusable jugs and pots in their House, and carry fresh water from rivers or lakes. Each vessel holds eight items; a pot halves spoilage for its actual contents. Contents and capacity appear in inspection. These values are provisional; cooking and care uses of water are tracked in [#561](https://github.com/compoodment/ClankerWorld/issues/561) and [#565](https://github.com/compoodment/ClankerWorld/issues/565). Automated generated-world flow and intermediate save checks passed; a hands-on playtest remains pending. |
-| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden, stone and iron axes and pickaxes plus hoes, hammers, sickles and knives, and refines 2 iron ore with 1 wood into 1 iron from its on-site stock. Tools wear, and an adult carries a worn tool to their own Blacksmith for repair with its materials. Broken tools need replacement. Hammers help building and repair work; knives speed food and clothing preparation. The agent and building cards report tool condition. Costs and speeds are provisional. The separate field-work change connects hoes and sickles to preparing, tending and harvesting individual plots. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing, padded coats, rain cloaks and sacks, carrying inputs in from its own stock or gathering them. Clothing protects an agent when worn, and cloth repairs worn garments at a House or Tailor Shop. Baskets and sacks also wear and can be repaired. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and broader recipes and logistics remain unfinished. |
+| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse tills neighbouring field tiles with a hoe, plants grain, potatoes or greens, tends and harvests them, and carries real harvest lots to its Silo or Farmhouse. One grain mills into one flour. Planting seed is reserved before sale, and orchards grow from distinct orchard seeds and fruit in autumn; the household holding the Blacksmith makes wooden, stone and iron axes and pickaxes plus hoes, hammers, sickles and knives, and refines 2 iron ore with 1 wood into 1 iron from its on-site stock. Tools wear, and an adult carries a worn tool to their own Blacksmith for repair with its materials. Broken tools need replacement. Hammers help building and repair work; knives speed food and clothing preparation. The agent and building cards report tool condition. Costs and speeds are provisional. The separate field-work change connects hoes and sickles to preparing, tending and harvesting individual plots. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing, padded coats, rain cloaks and sacks, carrying inputs in from its own stock or gathering them. Clothing protects an agent when worn, and cloth repairs worn garments at a House or Tailor Shop. Baskets and sacks also wear and can be repaired. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and broader recipes and logistics remain unfinished. |
 | Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Store are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
@@ -162,6 +162,20 @@ starting layout keeps its streets on dry land. No bridge is added where one alre
 banks. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
+Farming uses named berries, wild greens, grain, potatoes, cultivated greens and
+fruit. Grain and greens return seed; potatoes are their own planting stock.
+Harvested crops remain on their household's field until someone collects them,
+with the current four-unit carrying load. The map and tile inspector show the
+household's fields, crop state, waiting harvest and Poor, Fair, Good or Rich
+fertility. Fertility depends on the world seed, rainfall, climate and ground;
+sand, rock, water, mountains and snow cannot be tilled. The built-in chooser has
+completed a crop cycle in a generated world, including carrying the harvest and
+replaying across a save. All crop yields, work times, nourishment and spoilage
+rates are provisional; checking the field overlays and pacing by hand remains
+to do ([#559](https://github.com/compoodment/ClankerWorld/issues/559),
+[#579](https://github.com/compoodment/ClankerWorld/issues/579)).
+
+
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
 have sapling, mature and stump stages. Felling one for wood also gives the agent
 a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
@@ -174,11 +188,11 @@ after felling a tree, and you cannot yet tell an agent where to plant.
 Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
 the rest of the year and drop any fruit left when autumn ends. A picked tree
 fruits again after 3 days while autumn lasts, and each picking gives 4 fruit.
-Orchard trees cannot be planted yet. All tree numbers are provisional, to tune
+Each picking also gives an orchard seed, which an adult can plant into a saved sapling. Orchard seeds and wood-tree seeds are separate. All tree numbers are provisional, to tune
 in playtests ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
 A Windows check of the tree stages at different zooms is still to do.
 
-Weather varies by region and affects local survival and crops. Each 32×32-tile
+Weather varies by region and affects local survival and crops. Each 32Ã—32-tile
 region keeps its weather for a spell of a quarter of a day to a full day. A
 storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These

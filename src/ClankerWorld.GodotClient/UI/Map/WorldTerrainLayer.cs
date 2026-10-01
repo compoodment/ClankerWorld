@@ -32,6 +32,7 @@ public partial class WorldTerrainLayer : Control
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
+    private readonly Dictionary<Vector2I, OwnerWorldField> fields = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
@@ -98,6 +99,7 @@ public partial class WorldTerrainLayer : Control
         roadTiles.Clear();
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
+        fields.Clear();
         QueueRedraw();
     }
 
@@ -139,6 +141,16 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    public void SetFields(IReadOnlyList<OwnerWorldField> savedFields)
+    {
+        fields.Clear();
+        foreach (var field in savedFields)
+            fields[new Vector2I(field.Position.X, field.Position.Y)] = field;
+        QueueRedraw();
+    }
+
+    public int FieldTileCount => fields.Count;
+
     /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
     public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
     {
@@ -154,7 +166,8 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings)
+    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
+        IReadOnlyList<OwnerWorldField>? savedFields = null)
     {
         ArgumentNullException.ThrowIfNull(buildings);
         var next = new Dictionary<Vector2I, string>();
@@ -162,6 +175,8 @@ public partial class WorldTerrainLayer : Control
             for (var y = 0; y < building.Height; y++)
                 for (var x = 0; x < building.Width; x++)
                     next[new Vector2I(building.Position.X + x, building.Position.Y + y)] = building.HouseholdId!;
+        foreach (var field in savedFields ?? [])
+            next[new Vector2I(field.Position.X, field.Position.Y)] = field.HouseholdId;
         if (next.Count == householdPropertyTiles.Count && next.All(entry =>
                 householdPropertyTiles.TryGetValue(entry.Key, out var owner) && owner == entry.Value)) return;
         householdPropertyTiles.Clear();
@@ -449,6 +464,7 @@ public partial class WorldTerrainLayer : Control
                 }
             }
         }
+        DrawFields(bounds, stride);
         DrawRoads(bounds, stride);
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
@@ -502,6 +518,29 @@ public partial class WorldTerrainLayer : Control
                     new Color("FFD166"), filled: false, width: tileSize >= 12 ? 3 : 2);
             }
         }
+    }
+
+    private void DrawFields((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null) return;
+        var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                if (!fields.TryGetValue(new Vector2I(mapX, y), out var field)) continue;
+                var rect = new Rect2(new Vector2(x * stride, y * stride), new Vector2(tileSize, tileSize));
+                if (tileSize >= TexturedTileMinimum)
+                    DrawTextureRectRegion(TerrainTextures.Atlas(atlasSize), rect,
+                        TerrainTextures.Region(TerrainStyle.FertileSoil, TerrainTextures.VariantAt(mapX, y), atlasSize));
+                else DrawRect(rect, TerrainTextures.BaseColor(TerrainStyle.FertileSoil));
+                if (field.State is "planted" or "growing" or "ready")
+                {
+                    var sprite = field.Crop?.Contains("greens", StringComparison.OrdinalIgnoreCase) == true
+                        ? NatureSprite.WildGreens : NatureSprite.WildSeedPatch;
+                    DrawCampResource(rect.Position, sprite);
+                }
+            }
     }
 
     /// <summary>

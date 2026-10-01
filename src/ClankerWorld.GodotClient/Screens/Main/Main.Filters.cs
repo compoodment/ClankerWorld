@@ -78,6 +78,7 @@ public partial class Main
     {
         terrainLayer.SetTownBorders(townBorderFilter.ButtonPressed || ShowsPlacementOverlays ? snapshot.Towns : []);
         terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
-            ? snapshot.PlacedBuildings : []);
+            ? snapshot.PlacedBuildings : [], householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.Fields : []);
     }
 }

@@ -32,7 +32,7 @@ public static partial class InventoryFixture
         if (source.ContainerCapacity != 0 || source.Id == vessel.Id || source.ContainerLotId == vessel.Id ||
             vessel.ContainerCapacity <= 0 || ContainerRoom(checkpoint, vessel.Id) < quantity ||
             source.StorageBuildingId != vessel.StorageBuildingId ||
-            source.DeliveryBuildingId != vessel.DeliveryBuildingId)
+            source.DeliveryBuildingId != vessel.DeliveryBuildingId || source.GroundPosition != vessel.GroundPosition)
             throw new InvalidOperationException("The vessel needs room and the goods must be here with it.");
         var newId = source.Id + "#container:" + operationId;
         if (checkpoint.Lots.Any(lot => lot.Id == newId))
@@ -70,7 +70,7 @@ public static partial class InventoryFixture
             if (!byId.TryGetValue(containerId, out var vessel) || vessel.ContainerCapacity <= 0 ||
                 lot.Id == containerId || lot.OwnerId != vessel.OwnerId ||
                 lot.StorageBuildingId != vessel.StorageBuildingId ||
-                lot.DeliveryBuildingId != vessel.DeliveryBuildingId)
+                lot.DeliveryBuildingId != vessel.DeliveryBuildingId || lot.GroundPosition != vessel.GroundPosition)
                 throw new InvalidDataException("Contained goods must have their vessel's owner and location.");
         }
         foreach (var group in lots.Where(lot => lot.ContainerLotId is not null).GroupBy(lot => lot.ContainerLotId!))
@@ -85,6 +85,7 @@ public static partial class InventoryFixture
                 OwnerId = recipientId,
                 StorageBuildingId = storageId,
                 DeliveryBuildingId = deliveryId,
+                GroundPosition = null,
             } : lot).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
 
     private static void EnsurePortableTransfer(InventoryCheckpoint checkpoint, InventoryLot lot)

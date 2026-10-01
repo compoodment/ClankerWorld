@@ -276,6 +276,14 @@ public sealed class OwnerWorldObservationStore
             PackedTerrain = packedTerrain,
             PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map),
             MapLayersDigest = mapLayersDigest,
+            Fields = (state.WorldSimulation?.Fields ?? []).Select(field => new ViewerField(
+                ToPosition(field.Position), field.HouseholdId, field.Stage.ToString().ToLowerInvariant(),
+                state.WorldContent?.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == field.RecipeId)?.DisplayName,
+                field.WorkDone, field.Stage == FarmFieldStage.Ready ? 4 : 8,
+                state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is { } ground &&
+                        ground.X == field.Position.X && ground.Y == field.Position.Y)
+                    .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
@@ -466,10 +474,12 @@ public sealed class OwnerWorldObservationStore
         if (map.ClimateZones is not { } climate || map.ElevationLevels is not { } elevation ||
             map.HydrologyKinds is not { } hydrology || map.SurfaceKinds is not { } surface ||
             map.VegetationKinds is not { } vegetation) return null;
-        return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v2",
+        var fertility = map.Tiles.OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X)
+            .Select(tile => (byte)map.FertilityAt(tile.Position)).ToArray();
+        return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v3",
             Convert.ToBase64String(climate), Convert.ToBase64String(elevation),
             Convert.ToBase64String(hydrology), Convert.ToBase64String(surface),
-            Convert.ToBase64String(vegetation));
+            Convert.ToBase64String(vegetation), Convert.ToBase64String(fertility));
     }
 
     private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)

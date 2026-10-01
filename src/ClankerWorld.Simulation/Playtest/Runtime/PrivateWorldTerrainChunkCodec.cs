@@ -32,7 +32,9 @@ internal sealed class PrivateWorldTerrainChunkCodec : JsonConverter<SeededMap>
         byte[]? HydrologyKinds,
         byte[]? SurfaceKinds,
         byte[]? VegetationKinds,
-        bool WrapsEastWest);
+        bool WrapsEastWest,
+        byte[]? RainfallLevels = null,
+        uint FertilitySeed = 0);
 
     public override SeededMap Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -82,6 +84,9 @@ internal sealed class PrivateWorldTerrainChunkCodec : JsonConverter<SeededMap>
         var hydrology = DecodeLayer(packed.HydrologyKinds, packed.MapLayerEncoding, length);
         var surface = DecodeLayer(packed.SurfaceKinds, packed.MapLayerEncoding, length);
         var vegetation = DecodeLayer(packed.VegetationKinds, packed.MapLayerEncoding, length);
+        var rainfall = DecodeLayer(packed.RainfallLevels, packed.MapLayerEncoding, length);
+        if (rainfall?.Length is { } rainfallLength && rainfallLength != length)
+            throw new InvalidDataException("The rainfall layer is damaged.");
         ValidateLayers(packed.Width, packed.Height, packed.ClimateZones, elevation,
             hydrology, surface, vegetation);
         var map = new SeededMap(packed.Width, packed.Height, packed.GenerationAttempt, tiles,
@@ -92,6 +97,8 @@ internal sealed class PrivateWorldTerrainChunkCodec : JsonConverter<SeededMap>
             HydrologyKinds = hydrology,
             SurfaceKinds = surface,
             VegetationKinds = vegetation,
+            RainfallLevels = rainfall,
+            FertilitySeed = packed.FertilitySeed,
             WrapsEastWest = packed.WrapsEastWest,
         };
         if (packed.MapLayersSha256 is { } expectedLayerDigest &&
@@ -137,7 +144,8 @@ internal sealed class PrivateWorldTerrainChunkCodec : JsonConverter<SeededMap>
             value.CampObjects, value.Resources, value.ManifestDigest, Encoding, chunks,
             value.ClimateZones, LayerEncoding, MapLayerManifestCodec.Digest(value), CompressLayer(value.ElevationLevels),
             CompressLayer(value.HydrologyKinds), CompressLayer(value.SurfaceKinds),
-            CompressLayer(value.VegetationKinds), value.WrapsEastWest), options);
+            CompressLayer(value.VegetationKinds), value.WrapsEastWest,
+            CompressLayer(value.RainfallLevels), value.FertilitySeed), options);
     }
 
     private static byte[]? CompressLayer(byte[]? data)

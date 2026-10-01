@@ -82,12 +82,12 @@ public sealed class FarmContentTests
             Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
         var flour = delivering.Society.Inventory.Lots.Single(lot => lot.OwnerId == "household:camp-alpha" &&
             lot.ItemKind == "flour" && lot.StorageBuildingId == placed.InstanceId);
-        Assert.Equal(3, flour.Quantity);
+        Assert.Equal(1, flour.Quantity);
         using var reloaded = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(delivering.ExportState())));
         Assert.Contains(new OwnerWorldObservationStore(reloaded).GetSnapshot().PlacedBuildings
             .Single(item => item.InstanceId == placed.InstanceId).StoredItems!,
-            item => item.Kind == "flour" && item.Quantity == 3);
+            item => item.Kind == "flour" && item.Quantity == 1);
 
         var house = reloaded.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
         var housePlaced = state.Map.Tiles.Select(tile => tile.Position)
@@ -116,7 +116,7 @@ public sealed class FarmContentTests
         Assert.Equal(housePlaced.InstanceId, delivered.Society.Inventory.GetLot(carriedFlour.Id).StorageBuildingId);
         Assert.Contains(new OwnerWorldObservationStore(delivered).GetSnapshot().PlacedBuildings
             .Single(item => item.InstanceId == housePlaced.InstanceId).StoredItems!,
-            item => item.Kind == "flour" && item.Quantity == 3);
+            item => item.Kind == "flour" && item.Quantity == 1);
     }
 
     [Fact]
@@ -125,19 +125,28 @@ public sealed class FarmContentTests
         using var seed = await PreparedWorldAsync("grain-field-owner");
         var state = seed.ExportState();
         var beta = state.Society.Society.Inhabitants.First(item => item.HouseholdId == "household:camp-beta").Id;
-        var field = state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position;
+        var field = new GridPoint(2, 3);
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == beta
                 ? person with { Position = field, HungerBasisPoints = 9_000 } : person).ToArray(),
         };
+        state = FarmTestFields.Prepare(state, beta, field, seed.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field"));
         using var world = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
         var crop = world.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
-        var started = world.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FertileLandSiteId(field), beta);
+        var seedLot = world.Society.Inventory.Lots.Single(lot => lot.OwnerId == beta && lot.ItemKind == "grain_seed");
+        var started = world.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FieldSiteId(field), beta);
         Assert.True(started.Applied, started.Failure);
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == seedLot.Id);
+        Assert.All(world.WorldSimulation.CropBuilds!.Single().InputReservationIds, id =>
+            Assert.Equal(InventoryReservationState.Completed, world.Society.Inventory.GetReservation(id).State));
         for (var tick = 0; tick < crop.DurationTicks; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(world.Society.Inventory.Lots, lot => lot.OwnerId == "household:camp-beta" &&
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
+        await FarmTestFields.Harvest(world, beta, field);
+        Assert.Equal(1, world.FarmPlantingReserve("household:camp-beta", "grain_seed"));
+        Assert.False(world.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FieldSiteId(field), beta).Applied);
+        Assert.Contains(world.Society.Inventory.Lots, lot => lot.GroundPosition == new InventoryGroundPosition(field.X, field.Y) && lot.OwnerId == "household:camp-beta" &&
             lot.ItemKind == "grain" && lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
     }
 

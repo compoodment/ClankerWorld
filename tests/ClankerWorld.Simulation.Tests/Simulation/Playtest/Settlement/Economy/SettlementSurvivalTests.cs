@@ -22,7 +22,7 @@ public sealed class SettlementSurvivalTests
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
-        var site = crop ? state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position :
+        var site = crop ? new GridPoint(2, 3) :
             state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
                 !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !state.Map.Resources.Any(item => item.Position == tile.Position) &&
@@ -39,9 +39,11 @@ public sealed class SettlementSurvivalTests
                 },
             },
         };
+        if (crop) state = FarmTestFields.Prepare(state, worker.InhabitantId, site,
+            seed.WorldContent.Recipes.Single(item => item.LocalId == "managed-coppice"));
         using var preparing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var recipe = preparing.WorldContent.Recipes.Single(item => item.LocalId == (crop ? "managed-coppice" : "meal"));
-        var workstation = WorldBuildSiteRules.FertileLandSiteId(site);
+        var workstation = WorldBuildSiteRules.FieldSiteId(site);
         if (!crop)
         {
             var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "fire");
@@ -201,19 +203,22 @@ public sealed class SettlementSurvivalTests
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
         var state = WithWeather(seed.ExportState(), weather);
-        var site = state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position;
+        var site = new GridPoint(2, 3);
         var worker = state.Inhabitants[0];
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId
             ? person with { Position = site } : person.Position == site ? person with { Position = worker.Position } : person).ToArray()
         };
+        state = FarmTestFields.Prepare(state, worker.InhabitantId, site,
+            seed.WorldContent.Recipes.Single(item => item.LocalId == "vegetables"));
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var recipe = world.WorldContent.Recipes.Single(recipe => recipe.LocalId == "vegetables");
-        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FertileLandSiteId(site), worker.InhabitantId);
+        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(site), worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
         for (var tick = 0; tick < recipe.DurationTicks; tick++) await world.AdvanceOneTickAsync();
-        Assert.Equal(expected, world.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00").Quantity);
+        await FarmTestFields.Harvest(world, worker.InhabitantId, site);
+        Assert.Equal(Math.Max(1, expected * LandFertilityRules.YieldPercent(state.Map.FertilityAt(site)) / 100), world.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00").Quantity);
     }
 
     [Fact]
@@ -228,7 +233,7 @@ public sealed class SettlementSurvivalTests
             Assert.True((await drying.AdvanceOneTickAsync()).Advanced);
 
         var state = drying.ExportState();
-        var site = state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position;
+        var site = new GridPoint(2, 3);
         Assert.InRange(WeatherRules.SoilMoistureAt(state.WorldSystems!, site, state.Map.Height), 0, 14);
         var worker = state.Inhabitants[0];
         state = state with
@@ -237,16 +242,19 @@ public sealed class SettlementSurvivalTests
                 ? person with { Position = site, HungerBasisPoints = 10_000 }
                 : person.Position == site ? person with { Position = worker.Position } : person).ToArray()
         };
+        state = FarmTestFields.Prepare(state, worker.InhabitantId, site,
+            seed.WorldContent.Recipes.Single(item => item.LocalId == "vegetables"));
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "vegetables");
-        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FertileLandSiteId(site), worker.InhabitantId);
+        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(site), worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
 
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var resumed = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
         for (var tick = 0; tick < recipe.DurationTicks; tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(4, resumed.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00").Quantity);
+        await FarmTestFields.Harvest(resumed, worker.InhabitantId, site);
+        Assert.Equal(Math.Max(1, 4 * LandFertilityRules.YieldPercent(state.Map.FertilityAt(site)) / 100), resumed.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00").Quantity);
         Assert.Contains(resumed.ExportState().Events, item => item.Kind == "crop_moisture_effect" &&
             item.Detail.StartsWith(started.JobId + ":dry:", StringComparison.Ordinal));
     }

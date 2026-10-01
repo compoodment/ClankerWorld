@@ -1,0 +1,3 @@
+- Households holding a Farmhouse can till free farmable ground with a hoe, grow named grain, potatoes and greens, keep planting stock and carry harvested crops from their fields into their stores. Field work and harvest locations survive saves.
+- Each land tile has a Poor, Fair, Good or Rich fertility rating derived from the world seed and terrain, climate and rainfall. Map overlays and tile inspection show fields and waiting harvests using existing art.
+- Orchard fruit gives a separate orchard seed. Adults can plant orchard saplings, which mature before fruiting in autumn. Crop, tree, nourishment and spoilage values are provisional for playtesting; older running alpha saves with previous farm content may be refused.

@@ -116,6 +116,8 @@ public partial class Main
         terrainLayer.SetRoads(snapshot.RoadTiles);
         terrainLayer.SetBridges(snapshot.Bridges);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        terrainLayer.SetFields(snapshot.Fields);
+        worldOverview.SetFields(snapshot.Fields);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
