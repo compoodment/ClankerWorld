@@ -156,17 +156,16 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
-- **Agreed after the October 1 playtest** (replacing the whole-number steps
-  above): UI Scale offers named sizes, **Small**, **Medium**, **Large** and
-  **Extra large**, instead of percentages, and lists only the sizes that fit
-  the screen. At 1440p, Small is today's 100%, Medium about 150% and Large
-  today's 200%. Medium accepts slightly uneven pixel letters in exchange for
-  a size between the two: computment chose this sharp look over a smoothed
-  one. Nothing goes below Small, because the pixel font can't. **Automatic**
-  picks the size that leaves the interface about 720 pixels tall, which is
-  Medium on a 1080p screen. **Render Resolution is removed**: the game always draws at the
-  screen's own resolution. Settings is titled simply **Settings**, with its
-  sections in their own boxes.
+- **Agreed after the October 1 playtest** (replacing the UI Scale choices
+  above): **there is no UI Scale setting.** The interface grows with the
+  screen in whole steps, so pixel letters always stay crisp: 100% on small
+  screens, 200% at 1080p and 1440p and 300% at 4K, one step lower whenever
+  the menus would have less than 960 × 540 interface pixels. computment
+  tried a 150% size and found its pixel letters too uneven, and found 100%
+  too small and anything above 200% unnecessary at 1440p. **Render
+  Resolution is removed**: the game always draws at the screen's own
+  resolution. Settings is titled simply **Settings**, with its sections in
+  their own boxes.
 - **Agreed on October 1:** agents inside a building are not drawn shrunk onto
   its tile. They are hidden from the map while inside, the building shows a
   small badge with how many people are in it, and its card names them.
