@@ -65,6 +65,12 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "town_civic_council" => "A Town council changed; unfinished proposals were closed.",
+            "town_civic_election" => "A Town council election opened.",
+            "town_civic_runoff" => "A Town council election needs a runoff for tied seats.",
+            "town_civic_proposal" => "A proposal was submitted to a Town council.",
+            "town_civic_result" => "A Town council recorded a decision. See the Town panel for its result.",
+            "town_civic_cancelled" => "An unfinished Town election was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",

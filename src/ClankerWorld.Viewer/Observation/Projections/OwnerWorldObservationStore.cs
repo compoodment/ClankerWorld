@@ -351,7 +351,19 @@ public sealed class OwnerWorldObservationStore
                 .Select(item => new ViewerTown(item.Id, item.Name, item.FoundingState, item.FoundedTick,
                     item.ResidentIds.ToArray(), item.AssignedBuildingIds.ToArray(),
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
-                        .Select(ToPosition).ToArray()))
+                        .Select(ToPosition).ToArray())
+                {
+                    Governance = item.Governance is { } civic ? new ViewerTownGovernance(
+                        civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
+                        civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
+                            (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
+                        civic.Proposals.Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
+                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
+                        civic.Election is { } election ? new ViewerTownElection(election.Id, election.Kind, election.Stage,
+                            election.Seats, election.DeadlineTick, election.Candidates.Select(id => new ViewerCivicCandidate(
+                                id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id, election.Ballots.Count(b => b.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
+                            election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray()) : null) : null,
+                })
                 .ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),

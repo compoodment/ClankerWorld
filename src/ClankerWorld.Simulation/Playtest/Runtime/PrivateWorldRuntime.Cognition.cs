@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), CivicNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -338,7 +338,10 @@ public sealed partial class PrivateWorldRuntime
 
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
-        ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+        if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
+            ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+        else
+            ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
         {
             "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
@@ -415,6 +418,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("learn:", StringComparison.Ordinal) || candidateId.StartsWith("lesson_", StringComparison.Ordinal))
         {
             ApplyLearningCandidate(inhabitantId, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
+        {
+            ApplyTownCivicCandidate(inhabitantId, candidateId);
             return;
         }
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))
@@ -783,6 +791,7 @@ public sealed partial class PrivateWorldRuntime
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
+            AddTownCivicCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }

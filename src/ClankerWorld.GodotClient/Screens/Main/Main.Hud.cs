@@ -421,7 +421,7 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{TownCivicText(town, snapshot.WorldTick)}")) +
             "|" + displayPreferences.DateFormat + "|" + UiTheme.Current.Name;
         townBorderHint.Visible = snapshot.Towns.Count > 0;
         townBorderHint.Text = townBorderFilter.ButtonPressed
@@ -466,6 +466,13 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
+            if (town.Governance is not null)
+                text.AddChild(new Label
+                {
+                    Text = TownCivicText(town, snapshot.WorldTick),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
             line.AddChild(text);
             var show = new Button
             {
@@ -483,6 +490,36 @@ public partial class Main
         }
         // Shrink back to fit when the list gets shorter.
         worldInfoPanel.ResetSize();
+    }
+
+    private string TownCivicText(OwnerWorldTown town, long tick)
+    {
+        if (town.Governance is not { } council) return "";
+        var lines = new List<string>
+        {
+            council.Form == "representative" ? "Council: elected representatives" : "Council: all adult residents",
+            council.MemberNames.Count == 0 ? "No adult councillors." : string.Join(", ", council.MemberNames),
+        };
+        if (council.TermEndTick is { } termEnd) lines.Add("Term ends " + DisplayWorldClock(termEnd));
+        if (council.Fallback == "candidates") lines.Add("All adults govern while the Town seeks a supported council.");
+        if (council.Fallback == "demographic") lines.Add("Representation resumes at eight adult residents.");
+        if (council.Election is { } election)
+        {
+            lines.Add($"{Pretty(election.Kind)} election · {Pretty(election.Stage)} · {election.Seats} seats");
+            if (election.Stage != "ready") lines.Add("Voting closes " + DisplayWorldClock(election.DeadlineTick));
+            lines.Add(election.Candidates.Count == 0 ? "No willing eligible candidates in this contest." :
+                string.Join(" · ", election.Candidates.Select(c => $"{c.Name}: {c.Votes} votes")));
+            if (election.SettledNames.Count > 0) lines.Add("Chosen: " + string.Join(", ", election.SettledNames));
+        }
+        else if (council.RetryTick > tick) lines.Add("Election retry after " + DisplayWorldClock(council.RetryTick));
+        if (council.WillingCandidateNames.Count > 0) lines.Add("Willing candidates: " + string.Join(", ", council.WillingCandidateNames));
+        foreach (var proposal in council.Proposals.TakeLast(8))
+        {
+            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: {proposal.Text}");
+            lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
+                (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
+        }
+        return string.Join("\n", lines);
     }
 
     /// <summary>Every label in the Towns list, for checks and assistive reading.</summary>

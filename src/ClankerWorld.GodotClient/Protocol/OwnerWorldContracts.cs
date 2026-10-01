@@ -125,7 +125,19 @@ public sealed record OwnerWorldTown(
     long FoundedTick,
     IReadOnlyList<string> ResidentIds,
     IReadOnlyList<string> AssignedBuildingIds,
-    IReadOnlyList<OwnerWorldPosition> BorderTiles);
+    IReadOnlyList<OwnerWorldPosition> BorderTiles)
+{
+    public OwnerTownGovernance? Governance { get; init; }
+}
+
+public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
+    int RequiredYes, long DeadlineTick);
+public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
+public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
+public sealed record OwnerTownGovernance(string Form, string Fallback, IReadOnlyList<string> MemberNames,
+    long? TermEndTick, long RetryTick, IReadOnlyList<string> WillingCandidateNames,
+    IReadOnlyList<OwnerCivicProposal> Proposals, OwnerTownElection? Election);
 
 public sealed record OwnerWorldInhabitant(
     string Id,

@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 38;
+    public const int StateSchemaVersion = 39;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
@@ -425,10 +425,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
 
-    private void AppendEvent(string kind, string detail)
+    private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {
-        GridPoint? position = null;
-        for (var length = detail.Length; length > 0; length = detail.LastIndexOf(':', length - 1))
+        GridPoint? position = eventPosition;
+        for (var length = detail.Length; position is null && length > 0; length = detail.LastIndexOf(':', length - 1))
         {
             var prefix = detail[..length];
             if (inhabitants.TryGetValue(prefix, out var living))

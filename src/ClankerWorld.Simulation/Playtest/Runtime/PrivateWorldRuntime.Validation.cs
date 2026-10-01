@@ -70,6 +70,8 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateTowns(towns, map, founderSetup, society.Checkpoint, worldSimulation, worldContent);
+        foreach (var town in towns)
+            TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -318,6 +320,8 @@ public sealed partial class PrivateWorldRuntime
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);
         ValidateCouncil(state);
+        foreach (var town in state.Towns ?? [])
+            TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);

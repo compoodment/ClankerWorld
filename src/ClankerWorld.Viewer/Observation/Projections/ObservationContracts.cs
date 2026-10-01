@@ -295,7 +295,19 @@ public sealed record ViewerTown(
     long FoundedTick,
     IReadOnlyList<string> ResidentIds,
     IReadOnlyList<string> AssignedBuildingIds,
-    IReadOnlyList<ViewerPosition> BorderTiles);
+    IReadOnlyList<ViewerPosition> BorderTiles)
+{
+    public ViewerTownGovernance? Governance { get; init; }
+}
+
+public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
+    int RequiredYes, long DeadlineTick);
+public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
+public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
+public sealed record ViewerTownGovernance(string Form, string Fallback, IReadOnlyList<string> MemberNames,
+    long? TermEndTick, long RetryTick, IReadOnlyList<string> WillingCandidateNames,
+    IReadOnlyList<ViewerCivicProposal> Proposals, ViewerTownElection? Election);
 
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 

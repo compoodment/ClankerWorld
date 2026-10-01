@@ -464,6 +464,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             RemoveDeadPhysicalState();
             AdvanceSettlementCouncil();
+            AdvanceTownGovernance();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();

@@ -105,7 +105,7 @@ public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null);
+    string? EquipmentNote = null, string? CivicNote = null);
 
 /// <summary>
 /// Compact, provider-neutral state supplied to a decision provider. It is an
@@ -161,7 +161,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
-            self.EquipmentNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 || self.CivicNote?.Length > 1024 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -283,7 +283,9 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenName = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenPersonality = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenAspiration = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenAspiration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CivicProposal = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? CivicBallot = null)
 {
     public const int MaximumPrivateThoughtLength = 160;
     public const int MaximumChosenNameLength = 48;
@@ -346,6 +348,10 @@ public sealed record CognitionDecisionResponse(
         if (ChosenPersonality is not null && NormalizeIdentityText(ChosenPersonality) != ChosenPersonality ||
             ChosenAspiration is not null && NormalizeIdentityText(ChosenAspiration) != ChosenAspiration)
             throw new ArgumentOutOfRangeException(nameof(ChosenPersonality));
+
+        if (CivicProposal is not null && NormalizeIdentityText(CivicProposal) != CivicProposal ||
+            CivicBallot is { Count: > 3 } || CivicBallot?.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 128) == true)
+            throw new ArgumentOutOfRangeException(nameof(CivicProposal));
 
         if (MemoryCompactionScores is { Count: > 12 })
             throw new ArgumentOutOfRangeException(nameof(MemoryCompactionScores));
@@ -792,6 +798,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "selected_candidate_id (string), confidence (number 0..1), " +
                         "and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
+                        "For civic proposal actions include civic_proposal, a social-law request of at most 256 characters. " +
+                        "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
+                        "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
@@ -831,6 +840,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             town = self.TownName,
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
+                            civic_notices_learned = self.CivicNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -938,6 +948,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 aspirationProperty.ValueKind == JsonValueKind.String
                     ? CognitionDecisionResponse.NormalizeIdentityText(aspirationProperty.GetString()) : null;
 
+            var civicProposal = answerRoot.TryGetProperty("civic_proposal", out var civicText) && civicText.ValueKind == JsonValueKind.String
+                ? CognitionDecisionResponse.NormalizeIdentityText(civicText.GetString()) : null;
+            var civicBallot = ParseCivicBallot(answerRoot);
             var usage = TryParseUsage(root, modelId);
             return new CognitionDecisionResponse(
                 request.RequestId,
@@ -953,7 +966,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 usage,
                 privateThought,
                 chosenName,
-                ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration);
+                ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, CivicProposal: civicProposal, CivicBallot: civicBallot);
         }
         catch (JsonException exception)
         {
@@ -967,6 +980,15 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
+    }
+
+    private static string[]? ParseCivicBallot(JsonElement root)
+    {
+        if (!root.TryGetProperty("civic_ballot", out var ballot)) return null;
+        if (ballot.ValueKind != JsonValueKind.Array || ballot.GetArrayLength() > 3 ||
+            ballot.EnumerateArray().Any(choice => choice.ValueKind != JsonValueKind.String))
+            throw new InvalidDataException("The provider returned an invalid civic ballot.");
+        return ballot.EnumerateArray().Select(choice => choice.GetString()!).ToArray();
     }
 
     private static char NameInitial(string agentId) =>
