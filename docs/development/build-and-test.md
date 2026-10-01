@@ -110,11 +110,11 @@ still need trying by hand in the Windows game. Automated checks, including the
 Windows CI jobs and a passing export, do not count as a playtest.
 
 When you record a playtest result, note the client and host commits, the
-Windows build, the date, the screen resolution and the UI scale. Say whether
-each check passed, failed or could not be run, with what you did and saw. Leave
-out private keys, pairing codes, agent thoughts and raw model replies. Link each
-failure to its own issue; one passing check does not close a report with
-several problems.
+Windows build, the date, the screen resolution and the interface size it
+picked. Say whether each check passed, failed or could not be run, with what
+you did and saw. Leave out private keys, pairing codes, agent thoughts and raw
+model replies. Link each failure to its own issue; one passing check does not
+close a report with several problems.
 
 Do not deploy, change credentials or modify the active playtest save just to
 run a check; that needs the owner's separate go-ahead. Use a disposable world

@@ -20,7 +20,7 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 7);
         body.AddChild(new Label
         {
-            Text = "Save keys here before adding agents. Choose a saved key when placing an agent or changing their model.",
+            Text = "Save a key once, then choose it for any agent.",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
         apiKeyProviderChoice.AddItem("OpenAI");
@@ -39,9 +39,11 @@ public partial class Main
         saveApiKeyButton.Pressed += () => _ = SaveApiKeyAsync();
         body.AddChild(saveApiKeyButton);
         apiKeysStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        apiKeysStatus.Text = "Connect and pair this device to save keys on the host.";
+        apiKeysStatus.Text = "Connect and pair this device to save keys.";
         body.AddChild(apiKeysStatus);
         savedApiKeys.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // Shown once the host has said which keys are saved, so it leaves no blank line before then.
+        savedApiKeys.Hide();
         body.AddChild(savedApiKeys);
         AddPanelContents(apiKeysPanel, "API keys", body);
         apiKeysPanel.ThemeTypeVariation = "InsetPanel";
@@ -60,10 +62,10 @@ public partial class Main
         var read = ++apiKeysRead;
         var owner = registration;
         savedApiKeys.Text = string.Empty;
+        savedApiKeys.Hide();
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
-            savedApiKeys.Text = string.Empty;
-            apiKeysStatus.Text = "Connect and pair this device to save keys on the host.";
+            apiKeysStatus.Text = "Connect and pair this device to save keys.";
             return;
         }
         apiKeysStatus.Text = "Checking saved keys…";
@@ -74,7 +76,7 @@ public partial class Main
             if (read != apiKeysRead || !ReferenceEquals(owner, registration) || !apiKeysPanel.IsVisibleInTree()) return;
             providerConfiguration = status;
             RenderSavedApiKeys();
-            apiKeysStatus.Text = "Keys are saved privately on the host. Saving a key does not call a model.";
+            apiKeysStatus.Text = "Keys stay private on the host.";
         }
         catch (Exception exception)
         {
@@ -83,9 +85,13 @@ public partial class Main
         }
     }
 
-    private void RenderSavedApiKeys() => savedApiKeys.Text = providerConfiguration?.CredentialSlots is { Count: > 0 } slots
-        ? "Saved keys:\n" + string.Join('\n', slots.Select(slot => $"{ProviderDisplayName(slot.Provider)} · {slot.Label}"))
-        : "No named keys saved yet.";
+    private void RenderSavedApiKeys()
+    {
+        savedApiKeys.Text = providerConfiguration?.CredentialSlots is { Count: > 0 } slots
+            ? "Saved keys:\n" + string.Join('\n', slots.Select(slot => $"{ProviderDisplayName(slot.Provider)} · {slot.Label}"))
+            : "No named keys saved yet.";
+        savedApiKeys.Show();
+    }
 
     private async Task SaveApiKeyAsync()
     {
