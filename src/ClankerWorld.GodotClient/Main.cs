@@ -151,7 +151,6 @@ public partial class Main : Control
     private readonly ConfirmationDialog quitGameConfirmation = new();
     private readonly CheckButton fullscreenToggle = new();
     private readonly OptionButton windowSizeChoice = new();
-    private readonly OptionButton uiScaleChoice = new();
     private static readonly Vector2I[] DisplaySizePresets =
     [
         new(1280, 720),
@@ -263,7 +262,7 @@ public partial class Main : Control
         BuildLayout();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
-        ApplyUiScale(displayPreferences.UiScalePercent);
+        ApplyUiScale();
         GetWindow().SizeChanged += RefreshRenderSize;
         ShowMainMenu();
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))

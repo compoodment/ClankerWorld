@@ -113,10 +113,12 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
-Game Settings controls the window, theme, weather effects, date/time format and
-UI Scale. UI Scale offers Small, Medium, Large and Extra large, and lists only
-the sizes your screen has room for; Automatic picks one for your screen. World Settings contains that world's autosaves, Jev and the
-current model-usage controls. Main Menu Settings exposes Game Settings only.
+Game Settings controls the window, theme, weather effects and date/time format.
+Menus, panels and text grow with your screen in whole steps, so pixel letters
+stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
+There is no setting for this. World Settings contains that world's autosaves,
+Jev and the current model-usage controls. Main Menu Settings exposes Game
+Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list. With no menu or text field

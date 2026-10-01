@@ -32,45 +32,28 @@ public partial class Main
         if (!displayPreferences.UsesFullscreen)
             window.Size = DisplaySizePresets[DisplaySizeIndex(windowSize)];
         window.ContentScaleSize = AutomaticRenderSize();
-        ApplyUiScale(displayPreferences.UiScalePercent);
+        ApplyUiScale();
     }
 
-    private void ApplyUiScale(int percent)
+    /// <summary>The interface size follows the screen in whole steps; there is no setting.</summary>
+    private void ApplyUiScale()
     {
         var area = Size.X > 0 && Size.Y > 0 ? Size : GetViewportRect().Size;
-        var factor = DisplayUiScalePolicy.FittingFactor(percent, area.X, area.Y);
+        SetUiFactor(DisplayUiScalePolicy.FittingFactor(area.X, area.Y));
+    }
+
+    /// <summary>Magnifies the interface, its windows and the names on the map by a whole number.</summary>
+    private void SetUiFactor(int factor)
+    {
         uiLayer.Factor = factor;
         menuLayer.Factor = factor;
         ScaleWindows(factor);
         ScaleMapText(factor);
-        ListUiSizes(area, factor);
         ApplyResponsiveLayout();
     }
 
-    /// <summary>
-    /// UI Scale lists only the sizes this screen has room for. Automatic names
-    /// the size it would pick, and a saved size that no longer fits shows the
-    /// smaller size in use instead.
-    /// </summary>
-    private void ListUiSizes(Vector2 area, float factor)
-    {
-        uiScaleChoice.Clear();
-        var inUse = (int)MathF.Round(factor * 100);
-        var automatic = (int)MathF.Round(DisplayUiScalePolicy.FittingFactor(DisplayUiScalePolicy.Automatic, area.X, area.Y) * 100);
-        foreach (var choice in DisplayUiScalePolicy.SupportedPercentages)
-        {
-            if (!DisplayUiScalePolicy.Fits(choice, area.X, area.Y)) continue;
-            uiScaleChoice.AddItem(choice == DisplayUiScalePolicy.Automatic
-                ? $"Automatic ({DisplayUiScalePolicy.Name(automatic)})"
-                : DisplayUiScalePolicy.Name(choice), choice);
-        }
-        var saved = DisplayUiScalePolicy.NormalizePercent(displayPreferences.UiScalePercent);
-        var shown = uiScaleChoice.GetItemIndex(saved);
-        uiScaleChoice.Select(shown >= 0 ? shown : uiScaleChoice.GetItemIndex(inUse));
-    }
-
     /// <summary>Dialogs, drop-down lists and tooltips are separate windows, so they scale on their own.</summary>
-    private void ScaleWindows(float factor)
+    private void ScaleWindows(int factor)
     {
         foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation })
             UiTheme.ScaleDialog(dialog, factor);
@@ -79,25 +62,21 @@ public partial class Main
         UiTheme.ScaleTooltips(factor);
     }
 
-    /// <summary>
-    /// Names on the map grow with the interface in whole steps, so they stay
-    /// crisp; the map itself keeps its own zoom.
-    /// </summary>
-    private void ScaleMapText(float factor)
+    /// <summary>Names on the map grow with the interface; the map itself keeps its own zoom.</summary>
+    private void ScaleMapText(int factor)
     {
-        AgentMarker.TextScale = UiTheme.PixelScale(factor);
+        AgentMarker.TextScale = factor;
         foreach (var marker in inhabitantVisuals.Values)
             marker.QueueRedraw();
         foreach (var label in mapObjectVisuals.Values)
-            label.AddThemeFontSizeOverride("font_size", UiFonts.Body * AgentMarker.TextScale);
+            label.AddThemeFontSizeOverride("font_size", UiFonts.Body * factor);
     }
 
     /// <summary>Opens a confirmation just large enough for its title, message and buttons.</summary>
     private void PopupDialog(ConfirmationDialog dialog) =>
         dialog.PopupCentered(DialogSize(FitDialog(dialog)));
 
-    private Vector2I DialogSize(Vector2I size) =>
-        new((int)MathF.Ceiling(size.X * uiLayer.Factor), (int)MathF.Ceiling(size.Y * uiLayer.Factor));
+    private Vector2I DialogSize(Vector2I size) => size * uiLayer.Factor;
 
     /// <summary>The widest a confirmation's message runs before it wraps, in interface pixels.</summary>
     private const int DialogTextWidth = 360;
@@ -187,14 +166,6 @@ public partial class Main
         RefreshRenderSize();
     }
 
-    private void SetUiScale(long index)
-    {
-        if (index < 0 || index >= uiScaleChoice.ItemCount) return;
-        var percent = uiScaleChoice.GetItemId((int)index);
-        SaveDisplayPreferences(displayPreferences with { UiScalePercent = percent });
-        ApplyUiScale(percent);
-    }
-
     private void SetCloudHaze(bool enabled)
     {
         SaveDisplayPreferences(displayPreferences with { CloudHaze = enabled });
@@ -264,10 +235,7 @@ public partial class Main
 
     private void SaveDisplayPreferences(GameDisplayPreferences updated)
     {
-        displayPreferences = updated with
-        {
-            UiScalePercent = DisplayUiScalePolicy.NormalizePercent(updated.UiScalePercent),
-        };
+        displayPreferences = updated;
         try
         {
             displayPreferencesStore.Save(displayPreferences);

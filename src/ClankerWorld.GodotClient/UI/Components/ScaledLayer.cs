@@ -4,14 +4,13 @@ namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
 /// Holds interface panels at UI Scale. Children lay out in unscaled pixels
-/// over the parent's whole area, and the layer magnifies them, so frames,
-/// padding, icons and letters all grow together. Whole sizes stay perfectly
-/// crisp; Medium's 1.5 draws some pixels one screen pixel wide and some two.
-/// The map underneath keeps its own resolution.
+/// over the parent's whole area, and the layer magnifies them by a whole
+/// number, so frames, padding, icons and letters all grow together and stay
+/// crisp. The map underneath keeps its own resolution.
 /// </summary>
 public partial class ScaledLayer : Control
 {
-    private float factor = 1;
+    private int factor = 1;
 
     public ScaledLayer()
     {
@@ -19,7 +18,7 @@ public partial class ScaledLayer : Control
     }
 
     /// <summary>How many screen pixels each interface pixel covers.</summary>
-    public float Factor
+    public int Factor
     {
         get => factor;
         set
