@@ -27,6 +27,16 @@ internal static class PixelArt
         }
     }
 
+    /// <summary>
+    /// A colour moved to the nearest of the 8-bit steps an image stores.
+    /// Godot truncates a channel when it stores it, so a blended or
+    /// part-transparent colour is snapped first to keep the game's pixels
+    /// exactly as drawn in the reviewed pictures.
+    /// </summary>
+    public static Color Snap(Color color) => new(Step(color.R), Step(color.G), Step(color.B), Step(color.A));
+
+    private static float Step(float channel) => Math.Clamp(MathF.Round(channel * 255f), 0f, 255f) / 255f;
+
     public static void Put(Image image, int x, int y, Color color)
     {
         if (x < 0 || y < 0 || x >= image.GetWidth() || y >= image.GetHeight()) return;
