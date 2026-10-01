@@ -74,8 +74,17 @@ public sealed class HouseholdBuildingUseCoverageTests
             if (!Holds(world, household.Id, "blacksmith"))
                 Assert.DoesNotContain(families, blacksmithRecipes.Contains);
             if (!Holds(world, household.Id, "tailor"))
-                Assert.DoesNotContain(families, family => tailorRecipes.Contains(family) || family == "supply_workstation");
+                Assert.DoesNotContain(families, tailorRecipes.Contains);
         }
+
+        // Pottery also uses supply trips. Every offered destination must still
+        // belong to the supplying adult's household, whatever recipe needs it.
+        Assert.All(recorder.WorkstationSupplyOffers.Keys, offer =>
+        {
+            var building = Assert.Single(world.WorldSimulation.Buildings,
+                item => item.InstanceId == offer.DestinationId);
+            Assert.Equal(world.Society.GetInhabitant(offer.AgentId).HouseholdId, building.HouseholdId);
+        });
 
         // Each household is offered the productive building it lacks, never a
         // second House and never a building the Town shares.

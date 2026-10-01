@@ -240,7 +240,8 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(9, runtime.Content.Packages.Count);
+                Assert.Equal(10, runtime.Content.Packages.Count);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "house-1x1");
