@@ -56,6 +56,8 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("horse_dismounted", $"{actor}:{animalId}:chosen");
             return new(true);
         }
+        if (PassengerBoat(actor) is not null || PulledCart(actor) is not null)
+            return new(false, "Leave the boat or park the cart before mounting a horse.");
         if (!CanRideAnimal(actor, animal) || !LivestockRules.HasCare(animal, WorldTick))
             return new(false, "A fed, watered and cared-for horse needs its household's riding permission.");
         if (animal.RiderId is not null || livestock.Any(item => item.RiderId == actor) ||

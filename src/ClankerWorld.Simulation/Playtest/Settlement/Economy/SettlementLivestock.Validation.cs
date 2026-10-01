@@ -8,6 +8,9 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateLivestock(PrivateWorldRuntimeState state)
     {
         var animals = state.Livestock ?? [];
+        if (animals.Any(animal => animal.RiderId is { } actor &&
+            (state.BoatTransport?.Boats ?? []).Any(boat => boat.Journey?.PassengerId == actor)))
+            throw new InvalidDataException("A horse rider cannot also board a boat.");
         var tick = state.Society.Society.WorldTick;
         var people = state.Society.Society.Inhabitants;
         if (animals.Count > 4096 || state.SchemaVersion < 31 &&

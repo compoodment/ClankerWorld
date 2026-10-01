@@ -101,6 +101,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var cart = Carts.FirstOrDefault(item => item.Id == cartId);
         if (!AdultResident(actor) || cart is null || !MayUseCart(actor, cart)) return new(false, "This adult cannot use that cart.");
+        if (PassengerBoat(actor) is not null || livestock.Any(animal => animal.RiderId == actor))
+            return new(false, "Leave the boat or dismount the horse before pulling a cart.");
         if (PulledCart(actor) is not null || cart.PullerId is not null) return new(false, "Only one person can pull one cart at a time.");
         if (cart.Position != inhabitants[actor].Position) return new(false, "Walk to the parked cart first.");
         if (AvailableLotQuantity(society.Checkpoint.Inventory.GetLot(cart.LotId)) != 1) return new(false, "Repair the cart and finish its reserved uses first.");
@@ -344,6 +346,10 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateCarts(PrivateWorldRuntimeState state)
     {
         var carts = state.WorldSimulation?.Carts ?? [];
+        if (carts.Any(cart => cart.PullerId is { } actor &&
+            ((state.Livestock ?? []).Any(animal => animal.RiderId == actor) ||
+             (state.BoatTransport?.Boats ?? []).Any(boat => boat.Journey?.PassengerId == actor))))
+            throw new InvalidDataException("A cart puller cannot also ride a horse or board a boat.");
         var inventory = state.Society.Society.Inventory;
         var people = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
         var pullers = new HashSet<string>(StringComparer.Ordinal);

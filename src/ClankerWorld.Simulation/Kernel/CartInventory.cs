@@ -7,7 +7,8 @@ public static partial class InventoryFixture
     {
         ValidateCheckpoint(checkpoint);
         var root = checkpoint.GetLot(lotId);
-        EnsureOwnerAndExactQuantity(root, ownerId, root.Quantity);
+        if (root.OwnerId != ownerId)
+            throw new InvalidOperationException("Only the actual cargo owner may put it down.");
         if (root.CartId != cartId || root.ContainerLotId is not null)
             throw new InvalidOperationException("Put down actual cargo or its whole vessel from this cart.");
         foreach (var item in checkpoint.Lots.Where(item => item.Id == lotId || item.ContainerLotId == lotId))
@@ -21,7 +22,8 @@ public static partial class InventoryFixture
     {
         ValidateCheckpoint(checkpoint);
         var lot = checkpoint.GetLot(lotId);
-        EnsureOwnerAndExactQuantity(lot, ownerId, 1);
+        if (lot.OwnerId != ownerId || lot.Quantity != 1)
+            throw new InvalidOperationException("Repair the actual owned cart body.");
         EnsureUnreservedQuantity(checkpoint, lot, 1);
         if (lot.ItemKind != "handcart" || lot.Quantity != 1 || lot.FreshnessBasisPoints == 0)
             throw new InvalidOperationException("Repair one actual handcart without replacing its cargo.");
