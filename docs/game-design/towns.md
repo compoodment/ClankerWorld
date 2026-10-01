@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Towns, buildings and government
@@ -16,6 +16,7 @@ everything that is available in the current build. See [what works today](../wha
 
 - [Buildings, land, Towns, and animals](#buildings-land-towns-and-animals)
 - [Town laws and governance](#town-laws-and-governance)
+- [Item and resource pipelines](#item-and-resource-pipelines)
 - [Questions linking these systems](#questions-linking-these-systems)
 
 ## Buildings, land, Towns, and animals
@@ -148,8 +149,10 @@ everything that is available in the current build. See [what works today](../wha
 Computment accepted all unmentioned entries of the initial
 [asset-roster review](content-list.md) and amended specific rows
 as recorded here. The roster's numbered entries are the detailed accepted
-**base content**; open recipes, costs, capacities, animation budgets and
-invented content are not silently approved. In particular:
+**base content**. The owner subsequently approved the
+[item and resource pipelines](#item-and-resource-pipelines) on October 1; their
+quantities remain provisional. Other open costs, capacities, animation budgets
+and invented content are not silently approved. In particular:
 
 - Terrain uses roughly two subtle textures per surface, with most little
   grass/stone/leaf details baked into texture variation. A tile has at most
@@ -165,8 +168,9 @@ invented content are not silently approved. In particular:
   a strong proposed extension awaiting final confirmation. The Blacksmith
   already sells tools directly and takes tool-making requests—no separate
   Store is required for its own products.
-- The accepted medical goods include **bandages and medicine**. Exact
-  ingredients, healing effects, care actions and supply chain are open.
+- The accepted medical goods include **bandages and medicine**. Their cloth
+  and herb/water/fuel supply chains are agreed below; detailed recovery rates
+  remain provisional.
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
@@ -188,8 +192,8 @@ invented content are not silently approved. In particular:
   for separate physical document objects.
 
 The accepted roster includes proposed-but-now-chosen families such as clay,
-pottery, rope, orchard fruit and carry aids. Their exact gameplay value and
-recipe are still to be worked out, not grounds to relabel them unaccepted.
+pottery, rope, orchard fruit and carry aids. Their sources, processing and uses
+are now agreed in the pipelines below; numerical balance is provisional.
 
 ### Choosing building sites
 
@@ -229,8 +233,9 @@ supports a household selling its products. Goods must be physically carried
 to the Store and kept in its own stock before sale; a Store cannot sell from
 a remote House, farm, or Warehouse inventory. A Market admits traders from any
 Town; a Restaurant buys ingredients, cooks and sells potentially better meals.
-Town Hall supports governance and Port supports boats. Exact stocks, recipes,
-ownership edge cases, prices and trade remain open. See the
+Town Hall supports governance and Port supports boats. The physical
+stock and barter rules are now agreed in the pipelines below; ownership edge
+cases, currency rules and later pricing still need their own decisions. See the
 [accepted asset roster](content-list.md) for specific content and
 [current state](../what-works.md) for what exists in the prototype.
 
@@ -238,8 +243,8 @@ Wood, stone, iron, gold, diamond and many other crafting resources are wanted.
 Better tools should gate harvesting/mining more advanced resources, creating
 a progression incentive. The agreed initial ladder is **wood tools → stone →
 stone tools → iron → iron tools → rarer materials**. Gold, diamond and other
-materials belong in the wider catalogue; their exact mining/crafting tiers
-remain open. Wood and stone should both be useful for House construction;
+materials are extracted with iron pickaxes and used for ornaments or trade,
+as agreed in the pipelines below. Wood and stone should both be useful for House construction;
 specific costs are open.
 
 **Clanker's still-open implementation proposal:** use one incremental layout
@@ -384,6 +389,159 @@ rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
 
+## Item and resource pipelines
+
+### Agreed on October 1
+
+The owner approved these complete pipelines on October 1, 2026. They describe
+intended gameplay, including work that is not built yet. Sources, production
+sites, uses and ownership rules below are agreed. Recipe quantities, yields,
+work times, storage sizes, wear, spoilage and effects are provisional and are
+tuned in playtests. See [what works today](../what-works.md) for current play.
+
+Every pipeline covers **source → gather or grow → carry → store → process →
+use or sell → replenish or replace**. Named goods replace generic raw `food`
+and universal crop `seed` where those hide different resources. A simple
+cooked meal remains a specific item with a generic meal icon.
+
+#### Food and replanting
+
+| Source | Product and complete path |
+| --- | --- |
+| Berry bush | Gather berries, carry home or into sale stock, eat fresh or sell; the bush regrows. |
+| Wild greens patch | Gather wild greens, eat fresh or cook; the patch regrows. |
+| Grain field | Plant grain seed, tend, harvest grain and replacement seeds, reserve replanting stock, carry grain to private Silo/Farmhouse stock, then make porridge or mill flour. |
+| Potato field | Plant potatoes, tend and harvest, reserve planting potatoes, then cook or sell the remainder. Potatoes are both the crop and planting stock. |
+| Cultivated greens field | Plant cultivated-green seed, tend, harvest greens and replacement seeds, reserve replanting stock, then eat, cook or sell. Cultivated greens nourish more than wild greens. |
+| Orchard tree | Plant orchard seed, let the tree mature, then harvest fruit and some orchard seeds in autumn. Eat or sell fruit and reserve seeds for more trees. |
+
+Berries, fruit and greens provide immediate food. Grain and potatoes normally
+need processing or cooking. Fields pass through prepared, planted, growing,
+ready and harvested states. Farmers keep enough planting stock for the next
+crop before offering a surplus for sale. Grain seed, cultivated-green seed,
+wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
+
+| Finished product | Trial recipe | Work site and purpose |
+| --- | --- | --- |
+| Flour | 1 grain → 1 flour | Farmhouse; a real intermediate that can be stored, carried and sold separately. |
+| Simple meal | 2 potatoes/greens + 1 wood → 2 meals | House; everyday household cooking, using potatoes, wild greens or cultivated greens. |
+| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. Berries or fruit may improve a serving. |
+| Bread | 2 flour + 1 water + 1 wood → 2 servings | House or Restaurant; keeps longer and travels well. |
+| Vegetable stew | 1 potato + 1 cultivated greens + 1 water + 1 wood → 2 servings | House or Restaurant; a substantial vegetable meal. |
+| Restaurant meal | 1 bread + 1 cultivated greens + 1 wood → 2 servings | Restaurant; better nourishment and dietary variety, sold on site. |
+
+Harvests stay at their field until collected; they do not appear remotely in a
+Silo. Grain and planting stock enter private farm storage. Ready food goes into
+House or business stock. Dry grain keeps substantially longer than flour,
+bread or cooked meals and supports a winter reserve. Food stays out of the
+communal resource Warehouse.
+
+Farm production responds to population, expected yield and stored reserves.
+Shortages can justify more fields or another farming household. The target for
+playtesting is roughly two substantial meals per agent per day, leaving time
+for other activities; this is not a fixed nutrition or hunger-drain formula.
+
+#### Materials and useful destinations
+
+| Material | Source and processing | Uses |
+| --- | --- | --- |
+| Wood | Fell trees with an axe, carry wood, recover tree seeds and replant. Loose fallen wood can also be collected by hand. | Buildings, expansion, fuel, tool handles, carts and boats. Initially one wood item; separate logs and planks wait until they create useful decisions. |
+| Stone | Extract from a finite outcrop with a wooden pickaxe and carry it. | Stone tools, building foundations and expansion. |
+| Iron | Extract iron ore with a stone pickaxe; at the Blacksmith, a trial 2 ore + 1 wood makes 1 refined iron. | Iron tools, fittings, carts, weapons and armor. Ore and refined iron remain separate items. |
+| Plant fiber | Gather fiber plants or reeds; the plants regrow. | Cloth, rope and baskets. |
+| Cloth | Tailor Shop; trial 3 fiber → 1 cloth. | Clothing, sacks, bandages and later book covers. |
+| Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
+| Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
+| Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
+| Gold | Extract from a gold-bearing outcrop with an iron pickaxe and carry to the Blacksmith. | Ornaments, gifts and trade goods. |
+| Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
+
+The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
+keep, wear, gift or sell them. This is the agreed destination for rare materials;
+it does not select gold as a universal currency or add a diamond tool tier.
+
+A storage pot slows spoilage for the food within its limited capacity. A water
+jug holds a limited quantity of water. Both remain after their contents are
+used; filling, emptying and carrying them must preserve the vessel and its goods.
+
+#### Tools, clothing and transport
+
+| Equipment | Production and function |
+| --- | --- |
+| Wooden axe and wooden pickaxe | Blacksmith, using wood; basic tree and stone gathering. |
+| Stone axe and stone pickaxe | Wood and stone; better speed and durability. The stone pickaxe unlocks iron extraction. |
+| Iron axe and iron pickaxe | Wood and refined iron; better speed and durability. The iron pickaxe unlocks rare deposits. |
+| Wooden hoe | Wood; prepares and tends fields. |
+| Iron hoe | Wood and iron; performs field work faster. |
+| Hammer | Wood and stone; helps construction and repairs. |
+| Sickle | Wood and iron; speeds crop harvesting. |
+| Knife | Iron; speeds food preparation and suitable crafting work. |
+
+Tools wear through use. The Blacksmith repairs worn tools with some of their
+original materials; broken tools need replacement. Hand collection of loose
+fallen wood keeps replacement wooden tools possible after the last axe is lost.
+
+| Product | Production and effect |
+| --- | --- |
+| Basic garment | Fiber → cloth → Tailor Shop; trial 2 cloth → 1 garment. Carry it home, wear it, and repair wear with cloth. |
+| Padded coat | More cloth at the Tailor Shop gives stronger cold protection. |
+| Rain cloak | Cloth and fiber at the Tailor Shop reduce rain exposure. |
+| Basket | Fiber and rope, crafted at home, give a modest carrying increase. |
+| Sack | Cloth and rope at the Tailor Shop give a larger carrying increase. |
+| Handcart | Wood, iron fittings and rope at the Blacksmith allow large loads, especially on Roads. |
+
+Baskets and sacks use one equipped carrying slot. A handcart is a visible
+object that an agent pulls, parks, repairs and transfers ownership of. Worn
+clothing still does not change the agent's map sprite. Exact carrying amounts,
+cart movement costs, protection and repair quantities are tuned in playtests.
+
+#### Care and later goods
+
+| Product | Complete path |
+| --- | --- |
+| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → carry to a patient → consume while treating an injury. |
+| Medicine | Gather medicinal herbs → carry to Clinic → herbs, water and fuel make medicine → administer to an ill agent. |
+| Clinic treatment | The Clinic stocks its own medicine and bandages. A patient visits or a caregiver carries supplies to them; treatment consumes the required goods. |
+| Eggs | Household chickens with reachable feed, water and care produce eggs; collect into local House/Restaurant stock, cook or sell. |
+| Milk | Household cows with feed, water and care produce milk; collect, drink, cook or sell. |
+| Wool | Care for household sheep, shear them and carry wool to the Tailor Shop for warm clothing. |
+| Leather | Naturally deceased livestock provide a hide; the Tailor Shop processes it into leather for durable clothing and carry gear. |
+| Horse transport | Household horse, feed, water and care → permitted rider or cargo use. Permission does not transfer ownership. |
+| Boat | Wood, rope and iron fittings → construct at a Port → communal Town boat → carry agents and goods between completed Ports. |
+| Spear and sword | Wood and iron at the Blacksmith → equip → combat use → repair or replace. |
+| Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
+| Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
+
+Bandages treat injuries; medicine supports illness recovery. Neither instantly
+restores full health. Medicinal herbs, paper, hides and ornaments are approved
+additions to the catalogue. Animals, mounts, combat and invention work retain
+their later staging; their detailed actions and balance are not settled by
+these item pipelines. See [combat](agents-and-families.md#combat) and
+[inventions](inventions-and-mods.md).
+
+#### Physical trade and production safeguards
+
+The Farmhouse sells produce, seeds and flour stocked at its location. The
+Blacksmith sells tools and takes tool-making orders. The Tailor Shop sells
+clothing, cloth and sacks. Restaurants buy ingredients and sell finished meals;
+Clinics stock care goods and sell treatment. An optional Store receives goods
+by actual delivery before selling them. Market sellers carry goods into their
+stalls, trade with agents from any Town and carry remaining goods away.
+
+Initial trade uses barter offers naming exact goods and quantities. Both sides
+bring their goods to the transaction. The buyer receives purchased goods
+personally; payment becomes seller-household stock at that location. Later
+agent-created currencies use the same transaction system, with issuer and
+acceptance rules designed alongside governance. No universal starting money
+or gold standard is chosen.
+
+Ownership and physical location remain inspectable across every transfer.
+Production reserves actual inputs and output space. Full storage, missing
+materials, unavailable tools and blocked transport give a readable reason.
+Guests and customers gain only the access their invitation or transaction
+grants. A Store cannot sell goods from a remote House, farm or Warehouse.
+
 ## Questions linking these systems
 
 These remain open; they are not new decisions.
@@ -402,8 +560,8 @@ These remain open; they are not new decisions.
    automatically to the two starting households, one each, without player
    selection. Decide optional extra starter supplies and how first-tier tools
    are made when the Blacksmith is unavailable.
-   More farms may answer food shortages when
-   yields fall; the population-and-yield planning rule remains open.
+   Farm planning responds to population, yield and stored reserves as agreed
+   above; the exact formula is provisional.
 
 - **Automatic infrastructure details.** Towns connect by Road where a legal
    land route exists and can remain disconnected otherwise. A generated Road
