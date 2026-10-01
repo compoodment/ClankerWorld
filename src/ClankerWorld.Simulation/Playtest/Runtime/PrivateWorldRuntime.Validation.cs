@@ -76,7 +76,7 @@ public sealed partial class PrivateWorldRuntime
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
@@ -355,7 +355,8 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion,
+            state.Towns ?? []);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -434,8 +435,17 @@ public sealed partial class PrivateWorldRuntime
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
         SeededMap map,
-        int schemaVersion)
+        int schemaVersion,
+        IReadOnlyList<TownRuntimeState> towns)
     {
+        var townIds = towns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        // A will may name only a Town that exists; the society layer cannot see Towns.
+        if (society.Estates.Any(estate => (estate.WillHeirIds ?? []).Any(id =>
+                id.StartsWith("town:", StringComparison.Ordinal) && !townIds.Contains(id))))
+            throw new InvalidDataException("A will names a Town that does not exist.");
+        if (schemaVersion < WillHeirsSchemaVersion && (archive.Any(person => person.TownId is not null) ||
+            society.Estates.Any(estate => estate.WillHeirIds is not null || estate.FinalWords is not null)))
+            throw new InvalidDataException("Wills with several heirs or final words require private-world schema 38.");
         var archived = archive.ToArray();
         if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
             throw new InvalidDataException("The deceased inhabitant archive contains duplicate identities.");
@@ -448,7 +458,8 @@ public sealed partial class PrivateWorldRuntime
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
                 !map.IsPassable(person.LastPhysical.Position) ||
-                person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
+                person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
+                person.TownId is { } townId && !townIds.Contains(townId))
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);

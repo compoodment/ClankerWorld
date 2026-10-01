@@ -408,7 +408,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
-            society.AdvanceTo(targetTick);
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;

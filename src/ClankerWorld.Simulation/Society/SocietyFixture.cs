@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Society;
@@ -857,7 +858,8 @@ public static partial class SocietyFixture
 
     public static SocietyOperationResult AdvanceTo(
         SocietyCheckpoint checkpoint,
-        long targetTick)
+        long targetTick,
+        IReadOnlyList<SocietyTownStore>? townStores = null)
     {
         Validate(checkpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(targetTick, checkpoint.WorldTick);
@@ -943,7 +945,7 @@ public static partial class SocietyFixture
             WorldTick = targetTick,
             Inventory = WithInventoryTick(current.Inventory, targetTick),
         };
-        current = SettleDueEstates(current, targetTick);
+        current = SettleDueEstates(current, targetTick, townStores ?? []);
         return new SocietyOperationResult(
             current,
             null,
@@ -982,8 +984,16 @@ public static partial class SocietyFixture
         return Commit(next, "estate_will_started", estateId, estateId);
     }
 
+    /// <summary>
+    /// Records a will's outcome. Without a valid directive the estate keeps the
+    /// household default. Heirs must be living people other than the deceased,
+    /// or one of <paramref name="townHeirIds"/>; listed lots must be frozen in
+    /// this estate. Final words are kept with either outcome when they are plain
+    /// and short; anything else is dropped.
+    /// </summary>
     public static SocietyOperationResult ResolveWill(
-        SocietyCheckpoint checkpoint, string estateId, string? beneficiaryId, string outcome)
+        SocietyCheckpoint checkpoint, string estateId, SocietyWillDirective? directive, string outcome,
+        string? finalWords = null, IReadOnlySet<string>? townHeirIds = null)
     {
         Validate(checkpoint);
         var estate = checkpoint.GetEstate(estateId);
@@ -994,21 +1004,76 @@ public static partial class SocietyFixture
                 lot.Id == frozen.LotId && lot.OwnerId == estate.Id &&
                 lot.ItemKind == frozen.ItemKind && lot.Quantity == frozen.Quantity)) &&
             checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).Count() == estate.FrozenLots.Count;
-        var validBeneficiary = beneficiaryId is not null &&
-            checkpoint.Inhabitants.Any(item => item.Id == beneficiaryId && item.Status == SocietyInhabitantStatus.Active);
-        var accepted = validSnapshot && validBeneficiary && outcome == "accepted";
+        var words = finalWords is null ? null : CognitionWillChoice.NormalizeFinalWords(finalWords);
+        var bequests = validSnapshot && outcome == "accepted" && directive is not null
+            ? PlanBequests(checkpoint, estate, directive, townHeirIds ?? new HashSet<string>(StringComparer.Ordinal))
+            : null;
+        var accepted = bequests is not null;
         var next = checkpoint with
         {
             Estates = checkpoint.Estates.Select(item => item.Id == estateId
             ? item with
             {
-                BeneficiaryIds = accepted ? [beneficiaryId!] : item.BeneficiaryIds,
                 WillStatus = accepted ? "accepted" : "default",
-                WillBeneficiaryId = accepted ? beneficiaryId : null,
+                WillHeirIds = accepted ? directive!.HeirIds.ToArray() : null,
+                WillSplit = accepted ? directive!.Split : null,
+                WillBequests = bequests,
+                FinalWords = words,
             } : item).ToArray()
         };
         return Commit(next, accepted ? "estate_will_accepted" : "estate_will_default",
-            $"{estateId}:{(accepted ? beneficiaryId : outcome)}", estateId);
+            accepted ? $"{estateId}:{directive!.Split}:{string.Join(',', directive.HeirIds)}"
+                : $"{estateId}:{(outcome == "accepted" ? "invalid_will" : outcome)}", estateId);
+    }
+
+    /// <summary>
+    /// The exact division of a valid will, or null when any part is invalid.
+    /// "items" gives each listed lot whole to its heir. Every other lot, and
+    /// every lot under "equal", is divided equally: each heir gets the same
+    /// whole number of units, and the units left over go one at a time to the
+    /// heirs in the order the will names them, continuing from where the
+    /// previous lot's leftovers stopped. Lots are taken in lot-ID order.
+    /// Nothing is created or lost: each lot's parts sum to its frozen quantity.
+    /// </summary>
+    private static List<SocietyWillBequest>? PlanBequests(
+        SocietyCheckpoint checkpoint, SocietyEstate estate, SocietyWillDirective directive,
+        IReadOnlySet<string> townHeirIds)
+    {
+        var heirs = directive.HeirIds;
+        if (heirs is null || heirs.Count is 0 or > CognitionWillContext.MaximumNamedHeirs ||
+            heirs.Distinct(StringComparer.Ordinal).Count() != heirs.Count ||
+            heirs.Any(id => id == estate.DeceasedId || !townHeirIds.Contains(id) &&
+                !checkpoint.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active)) ||
+            directive.Split is not (CognitionWillContext.EqualSplit or CognitionWillContext.ItemSplit) ||
+            directive.Split == CognitionWillContext.EqualSplit && directive.LotHeirs is { Count: > 0 })
+            return null;
+        var frozen = estate.FrozenLots ?? [];
+        var lotHeirs = directive.LotHeirs ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        if (lotHeirs.Any(item => !frozen.Any(lot => lot.LotId == item.Key) || !heirs.Contains(item.Value, StringComparer.Ordinal)))
+            return null;
+
+        var bequests = new List<SocietyWillBequest>();
+        var cursor = 0;
+        foreach (var lot in frozen.OrderBy(item => item.LotId, StringComparer.Ordinal))
+        {
+            if (lotHeirs.TryGetValue(lot.LotId, out var single))
+            {
+                bequests.Add(new SocietyWillBequest(lot.LotId, single, lot.Quantity));
+                continue;
+            }
+            var share = lot.Quantity / heirs.Count;
+            var leftover = lot.Quantity % heirs.Count;
+            var quantities = heirs.Select(_ => share).ToArray();
+            for (var unit = 0; unit < leftover; unit++)
+                quantities[(cursor + unit) % heirs.Count]++;
+            cursor = (cursor + leftover) % heirs.Count;
+            for (var index = 0; index < heirs.Count; index++)
+            {
+                if (quantities[index] > 0)
+                    bequests.Add(new SocietyWillBequest(lot.LotId, heirs[index], quantities[index]));
+            }
+        }
+        return bequests;
     }
 
     public static SocietyOperationResult Pause(SocietyCheckpoint checkpoint)
@@ -1070,10 +1135,7 @@ public static partial class SocietyFixture
                 !checkpoint.Inhabitants.Any(item => item.Id == estate.DeceasedId &&
                     item.Status == SocietyInhabitantStatus.Dead) ||
                 estate.WillStatus is not (null or "pending" or "accepted" or "default") ||
-                (estate.WillStatus == "accepted" &&
-                    (estate.WillBeneficiaryId is null ||
-                     !estate.BeneficiaryIds.Contains(estate.WillBeneficiaryId, StringComparer.Ordinal))) ||
-                (estate.WillStatus != "accepted" && estate.WillBeneficiaryId is not null))
+                !IsValidWill(checkpoint, estate))
                 throw new InvalidDataException("An estate record is malformed.");
             if (estate.FrozenLots is { } frozen)
             {
@@ -1287,6 +1349,31 @@ public static partial class SocietyFixture
         IsCanonicalBoundedText(value, 128) &&
         value!.All(character => char.IsAsciiLetterOrDigit(character) || character is ':' or '-' or '_');
 
+    /// <summary>
+    /// Only an accepted will carries heirs and an exact plan that covers every
+    /// frozen lot; final words follow a resolved will of either outcome.
+    /// Town heirs are checked against the world's Towns by the private world.
+    /// </summary>
+    private static bool IsValidWill(SocietyCheckpoint checkpoint, SocietyEstate estate)
+    {
+        if (estate.FinalWords is { } words && (estate.WillStatus is not ("accepted" or "default") ||
+            CognitionWillChoice.NormalizeFinalWords(words) != words))
+            return false;
+        if (estate.WillStatus != "accepted")
+            return estate.WillHeirIds is null && estate.WillSplit is null && estate.WillBequests is null;
+        if (estate.WillHeirIds is not { Count: > 0 and <= CognitionWillContext.MaximumNamedHeirs } heirs ||
+            heirs.Distinct(StringComparer.Ordinal).Count() != heirs.Count ||
+            heirs.Any(id => string.IsNullOrWhiteSpace(id) || id == estate.DeceasedId ||
+                !id.StartsWith("town:", StringComparison.Ordinal) && !checkpoint.Inhabitants.Any(person => person.Id == id)) ||
+            estate.WillSplit is not (CognitionWillContext.EqualSplit or CognitionWillContext.ItemSplit) ||
+            estate.FrozenLots is not { } frozen || estate.WillBequests is not { } bequests ||
+            bequests.Any(item => item.Quantity <= 0 || !heirs.Contains(item.HeirId, StringComparer.Ordinal)) ||
+            bequests.Select(item => (item.LotId, item.HeirId)).Distinct().Count() != bequests.Count)
+            return false;
+        return frozen.All(lot => bequests.Where(item => item.LotId == lot.LotId).Sum(item => (long)item.Quantity) == lot.Quantity) &&
+            bequests.All(item => frozen.Any(lot => lot.LotId == item.LotId));
+    }
+
     private static SocietyOperationResult Kill(
         SocietyCheckpoint checkpoint,
         string inhabitantId,
@@ -1361,55 +1448,106 @@ public static partial class SocietyFixture
             estateId);
     }
 
+    /// <summary>
+    /// Carries out due estates once. An accepted will gives each named heir
+    /// their exact parts: a living person owns them where they lie (goods the
+    /// dead agent carried are carried by the heir), and a Town keeps them in
+    /// its Warehouse while there is room for that kind. Anything the will
+    /// cannot deliver, such as a share for an heir who has since died, food or
+    /// goods the Warehouse cannot take, follows the household default: an equal
+    /// split between the living household beneficiaries, or communal stock when
+    /// none remain. People who inherit hear any final words as a private memory.
+    /// </summary>
     private static SocietyCheckpoint SettleDueEstates(
         SocietyCheckpoint checkpoint,
-        long targetTick)
+        long targetTick,
+        IReadOnlyList<SocietyTownStore> townStores)
     {
         var current = checkpoint;
+        var room = townStores.ToDictionary(item => item.TownId, item => item.FreeRoom, StringComparer.Ordinal);
         foreach (var estate in checkpoint.Estates.Where(item => !item.Settled &&
                      item.WillStatus != "pending" && item.ExpiryTick <= targetTick)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
+            bool IsLiving(string id) => current.Inhabitants.Any(item =>
+                item.Id == id && item.Status == SocietyInhabitantStatus.Active);
             var beneficiaries = estate.BeneficiaryIds
-                .Where(id => current.Inhabitants.Any(item =>
-                    item.Id == id && item.Status == SocietyInhabitantStatus.Active))
+                .Where(IsLiving)
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray();
-            var lots = current.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).ToArray();
+            var lots = current.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
+            var listeners = new SortedSet<string>(StringComparer.Ordinal);
+            if (estate.WillStatus == "accepted")
+                listeners.UnionWith((estate.WillHeirIds ?? []).Where(IsLiving));
             foreach (var lot in lots)
             {
-                if (beneficiaries.Length == 0)
+                var parts = new List<(string OwnerId, string? StorageId, int Quantity)>();
+                var undelivered = lot.Quantity;
+                foreach (var bequest in (estate.WillBequests ?? []).Where(item => item.LotId == lot.Id))
                 {
-                    nextLots.Add(lot with
+                    var quantity = Math.Min(bequest.Quantity, undelivered);
+                    if (IsLiving(bequest.HeirId))
                     {
-                        OwnerId = "settlement:communal",
-                        StorageBuildingId = null,
-                        DeliveryBuildingId = null,
-                    });
-                    continue;
+                        parts.Add((bequest.HeirId, null, quantity));
+                    }
+                    else if (townStores.FirstOrDefault(store => store.TownId == bequest.HeirId) is { } store &&
+                             !store.RefusedItemKinds.Contains(lot.ItemKind))
+                    {
+                        quantity = Math.Min(quantity, Math.Max(0, room[store.TownId]));
+                        room[store.TownId] -= quantity;
+                        parts.Add((store.TownId, store.WarehouseId, quantity));
+                    }
+                    else
+                    {
+                        quantity = 0;
+                    }
+                    undelivered -= quantity;
                 }
 
-                var baseShare = lot.Quantity / beneficiaries.Length;
-                var remainder = lot.Quantity % beneficiaries.Length;
-                for (var index = 0; index < beneficiaries.Length; index++)
+                if (undelivered > 0 && beneficiaries.Length == 0)
                 {
-                    var quantity = baseShare + (index < remainder ? 1 : 0);
-                    if (quantity == 0)
+                    parts.Add(("settlement:communal", null, undelivered));
+                }
+                else if (undelivered > 0)
+                {
+                    var baseShare = undelivered / beneficiaries.Length;
+                    var remainder = undelivered % beneficiaries.Length;
+                    for (var index = 0; index < beneficiaries.Length; index++)
+                        parts.Add((beneficiaries[index], null, baseShare + (index < remainder ? 1 : 0)));
+                }
+
+                var merged = parts.Where(part => part.Quantity > 0)
+                    .GroupBy(part => part.OwnerId, StringComparer.Ordinal)
+                    .Select(group => (OwnerId: group.Key, group.First().StorageId, Quantity: group.Sum(part => part.Quantity)))
+                    .OrderBy(part => part.OwnerId, StringComparer.Ordinal).ToArray();
+                foreach (var part in merged)
+                {
+                    if (part.OwnerId == "settlement:communal" && part.Quantity == lot.Quantity)
                     {
+                        nextLots.Add(lot with
+                        {
+                            OwnerId = part.OwnerId,
+                            StorageBuildingId = null,
+                            DeliveryBuildingId = null,
+                        });
                         continue;
                     }
+                    if (part.OwnerId != "settlement:communal" && part.StorageId is null)
+                        listeners.Add(part.OwnerId);
 
                     // Physical knowledge artifacts are indivisible and their saved
                     // ledger references this lot ID. Ownership changes, identity does not.
                     var preserveIdentity = lot.Quantity == 1 && lot.ItemKind is "field_map" or "field_record";
                     nextLots.Add(lot with
                     {
-                        Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",
-                        OwnerId = beneficiaries[index],
-                        Quantity = quantity,
+                        Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{part.OwnerId}",
+                        OwnerId = part.OwnerId,
+                        Quantity = part.Quantity,
                         ProvenanceLotId = preserveIdentity ? lot.ProvenanceLotId : lot.Id,
-                        StorageBuildingId = null,
+                        StorageBuildingId = part.StorageId,
                         DeliveryBuildingId = null,
+                        GroundPosition = part.StorageId is null ? lot.GroundPosition : null,
                     });
                 }
             }
@@ -1434,6 +1572,14 @@ public static partial class SocietyFixture
                     .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
             };
             current = Commit(current, "estate_settled", estate.Id).Checkpoint;
+            if (estate.FinalWords is not { } words) continue;
+            var speaker = current.GetInhabitant(estate.DeceasedId).Name;
+            foreach (var listener in listeners)
+            {
+                current = RecordSocialMemory(current, new SocietySocialMemory(
+                    $"final-words:{estate.Id}:{listener}", listener, estate.DeceasedId,
+                    $"{speaker}'s final words were: '{words}'", "private", targetTick)).Checkpoint;
+            }
         }
 
         return current;

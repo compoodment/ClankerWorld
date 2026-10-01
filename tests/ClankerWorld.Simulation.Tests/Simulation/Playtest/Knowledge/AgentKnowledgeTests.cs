@@ -150,7 +150,7 @@ public sealed class AgentKnowledgeTests
         if (selectedHeir)
         {
             dead = SocietyFixture.MarkWillStarted(dead, estate.Id).Checkpoint;
-            dead = SocietyFixture.ResolveWill(dead, estate.Id, heir, "accepted").Checkpoint;
+            dead = SocietyFixture.ResolveWill(dead, estate.Id, new SocietyWillDirective([heir], "equal"), "accepted").Checkpoint;
         }
         state = state with
         {

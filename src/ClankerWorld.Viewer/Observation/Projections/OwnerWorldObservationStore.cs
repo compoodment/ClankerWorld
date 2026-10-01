@@ -807,9 +807,6 @@ public sealed class OwnerWorldObservationStore
                 new("death-tick", archived.DeathTick.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 new("death-cause", inhabitant.DeathCause?.ToString().ToLowerInvariant() ?? "unknown"),
                 new("will-status", estate?.WillStatus ?? "not_requested"),
-                new("will-heir", estate?.WillBeneficiaryId is { } heirId
-                    ? state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == heirId)?.Name ?? heirId
-                    : ""),
             ],
             new ViewerRoute("deceased", null, null, [], string.Empty),
             new ViewerSpatialKnowledge(position, [position], [position]),
@@ -826,7 +823,27 @@ public sealed class OwnerWorldObservationStore
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
+            FinalWill = estate is { WillStatus: { } status } ? FinalWillFor(state, estate, status) : null,
         };
+    }
+
+    /// <summary>The will as written: each named heir's exact goods, not later fallbacks.</summary>
+    private static ViewerFinalWill FinalWillFor(PrivateWorldRuntimeState state, SocietyEstate estate, string status)
+    {
+        var frozen = (estate.FrozenLots ?? []).ToDictionary(item => item.LotId, StringComparer.Ordinal);
+        var heirs = (estate.WillHeirIds ?? []).Select(heirId =>
+        {
+            var town = (state.Towns ?? []).FirstOrDefault(item => item.Id == heirId);
+            var items = (estate.WillBequests ?? []).Where(item => item.HeirId == heirId && frozen.ContainsKey(item.LotId))
+                .GroupBy(item => frozen[item.LotId].ItemKind, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(item => item.Quantity)))
+                .ToArray();
+            return new ViewerWillHeir(heirId,
+                town?.Name ?? state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == heirId)?.Name ?? heirId,
+                town is not null, items);
+        }).ToArray();
+        return new ViewerFinalWill(status, estate.WillSplit, heirs, estate.FinalWords);
     }
 
     private static ViewerAgentMemory[] MemoriesFor(PrivateWorldRuntimeState state, string ownerId) =>

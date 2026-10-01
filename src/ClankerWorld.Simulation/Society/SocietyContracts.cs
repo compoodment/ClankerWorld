@@ -309,6 +309,12 @@ public sealed record SocietyBirthRequest(
     string? RequestedProviderBindingId = null,
     string? ChildName = null);
 
+/// <summary>
+/// A dead agent's frozen estate. <paramref name="BeneficiaryIds"/> is always the
+/// household default. An accepted will adds its named heirs (people or a Town),
+/// how it divides the estate and the exact quantity of each lot each heir gets.
+/// Final words, when left, are heard by the people who inherit.
+/// </summary>
 public sealed record SocietyEstate(
     string Id,
     string DeceasedId,
@@ -318,9 +324,34 @@ public sealed record SocietyEstate(
     bool Settled = false,
     IReadOnlyList<SocietyEstateLot>? FrozenLots = null,
     string? WillStatus = null,
-    string? WillBeneficiaryId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? WillHeirIds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? WillSplit = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SocietyWillBequest>? WillBequests = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FinalWords = null);
 
 public sealed record SocietyEstateLot(string LotId, string ItemKind, int Quantity);
+
+/// <summary>An exact part of one frozen lot left to one named heir.</summary>
+public sealed record SocietyWillBequest(string LotId, string HeirId, int Quantity);
+
+/// <summary>
+/// A will's validated choice in society IDs: one to three distinct heirs in the
+/// order named, "equal" or "items", and for "items" the heir of each listed lot.
+/// </summary>
+public sealed record SocietyWillDirective(
+    IReadOnlyList<string> HeirIds,
+    string Split,
+    IReadOnlyDictionary<string, string>? LotHeirs = null);
+
+/// <summary>
+/// Where a Town keeps inherited goods: its Warehouse, the room left there, and
+/// the kinds it does not store. Supplied by the world when an estate settles.
+/// </summary>
+public sealed record SocietyTownStore(
+    string TownId,
+    string WarehouseId,
+    int FreeRoom,
+    IReadOnlySet<string> RefusedItemKinds);
 
 public sealed record SocietyBirthRecord(
     string RequestId,
