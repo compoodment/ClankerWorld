@@ -27,20 +27,7 @@ public sealed class StoredFuelRoutingTests
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
         for (var index = 0; index < 4; index++) initial.PlaceFounder(ids[index], positions[index]);
         initial.StartWorld();
-        if (blockStorage)
-        {
-            var map = initial.ExportState().Map;
-            var storage = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
-            var blockers = map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 &&
-                map.IsBuildable(tile.Position) && !map.Resources.Any(resource => resource.Position == tile.Position) &&
-                !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
-            Assert.NotEmpty(blockers);
-            for (var index = 0; index < blockers.Length; index++)
-                initial.AddAgent($"agent:{index + 100:D32}", blockers[index].Position);
-            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 && map.IsPassable(tile.Position)),
-                tile => Assert.Contains(initial.Inhabitants, person => person.Position == tile.Position));
-        }
-        var state = initial.ExportState();
+        var state = blockStorage ? StorageRoutingTestFixture.BlockAccess(initial, storagePosition, 1) : initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
         var storedWood = society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood")
@@ -63,6 +50,7 @@ public sealed class StoredFuelRoutingTests
                 Climate = systems.Climate with { Weather = WeatherKind.Snow },
             },
         };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Snow);
         var local = state.Map.Resources.Single(resource => resource.Id == "wild-128-16");
         Assert.True(state.Map.IsReachableOnFoot(positions[0], local.Position));
         Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));

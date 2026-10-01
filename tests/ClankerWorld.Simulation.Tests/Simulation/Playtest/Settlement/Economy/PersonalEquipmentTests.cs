@@ -17,6 +17,7 @@ public sealed class PersonalEquipmentTests
             new("sack", "sack", "person", 1, 10_000, 10_000, 0), new("coat", "padded_coat", "person", 1, 10_000, 10_000, 0),
             new("wood", "wood", "person", 8, 10_000, 10_000, 0, DeliveryBuildingId: "house"),
             new("pot", "jug", "person", 1, 10_000, 10_000, 0), new("water", "water", "person", 3, 10_000, 10_000, 0),
+            new("ground-stock", "grain", "person", 30, 10_000, 10_000, 0, GroundPosition: new(2, 3)),
         ]);
         var equipment = new PersonalEquipment("coat", "sack");
         Assert.Equal(12, PersonalEquipmentRules.CarriedQuantity(inventory, "person", equipment));
