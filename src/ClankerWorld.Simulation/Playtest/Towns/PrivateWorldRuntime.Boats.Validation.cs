@@ -13,6 +13,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (state.BoatTransport is not { } transport) return;
         if (state.SchemaVersion < 31 || transport.SchemaVersion != 1 || transport.Boats is null || transport.GuestPermissions is null ||
+            transport.Boats.Any(boat => boat is null) || transport.GuestPermissions.Any(permission => permission is null) ||
             transport.Boats.Select(boat => boat.Id).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||
             transport.Boats.Select(boat => boat.BuildJobId).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||
             transport.Boats.Select(boat => boat.Position).Distinct().Count() != transport.Boats.Count ||
@@ -31,11 +32,17 @@ public sealed partial class PrivateWorldRuntime
             var recipe = state.WorldContent?.Recipes.FirstOrDefault(item => item.CanonicalId == job?.RecipeId);
             var launch = state.Society.Society.Inventory.Reservations.FirstOrDefault(item => item.Id == boat.BuildJobId + ":launch");
             var buildPort = state.WorldSimulation?.Buildings.FirstOrDefault(item => item.InstanceId == job?.BuildingInstanceId);
+            var portDefinition = state.WorldContent?.Buildings.FirstOrDefault(item => item.CanonicalId == buildPort?.DefinitionId);
             if (!towns.Contains(boat.TownId) || !PortNavigationRules.NavigableWater(state.Map, boat.Position) ||
                 boat.Id != "boat-" + boat.BuildJobId || job?.State != WorldProductionJobState.Completed ||
                 recipe?.Tags.Contains("boat", StringComparer.Ordinal) != true || buildPort?.TownId != boat.TownId ||
+                portDefinition is null || !PortNavigationRules.IsPort(portDefinition) || job.InputReservationIds is null ||
+                job.InputReservationIds.Count == 0 || job.InputReservationIds.Any(id =>
+                    state.Society.Society.Inventory.Reservations.FirstOrDefault(item => item.Id == id) is not { } input ||
+                    input.OwnerId != boat.TownId || input.State != InventoryReservationState.Completed) ||
                 recipe.WorkstationBuildingId != buildPort.DefinitionId || launch?.State != InventoryReservationState.Completed ||
-                launch.OwnerId != boat.TownId || launch.Quantity != 1 || launch.LotId != boat.BuildJobId + ":output:00")
+                launch.OwnerId != boat.TownId || launch.Quantity != 1 || launch.Purpose != "launch_communal_boat" ||
+                launch.LotId != boat.BuildJobId + ":output:00")
                 throw new InvalidDataException("Each physical Town boat must come from one completed, consumed Port build job.");
             if (boat.Journey is { } journey)
             {

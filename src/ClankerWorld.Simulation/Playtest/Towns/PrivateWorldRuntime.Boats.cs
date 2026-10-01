@@ -106,7 +106,7 @@ public sealed partial class PrivateWorldRuntime
         var person = inhabitants[passengerId];
         if (!geometry.LandTiles.Contains(person.Position) || map.FootDistance(person.Position, boat.Position) != 1)
             return new(false, "Bring the traveler to this boat's land end before boarding.");
-        var route = PortNavigationRules.WaterRoute(map, boat.Position, Berths(map, PortGeometryFor(destination)), WaterObstacles());
+        var route = BoatWaterRoute(boat.Position, destination);
         if (route.Count == 0) return new(false, "No connected navigable water route joins these Ports.");
         SetBoat(boat with
         {
@@ -198,7 +198,11 @@ public sealed partial class PrivateWorldRuntime
         SetBoat(boat with { Journey = journey with { WaitingSinceTick = since, NextMoveTick = checked(tick + BoatStepTicks) } });
         if (journey.WaitingSinceTick is null) AppendEvent("boat_waiting", $"{journey.PassengerId}:{boat.Id}:arrival_blocked");
         if (journey.Returning || tick - since < society.Checkpoint.Config.TicksPerWorldDay || Port(journey.OriginPortId) is not { } origin || !PortIsLegal(origin)) return;
-        var route = PortNavigationRules.WaterRoute(map, boat.Position, Berths(map, PortGeometryFor(origin)), WaterObstacles());
+        var geometry = PortGeometryFor(origin);
+        var reachableBerths = Berths(map, geometry).Where(berth => geometry.LandTiles.Any(land =>
+            map.FootDistance(berth, land) == 1 && !inhabitants.Values.Any(person =>
+                person.InhabitantId != journey.PassengerId && person.Position == land)));
+        var route = PortNavigationRules.WaterRoute(map, boat.Position, reachableBerths, WaterObstacles());
         if (route.Count == 0) return;
         SetBoat(boat with
         {
@@ -223,8 +227,7 @@ public sealed partial class PrivateWorldRuntime
                 FindUnoccupiedRoute(actor, person.Position, PortGeometryFor(origin).WorkPosition, 0).Count == 0) continue;
             foreach (var destination in worldSimulation.Buildings.Where(port => port.InstanceId != origin.InstanceId && Port(port.InstanceId) is not null)
                          .OrderBy(port => port.InstanceId, StringComparer.Ordinal))
-                if (PortIsLegal(destination) && PortNavigationRules.WaterRoute(map, boat.Position,
-                        Berths(map, PortGeometryFor(destination)), WaterObstacles()).Count > 0)
+                if (PortIsLegal(destination) && BoatWaterRoute(boat.Position, destination).Count > 0)
                     candidates.Add(new(BoatTravelPrefix + boat.Id + "|" + destination.InstanceId,
                         $"Travel in the communal boat to the Port at ({destination.Position.X}, {destination.Position.Y}), carrying your own goods.", 80, destination.InstanceId));
         }
