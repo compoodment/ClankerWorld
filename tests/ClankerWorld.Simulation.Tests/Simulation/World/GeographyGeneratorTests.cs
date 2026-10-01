@@ -299,11 +299,16 @@ public sealed class GeographyGeneratorTests
                 !map.Resources.Any(item => item.Position == tile.Position))
             .Take(4).Select(tile => tile.Position).ToArray();
         Assert.Equal(4, startingTiles.Length);
+        // Founder IDs decide the order agents act in, so random IDs would give
+        // each run a different world. Derive them from the seed instead.
         for (var index = 0; index < 4; index++)
-            setup.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), startingTiles[index]);
+            setup.PlaceFounder(TestFounderId(options.Seed, index), startingTiles[index]);
         setup.StartWorld();
         return setup.ExportState();
     }
+
+    private static string TestFounderId(string seed, int index) => "founder:" + Convert.ToHexStringLower(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{seed}:{index}")))[..32];
 
     [Fact]
     public async Task GeneratedWorldCanStartAdvanceAndRestoreWithItsOwnGeography()
