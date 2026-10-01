@@ -63,7 +63,7 @@ public static class ItemIcons
 
     private static readonly string[] HoeRows =
     [
-        ".......HH.......",
+        "................",
         ".......HD.......",
         "......HDD.......",
         "......HD........",
@@ -75,8 +75,8 @@ public static class ItemIcons
         "...HD...........",
         "..HD............",
         ".HD.............",
-        "HDDGGgggggggggkk.",
-        ".kkGGGGGGGGGGGkk.",
+        ".DDGGggggggggkk.",
+        ".kkGGGGGGGGGGkk.",
         "................",
         "................",
     ];

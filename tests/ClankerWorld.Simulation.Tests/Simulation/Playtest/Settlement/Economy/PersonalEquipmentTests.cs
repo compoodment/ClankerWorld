@@ -207,7 +207,9 @@ public sealed class PersonalEquipmentTests
             var reopened = false;
             string? selected = null;
             WorldProductionJob? sewn = null;
-            for (var tick = 0; tick < 300; tick++)
+            // The cold-weather coat includes four weaving jobs before sewing.
+            // Allow the real travel, warmth and production chain to complete.
+            for (var tick = 0; tick < 500; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
@@ -931,6 +933,8 @@ public sealed class PersonalEquipmentTests
         };
         inventory = InventoryFixture.AddLot(inventory, "full-builders-stone", "stone", requester, 8);
         inventory = InventoryFixture.AddLot(inventory, "helper-house-wood", "wood", helper, 4);
+        // Keep the demand while preventing the requester from forwarding a
+        // received load into construction during the handoff's own tick.
         state = WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
@@ -940,7 +944,7 @@ public sealed class PersonalEquipmentTests
                     HungerBasisPoints = 9_500,
                     Equipment = null,
                     Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, site),
-                        house.DisplayName, initial.WorldTick, "acquiring", LastTransitionTick: initial.WorldTick),
+                        house.DisplayName, initial.WorldTick, "paused", LastTransitionTick: initial.WorldTick, RequiresFreshChoice: true),
                 } : person).ToArray(),
         };
         var provider = new Choices(["assist:wood"]);

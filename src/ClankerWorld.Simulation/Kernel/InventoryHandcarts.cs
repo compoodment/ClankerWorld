@@ -28,7 +28,10 @@ public static partial class InventoryFixture
             throw new InvalidOperationException("This load ID is already in use.");
         var loaded = cargo with
         {
-            Id = loadedId, Quantity = quantity, ContainerLotId = cart.Id, GroundPosition = null,
+            Id = loadedId,
+            Quantity = quantity,
+            ContainerLotId = cart.Id,
+            GroundPosition = null,
             ProvenanceLotId = loadedId == cargo.Id ? cargo.ProvenanceLotId : cargo.Id,
         };
         var lots = checkpoint.Lots.Where(lot => lot.Id != cargo.Id).ToList();
@@ -56,7 +59,9 @@ public static partial class InventoryFixture
             throw new InvalidOperationException("This unload ID is already in use.");
         var unloaded = cargo with
         {
-            Id = splitId, Quantity = quantity, ContainerLotId = null,
+            Id = splitId,
+            Quantity = quantity,
+            ContainerLotId = null,
             GroundPosition = ontoGround ? cart.GroundPosition : null,
             ProvenanceLotId = splitId == cargo.Id ? cargo.ProvenanceLotId : cargo.Id,
         };

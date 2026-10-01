@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-01
 ---
 
 # Towns, buildings and government

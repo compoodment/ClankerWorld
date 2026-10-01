@@ -157,8 +157,12 @@ public partial class Main
             var sprite = marker.GetNodeOrNull<TextureRect>("HandcartSprite");
             if (sprite is null)
             {
-                sprite = new TextureRect { Name = "HandcartSprite", MouseFilter = Control.MouseFilterEnum.Ignore,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest };
+                sprite = new TextureRect
+                {
+                    Name = "HandcartSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
                 marker.AddChild(sprite);
             }
             var size = currentTileSize >= 64 ? 32 : 16;
