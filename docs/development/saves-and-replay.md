@@ -208,9 +208,9 @@ bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
-equipment, and reusable container lots with their contents, locations, owners
-and reservations. These fields retain their current validation and roundtrip
-behavior.
+equipment with timed repairs and exact reservations, and reusable container
+lots with their contents, locations, owners and reservations. These fields
+retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
