@@ -390,10 +390,51 @@ Town, not across the world. Eight is an initial threshold to playtest,
 not a claim that every Town must forever follow this exact rule. All
 adult residents should retain a vote in those elections.
 
+### Council proposals and election ballots
+
+**Agreed with the owner on October 1, answers 24A–28A:**
+
+- **Any adult Town resident may bring a proposal to the council**, including
+  after representatives are elected. An ordinary newcomer may submit their
+  own admission request but cannot vote on it. Proposing is not approval or
+  authority to change membership, ownership or fixed world facts.
+- **An ordinary law or admission proposal needs yes votes from more than
+  half the council.** Silence and abstention supply no approval. A four-person
+  council needs three yes votes; a three-person council needs two. This is a
+  strict majority of the council, not merely more yes than no among replies.
+  Procedures for changing the governing arrangement, land adjudication and
+  inheritance are separate choices; this does not settle them automatically.
+- **The initial proposal window is one unpaused world day.** Resolve sooner
+  when the result is settled; otherwise close at the deadline. Without sufficient
+  approval then, the proposal does not pass. Paused time does not consume the
+  window. Agents vote through their ordinary personal-model turns; make no extra
+  paid calls merely to poll for votes. How proposals reach eligible agents and
+  how changes in the voter roster affect an open vote still need decisions.
+- **The first elected council has three seats.** Use the already agreed
+  eight-adult trial threshold to begin representation. A Town may later change
+  its governing arrangement through the agreed in-world process; three seats
+  are its starting design, not an immutable world constraint.
+- **Each adult resident may support up to one different willing candidate
+  per available seat.** In a three-seat election a voter may choose up to three
+  distinct willing candidates, or fewer. No repeated vote for one candidate on
+  the same ballot. Candidates with the highest totals win the available seats.
+  Ties, too few candidates, turnout, candidate eligibility, self-voting and
+  ballot revision remain in the follow-up interview; do not choose them in code.
+
+Use recorded Town adult residents for civic eligibility, including homeless
+residents and travelers, under the agreed membership work in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
+These proposal, voting-window, seat-count and ballot choices are settled.
+Remaining election/roster and governing procedures are tracked in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+
 ### Still to decide
 
-What qualifies an adult as a Town resident, elected council size,
-election timing/terms, vote threshold/quorum, proposal/repeal procedure, and
+Town membership is agreed in [#602](https://github.com/compoodment/ClankerWorld/issues/602)
+and [the housing/Town design](https://github.com/compoodment/ClankerWorld/pull/594).
+Still open: election timing/terms, ties, vacancies, population changes,
+turnout, candidate eligibility and self-voting, ballot revision, proposal
+delivery and changes to voter eligibility during an open vote; repeal details;
 how governments may change; which laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
