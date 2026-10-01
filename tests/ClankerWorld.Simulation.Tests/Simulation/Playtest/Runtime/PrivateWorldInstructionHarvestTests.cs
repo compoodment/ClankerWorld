@@ -15,11 +15,20 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData(true, "fruit")]
     public async Task MustDoHarvestCompletesForBerriesAndFruitAndAdvancesQueueAfterReload(bool orchard, string itemKind)
     {
-        using var world = CreateHarvestInstructionWorld(orchard);
+        var provider = new OrderCandidateRecordingProvider("harvest_food");
+        using var world = CreateHarvestInstructionWorld(orchard, provider);
+        var before = world.ExportState();
+        var actor = before.Inhabitants.Single(person => person.InhabitantId == HarvestInstructionActor);
+        var target = orchard
+            ? before.Map.Resources.Where(resource => resource.TreeKind == "orchard")
+                .OrderBy(resource => before.Map.FootDistance(actor.Position, resource.Position))
+                .ThenBy(resource => resource.Id, StringComparer.Ordinal).First()
+            : before.Map.Resources.Single(resource => resource.Id == "berry-patch");
         var harvest = world.SubmitInstruction(new OwnerInstructionRequest("harvest", "owner:test",
-            HarvestInstructionActor, OwnerInstructionKind.MustDo, "harvest food"));
+            HarvestInstructionActor, OwnerInstructionKind.MustDo,
+            $"gather {itemKind} from {target.Id}"));
         var eat = world.SubmitInstruction(new OwnerInstructionRequest("eat", "owner:test",
-            HarvestInstructionActor, OwnerInstructionKind.MustDo, "eat food"));
+            HarvestInstructionActor, OwnerInstructionKind.MustDo, "eat food", Queue: true));
 
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
@@ -28,6 +37,10 @@ public sealed partial class PrivateWorldRuntimeTests
             lot.OwnerId == HarvestInstructionActor && lot.ItemKind == itemKind && lot.Quantity == 4);
         Assert.Contains(harvest.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.DoesNotContain(eat.InstructionId, state.CompletedInstructionIds ?? []);
+        var harvestRequest = Assert.Single(provider.Requests, request =>
+            request.InhabitantId == HarvestInstructionActor);
+        Assert.Contains(harvestRequest.Candidates, candidate => candidate.Id == "harvest_food" &&
+            candidate.DestinationId == target.Id);
         Assert.Single(state.Events, item => item.Kind == "instruction_applied" &&
             item.Detail == harvest.InstructionId + ":harvest_food");
         world.Validate();
@@ -83,11 +96,11 @@ public sealed partial class PrivateWorldRuntimeTests
         restored.Validate();
     }
 
-    private static PrivateWorldRuntime CreateHarvestInstructionWorld(bool orchard)
+    private static PrivateWorldRuntime CreateHarvestInstructionWorld(bool orchard, IDecisionProvider? provider = null)
     {
         var options = new GeographyOptions("audit-food-route-13", WorldSizePreset.Small);
         var world = new PrivateWorldRuntime(options.Seed,
-            _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true),
+            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true),
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = world.ExportState().Map;
         var anchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
@@ -107,25 +120,44 @@ public sealed partial class PrivateWorldRuntimeTests
             world.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), startingTiles[index]);
         world.StartWorld();
         world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : new GridPoint(126, 66));
-        if (!orchard) return world;
-        // Orchard trees fruit only in autumn; put them in season for this check.
         var state = world.ExportState();
-        var orchards = state.Map.Resources.Where(resource => resource.TreeKind == "orchard")
-            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
-        world.Dispose();
-        return PrivateWorldRuntime.Restore(state with
+        var actorPosition = state.Inhabitants.Single(item => item.InhabitantId == HarvestInstructionActor).Position;
+        var target = orchard
+            ? state.Map.Resources.Where(resource => resource.TreeKind == "orchard")
+                .OrderBy(resource => state.Map.FootDistance(actorPosition, resource.Position))
+                .ThenBy(resource => resource.Id, StringComparer.Ordinal).First()
+            : state.Map.Resources.Single(resource => resource.Id == "berry-patch");
+        var terrain = state.Map.Tiles.Single(tile => tile.Position == target.Position).Terrain.ToString();
+        var knownSource = new AgentKnowledgeFact(
+            "instruction-known-food-site:" + target.Id, HarvestInstructionActor, HarvestInstructionActor,
+            target.Position, terrain, [orchard ? "fruit" : "berries"],
+            state.Society.Society.WorldTick, "firsthand");
+        state = state with
         {
-            Resources = state.Resources.Select(resource => orchards.Contains(resource.ResourceId)
-                ? resource with { State = ResourceState.Available } : resource).ToArray(),
-            WorldSystems = state.WorldSystems! with
+            Knowledge = state.Knowledge! with { Facts = state.Knowledge.Facts.Append(knownSource).ToArray() },
+        };
+        if (orchard)
+        {
+            // Orchard trees fruit only in autumn; put them in season for this check.
+            var orchards = state.Map.Resources.Where(resource => resource.TreeKind == "orchard")
+                .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
+            state = state with
             {
-                Ecology = state.WorldSystems.Ecology with
+                Resources = state.Resources.Select(resource => orchards.Contains(resource.ResourceId)
+                    ? resource with { State = ResourceState.Available } : resource).ToArray(),
+                WorldSystems = state.WorldSystems! with
                 {
-                    Resources = state.WorldSystems.Ecology.Resources.Select(resource => orchards.Contains(resource.Id)
-                        ? TreeGrowthAndPlantingTests.InFruitingSeason(resource, state) : resource).ToArray(),
+                    Ecology = state.WorldSystems.Ecology with
+                    {
+                        Resources = state.WorldSystems.Ecology.Resources.Select(resource => orchards.Contains(resource.Id)
+                            ? TreeGrowthAndPlantingTests.InFruitingSeason(resource, state) : resource).ToArray(),
+                    },
                 },
-            },
-        }, _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+            };
+        }
+        world.Dispose();
+        return PrivateWorldRuntime.Restore(state,
+            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
     }
 
     // An empty tile beside an orchard tree with no other food within reach,

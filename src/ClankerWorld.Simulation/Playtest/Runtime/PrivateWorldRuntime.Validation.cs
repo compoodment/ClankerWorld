@@ -290,8 +290,9 @@ public sealed partial class PrivateWorldRuntime
         if (state.SchemaVersion >= ObserverGuidanceSchemaVersion &&
             (state.Instructions is null || state.CompletedInstructionIds is null))
             throw new InvalidDataException($"Private-world schema {ObserverGuidanceSchemaVersion} requires authoritative instruction state.");
+        var latestWorldEventId = state.Events.Count == 0 ? state.EventHistoryFloor : state.Events[^1].EventId;
         ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint,
-            state.Society.Society.WorldId, state.Events.Count == 0 ? 0 : state.Events[^1].EventId,
+            state.Society.Society.WorldId, latestWorldEventId,
             state.OrderCancellations ?? []);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);

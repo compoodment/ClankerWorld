@@ -348,7 +348,7 @@ public sealed partial class PrivateWorldRuntime
         var action = InstructionCandidate(text);
         if (action is null) return null;
         var words = InstructionWords(text);
-        var explicitUnits = ParseRequestedUnits(text);
+        if (!TryParseRequestedUnits(text, out var explicitUnits)) return null;
         var requestedUnits = explicitUnits ?? 1;
         var repeat = text.Contains("until cancelled", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("until canceled", StringComparison.OrdinalIgnoreCase) ||
@@ -357,8 +357,12 @@ public sealed partial class PrivateWorldRuntime
             : words.Contains("fruit") ? "fruit"
             : words.Contains("wild") && words.Contains("greens") ? "wild_greens"
             : null;
-        var targetResourceId = map.Resources.FirstOrDefault(resource =>
-            text.Contains(resource.Id, StringComparison.OrdinalIgnoreCase))?.Id;
+        var targetResourceId = map.Resources
+            .Where(resource => ContainsWholeResourceId(text, resource.Id))
+            .OrderByDescending(resource => resource.Id.Length)
+            .Select(resource => resource.Id)
+            .FirstOrDefault();
+        if (targetResourceId is null && ContainsUnresolvedResourceIdentifier(text)) return null;
         var targetPosition = ParseOrderTargetPosition(text);
         if (targetResourceId is not null) targetPosition = null;
         return new OwnerInstructionOrder(action, "queued", requestedUnits, 0,
@@ -370,10 +374,20 @@ public sealed partial class PrivateWorldRuntime
             }, repeat, explicitUnits is not null, targetKind, targetResourceId, targetPosition);
     }
 
+    private static bool ContainsWholeResourceId(string text, string resourceId) =>
+        Regex.IsMatch(text,
+            $@"(?<![\p{{L}}\p{{N}}_-]){Regex.Escape(resourceId)}(?![\p{{L}}\p{{N}}_-])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static bool ContainsUnresolvedResourceIdentifier(string text) =>
+        Regex.IsMatch(text,
+            @"\b(?:at|near|by|from)\s+(?:(?:the|a|an)\s+)?[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)+\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static GridPoint? ParseOrderTargetPosition(string text)
     {
         var match = Regex.Match(text,
-            @"\b(?:at|near|by|from)\s+(?:tile\s+)?(?<x>-?\d{1,7})\s*[,/]\s*(?<y>-?\d{1,7})\b",
+            @"\b(?:at|near|by|from)\s*(?:tile\s*)?(?<x>-?\d{1,7})\s*[,/]\s*(?<y>-?\d{1,7})\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return match.Success && int.TryParse(match.Groups["x"].Value,
                    System.Globalization.NumberStyles.AllowLeadingSign,
@@ -385,22 +399,19 @@ public sealed partial class PrivateWorldRuntime
             : null;
     }
 
-    private static int? ParseRequestedUnits(string text)
+    private static bool TryParseRequestedUnits(string text, out int? requestedUnits)
     {
-        for (var index = 0; index < text.Length;)
-        {
-            if (!char.IsLetterOrDigit(text[index]))
-            {
-                index++;
-                continue;
-            }
-            var start = index++;
-            while (index < text.Length && char.IsLetterOrDigit(text[index])) index++;
-            var token = text[start..index].ToLowerInvariant();
-            if (int.TryParse(token, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var numeric))
-                return numeric is >= 1 and <= 1000 ? numeric : null;
-            var wordQuantity = token switch
+        requestedUnits = null;
+        var match = Regex.Match(text,
+            @"(?<![\p{L}\p{N},])\b(?<amount>\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!match.Success) return true;
+
+        var amount = match.Groups["amount"].Value;
+        var parsed = int.TryParse(amount, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var numeric)
+            ? numeric
+            : amount.ToLowerInvariant() switch
             {
                 "one" => 1,
                 "two" => 2,
@@ -414,9 +425,9 @@ public sealed partial class PrivateWorldRuntime
                 "ten" => 10,
                 _ => 0,
             };
-            if (wordQuantity > 0) return wordQuantity;
-        }
-        return null;
+        if (parsed is < 1 or > 1000) return false;
+        requestedUnits = parsed;
+        return true;
     }
 
     private static HashSet<string> InstructionWords(string text)

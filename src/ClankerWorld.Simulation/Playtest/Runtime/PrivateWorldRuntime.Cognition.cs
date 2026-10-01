@@ -296,6 +296,7 @@ public sealed partial class PrivateWorldRuntime
                     continue;
                 }
                 SetOrderStatus(order, "blocked", OrderBlockedReason(order, state));
+                continue;
             }
             if (CanContinueLesson(inhabitant.Id))
             {
@@ -377,7 +378,9 @@ public sealed partial class PrivateWorldRuntime
                 if (ShouldInterruptOrder(state, order, orderCandidate))
                 {
                     SetOrderStatus(order, "interrupted", "Urgent survival needs come first.");
-                    ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+                    var urgentCandidate = UrgentSurvivalCandidateFor(decision.InhabitantId, state);
+                    if (urgentCandidate is not null)
+                        ApplyCandidate(decision.InhabitantId, state, urgentCandidate.Id, reportIdle: true);
                 }
                 else if (orderCandidate is not null)
                 {
@@ -386,7 +389,7 @@ public sealed partial class PrivateWorldRuntime
                 else
                 {
                     SetOrderStatus(order, "blocked", OrderBlockedReason(order, state));
-                    ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+                    ApplyCandidate(decision.InhabitantId, state, "safe_idle", reportIdle: true);
                 }
             }
         }
@@ -874,8 +877,6 @@ public sealed partial class PrivateWorldRuntime
             taskCandidate = null;
         if (taskCandidate is null)
         {
-            if (!urgent && !order.Order!.WaitForDecisionAfterFailure)
-                return candidates;
             return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(item.Id))
                 .ToList();
         }
