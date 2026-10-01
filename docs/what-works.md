@@ -248,9 +248,9 @@ records hands-on checks still needed for merged changes. Code, tests and exports
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
 
-New World includes relative Advanced terrain controls and a resettable 50%-water
-preset for Small and Medium. All settings feed the matching preview and saved
-generation options. See [Advanced New World settings](playing.md#advanced-new-world-settings);
+New World includes Low/Normal/High terrain controls under More options and a
+resettable 50%-water preset for Small and Medium. All settings feed the matching
+preview and saved generation options. See [More New World options](playing.md#more-new-world-options);
 Windows interaction and real preview latency still need playtesting.
 
 ## Permanent deletion

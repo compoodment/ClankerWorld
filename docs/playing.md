@@ -36,8 +36,8 @@ that version mismatch. You can still reconnect to the existing world.
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
-   map options are under **Advanced** (see
-   [Advanced New World settings](#advanced-new-world-settings)).
+   map options are under **+ More options** (see
+   [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
 3. Create the world. It opens paused. Choose a rough site for its first Town;
@@ -154,18 +154,21 @@ remove the cap in World Settings, then resume separately.
 
 ## Save and return
 
-**Save World** creates a named save for the current world. To overwrite one,
-select that particular save and confirm; typing the same name does not overwrite
-it. World Settings offers rotating autosaves as well as automatic recovery.
-**Load World** shows existing worlds and warns about saves it cannot load.
-Open and Delete are unavailable while another world action finishes.
+**Save World** creates a named save for the current world. Its name starts as
+the world's date, so **Save** works straight away; type another name first if
+you like. To overwrite a save, choose its card, then **Overwrite**, and confirm;
+typing the same name does not overwrite it. World Settings offers rotating
+autosaves as well as automatic recovery. **Load World** shows each world as a
+card with when it was last saved and its seed, and marks the current world and
+any it cannot open. Double-click a card, or choose it and **Open World**. Open
+and Delete are unavailable while another world action finishes.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes
 no offline progress or change to a manual pause. An unfinished model call can
 be cancelled and retried later; the provider may charge for both attempts.
 
-To remove one snapshot, select it in Load Save and choose **Delete selected save**.
+To remove one snapshot, choose it in Load Save and choose **Delete**.
 The confirmation names the snapshot; deletion is permanent and leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
@@ -181,12 +184,13 @@ what you expected and the build you used.
 Some fixes still need a Windows playtest; the [playtest list](../playtest/README.md)
 says what to try. Include failures as well as successes.
 
-## Advanced New World settings
+## More New World options
 
 The simple preset uses 50% water, Normal forest/mountains/rivers/resources,
-Balanced climates, east/west wrapping and latitude cooling. Expand **Advanced**
-to change water from 20% to 80%, relative Low/Normal/High settings, climates,
-wrapping or latitude cooling. **Reset generation settings** restores the preset
-and Small size without changing the name or seed. The preview updates after
+Balanced climates, east/west wrapping and latitude cooling. Choose
+**+ More options** to set water from 20% to 80% with a slider, pick Low, Normal
+or High forest, mountains, rivers and resources, and change climates, wrapping
+or latitude cooling. **Reset these options** restores the preset and Small size
+without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
