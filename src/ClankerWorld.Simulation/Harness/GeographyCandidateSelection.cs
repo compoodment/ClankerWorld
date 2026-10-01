@@ -47,10 +47,11 @@ public sealed record GeographyCandidateReport(
         (ForestTargetApplicable ? DistanceOutside(ForestPercent, 20, 40) / 20 : 0) +
         (MountainTargetApplicable ? DistanceOutside(MountainPercent, 5, 12) / 7 : 0);
 
-    // A tie-break only: there is no approved minimum connected-patch size.
+    // A tie-break only. Mountains are already shaped into whole massifs, so
+    // only forest connectedness counts; preferring one large mountain region
+    // would always pick the world with the fewest massifs.
     internal double RegionCohesion =>
-        (ForestTiles == 0 ? 0 : (double)LargestForestRegion / ForestTiles) +
-        (MountainTiles == 0 ? 0 : (double)LargestMountainRegion / MountainTiles);
+        ForestTiles == 0 ? 0 : (double)LargestForestRegion / ForestTiles;
 
     private static double DistanceOutside(double value, double minimum, double maximum) =>
         value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
