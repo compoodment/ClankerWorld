@@ -42,6 +42,9 @@ public sealed partial class PrivateWorldConversationTests
         {
             _ = await world.AdvanceOneTickNonBlockingAsync();
             await Task.Delay(3);
+            if (world.Conversations.Single().Status is AgentConversationStatus.Ready or
+                AgentConversationStatus.AwaitingSpeaker or AgentConversationStatus.WrapUp)
+                Assert.Equal<int?>(remaining, Assert.Single(world.Fields).Work?.RemainingTicks);
         }
         Assert.Equal(AgentConversationStatus.Closed, world.Conversations.Single().Status);
         Assert.Equal("agreed", world.Conversations.Single().Outcome);

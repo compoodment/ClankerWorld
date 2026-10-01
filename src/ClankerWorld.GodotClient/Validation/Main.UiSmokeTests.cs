@@ -174,7 +174,6 @@ public partial class Main
             terrainLayer.SetSelectedTile(null);
             RenderMap(smokeMap);
 
-
             var generatedMap = smokeMap with
             {
                 WorldId = "zoom-bounds-smoke",
