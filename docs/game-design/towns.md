@@ -75,9 +75,18 @@ everything that is available in the current build. See [what works today](../wha
   home, seek suitable existing household housing first; start a new House
   project only if none is suitable. Moving into another household's House
   after setup needs that household's agreement, while placing an agent with Add
-  Agent on household property still joins that household without consent. How
-  an adult forms a new household remains open. There is no
-  occupancy-capacity gate.
+  Agent on household property still joins that household without consent.
+  **Agreed on 1 October:** a later request to live in another household's
+  House needs the agreement of **every adult member** of that household. The
+  request is bounded: one refusal, or no answer within the usual proposal
+  window, ends it, and that household is not asked again for a while. Nothing
+  is granted by standing nearby, and a pending request grants no access to the
+  household's stock or shelter. Only when no existing home is found this way
+  can a House be planned, and only a household can plan one. The adult is told
+  the real blocker: no household, no House their household holds yet, missing
+  materials or no legal site. How an adult forms a new household, and how an
+  adult who already has one later leaves or changes it, remain open. There is
+  no occupancy-capacity gate.
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
@@ -575,10 +584,12 @@ These remain open; they are not new decisions.
 
 - **Home invitations and later membership.** Add Agent placement on household
    land still joins the household without a consent step, while moving into
-   another household's House after setup needs that household's agreement.
-   Invited guests may shelter from storms but cannot use the House's stock or
-   cooking. Both rules are agreed above. Decide how agents later leave or
-   change households, beyond that agreement rule.
+   another household's House after setup needs the agreement of every adult
+   member, as agreed above and built for adults who have no household. Invited
+   guests may shelter from storms but cannot use the House's stock or cooking;
+   that named storm-guest invitation is built too, and it is separate from
+   membership. Decide how agents who already have a household later leave or
+   change it, beyond that agreement rule.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
