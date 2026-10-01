@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -26,9 +27,17 @@ public sealed partial class PrivateWorldRuntime
             FarmhouseForHousehold(householdId) is null)
             return new(false, "An adult from a household with a Farmhouse must do the work.");
         if (worker.Position != position) return new(false, "The worker must stand on the field tile.");
-        if (!HasCarriedItem(workerId, FarmFieldRules.Hoe)) return new(false, "The worker needs a hoe.");
+        var hoe = kind is FarmWorkKind.Till or FarmWorkKind.Tend
+            ? ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, workerId, ToolFamily.Hoe)
+            : null;
+        if ((kind is FarmWorkKind.Till or FarmWorkKind.Tend) && hoe is null)
+            return new(false, "The worker needs a usable carried hoe.");
+        var sickle = kind == FarmWorkKind.Harvest
+            ? ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, workerId, ToolFamily.Sickle)
+            : null;
         if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || IsConversationBusy(workerId) ||
-            worker.Project is { Stage: not ("completed" or "cancelled") } || FarmWorkFor(workerId) is not null)
+            (worker.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) ||
+            FarmWorkFor(workerId) is not null)
             return new(false, "The worker must finish other work or meet urgent needs first.");
         var field = fields.SingleOrDefault(item => item.Position == position);
         if (kind == FarmWorkKind.Till)
@@ -58,13 +67,29 @@ public sealed partial class PrivateWorldRuntime
             ApplyInventoryTransition(inventory => InventoryFixture.Reserve(inventory, reservationId,
                 workerId, seed.Id, 1, "field_planting", checked(WorldTick + FarmFieldRules.WorkTicks(kind) + 1)));
         }
-        SetFarmField(field with { Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop) });
+        var hoeLotId = hoe is null ? null : IsolateFieldToolForWork(workerId, position, hoe.ToolLotId);
+        var sickleLotId = sickle is null ? null : IsolateFieldToolForWork(workerId, position, sickle.ToolLotId);
+        SetFarmField(field with
+        {
+            Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop,
+                hoeLotId, sickleLotId),
+        });
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("field_work_started", $"{workerId}:{FarmFieldRules.FieldId(position)}:{kind}");
         return new(true, "Field work started.");
     }
 
     private FarmFieldState? FarmWorkFor(string workerId) => fields.SingleOrDefault(field => field.Work?.WorkerId == workerId);
+
+    private string IsolateFieldToolForWork(string workerId, GridPoint position, string lotId)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var lot = inventory.GetLot(lotId);
+        if (lot.Quantity == 1) return lot.Id;
+        var isolatedId = $"{lot.Id}:field:{FarmFieldRules.FieldId(position)}:{WorldTick}:{workerId}";
+        ApplyInventoryTransition(current => InventoryFixture.SplitLot(current, lot.Id, 1, isolatedId));
+        return isolatedId;
+    }
 
     private bool FarmableFreeTile(GridPoint position)
     {
@@ -89,7 +114,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (field.Work is { } work && (!inhabitants.TryGetValue(work.WorkerId, out var worker) ||
                 !AdultResident(work.WorkerId) || HouseholdFor(work.WorkerId) != field.HouseholdId || FarmhouseForHousehold(field.HouseholdId) is null ||
-                worker.Position != field.Position || !HasCarriedItem(work.WorkerId, FarmFieldRules.Hoe) ||
+                worker.Position != field.Position || !FieldWorkToolsAvailable(work.WorkerId, work) ||
                 NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) ||
                 work.SeedReservationId is { } id && !ActiveFarmReservation(id)))
             {
@@ -120,23 +145,54 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("field_work_interrupted", FarmFieldRules.FieldId(field.Position));
     }
 
+    private void CancelFieldWorkForUnavailableWorkers()
+    {
+        var active = society.Checkpoint.Inhabitants
+            .Where(person => person.Status == SocietyInhabitantStatus.Active)
+            .Select(person => person.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var field in fields.Where(field => field.Work is { } work &&
+                     (!inhabitants.ContainsKey(work.WorkerId) || !active.Contains(work.WorkerId))).ToArray())
+            CancelFarmWork(field);
+    }
+
     private bool ContinueFarmWork(string workerId)
     {
         if (FarmWorkFor(workerId) is not { Work: { } work } field) return false;
         if (work.LastWorkedTick == WorldTick) return true;
         if (!inhabitants.TryGetValue(workerId, out var worker) || !AdultResident(workerId) || HouseholdFor(workerId) != field.HouseholdId ||
             FarmhouseForHousehold(field.HouseholdId) is null || worker.Position != field.Position ||
-            NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || !HasCarriedItem(workerId, FarmFieldRules.Hoe))
+            NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || !FieldWorkToolsAvailable(workerId, work))
         {
             CancelFarmWork(field);
             return false;
         }
         if (IsConversationBusy(workerId)) return true;
-        work = work with { RemainingTicks = work.RemainingTicks - 1, LastWorkedTick = WorldTick };
-        if (work.RemainingTicks > 0) { SetFarmField(field with { Work = work }); return true; }
+        var toolPlans = FieldWorkToolPlans(workerId, work);
+        var hoe = toolPlans.FirstOrDefault(plan => ToolProgressionRules.Find(
+            society.Checkpoint.Inventory.GetLot(plan.ToolLotId).ItemKind)?.Family == ToolFamily.Hoe);
+        var sickle = toolPlans.FirstOrDefault(plan => ToolProgressionRules.Find(
+            society.Checkpoint.Inventory.GetLot(plan.ToolLotId).ItemKind)?.Family == ToolFamily.Sickle);
+        var progress = work.Kind switch
+        {
+            FarmWorkKind.Till or FarmWorkKind.Tend => hoe?.WorkUnits ?? 1,
+            FarmWorkKind.Harvest => sickle?.WorkUnits ?? 1,
+            _ => 1,
+        };
+        work = work with { RemainingTicks = Math.Max(0, work.RemainingTicks - progress), LastWorkedTick = WorldTick };
+        if (work.RemainingTicks > 0)
+        {
+            ApplyToolWork(workerId, toolPlans.ToArray());
+            if (FieldWorkToolsAvailable(workerId, work))
+                SetFarmField(field with { Work = work });
+            else
+                CancelFarmWork(field with { Work = work });
+            return true;
+        }
         switch (work.Kind)
         {
             case FarmWorkKind.Till:
+                ApplyToolWork(workerId, toolPlans.ToArray());
                 SetFarmField(field with { Stage = FarmFieldStage.Prepared, Work = null });
                 break;
             case FarmWorkKind.Plant:
@@ -158,10 +214,11 @@ public sealed partial class PrivateWorldRuntime
                 });
                 break;
             case FarmWorkKind.Tend:
+                ApplyToolWork(workerId, toolPlans.ToArray());
                 SetFarmField(field with { Tended = true, Work = null });
                 break;
             case FarmWorkKind.Harvest:
-                CompleteFieldHarvest(field);
+                CompleteFieldHarvest(field, toolPlans);
                 break;
         }
         CreditCompletedWork(workerId, "farming");
@@ -171,7 +228,30 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private void CompleteFieldHarvest(FarmFieldState field)
+    private bool FieldWorkToolsAvailable(string workerId, FarmFieldWork work)
+    {
+        if (work.Kind is FarmWorkKind.Till or FarmWorkKind.Tend)
+            return ToolProgressionRules.PlanWorkForLot(society.Checkpoint.Inventory, workerId,
+                ToolFamily.Hoe, work.HoeLotId) is not null;
+        if (work.HoeLotId is not null) return false;
+        if (work.Kind == FarmWorkKind.Harvest)
+            return work.SickleLotId is null || ToolProgressionRules.PlanWorkForLot(society.Checkpoint.Inventory,
+                workerId, ToolFamily.Sickle, work.SickleLotId) is not null;
+        return work.SickleLotId is null;
+    }
+
+    private List<ToolWorkPlan> FieldWorkToolPlans(string workerId, FarmFieldWork work)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var plans = new List<ToolWorkPlan>(2);
+        if (work.HoeLotId is { } hoeId)
+            plans.Add(ToolProgressionRules.PlanWorkForLot(inventory, workerId, ToolFamily.Hoe, hoeId)!);
+        if (work.SickleLotId is { } sickleId)
+            plans.Add(ToolProgressionRules.PlanWorkForLot(inventory, workerId, ToolFamily.Sickle, sickleId)!);
+        return plans;
+    }
+
+    private void CompleteFieldHarvest(FarmFieldState field, IReadOnlyList<ToolWorkPlan> toolPlans)
     {
         var cycle = checked(field.Cycle + 1);
         var prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
@@ -194,7 +274,9 @@ public sealed partial class PrivateWorldRuntime
             if (plantingItem != crop)
                 next = InventoryFixture.AddLot(next, plantingLotId, plantingItem, field.HouseholdId, 2, WorldTick,
                     groundPosition: new(field.Position.X, field.Position.Y));
-            return InventoryFixture.Reserve(next, replantId, field.HouseholdId, plantingLotId, 1, "field_replanting", long.MaxValue);
+            next = InventoryFixture.Reserve(next, replantId, field.HouseholdId, plantingLotId, 1,
+                "field_replanting", long.MaxValue);
+            return ApplyToolWorkToInventory(next, field.Work!.WorkerId, WorldTick, toolPlans);
         });
         SetFarmField(field with { Stage = FarmFieldStage.Harvested, Cycle = cycle, Work = null, ReplantingReservationId = replantId });
         if (weather is WeatherKind.Snow or WeatherKind.Storm)

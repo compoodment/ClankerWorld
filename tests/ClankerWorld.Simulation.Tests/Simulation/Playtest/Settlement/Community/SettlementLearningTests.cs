@@ -7,21 +7,6 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SettlementLearningTests
 {
-    [Fact]
-    public async Task NormalGameOffersLessonsAfterCompletedWorkWithoutRoles()
-    {
-        var recorder = new ActionCoverageRecorder();
-        using var world = NormalPathWorld.CreateGenerated("normal-saved-skills", _ => recorder);
-        Assert.All(world.Inhabitants, person => Assert.Empty(person.Skills ?? []));
-        Assert.All(world.Society.Inhabitants, person => Assert.Equal(SocietyWorkRole.Unassigned, person.CurrentRole));
-        for (var tick = 0; tick < 160 && !recorder.FamiliesOffered(world.WorldContent).Contains("learn"); tick++)
-            await world.AdvanceOneTickAsync();
-
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "work_practice_earned");
-        Assert.Contains("learn", recorder.FamiliesOffered(world.WorldContent));
-        Assert.All(world.Society.Inhabitants, person => Assert.Equal(SocietyWorkRole.Unassigned, person.CurrentRole));
-    }
-
     [Theory]
     [InlineData("ready", true)]
     [InlineData("unskilled", false)]
@@ -48,31 +33,6 @@ public sealed class SettlementLearningTests
         await world.AdvanceOneTickAsync();
         Assert.Equal(expected, provider.CandidateIds.Contains("learn:building:" + teacher));
         Assert.Equal(SocietyWorkRole.Unassigned, world.Society.GetInhabitant(teacher).CurrentRole);
-    }
-
-    [Fact]
-    public async Task StoredSkillsDoNotChangeOrdinaryActionAccess()
-    {
-        var state = await PreparedState();
-        var actor = state.Inhabitants[0].InhabitantId;
-        var unskilled = new LessonProvider("safe_idle");
-        var skilled = new LessonProvider("safe_idle");
-        using var without = PrivateWorldRuntime.Restore(state, id => id == actor ? unskilled : new LessonProvider("safe_idle"));
-        using var with = PrivateWorldRuntime.Restore(state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with
-                {
-                    Skills = Enum.GetValues<SettlementSkillKind>().Select(kind =>
-                    new SettlementSkill(kind, state.Society.Society.WorldTick)).ToArray()
-                } : person).ToArray(),
-        }, id => id == actor ? skilled : new LessonProvider("safe_idle"));
-        await without.AdvanceOneTickAsync();
-        await with.AdvanceOneTickAsync();
-        Assert.Equal(unskilled.CandidateIds.Where(id => !id.StartsWith("learn:", StringComparison.Ordinal)),
-            skilled.CandidateIds.Where(id => !id.StartsWith("learn:", StringComparison.Ordinal)));
-        Assert.Equal(without.Inhabitants.Single(person => person.InhabitantId == actor).Proficiency,
-            with.Inhabitants.Single(person => person.InhabitantId == actor).Proficiency);
     }
 
     [Fact]

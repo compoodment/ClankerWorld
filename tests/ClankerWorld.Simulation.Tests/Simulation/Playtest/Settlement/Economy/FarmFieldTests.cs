@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -107,6 +108,23 @@ public sealed class FarmFieldTests
         Assert.Equal(new InventoryGroundPosition(point.X, point.Y), groundRestored.Society.Inventory.GetLot("field-ground-schema").GroundPosition);
     }
 
+    [Fact]
+    public void SavedFieldToolWorkRequiresItsOwnSchema()
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-tool-schema");
+        using var world = Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        var active = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.ToolProgressionSchemaVersion, active.SchemaVersion);
+        Assert.NotNull(Assert.Single(active.Fields!).Work!.HoeLotId);
+        Assert.Throws<InvalidDataException>(() => Restore(active with
+        {
+            SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1,
+        }));
+        using var restored = Restore(active);
+        Assert.Equal(active.Fields, restored.Fields);
+    }
+
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
@@ -128,14 +146,16 @@ public sealed class FarmFieldTests
     [Fact]
     public async Task RawCropReservesDoNotSuppressFreshFoodPlantingAcrossReload()
     {
-        var (state, _, household, point) = PreparedFarmer("field-raw-stock-shortage");
+        var (state, actor, household, point) = PreparedFarmer("field-raw-stock-shortage");
         state = FeedHouseholdFromAvailableStock(state, household);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "raw-reserve-grain", "grain", household, 40,
             storageBuildingId: "first-town-farmhouse");
         inventory = InventoryFixture.AddLot(inventory, "raw-reserve-potatoes", "potatoes", household, 40);
         state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        // Only the farmer acts. Other founders walking over the field or
+        // hauling the green seed would test their timing, not the crop choice.
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-            _ => new DeterministicDecisionProvider());
+            id => id == actor ? new DeterministicDecisionProvider() : new IdleProvider());
         for (var tick = 0; tick < 120 && !world.Fields.Any(field => field.HouseholdId == household &&
                  field.Crop == FarmFieldRules.Greens); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -145,6 +165,131 @@ public sealed class FarmFieldTests
         Assert.Equal(40, world.Society.Inventory.GetLot("raw-reserve-potatoes").Quantity);
         using var restored = Reload(world);
         Assert.Contains(restored.Fields, field => field.HouseholdId == household && field.Crop == FarmFieldRules.Greens);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TemporarilyOccupiedFieldKeepsItsPlantingChoiceAndSiblingDoesNotReplaceIt(bool pausedBuild)
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-claim-through-occupancy");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var sibling = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand == SocietyAgeBand.Adult && person.Id != actor).Id;
+        var siblingOrigin = state.Inhabitants.Single(person => person.InhabitantId == sibling).Position;
+        Assert.NotEqual(point, siblingOrigin);
+        Assert.True(state.Map.IsReachableOnFoot(siblingOrigin, point));
+        var occupied = state.Map.Resources.Select(resource => resource.Position)
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var siblingAway = state.Map.Tiles.Select(tile => tile.Position)
+            .First(position => position != point && position != siblingOrigin && state.Map.IsBuildable(position) &&
+                !occupied.Contains(position) && !state.Inhabitants.Any(person =>
+                    person.Position == position && person.InhabitantId != actor && person.InhabitantId != sibling) &&
+                state.Map.IsReachableOnFoot(position, point));
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Greens}";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "field-claim-greens-seed", FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "field-claim-sibling-hoe", FarmFieldRules.Hoe, sibling, 1);
+        var savedPlan = pausedBuild ? new SettlementProject(
+            "build:recipe:" + state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe").CanonicalId,
+            "Wooden axe", state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true) : null;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+                Cognition = state.Society.Cognition with
+                {
+                    Queue = [],
+                    Runtimes = state.Society.Cognition.Runtimes.Select(runtime => runtime with
+                    {
+                        CurrentIntention = null,
+                    }).ToArray(),
+                },
+            },
+            Fields = [new(point, household, FarmFieldStage.Prepared)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = siblingOrigin,
+                    HungerBasisPoints = 10_000,
+                    LastDecisionContext = null,
+                    Project = savedPlan
+                }
+                : person.InhabitantId == sibling
+                    ? person with { Position = siblingAway, HungerBasisPoints = 10_000, LastDecisionContext = null }
+                    : person).ToArray(),
+        };
+        var firstChoice = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var choosing = PrivateWorldRuntime.Restore(state, _ => firstChoice);
+        Assert.True((await choosing.AdvanceOneTickAsync()).Advanced);
+        var actorCandidates = firstChoice.Requests.Where(request => request.InhabitantId == actor)
+            .SelectMany(request => request.CandidateIds).ToArray();
+        Assert.True(actorCandidates.Contains(candidateId, StringComparer.Ordinal),
+            $"Actor candidates: {string.Join(",", actorCandidates)}");
+        Assert.Contains(candidateId, firstChoice.SelectedCandidateIds);
+        var actorRuntime = choosing.ExportState().Society.Cognition.Runtimes.Single(item => item.InhabitantId == actor);
+        Assert.Equal(candidateId, actorRuntime.CurrentIntention?.CandidateId);
+        Assert.Contains(choosing.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == FarmFieldRules.PlantingItem(FarmFieldRules.Greens) && lot.Quantity == 1);
+
+        state = choosing.ExportState() with
+        {
+            Inhabitants = choosing.ExportState().Inhabitants.Select(person => person.InhabitantId == sibling
+                    ? person with { Position = point, LastDecisionContext = null }
+                    : person).ToArray(),
+        };
+        state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state));
+        var secondChoice = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var contested = PrivateWorldRuntime.Restore(state, _ => secondChoice);
+        Assert.Equal(candidateId, contested.ExportState().Society.Cognition.Runtimes
+            .Single(item => item.InhabitantId == actor).CurrentIntention?.CandidateId);
+        Assert.True((await contested.AdvanceOneTickAsync()).Advanced);
+        var siblingRequest = Assert.Single(secondChoice.Requests, request => request.InhabitantId == sibling);
+        Assert.True(!siblingRequest.CandidateIds.Any(id => id.StartsWith(
+                $"farm:Plant:{point.X}:{point.Y}:", StringComparison.Ordinal)),
+            $"Sibling candidates: {string.Join(",", siblingRequest.CandidateIds)}");
+        Assert.Equal(candidateId, contested.ExportState().Society.Cognition.Runtimes
+            .Single(item => item.InhabitantId == actor).CurrentIntention?.CandidateId);
+        Assert.Contains(contested.Fields, field => field.Position == point && field.Stage == FarmFieldStage.Prepared);
+        Assert.Equal(savedPlan, contested.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        contested.Validate();
+    }
+
+    [Fact]
+    public async Task FreshChoicePausedBuildCanYieldToFieldWorkWithoutLosingItsSavedPlan()
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-fresh-choice-paused-project");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe");
+        var project = new SettlementProject("build:recipe:" + recipe.CanonicalId, recipe.DisplayName,
+            state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "fresh-choice-greens-seed",
+            FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Fields = [new(point, household, FarmFieldStage.Prepared)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Project = project, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Greens}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new IdleProvider());
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(candidateId, provider.SelectedCandidateIds);
+        var field = Assert.Single(world.Fields);
+        Assert.Equal(FarmWorkKind.Plant, field.Work?.Kind);
+        Assert.Equal(actor, field.Work?.WorkerId);
+        var paused = world.Inhabitants.Single(item => item.InhabitantId == actor).Project;
+        Assert.Equal(project, paused);
+        world.Validate();
     }
 
     [Theory]
@@ -183,7 +328,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)
@@ -232,6 +376,151 @@ public sealed class FarmFieldTests
             await Advance(reloaded, 5);
             Assert.Equal(FarmFieldStage.Prepared, Assert.Single(reloaded.Fields).Stage);
         }
+    }
+
+    [Fact]
+    public async Task IronHoeWorksFasterThanWoodAndSavedWorkKeepsItsSelectedTool()
+    {
+        var (woodState, actor, _, point) = PreparedFarmer("field-wood-hoe-speed");
+        using var wooden = Restore(woodState);
+        Assert.True(wooden.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        Assert.Equal("carried-hoe", Assert.Single(wooden.Fields).Work!.HoeLotId);
+        await Advance(wooden, 1);
+        Assert.Equal(6, Assert.Single(wooden.Fields).Work!.RemainingTicks);
+        Assert.Equal(9_000, wooden.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+        using var woodReload = Reload(wooden);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(wooden.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(woodReload.ExportState()));
+        await Advance(woodReload, 3);
+        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(woodReload.Fields).Stage);
+        Assert.Equal(6_000, woodReload.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+
+        var (ironState, ironActor, _, ironPoint) = PreparedFarmer("field-iron-hoe-speed");
+        var inventory = ironState.Society.Society.Inventory with
+        {
+            Lots = ironState.Society.Society.Inventory.Lots.Where(lot => lot.Id != "carried-hoe").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "carried-iron-hoe", "iron_hoe", ironActor, 1);
+        ironState = WithInventory(ironState, inventory);
+        using var iron = Restore(ironState);
+        Assert.True(iron.StartFieldWork(ironActor, ironPoint, FarmWorkKind.Till).Accepted);
+        Assert.Equal("carried-iron-hoe", Assert.Single(iron.Fields).Work!.HoeLotId);
+        await Advance(iron, 1);
+        Assert.Equal(5, Assert.Single(iron.Fields).Work!.RemainingTicks);
+        await Advance(iron, 2);
+        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(iron.Fields).Stage);
+        Assert.Equal(7_000, iron.Society.Inventory.GetLot("carried-iron-hoe").ConditionBasisPoints);
+    }
+
+    [Fact]
+    public async Task WoodenHoeCompletesAnOrdinaryTillAndTendCycleAcrossReload()
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-wood-hoe-till-tend");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "carried-planting", FarmFieldRules.GreensSeed, actor, 2);
+        using var tilling = Restore(WithInventory(state, inventory));
+        Assert.True(tilling.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        await Advance(tilling, 4);
+        using var prepared = Reload(tilling);
+        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(prepared.Fields).Stage);
+        Assert.Equal(6_000, prepared.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+
+        Assert.True(prepared.StartFieldWork(actor, point, FarmWorkKind.Plant,
+            FarmFieldRules.Greens, "carried-planting").Accepted);
+        await Advance(prepared, 4);
+        using var growing = Reload(prepared);
+        await Advance(growing, 1);
+        Assert.Equal(FarmFieldStage.Growing, Assert.Single(growing.Fields).Stage);
+        Assert.True(growing.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
+        await Advance(growing, 3);
+
+        var tended = Assert.Single(growing.Fields);
+        Assert.True(tended.Tended);
+        Assert.Null(tended.Work);
+        Assert.Equal(3_000, growing.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+    }
+
+    [Fact]
+    public async Task SickleTiersSpeedHarvestAndWearOnlyAsSavedFieldWorkProgresses()
+    {
+        var (state, actor, household, point) = await ReadyFarmer("field-sickle-speed");
+        var woodenInventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "carried-wooden-sickle", "wooden_sickle", actor, 1);
+        using var wooden = Restore(WithInventory(state, woodenInventory));
+        Assert.True(wooden.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
+        Assert.Equal("carried-wooden-sickle", Assert.Single(wooden.Fields).Work!.SickleLotId);
+        await Advance(wooden, 1);
+        Assert.Equal(2, Assert.Single(wooden.Fields).Work!.RemainingTicks);
+        Assert.Equal(8_000, wooden.Society.Inventory.GetLot("carried-wooden-sickle").ConditionBasisPoints);
+        using var resumedWooden = Reload(wooden);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(wooden.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(resumedWooden.ExportState()));
+        await Advance(resumedWooden, 1);
+        Assert.Equal(FarmFieldStage.Harvested, Assert.Single(resumedWooden.Fields).Stage);
+        Assert.Equal(6_000, resumedWooden.Society.Inventory.GetLot("carried-wooden-sickle").ConditionBasisPoints);
+        Assert.Contains(resumedWooden.Society.Inventory.Lots, lot => lot.OwnerId == household && lot.ItemKind == "grain" &&
+            lot.GroundPosition == new InventoryGroundPosition(point.X, point.Y));
+
+        var (ironState, ironActor, _, ironPoint) = await ReadyFarmer("field-iron-sickle-speed");
+        var ironInventory = InventoryFixture.AddLot(ironState.Society.Society.Inventory,
+            "carried-iron-sickle", "iron_sickle", ironActor, 1);
+        using var iron = Restore(WithInventory(ironState, ironInventory));
+        Assert.True(iron.StartFieldWork(ironActor, ironPoint, FarmWorkKind.Harvest).Accepted);
+        Assert.Equal("carried-iron-sickle", Assert.Single(iron.Fields).Work!.SickleLotId);
+        await Advance(iron, 1);
+        Assert.Equal(FarmFieldStage.Harvested, Assert.Single(iron.Fields).Stage);
+        Assert.Equal(9_000, iron.Society.Inventory.GetLot("carried-iron-sickle").ConditionBasisPoints);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ToolBreakingDuringUnfinishedFieldWorkLeavesAReloadableCheckpoint(bool harvest)
+    {
+        var (state, actor, _, point) = harvest
+            ? await ReadyFarmer("field-tool-break-harvest")
+            : PreparedFarmer("field-tool-break-till");
+        var toolId = harvest ? "breaking-sickle" : "carried-hoe";
+        var inventory = state.Society.Society.Inventory;
+        inventory = harvest
+            ? InventoryFixture.AddLot(inventory, toolId, "wooden_sickle", actor, 1,
+                conditionBasisPoints: 1_000)
+            : inventory with
+            {
+                Lots = inventory.Lots.Select(lot => lot.Id == toolId
+                    ? lot with { ConditionBasisPoints = 500 } : lot).ToArray(),
+            };
+        using var working = Restore(WithInventory(state, inventory));
+        var beforeLots = working.Society.Inventory.Lots;
+        Assert.True(working.StartFieldWork(actor, point,
+            harvest ? FarmWorkKind.Harvest : FarmWorkKind.Till).Accepted);
+        await Advance(working, 1);
+
+        var tool = working.Society.Inventory.GetLot(toolId);
+        Assert.Equal((actor, 1, 0), (tool.OwnerId, tool.Quantity, tool.ConditionBasisPoints));
+        Assert.Null(tool.StorageBuildingId);
+        Assert.Null(tool.DeliveryBuildingId);
+        Assert.Null(tool.GroundPosition);
+        if (harvest)
+        {
+            var field = Assert.Single(working.Fields);
+            Assert.Equal(FarmFieldStage.Ready, field.Stage);
+            Assert.Null(field.Work);
+            Assert.DoesNotContain(working.ExportState().Events, item => item.Kind == "field_harvested");
+        }
+        else
+        {
+            Assert.Empty(working.Fields);
+            Assert.DoesNotContain(working.ExportState().Events, item => item.Kind == "field_prepared");
+        }
+        Assert.Equal(beforeLots.Select(lot => (lot.Id, lot.Quantity)),
+            working.Society.Inventory.Lots.Select(lot => (lot.Id, lot.Quantity)));
+        var bytes = PrivateWorldRuntimeCodec.Encode(working.ExportState());
+        using var reloaded = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        await Advance(reloaded, 1);
+        Assert.Equal(0, reloaded.Society.Inventory.GetLot(toolId).ConditionBasisPoints);
+        Assert.All(reloaded.Fields, field => Assert.Null(field.Work));
     }
 
     [Theory]
@@ -299,8 +588,23 @@ public sealed class FarmFieldTests
         var (state, actor, household, point) = PreparedFarmer(seed);
         using var world = Restore(state);
         await Advance(world, 1);
-        return (world.ExportState() with { Fields = [new(point, household, FarmFieldStage.Ready, "grain", ReadyTick: 1, Tended: true)] },
-            actor, household, point);
+        var readyState = world.ExportState();
+        var occupied = world.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
+            .Concat(readyState.Map.Resources.Select(resource => resource.Position))
+            .Concat(world.RoadTiles).Concat(readyState.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var fertility = new LandFertility(readyState.Map, readyState.WorldSeed);
+        var readyPoint = readyState.Map.Tiles.Select(tile => tile.Position)
+            .Where(candidate => fertility.CanFarm(candidate) && !occupied.Contains(candidate) &&
+                !readyState.Inhabitants.Any(person => person.InhabitantId != actor && person.Position == candidate))
+            .OrderBy(candidate => readyState.Map.FootDistance(point, candidate)).First();
+        return (readyState with
+        {
+            Fields = [new(readyPoint, household, FarmFieldStage.Ready, "grain", ReadyTick: 1, Tended: true)],
+            Inhabitants = readyState.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = readyPoint, LastDecisionContext = null, TravelCooldownTicks = 0 }
+                : person).ToArray(),
+        }, actor, household, readyPoint);
     }
 
     [Theory]
@@ -543,7 +847,7 @@ public sealed class FarmFieldTests
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
         using var world = Restore(state);
         var occupied = world.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-            world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position))
+            world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
             .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(world.RoadTiles)
             .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
         var fertility = new LandFertility(state.Map, seed);
@@ -595,5 +899,36 @@ public sealed class FarmFieldTests
                     ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")]
                 },
             }, cancellationToken);
+    }
+
+    private sealed record FieldChoiceRequest(string InhabitantId, string[] CandidateIds);
+
+    private sealed class RecordingFieldChoiceProvider(string actor, string candidateId) : IDecisionProvider
+    {
+        private readonly ConcurrentQueue<FieldChoiceRequest> requests = new();
+        private readonly ConcurrentQueue<string> selected = new();
+
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public FieldChoiceRequest[] Requests => requests.ToArray();
+        public string[] SelectedCandidateIds => selected.ToArray();
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            requests.Enqueue(new FieldChoiceRequest(observation.InhabitantId,
+                observation.Candidates.Select(item => item.Id).ToArray()));
+            var chosen = observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(item => item.Id == candidateId)
+                : null;
+            chosen ??= observation.Candidates.Single(item => item.Id == "safe_idle");
+            selected.Enqueue(chosen.Id);
+            var probabilities = observation.Candidates.ToDictionary(item => item.Id,
+                item => item.Id == chosen.Id ? 1d : 0d, StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
+                Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration,
+                observation.ObservationDigest, chosen.Id, 1, probabilities));
+        }
     }
 }

@@ -35,7 +35,8 @@ public sealed record WorldProductionJob(
     long StartedTick,
     long CompletionTick,
     WorldProductionJobState State,
-    IReadOnlyList<string> InputReservationIds);
+    IReadOnlyList<string> InputReservationIds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null);
 
 public sealed record WorldContentSimulationState(
     IReadOnlyList<PlacedBuilding> Buildings,
@@ -159,7 +160,9 @@ public static class WorldContentSimulationRules
                 job.CompletionTick <= job.StartedTick || job.CompletionTick < worldTick &&
                 job.State == WorldProductionJobState.Running ||
                 job.InputReservationIds is null ||
-                job.InputReservationIds.Count != job.InputReservationIds.Distinct(StringComparer.Ordinal).Count())
+                job.InputReservationIds.Count != job.InputReservationIds.Distinct(StringComparer.Ordinal).Count() ||
+                job.ToolLotId is { } toolLotId && (string.IsNullOrWhiteSpace(toolLotId) ||
+                    toolLotId.Length > 512 || toolLotId.Any(char.IsControl) || !ToolProgressionRules.UsesKnife(recipe)))
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' is malformed.");
             }

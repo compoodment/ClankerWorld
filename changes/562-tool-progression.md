@@ -1,0 +1,3 @@
+- Agents can mine finite deposits with the right pickaxe, make and repair wooden, stone and iron tool tiers at a Blacksmith, and work faster with hoes, hammers, wooden and iron sickles, and knives. Using tools wears them; fallen wood can still be gathered by hand. Trial rates remain provisional.
+- If a tool breaks before field work finishes, the work stops safely and the crop remains available. Saving at that point preserves the broken tool and the unfinished crop.
+- Adults with a usable iron pickaxe and enough carrying space can mine gold and diamonds from finite outcrops. They keep the extracted goods; making ornaments remains later work.

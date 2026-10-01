@@ -235,7 +235,7 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
     }
 
     [Fact]
-    public async Task HouseLessHelperStagesMaterialsAtTheHouseholdCampAcrossReload()
+    public async Task HouseLessHelperHandsMaterialsToTheRequesterInPersonAcrossReload()
     {
         using var seed = PrivateWorldRuntime.Restore(
             GeographyGeneratorTests.StartedGeneratedWorld(new GeographyOptions("project-help-without-house", WorldSizePreset.Small)),
@@ -272,7 +272,11 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
             .ToArray();
         var camp = initial.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-warehouse").Position;
         var helperPosition = initial.Map.FootNeighbors(camp).First(available.Contains);
-        var requesterPosition = available.First(point => point != helperPosition);
+        var requesterPosition = available.Where(point => point != helperPosition &&
+                initial.Map.IsReachableOnFoot(helperPosition, point) &&
+                initial.Map.FootDistance(helperPosition, point) >= 4)
+            .OrderBy(point => initial.Map.FootDistance(helperPosition, point))
+            .ThenBy(point => point.Y).ThenBy(point => point.X).First();
         var house = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
         var site = initial.Map.Tiles.Select(tile => tile.Position).First(point =>
             initial.Map.IsBuildable(point) &&
@@ -309,21 +313,32 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         using var helped = PrivateWorldRuntime.Restore(state,
             id => id == helper.Id ? new PreferredCandidateProvider("assist:wood") : new IdleProvider());
         Assert.True((await helped.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(helped.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
+        Assert.Equal(helper.Id, helped.Society.Inventory.GetLot("no-house-helper-wood").OwnerId);
+        Assert.DoesNotContain(helped.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
             item.Detail == $"{helper.Id}:{requester.Id}:wood:4");
-        var carried = Assert.Single(helped.Society.Inventory.Lots, lot => lot.Id == "no-house-helper-wood");
-        Assert.Equal((requesterHouseholdId, 4), (carried.OwnerId, carried.Quantity));
+        var traveling = PrivateWorldRuntimeCodec.Encode(helped.ExportState());
+        using var arrived = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(traveling),
+            id => id == helper.Id ? new PreferredCandidateProvider("assist:wood") : new IdleProvider());
+        Assert.Equal(traveling, PrivateWorldRuntimeCodec.Encode(arrived.ExportState()));
+        for (var tick = 0; tick < 60 && arrived.Society.Inventory.GetLot("no-house-helper-wood").OwnerId == helper.Id; tick++)
+            Assert.True((await arrived.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(arrived.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
+            item.Detail == $"{helper.Id}:{requester.Id}:wood:4");
+        var carried = Assert.Single(arrived.Society.Inventory.Lots, lot => lot.Id == "no-house-helper-wood");
+        Assert.Equal((requester.Id, 4), (carried.OwnerId, carried.Quantity));
         Assert.Null(carried.StorageBuildingId);
         Assert.Null(carried.DeliveryBuildingId);
-        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), carried.GroundPosition);
+        Assert.Null(carried.GroundPosition);
+        Assert.InRange(initial.Map.FootDistance(arrived.Inhabitants.Single(person => person.InhabitantId == helper.Id).Position,
+            arrived.Inhabitants.Single(person => person.InhabitantId == requester.Id).Position), 0, 1);
 
-        var saved = PrivateWorldRuntimeCodec.Encode(helped.ExportState());
+        var saved = PrivateWorldRuntimeCodec.Encode(arrived.ExportState());
         using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new IdleProvider());
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         Assert.Contains(resumed.Society.Inventory.Lots, lot => lot.Id == "no-house-helper-wood" &&
-            lot.OwnerId == requesterHouseholdId && lot.Quantity == 4 && lot.StorageBuildingId is null &&
-            lot.DeliveryBuildingId is null && lot.GroundPosition == new InventoryGroundPosition(camp.X, camp.Y));
+            lot.OwnerId == requester.Id && lot.Quantity == 4 && lot.StorageBuildingId is null &&
+            lot.DeliveryBuildingId is null && lot.GroundPosition is null);
     }
 
     [Fact]
@@ -449,7 +464,6 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Contains(state.Events, item => item.Kind == "household_food_collected");
         var gathered = state.Events.Where(item => item.Kind == "material_gathered")
             .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
-        if (gathered.Count < 3) output.WriteLine(CapacityDiagnostic(world));
         Assert.True(gathered.Count >= 3);
         Assert.Contains("stone", gathered);
         Assert.Contains("fiber", gathered);
@@ -538,11 +552,22 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Contains(world.ExportState().Events, item => item.Kind == "material_gathered" && item.Detail.Contains(":wood:", StringComparison.Ordinal));
         if (!world.Society.Inventory.Reservations.Any(item => item.Purpose.StartsWith("building:", StringComparison.Ordinal)))
             output.WriteLine(CapacityDiagnostic(world));
-        Assert.Contains(world.Society.Inventory.Reservations, reservation =>
+        var completed = world.Society.Inventory.Reservations.Where(reservation =>
             reservation.Purpose.StartsWith("building:", StringComparison.Ordinal) &&
-            reservation.State == InventoryReservationState.Completed &&
-            world.WorldSimulation.Buildings.Any(building => building.HouseholdId == reservation.OwnerId));
-        Assert.NotEmpty(world.WorldSimulation.Buildings);
+            reservation.State == InventoryReservationState.Completed).ToArray();
+        Assert.NotEmpty(completed);
+        foreach (var reservation in completed)
+        {
+            var built = Assert.Single(world.WorldSimulation.Buildings,
+                building => "building:" + building.InstanceId == reservation.Purpose);
+            var household = world.Society.Inhabitants.FirstOrDefault(person => person.Id == reservation.OwnerId)
+                ?.HouseholdId ?? reservation.OwnerId;
+            Assert.Equal(household, built.HouseholdId);
+        }
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Validate();
     }
 
     private static string CapacityDiagnostic(PrivateWorldRuntime world) => System.Text.Json.JsonSerializer.Serialize(new

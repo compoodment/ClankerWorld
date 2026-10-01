@@ -250,6 +250,13 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private static bool HasSavedToolUseState(PrivateWorldRuntimeState state) =>
+        state.WorldSimulation is { } simulation &&
+            simulation.ProductionJobs.Concat(simulation.CropBuilds ?? [])
+                .Any(job => job is not null && job.ToolLotId is not null) ||
+        (state.Fields ?? []).Any(field => field is not null &&
+            (field.Work?.HoeLotId is not null || field.Work?.SickleLotId is not null));
+
     internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
     {
         if (schemaVersion < MinimumSupportedStateSchemaVersion)
@@ -279,6 +286,9 @@ public sealed partial class PrivateWorldRuntime
             (state.FounderSetup is null ||
              !string.Equals(state.Geography.Seed, state.WorldSeed, StringComparison.Ordinal)))
             throw new InvalidDataException("Generated geography does not match the saved world setup.");
+        // New worlds can only be created at these sizes, so any other saved size is damage.
+        if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
+            throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)
@@ -286,6 +296,8 @@ public sealed partial class PrivateWorldRuntime
         if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
             state.WorldSimulation is null || state.AssetReservations is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
+        if (state.SchemaVersion < ToolProgressionSchemaVersion && HasSavedToolUseState(state))
+            throw new InvalidDataException($"Saved tool use links require private-world schema {ToolProgressionSchemaVersion}.");
         if (state.SchemaVersion >= ConversationSchemaVersion && (state.Conversations is null || state.ConversationBudgets is null))
             throw new InvalidDataException($"Private-world schema {ConversationSchemaVersion} requires conversation state and daily budgets.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||

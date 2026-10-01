@@ -148,6 +148,11 @@ public sealed partial class PrivateWorldRuntime
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
                 new InventoryLot("wood:camp-alpha", "wood", HouseholdId, 48, 10_000, 10_000, 0),
                 new InventoryLot("tools:camp-alpha", "tool", HouseholdId, 4, 10_000, 10_000, 0),
+                ..(startPace == WorldStartPace.Legacy ? new InventoryLot[]
+                {
+                    new("legacy-wooden-axe:camp-alpha", "wooden_axe", HouseholdId, 1, 10_000, 10_000, 0),
+                    new("legacy-wooden-pickaxe:camp-alpha", "wooden_pickaxe", HouseholdId, 1, 10_000, 10_000, 0),
+                } : []),
                 ..(startPace == WorldStartPace.FounderSetup ? new InventoryLot[]
                 {
                     new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),

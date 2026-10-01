@@ -21,8 +21,8 @@ public sealed class TownBridgeRuntimeTests
     private static readonly GridPoint GrowthTownSite = new(86, 3);
     private static readonly GridPoint GrowthBuildingSite = new(89, 5);
     private const string GrowthBridgeId = "bridge-90-3-ew-2";
-    private static readonly GridPoint RunOnTownSite = new(86, 5);
-    private static readonly GridPoint RunOnBuildingSite = new(88, 4);
+    private static readonly GridPoint RunOnTownSite = new(85, 5);
+    private static readonly GridPoint RunOnBuildingSite = new(89, 4);
     private const string RunOnBridgeId = "bridge-90-5-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
@@ -63,6 +63,9 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
         Assert.True(map.CanFootStep(bridge.Span[0], bridge.Span[1]));
         Assert.True(map.CanFootStep(bridge.Span[1], bridge.Entrances[1]));
+        Assert.False(map.CanFootStep(bridge.Span[0], new GridPoint(bridge.Span[0].X, bridge.Span[0].Y - 1)));
+        Assert.False(map.CanFootStep(bridge.Span[1], new GridPoint(bridge.Span[1].X, bridge.Span[1].Y + 1)));
+        Assert.False(map.CanFootStep(new GridPoint(bridge.Entrances[0].X, bridge.Entrances[0].Y - 1), bridge.Span[0]));
         Assert.True(map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         var saved = PrivateWorldRuntimeCodec.Encode(state);
@@ -347,7 +350,20 @@ public sealed class TownBridgeRuntimeTests
             geographyOptions: geography);
         setup.InitializeFirstTownContent();
         setup.AcceptFirstTownLayout(setup.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
-        var founders = new[] { new GridPoint(128, 60), new GridPoint(129, 60), new GridPoint(130, 60), new GridPoint(131, 60) };
+        var initialMap = setup.ExportState().Map;
+        var definitions = setup.WorldContent.Buildings.ToDictionary(item => item.CanonicalId);
+        var occupied = initialMap.Resources.Select(item => item.Position)
+            .Concat(initialMap.CampObjects.Select(item => item.Position))
+            .Concat(setup.RoadTiles)
+            .Concat(setup.WorldSimulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position)))
+            .ToHashSet();
+        var founders = initialMap.Tiles.Select(tile => tile.Position)
+            .Where(point => initialMap.IsBuildable(point) && !occupied.Contains(point))
+            .OrderBy(point => Math.Abs(point.X - 128) + Math.Abs(point.Y - 60))
+            .ThenBy(point => point.Y).ThenBy(point => point.X)
+            .Take(PrivateWorldRuntime.RequiredFounders).ToArray();
+        Assert.Equal(PrivateWorldRuntime.RequiredFounders, founders.Length);
         for (var index = 0; index < founders.Length; index++)
             setup.PlaceFounder($"founder:0000000000000000000000000000000{index + 1}", founders[index]);
         setup.StartWorld();

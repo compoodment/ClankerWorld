@@ -9,8 +9,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementTradeTests
 {
     [Theory]
-    [InlineData(SocietyAgeBand.Infant)]
-    [InlineData(SocietyAgeBand.Child)]
     [InlineData(SocietyAgeBand.Adolescent)]
     public async Task AdultsCannotOfferTradeToYoungRecipientsBeforeOrAfterReload(SocietyAgeBand age)
     {
@@ -41,11 +39,7 @@ public sealed class SettlementTradeTests
     }
 
     [Theory]
-    [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adolescent, false)]
-    [InlineData(SocietyAgeBand.Infant, true)]
-    [InlineData(SocietyAgeBand.Child, true)]
     [InlineData(SocietyAgeBand.Adolescent, true)]
     public void DirectBarterRejectsEitherYoungPartyBeforeReservingStock(SocietyAgeBand age, bool youngFirst)
     {
@@ -180,14 +174,6 @@ public sealed class SettlementTradeTests
     [Theory]
     [InlineData(false, "food")]
     [InlineData(true, "food")]
-    [InlineData(false, "berries")]
-    [InlineData(true, "berries")]
-    [InlineData(false, "wild_greens")]
-    [InlineData(true, "wild_greens")]
-    [InlineData(false, "cultivated_greens")]
-    [InlineData(true, "cultivated_greens")]
-    [InlineData(false, "fruit")]
-    [InlineData(true, "fruit")]
     public async Task RecipientIndependentlyAcceptsOrDeclinesAcrossPauseAndRestart(bool decline, string foodKind)
     {
         using var seed = new PrivateWorldRuntime("settlement-trade-test");

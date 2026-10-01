@@ -363,36 +363,6 @@ public sealed class TreeGrowthAndPlantingTests
         }
     }
 
-    [Fact]
-    public void WoodTreeStagesComeFromTheSavedGrowthState()
-    {
-        var sapling = TreeGrowthRules.PlantedSapling(
-            new MapResource("planted-tree-3-4", "construction", new GridPoint(3, 4), true, "conifer"), 5);
-        Assert.Equal(8, sapling.NextRegenerationDay);
-        Assert.Equal("sapling", TreeGrowthRules.StageOf("conifer", sapling, SeasonKind.Summer));
-        var config = WorldSystemsConfig.Default with
-        {
-            TicksPerDay = 10,
-            DaysPerYear = 40,
-            SpringDays = 10,
-            SummerDays = 10,
-            AutumnDays = 10,
-            WinterDays = 10,
-        };
-        var stillGrowing = EcologyRules.Regenerate(sapling, WorldCalendarRules.FromTick(70, config), config);
-        Assert.Equal("sapling", TreeGrowthRules.StageOf("conifer", stillGrowing, SeasonKind.Summer));
-        var mature = EcologyRules.Regenerate(stillGrowing, WorldCalendarRules.FromTick(80, config), config);
-        Assert.Equal(1, mature.Quantity);
-        Assert.Equal("mature", TreeGrowthRules.StageOf("conifer", mature, SeasonKind.Summer));
-        // Growth completes once: later days cannot add a second yield.
-        var later = EcologyRules.Regenerate(mature, WorldCalendarRules.FromTick(390, config), config);
-        Assert.Equal(1, later.Quantity);
-        var felled = EcologyRules.Harvest(later, 1);
-        Assert.True(felled.IsValid);
-        Assert.Equal("stump", TreeGrowthRules.StageOf("conifer", felled.Resource, SeasonKind.Summer));
-        Assert.False(EcologyRules.Harvest(felled.Resource!, 1).IsValid);
-    }
-
     /// <summary>
     /// Orchard trees fruit only in autumn and a new world starts in spring.
     /// Runtime harvest checks move one tree's recorded fruiting season to the

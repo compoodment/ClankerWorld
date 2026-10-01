@@ -9,32 +9,41 @@ public sealed class HouseholdBuildingPlanTests
 {
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
-    [Fact]
-    public async Task PlansWaitForMaterialsInHand()
-    {
-        var idle = new ActionCoverageRecorder(chooseIdle: true);
-        using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => idle);
-        var state = setup.ExportState();
-        Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot => lot.ItemKind == "stone" && lot.Quantity > 0);
 
-        using (var withoutStone = PrivateWorldRuntime.Restore(state, _ => idle))
+    [Theory]
+    [InlineData(Alpha, "blacksmith-1x2", "farmhouse-1x1", "first-town-house-a")]
+    [InlineData(Beta, "farmhouse-1x1", "blacksmith-1x2", "first-town-house-b")]
+    public async Task MissingProductiveBuildingIsOfferedWhenItsMaterialsAreInHand(
+        string household, string missingBuilding, string heldBuilding, string house)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(chooseIdle: true));
+        var state = setup.ExportState();
+        var empty = new ActionCoverageRecorder(chooseIdle: true);
+        using (var withoutMaterials = PrivateWorldRuntime.Restore(state, _ => empty))
         {
             for (var tick = 0; tick < 40; tick++)
-                Assert.True((await withoutStone.AdvanceOneTickAsync()).Advanced);
-            var families = idle.FamiliesOffered(withoutStone.WorldContent);
-            Assert.DoesNotContain(families, family => family.StartsWith("building:", StringComparison.Ordinal));
-            Assert.Contains(FamiliesForHousehold(withoutStone, idle, Alpha), family => family == "gather_building_material");
+                Assert.True((await withoutMaterials.AdvanceOneTickAsync()).Advanced);
+            Assert.DoesNotContain("building:" + missingBuilding,
+                FamiliesForHousehold(withoutMaterials, empty, household));
         }
 
-        var stocked = new ActionCoverageRecorder(chooseIdle: true);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "alpha-stone", "stone", Alpha, 4,
-            storageBuildingId: "first-town-house-a");
+        // Real House stock supplies the prerequisite. Free-running adults may
+        // otherwise spend their materials on food, pottery or another project.
+        var definition = setup.WorldContent.Buildings.Single(item => item.LocalId == missingBuilding);
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in definition.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "plan-material-" + cost.ResourceId,
+                cost.ResourceId, household, cost.Amount, storageBuildingId: house);
         state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
-        using var withStone = PrivateWorldRuntime.Restore(state, _ => stocked);
+        var stocked = new ActionCoverageRecorder(chooseIdle: true);
+        using var withMaterials = PrivateWorldRuntime.Restore(state, _ => stocked);
         for (var tick = 0; tick < 40; tick++)
-            Assert.True((await withStone.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains("building:blacksmith-1x2", FamiliesForHousehold(withStone, stocked, Alpha));
-        Assert.DoesNotContain("building:farmhouse-1x1", FamiliesForHousehold(withStone, stocked, Beta));
+            Assert.True((await withMaterials.AdvanceOneTickAsync()).Advanced);
+        var families = FamiliesForHousehold(withMaterials, stocked, household);
+        Assert.Contains("building:" + missingBuilding, families);
+        Assert.DoesNotContain("building:" + heldBuilding, families);
+        Assert.DoesNotContain("building:house-1x1", families);
+        withMaterials.Validate();
     }
 
     [Fact]

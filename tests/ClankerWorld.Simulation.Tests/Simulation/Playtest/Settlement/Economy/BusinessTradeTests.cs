@@ -101,6 +101,10 @@ public sealed class BusinessTradeTests
         var bytes = PrivateWorldRuntimeCodec.Encode(offering.ExportState());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(bytes)));
         state = PrivateWorldRuntimeCodec.Decode(bytes);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
+        {
+            BusinessTrades = [.. state.BusinessTrades!, null!],
+        }));
         state = state with { Inhabitants = state.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray() };
         var woodBefore = TotalQuantity(state.Society.Society.Inventory, "wood");
         var goodsBefore = TotalQuantity(state.Society.Society.Inventory, goodsKind);

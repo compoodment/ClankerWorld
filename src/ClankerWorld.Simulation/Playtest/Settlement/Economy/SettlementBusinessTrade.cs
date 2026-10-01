@@ -301,7 +301,7 @@ public sealed partial class PrivateWorldRuntime
         SocietyCheckpoint societyState, SeededMap map, long worldTick)
     {
         var inventory = societyState.Inventory;
-        if (trades is null || !trades.Select(trade => trade.OfferId).SequenceEqual(
+        if (trades is null || trades.Any(trade => trade is null) || !trades.Select(trade => trade.OfferId).SequenceEqual(
                 trades.Select(trade => trade.OfferId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)))
             throw new InvalidDataException("The checkpoint is missing canonical business exchange records.");
         foreach (var trade in trades)

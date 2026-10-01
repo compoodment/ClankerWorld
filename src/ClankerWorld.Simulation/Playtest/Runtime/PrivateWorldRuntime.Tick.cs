@@ -467,6 +467,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainBusinessTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();

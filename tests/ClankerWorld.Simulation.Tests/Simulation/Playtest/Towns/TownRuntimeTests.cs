@@ -352,6 +352,11 @@ public sealed class TownRuntimeTests
             var sites = map.Tiles.Select(tile => tile.Position).Where(point =>
                     WorldContentSimulationRules.Footprint(workshop, point).All(tile => map.IsBuildable(tile) && !taken.Contains(tile)) &&
                     TownBorderRules.IsWithinOrAdjacent(town, point, workshop.Width, workshop.Height))
+                .Where(point => RoadRoutePlanner.Plan(new RoadRouteRequest(map,
+                    WorldContentSimulationRules.Footprint(workshop, point).SelectMany(map.FootNeighbors)
+                        .Where(entrance => WorldContentSimulationRules.IsEntrance(workshop, point, entrance)).ToArray(),
+                    roads, taken.Concat(WorldContentSimulationRules.Footprint(workshop, point)).ToHashSet(),
+                    world.Bridges, roads)).Proposal is not null)
                 .ToArray();
             int NearestRoad(GridPoint point) => WorldContentSimulationRules.Footprint(workshop, point)
                 .Min(tile => roads.Min(road => Math.Abs(road.X - tile.X) + Math.Abs(road.Y - tile.Y)));

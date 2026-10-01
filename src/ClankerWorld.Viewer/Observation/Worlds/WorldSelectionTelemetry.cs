@@ -17,4 +17,26 @@ public static partial class WorldSelectionTelemetry
     [LoggerMessage(EventId = 2263, Level = LogLevel.Information,
         Message = "world_preview outcome=generated width={Width} height={Height}")]
     public static partial void Previewed(ILogger logger, int width, int height);
+
+    [LoggerMessage(EventId = 2264, Level = LogLevel.Information,
+        Message = "world_list outcome=checked worlds={WorldCount} cache_hits={CacheHits} scans={Scans} elapsed_ms={ElapsedMilliseconds}")]
+    public static partial void Listed(ILogger logger, int worldCount, int cacheHits, int scans, long elapsedMilliseconds);
+
+    [LoggerMessage(EventId = 2270, Level = LogLevel.Information,
+        Message = "world_list outcome=canceled worlds={WorldCount} cache_hits={CacheHits} scans={Scans} elapsed_ms={ElapsedMilliseconds}")]
+    public static partial void ListCanceled(ILogger logger, int worldCount, int cacheHits, int scans, long elapsedMilliseconds);
+
+    [LoggerMessage(EventId = 2277, Level = LogLevel.Information,
+        Message = "world_list_warmup outcome=started")]
+    public static partial void WarmUpStarted(ILogger logger);
+
+    /// <summary>Outcome is finished, canceled (host stopping) or stopped (out of memory).</summary>
+    [LoggerMessage(EventId = 2274, Level = LogLevel.Information,
+        Message = "world_list_warmup outcome={Outcome} checked={Checked} unrestorable={Unrestorable} skipped={Skipped} failed={Failed} elapsed_ms={ElapsedMilliseconds}")]
+    public static partial void WarmUpEnded(ILogger logger, string outcome, int @checked, int unrestorable, int skipped,
+        int failed, long elapsedMilliseconds);
+
+    [LoggerMessage(EventId = 2276, Level = LogLevel.Warning,
+        Message = "world_list_warmup outcome=world_failed catalog_id={CatalogId} error={Error}")]
+    public static partial void WarmUpFailed(ILogger logger, string catalogId, string error);
 }

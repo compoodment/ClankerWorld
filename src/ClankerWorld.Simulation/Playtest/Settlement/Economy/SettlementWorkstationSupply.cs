@@ -74,6 +74,9 @@ public sealed partial class PrivateWorldRuntime
                     source = null;
                 if (carried is null && stock is null && source is null)
                     continue;
+                if (stock is not null && FreeCarryCapacity(actor) == 0 || source is not null &&
+                    FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, input.Key, source))
+                    continue;
                 yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, carried, stock, source);
             }
         }

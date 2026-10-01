@@ -373,8 +373,13 @@ public sealed partial class PrivateWorldRuntime
                 Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > StorageRoom(placed.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "There is no storage room for this recipe's finished output.");
 
+            var knife = ToolProgressionRules.UsesKnife(recipe)
+                ? ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, normalizedWorkerId, ToolFamily.Knife)
+                : null;
+            var workDuration = knife is null ? recipe.DurationTicks :
+                ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
-            var completionTick = checked(WorldTick + recipe.DurationTicks);
+            var completionTick = checked(WorldTick + workDuration);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -397,12 +402,14 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
-                reservationIds.ToArray());
+                reservationIds.ToArray(), knife?.ToolLotId);
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
                 checked(worldSimulation.NextProductionJobSequence + 1),
                 worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+            if (knife is not null)
+                checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent(eventKind,
                 $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
             return ProductionStartResult.Success(job);

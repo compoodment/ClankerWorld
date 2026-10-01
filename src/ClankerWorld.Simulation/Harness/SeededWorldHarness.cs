@@ -694,7 +694,8 @@ public static class GeneratedCampMapGenerator
                 vegetation[index] = (byte)(
                     tile.Water != WaterKind.Land || tile.Elevation >= SeededMap.MountainElevationThreshold
                         ? VegetationCover.None :
-                    tile.Climate == ClimateZone.Dry && tile.Rainfall <= 46 && tile.Temperature >= 92
+                    tile.Climate == ClimateZone.Dry && surfaces[index] == (byte)SurfaceKind.Sand &&
+                        tile.Rainfall <= TerrainPlacementRules.DesertMaximumRainfall && tile.Temperature >= 92
                         ? VegetationCover.Cactus :
                     tile.Climate == ClimateZone.Dry ? VegetationCover.Scrub :
                     tile.Climate is ClimateZone.Polar or ClimateZone.Cold ? VegetationCover.Tundra :
@@ -825,47 +826,42 @@ public static class GeneratedCampMapGenerator
         // Scattered, individually harvestable trees on forest grass and
         // meadows share the chunk resource budget with the grove trees placed
         // earlier. They are objects, not a second meaning of forest ground.
-        const int cellSize = 8;
-        const int maximumGeneratedTreesPerChunk = 32;
         var occupied = camp.Select(item => item.Position)
             .Concat(existing.Select(item => item.Position)).ToHashSet();
         var perChunk = existing.GroupBy(item =>
                 (item.Position.X / GeographyGenerator.ChunkSize,
                     item.Position.Y / GeographyGenerator.ChunkSize))
             .ToDictionary(group => group.Key, group => group.Count());
-        var treesPerChunk = new Dictionary<(int, int), int>();
+        var candidates = new List<(GridPoint Position, uint Score, string Kind)>();
         var trees = new List<MapResource>();
-        for (var top = 0; top < height; top += cellSize)
-            for (var left = 0; left < width; left += cellSize)
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
             {
-                var chunk = (left / GeographyGenerator.ChunkSize, top / GeographyGenerator.ChunkSize);
-                if (perChunk.GetValueOrDefault(chunk) >= TerrainPlacementRules.GeneratedResourcesPerChunk ||
-                    treesPerChunk.GetValueOrDefault(chunk) >= maximumGeneratedTreesPerChunk)
+                var position = new GridPoint(x, y);
+                var index = y * width + x;
+                var vegetation = (VegetationCover)vegetationKinds[index];
+                if (occupied.Contains(position) || surfaceKinds[index] != (byte)SurfaceKind.Grass ||
+                    vegetation is not (VegetationCover.Forest or VegetationCover.Grass))
                     continue;
-                var random = Pcg32XshRrV1.Create(options.Seed, $"tree:{left},{top}");
-                for (var attempt = 0; attempt < 8; attempt++)
-                {
-                    var x = left + (int)(random.NextUInt() % (uint)Math.Min(cellSize, width - left));
-                    var y = top + (int)(random.NextUInt() % (uint)Math.Min(cellSize, height - top));
-                    var position = new GridPoint(x, y);
-                    var vegetation = (VegetationCover)vegetationKinds[y * width + x];
-                    if (occupied.Contains(position) || vegetation is not (VegetationCover.Forest or VegetationCover.Grass) ||
-                        !TerrainPlacementRules.CanHoldOrdinaryVegetation((SurfaceKind)surfaceKinds[y * width + x]))
-                        continue;
-                    // Meadows carry scattered trees; forest cover remains denser.
-                    if (vegetation == VegetationCover.Grass && random.NextUInt() % 4 != 0)
-                        continue;
-                    var climate = geography.At(x, y).Climate;
-                    var treeKind = climate == ClimateZone.Cold ||
-                        (climate == ClimateZone.Temperate && random.NextUInt() % 3 == 0)
-                            ? "conifer" : "broadleaf";
-                    trees.Add(new MapResource($"tree-{left}-{top}", "construction", position, true, treeKind));
-                    occupied.Add(position);
-                    perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
-                    treesPerChunk[chunk] = treesPerChunk.GetValueOrDefault(chunk) + 1;
-                    break;
-                }
+                var random = Pcg32XshRrV1.Create(options.Seed, $"tree:{x},{y}");
+                var chance = vegetation == VegetationCover.Forest
+                    ? TerrainPlacementRules.ForestGrassTreePercent : TerrainPlacementRules.MeadowTreePercent;
+                if (random.NextUInt() % 100 >= chance) continue;
+                var climate = geography.At(x, y).Climate;
+                var treeKind = climate == ClimateZone.Cold ||
+                    (climate == ClimateZone.Temperate && random.NextUInt() % 3 == 0) ? "conifer" : "broadleaf";
+                candidates.Add((position, random.NextUInt(), treeKind));
             }
+        // If an unusually dense chunk reaches its bound, seeded ranking keeps
+        // the remaining trees spread through it rather than filling its north edge.
+        foreach (var candidate in candidates.OrderBy(item => item.Score).ThenBy(item => item.Position.Y).ThenBy(item => item.Position.X))
+        {
+            var position = candidate.Position;
+            var chunk = (position.X / GeographyGenerator.ChunkSize, position.Y / GeographyGenerator.ChunkSize);
+            if (perChunk.GetValueOrDefault(chunk) >= TerrainPlacementRules.GeneratedResourcesPerChunk) continue;
+            trees.Add(new MapResource($"tree-{position.X}-{position.Y}", "construction", position, true, candidate.Kind));
+            perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+        }
         return trees;
     }
 
@@ -1273,6 +1269,12 @@ public static class MapAcceptance
                 !TerrainPlacementRules.CanHoldOrdinaryVegetation(surface)))
             return MapValidationResult.Invalid("A tree or plant stands on sand or other ground that cannot hold it.");
 
+        if (map.VegetationKinds is not null && map.Tiles.Any(tile =>
+                map.VegetationAt(tile.Position) == VegetationCover.Cactus &&
+                (map.SurfaceAt(tile.Position) != SurfaceKind.Sand || map.ClimateAt(tile.Position) != ClimateZone.Dry ||
+                    map.HydrologyAt(tile.Position) != WaterKind.Land || map.ElevationAt(tile.Position) >= SeededMap.MountainElevationThreshold)))
+            return MapValidationResult.Invalid("Cacti must stand on desert sand.");
+
         if (!map.Resources.Any(resource => resource.IsRenewable &&
                 string.Equals(resource.Kind, "food", StringComparison.Ordinal)) ||
             !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)))
@@ -1314,6 +1316,7 @@ public static class MapAcceptance
             "berry_bush" or "wild_greens" => resourceKind == "food",
             "fiber_plant" or "reeds" => resourceKind == "fiber",
             "stone_outcrop" => resourceKind == "stone",
+            "fallen_wood" => resourceKind == "wood",
             "iron_outcrop" => resourceKind == "iron_ore",
             "gold_outcrop" => resourceKind == "gold_ore",
             "diamond_outcrop" => resourceKind == "diamond",

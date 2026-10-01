@@ -116,18 +116,18 @@ public sealed partial class PrivateWorldRuntime
 
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>
         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
-        lot.GroundPosition is null && lot.ContainerLotId is null &&
-        lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
+        lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && lot.ContainerLotId is null &&
-        AvailableLotQuantity(lot) > 0 &&
+        lot.OwnerId == HouseholdFor(actor) && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
-        society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-            lot.ItemKind == kind && kind != "food" && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0 &&
-            lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId &&
-            CanReachSharedItem(actor, lot));
+        WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
+            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
+                lot.ItemKind == kind && lot.ContainerLotId is null && kind != "food" &&
+                lot.DeliveryBuildingId is null && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
+                lot.OwnerId == warehouse.TownId && warehouse.InstanceId == lot.StorageBuildingId))
+            .FirstOrDefault(lot => CanReachSharedItem(actor, lot));
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -263,8 +263,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
     {
-        if (FreeCarryCapacity(actor) == 0) return;
-        if (HasCarriedItem(actor, kind) || SharedItem(kind, actor) is not { } item)
+        if (FreeCarryCapacity(actor) <= 0 || HasCarriedEquipmentAtLeast(actor, kind) ||
+            SharedItem(kind, actor) is not { ContainerLotId: null } item)
         {
             return;
         }
@@ -278,6 +278,14 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
             item.OwnerId, actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
+    }
+
+    private bool HasCarriedEquipmentAtLeast(string actor, string kind)
+    {
+        if (ToolProgressionRules.Find(kind) is not { } requested)
+            return HasCarriedItem(actor, kind);
+        var carried = ToolProgressionRules.BestUsableTool(society.Checkpoint.Inventory, actor, requested.Family);
+        return carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= requested.Tier;
     }
 
     private void TendFire(string actor, PlaytestInhabitantState person)

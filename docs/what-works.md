@@ -30,6 +30,7 @@ test alone does not make it available in the game.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
+| Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
@@ -136,7 +137,7 @@ summaries remain unfinished.
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. Quantities, work times, yields and farm planning remain provisional. |
+| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes and repairs tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Grain mills into flour at the Farmhouse. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; a jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Fresh water has no active cooking, medicine-making or animal-care use yet. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. New shared Town buildings are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
@@ -145,6 +146,11 @@ summaries remain unfinished.
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking or household membership. Market stalls, tool-making orders, Restaurants and Clinics remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Barter rates and shelf sizes are provisional. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Current Town residents can recover unreserved stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but founding or joining another Town, broader law, currencies and land disputes remain unfinished. |
+
+With a usable iron pickaxe and room for a whole load, an adult can mine a finite
+gold or diamond outcrop. The goods remain in their carried stock. Trial mining
+pauses once the adult and household hold eight of that material; ornament
+making remains unfinished.
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -200,14 +206,21 @@ with an equipped sack. Other carried goods and delivery loads count toward
 that limit; stored and ground goods do not. Wear can break an aid and reduce
 its capacity, but existing cargo and replaced gear remain owned and intact.
 Full carriers decline pickups that would add excess cargo. Food harvests need
-room for the whole yield, including orchard seeds. Exploring still teaches
+room for the whole yield, including orchard seeds. A hungry adult without that
+room first sets down spare supplies for their household, in the House if it
+has room or on the camp pile otherwise. Tools go last; maps, field records,
+worn gear and reserved goods stay carried. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
-Before the first House, builders and helpers deliver construction materials in loads
-to their household's pile at camp. Household adults
+Broken or spoiled spare cargo can also be set down without losing it.
+Before the first House, builders carry their construction materials to the camp
+pile in loads. A helper meets the adult who requested materials and transfers only
+what that adult has room to carry. Once a House exists, helpers can deliver to its
+storage. Household adults
 can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
 and rope to repair a basket at their House. Work, reservations, equipment and
 overloaded cargo survive saving and reopening. These paths have automated
 checks; Windows playtesting and balance tuning remain pending.
+Choosing a conversation interrupts a repair and releases its unspent materials.
 
 ## Maps, weather and appearance
 

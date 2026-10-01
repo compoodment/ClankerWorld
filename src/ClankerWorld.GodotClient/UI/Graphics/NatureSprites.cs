@@ -65,6 +65,7 @@ public static class NatureSprites
             9 => NatureSprite.GoldOutcrop,
             10 => NatureSprite.DiamondOutcrop,
             11 => NatureSprite.ClayBank,
+            12 => NatureSprite.WoodPile,
             _ => null,
         },
     };
