@@ -26,9 +26,8 @@ public partial class Main
     private readonly Label seasonLabel = new();
     private readonly TextureRect weatherIcon = new();
     private readonly Label weatherLabel = new();
-    private readonly PanelContainer eventsBadge = new();
-    private readonly Label eventsBadgeLabel = new();
-    private readonly PanelContainer agentsWarning = new();
+    private readonly PixelBadge eventsBadge = new();
+    private readonly PixelBadge agentsWarning = new() { Diameter = 7, Warning = true };
     private readonly Button worldInfoTownsTab = new();
     private readonly Button worldInfoWorldTab = new();
     private readonly VBoxContainer townsPage = new();
@@ -75,7 +74,7 @@ public partial class Main
         BuildFiltersButton();
         topBar.AddChild(HudGroup(hudLeft));
 
-        pauseButton.Text = "Pause";
+        pauseButton.Caption = "Pause";
         StyleButton(pauseButton);
         pauseButton.Pressed += () => _ = TogglePauseAsync();
         hudTime.AddChild(pauseButton);
@@ -102,7 +101,7 @@ public partial class Main
         inhabitantsButton.Text = "0";
         StyleButton(inhabitantsButton);
         inhabitantsButton.Pressed += ToggleInhabitants;
-        AttachCorner(inhabitantsButton, agentsWarning, "WarningDot", new Vector2(8, 8), new Vector2(-12, 4));
+        AttachCorner(inhabitantsButton, agentsWarning, new Vector2(-12, 4));
         hudRight.AddChild(inhabitantsButton);
 
         worldInfoButton.Text = "Info";
@@ -115,11 +114,7 @@ public partial class Main
         eventsButton.TooltipText = "Event Log (E)";
         StyleButton(eventsButton);
         eventsButton.Pressed += ToggleEvents;
-        eventsBadgeLabel.ThemeTypeVariation = "BadgeLabel";
-        eventsBadgeLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        eventsBadgeLabel.VerticalAlignment = VerticalAlignment.Center;
-        eventsBadge.AddChild(eventsBadgeLabel);
-        AttachCorner(eventsButton, eventsBadge, "Badge", new Vector2(20, 20), new Vector2(-13, -7));
+        AttachCorner(eventsButton, eventsBadge, new Vector2(-12, -6));
         hudRight.AddChild(eventsButton);
 
         townSiteButton.Text = "Choose Town site";
@@ -211,12 +206,9 @@ public partial class Main
     }
 
     /// <summary>Pins a small click-through marker to a button's top-right corner.</summary>
-    private static void AttachCorner(Button button, PanelContainer marker, string variation, Vector2 size, Vector2 offset)
+    private static void AttachCorner(Button button, Control marker, Vector2 offset)
     {
-        marker.ThemeTypeVariation = variation;
         marker.MouseFilter = Control.MouseFilterEnum.Ignore;
-        marker.CustomMinimumSize = size;
-        marker.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         marker.Position = new Vector2(offset.X, offset.Y);
         // A marker can reach past the button's edge; draw it over the next button.
         marker.ZIndex = 1;
@@ -292,7 +284,7 @@ public partial class Main
         addAgentButton.Icon = PixelIcons.Themed(PixelGlyph.PersonPlus, green, scale);
         menuButton.Icon = PixelIcons.Themed(PixelGlyph.Menu, palette.Ink, scale);
         var paused = renderedMapSnapshot?.Authoring?.IsPaused == true;
-        pauseButton.Icon = paused
+        pauseButton.Glyph = paused
             ? PixelIcons.Texture(PixelGlyph.Play, palette.EmberInk, palette.EmberInk, scale)
             : PixelIcons.Themed(PixelGlyph.Pause, palette.Ink, scale);
         if (renderedMapSnapshot?.Authoring is { } authoring)
@@ -308,7 +300,7 @@ public partial class Main
     private void RenderHudState(OwnerWorldSnapshot snapshot)
     {
         var paused = snapshot.Authoring?.IsPaused == true;
-        pauseButton.Text = paused ? "Paused" : "Pause";
+        pauseButton.Caption = paused ? "Paused" : "Pause";
         pauseButton.ThemeTypeVariation = paused ? "EmberButton" : string.Empty;
         pauseButton.TooltipText = paused ? "Time is stopped. Resume the world (Space)" : "Pause the world (Space)";
 
@@ -354,7 +346,7 @@ public partial class Main
         }
         if (eventsPanel.Visible) lastSeenEventId = Math.Max(lastSeenEventId, newest);
         unreadEvents = ids.Count(id => id > lastSeenEventId);
-        eventsBadgeLabel.Text = unreadEvents > 9 ? "9+" : unreadEvents.ToString(CultureInfo.InvariantCulture);
+        eventsBadge.Text = unreadEvents > 9 ? "9+" : unreadEvents.ToString(CultureInfo.InvariantCulture);
         eventsBadge.Visible = unreadEvents > 0;
         eventsButton.TooltipText = unreadEvents == 0 ? "Event Log (E)" : $"Event Log (E) · {unreadEvents} new";
     }

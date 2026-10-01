@@ -87,6 +87,7 @@ public partial class Main
         }
         if (!worldSpecific) _ = RefreshApiKeysAsync();
 
+        ShowPauseMenuPage("Settings");
         ApplyResponsiveLayout();
     }
 
@@ -293,11 +294,14 @@ public partial class Main
         menuHeading.AddChild(menuHeadingLabel);
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
         menuCloseButton.TooltipText = "Return to the world";
-        menuCloseButton.Pressed += () => _ = CloseGameMenuAsync();
+        menuCloseButton.Pressed += () =>
+        {
+            if (PauseMenuPageOpen) ShowPauseMenuButtons();
+            else _ = CloseGameMenuAsync();
+        };
         menuHeading.AddChild(menuCloseButton);
         body.AddChild(menuHeading);
 
-        var menuActions = new VBoxContainer();
         menuActions.AddThemeConstantOverride("separation", 6);
         menuResumeButton.Text = "Resume";
         StyleMenuChoice(menuResumeButton, primary: true);
@@ -338,7 +342,7 @@ public partial class Main
 
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
         // Quit Game is only offered on the Main Menu, after leaving any world.
-        quitGameConfirmation.DialogText = "The game will close.";
+        // The title says it all, so the dialog needs no sentence beneath it.
         quitGameConfirmation.Confirmed += () => GetTree().Quit();
         AddChild(quitGameConfirmation);
         body.AddChild(menuActions);
@@ -472,14 +476,15 @@ public partial class Main
         settingsLayout.AddThemeConstantOverride("separation", 10);
         settingsLayout.AddChild(settingsCategories);
         settingsLayout.AddChild(settingsScroll);
-        AddPanelContents(settingsPanel, "Settings", settingsLayout);
+        // The menu's own heading names the page, so the panel repeats no title.
+        AddPanelContents(settingsPanel, settingsLayout);
         // Settings sits inside the menu panel, so it reads as a section of it.
         settingsPanel.ThemeTypeVariation = "InsetPanel";
         settingsPanel.Hide();
         body.AddChild(settingsPanel);
         BuildModLibrary(body);
 
-        developerScroll.CustomMinimumSize = new Vector2(0, 440);
+        developerScroll.CustomMinimumSize = new Vector2(0, 340);
         developerScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         developerScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         developerScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
