@@ -189,7 +189,8 @@ its capacity, but existing cargo and replaced gear remain owned and intact.
 Full carriers decline pickups that would add excess cargo. Food harvests need
 room for the whole yield, including orchard seeds. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
-Household adults
+Before the first House, builders and helpers deliver construction materials in loads
+to their household's pile at camp. Household adults
 can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
 and rope to repair a basket at their House. Work, reservations, equipment and
 overloaded cargo survive saving and reopening. These paths have automated

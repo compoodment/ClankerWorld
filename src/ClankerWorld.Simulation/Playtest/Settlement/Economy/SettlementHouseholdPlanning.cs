@@ -98,7 +98,9 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddBuildingMaterialCandidate(List<CognitionCandidate> candidates, string actor, string householdId)
     {
-        if (NeededBuildingMaterial(actor, householdId) is not { } need)
+        if (NeededBuildingMaterial(actor, householdId) is not { } need ||
+            MaterialSource(need.Material.ResourceId, actor) is not { } source ||
+            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source))
             return;
         candidates.Add(new CognitionCandidate(GatherBuildingMaterialPrefix + need.Material.ResourceId,
             $"Gather {need.Material.ResourceId} so the household has what it needs to build its own {need.Building.DisplayName}.",

@@ -7,8 +7,84 @@ using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class SettlementProjectTests
+public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    [Fact]
+    public async Task FirstHouseMaterialsAreDeliveredInLoadsAcrossReloadWithoutExceedingCarryCapacity()
+    {
+        using var seed = new PrivateWorldRuntime("settlement-acquisition", _ => new IdleProvider());
+        seed.StageStarterContent();
+        for (var tick = 0; tick < 6; tick++)
+            _ = await seed.AdvanceOneTickAsync();
+        var initial = seed.ExportState();
+        var actor = initial.Inhabitants.First(person => initial.Society.Society.GetInhabitant(person.InhabitantId)
+            .HouseholdId == "household:camp-alpha").InhabitantId;
+        var house = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var site = initial.Map.Tiles.Select(tile => tile.Position).First(point => initial.Map.IsBuildable(point) &&
+            !initial.Map.CampObjects.Any(item => item.Position == point) &&
+            !initial.Map.Resources.Any(item => item.Position == point) &&
+            !initial.Inhabitants.Any(person => person.Position == point));
+        var inventory = initial.Society.Society.Inventory with
+        {
+            Lots = initial.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor && lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "first-house-load", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "first-house-axe", "wooden_axe", actor, 1);
+        initial = initial with
+        {
+            Society = initial.Society with { Society = initial.Society.Society with { Inventory = inventory } },
+            Inhabitants = initial.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            {
+                HungerBasisPoints = 9_500,
+                Equipment = null,
+                Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, site),
+                    house.DisplayName, seed.WorldTick, "acquiring", LastTransitionTick: seed.WorldTick),
+            } : person).ToArray(),
+        };
+        var world = PrivateWorldRuntime.Restore(initial, _ => new IdleProvider());
+        try
+        {
+            var restartedAfterDelivery = false;
+            for (var tick = 0; tick < 200 && !world.WorldSimulation.Buildings.Any(item => item.HouseholdId == "household:camp-alpha"); tick++)
+            {
+                _ = await world.AdvanceOneTickAsync();
+                var state = world.ExportState();
+                var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
+                Assert.InRange(PersonalEquipmentRules.CarriedQuantity(state.Society.Society.Inventory, actor, person.Equipment), 0, 8);
+                if (!restartedAfterDelivery && state.Events.Any(item => item.Kind == "project_material_delivered"))
+                {
+                    var staged = state.Society.Society.Inventory.GetLot("first-house-load");
+                    var camp = state.Map.GetObject("storage").Position;
+                    Assert.Equal("household:camp-alpha", staged.OwnerId);
+                    Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), staged.GroundPosition);
+                    Assert.Equal(4, staged.Quantity);
+                    world.Dispose();
+                    world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+                        _ => new IdleProvider());
+                    restartedAfterDelivery = true;
+                }
+            }
+            Assert.True(restartedAfterDelivery);
+            Assert.Single(world.WorldSimulation.Buildings, item => item.DefinitionId == house.CanonicalId &&
+                item.HouseholdId == "household:camp-alpha");
+            var paid = world.Society.Inventory.Reservations.Where(item => item.Purpose.StartsWith("building:", StringComparison.Ordinal)).ToArray();
+            Assert.Equal(8, paid.Sum(item => item.Quantity));
+            Assert.Contains(paid, item => item.LotId == "first-house-load" && item.Quantity == 4);
+            Assert.All(paid, item =>
+            {
+                Assert.Equal("household:camp-alpha", item.OwnerId);
+                Assert.Equal(InventoryReservationState.Completed, item.State);
+            });
+            Assert.Equal(1, world.Society.Inventory.GetLot("first-house-axe").Quantity);
+            var gathered = world.ExportState().Events.Where(item => item.Kind == "material_gathered" &&
+                    item.Detail.StartsWith(actor + ":wood:", StringComparison.Ordinal))
+                .Sum(item => int.Parse(item.Detail.Split(':')[2], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(4 + gathered - 8, world.Society.Inventory.Lots.Where(item => item.ItemKind == "wood").Sum(item => item.Quantity));
+            world.Validate();
+        }
+        finally { world.Dispose(); }
+    }
+
     [Fact]
     public async Task ExistingHouseEndsAStaleSecondHouseProjectWithoutConsumingMaterials()
     {
@@ -279,6 +355,7 @@ public sealed class SettlementProjectTests
         Assert.Contains(state.Events, item => item.Kind == "household_food_collected");
         var gathered = state.Events.Where(item => item.Kind == "material_gathered")
             .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
+        if (gathered.Count < 3) output.WriteLine(CapacityDiagnostic(world));
         Assert.True(gathered.Count >= 3);
         Assert.Contains("stone", gathered);
         Assert.Contains("fiber", gathered);
@@ -365,10 +442,38 @@ public sealed class SettlementProjectTests
         }
         Assert.Contains(world.ExportState().Events, item => item.Kind == "project_chosen");
         Assert.Contains(world.ExportState().Events, item => item.Kind == "material_gathered" && item.Detail.Contains(":wood:", StringComparison.Ordinal));
+        if (!world.Society.Inventory.Reservations.Any(item => item.Purpose.StartsWith("building:", StringComparison.Ordinal)))
+            output.WriteLine(CapacityDiagnostic(world));
         Assert.Contains(world.Society.Inventory.Reservations, reservation =>
             reservation.Purpose.StartsWith("building:", StringComparison.Ordinal) &&
             reservation.State == InventoryReservationState.Completed &&
-            world.Society.Inhabitants.Any(person => person.Id == reservation.OwnerId));
+            world.WorldSimulation.Buildings.Any(building => building.HouseholdId == reservation.OwnerId));
         Assert.NotEmpty(world.WorldSimulation.Buildings);
     }
+
+    private static string CapacityDiagnostic(PrivateWorldRuntime world) => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        People = world.Inhabitants.Select(person => new
+        {
+            person.InhabitantId,
+            Household = world.Society.GetInhabitant(person.InhabitantId).HouseholdId,
+            person.HungerBasisPoints,
+            person.Survival,
+            person.Project,
+            person.LastDecisionContext,
+            Cargo = PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, person.InhabitantId, person.Equipment),
+            Capacity = PersonalEquipmentRules.Capacity(world.Society.Inventory, person.InhabitantId, person.Equipment),
+        }),
+        Lots = world.Society.Inventory.Lots.Select(lot => new
+        {
+            lot.Id,
+            lot.ItemKind,
+            lot.OwnerId,
+            lot.Quantity,
+            lot.StorageBuildingId,
+            lot.DeliveryBuildingId,
+            lot.GroundPosition,
+        }),
+        Events = world.ExportState().Events.TakeLast(16),
+    });
 }
