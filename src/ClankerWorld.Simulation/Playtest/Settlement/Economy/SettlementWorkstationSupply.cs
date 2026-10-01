@@ -60,7 +60,7 @@ public sealed partial class PrivateWorldRuntime
                 var carried = society.Checkpoint.Inventory.Lots
                     .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
                         lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId is null &&
-                        lot.DeliveryBuildingId is null && CookingSupplyQuantity(lot, householdId) > 0)
+                        lot.DeliveryBuildingId is null && WorkstationCarriedSupplyQuantity(actor, lot, householdId) > 0)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
                 if (stock is not null && (CookingSupplyQuantity(stock, householdId) == 0 || CarryingRoom(actor) == 0)) stock = null;
@@ -71,6 +71,20 @@ public sealed partial class PrivateWorldRuntime
                 yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, carried, stock, source);
             }
         }
+    }
+
+    private int WorkstationCarriedSupplyQuantity(string actor, InventoryLot lot, string householdId)
+    {
+        var quantity = CookingSupplyQuantity(lot, householdId);
+        if (inhabitants[actor].HungerBasisPoints >= RoutineFoodSeekFullness)
+            return quantity;
+        // Keep one available personal serving through the routine food-seeking
+        // interval. Supplying it back before eating would repeatedly collect the
+        // same household food; any other carried servings remain useful inputs.
+        var serving = PreferredFood(actor, actor).FirstOrDefault(item =>
+            item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.CartId is null && item.AnimalId is null);
+        return Math.Max(0, quantity - (serving?.Id == lot.Id ? 1 : 0));
     }
 
     /// <summary>Household stock not already set aside at another workstation.</summary>
@@ -113,7 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, building.Position, "supply_workstation", 0);
                 return;
             }
-            var quantity = Math.Min(StorageRoom(building.InstanceId), Math.Min(need.Missing, CookingSupplyQuantity(carried, householdId)));
+            var quantity = Math.Min(StorageRoom(building.InstanceId), Math.Min(need.Missing, WorkstationCarriedSupplyQuantity(actor, carried, householdId)));
             if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, quantity,
