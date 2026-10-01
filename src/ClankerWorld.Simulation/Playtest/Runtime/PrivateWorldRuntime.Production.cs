@@ -182,13 +182,33 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
+    private bool HasCarriedUnreservedQuantities(string actor, IReadOnlyList<ContentQuantity> quantities)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var requested in quantities.GroupBy(item => item.ResourceId, StringComparer.Ordinal))
+        {
+            var available = inventory.Lots
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                    lot.DeliveryBuildingId is null && lot.ItemKind == requested.Key)
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            if (available < requested.Sum(item => (long)item.Amount))
+                return false;
+        }
+
+        return true;
+    }
+
     private string BuildingConstructionOwner(string actor, BuildingDefinition definition)
     {
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
         if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
-        // Before its first House, the household stages delivered construction
-        // materials at the camp. No one must carry the whole building cost.
+        if (definition.Tags.Contains("house", StringComparer.Ordinal) && HouseForHousehold(household) is null &&
+            HasCarriedUnreservedQuantities(actor, definition.BuildCosts))
+            return actor;
+
+        // The household stages a multi-load first House at camp. When its
+        // complete cost is already on the builder, preserve direct delivery.
         return household;
     }
 
