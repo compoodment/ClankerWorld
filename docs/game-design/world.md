@@ -214,6 +214,27 @@ accounting details need design and playtesting.
 - **Hills at the base of mountains (September 30):** hills are added around
   mountain regions as a **visual layer only**. For now, a hill costs the same to
   walk as grass. Mountain and peak rules, described below, are unchanged.
+- **Agreed after the October 1 playtest:**
+  - **Fertility is a property of the land**, not an object. Every dry land
+    tile has a fertility, from its climate, rainfall and surface, and fertile
+    land is common. Meadow near water is usually rich; dry scrub is poor;
+    sand, rock, mountains and snow can't be farmed. An agent with a hoe tills
+    chosen tiles into visible field squares, and crops grow only on tilled
+    tiles, so a household's fields can be as small or as large as it makes
+    them. "Fertile soil" sites go away. Exact numbers, soil wear and fields
+    returning to grass are open
+    ([#579](https://github.com/compoodment/ClankerWorld/issues/579)).
+  - **Cacti come back** as plant cover on desert sand only. This replaces the
+    earlier tentative exclusion.
+  - **Beaches are patchy:** some stretches of coast have sand and others run
+    straight to grass, instead of sand along most of the shore.
+  - **Grass forests are denser:** many grass-forest tiles carry a tree, though
+    not every one; forest-floor tiles still always do. This needs a larger
+    per-area object budget, a performance trade-off to measure.
+  - **Desert sand must look like dry sand**, including where dry scrub grows
+    on it, and **snow** needs visible variation and a softer edge into
+    neighbouring land rather than flat white with a stark border. Hills and
+    mountains, and Roads and buildings standing on hills, are to be redrawn.
 - **Leaning toward (provisional, to tune in playtests):** one orchard fruit tree
   species, which fruits in autumn. The orchard tree itself is already accepted
   in [Planned game content](content-list.md); its yield and other details
@@ -251,8 +272,9 @@ equally often. A severe episode lasts **no more than three-quarters of a game
 day** and is followed by at least **half a game day without severe weather** in
 that region. When an episode changes, wet neighboring regions should make rain
 somewhat more likely, without forcing the same weather across the map. The
-strength of that influence and the overall rain frequency are still open for
-playtesting.
+strength of that influence is still open for playtesting. **After the
+October 1 playtest**, rain should come about **25% less often** than in the
+first generated worlds; the exact weights stay provisional.
 
 ### River crossings and visible forests and mountains
 

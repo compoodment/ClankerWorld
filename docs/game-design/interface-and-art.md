@@ -156,6 +156,22 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
+- **Agreed after the October 1 playtest** (replacing the whole-number steps
+  above): UI Scale offers named sizes, **Small**, **Medium**, **Large** and
+  **Extra large**, instead of percentages, and lists only the sizes that fit
+  the screen. At 1440p, Small is today's 100%, Medium about 150% and Large
+  today's 200%. Medium accepts slightly uneven pixel letters in exchange for
+  a size between the two; nothing goes below Small, because the pixel font
+  can't. **Render Resolution is removed**: the game always draws at the
+  screen's own resolution. Settings is titled simply **Settings**, with its
+  sections in their own boxes.
+- **Agreed on October 1:** agents inside a building are not drawn shrunk onto
+  its tile. They are hidden from the map while inside, the building shows a
+  small badge with how many people are in it, and its card names them.
+- **Agreed on October 1:** Developer tools leave the pause menu for their own
+  panel on a key, and become genuinely useful: for example tile coordinates,
+  a performance readout, jumping to any agent and showing an agent's planned
+  path. The exact set is open.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
