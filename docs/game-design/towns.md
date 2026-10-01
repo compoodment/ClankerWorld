@@ -38,15 +38,19 @@ everything that is available in the current build. See [what works today](../wha
   access to the household's private inventory. Invited guests may shelter from
   storms but get no access to the House's stock or cooking. Any adult member of
   the household may invite a named guest and revoke that invitation later.
-  Invitations are saved and last until revoked. **There is no
-  fixed occupant limit for a House**, including invited visitors; prior
-  capacity and crowding ideas are superseded. It has no bed or sleep-recovery
+  Invitations are saved and last until revoked. **Reopened on
+  October 1:** the previously agreed unlimited occupant count is being
+  reconsidered as a resident limit with family priority. The
+  [resident-capacity proposal](#house-resident-capacity-proposal) is not yet
+  agreed; do not infer its numbers or eviction rules as implementation work.
+  The House has no bed or sleep-recovery
   role. A selected building exposes inspectable occupants, stock and ownership in a panel
   ([quick card and Details](interface-and-art.md));
   there are **no visible/enterable room interiors**.
 - **Storage-driven building expansion:** a House starts at **1×1** and can
   expand to **1×2** or **2×2** when its household needs more storage.
-  This increases storage, not its unlimited occupant count. A Warehouse starts
+  Expansion is agreed to increase storage; whether it will also increase the
+  proposed resident limit is part of the reopened capacity decision. A Warehouse starts
   at **2×2** and can expand to **2×3** for more storage. A Store may be **1×1**
   or **1×2**, likewise tied to storage. Exact capacity per footprint, costs,
   expansion triggers other than the agreed Warehouse rule (any Town resident may
@@ -73,11 +77,9 @@ everything that is available in the current build. See [what works today](../wha
   than choosing tiles.
 - **Housing priority for a newly added adult:** when the adult has no
   home, seek suitable existing household housing first; start a new House
-  project only if none is suitable. Moving into another household's House
-  after setup needs that household's agreement, while placing an agent with Add
-  Agent on household property still joins that household without consent. How
-  an adult forms a new household remains open. There is no
-  occupancy-capacity gate.
+  project only if none is suitable. Joining, leaving and starting a household
+  follow the [agreed membership rules](#household-membership). Resident
+  capacity is being reconsidered in the proposal below.
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
@@ -145,6 +147,121 @@ everything that is available in the current build. See [what works today](../wha
   mount speed need later design and playtesting. Animal husbandry remains a
   **late-development phase**, not a current playable system. Slaughter,
   hunting and a leather-production chain are not assumed.
+
+### Household membership
+
+**Agreed with the owner on October 1:**
+
+- An agent belongs to **at most one household at a time**. They can also have
+  no household. Visiting, helping or trading with another household does not
+  grant membership or access to its private stock. Household membership and
+  family ancestry are separate records.
+- An adult joining an existing household through an ordinary move needs
+  **every current adult member's agreement**. This includes relatives joining
+  from another household. The separately agreed Add Agent exception remains:
+  placing an agent on household property joins that household without a
+  consent step. That exception does not settle the proposed capacity checks.
+- An adult may **leave voluntarily without the household's permission**.
+  What personal goods they take and how shared property is divided still need
+  decisions; leaving does not itself settle those rights.
+- **One adult may start a household alone**; a partner or second founder is
+  not required. A newly added homeless adult still seeks suitable existing
+  household housing first. If none is suitable or accepts them, they may form
+  their own household and pursue a House through the ordinary materials,
+  terrain, access and land-use rules. Founding a household creates neither a
+  free House nor building materials.
+
+The household's existing limit of one planned House remains separate from the
+number of people in its family. Splitting into two households does not erase
+parentage or other family relationships. Exact child placement, stock access
+during a move and Town residency changes still need their own decisions.
+
+### House resident-capacity proposal
+
+**Suggestion, awaiting the owner's answers:** the owner is considering three
+unrelated residents or four family residents per House, with unrelated
+residents displaced when the dominant family grows. This reopens the old
+unlimited-residency decision. The rules below are a concrete proposal, not an
+approved feature contract.
+
+- **Count permanent residents, not people currently inside.** Traveling
+  residents keep their places. Every child, including an infant, takes one
+  place from birth. Invited visitors and temporary storm shelter do not create
+  residence, household stock access or a place in the count.
+- **Three residents ordinarily; four with a dominant family.** One recorded
+  domestic family unit must contain at least two residents and more than half
+  the House's permanent residents. The proposed unit is partners and their
+  children, including siblings who belong to that unit; marriage is not
+  required. Each person has one primary unit for this housing calculation,
+  separately from their full ancestry. Taking a partner creates a new unit;
+  it does not merge both ancestral family trees. A shared surname, household
+  membership or distant ancestor does not by itself qualify. Nonresident
+  relatives do not count toward dominance. A tie gives neither family
+  priority. Extended-relative membership remains an alternative for the
+  owner's decision.
+- **Displace only when there is no room.** Two partners, their baby and an
+  unrelated adult can use all four places. A second baby makes five, so an
+  eligible unrelated adult must relocate. Becoming a family majority does not
+  itself expel anyone. Admission considers the proposed residents after the
+  move: a fourth adult cannot join by using a family bonus their own arrival
+  would remove. Ordinary adult newcomers still need unanimous agreement;
+  family status alone cannot bypass it.
+- **Births always complete, even if the home is full.** The parents establish
+  a primary caregiver and intended home before birth. The newborn joins that
+  caregiver's actual household at birth; the other parent's residence does
+  not automatically change. A full or unavailable home creates a visible
+  housing need, not a lost or rejected baby. A House that exceeds its limit is
+  marked overcrowded and accepts no further voluntary residents. Once an
+  overcrowding case opens, a birth or age change does not restart its deadline.
+- **Adults relocate; dependents are not sent away alone.** Volunteers go
+  first, then the most recently admitted eligible unrelated adult, with a
+  stable tie-break for equal arrival times. A dependent moves with a caregiver
+  when needed, and an arrival cannot gain a place by displacing people in its
+  destination House. Recheck the current residents before acting so a death,
+  departure or new family relationship cannot cause an unnecessary eviction.
+  Continue moving eligible adults only until the remaining residents fit.
+- **A short notice period for displaced unrelated adults:** the proposed
+  trial is one unpaused world day. During notice they look for a suitable
+  accepting household with room; otherwise they may form their own household
+  and build normally. If notice ends with no home ready, the adult leaves
+  residence and continues a visible homeless housing task. Immediate storm
+  shelter is still possible under the guest rules. No person or goods are
+  teleported to a new home. Personal and shared goods on departure remain part
+  of the separate property decision.
+- **An all-family full House needs a family housing plan.** If four family
+  residents have a fifth member, a birth exception permits temporary
+  overcrowding. Suitable adults must arrange a split into another household
+  and House while preserving dependent care. With no safe care arrangement,
+  legal site or materials, the home stays visibly overcrowded and blocked;
+  it cannot admit additional voluntary residents. Do not apply the unrelated
+  adult's notice deadline to a child or to remove their only caregiver.
+  Requiring housing before a new pregnancy is an alternative awaiting the
+  owner's answer, not an assumed population cap or a change to the agreed
+  continuity safeguard.
+- **House size is a separate choice.** The proposed default keeps the same
+  three/four resident rule for 1×1, 1×2 and 2×2 Houses; expansion still adds
+  storage. The alternative gives each tile three/four places, for six/eight
+  in a 1×2 House and twelve/sixteen in a 2×2 House. Those additional numbers
+  are proposed, not approved. Add Agent retains its consent exception but
+  would need a valid free resident place; a full-house placement would explain
+  the blocker instead of bypassing capacity or silently evicting someone.
+
+| Proposed case | Proposed result |
+| --- | --- |
+| Three unrelated adults; another wants to join | No free resident place. Seek another household or build. |
+| Two partners and one unrelated adult; first baby | Four residents with a family majority. Nobody is displaced. |
+| Two parents, one child and one unrelated adult; second baby | Five temporarily; the unrelated adult must relocate, leaving four family residents. |
+| Four family residents; another baby | Birth completes. Overcrowding requires a family housing plan with safe care. |
+| Two unrelated adults; one has a baby whose other parent lives elsewhere | Baby joins the primary caregiver. Three residents fit; the other parent does not automatically move. |
+| Four residents in two equally sized family units | No family majority. A voluntary fourth admission is refused; an existing birth-related case needs a housing solution. |
+| A resident is away gathering; a guest is invited | The traveler still occupies their resident place. The guest gains shelter only. |
+
+The owner still needs to choose the capacity interpretation, family scope,
+full-home birth policy, relocation deadline and capacity by footprint. These
+questions are asked in the owner's chat. The agreed membership foundation is
+tracked in [the existing housing work](https://github.com/compoodment/ClankerWorld/issues/464);
+the proposal does not authorize a competing implementation of that claimed
+issue or change the scope of the existing storage-expansion work.
 
 ### Agreed content and building sizes
 
@@ -573,12 +690,13 @@ These remain open; they are not new decisions.
    is already agreed. What remains open is exact inter-Town route timing,
    layout and rendering.
 
-- **Home invitations and later membership.** Add Agent placement on household
-   land still joins the household without a consent step, while moving into
-   another household's House after setup needs that household's agreement.
-   Invited guests may shelter from storms but cannot use the House's stock or
-   cooking. Both rules are agreed above. Decide how agents later leave or
-   change households, beyond that agreement rule.
+- **Homes, membership and family growth.** The [membership rules](#household-membership)
+   settle one household at a time, unanimous adult admission, voluntary adult
+   departure and solo formation. The [capacity proposal](#house-resident-capacity-proposal)
+   still needs answers about mixed families, births and relocation. Decide
+   stock access during departure, personal versus shared goods, guest
+   invitation details and child placement without treating the proposal as
+   already agreed.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
@@ -587,6 +705,7 @@ These remain open; they are not new decisions.
 
 - **Building storage catalogue.** Houses start at 1×1 and may expand to
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
-    choices raise storage, not House occupancy. The other chosen building
+    choices raise storage; their effect on the proposed House resident limit
+    is part of the reopened capacity choice. The other chosen building
     footprints are in the accepted roster above. Decide capacities, costs,
     other expansion triggers, Market reservation behavior and Port clearance details.
