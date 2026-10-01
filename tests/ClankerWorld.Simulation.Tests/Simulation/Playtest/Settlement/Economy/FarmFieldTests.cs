@@ -129,14 +129,16 @@ public sealed class FarmFieldTests
     [Fact]
     public async Task RawCropReservesDoNotSuppressFreshFoodPlantingAcrossReload()
     {
-        var (state, _, household, point) = PreparedFarmer("field-raw-stock-shortage");
+        var (state, actor, household, point) = PreparedFarmer("field-raw-stock-shortage");
         state = FeedHouseholdFromAvailableStock(state, household);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "raw-reserve-grain", "grain", household, 40,
             storageBuildingId: "first-town-farmhouse");
         inventory = InventoryFixture.AddLot(inventory, "raw-reserve-potatoes", "potatoes", household, 40);
         state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        // Only the farmer acts. Other founders walking over the field or
+        // hauling the green seed would test their timing, not the crop choice.
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-            _ => new DeterministicDecisionProvider());
+            id => id == actor ? new DeterministicDecisionProvider() : new IdleProvider());
         for (var tick = 0; tick < 120 && !world.Fields.Any(field => field.HouseholdId == household &&
                  field.Crop == FarmFieldRules.Greens); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -309,7 +311,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)

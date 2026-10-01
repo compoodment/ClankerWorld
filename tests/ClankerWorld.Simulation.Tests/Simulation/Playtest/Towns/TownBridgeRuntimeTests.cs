@@ -63,6 +63,9 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
         Assert.True(map.CanFootStep(bridge.Span[0], bridge.Span[1]));
         Assert.True(map.CanFootStep(bridge.Span[1], bridge.Entrances[1]));
+        Assert.False(map.CanFootStep(bridge.Span[0], new GridPoint(bridge.Span[0].X, bridge.Span[0].Y - 1)));
+        Assert.False(map.CanFootStep(bridge.Span[1], new GridPoint(bridge.Span[1].X, bridge.Span[1].Y + 1)));
+        Assert.False(map.CanFootStep(new GridPoint(bridge.Entrances[0].X, bridge.Entrances[0].Y - 1), bridge.Span[0]));
         Assert.True(map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         var saved = PrivateWorldRuntimeCodec.Encode(state);
