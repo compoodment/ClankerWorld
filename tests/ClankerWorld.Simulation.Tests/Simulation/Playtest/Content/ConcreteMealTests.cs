@@ -250,7 +250,11 @@ public sealed class ConcreteMealTests
         state = state with
         {
             Society = society.ExportState(),
-            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != other).ToArray()
+            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != other).ToArray(),
+            Towns = state.Towns!.Select(town => town with
+            {
+                ResidentIds = town.ResidentIds.Where(id => id != other).ToArray()
+            }).ToArray()
         };
         var inventory = state.Society.Society.Inventory with
         {
@@ -279,6 +283,7 @@ public sealed class ConcreteMealTests
         };
         using var completed = PrivateWorldRuntime.Restore(state, id => id == actor ? observer : new Chooser());
         for (var tick = 0; tick < 6; tick++) Assert.True((await completed.AdvanceOneTickAsync()).Advanced);
+        Assert.NotEmpty(observer.FamiliesOfferedTo(actor, completed.WorldContent));
         Assert.DoesNotContain(observer.FamiliesOfferedTo(actor, completed.WorldContent), family =>
             family is "recipe:porridge" or "recipe:restaurant-meal");
         Assert.Contains(completed.Society.Inhabitants, person => person.Id == other && person.Status != SocietyInhabitantStatus.Active);
@@ -302,10 +307,20 @@ public sealed class ConcreteMealTests
         await AdvanceUntil(hauling, () => hauling.Society.Inventory.Lots.Any(lot => lot.ItemKind == "grain" &&
             lot.StorageBuildingId == farmhouse.InstanceId), 100);
         var house = hauling.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        Assert.DoesNotContain(hauling.Society.Inventory.Lots, lot => lot.ItemKind == "wood" &&
+            lot.StorageBuildingId == house.InstanceId);
         using var home = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(hauling.ExportState())),
-            actor, "haul_household_stock", "supply_workstation:grain");
+            actor, "supply_workstation", "haul_household_stock", "collect_wooden_axe");
         await AdvanceUntil(home, () => home.Society.Inventory.Lots.Any(lot => lot.ItemKind == "grain" &&
             lot.StorageBuildingId == house.InstanceId), 100);
+        var deliveredWood = home.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
+            lot.StorageBuildingId == house.InstanceId).Select(lot => lot.Id).ToArray();
+        Assert.NotEmpty(deliveredWood);
+        Assert.Contains(home.ExportState().Events, item =>
+            item.Kind is "household_stock_delivered" or "workstation_supplied" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal) &&
+            item.Detail.EndsWith(":" + house.InstanceId, StringComparison.Ordinal) &&
+            deliveredWood.Any(id => item.Detail.Contains(id, StringComparison.Ordinal)));
         var waterState = home.ExportState();
         var inventory = InventoryFixture.AddLot(waterState.Society.Society.Inventory,
             "harvest-cooking-jug", InventoryContainerRules.WaterJug, household, 1, storageBuildingId: house.InstanceId);
@@ -322,7 +337,8 @@ public sealed class ConcreteMealTests
         var porridge = water.WorldContent.Recipes.Single(recipe => recipe.LocalId == "porridge" &&
             recipe.WorkstationBuildingId == house.DefinitionId);
         using var cooking = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(water.ExportState())),
-            actor, "build:recipe:" + porridge.CanonicalId);
+            actor, "build:recipe:" + porridge.CanonicalId, "supply_workstation", "haul_household_stock",
+            "collect_wooden_axe");
         await AdvanceUntil(cooking, () => cooking.WorldSimulation.ProductionJobs.Any(job =>
             job.RecipeId == porridge.CanonicalId && job.State == WorldProductionJobState.Completed), 80);
         var serving = cooking.Society.Inventory.Lots.First(lot => lot.ItemKind == "porridge");
@@ -411,8 +427,18 @@ public sealed class ConcreteMealTests
     }
 
     private static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state, string? actor = null,
-        params string[] choices) => PrivateWorldRuntime.Restore(state, id =>
-            new Chooser(id == actor ? choices : []));
+        params string[] choices)
+    {
+        // A new scripted phase must get a fresh observation rather than replay
+        // the preceding phase's saved idle choice for an unchanged world.
+        if (actor is not null)
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                    ? person with { LastDecisionContext = null } : person).ToArray()
+            };
+        return PrivateWorldRuntime.Restore(state, id => new Chooser(id == actor ? choices : []));
+    }
 
     private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, int limit)
     {
