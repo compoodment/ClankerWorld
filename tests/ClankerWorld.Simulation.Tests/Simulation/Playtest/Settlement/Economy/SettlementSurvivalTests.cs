@@ -25,7 +25,11 @@ public sealed class SettlementSurvivalTests
         for (var tick = 0; tick < 4; tick++) Assert.True((await second.AdvanceOneTickAsync()).Advanced);
         var generic = second.Society.Inventory.GetLot("spoilage:food").FreshnessBasisPoints;
         Assert.True(generic < 10_000);
-        Assert.All(readyFoods, kind => Assert.Equal(generic, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
+        // Activation starts the clock; the seven later ticks use provisional losses of
+        // four freshness points for rations and eight for raw fruit and greens.
+        Assert.Equal(9_972, generic);
+        Assert.All(readyFoods.Where(kind => kind != "food"), kind => Assert.Equal(9_944,
+            second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
         Assert.All(dryStock, kind => Assert.Equal(10_000, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
         Assert.All(readyFoods.Concat(dryStock), kind => Assert.Equal(1, second.Society.Inventory.GetLot("spoilage:" + kind).Quantity));
     }
