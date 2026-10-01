@@ -24,7 +24,9 @@ skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
 references and times, and rejects null entries in living or deceased skill
 lists as damaged checkpoint data. Current lesson progress and skills survive pause,
-save/load and replay. Old alpha lesson records need not load; no migration is
+save/load and replay. Schema 32 adds saved household requests and recent refusals
+for adults without an authorized home. These states are validated and survive
+save/load and replay. Older alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
 The private catalog archives each world's checkpoint. It saves the active world
@@ -176,6 +178,7 @@ validation and roundtrip behavior.
 | Schema 29 | Optional bounded model-attempt status and a separate last accepted model choice per agent. Current-format reload preserves failed/canceled attempts without replacing the last choice. Old builds may refuse these alpha checkpoints; no migration is added. |
 | Schema 30 | Building footprint revisions, reserved expansion jobs and saved House guest invitations. Expanded geometry is used by validation, Town assignment, construction and observation; building IDs and stock locations stay the same. Earlier builds refuse these checkpoints instead of losing expansion or invitation records. |
 | Schema 31 | Learned skills and skill-based lessons, including learning time and optional teacher in living and deceased profiles. Earlier formats cannot hold these records; older builds refuse these checkpoints instead of discarding skills. Model-attempt and building-expansion records remain distinct. |
+| Schema 32 | Optional per-adult housing state: a pending request to live in another household's House (the household asked, its recorded adult members, including adults who join or come of age while pending, their answers and the 120-tick expiry), recent refusals and the current housing blocker. Loading checks that the applicant has no household, that members and answers name known people, and that refusals name known households. An older schema that carries housing state is refused. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

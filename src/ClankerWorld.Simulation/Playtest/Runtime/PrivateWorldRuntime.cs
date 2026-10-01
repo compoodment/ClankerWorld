@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 31;
+    public const int StateSchemaVersion = 32;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;

@@ -394,6 +394,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();
+            MaintainHousing();
             MaintainParenthood();
             MaintainDependentCare();
             EnqueueDueCognition();

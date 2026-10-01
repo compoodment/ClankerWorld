@@ -77,6 +77,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -273,6 +274,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
+        ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&

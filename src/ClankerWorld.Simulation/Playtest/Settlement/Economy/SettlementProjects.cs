@@ -305,6 +305,7 @@ public sealed partial class PrivateWorldRuntime
         !NeedsUrgentFood(state) &&
         !HasTradeResponse(state.InhabitantId) &&
         !HasCouncilDecision(state.InhabitantId) &&
+        !HasHousingDecision(state.InhabitantId) &&
         !HasFamilyDecision(state.InhabitantId) &&
         !HasParenthoodDecision(state.InhabitantId) &&
         !HasDependentCareDecision(state.InhabitantId) &&

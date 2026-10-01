@@ -403,7 +403,9 @@ outside both starts an independent agent. Location establishes **starting
 social membership**, not biological ancestry or permanent membership based on
 where the agent later walks. A player-added adult could be a new unrelated
 family line even when placed inside an existing household. Other
-invalid-placement rules and later voluntary household changes remain open.
+invalid-placement rules remain open. A later voluntary move by an adult who
+has no household into a household's House needs every adult member's
+agreement, as agreed in [Towns](towns.md#buildings-land-towns-and-animals).
 This forced Add Agent membership is distinct from inviting a nonmember to
 visit a House. The agreed first-Town household setup in
 [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices)
