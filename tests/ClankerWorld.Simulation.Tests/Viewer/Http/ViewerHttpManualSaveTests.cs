@@ -217,10 +217,10 @@ public sealed partial class ViewerHttpTests
                 Assert.True(view.Baseline.Snapshot.FounderSetup?.HasAcceptedTownSite == true);
                 Assert.Contains(view.Baseline.Snapshot.PlacedBuildings.Single(building =>
                     building.InstanceId == "first-town-house-a").StoredItems ?? [],
-                    item => item.Kind == "food" && item.Quantity > 0);
+                    item => item.Kind == "simple_meal" && item.Quantity > 0);
                 Assert.Contains(view.Baseline.Snapshot.PlacedBuildings.Single(building =>
                     building.InstanceId == "first-town-house-b").StoredItems ?? [],
-                    item => item.Kind == "food" && item.Quantity > 0);
+                    item => item.Kind == "simple_meal" && item.Quantity > 0);
                 var starterWarehouse = view.Baseline.Snapshot.PlacedBuildings.Single(building =>
                     building.InstanceId == "first-town-warehouse");
                 Assert.Contains(starterWarehouse.StoredItems ?? [], item => item.Kind == "wooden_axe" && item.Quantity == 1);

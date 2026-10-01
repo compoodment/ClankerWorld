@@ -26,6 +26,8 @@ public static partial class InventoryFixture
         string sender, string recipient, string lotId, int quantity, string animalId, string? storageBuildingId = null)
     {
         ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
         var source = checkpoint.GetLot(lotId);
         EnsureOwnerAndAvailableQuantity(checkpoint, source, sender, quantity);
         if (source.AnimalId != animalId || source.ContainerLotId is not null)
@@ -43,6 +45,11 @@ public static partial class InventoryFixture
             Lots = checkpoint.Lots.Select(lot => lot.Id == id || lot.ContainerLotId == id
                 ? lot with { AnimalId = null, GroundPosition = null } : lot).ToArray(),
         };
+        EnsurePortableTransfer(checkpoint, checkpoint.GetLot(id));
+        if (sender == recipient)
+            return Commit(checkpoint, lots: checkpoint.Lots.Select(lot => lot.Id == id || lot.ContainerLotId == id
+                ? lot with { StorageBuildingId = storageBuildingId, DeliveryBuildingId = null } : lot).ToArray(),
+                eventKind: "animal_unloaded", detail: $"{operationId}:{animalId}:{id}:{quantity}");
         return Transfer(checkpoint, operationId, sender, recipient, id, quantity, "animal_unloaded", storageBuildingId);
     }
 }

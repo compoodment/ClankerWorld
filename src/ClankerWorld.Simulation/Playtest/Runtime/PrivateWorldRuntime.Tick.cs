@@ -221,6 +221,7 @@ public sealed partial class PrivateWorldRuntime
         knowledge = proposed.knowledge;
         businessTrade = proposed.businessTrade;
         townCouncils = proposed.townCouncils;
+        livestock = proposed.livestock;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
         completedInstructionIds = proposed.completedInstructionIds;

@@ -53,7 +53,9 @@ public sealed class GeographyGeneratorTests
         Assert.Equal(map.HydrologyKinds, Convert.FromBase64String(layers.Hydrology));
         Assert.Equal(map.SurfaceKinds, Convert.FromBase64String(layers.Surface));
         Assert.Equal(map.VegetationKinds, Convert.FromBase64String(layers.Vegetation));
-        Assert.Equal("map-layers-v2", layers.Encoding);
+        Assert.Equal("map-layers-v3", layers.Encoding);
+        Assert.Equal(map.Tiles.Select(tile => (byte)map.FertilityAt(tile.Position)).ToArray(),
+            Convert.FromBase64String(layers.Fertility!));
     }
 
     [Fact]
@@ -89,7 +91,7 @@ public sealed class GeographyGeneratorTests
         Assert.Contains(SurfaceKind.DryScrub, surfaces);
         Assert.Contains(SurfaceKind.Rock, surfaces);
         Assert.Contains(SurfaceKind.Snow, surfaces);
-        Assert.Contains(SurfaceKind.FertileSoil, surfaces);
+        Assert.DoesNotContain(SurfaceKind.FertileSoil, surfaces);
         Assert.Contains(VegetationCover.Cactus, vegetation);
         Assert.NotEmpty(naturalObjects);
         Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "berry_bush");
@@ -104,11 +106,13 @@ public sealed class GeographyGeneratorTests
         Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "wild_seed_patch");
         Assert.All(naturalObjects, resource => Assert.Null(resource.TreeKind));
         Assert.Equal(naturalObjects.Length, naturalObjects.Select(resource => resource.Position).Distinct().Count());
-        var resourceSoilSites = naturalObjects.Where(resource => resource.NaturalObjectKind == "fertile_soil")
-            .Select(resource => resource.Position).ToHashSet();
-        var markedSoilTiles = first.Tiles.Where(tile => first.SurfaceAt(tile.Position) == SurfaceKind.FertileSoil)
-            .Select(tile => tile.Position).ToHashSet();
-        Assert.Equal(resourceSoilSites, markedSoilTiles);
+        Assert.DoesNotContain(naturalObjects, resource => resource.NaturalObjectKind == "fertile_soil");
+        Assert.DoesNotContain(first.Resources, resource => resource.Kind == "fertile_land");
+        var firstFertility = first.Tiles.Select(tile => first.FertilityAt(tile.Position)).ToArray();
+        Assert.Equal(firstFertility, second.Tiles.Select(tile => second.FertilityAt(tile.Position)).ToArray());
+        Assert.True(firstFertility.Distinct().Count() >= 3);
+        Assert.All(first.Tiles.Where(tile => !first.IsLand(tile.Position)),
+            tile => Assert.Equal(LandFertility.None, first.FertilityAt(tile.Position)));
         Assert.All(naturalObjects.Where(resource => resource.NaturalObjectKind is
             "iron_outcrop" or "gold_outcrop" or "diamond_outcrop"), resource =>
         {

@@ -162,7 +162,7 @@ public sealed class ViewerObservationTests
         Assert.NotNull(snapshot.Cognition);
         Assert.NotNull(snapshot.WorldSystems);
         Assert.Equal("spring", snapshot.WorldSystems!.Season);
-        Assert.Equal(3, snapshot.WorldSystems.EcologyResourceCount);
+        Assert.Equal(2, snapshot.WorldSystems.EcologyResourceCount);
         Assert.Equal(1, snapshot.WorldSystems.FactionCount);
         Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
     }
