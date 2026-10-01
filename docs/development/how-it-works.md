@@ -349,7 +349,7 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand are unchanged.
-4. **Object placement.** The starter berry bush, tree and fertile patch must
+4. **Object placement.** The starter berry patch, tree and grain seed patch must
    stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
    picks another tile rather than stand on sand, water or mountain rock, and

@@ -141,14 +141,20 @@ public sealed partial class PrivateWorldRuntime
             case FarmWorkKind.Plant:
                 ApplyInventoryTransition(inventory =>
                 {
-                    if (field.ReplantingReservationId is { } previous && field.Crop != work.Crop && ActiveFarmReservation(previous))
-                        inventory = InventoryFixture.ReleaseReservation(inventory, previous, "field_crop_changed");
+                    if (field.ReplantingReservationId is { } previous && ActiveFarmReservation(previous))
+                        inventory = InventoryFixture.ReleaseReservation(inventory, previous, "field_replanting_completed");
                     return InventoryFixture.ConsumeReservation(inventory, work.SeedReservationId!);
                 });
-                SetFarmField(field with { Stage = FarmFieldStage.Planted, Crop = work.Crop, PlantedTick = WorldTick,
+                SetFarmField(field with
+                {
+                    Stage = FarmFieldStage.Planted,
+                    Crop = work.Crop,
+                    PlantedTick = WorldTick,
                     ReadyTick = checked(WorldTick + FarmFieldRules.GrowthTicks(worldSystems.Config.TicksPerDay, fertility.At(field.Position))),
-                    Tended = false, Work = null,
-                    ReplantingReservationId = field.Crop == work.Crop ? field.ReplantingReservationId : null });
+                    Tended = false,
+                    Work = null,
+                    ReplantingReservationId = null
+                });
                 break;
             case FarmWorkKind.Tend:
                 SetFarmField(field with { Tended = true, Work = null });

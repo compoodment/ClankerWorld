@@ -47,6 +47,32 @@ public sealed class WorldEventTextTests
         }
     }
 
+    [Fact]
+    public void FieldEventsUseCompleteWorkerNamesAndReadHarvestConditionsFromTheEnd()
+    {
+        var snapshot = Snapshot(Person(ChildId, "Aster"));
+        var cases = new[]
+        {
+            ("field_work_started", ChildId + ":field-12-7:Till", "Aster started work on a field."),
+            ("field_prepared", ChildId + ":field-12-7:", "Aster prepared a field."),
+            ("field_planted", ChildId + ":field-12-7:cultivated_greens", "Aster planted cultivated greens."),
+            ("field_tended", ChildId + ":field-12-7:grain", "Aster tended grain."),
+            ("field_harvested", ChildId + ":field-12-7:potatoes", "Aster harvested potatoes."),
+            ("field_ready", "field-12-7", "A field is ready to harvest."),
+            ("field_work_interrupted", "field-12-7", "Work on a field stopped."),
+            ("crop_weather_loss", "field-12-7:harvest:2:snow", "Snow reduced a crop harvest."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:wet:70", "Moist soil improved a crop harvest."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:dry:10", "Dry soil reduced a crop harvest."),
+        };
+        foreach (var (kind, detail, expected) in cases)
+        {
+            Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+            var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
+            Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
+            Assert.Equal(detail, worldEvent.Detail);
+        }
+    }
+
     [Theory]
     [InlineData("town:first", ChildId)]
     [InlineData("legacy-town", "founder-scout")]

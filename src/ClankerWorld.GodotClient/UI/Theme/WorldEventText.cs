@@ -29,7 +29,15 @@ public static class WorldEventText
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
             "recipe_completed" => $"{ThingAt(1)} was finished.",
-            "crop_moisture_effect" when parts.Length >= 3 => parts[1] == "wet"
+            "field_work_started" => $"{LeadingName(snapshot, worldEvent.Detail)} started work on a field.",
+            "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} prepared a field.",
+            "field_planted" => $"{LeadingName(snapshot, worldEvent.Detail)} planted {ThingAt(parts.Length - 1)}.",
+            "field_tended" => $"{LeadingName(snapshot, worldEvent.Detail)} tended {ThingAt(parts.Length - 1)}.",
+            "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1)}.",
+            "field_ready" => "A field is ready to harvest.",
+            "field_work_interrupted" => "Work on a field stopped.",
+            "crop_weather_loss" => $"{ThingAt(parts.Length - 1)} reduced a crop harvest.",
+            "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Moist soil improved a crop harvest."
                 : "Dry soil reduced a crop harvest.",
             "food_harvested" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} gathered food.",

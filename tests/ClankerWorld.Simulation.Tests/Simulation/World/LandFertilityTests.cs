@@ -19,8 +19,11 @@ public sealed class LandFertilityTests
         Assert.Equal(before.At(new(0, 3)) + 15, after.At(new(0, 3)));
         Assert.Equal(before.At(new(0, 0)), after.At(new(0, 0)));
         Assert.False(after.CanFarm(new(7, 3)));
-        var ocean = river with { Tiles = river.Tiles.Select(tile => tile.Terrain == TerrainKind.River
-            ? tile with { Terrain = TerrainKind.Ocean } : tile).ToArray() };
+        var ocean = river with
+        {
+            Tiles = river.Tiles.Select(tile => tile.Terrain == TerrainKind.River
+            ? tile with { Terrain = TerrainKind.Ocean } : tile).ToArray()
+        };
         Assert.Equal(before.At(new(0, 3)), new LandFertility(ocean, "fertility-seam").At(new(0, 3)));
     }
 
@@ -45,5 +48,6 @@ public sealed class LandFertilityTests
 
     private static SeededMap Map() => new(8, 8, 0,
         Enumerable.Range(0, 64).Select(index => new TerrainTile(new(index % 8, index / 8), TerrainKind.Meadow)).ToArray(),
-        [], [], "fertility-fixture") { WrapsEastWest = true };
+        [], [], "fertility-fixture")
+    { WrapsEastWest = true };
 }

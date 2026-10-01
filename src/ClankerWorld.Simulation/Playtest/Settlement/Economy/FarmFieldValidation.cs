@@ -13,6 +13,8 @@ public sealed partial class PrivateWorldRuntime
         IReadOnlyList<GridPoint> roads)
     {
         if (fields.Length == 0) return;
+        if (fields.Any(field => field is null))
+            throw new InvalidDataException("A saved field record is missing.");
         var fertility = new LandFertility(map, seed);
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(roads).Concat(simulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(

@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
+using System.Text.Json.Nodes;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -17,8 +18,8 @@ public sealed class FarmFieldTests
         // The household has eaten its starter rations. Keep all real planting
         // stock and let ordinary choices arrange every field operation.
         state = FeedHouseholdFromAvailableStock(state, household);
-        var initialSeeds = state.Society.Society.Inventory.Lots
-            .Where(lot => lot.ItemKind == "cultivated_green_seed").Sum(lot => lot.Quantity);
+        var initialSeeds = new[] { "grain_seed", "cultivated_green_seed" }.ToDictionary(kind => kind,
+            kind => state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == kind).Sum(lot => lot.Quantity));
         using var first = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
         for (var tick = 0; tick < 1_800 && !first.Fields.Any(field => field.HouseholdId == household && field.Cycle > 0); tick++)
             Assert.True((await first.AdvanceOneTickAsync()).Advanced);
@@ -32,42 +33,55 @@ public sealed class FarmFieldTests
             _ => new DeterministicDecisionProvider());
         try
         {
-        for (var tick = 0; tick < 1_800 && !second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2); tick++)
-        {
-            var step = await second.AdvanceOneTickAsync();
-            Assert.True(step.Advanced);
-            if (!step.Events.Any(item => item.Kind == "field_harvested") ||
-                second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2)) continue;
-            // Other fields may finish while this one is being replanted.
-            // Keep the demand scenario going by accounting for that produce
-            // too; leave every reserved planting unit intact.
-            state = FeedHouseholdFromAvailableStock(second.ExportState(), household);
-            second.Dispose();
-            second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-                _ => new DeterministicDecisionProvider());
-        }
-        Assert.True(second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2), string.Join("\n",
-            second.Fields.Select(field => $"{field.Position} {field.Crop} {field.Stage} cycle {field.Cycle}")
-                .Concat(second.ExportState().Events.TakeLast(30).Select(item => $"{item.Kind}: {item.Detail}"))));
-        var repeated = second.Fields.First(field => field.HouseholdId == household && field.Cycle >= 2);
-        Assert.Equal(FarmFieldStage.Harvested, repeated.Stage);
-        Assert.NotNull(repeated.ReplantingReservationId);
-        Assert.Contains(second.Society.Inventory.Reservations, reservation => reservation.Id == repeated.ReplantingReservationId &&
-            reservation.Quantity == 1 && reservation.State == InventoryReservationState.Reserved);
-        var events = second.ExportState().Events;
-        var plantedGreens = events.Count(item => item.Kind == "field_planted" && item.Detail.EndsWith(":cultivated_greens", StringComparison.Ordinal));
-        var harvestedGreens = events.Count(item => item.Kind == "field_harvested" && item.Detail.EndsWith(":cultivated_greens", StringComparison.Ordinal));
-        Assert.True(plantedGreens >= 2);
-        Assert.Equal(initialSeeds + harvestedGreens * 2 - plantedGreens,
-            second.Society.Inventory.Lots.Where(lot => lot.ItemKind == "cultivated_green_seed").Sum(lot => lot.Quantity));
-        Assert.Contains(second.Fields, field => field.HouseholdId == household && field.Position != repeated.Position);
-        var snapshot = new OwnerWorldObservationStore(second).GetSnapshot();
-        Assert.Contains(snapshot.Fields!, field => field.HouseholdId == household);
-        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(second.ExportState())));
-        Assert.Equal(second.Fields, restored.Fields);
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(second.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+            for (var tick = 0; tick < 1_800 && !second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2); tick++)
+            {
+                var step = await second.AdvanceOneTickAsync();
+                Assert.True(step.Advanced);
+                if (!step.Events.Any(item => item.Kind == "field_harvested") ||
+                    second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2)) continue;
+                // Other fields may finish while this one is being replanted.
+                // Keep the demand scenario going by accounting for that produce
+                // too; leave every reserved planting unit intact.
+                state = FeedHouseholdFromAvailableStock(second.ExportState(), household);
+                second.Dispose();
+                second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+                    _ => new DeterministicDecisionProvider());
+            }
+            Assert.True(second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2), string.Join("\n",
+                second.Fields.Select(field => $"{field.Position} {field.Crop} {field.Stage} cycle {field.Cycle}")
+                    .Concat(second.ExportState().Events.TakeLast(30).Select(item => $"{item.Kind}: {item.Detail}"))));
+            var repeated = second.Fields.First(field => field.HouseholdId == household && field.Cycle >= 2);
+            Assert.Equal(FarmFieldStage.Harvested, repeated.Stage);
+            Assert.NotNull(repeated.ReplantingReservationId);
+            Assert.Contains(second.Society.Inventory.Reservations, reservation => reservation.Id == repeated.ReplantingReservationId &&
+                reservation.Quantity == 1 && reservation.State == InventoryReservationState.Reserved);
+            var events = second.ExportState().Events;
+            Assert.True(events.Count(item => item.Kind == "field_planted") >= 2);
+            foreach (var (crop, seedKind) in new[] { ("grain", "grain_seed"), ("cultivated_greens", "cultivated_green_seed") })
+            {
+                var planted = events.Count(item => item.Kind == "field_planted" && item.Detail.EndsWith(":" + crop, StringComparison.Ordinal));
+                var harvested = events.Count(item => item.Kind == "field_harvested" && item.Detail.EndsWith(":" + crop, StringComparison.Ordinal));
+                Assert.Equal(initialSeeds[seedKind] + harvested * 2 - planted,
+                    second.Society.Inventory.Lots.Where(lot => lot.ItemKind == seedKind).Sum(lot => lot.Quantity));
+            }
+            Assert.Contains(second.Fields, field => field.HouseholdId == household && field.Position != repeated.Position);
+            var snapshot = new OwnerWorldObservationStore(second).GetSnapshot();
+            Assert.Contains(snapshot.Fields!, field => field.HouseholdId == household);
+            using var restored = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(second.ExportState())));
+            Assert.Equal(second.Fields, restored.Fields);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(second.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         }
         finally { second.Dispose(); }
+    }
+
+    [Fact]
+    public void DamagedFieldArrayIsRejectedAsInvalidCheckpointData()
+    {
+        var (state, _, _, _) = PreparedFarmer("field-damaged-save");
+        var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
+        document["state"]!["fields"] = new JsonArray((JsonNode?)null);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+            System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
     }
 
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
@@ -88,34 +102,36 @@ public sealed class FarmFieldTests
         return WithInventory(state, inventory);
     }
 
-    [Fact]
-    public async Task ChangingCropsKeepsThePreviousReserveUntilPlantingCompletesThenReleasesItAcrossReload()
+    [Theory]
+    [InlineData("grain", "grain_seed")]
+    [InlineData("cultivated_greens", "cultivated_green_seed")]
+    public async Task PlantingKeepsThePreviousReserveUntilItCompletesThenReleasesItAcrossReload(string crop, string seedKind)
     {
         var (state, actor, household, point) = await ReadyFarmer("field-crop-change");
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "old-planting-stock", "grain_seed", household, 2,
             groundPosition: new(point.X, point.Y));
         inventory = InventoryFixture.Reserve(inventory, "old-replanting", household, "old-planting-stock", 1,
             "field_replanting", long.MaxValue);
-        inventory = InventoryFixture.AddLot(inventory, "new-crop-seed", "cultivated_green_seed", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "new-crop-seed", seedKind, actor, 2);
         state = WithInventory(state, inventory) with
         {
             Fields = [state.Fields!.Single() with { Stage = FarmFieldStage.Harvested, Cycle = 1,
                 ReplantingReservationId = "old-replanting" }],
         };
         using var starting = Restore(state);
-        Assert.True(starting.StartFieldWork(actor, point, FarmWorkKind.Plant, "cultivated_greens", "new-crop-seed").Accepted);
+        Assert.True(starting.StartFieldWork(actor, point, FarmWorkKind.Plant, crop, "new-crop-seed").Accepted);
         await Advance(starting, 2);
         Assert.Equal(InventoryReservationState.Reserved, starting.Society.Inventory.GetReservation("old-replanting").State);
         using var completing = Reload(starting);
         await Advance(completing, 2);
-        Assert.Equal("cultivated_greens", Assert.Single(completing.Fields).Crop);
+        Assert.Equal(crop, Assert.Single(completing.Fields).Crop);
         Assert.Null(Assert.Single(completing.Fields).ReplantingReservationId);
         Assert.Equal(2, completing.Society.Inventory.GetLot("old-planting-stock").Quantity);
         Assert.Equal(1, completing.Society.Inventory.GetLot("new-crop-seed").Quantity);
         Assert.DoesNotContain(completing.Society.Inventory.Reservations, reservation => reservation.Id == "old-replanting" &&
             reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed);
         Assert.Contains(completing.ExportState().Events, item => item.Kind == "field_planted" &&
-            item.Detail.EndsWith(":cultivated_greens", StringComparison.Ordinal));
+            item.Detail.EndsWith(":" + crop, StringComparison.Ordinal));
         using var restored = Reload(completing);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(completing.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
@@ -145,8 +161,11 @@ public sealed class FarmFieldTests
                 {
                     Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
                     {
-                        AgeBand = age, BirthTick = birth, BirthLifeTick = society.LifeClock is null ? null : birth,
-                        LastLifecycleYearChecked = years, CurrentRole = SocietyWorkRole.Unassigned,
+                        AgeBand = age,
+                        BirthTick = birth,
+                        BirthLifeTick = society.LifeClock is null ? null : birth,
+                        LastLifecycleYearChecked = years,
+                        CurrentRole = SocietyWorkRole.Unassigned,
                     } : person).ToArray(),
                 },
             },
@@ -222,7 +241,8 @@ public sealed class FarmFieldTests
                     Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
                     {
                         BirthLifeTick = nextLifeTick + 1 - (years + 1) * society.Config.TicksPerLifecycleAge,
-                        AgeBand = SocietyAgeBand.Elder, LastLifecycleYearChecked = years,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = years,
                     } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
                 },
             },
@@ -430,8 +450,11 @@ public sealed class FarmFieldTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
             new DeterministicDecisionProvider().DecideAsync(request with
             {
-                Observation = request.Observation with { Candidates = [ids.Select(id => request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == id)).FirstOrDefault(candidate => candidate is not null)
-                    ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")] },
+                Observation = request.Observation with
+                {
+                    Candidates = [ids.Select(id => request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == id)).FirstOrDefault(candidate => candidate is not null)
+                    ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")]
+                },
             }, cancellationToken);
     }
 }
