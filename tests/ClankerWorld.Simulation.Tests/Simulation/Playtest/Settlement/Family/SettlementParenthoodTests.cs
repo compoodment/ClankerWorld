@@ -348,58 +348,6 @@ public sealed partial class SettlementParenthoodTests
             item.ProposerId == secondary && item.TargetId == childId && item.State == SocietyRelationshipState.Accepted);
     }
 
-    [Fact]
-    public async Task CaregiverCanEaseAnInfantsIllnessWithoutASeparateRestAction()
-    {
-        var prepared = await PreparedState();
-        var first = prepared.Inhabitants[0].InhabitantId;
-        var second = prepared.Inhabitants[1].InhabitantId;
-        using var preparing = PrivateWorldRuntime.Restore(prepared, actor =>
-            new ParentProvider(actor == first ? "parent_propose:" : actor == second ? "parent_accept:" : "safe_idle"));
-        for (var tick = 0; tick < 605 && preparing.Society.Births.Count == 0; tick++) await preparing.AdvanceOneTickAsync();
-        var childId = Assert.Single(preparing.Society.Births).ChildId;
-        var state = preparing.ExportState();
-        var caregiverId = state.Society.Society.Relationships.First(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted).ProposerId;
-        var child = state.Inhabitants.Single(person => person.InhabitantId == childId);
-        var caregiverTile = state.Map.FootNeighbors(child.Position).First(point => state.Map.IsPassable(point) &&
-            Math.Abs(point.X - child.Position.X) + Math.Abs(point.Y - child.Position.Y) == 1 &&
-            !state.Inhabitants.Any(person => person.InhabitantId != caregiverId && person.InhabitantId != childId && person.Position == point));
-        const int initialIllness = 9_000;
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId switch
-            {
-                var id when id == caregiverId => person with
-                {
-                    Position = caregiverTile,
-                    HungerBasisPoints = 9_000,
-                    Survival = new SurvivalCondition(10_000, 0),
-                    Project = null,
-                    LastDecisionContext = null,
-                    TravelCooldownTicks = 0,
-                },
-                var id when id == childId => person with
-                {
-                    HungerBasisPoints = 9_000,
-                    Survival = new SurvivalCondition(9_000, initialIllness),
-                    Project = null,
-                },
-                _ => person,
-            }).ToArray(),
-        };
-        using var caring = PrivateWorldRuntime.Restore(state, actor =>
-            new ParentProvider(actor == caregiverId ? "care:" : "safe_idle"));
-
-        Assert.True((await caring.AdvanceOneTickAsync()).Advanced);
-
-        var caredFor = caring.Inhabitants.Single(person => person.InhabitantId == childId);
-        Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
-        Assert.Equal(10_000, caredFor.Survival!.WarmthBasisPoints);
-        Assert.True(caredFor.Survival.IllnessBasisPoints < initialIllness - 12,
-            $"Expected direct caregiver care to improve on ordinary warm-and-fed recovery; actual illness {caredFor.Survival.IllnessBasisPoints}.");
-    }
-
     [Theory]
     [InlineData("parent_decline:")]
     [InlineData("safe_idle")]

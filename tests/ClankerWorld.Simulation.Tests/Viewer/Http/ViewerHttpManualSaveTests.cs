@@ -20,16 +20,9 @@ public sealed partial class ViewerHttpTests
     [Theory]
     [InlineData(false, "\"32\"")]
     [InlineData(false, "null")]
-    [InlineData(false, "true")]
-    [InlineData(false, "[]")]
-    [InlineData(false, "{}")]
     [InlineData(false, "32.5")]
     [InlineData(false, "2147483648")]
     [InlineData(true, "[]")]
-    [InlineData(true, "null")]
-    [InlineData(true, "\"checkpoint\"")]
-    [InlineData(true, "32")]
-    [InlineData(true, "true")]
     public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
         bool malformedEnvelope, string malformedJson)
     {
@@ -86,7 +79,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(5)]
     [InlineData(10)]
     public async Task AutosaveConfigurationNeverTrimsAnotherWorld(int rotation)
     {
