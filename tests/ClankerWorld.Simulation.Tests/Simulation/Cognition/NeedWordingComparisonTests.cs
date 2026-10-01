@@ -47,8 +47,10 @@ public sealed class NeedWordingComparisonTests(ITestOutputHelper output)
         var ticks = Setting("CLANKERWORLD_NEED_WORDING_TICKS", 360);
         var runs = Setting("CLANKERWORLD_NEED_WORDING_RUNS", 1);
         var callBudget = new CallBudget(Setting("CLANKERWORLD_NEED_WORDING_MAX_CALLS", 1_500));
-        Func<ModelNeedFormat, IDecisionProvider> providerFor = mode == "model" ? ModelProvider(callBudget) : OfflineStandIn;
-        output.WriteLine($"mode={mode}; ticks={ticks}; runs={runs}; max_calls={callBudget.Limit}");
+        var target = mode == "model" ? ModelTarget.FromEnvironment() : null;
+        Func<ModelNeedFormat, IDecisionProvider> providerFor = target is null ? OfflineStandIn : ModelProvider(target, callBudget);
+        output.WriteLine($"mode={mode}; model={target?.Model ?? "offline stand-in"}; endpoint={target?.Endpoint.Host ?? "none"}; " +
+            $"ticks={ticks}; runs={runs}; max_calls={callBudget.Limit}");
 
         var reports = new List<RunReport>();
         for (var run = 0; run < runs; run++)
@@ -147,16 +149,41 @@ public sealed class NeedWordingComparisonTests(ITestOutputHelper output)
 
     private static IDecisionProvider OfflineStandIn(ModelNeedFormat format) => new OfflineStandInProvider(format);
 
-    private static Func<ModelNeedFormat, IDecisionProvider> ModelProvider(CallBudget budget)
+    private static Func<ModelNeedFormat, IDecisionProvider> ModelProvider(ModelTarget target, CallBudget budget)
     {
-        var endpoint = new Uri(Required("CLANKERWORLD_NEED_WORDING_ENDPOINT"), UriKind.Absolute);
-        var model = Required("CLANKERWORLD_NEED_WORDING_MODEL");
-        _ = Required("CLANKERWORLD_NEED_WORDING_API_KEY");
         var client = new HttpClient(new BudgetHandler(budget));
         // The key is read at call time and never written to the report.
         return format => new OpenAiCompatibleDecisionProvider(client,
-            () => Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_API_KEY"),
-            endpoint, model, needFormat: format);
+            () => Environment.GetEnvironmentVariable(target.KeyVariable),
+            target.Endpoint, target.Model, needFormat: format);
+    }
+
+    /// <summary>
+    /// CLANKERWORLD_NEED_WORDING_PROVIDER=ollama or openai picks that service's
+    /// endpoint and reads OLLAMA_API_KEY or OPENAI_API_KEY.
+    /// CLANKERWORLD_NEED_WORDING_ENDPOINT and CLANKERWORLD_NEED_WORDING_API_KEY
+    /// override either; CLANKERWORLD_NEED_WORDING_MODEL is always required.
+    /// </summary>
+    private sealed record ModelTarget(Uri Endpoint, string Model, string KeyVariable)
+    {
+        public static ModelTarget FromEnvironment()
+        {
+            var (serviceEndpoint, serviceKey) = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_PROVIDER")?.Trim().ToLowerInvariant() switch
+            {
+                "ollama" => ("https://ollama.com/v1/chat/completions", "OLLAMA_API_KEY"),
+                "openai" => ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY"),
+                null or "" => ((string?)null, (string?)null),
+                _ => throw new InvalidOperationException("CLANKERWORLD_NEED_WORDING_PROVIDER must be ollama or openai."),
+            };
+            var endpoint = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_ENDPOINT") is { Length: > 0 } custom
+                ? custom
+                : serviceEndpoint ?? Required("CLANKERWORLD_NEED_WORDING_ENDPOINT");
+            var keyVariable = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_API_KEY") is { Length: > 0 }
+                ? "CLANKERWORLD_NEED_WORDING_API_KEY"
+                : serviceKey ?? "CLANKERWORLD_NEED_WORDING_API_KEY";
+            _ = Required(keyVariable);
+            return new ModelTarget(new Uri(endpoint, UriKind.Absolute), Required("CLANKERWORLD_NEED_WORDING_MODEL"), keyVariable);
+        }
     }
 
     private static string Required(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value

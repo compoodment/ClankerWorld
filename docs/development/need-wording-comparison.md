@@ -13,7 +13,8 @@ words on a stated scale instead of exact numbers
 words must be compared with today's numbers in a controlled comparison before
 they become the default. [#672](https://github.com/compoodment/ClankerWorld/issues/672)
 built the words and this comparison. **Only the offline half has been run.** It
-cannot show whether words change a model's choices, so play still sends numbers.
+cannot show whether words change a model's choices, so play still sends numbers
+until the [model-backed run](#running-the-model-backed-comparison) is recorded.
 [How it works](how-it-works.md#model-inputs-usage-and-memories) describes the
 two request formats.
 
@@ -68,8 +69,9 @@ the model through the real adapter for a whole run without errors or exact
 values, that they never change the built-in path, and what they cost in request
 size. **It says nothing about how a model reads the words.**
 
-Run on 1 October on `3503dba` (main `8e7e1c7` plus this change). Both arms
-matched in every column but request size, so each row covers both:
+Run on 1 October on `3503dba` (main `8e7e1c7` plus this change) and again
+after merging main `69ff32d`, with the same results. Both arms matched in every
+column but request size, so each row covers both:
 
 | Ticks | Weather | Decisions | Survival choices | Time under a survival choice | Starving | Hungry or worse | Freezing | Unwell or worse | Peak illness | Food | Meals | Deaths |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |
@@ -89,38 +91,71 @@ characters (about 2%) longer: 7,554 against 7,710 characters on average in the
 
 ## Running the model-backed comparison
 
-The model-backed run makes paid calls with the owner's key, so it only runs
-when asked. It needs an OpenAI-compatible chat-completions endpoint, a model
-name and a key in environment variables. OpenAI's endpoint is shown below;
-Ollama Cloud's is `https://ollama.com/v1/chat/completions`.
+The owner has chosen how this is settled
+([#672](https://github.com/compoodment/ClankerWorld/issues/672)): a later
+session given the owner's keys runs it at the default length with two models,
+**GLM 5.3 Flash** on Ollama Cloud and **GPT 6 Luna** on OpenAI. The words
+become the default if they do no worse than numbers.
+
+The run makes paid calls, so it only starts when asked. Set
+`CLANKERWORLD_NEED_WORDING_PROVIDER` to `ollama` or `openai` to use that
+service's chat-completions endpoint and read its key from `OLLAMA_API_KEY` or
+`OPENAI_API_KEY`. `CLANKERWORLD_NEED_WORDING_ENDPOINT` and
+`CLANKERWORLD_NEED_WORDING_API_KEY` override either one. The key is read when
+each call is made and is never written to the report.
+
+GLM 5.3 Flash on Ollama Cloud:
 
 ```bash
 export CLANKERWORLD_NEED_WORDING_COMPARISON=model
-export CLANKERWORLD_NEED_WORDING_ENDPOINT=https://api.openai.com/v1/chat/completions
-export CLANKERWORLD_NEED_WORDING_MODEL=<model name>
-export CLANKERWORLD_NEED_WORDING_API_KEY=<key>
+export CLANKERWORLD_NEED_WORDING_PROVIDER=ollama
+export CLANKERWORLD_NEED_WORDING_MODEL=glm-5.3-flash
+export OLLAMA_API_KEY=<key>
 dotnet test --configuration Release --filter "FullyQualifiedName~ReportNeedWordingComparison" --logger "console;verbosity=detailed"
 ```
 
+GPT 6 Luna on OpenAI. Read its exact model ID from the model list first; the
+game's own list calls it `gpt-6-luna`:
+
+```bash
+curl -s https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY" | grep -o '"id": *"[^"]*luna[^"]*"'
+export CLANKERWORLD_NEED_WORDING_COMPARISON=model
+export CLANKERWORLD_NEED_WORDING_PROVIDER=openai
+export CLANKERWORLD_NEED_WORDING_MODEL=<model ID from the list>
+export OPENAI_API_KEY=<key>
+dotnet test --configuration Release --filter "FullyQualifiedName~ReportNeedWordingComparison" --logger "console;verbosity=detailed"
+```
+
+If Ollama Cloud refuses `glm-5.3-flash`, check the name its model list gives
+(`https://ollama.com/v1/models` with the same key).
+
 Optional settings: `CLANKERWORLD_NEED_WORDING_TICKS` (default 360),
 `CLANKERWORLD_NEED_WORDING_RUNS` (repeats of each weather and arm, default 1)
-and `CLANKERWORLD_NEED_WORDING_MAX_CALLS` (default 1,500). Once the call limit
-is reached nothing more is sent and the report fails rather than mixing
-fallback choices into the results. `CLANKERWORLD_NEED_WORDING_COMPARISON=offline`
-repeats the offline run. The key is read when each call is made and is never
-written to the report.
+and `CLANKERWORLD_NEED_WORDING_MAX_CALLS` (default 1,500 per model run). Once
+the call limit is reached nothing more is sent and the report fails rather than
+mixing fallback choices into the results. A failed call falls back for that
+decision and is counted in the report; many failures make the result
+unreliable, so rerun. `CLANKERWORLD_NEED_WORDING_COMPARISON=offline` repeats the
+offline run.
 
 At the default length, the offline run made 419 decisions per arm, so expect
-roughly 850 calls of about 2,000 input tokens each. Output tokens depend on the
-model: the owner's sample in [#457](https://github.com/compoodment/ClankerWorld/issues/457)
-averaged about 2,800 per call. A model's choices vary from run to run, so one
-run per arm is a first look rather than proof; repeats make a difference more
-convincing.
+roughly 850 calls per model of about 2,000 input tokens each. Output tokens
+depend on the model: the owner's sample in
+[#457](https://github.com/compoodment/ClankerWorld/issues/457) averaged about
+2,800 per call. A model's choices vary from run to run, so one run per arm is a
+first look rather than proof; repeats make a difference more convincing.
+
+Record each model's table here with the model ID and date, then change
+`ModelNeedWords.DefaultFormat` if the words did no worse.
 
 ## Limits
 
-These are short runs on a small map with four starting agents. Only personal
-requests are compared; Jev's routine requests use the same fullness words but
-need a separate key and are not part of this run. The test provider does not
-speak in conversations, which carry no needs. Results from the model-backed
-run belong in this page, with the model name, before the default changes.
+These are short runs on a small map with four starting agents. The test
+provider does not speak in conversations, which carry no needs.
+
+Jev's routine requests are not part of the comparison. They use the same
+words for fullness, warmth and illness, but Jev runs on TypeSafe's own
+System One API with its own key and question format, not on an
+OpenAI-compatible chat-completions endpoint, so neither model above nor its key
+can answer them. Every decision in the comparison goes to the personal model,
+including routine ones that Jev would take in play when it is switched on.

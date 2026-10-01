@@ -529,8 +529,10 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 "choice",
                 "Choose exactly one legal candidate for the agent's next small action. " +
                 (needFormat == ModelNeedFormat.Words
-                    ? "fullness says in words how well fed they are, followed by its whole scale from worst to best."
-                    : "hunger_basis_points says how well fed they are: 10000 is full and 0 is starving."),
+                    ? "fullness, warmth and illness each give the agent's current level in words, then the whole scale from worst to best."
+                    : "hunger_basis_points says how well fed they are: 10000 is full and 0 is starving. " +
+                        "warmth_basis_points is 0 dangerously cold to 10000 warm; illness_basis_points is 0 well to 10000 severely ill.") +
+                " A null need is unknown.",
                 request.Observation.Candidates.ToDictionary(
                     candidate => candidate.Id,
                     candidate => candidate.Description,
@@ -552,6 +554,8 @@ public sealed class JevDecisionProvider : IDecisionProvider
             {
                 agent_id = request.Observation.InhabitantId,
                 hunger_basis_points = request.Observation.HungerBasisPoints,
+                warmth_basis_points = request.Observation.Self?.WarmthBasisPoints,
+                illness_basis_points = request.Observation.Self?.IllnessBasisPoints,
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
                 housing = request.Observation.Self?.HousingNote,
@@ -703,6 +707,10 @@ public sealed class JevDecisionProvider : IDecisionProvider
         var described = JsonSerializer.SerializeToNode(state, JsonOptions)!.AsObject();
         ModelNeedWords.ReplaceNumber(described, "hunger_basis_points", "fullness",
             ModelNeedWords.Fullness(observation.HungerBasisPoints));
+        ModelNeedWords.ReplaceNumber(described, "warmth_basis_points", "warmth",
+            observation.Self?.WarmthBasisPoints is { } warmth ? ModelNeedWords.Warmth(warmth) : null);
+        ModelNeedWords.ReplaceNumber(described, "illness_basis_points", "illness",
+            observation.Self?.IllnessBasisPoints is { } illness ? ModelNeedWords.Illness(illness) : null);
         return described;
     }
 

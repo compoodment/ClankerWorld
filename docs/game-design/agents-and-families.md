@@ -305,6 +305,14 @@ another sprite family at first.
   in the learner's record. Lessons do not assign work roles.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
+- **Need words, the owner's answers of October 1 on
+  [#672](https://github.com/compoodment/ClankerWorld/issues/672):** alongside
+  the fullness and warmth words agreed in
+  [#646](https://github.com/compoodment/ClankerWorld/issues/646), illness reads
+  *very ill, ill, unwell, well*, changing at 25%, 50% and 75% illness, where
+  illness already slows an agent's work and travel. Jev's routine requests
+  describe all three needs (fullness, warmth and illness) the same way as the
+  personal model's requests, not fullness alone.
 
 ### Still to decide
 

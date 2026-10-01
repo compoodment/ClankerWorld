@@ -115,7 +115,10 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided.
+carried inventory and current activity are not provided. Jev's routine request
+sends the same three needs as flat fields after `hunger_basis_points`:
+`warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
+their scales explained in its instructions.
 
 `ModelNeedWords` holds the agreed alternative from
 [#646](https://github.com/compoodment/ClankerWorld/issues/646): each need as a
@@ -125,16 +128,19 @@ Fullness is *full* from 70%, *fine* from 40%, *hungry* from 20% and *starving*
 below that, matching the comfortable and urgent food references. Warmth is
 *warm* from 60%, *chilly* from 35% and *freezing* below that. Illness is *well*
 below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: each
-step is where illness slows work further. In words, the personal request
-sends `fullness`, `self.warmth` and `self.illness` in place of the three
-`_basis_points` fields, in the same positions, and drops the numeric scale
-sentences; Jev's routine request sends `fullness` in the same way. Unknown
-warmth or illness stays `null`. Nothing else in either request changes, and
+step is where illness slows work further (the owner's choice on
+[#672](https://github.com/compoodment/ClankerWorld/issues/672)). In words, the
+personal request sends `fullness`, `self.warmth` and `self.illness` in place of
+the three `_basis_points` fields, in the same positions, and drops the numeric
+scale sentences; Jev's routine request sends `fullness`, `warmth` and `illness`
+the same way. Unknown warmth or illness stays `null`. Nothing else in either request changes, and
 the observation, its digest, admission and the simulation keep the exact values.
 
 Both adapters take a `needFormat` setting. `ModelNeedWords.DefaultFormat` is
 still `Numbers`: the decision requires a controlled comparison with a real
-model before words become the default, so play sends numbers until then.
+model before words become the default, so play sends numbers until then. The
+owner will switch to words if they do no worse than numbers with GLM 5.3 Flash
+and GPT 6 Luna.
 [Need wording comparison](need-wording-comparison.md) describes the comparison
 harness and its results.
 

@@ -145,7 +145,75 @@ public sealed class ModelNeedWordsTests
     }
 
     [Fact]
-    public async Task JevRoutineRequestsUseTheSameFullnessWords()
+    public async Task JevRoutineRequestsDescribeEveryNeedInWordsWithoutExactValues()
+    {
+        var (body, instructions) = await JevRequestAsync(ModelNeedFormat.Words, Observation(1_917, 5_123, 2_731));
+
+        using var document = JsonDocument.Parse(body);
+        var state = document.RootElement.GetProperty("state");
+        Assert.Equal("starving (starving, hungry, fine, full; starving is worst, full is best)", state.GetProperty("fullness").GetString());
+        Assert.Equal("chilly (freezing, chilly, warm; freezing is worst, warm is best)", state.GetProperty("warmth").GetString());
+        Assert.Equal("unwell (very ill, ill, unwell, well; very ill is worst, well is best)", state.GetProperty("illness").GetString());
+        foreach (var exact in new[] { "hunger_basis_points", "warmth_basis_points", "illness_basis_points", "1917", "5123", "2731" })
+            Assert.DoesNotContain(exact, body, StringComparison.Ordinal);
+        Assert.Contains("whole scale from worst to best", instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("10000", instructions, StringComparison.Ordinal);
+        Assert.Null(RetiredWording.Find(instructions));
+        Assert.Equal(["agent_id", "fullness", "warmth", "illness", "household", "town", "housing", "candidates", "memory_compaction_candidates"],
+            state.EnumerateObject().Select(property => property.Name));
+    }
+
+    [Theory]
+    [InlineData(1_999, 3_499, 2_499, "starving", "freezing", "well")]
+    [InlineData(2_000, 3_500, 2_500, "hungry", "chilly", "unwell")]
+    [InlineData(3_999, 5_999, 4_999, "hungry", "chilly", "unwell")]
+    [InlineData(4_000, 6_000, 5_000, "fine", "warm", "ill")]
+    [InlineData(6_999, 10_000, 7_499, "fine", "warm", "ill")]
+    [InlineData(7_000, 0, 7_500, "full", "freezing", "very ill")]
+    public async Task JevRoutineWordsChangeAtTheAgreedEdges(
+        int fullness, int warmth, int illness, string fullnessLevel, string warmthLevel, string illnessLevel)
+    {
+        var (body, _) = await JevRequestAsync(ModelNeedFormat.Words, Observation(fullness, warmth, illness));
+
+        using var document = JsonDocument.Parse(body);
+        var state = document.RootElement.GetProperty("state");
+        Assert.StartsWith(fullnessLevel + " (", state.GetProperty("fullness").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith(warmthLevel + " (", state.GetProperty("warmth").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith(illnessLevel + " (", state.GetProperty("illness").GetString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ModelNeedFormat.Numbers)]
+    [InlineData(ModelNeedFormat.Words)]
+    public async Task JevRoutineRequestsKeepUnknownConditionUnknown(ModelNeedFormat format)
+    {
+        var (body, instructions) = await JevRequestAsync(format, Observation(5_000, null, null));
+
+        using var document = JsonDocument.Parse(body);
+        var state = document.RootElement.GetProperty("state");
+        var (warmth, illness) = format == ModelNeedFormat.Words ? ("warmth", "illness") : ("warmth_basis_points", "illness_basis_points");
+        Assert.Equal(JsonValueKind.Null, state.GetProperty(warmth).ValueKind);
+        Assert.Equal(JsonValueKind.Null, state.GetProperty(illness).ValueKind);
+        Assert.Contains("A null need is unknown.", instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task JevRoutineRequestsSendAllThreeNeedsAsNumbersByDefault()
+    {
+        var (body, instructions) = await JevRequestAsync(null, Observation(1_917, 5_123, 2_731));
+
+        using var document = JsonDocument.Parse(body);
+        var state = document.RootElement.GetProperty("state");
+        Assert.Equal(1_917, state.GetProperty("hunger_basis_points").GetInt32());
+        Assert.Equal(5_123, state.GetProperty("warmth_basis_points").GetInt32());
+        Assert.Equal(2_731, state.GetProperty("illness_basis_points").GetInt32());
+        Assert.False(state.TryGetProperty("fullness", out _));
+        Assert.Contains("10000 is full and 0 is starving", instructions, StringComparison.Ordinal);
+        Assert.Contains("illness_basis_points is 0 well to 10000 severely ill", instructions, StringComparison.Ordinal);
+        Assert.Null(RetiredWording.Find(instructions));
+    }
+
+    private static async Task<(string Body, string Instructions)> JevRequestAsync(ModelNeedFormat? format, InhabitantObservation observation)
     {
         var handler = new RecordingHandler(
             """
@@ -155,24 +223,17 @@ public sealed class ModelNeedWordsTests
             }
             """);
         using var client = new HttpClient(handler);
-        var provider = new JevDecisionProvider(client, () => "synthetic-test-key",
-            new Uri("https://typesafe.test/v1/systemone"), needFormat: ModelNeedFormat.Words);
+        var endpoint = new Uri("https://typesafe.test/v1/systemone");
+        var provider = format is { } chosen
+            ? new JevDecisionProvider(client, () => "synthetic-test-key", endpoint, needFormat: chosen)
+            : new JevDecisionProvider(client, () => "synthetic-test-key", endpoint);
 
-        var response = await provider.DecideAsync(new CognitionDecisionRequest("jev-words", 1, Observation(1_917, 5_123, 2_731)));
+        var response = await provider.DecideAsync(new CognitionDecisionRequest("jev-needs", 1, observation));
 
-        using var body = JsonDocument.Parse(handler.Body!);
-        var state = body.RootElement.GetProperty("state");
-        var instructions = body.RootElement.GetProperty("questions").GetProperty("selected_candidate")
-            .GetProperty("instructions").GetString()!;
-        Assert.Equal(ModelNeedWords.Fullness(1_917), state.GetProperty("fullness").GetString());
-        Assert.StartsWith("starving (starving, hungry, fine, full;", state.GetProperty("fullness").GetString(), StringComparison.Ordinal);
-        Assert.False(state.TryGetProperty("hunger_basis_points", out _));
-        Assert.DoesNotContain("1917", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("whole scale from worst to best", instructions, StringComparison.Ordinal);
-        Assert.DoesNotContain("10000", instructions, StringComparison.Ordinal);
-        Assert.Equal(["agent_id", "fullness", "household", "town", "housing", "candidates", "memory_compaction_candidates"],
-            state.EnumerateObject().Select(property => property.Name));
         Assert.Equal("seek_food", response.SelectedCandidateId);
+        using var document = JsonDocument.Parse(handler.Body!);
+        return (handler.Body!, document.RootElement.GetProperty("questions").GetProperty("selected_candidate")
+            .GetProperty("instructions").GetString()!);
     }
 
     private static InhabitantObservation Observation(int fullness, int? warmth, int? illness) => new(
