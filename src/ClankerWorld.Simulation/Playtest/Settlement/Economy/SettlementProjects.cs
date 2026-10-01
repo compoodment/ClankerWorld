@@ -685,19 +685,29 @@ public sealed partial class PrivateWorldRuntime
         GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
     }
 
-    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source)
+    private ToolGatheringPlan? ProjectMaterialHarvest(string actor, string itemKind, MapResource source,
+        bool useHarvestBonus = true)
     {
         var ecology = worldSystems.Ecology.GetResource(source.Id);
         var plan = ToolProgressionRules.PlanGather(itemKind, source, society.Checkpoint.Inventory, actor,
             ecology.Quantity);
+        if (plan is null || useHarvestBonus || plan.ToolLotId is null)
+            return plan;
+        return plan with { Quantity = Math.Min(plan.Quantity, 4) };
+    }
+
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source,
+        bool useHarvestBonus = true)
+    {
+        var plan = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus);
         return plan is null ? int.MaxValue : checked(plan.Quantity + plan.TreeSeedQuantity);
     }
 
-    private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
+    private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
+        MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null)
     {
         var ecology = worldSystems.Ecology.GetResource(source.Id);
-        var inventory = society.Checkpoint.Inventory;
-        var plan = ToolProgressionRules.PlanGather(itemKind, source, inventory, inhabitantId, ecology.Quantity);
+        var plan = ProjectMaterialHarvest(inhabitantId, itemKind, source, useHarvestBonus);
         if (plan is null)
         {
             CollectToolForGathering(inhabitantId, state, itemKind, source);
@@ -729,7 +739,7 @@ public sealed partial class PrivateWorldRuntime
         // together with the output before reducing the finite ecology stock.
         // A failed inventory/capacity transition therefore leaves the source
         // untouched and does not wear a tool.
-        ApplyGatheringInventory(inhabitantId, itemKind, plan);
+        ApplyGatheringInventory(inhabitantId, itemKind, plan, deliveryBuildingId);
         worldSystems = worldSystems with
         {
             Ecology = worldSystems.Ecology with
@@ -748,6 +758,12 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{plan.TreeSeedQuantity}");
         }
     }
+
+    private static InventoryCheckpoint MarkBuildingMaterialDelivery(InventoryCheckpoint inventory, string lotId,
+        string? deliveryBuildingId) => deliveryBuildingId is null ? inventory : inventory with
+    {
+        Lots = inventory.Lots.Select(lot => lot.Id == lotId ? lot with { DeliveryBuildingId = deliveryBuildingId } : lot).ToArray(),
+    };
 
     private IEnumerable<(string Requester, ContentQuantity Input, string OwnerId)> ProjectRequests(string helperId)
     {

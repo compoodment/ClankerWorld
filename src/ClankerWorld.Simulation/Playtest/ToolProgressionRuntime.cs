@@ -57,7 +57,8 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private void ApplyGatheringInventory(string actor, string itemKind, ToolGatheringPlan plan)
+    private void ApplyGatheringInventory(string actor, string itemKind, ToolGatheringPlan plan,
+        string? deliveryBuildingId)
     {
         ApplyInventoryTransition(inventory =>
         {
@@ -73,12 +74,15 @@ public sealed partial class PrivateWorldRuntime
                 }
             }
 
-            updated = InventoryFixture.AddLot(updated, $"material:{WorldTick}:{actor}", itemKind,
-                actor, plan.Quantity, WorldTick);
+            var materialLotId = $"material:{WorldTick}:{actor}";
+            updated = MarkBuildingMaterialDelivery(InventoryFixture.AddLot(updated, materialLotId,
+                itemKind, actor, plan.Quantity, WorldTick), materialLotId, deliveryBuildingId);
             if (plan.TreeSeedQuantity > 0)
             {
-                updated = InventoryFixture.AddLot(updated, $"tree-seed:{WorldTick}:{actor}",
-                    TreeGrowthRules.TreeSeedItem, actor, plan.TreeSeedQuantity, WorldTick);
+                var seedLotId = $"tree-seed:{WorldTick}:{actor}";
+                updated = MarkBuildingMaterialDelivery(InventoryFixture.AddLot(updated, seedLotId,
+                    TreeGrowthRules.TreeSeedItem, actor, plan.TreeSeedQuantity, WorldTick), seedLotId,
+                    deliveryBuildingId);
             }
             if (wornToolLotId is not null && plan.WearLossBasisPoints > 0)
                 updated = InventoryFixture.WearSingleUnit(updated, wornToolLotId, plan.WearLossBasisPoints);

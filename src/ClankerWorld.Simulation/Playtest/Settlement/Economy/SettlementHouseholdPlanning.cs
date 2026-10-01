@@ -1,6 +1,9 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -99,12 +102,48 @@ public sealed partial class PrivateWorldRuntime
     private void AddBuildingMaterialCandidate(List<CognitionCandidate> candidates, string actor, string householdId)
     {
         if (NeededBuildingMaterial(actor, householdId) is not { } need ||
-            MaterialSource(need.Material.ResourceId, actor) is not { } source ||
-            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source))
+            MaterialSource(need.Material.ResourceId, actor) is not { } source)
             return;
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, need.Material.ResourceId, source);
+        if (FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source, useHarvestBonus))
+            return;
+        var load = useHarvestBonus ? "using its faster whole load" : "as a smaller whole load that fits your carrying space";
         candidates.Add(new CognitionCandidate(GatherBuildingMaterialPrefix + need.Material.ResourceId,
-            $"Gather {need.Material.ResourceId} so the household has what it needs to build its own {need.Building.DisplayName}.",
+            $"Gather {need.Material.ResourceId} {load} so the household has what it needs to build its own {need.Building.DisplayName}.",
             34));
+    }
+
+    /// <summary>Use the faster harvest only when its complete output fits the current carry space.</summary>
+    private bool UseHarvestBonusForBuildingMaterial(string actor, string itemKind, MapResource source)
+    {
+        var plan = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus: true);
+        return plan is { ToolLotId: not null, Quantity: > 4 } &&
+            FreeCarryCapacity(actor) >= checked(plan.Quantity + plan.TreeSeedQuantity);
+    }
+
+    /// <summary>
+    /// A carried project tool is kept at home until preparation materials have
+    /// room to travel. Building work can collect it again from the household.
+    /// </summary>
+    private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
+    {
+        if (inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
+            HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
+            NeededBuildingMaterial(actor, householdId) is not { } need ||
+            MaterialSource(need.Material.ResourceId, actor) is not { } source)
+            return null;
+
+        var free = FreeCarryCapacity(actor);
+        var required = ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source, useHarvestBonus: false);
+        if (free >= required)
+            return null;
+
+        var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                lot.ContainerLotId is null &&
+                lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        return tool is not null && free + Math.Min(1, AvailableLotQuantity(tool)) >= required ? tool : null;
     }
 
     private void GatherBuildingMaterial(string actor, PlaytestInhabitantState state, string itemKind)
@@ -113,6 +152,8 @@ public sealed partial class PrivateWorldRuntime
             NeededBuildingMaterial(actor, householdId) is not { } need || need.Material.ResourceId != itemKind ||
             MaterialSource(itemKind, actor) is not { } source)
             return;
-        GatherProjectMaterial(actor, state, itemKind, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, itemKind, source);
+        var deliveryBuildingId = HouseForHousehold(householdId)?.InstanceId;
+        GatherProjectMaterial(actor, state, itemKind, source, useHarvestBonus, deliveryBuildingId);
     }
 }
