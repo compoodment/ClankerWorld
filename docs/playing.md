@@ -110,6 +110,8 @@ place you choose; it does not make the adult biologically related to anyone.
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
 the world paused. Opening ordinary inspection panels leaves time running.
+Settings and the Mod Library open inside the Pause Menu window; its back arrow
+or **Escape** returns to the menu's buttons.
 
 Game Settings controls the display, interface scale, theme, weather effects and
 date/time format. World Settings contains that world's autosaves, Jev and the
