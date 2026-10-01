@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
@@ -27,11 +28,15 @@ public sealed class StoredFuelRoutingTests
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
         for (var index = 0; index < 4; index++) initial.PlaceFounder(ids[index], positions[index]);
         initial.StartWorld();
+        var householdId = initial.Society.GetInhabitant(ids[0]).HouseholdId!;
+        var workStock = initial.WorldSimulation.Buildings.First(building => building.HouseholdId == householdId &&
+            !initial.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
         if (blockStorage)
         {
             var map = initial.ExportState().Map;
             var storage = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
-            var blockers = map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 &&
+            var blockers = map.Tiles.Where(tile => (map.FootDistance(tile.Position, storage) <= 1 ||
+                map.FootDistance(tile.Position, workStock.Position) <= 1) &&
                 map.IsBuildable(tile.Position) && !map.Resources.Any(resource => resource.Position == tile.Position) &&
                 !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
             Assert.NotEmpty(blockers);
@@ -44,6 +49,19 @@ public sealed class StoredFuelRoutingTests
         var state = initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
+        // The private fuel stock is at a workplace, separate from the House
+        // whose hearth must remain reachable even while stock pickup is blocked.
+        society = society with { Inventory = society.Inventory with { Lots = society.Inventory.Lots.Select(lot =>
+            lot.OwnerId == household && lot.ItemKind == "wood"
+                ? lot with { StorageBuildingId = workStock.InstanceId } : lot).ToArray() } };
+        if (blockStorage)
+        {
+            // This check blocks stock pickup, not the new requirement to use
+            // a real axe. Take the Town's actual starter tool before the blockage.
+            var axe = society.Inventory.Lots.Single(lot => lot.Id == "first-town-wooden-axe");
+            society = society with { Inventory = InventoryFixture.Transfer(society.Inventory, "fuel-fixture-axe",
+                axe.OwnerId, ids[0], axe.Id, 1, "equipment_collected") };
+        }
         var storedWood = society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood")
             .Sum(lot => lot.Quantity);
         Assert.True(storedWood > 0);
@@ -86,7 +104,7 @@ public sealed class StoredFuelRoutingTests
             if (blockStorage)
             {
                 Assert.True(result.Events.Any(item => item.Kind == "material_gathered" && item.Detail.StartsWith(ids[0] + ":", StringComparison.Ordinal)),
-                    $"tick={world.WorldTick}; fires={result.Survival!.Fires.Count}; no_route={result.Events.Count(item => item.Kind == "movement_blocked" && item.Detail.StartsWith(ids[0] + ":no_route", StringComparison.Ordinal))}; warmth={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Survival!.WarmthBasisPoints}; stored wood={storedWood}");
+                    $"tick={world.WorldTick}; fires={result.Survival!.Fires.Count}; no_route={result.Events.Count(item => item.Kind == "movement_blocked" && item.Detail.StartsWith(ids[0] + ":no_route", StringComparison.Ordinal))}; warmth={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Survival!.WarmthBasisPoints}; stored wood={storedWood}; actor={System.Text.Json.JsonSerializer.Serialize(result.Inhabitants.Single(person => person.InhabitantId == ids[0]))}; inventory={System.Text.Json.JsonSerializer.Serialize(result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == ids[0]))}; events={string.Join(';', result.Events.Where(item => item.Detail.StartsWith(ids[0] + ":", StringComparison.Ordinal)).Select(item => item.Kind + ":" + item.Detail))}");
                 Assert.Equal(storedWood, result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
             }
             Assert.Contains(result.Survival!.Fires, fire => fire.BuildingId == "first-town-house-a");

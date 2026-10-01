@@ -264,8 +264,7 @@ public sealed class SettlementProjectTests
     public async Task DefaultSettlementGathersDifferentInputsSharesAndCompletesVisibleProjects()
     {
         var provider = new ObservingProvider();
-        using var world = new PrivateWorldRuntime("living-settlement", _ => provider);
-        world.StageStarterContent();
+        using var world = NormalPathWorld.CreateGenerated("living-settlement", _ => provider);
         for (var tick = 0; tick < 1000; tick++)
         {
             await world.AdvanceOneTickAsync();
@@ -278,10 +277,12 @@ public sealed class SettlementProjectTests
         Assert.Contains(state.Events, item => item.Kind == "build_completed");
         Assert.Contains(state.Events, item => item.Kind == "household_food_collected");
         var gathered = state.Events.Where(item => item.Kind == "material_gathered")
-            .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
+            .Select(item => item.Detail.Split(':')[^2]).ToHashSet(StringComparer.Ordinal);
         Assert.True(gathered.Count >= 3);
         Assert.Contains("stone", gathered);
-        Assert.Contains("seed", gathered);
+        Assert.Contains("fiber", gathered);
+        Assert.Contains(state.Events, item => item.Kind == "field_planted");
+        Assert.Contains(state.Events, item => item.Kind == "field_harvested");
         Assert.Contains(state.Events, item => item.Kind == "project_request_fulfilled");
         Assert.Contains(state.Events, item => item.Kind == "social_standing_changed");
         Assert.Contains(state.Inhabitants, person => person.SocialStanding?.Any(item => item.Trust >= 2) == true);

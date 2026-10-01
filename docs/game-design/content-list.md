@@ -271,10 +271,12 @@ wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
 Still open: optional starter supplies beyond the guaranteed minima; whether a
-Blacksmith offers refined metal directly in its business catalogue; exact Port
-clearance and blocked-arrival recovery; currency and
-governance rules; detailed animal breeding/mortality, injury and combat rules;
-and late-development invention/mod art generation and fallback. Recipe
+Blacksmith offers refined metal directly in its business catalogue; currency
+and law enforcement; animal acquisition, breeding and mortality; detailed
+injury and combat rules; and late-development invention/mod art generation and
+fallback. Port clearance is provisional, blocked-arrival recovery is agreed,
+and the approved first council and election rules are in [Towns](towns.md).
+Workshop gameplay is deferred until the base game is more complete. Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery
 effects are provisional playtest balance.
 
