@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), HouseCraftingContent.Create(), SiloContent.Create(), TailorContent.Create(), PotteryContent.Create(),
-                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(),
+                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(), CartContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -274,7 +274,7 @@ public sealed partial class PrivateWorldRuntime
                     .ToArray(),
                 worldSimulation.ProductionJobs,
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
             if (assignedTownId is not null)
                 AssignBuildingToTown(placed, definition);
             AppendEvent(eventKind, $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}" +
@@ -470,7 +470,7 @@ public sealed partial class PrivateWorldRuntime
                 worldSimulation.Buildings,
                 productionJobs,
                 checked(worldSimulation.NextProductionJobSequence + 1),
-                cropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
+                cropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
             if (isFertileLandBuild)
                 SetField(FarmFields.First(field => field.Position == workPosition) with
                 { Stage = FarmFieldStage.Planted, WorkDone = 0, RecipeId = recipe.CanonicalId, JobId = job.JobId, Harvest = null, TendingWork = 0 });

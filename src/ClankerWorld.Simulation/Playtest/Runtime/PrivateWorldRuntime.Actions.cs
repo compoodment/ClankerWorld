@@ -40,13 +40,20 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var next = route[1];
+        if (!MayPullCartStep(inhabitantId, state.Position, next))
+        {
+            RecordMovementBlocked(inhabitantId, state, "cart_needs_repair");
+            return;
+        }
         inhabitants[inhabitantId] = state with
         {
             Position = next,
             MoveWaitTicks = 0,
             TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
-                SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
+                SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0) +
+                CartTravelDelay(inhabitantId, state.Position, next),
         };
+        MovePulledCart(inhabitantId, next);
         WearCarryAid(inhabitantId);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");

@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants);
+            society.Checkpoint.Inhabitants, map);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -198,7 +198,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -206,8 +206,15 @@ public sealed partial class PrivateWorldRuntime
         foreach (var lot in inventory.Lots)
         {
             if (lot.GroundPosition is { } ground && !(simulation.Fields ?? []).Any(field =>
-                field.Position == new GridPoint(ground.X, ground.Y) && field.HouseholdId == lot.OwnerId))
-                throw new InvalidDataException($"Inventory lot '{lot.Id}' is not on its household's field.");
+                field.Position == new GridPoint(ground.X, ground.Y) && field.HouseholdId == lot.OwnerId) &&
+                !(simulation.Carts ?? []).Any(cart => (cart.LotId == lot.Id || cart.Id == lot.CartId) &&
+                    cart.Position == new GridPoint(ground.X, ground.Y)) &&
+                !(map.IsPassable(new(ground.X, ground.Y)) &&
+                  !map.Resources.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
+                  !map.CampObjects.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
+                  !simulation.Buildings.Any(building => WorldContentSimulationRules.Footprint(
+                      definitions[building.DefinitionId], building).Contains(new GridPoint(ground.X, ground.Y)))))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has no legal physical ground location.");
             if (lot.StorageBuildingId is { } storageId)
             {
                 if (!buildings.TryGetValue(storageId, out var storage) ||
@@ -232,6 +239,7 @@ public sealed partial class PrivateWorldRuntime
         ArgumentNullException.ThrowIfNull(state);
         ValidateVessels(state);
         ValidateMedicalCare(state);
+        ValidateCarts(state);
         if (state.SchemaVersion < 10 && (state.Society.Society.LifeClock is not null ||
             state.Society.Society.Inhabitants.Any(person => person.BirthLifeTick is not null)))
         {
@@ -350,7 +358,7 @@ public sealed partial class PrivateWorldRuntime
                 state.Society.Society.WorldTick);
             ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society, state.Map, state.SchemaVersion);
             ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-                state.WorldContent, state.Society.Society.Inhabitants);
+                state.WorldContent, state.Society.Society.Inhabitants, state.Map);
             if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
                 !state.Society.Society.Households.Any(household => household.Id == householdId)))
                 throw new InvalidDataException("A House references a missing household.");

@@ -295,6 +295,13 @@ public partial class Main
         if (town is not null) lines.Add($"Town: {town.Name}");
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
+        foreach (var cart in snapshot.Carts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
+        {
+            lines.Add($"Handcart: {(cart.PullerId is null ? "Parked" : "Being pulled")} · condition {cart.ConditionBasisPoints / 100}%");
+            lines.Add($"Owner: {snapshot.Stockpiles.FirstOrDefault(stock => stock.OwnerId == cart.OwnerId)?.Name ?? cart.OwnerId}");
+            lines.Add($"Cargo {cart.Load}/{cart.Capacity}: " + string.Join(", ", cart.Cargo.Select(item =>
+                $"{item.Quantity} {Pretty(item.Kind)}" + (item.ContainerCapacity > 0 ? $" [{VesselContentsText(item)}]" : string.Empty))));
+        }
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
         if (BridgeAt(snapshot, tile) is { } bridge)
             lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");

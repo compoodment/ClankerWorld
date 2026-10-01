@@ -342,6 +342,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null || recipe.Outputs.Any(output =>
     {
+        if (output.ResourceId == "handcart") return NeedsCartOutput(ownerId);
         if (ToolCapabilities.ForItem(output.ResourceId) is not null)
             return NeedsToolOutput(output.ResourceId, ownerId);
         if (ownerId is not null && HouseCookingContent.IsMealRecipe(recipe))

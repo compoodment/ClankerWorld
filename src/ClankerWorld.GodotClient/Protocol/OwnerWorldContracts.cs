@@ -301,6 +301,9 @@ public sealed record OwnerWorldActor(
     int FoodItems,
     int WoodItems);
 
+public sealed record OwnerWorldCart(string Id, string OwnerId, OwnerWorldPosition Position,
+    string? PullerId, int ConditionBasisPoints, long Load, int Capacity, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
+
 public sealed record OwnerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -324,6 +327,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
+    public IReadOnlyList<OwnerWorldCart> Carts { get; init; } = [];
     public IReadOnlyList<OwnerWorldField> Fields { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];

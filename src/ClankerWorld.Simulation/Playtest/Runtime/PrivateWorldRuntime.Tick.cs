@@ -323,6 +323,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StagePotteryContent();
+            StageBuiltInContent(CartContent.PackageId, BlacksmithContent.PackageId, CartContent.Create, "cart_content_staged");
             StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");
             StageRestaurantContent();
             StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
@@ -406,6 +407,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            ReleaseDeadCartPullers();
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();

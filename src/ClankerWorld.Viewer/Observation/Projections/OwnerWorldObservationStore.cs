@@ -322,6 +322,18 @@ public sealed class OwnerWorldObservationStore
                 .ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),
+            Carts = (state.WorldSimulation?.Carts ?? []).Select(cart => new ViewerCart(cart.Id,
+                state.Society.Society.Inventory.GetLot(cart.LotId).OwnerId, ToPosition(cart.Position), cart.PullerId,
+                state.Society.Society.Inventory.GetLot(cart.LotId).ConditionBasisPoints,
+                state.Society.Society.Inventory.Lots.Where(lot => lot.CartId == cart.Id).Sum(lot => (long)lot.Quantity),
+                CartContent.Capacity, state.Society.Society.Inventory.Lots.Where(lot => lot.CartId == cart.Id && lot.ContainerLotId is null)
+                    .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity),
+                        HasCondition(group.Key) ? group.Min(lot => lot.ConditionBasisPoints) : null,
+                        group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity),
+                        group.Sum(lot => lot.ContainerCapacity), state.Society.Society.Inventory.Lots.Where(lot =>
+                            group.Any(parent => parent.Id == lot.ContainerLotId)).GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
+                            .Select(contents => new ViewerInventoryContent(contents.Key, contents.Sum(lot => lot.Quantity))).ToArray())).ToArray())).ToArray(),
             Bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
                 .Select(item => new ViewerBridge(item.Id, item.Design, item.Trigger,
                     RiverBridgeRules.AxisOf(item) == BridgeAxis.EastWest ? "east_west" : "north_south",

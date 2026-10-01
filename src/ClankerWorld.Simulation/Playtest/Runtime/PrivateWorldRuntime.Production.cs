@@ -24,6 +24,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(FarmFields.Select(field => field.Position))
+            .Concat(Carts.Select(cart => cart.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -237,6 +238,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(FarmFields.Select(field => field.Position))
+            .Concat(Carts.Select(cart => cart.Position))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
@@ -439,7 +441,7 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
             AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }
@@ -469,7 +471,7 @@ public sealed partial class PrivateWorldRuntime
                         ? candidate with { State = completed ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled }
                         : candidate)
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
-                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields);
+                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
             AppendEvent(completed ? "build_completed" : "build_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }

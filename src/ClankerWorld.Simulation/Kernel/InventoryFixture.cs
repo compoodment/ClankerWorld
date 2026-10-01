@@ -49,7 +49,8 @@ public sealed record InventoryLot(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int ContainerCapacity = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CartId = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -705,6 +706,8 @@ public static partial class InventoryFixture
             {
                 throw new ArgumentOutOfRangeException(nameof(lots));
             }
+            if (lot.CartId is { } cartId && (string.IsNullOrWhiteSpace(cartId) || cartId != cartId.Trim() || lot.GroundPosition is null))
+                throw new InvalidDataException("Cart cargo needs an identified cart and a physical ground position.");
             if (lot.GroundPosition is { } ground && (ground.X < 0 || ground.Y < 0 ||
                 lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has incompatible ground and storage locations.");

@@ -20,6 +20,7 @@ public partial class WorldTerrainLayer : Control
     private Vector2I? hoveredTile;
     private Vector2I? selectedTile;
     private Rect2I? selectedBuilding;
+    private IReadOnlyList<OwnerWorldCart> carts = [];
     private byte[] trees = [];
     private byte[] naturalObjects = [];
     private readonly Dictionary<int, NatureSprite> campResources = [];
@@ -163,6 +164,13 @@ public partial class WorldTerrainLayer : Control
                 bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value)) return;
         bridgeDecks.Clear();
         foreach (var entry in next) bridgeDecks.Add(entry.Key, entry.Value);
+        QueueRedraw();
+    }
+
+    public void SetCarts(IReadOnlyList<OwnerWorldCart> next)
+    {
+        if (carts.SequenceEqual(next)) return;
+        carts = next.ToArray();
         QueueRedraw();
     }
 
@@ -468,6 +476,7 @@ public partial class WorldTerrainLayer : Control
         DrawRoads(bounds, stride);
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
+        DrawCarts(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
@@ -754,6 +763,26 @@ public partial class WorldTerrainLayer : Control
     /// drawn again one world-width away when the map wraps so a building on
     /// the seam stays whole.
     /// </summary>
+    private void DrawCarts((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || tileSize <= 0) return;
+        foreach (var cart in carts)
+        {
+            var x = cart.Position.X;
+            if (wrapsEastWest)
+            {
+                while (x < bounds.Left) x += world.Width;
+                while (x >= bounds.Left + world.Width) x -= world.Width;
+            }
+            if (x < bounds.Left || x >= bounds.Left + bounds.Width || cart.Position.Y < bounds.Top || cart.Position.Y >= bounds.Top + bounds.Height) continue;
+            // Temporary functional marker; authored cart art is a separate task.
+            var rect = new Rect2(x * stride + tileSize * .15f, cart.Position.Y * stride + tileSize * .15f,
+                tileSize * .7f, tileSize * .7f);
+            DrawRect(rect, cart.ConditionBasisPoints == 0 ? new Color("A34B48") : new Color("BD985C"));
+            DrawRect(rect, new Color("392F23"), false, 1);
+        }
+    }
+
     private void DrawBuildings((int Left, int Top, int Width, int Height) bounds, int stride)
     {
         if (world is null || buildings.Count == 0 || tileSize <= 0) return;

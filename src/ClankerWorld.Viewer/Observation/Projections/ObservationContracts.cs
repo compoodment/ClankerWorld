@@ -306,6 +306,9 @@ public sealed record ViewerBridge(
     IReadOnlyList<ViewerPosition> Span,
     long BuiltTick);
 
+public sealed record ViewerCart(string Id, string OwnerId, ViewerPosition Position,
+    string? PullerId, int ConditionBasisPoints, long Load, int Capacity, IReadOnlyList<ViewerInventoryEntry> Cargo);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -329,6 +332,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
+    public IReadOnlyList<ViewerCart> Carts { get; init; } = [];
     public IReadOnlyList<ViewerField> Fields { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];

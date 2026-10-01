@@ -79,7 +79,8 @@ public sealed record WorldContentSimulationState(
     IReadOnlyList<WorldProductionJob>? CropBuilds = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BuildingExpansionJob>? BuildingExpansions = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null,
-    IReadOnlyList<FarmFieldTile>? Fields = null)
+    IReadOnlyList<FarmFieldTile>? Fields = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PhysicalCart>? Carts = null)
 {
     public static WorldContentSimulationState Empty { get; } = new([], [], 1, []);
 }

@@ -175,6 +175,7 @@ public sealed partial class PrivateWorldRuntime
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
         if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) || FarmFields.Any(field => tiles.Contains(field.Position)) ||
+            society.Checkpoint.Inventory.Lots.Any(lot => lot.GroundPosition is { } ground && tiles.Contains(new(ground.X, ground.Y))) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);

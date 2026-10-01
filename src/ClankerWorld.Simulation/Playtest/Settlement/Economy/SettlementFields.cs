@@ -45,6 +45,7 @@ public sealed partial class PrivateWorldRuntime
         if (FarmFields.FirstOrDefault(field => field.Position == point) is { } field && field.HouseholdId != household)
             return "This field belongs to another household.";
         if (newTile && (RoadAndBridgeTiles().Contains(point) ||
+            society.Checkpoint.Inventory.Lots.Any(lot => lot.GroundPosition == new InventoryGroundPosition(point.X, point.Y)) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running && ExpansionTiles(job).Contains(point)) ||
             map.CampObjects.Any(item => item.Position == point) ||
             map.Resources.Any(item => item.Position == point) || worldSimulation.Buildings.Any(building =>
@@ -271,7 +272,8 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } household ||
             FarmhouseForHousehold(household) is not { } farmhouse || CarriedHouseDelivery(actor) is not null) return;
         var ground = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-                lot.GroundPosition is not null && AvailableLotQuantity(lot) > 0)
+                lot.GroundPosition is { } point && lot.CartId is null && lot.ContainerLotId is null &&
+                FarmFields.Any(field => field.Position == new GridPoint(point.X, point.Y)) && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
         if (ground is not null && CarryingRoom(actor) > 0)
             candidates.Add(new("farm:collect", "Carry the household's harvested crop from its field into storage.", 16));
@@ -348,7 +350,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var household = HouseholdFor(actor);
         var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.GroundPosition is not null && AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            lot.GroundPosition is { } point && lot.CartId is null && lot.ContainerLotId is null &&
+            FarmFields.Any(field => field.Position == new GridPoint(point.X, point.Y)) && AvailableLotQuantity(lot) > 0)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
         if (stock?.GroundPosition is not { } ground || FarmhouseForHousehold(household) is not { } farmhouse) return;
         var point = new GridPoint(ground.X, ground.Y);
         if (state.Position != point) { MoveToward(actor, state, point, "field_harvest", 0); return; }
