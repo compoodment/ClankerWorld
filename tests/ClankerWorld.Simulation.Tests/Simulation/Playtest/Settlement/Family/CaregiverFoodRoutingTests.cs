@@ -31,20 +31,7 @@ public sealed class CaregiverFoodRoutingTests
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
         for (var index = 0; index < 4; index++) initial.PlaceFounder(ids[index], positions[index]);
         initial.StartWorld();
-        if (blockStorage)
-        {
-            var map = initial.ExportState().Map;
-            var storage = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a").Position;
-            var blockers = map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) == 1 &&
-                map.IsBuildable(tile.Position) && !map.Resources.Any(resource => resource.Position == tile.Position) &&
-                !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
-            Assert.NotEmpty(blockers);
-            for (var index = 0; index < blockers.Length; index++)
-                initial.AddAgent($"agent:{index + 100:D32}", blockers[index].Position);
-            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) == 1 && map.IsPassable(tile.Position)),
-                tile => Assert.Contains(initial.Inhabitants, person => person.Position == tile.Position));
-        }
-        var state = initial.ExportState();
+        var state = blockStorage ? StorageRoutingTestFixture.BlockAccess(initial, storagePosition, 1) : initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
         society = SocietyFixture.ProposeRelationship(society, new("care-parents", 1,
@@ -85,11 +72,15 @@ public sealed class CaregiverFoodRoutingTests
                 Climate = systems.Climate with { Weather = WeatherKind.Clear },
             },
         };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
         var provider = new CareProvider(ids[0]);
         var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
         try
         {
-            for (var tick = 0; tick < 24; tick++)
+            // Named seasonal plants may send the caregiver to a farther ripe
+            // source. Allow the real outward and return journey to finish.
+            for (var tick = 0; tick < 80 &&
+                world.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints < 3_000; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (tick == 5)
@@ -102,7 +93,9 @@ public sealed class CaregiverFoodRoutingTests
             var result = world.ExportState();
             var child = result.Inhabitants.Single(person => person.InhabitantId == childId);
             Assert.True(child.HungerBasisPoints >= 3_000,
-                $"child fullness={child.HungerBasisPoints}; care={result.Events.Count(item => item.Kind == "child_cared_for")}; blocked={result.Events.Count(item => item.Kind == "movement_blocked")}; parent={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position}; care choices={provider.CareChoices}; food site={localFood}; home={storagePosition}");
+                $"child fullness={child.HungerBasisPoints}; care={result.Events.Count(item => item.Kind == "child_cared_for")}; blocked={result.Events.Count(item => item.Kind == "movement_blocked")}; parent={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position}; care choices={provider.CareChoices}; food site={localFood}; home={storagePosition}\n" +
+                string.Join("\n", result.Events.Where(item => item.Detail.Contains(ids[0], StringComparison.Ordinal)).TakeLast(20)
+                    .Select(item => $"{item.WorldTick} {item.Kind}: {item.Detail}")));
             Assert.Contains(result.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
             var remainingFood = result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "food").Sum(lot => lot.Quantity);
             if (blockStorage)

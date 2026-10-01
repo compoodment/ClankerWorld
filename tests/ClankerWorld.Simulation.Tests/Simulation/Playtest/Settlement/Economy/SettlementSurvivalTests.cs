@@ -126,7 +126,7 @@ public sealed class SettlementSurvivalTests
         using var seed = new PrivateWorldRuntime("cold-bootstrap", _ => new IdleProvider());
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-        var state = WithWeather(seed.ExportState(), WeatherKind.Snow);
+        var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person with
@@ -192,7 +192,7 @@ public sealed class SettlementSurvivalTests
     public async Task CropFoodYieldReflectsWeather(WeatherKind weather, bool snow)
     {
         var (state, actor, household, point) = await FarmFieldTests.ReadyFarmer("crop-weather");
-        state = WithWeather(state, weather);
+        state = SettlementWeatherTestFixture.WithWeather(state, weather);
         var fertility = new LandFertility(state.Map, state.WorldSeed).At(point);
         var rawYield = 4 + fertility / 25;
         using var world = FarmFieldTests.Restore(state);
@@ -211,7 +211,7 @@ public sealed class SettlementSurvivalTests
     public async Task DryStreakReducesCompletedCropYieldAndRecordsCauseAcrossRestart()
     {
         var (state, actor, _, point) = await FarmFieldTests.ReadyFarmer("crop-dry-streak");
-        state = WithWeather(state, WeatherKind.Clear);
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
         using var drying = FarmFieldTests.Restore(state);
         var ticksThroughTwoDays = drying.WorldSystems.Config.TicksPerDay * 2;
         while (drying.WorldTick < ticksThroughTwoDays)
@@ -255,7 +255,7 @@ public sealed class SettlementSurvivalTests
     public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
-        var initial = WithWeather(seed.ExportState(), WeatherKind.Snow);
+        var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
         // Expansion changes travel and work timing. Require the actual clothing
@@ -330,7 +330,7 @@ public sealed class SettlementSurvivalTests
         {
             await seed.AdvanceOneTickAsync();
         }
-        var state = WithWeather(seed.ExportState(), WeatherKind.Snow);
+        var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         var actor = state.Inhabitants[0].InhabitantId;
         var clothedInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "test-clothing", "clothing", actor, 1);
         var clothed = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = clothedInventory } } };
@@ -356,7 +356,7 @@ public sealed class SettlementSurvivalTests
         {
             await seed.AdvanceOneTickAsync();
         }
-        var original = WithWeather(seed.ExportState(), WeatherKind.Clear);
+        var original = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
         var sick = original with
         {
             Inhabitants = original.Inhabitants.Select(person => person with
@@ -411,7 +411,7 @@ public sealed class SettlementSurvivalTests
             using var seed = new PrivateWorldRuntime("illness-telemetry", _ => new IdleProvider());
             seed.StageStarterContent();
             for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-            var state = WithWeather(seed.ExportState(), WeatherKind.Clear);
+            var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
             var actor = state.Inhabitants[0];
             state = state with
             {
@@ -457,46 +457,12 @@ public sealed class SettlementSurvivalTests
         Assert.All(stored.Lots.Where(lot => lot.ItemKind != "food"), lot => Assert.Equal(10_000, lot.FreshnessBasisPoints));
     }
 
-    private static PrivateWorldRuntimeState WithWeather(PrivateWorldRuntimeState state, WeatherKind weather)
-    {
-        var systems = state.WorldSystems!;
-        var profiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season,
-            weather == WeatherKind.Clear ? 1 : 0, 0, weather == WeatherKind.Rain ? 1 : 0,
-            weather == WeatherKind.Storm ? 1 : 0, weather == WeatherKind.Snow ? 1 : 0)).ToArray();
-        var configured = systems with
-        {
-            RegionalWeather = null,
-            Config = systems.Config with { WeatherProfiles = profiles },
-            Climate = systems.Climate with { Weather = weather },
-        };
-        var regions = RegionalWeatherRules.Initialize(configured, state.Map).RegionalWeather!;
-        var duration = weather == WeatherKind.Storm ? (long)systems.Config.TicksPerDay * 3 / 4 : systems.Config.TicksPerDay;
-        var endsAt = checked(systems.WorldTick + duration);
-        var halfDay = ((long)systems.Config.TicksPerDay + 1) / 2;
-        return state with
-        {
-            WorldSystems = configured with
-            {
-                RegionalWeather = regions with
-                {
-                    Episodes = regions.Episodes.Select(episode => episode with
-                    {
-                        Weather = weather,
-                        StartedAt = systems.WorldTick,
-                        EndsAt = endsAt,
-                        SevereAllowedAt = weather == WeatherKind.Storm ? checked(endsAt + halfDay) : checked(systems.WorldTick + halfDay),
-                    }).ToArray(),
-                },
-            }
-        };
-    }
-
     private static async Task<int> ProjectProgressAtIllness(int illnessBasisPoints)
     {
         using var seed = new PrivateWorldRuntime("illness-work", _ => new IdleProvider());
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-        var state = WithWeather(seed.ExportState(), WeatherKind.Clear);
+        var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
         var worker = state.Inhabitants[0];
         var position = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
             !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
@@ -537,7 +503,7 @@ public sealed class SettlementSurvivalTests
         using var seed = new PrivateWorldRuntime("illness-travel", _ => new ExplorationProvider());
         seed.StageStarterContent();
         for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-        var state = WithWeather(seed.ExportState(), WeatherKind.Clear);
+        var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
         var scout = state.Inhabitants[0];
         state = state with
         {

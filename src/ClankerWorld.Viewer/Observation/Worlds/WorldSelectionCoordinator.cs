@@ -86,7 +86,7 @@ public sealed class WorldSelectionCoordinator(
             return new ViewerWorldPreview(OwnerWorldObservationStore.PackTerrain(map),
                 new ViewerPosition(camp.X, camp.Y), map.ManifestDigest, map.Resources.Count)
             {
-                PackedMapLayers = OwnerWorldObservationStore.PackMapLayers(map),
+                PackedMapLayers = OwnerWorldObservationStore.PackMapLayers(map, geography.Seed),
                 MapLayersDigest = MapLayerManifestCodec.Digest(map),
             };
         }

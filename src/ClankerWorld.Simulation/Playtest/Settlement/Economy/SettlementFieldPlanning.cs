@@ -26,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
             if (!CanReachField(actor, state.Position, field.Position)) continue;
-            if (field.Stage == FarmFieldStage.Ready && FarmStorageFor(householdId, field.Crop!) is not null)
+            if (field.Stage == FarmFieldStage.Ready)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
             else if (field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
