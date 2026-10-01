@@ -147,10 +147,12 @@ public sealed partial class SettlementParenthoodTests
             };
             Assert.Equal(child.ChildModelSelection, Assert.Single(PrivateWorldRuntimeCodec.Decode(
                 PrivateWorldRuntimeCodec.Encode(archived)).DeceasedInhabitants!).LastPhysical.ChildModelSelection);
-            Assert.Equal(child.ChildModelSelection, Assert.Single(PrivateWorldRuntimeCodec.Decode(
-                PrivateWorldRuntimeCodec.Encode(archived with { SchemaVersion = 33 })).DeceasedInhabitants!).LastPhysical.ChildModelSelection);
+            var olderArchive = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
+                archived with { SchemaVersion = 33 }));
+            Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}", olderArchive.Message,
+                StringComparison.Ordinal);
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-                archived with { SchemaVersion = 32 }));
+                archived with { SchemaVersion = PrivateWorldRuntime.ChildModelSelectionSchemaVersion - 1 }));
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(archived with
             {
                 DeceasedInhabitants = [archivedChild with
@@ -159,9 +161,13 @@ public sealed partial class SettlementParenthoodTests
                 }],
             }));
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-                saved with { SchemaVersion = 32 }));
+                saved with { SchemaVersion = PrivateWorldRuntime.ChildModelSelectionSchemaVersion - 1 }));
+            var olderLiving = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
+                saved with { SchemaVersion = 33 }));
+            Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}", olderLiving.Message,
+                StringComparison.Ordinal);
             Assert.Equal(child.ChildModelSelection, PrivateWorldRuntimeCodec.Decode(
-                PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 33 })).Inhabitants.Single(person => person.InhabitantId == childId).ChildModelSelection);
+                PrivateWorldRuntimeCodec.Encode(saved)).Inhabitants.Single(person => person.InhabitantId == childId).ChildModelSelection);
             var hungryChildState = saved with
             {
                 Inhabitants = saved.Inhabitants.Select(item => item.InhabitantId == childId

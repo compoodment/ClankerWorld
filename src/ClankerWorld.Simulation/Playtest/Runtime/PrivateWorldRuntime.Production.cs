@@ -251,6 +251,8 @@ public sealed partial class PrivateWorldRuntime
         ArgumentNullException.ThrowIfNull(transition);
         society.Apply(checkpoint =>
         {
+            var equipmentBefore = inhabitants.Values.ToDictionary(person => person.InhabitantId,
+                person => person.Equipment, StringComparer.Ordinal);
             var updated = transition(checkpoint.Inventory);
             foreach (var building in worldSimulation.Buildings)
             {
@@ -260,6 +262,13 @@ public sealed partial class PrivateWorldRuntime
                 var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
+            }
+            foreach (var person in inhabitants.Values)
+            {
+                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]);
+                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment);
+                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
+                    throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
         });

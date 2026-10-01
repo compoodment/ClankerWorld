@@ -37,7 +37,7 @@ public sealed partial class PrivateWorldRuntime
         return ToolProgressionRules.All
             .Where(definition => definition.Family == required.Family && definition.Tier >= required.Tier)
             .Select(definition => (Definition: definition, Lot: SharedItem(definition.ItemKind, actor)))
-            .Where(item => item.Lot is { ConditionBasisPoints: > 0, FreshnessBasisPoints: > 0 })
+            .Where(item => item.Lot is { ContainerLotId: null, ConditionBasisPoints: > 0, FreshnessBasisPoints: > 0 })
             .OrderByDescending(item => item.Definition.Tier)
             .ThenByDescending(item => item.Lot!.ConditionBasisPoints)
             .ThenBy(item => item.Lot!.Id, StringComparer.Ordinal)
@@ -123,10 +123,10 @@ public sealed partial class PrivateWorldRuntime
             return;
 
         var inventory = society.Checkpoint.Inventory;
-        foreach (var tool in inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                     lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
+        foreach (var tool in inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedTool(lot, actor) &&
                      ToolProgressionRules.Find(lot.ItemKind) is not null &&
-                     lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
+                     lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0 &&
+                     MissingToolRepairInputUnits(actor, lot) <= FreeCarryCapacity(actor))
                  .OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
             var materials = ToolProgressionRules.RepairMaterials(tool.ItemKind);
@@ -142,13 +142,19 @@ public sealed partial class PrivateWorldRuntime
         HasCarriedItem(actor, itemKind) || SharedItem(itemKind, actor) is not null ||
         MaterialSource(itemKind, actor) is not null;
 
+    private int MissingToolRepairInputUnits(string actor, InventoryLot tool) =>
+        ToolProgressionRules.RepairMaterials(tool.ItemKind).Sum(input => Math.Max(0, input.Amount -
+            society.Checkpoint.Inventory.Lots.Where(lot =>
+                    ToolProgressionRules.IsTopLevelCarriedTool(lot, actor) && lot.ItemKind == input.ResourceId)
+                .Sum(AvailableLotQuantity)));
+
     private void RepairTool(string actor, PlaytestInhabitantState state, string lotId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId && lot.OwnerId == actor &&
-            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
+        var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId &&
+            ToolProgressionRules.IsTopLevelCarriedTool(lot, actor) &&
             ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints < 10_000 &&
-            UnreservedQuantity(inventory, lot) > 0);
+            UnreservedQuantity(inventory, lot) > 0 && MissingToolRepairInputUnits(actor, lot) <= FreeCarryCapacity(actor));
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var blacksmith = householdId is null ? null : HouseholdBuildingWithTag(householdId, "blacksmith");
         if (tool is null || blacksmith is null)
@@ -191,9 +197,9 @@ public sealed partial class PrivateWorldRuntime
             var reservations = new List<string>();
             foreach (var input in materialNeeds)
             {
-                var material = updated.Lots.Where(lot => lot.OwnerId == actor &&
-                        lot.ItemKind == input.ResourceId && lot.StorageBuildingId is null &&
-                        lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
+                var material = updated.Lots.Where(lot =>
+                        ToolProgressionRules.IsTopLevelCarriedTool(lot, actor) &&
+                        lot.ItemKind == input.ResourceId &&
                         AvailableLotQuantity(lot) >= input.Amount)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 if (material is null)
@@ -210,8 +216,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool HasCarriedMaterial(string actor, string itemKind, int quantity) =>
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == itemKind &&
-                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null)
+        society.Checkpoint.Inventory.Lots.Where(lot =>
+                ToolProgressionRules.IsTopLevelCarriedTool(lot, actor) && lot.ItemKind == itemKind)
             .Sum(AvailableLotQuantity) >= quantity;
 
     private static int UnreservedQuantity(InventoryCheckpoint inventory, InventoryLot lot)

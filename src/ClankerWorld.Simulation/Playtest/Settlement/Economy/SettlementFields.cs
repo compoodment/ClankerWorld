@@ -35,7 +35,7 @@ public sealed partial class PrivateWorldRuntime
         var sickle = kind == FarmWorkKind.Harvest
             ? ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, workerId, ToolFamily.Sickle)
             : null;
-        if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) ||
+        if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || IsConversationBusy(workerId) ||
             worker.Project is { Stage: not ("completed" or "cancelled") } || FarmWorkFor(workerId) is not null)
             return new(false, "The worker must finish other work or meet urgent needs first.");
         var field = fields.SingleOrDefault(item => item.Position == position);
@@ -166,6 +166,7 @@ public sealed partial class PrivateWorldRuntime
             CancelFarmWork(field);
             return false;
         }
+        if (IsConversationBusy(workerId)) return true;
         var toolPlans = FieldWorkToolPlans(workerId, work);
         var hoe = toolPlans.FirstOrDefault(plan => ToolProgressionRules.Find(
             society.Checkpoint.Inventory.GetLot(plan.ToolLotId).ItemKind)?.Family == ToolFamily.Hoe);

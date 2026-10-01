@@ -104,7 +104,8 @@ public sealed record CognitionKnowledgeFact(
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
-    string? HouseholdName = null, string? TownName = null, string? HousingNote = null);
+    string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
+    string? EquipmentNote = null);
 
 /// <summary>
 /// Compact, provider-neutral state supplied to a decision provider. It is an
@@ -127,10 +128,14 @@ public sealed record InhabitantObservation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsPersonality = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsAspiration = false)
 {
-    // Scheduler control metadata is materialized only for a duplicate-name
-    // retry request. It is not stored in the durable queue observation.
+    // Scheduler control metadata is materialized only for duplicate-name
+    // retries and live conversation choices. It is not stored in a save or
+    // sent to a provider.
     [JsonIgnore]
     public bool IsNameRetry { get; init; }
+
+    [JsonIgnore]
+    public string? ConversationChoiceContext { get; init; }
 
     public void Validate()
     {
@@ -140,6 +145,9 @@ public sealed record InhabitantObservation(
         {
             throw new ArgumentOutOfRangeException(nameof(WorldTick));
         }
+
+        if (ConversationChoiceContext is { Length: > 512 })
+            throw new ArgumentException("Conversation choice context exceeds its bound.", nameof(ConversationChoiceContext));
 
         if (HungerBasisPoints is < 0 or > 10_000)
         {
@@ -153,6 +161,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -821,6 +830,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             household = self.HouseholdName,
                             town = self.TownName,
                             housing = self.HousingNote,
+                            equipment = self.EquipmentNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

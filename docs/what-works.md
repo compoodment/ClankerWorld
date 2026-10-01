@@ -109,8 +109,15 @@ requests. The card does not yet show which orders are still waiting.
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
-rank existing memories during a normal call. Automatic capture of experiences,
-generated memory summaries and full conversations are unfinished.
+rank existing memories during a normal call. Agents can also start a nearby
+public conversation: each speaker uses their own assigned planning model,
+accepted speech is saved with the people who could hear it, and only those
+listeners receive a hearsay memory. A conversation can have up to six public
+turns and one wrap-up; both people must accept the same wrap-up before its
+structured effect applies. These conversation and daily-call limits are still
+provisional and need a Windows playtest. Private thoughts are never shared as
+conversation history. Other automatic experience capture and generated memory
+summaries remain unfinished.
 
 ## Life, work and society
 
@@ -122,7 +129,7 @@ generated memory summaries and full conversations are unfinished.
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
-| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Adults can ask a free, healthy agent with a saved skill for a practical lesson. The learner keeps the skill, teacher and time; the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and rich dialogue remain unfinished. |
+| Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
@@ -167,6 +174,26 @@ Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
+
+Agents can now equip a padded coat for cold weather, a rain cloak for wet
+weather, or a basic garment. The House makes rope and baskets; the Tailor Shop
+makes cloth, garments and sacks from physically delivered private inputs.
+The agent card shows the worn garment, carrying aid, their condition, cargo
+amount and carrying limit, and an active repair. Garments do not change map
+sprites.
+
+The trial carrying limits are 8 cargo units, 16 with an equipped basket, or 24
+with an equipped sack. Other carried goods and delivery loads count toward
+that limit; stored and ground goods do not. Wear can break an aid and reduce
+its capacity, but existing cargo and replaced gear remain owned and intact.
+Full carriers decline pickups that would add excess cargo. Food harvests need
+room for the whole yield, including orchard seeds. Exploring still teaches
+personal knowledge when there is no room to carry a new map or field record.
+Household adults
+can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
+and rope to repair a basket at their House. Work, reservations, equipment and
+overloaded cargo survive saving and reopening. These paths have automated
+checks; Windows playtesting and balance tuning remain pending.
 
 ## Maps, weather and appearance
 

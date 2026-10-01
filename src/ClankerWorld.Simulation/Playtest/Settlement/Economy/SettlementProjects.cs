@@ -23,81 +23,22 @@ public sealed partial class PrivateWorldRuntime
     private const int ProjectWorkTicks = 10;
     private const string WaitingForWorkSiteBlocker = "Waiting for a free work site";
     private const int BlockedProjectRetryDelayTicks = 60;
-    // The pre-energy-removal settlement package included bedding. Its digest
-    // remains a valid provenance marker for three staged map resources.
-    internal const string LegacySettlementPackageDigest =
-        "sha256:037c1b07a6a88989adfc6fe61fb03e7c625524dfbbb530b3e1b30701f66a21ac";
-
     private static bool IsCompatibleSavedMap(SeededMap generated, PrivateWorldRuntimeState state)
     {
         if (MapManifestCodec.Digest(state.Map) != state.Map.ManifestDigest)
         {
             return false;
         }
-        var baseline = state.Geography is { } savedGeography && state.Map.CampObjects.Count > 0
-            ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(savedGeography,
-                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
-            : generated;
-        if (baseline.ManifestDigest == state.Map.ManifestDigest)
-            return true;
-        var withoutNaturalDetails = baseline with
-        {
-            Resources = baseline.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        withoutNaturalDetails = withoutNaturalDetails with
-        {
-            ManifestDigest = MapManifestCodec.Digest(withoutNaturalDetails),
-        };
-        var withoutGeology = baseline with
-        {
-            Resources = baseline.Resources.Where(resource =>
-                !resource.Id.StartsWith("geology-", StringComparison.Ordinal)).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        withoutGeology = withoutGeology with { ManifestDigest = MapManifestCodec.Digest(withoutGeology) };
-        var legacyNaturalDetails = withoutGeology with
-        {
-            Resources = withoutGeology.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        legacyNaturalDetails = legacyNaturalDetails with
-        {
-            ManifestDigest = MapManifestCodec.Digest(legacyNaturalDetails),
-        };
-        var previousTrees = legacyNaturalDetails with
-        {
-            Resources = legacyNaturalDetails.Resources.Where(resource =>
-                !resource.Id.StartsWith("orchard-", StringComparison.Ordinal)).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        previousTrees = previousTrees with { ManifestDigest = MapManifestCodec.Digest(previousTrees) };
-        var previousVegetation = previousTrees with
-        {
-            Resources = previousTrees.Resources.Where(resource => !resource.Id.StartsWith("tree-", StringComparison.Ordinal))
-                .Select(resource => resource with { TreeKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        previousVegetation = previousVegetation with
-        {
-            ManifestDigest = MapManifestCodec.Digest(previousVegetation),
-        };
-        foreach (var candidateBaseline in new[]
-                 { baseline, withoutNaturalDetails, withoutGeology, legacyNaturalDetails, previousTrees, previousVegetation })
-        {
-            if (SavedMapMatchesBaseline(state, candidateBaseline)) return true;
-        }
-        // Before independent map layers, resource placement and clearing
-        // selection used the flattened TerrainKind. Validate that historical
-        // generator as a separate immutable lineage, including worlds that
-        // were later resaved under a newer checkpoint schema.
-        return state.Geography is { } geography &&
-            SavedMapMatchesBaseline(state, GeneratedCampMapGenerator.GenerateLegacy(geography,
-                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll")));
+        return SavedMapMatchesBaseline(state, generated);
     }
 
     private static bool SavedMapMatchesBaseline(PrivateWorldRuntimeState state, SeededMap baseline)
     {
+        if (state.Geography is not null &&
+            (state.Map.WrapsEastWest != baseline.WrapsEastWest ||
+             !string.Equals(MapLayerManifestCodec.Digest(state.Map), MapLayerManifestCodec.Digest(baseline),
+                 StringComparison.Ordinal)))
+            return false;
         if (baseline.ManifestDigest == state.Map.ManifestDigest)
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
@@ -113,8 +54,7 @@ public sealed partial class PrivateWorldRuntime
             return false;
         if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 5 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
-                (package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest ||
-                 package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
+                package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest &&
                 package.ActivationTick is not null) != true ||
             staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
                 resource.Kind is not ("stone" or "fiber" or "seed" or "grain_seed" or "wood") ||
@@ -122,8 +62,7 @@ public sealed partial class PrivateWorldRuntime
                 resource.NaturalObjectKind != (resource.Kind == "wood" ? "fallen_wood" : null) ||
                 !baseline.IsBuildable(resource.Position))))
             return false;
-        if (planted.Length > 0 && (state.SchemaVersion < PlantedTreeSchemaVersion ||
-            planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree))))
+        if (planted.Length > 0 && planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree)))
             return false;
         var original = state.Map with
         {
@@ -623,7 +562,7 @@ public sealed partial class PrivateWorldRuntime
         ContentQuantity input, string constructionOwner)
     {
         var project = state.Project!;
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
             lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
         {
@@ -664,6 +603,8 @@ public sealed partial class PrivateWorldRuntime
             }
             var quantity = Math.Min(WarehouseLoadQuantity,
                 Math.Min(input.Amount, AvailableLotQuantity(communal)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(inhabitantId));
+            if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"warehouse-pickup:{WorldTick}:{inhabitantId}", warehouse.TownId!, inhabitantId,
                 communal.Id, quantity, "town_resource_collected"));
@@ -681,6 +622,14 @@ public sealed partial class PrivateWorldRuntime
         GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
     }
 
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source)
+    {
+        var ecology = worldSystems.Ecology.GetResource(source.Id);
+        var plan = ToolProgressionRules.PlanGather(itemKind, source, society.Checkpoint.Inventory, actor,
+            ecology.Quantity);
+        return plan is null ? int.MaxValue : checked(plan.Quantity + plan.TreeSeedQuantity);
+    }
+
     private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
     {
         var ecology = worldSystems.Ecology.GetResource(source.Id);
@@ -694,6 +643,11 @@ public sealed partial class PrivateWorldRuntime
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             MoveToward(inhabitantId, inhabitants[inhabitantId], source.Position, "materials", ResourceInteractionRange);
+            return;
+        }
+        if (FreeCarryCapacity(inhabitantId) < checked(plan.Quantity + plan.TreeSeedQuantity))
+        {
+            AppendEvent("carrying_full", inhabitantId);
             return;
         }
         var harvest = EcologyRules.Harvest(ecology, 1);
@@ -807,7 +761,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var itemKind = request.Input.ResourceId;
             if (MaterialSource(itemKind, helperId) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
-                    lot.OwnerId == helperId && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
+                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
@@ -824,7 +778,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         // A load already on its way into a household building is not spare.
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == helperId &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, helperId) &&
             lot.ItemKind == itemKind && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
@@ -847,6 +801,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, recipient, carried.Id, quantity, "project_request_fulfilled",

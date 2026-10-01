@@ -124,6 +124,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                foreach (var id in pendingConversationTurns.Keys.ToArray())
+                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
+                SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
                 AppendEvent("paused", "owner_request");
             }
         }

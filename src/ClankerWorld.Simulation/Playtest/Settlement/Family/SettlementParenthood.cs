@@ -200,6 +200,7 @@ public sealed partial class PrivateWorldRuntime
                     MoveToward(actor, parent, camp, "care_food", interactionRange);
                     return;
                 }
+                if (FreeCarryCapacity(actor) == 0) return;
                 ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
                     HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
             }
@@ -254,7 +255,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in state.Inhabitants)
         {
             if (person.Parenthood is not { } plan) continue;
-            if (state.SchemaVersion < 9 || !known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
+            if (!known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
                 plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled") || plan.RequestedTick < 0 ||
                 plan.LastTransitionTick < plan.RequestedTick || plan.LastTransitionTick > state.Society.Society.WorldTick ||
                 plan.Stage == "completed" && (plan.ChildId is null || !known.Contains(plan.ChildId) ||

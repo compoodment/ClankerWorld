@@ -11,12 +11,12 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!AdultResident(actor) || FreeCarryCapacity(actor) <= 0) return;
         var inventory = society.Checkpoint.Inventory;
         foreach (var family in ToolProgressionRules.All.GroupBy(tool => tool.Family)
                      .OrderBy(group => group.Key))
         {
-            var bestShared = family.Where(tool => SharedItem(tool.ItemKind, actor) is not null)
+            var bestShared = family.Where(tool => SharedItem(tool.ItemKind, actor) is { ContainerLotId: null })
                 .OrderByDescending(tool => tool.Tier)
                 .ThenBy(tool => tool.ItemKind, StringComparer.Ordinal)
                 .FirstOrDefault();
@@ -64,8 +64,8 @@ public sealed partial class PrivateWorldRuntime
         BlacksmithInputTargets(blacksmithId).FirstOrDefault(item => item.ItemKind == itemKind).Target;
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "iron_ore" &&
-            lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
+            lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
             AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -142,13 +142,14 @@ public sealed partial class PrivateWorldRuntime
                     lot.ItemKind == kind).Sum(AvailableLotQuantity);
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
-                .Where(lot => lot.OwnerId == actor && lot.GroundPosition is null && lot.StorageBuildingId is null &&
-                    lot.DeliveryBuildingId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
+                .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
                 .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != blacksmithId &&
-                    lot.DeliveryBuildingId != blacksmithId && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
+                    lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
+                    AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (source is not null) return source;
         }
@@ -170,6 +171,7 @@ public sealed partial class PrivateWorldRuntime
             if (stocked + incoming >= target || inventory.Lots.Any(lot =>
                     (lot.OwnerId == householdId || lot.OwnerId == actor) && lot.ItemKind == kind &&
                     lot.StorageBuildingId != blacksmithId && lot.DeliveryBuildingId != blacksmithId &&
+                    lot.ContainerLotId is null &&
                     AvailableLotQuantity(lot) > 0))
                 continue;
             if (MaterialSource(kind, actor) is { } source)
@@ -270,6 +272,7 @@ public sealed partial class PrivateWorldRuntime
         var target = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
         var quantity = Math.Min(HouseHaulLoadQuantity,
             Math.Min(target - stocked - incoming, AvailableLotQuantity(input)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,

@@ -147,11 +147,13 @@ public sealed class TailorContentTests
     [Fact]
     public async Task WithoutATailorShopNoClothIsMadeAndNothingPretendsToBe()
     {
-        var recorder = new ActionCoverageRecorder();
+        var recorder = new ActionCoverageRecorder(chooseIdle: true);
         using var world = NormalPathWorld.CreateGenerated("tailor-none", _ => recorder);
         for (var tick = 0; tick < 240; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var families = recorder.FamiliesOffered(world.WorldContent);
+        Assert.DoesNotContain(world.WorldSimulation.Buildings, building => world.WorldContent.Buildings.Any(definition =>
+            definition.CanonicalId == building.DefinitionId && definition.Tags.Contains("tailor", StringComparer.Ordinal)));
         Assert.DoesNotContain("recipe:weave-cloth", families);
         Assert.DoesNotContain("recipe:sew-clothing", families);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.ItemKind == "cloth");
@@ -181,27 +183,7 @@ public sealed class TailorContentTests
     }
 
     private static (PrivateWorldRuntimeState State, string ShopId) WorldWithTailorShop(string seed, int fiberInHouse)
-    {
-        using var generated = NormalPathWorld.CreateGenerated(seed, _ => new ActionCoverageRecorder(chooseIdle: true));
-        var initial = generated.ExportState();
-        var inventory = InventoryFixture.AddLot(initial.Society.Society.Inventory, "shop-cost-fiber", "fiber", Alpha, 2,
-            storageBuildingId: "first-town-house-a");
-        if (fiberInHouse > 0)
-            inventory = InventoryFixture.AddLot(inventory, "house-fiber", "fiber", Alpha, fiberInHouse,
-                storageBuildingId: "first-town-house-a");
-        using var setup = PrivateWorldRuntime.Restore(initial with
-        {
-            Society = initial.Society with { Society = initial.Society.Society with { Inventory = inventory } },
-        }, _ => new ActionCoverageRecorder(chooseIdle: true));
-        var shop = setup.WorldContent.Buildings.Single(item => item.LocalId == "tailor-shop-1x1");
-        var house = setup.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
-        var placed = Enumerable.Range(-4, 9).SelectMany(dy => Enumerable.Range(-4, 9)
-                .Select(dx => new GridPoint(house.Position.X + dx, house.Position.Y + dy)))
-            .OrderBy(point => Math.Abs(point.X - house.Position.X) + Math.Abs(point.Y - house.Position.Y))
-            .Any(point => setup.PlaceBuilding("alpha-tailor", shop.CanonicalId, point, Alpha).Applied);
-        Assert.True(placed);
-        return (PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(setup.ExportState())), "alpha-tailor");
-    }
+        => TailorTestWorld.Create(seed, fiberInHouse);
 
     private static PrivateWorldRuntimeState WithSnow(PrivateWorldRuntimeState state)
     {

@@ -50,6 +50,11 @@ public static class ToolProgressionRules
     public static ToolDefinition? Find(string itemKind) =>
         Definitions.SingleOrDefault(tool => tool.ItemKind == itemKind);
 
+    /// <summary>Direct work requires an unreserved, top-level carried unit; container contents must be retrieved first.</summary>
+    public static bool IsTopLevelCarriedTool(InventoryLot lot, string actorId) =>
+        PersonalEquipmentRules.IsCarried(lot, actorId) && lot.DeliveryBuildingId is null &&
+        lot.ContainerLotId is null;
+
     public static ToolDefinition? RequiredToolForGathering(string itemKind, MapResource source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(itemKind);
@@ -66,8 +71,7 @@ public static class ToolProgressionRules
             throw new ArgumentOutOfRangeException(nameof(family));
 
         return inventory.Lots
-            .Where(lot => lot.OwnerId == actorId && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null && lot.GroundPosition is null && lot.ConditionBasisPoints > 0 &&
+            .Where(lot => IsTopLevelCarriedTool(lot, actorId) && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == family)
@@ -95,8 +99,8 @@ public static class ToolProgressionRules
             throw new ArgumentOutOfRangeException(nameof(family));
         if (string.IsNullOrWhiteSpace(toolLotId)) return null;
 
-        var lot = inventory.Lots.FirstOrDefault(item => item.Id == toolLotId && item.OwnerId == actorId &&
-            item.StorageBuildingId is null && item.DeliveryBuildingId is null && item.GroundPosition is null &&
+        var lot = inventory.Lots.FirstOrDefault(item => item.Id == toolLotId &&
+            IsTopLevelCarriedTool(item, actorId) &&
             item.ConditionBasisPoints > 0 && item.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, item) > 0);
         var definition = lot is null ? null : Find(lot.ItemKind);
         return definition is null || definition.Family != family
@@ -142,8 +146,7 @@ public static class ToolProgressionRules
             return new ToolGatheringPlan(4, null, 0, 0, false);
 
         var toolLot = inventory.Lots
-            .Where(lot => lot.OwnerId == actorId && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null && lot.GroundPosition is null && lot.ConditionBasisPoints > 0 &&
+            .Where(lot => IsTopLevelCarriedTool(lot, actorId) && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == required.Family &&

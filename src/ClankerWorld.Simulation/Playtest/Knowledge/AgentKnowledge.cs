@@ -46,25 +46,16 @@ internal static class AgentKnowledgeRules
     public const int MaximumResourceKindsPerFact = 4;
 
     public static void Validate(
-        PrivateWorldKnowledgeState? knowledge,
+        PrivateWorldKnowledgeState knowledge,
         SeededMap map,
         SocietyCheckpoint society,
-        long worldTick,
-        int schemaVersion)
+        long worldTick)
     {
-        if (knowledge is null)
-        {
-            if (schemaVersion >= 23)
-                throw new InvalidDataException("The current private-world schema requires agent map knowledge state.");
-            knowledge = PrivateWorldKnowledgeState.Empty;
-        }
         if (knowledge.Facts is null || knowledge.Artifacts is null)
             throw new InvalidDataException("The agent map-knowledge collections are missing.");
         if (knowledge.Facts.Any(item => item is null) || knowledge.Artifacts.Any(item => item is null) ||
             knowledge.Artifacts.Any(item => item.Facts is null || item.Facts.Any(fact => fact is null)))
             throw new InvalidDataException("The agent map-knowledge collections contain missing records.");
-        if (schemaVersion < 23 && (knowledge.Facts.Count != 0 || knowledge.Artifacts.Count != 0))
-            throw new InvalidDataException("Agent map knowledge requires private-world schema 23.");
 
         var knownAgents = society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         if (knowledge.Facts.Count > checked(knownAgents.Count * MaximumFactsPerAgent) ||

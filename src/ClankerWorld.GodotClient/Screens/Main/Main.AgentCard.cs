@@ -55,9 +55,11 @@ public partial class Main
         BuildQuickCard();
         BuildAgentProfile();
         BuildThoughtsReader();
+        BuildConversationReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
         uiLayer.AddChild(thoughtsPanel);
+        uiLayer.AddChild(conversationPanel);
     }
 
     private void BuildQuickCard()
@@ -335,6 +337,7 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        conversationPanel.Hide();
         RenderThoughtsReader(snapshot, inhabitant);
         thoughtsPanel.Show();
         ApplyResponsiveLayout();
@@ -588,6 +591,17 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (!isDeceased && inhabitant.Equipment is { } equipment)
+        {
+            details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
+                (equipment.CarriedQuantity > equipment.Capacity ? " · Full; store or set down a load before picking up more." : ""));
+            if (equipment.ClothingKind is { } garment)
+                details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
+            if (equipment.CarryAidKind is { } aid)
+                details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.RepairItemKind is { } repairItem)
+                details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
+        }
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")

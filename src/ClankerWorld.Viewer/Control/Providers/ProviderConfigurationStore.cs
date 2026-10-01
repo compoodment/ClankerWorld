@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 
@@ -971,7 +974,7 @@ public sealed partial class ConfigurableDecisionProvider(
     IHttpClientFactory httpClientFactory,
     ILogger<ConfigurableDecisionProvider>? logger = null,
     WorldJevPolicy? jevPolicy = null,
-    ProviderUsageStore? usageStore = null) : IDecisionProvider
+    ProviderUsageStore? usageStore = null) : IDecisionProvider, IAgentConversationProvider
 {
     private readonly WorldJevPolicy jevPolicy = jevPolicy ?? new WorldJevPolicy();
     private static readonly HashSet<string> RoutineCandidateIds = new(StringComparer.Ordinal)
@@ -1001,6 +1004,293 @@ public sealed partial class ConfigurableDecisionProvider(
     }
 
     public long ProviderEpoch => checked(configuration.CaptureRuntimeConfiguration().Revision + jevPolicy.Capture().Revision);
+
+    long IAgentConversationProvider.ProviderEpoch => configuration.CaptureRuntimeConfiguration().Revision;
+
+    public bool CanSpeakAs(string agentId)
+    {
+        if (string.IsNullOrWhiteSpace(agentId) || agentId.Length > 128 || agentId != agentId.Trim()) return false;
+        try
+        {
+            var route = ConversationRouteFor(configuration.CaptureRuntimeConfiguration(), agentId);
+            return route.Provider == PlayerDecisionProviders.Deterministic ||
+                !string.IsNullOrWhiteSpace(route.Credential.ApiKey);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
+    public async ValueTask<AgentConversationTurnResponse> SpeakAsync(
+        AgentConversationTurnRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        var selected = configuration.CaptureRuntimeConfiguration();
+        if (request.ExpectedProviderEpoch != selected.Revision)
+            throw new ProviderConversationUnavailableException(
+                "The personal conversation provider changed after this request was issued.");
+        var route = ConversationRouteFor(selected, request.SpeakerId);
+        if (route.Provider == PlayerDecisionProviders.Deterministic)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new AgentConversationTurnResponse(
+                request.RequestId,
+                request.ConversationId,
+                request.Revision,
+                request.RunEpoch,
+                request.SpeakerId,
+                request.Purpose == AgentConversationPurpose.WrapUp
+                    ? "I think we have said what matters. We can leave it here without changing anything."
+                    : $"It is good to talk with you, {request.OtherParticipantName}.",
+                AgentConversationDisposition.Continue);
+        }
+
+        if (string.IsNullOrWhiteSpace(route.Credential.ApiKey))
+            throw new ProviderConversationUnavailableException("The assigned personal model key is unavailable.");
+        if (usageStore is null)
+            throw new ProviderConversationUnavailableException("Paid conversation usage accounting is unavailable.");
+        if (!request.AllowedEffects.Contains(AgentConversationEffect.None))
+            throw new InvalidDataException("The conversation host supplied an invalid effect whitelist.");
+
+        var payload = new
+        {
+            model = route.Credential.Model,
+            response_format = new { type = "json_object" },
+            messages = new object[]
+            {
+                new
+                {
+                    role = "system",
+                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (none, or mutual_trust only when allowed). A mutual_trust effect is only a proposal; the host applies it only if both people accept the same wrap-up. Do not include reasoning.",
+                },
+                new
+                {
+                    role = "user",
+                    content = JsonSerializer.Serialize(new
+                    {
+                        purpose = request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+                        speaker = new
+                        {
+                            id = request.SpeakerId,
+                            name = request.SpeakerName,
+                            personality = request.SpeakerPersonality,
+                            aspiration = request.SpeakerAspiration,
+                        },
+                        other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
+                        public_history = request.PublicHistory.Select(turn => new
+                        {
+                            speaker_id = turn.SpeakerId,
+                            utterance = turn.Text,
+                            is_wrap_up = turn.IsWrapUp,
+                        }).ToArray(),
+                        allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
+                    }, ConversationJsonOptions),
+                },
+            },
+        };
+        var json = JsonSerializer.Serialize(payload, ConversationJsonOptions);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(45));
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, route.Endpoint)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", route.Credential.ApiKey);
+
+        var role = "conversation";
+        var usageTicket = usageStore?.Begin(route.Provider, route.Credential.Model, role);
+        var timer = Stopwatch.StartNew();
+        var inputTokens = 0;
+        var outputTokens = 0;
+        try
+        {
+            using var response = await httpClientFactory.CreateClient("model").SendAsync(
+                httpRequest,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException("The assigned conversation model did not complete the request.");
+
+            var body = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
+            var turn = ParseConversationResponse(request, body, route.Credential.Model, out inputTokens, out outputTokens);
+            timer.Stop();
+            if (usageTicket is not null)
+                usageStore!.Finish(usageTicket, "completed", turn.InputTokens, turn.OutputTokens);
+            if (logger is not null)
+                LogConversationCall(logger, "completed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+                    request.PublicHistory.Count + 1,
+                    timer.ElapsedMilliseconds, turn.InputTokens, turn.OutputTokens);
+            return turn;
+        }
+        catch (OperationCanceledException)
+        {
+            timer.Stop();
+            if (usageTicket is not null) usageStore!.Finish(usageTicket, "abandoned");
+            if (logger is not null)
+                LogConversationCall(logger, "cancelled", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+                    request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, 0, 0);
+            throw;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            timer.Stop();
+            if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed", inputTokens, outputTokens);
+            if (logger is not null)
+                LogConversationCall(logger, "failed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+                    request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, inputTokens, outputTokens);
+            throw;
+        }
+    }
+
+    private static readonly JsonSerializerOptions ConversationJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        MaxDepth = 12,
+    };
+
+    private sealed record ConversationRoute(string Provider, StoredProviderCredential Credential, Uri Endpoint);
+
+    private static ConversationRoute ConversationRouteFor(RuntimeProviderConfiguration selected, string speakerId)
+    {
+        var assignment = AssignmentFor(selected, speakerId, PlayerDecisionProviders.PlanningRole)
+            ?? throw new ProviderConversationUnavailableException("The agent has no explicit personal planning assignment.");
+        if (assignment.Provider == PlayerDecisionProviders.Deterministic)
+            return new ConversationRoute(PlayerDecisionProviders.Deterministic,
+                new StoredProviderCredential(string.Empty, null), new Uri("http://127.0.0.1/"));
+        if (assignment.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+            throw new ProviderConversationUnavailableException("The assigned planning provider cannot speak in conversations.");
+
+        var credential = CredentialFor(selected, assignment.Provider);
+        if (assignment.CredentialSlotId is { } slotId)
+        {
+            var slot = selected.CredentialSlots?.FirstOrDefault(item => item.Id == slotId && item.Provider == assignment.Provider)
+                ?? throw new ProviderConversationUnavailableException("The assigned personal model credential is unavailable.");
+            credential = credential with { ApiKey = slot.ApiKey };
+        }
+        if (assignment.Model is { } model) credential = credential with { Model = model };
+        if (string.IsNullOrWhiteSpace(credential.Model) || string.IsNullOrWhiteSpace(credential.ApiKey))
+            throw new ProviderConversationUnavailableException("The assigned personal model is unavailable.");
+        var endpoint = assignment.Provider == PlayerDecisionProviders.OpenAi
+            ? PlayerDecisionProviders.OpenAiEndpoint
+            : PlayerDecisionProviders.OllamaCloudEndpoint;
+        return new ConversationRoute(assignment.Provider, credential, endpoint);
+    }
+
+    private static string EffectWireValue(AgentConversationEffect effect) => effect switch
+    {
+        AgentConversationEffect.None => "none",
+        AgentConversationEffect.MutualTrust => "mutual_trust",
+        _ => throw new InvalidDataException("The conversation effect is not allowed."),
+    };
+
+    private static AgentConversationTurnResponse ParseConversationResponse(
+        AgentConversationTurnRequest request,
+        string body,
+        string model,
+        out int inputTokens,
+        out int outputTokens)
+    {
+        inputTokens = 0;
+        outputTokens = 0;
+        try
+        {
+            using var envelope = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 12 });
+            var root = envelope.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("The conversation provider response envelope is invalid.");
+            // A charged response can report valid usage even when its dialogue
+            // is rejected. Keep those bounded counts for failure accounting.
+            inputTokens = ReadUsage(root, "prompt_tokens");
+            outputTokens = ReadUsage(root, "completion_tokens");
+            if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array ||
+                choices.GetArrayLength() != 1 || choices[0].ValueKind != JsonValueKind.Object ||
+                !choices[0].TryGetProperty("message", out var message) ||
+                message.ValueKind != JsonValueKind.Object ||
+                !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("The conversation provider response envelope is invalid.");
+            using var reply = JsonDocument.Parse(content.GetString()!, new JsonDocumentOptions { MaxDepth = 8 });
+            var fields = reply.RootElement;
+            if (fields.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("The conversation provider response fields are invalid.");
+            var allowedFields = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "utterance", "disposition", "effect",
+            };
+            var seenFields = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var field in fields.EnumerateObject())
+            {
+                if (!allowedFields.Contains(field.Name) || !seenFields.Add(field.Name))
+                    throw new InvalidDataException("The conversation provider response contains unknown or duplicate fields.");
+            }
+            if (seenFields.Count != allowedFields.Count ||
+                !fields.TryGetProperty("utterance", out var utterance) || utterance.ValueKind != JsonValueKind.String ||
+                !fields.TryGetProperty("disposition", out var disposition) || disposition.ValueKind != JsonValueKind.String ||
+                !fields.TryGetProperty("effect", out var effect) || effect.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("The conversation provider response fields are invalid.");
+            var outcome = disposition.GetString() switch
+            {
+                "continue" => AgentConversationDisposition.Continue,
+                "withdraw" => AgentConversationDisposition.Withdraw,
+                _ => throw new InvalidDataException("The conversation provider disposition is unknown."),
+            };
+            var proposedEffect = effect.GetString() switch
+            {
+                "none" => AgentConversationEffect.None,
+                "mutual_trust" => AgentConversationEffect.MutualTrust,
+                _ => throw new InvalidDataException("The conversation provider effect is unknown."),
+            };
+            if (!request.AllowedEffects.Contains(proposedEffect))
+                throw new InvalidDataException("The conversation provider proposed an effect outside the host whitelist.");
+            if (outcome == AgentConversationDisposition.Withdraw && proposedEffect != AgentConversationEffect.None)
+                throw new InvalidDataException("A conversation withdrawal cannot carry an effect.");
+
+            var response = new AgentConversationTurnResponse(
+                request.RequestId,
+                request.ConversationId,
+                request.Revision,
+                request.RunEpoch,
+                request.SpeakerId,
+                utterance.GetString()!,
+                outcome,
+                proposedEffect,
+                inputTokens,
+                outputTokens,
+                model);
+            if (!AgentConversationText.IsValidUtterance(response.Text))
+                throw new InvalidDataException("The conversation provider utterance is outside the host length or text bounds.");
+            return response;
+        }
+        catch (JsonException)
+        {
+            throw new InvalidDataException("The conversation provider returned invalid JSON.");
+        }
+    }
+
+    private static int ReadUsage(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty("usage", out var usage) || usage.ValueKind != JsonValueKind.Object ||
+            !usage.TryGetProperty(propertyName, out var value)) return 0;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var count) || count is < 0 or > 1_000_000)
+            throw new InvalidDataException("The conversation provider usage is outside its bound.");
+        return count;
+    }
+
+    [LoggerMessage(
+        EventId = 2104,
+        Level = LogLevel.Information,
+        Message = "conversation_call status={Status} purpose={Purpose} turn_count={TurnCount} latency_ms={LatencyMilliseconds} input_tokens={InputTokens} output_tokens={OutputTokens}")]
+    private static partial void LogConversationCall(
+        ILogger logger,
+        string status,
+        string purpose,
+        int turnCount,
+        long latencyMilliseconds,
+        int inputTokens,
+        int outputTokens);
 
     public DecisionProviderKind KindFor(InhabitantObservation observation)
     {

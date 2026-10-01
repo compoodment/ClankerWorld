@@ -143,6 +143,7 @@ public sealed record OwnerWorldInhabitant(
 
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
+    public OwnerWorldEquipment? Equipment { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -166,6 +167,9 @@ public sealed record OwnerWorldInhabitant(
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);
+public sealed record OwnerWorldEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
+    int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,
@@ -279,6 +283,28 @@ public sealed record OwnerWorldBridge(
     IReadOnlyList<OwnerWorldPosition> Span,
     long BuiltTick);
 
+public sealed record OwnerWorldConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record OwnerWorldConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<OwnerWorldConversationTurn> Turns);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -325,6 +351,8 @@ public sealed record OwnerWorldSnapshot(
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldConversation> Conversations { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
 

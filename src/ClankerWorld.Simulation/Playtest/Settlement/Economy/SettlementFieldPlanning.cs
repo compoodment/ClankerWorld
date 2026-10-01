@@ -86,7 +86,7 @@ public sealed partial class PrivateWorldRuntime
         var reserve = inventory.Reservations.FirstOrDefault(item => item.Id == field.ReplantingReservationId &&
             item.State == InventoryReservationState.Reserved);
         return inventory.Lots.Where(lot => lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
-                (lot.OwnerId == actor && lot.GroundPosition is null && lot.StorageBuildingId is null || lot.OwnerId == field.HouseholdId) &&
+                (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == field.HouseholdId && FreeCarryCapacity(actor) > 0) &&
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
@@ -107,6 +107,7 @@ public sealed partial class PrivateWorldRuntime
             if (field is null || crop is null || !FarmFieldRules.IsCrop(crop) || PlantingStock(actor, field, crop) is not { } seed) return;
             if (seed.OwnerId != actor)
             {
+                if (FreeCarryCapacity(actor) == 0) return;
                 var source = HouseholdStockPosition(seed);
                 var range = HouseholdStockInteractionRange(seed);
                 if (!IsWithinInteractionRange(state.Position, source, range))
