@@ -52,12 +52,16 @@ public sealed partial class PrivateWorldRuntime
                 if (missing <= 0)
                     continue;
                 var carried = society.Checkpoint.Inventory.Lots
-                    .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-                var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
+                var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId) ??
+                    AvailableWarehouseStock(actor, input.Key).FirstOrDefault();
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
                 if (carried is null && stock is null && source is null)
+                    continue;
+                if (stock is not null && FreeCarryCapacity(actor) == 0 || source is not null &&
+                    FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, input.Key, source))
                     continue;
                 yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, carried, stock, source);
             }
@@ -115,9 +119,11 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"workstation-pickup:{WorldTick}:{actor}", householdId, actor, stock.Id, quantity,
+                $"workstation-pickup:{WorldTick}:{actor}", stock.OwnerId, actor, stock.Id, quantity,
                 "workstation_input_picked_up", destinationDeliveryBuildingId: building.InstanceId));
             AppendEvent("workstation_input_picked_up", $"{actor}:{stock.Id}:{quantity}:{building.InstanceId}");
             return;
