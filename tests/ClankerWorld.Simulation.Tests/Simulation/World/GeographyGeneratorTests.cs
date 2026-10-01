@@ -445,7 +445,7 @@ public sealed class GeographyGeneratorTests
         using var setup = new PrivateWorldRuntime(options.Seed,
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = setup.ExportState().Map;
-        var campAnchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var campAnchor = NormalPathWorld.FindStartingTownSite(map);
         setup.InitializeFirstTownContent();
         setup.AcceptFirstTownLayout(campAnchor);
         var buildingTiles = setup.WorldSimulation.Buildings.SelectMany(building =>
@@ -458,6 +458,8 @@ public sealed class GeographyGeneratorTests
                 Math.Abs(tile.Position.Y - campAnchor.Y) <= 5 &&
                 map.IsBuildable(tile.Position) &&
                 !buildingTiles.Contains(tile.Position) &&
+                !setup.RoadTiles.Contains(tile.Position) &&
+                !map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !map.Resources.Any(item => item.Position == tile.Position))
             .Take(4).Select(tile => tile.Position).ToArray();
         Assert.Equal(4, startingTiles.Length);
