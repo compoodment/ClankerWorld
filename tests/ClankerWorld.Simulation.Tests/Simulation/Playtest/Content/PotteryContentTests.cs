@@ -255,7 +255,10 @@ public sealed class PotteryContentTests
             Lots = foodReload.Society.Society.Inventory.Lots.Where(lot =>
                     !(lot.OwnerId == actor && lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
                       InventoryContainerRules.IsFood(lot.ItemKind)))
-                .ToArray(),
+                .Append(new InventoryLot("ground-owned-berries", "berries", actor, 2, 10_000, 10_000,
+                    foodReload.Society.Society.WorldTick,
+                    GroundPosition: new InventoryGroundPosition(house.Position.X, house.Position.Y)))
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray(),
         };
         foodReload = foodReload with
         {

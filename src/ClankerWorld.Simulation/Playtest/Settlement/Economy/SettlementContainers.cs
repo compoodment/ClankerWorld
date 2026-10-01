@@ -16,8 +16,8 @@ public sealed partial class PrivateWorldRuntime
     private sealed record PotFoodChoice(InventoryLot Pot, InventoryLot Food);
 
     private InventoryLot? CarriedContainer(string actor, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.ContainerLotId is null &&
-            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == kind &&
+            lot.ContainerLotId is null && lot.DeliveryBuildingId is null)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private static int ContainerContentsQuantity(InventoryCheckpoint inventory, string containerId) =>
@@ -120,7 +120,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         if (person.HungerBasisPoints < 7_000 &&
-            !inventory.Lots.Any(lot => lot.OwnerId == actor && lot.ContainerLotId is null &&
+            !inventory.Lots.Any(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.DeliveryBuildingId is null && InventoryContainerRules.IsFood(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0) &&
             FreeCarryCapacity(actor) > 0 &&
@@ -152,7 +152,7 @@ public sealed partial class PrivateWorldRuntime
                     InventoryContainerRules.IsFood(lot.ItemKind) && lot.ContainerLotId is null &&
                     lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                     AvailableLotQuantity(lot) > (lot.OwnerId == actor ? 1 : 0) &&
-                    (lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null ||
+                    (PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
                      lot.OwnerId == householdId && lot.StorageBuildingId == houseId))
                 .OrderBy(lot => lot.OwnerId == actor ? 0 : 1)
                 .ThenBy(lot => lot.Id, StringComparer.Ordinal)
