@@ -166,19 +166,30 @@ public sealed partial class PrivateWorldRuntime
             .FirstOrDefault();
 
     private bool HasNewObserverGuidanceFor(string inhabitantId) =>
-        instructionsByIdempotency.Values.Any(item =>
-            item.TargetInhabitantId == inhabitantId &&
-            !completedInstructionIds.Contains(item.InstructionId) &&
-            (item.Kind == OwnerInstructionKind.Suggestive || InstructionCandidate(item.Text) is not null) &&
-            item.GuidancePromptedTick is null);
+        ObserverGuidanceInstructionsFor(inhabitantId).Any(item => item.GuidancePromptedTick is null);
 
-    private CognitionObserverGuidance[] ObserverGuidanceFor(string inhabitantId) =>
-        instructionsByIdempotency.Values
+    private OwnerQueuedInstruction[] ObserverGuidanceInstructionsFor(string inhabitantId)
+    {
+        var messages = instructionsByIdempotency.Values
             .Where(item => item.TargetInhabitantId == inhabitantId &&
                 !completedInstructionIds.Contains(item.InstructionId) &&
                 (item.Kind == OwnerInstructionKind.Suggestive || InstructionCandidate(item.Text) is not null))
             .OrderBy(item => item.SubmissionSequence)
-            .Take(InhabitantObservation.MaximumObserverGuidanceCount)
+            .ToList();
+        var selected = messages.Take(InhabitantObservation.MaximumObserverGuidanceCount).ToList();
+        if (messages.Count > selected.Count &&
+            PendingInstructionFor(inhabitantId) is { } operativeOrder &&
+            selected.All(item => item.InstructionId != operativeOrder.InstructionId))
+        {
+            selected[^1] = operativeOrder;
+            selected.Sort((left, right) => left.SubmissionSequence.CompareTo(right.SubmissionSequence));
+        }
+
+        return selected.ToArray();
+    }
+
+    private CognitionObserverGuidance[] ObserverGuidanceFor(string inhabitantId) =>
+        ObserverGuidanceInstructionsFor(inhabitantId)
             .Select(item => new CognitionObserverGuidance(
                 item.InstructionId,
                 item.IssuerId,

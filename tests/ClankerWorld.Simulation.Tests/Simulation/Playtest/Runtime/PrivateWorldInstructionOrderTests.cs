@@ -135,6 +135,106 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
+    public async Task GuidanceBeyondTheBoundWaitsWithoutPollingAndCannotHideTheOperativeOrder()
+    {
+        using var genesis = new PrivateWorldRuntime("bounded-guidance-before-order");
+        var state = genesis.ExportState();
+        const string foodLotId = "bounded-guidance-test-food";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            foodLotId, "berries", OrderedAgent, 1);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == OrderedAgent
+                ? item with { HungerBasisPoints = 3_000 }
+                : item).ToArray(),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+        var provider = new GuidanceRecordingProvider();
+        using var world = PrivateWorldRuntime.Restore(state, id =>
+            id == OrderedAgent ? provider : new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+
+        var suggestions = Enumerable.Range(1, InhabitantObservation.MaximumObserverGuidanceCount + 1)
+            .Select(index => world.SubmitInstruction(new OwnerInstructionRequest(
+                $"bounded-guidance-{index}", "owner:test", OrderedAgent, OwnerInstructionKind.Suggestive,
+                $"Keep suggestion {index} in mind.")))
+            .ToArray();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var firstPrompt = Assert.Single(provider.Requests);
+        var firstGuidance = firstPrompt.ObserverGuidance ?? throw new InvalidOperationException();
+        Assert.Equal(InhabitantObservation.MaximumObserverGuidanceCount, firstGuidance.Count);
+        Assert.Equal(suggestions.Take(InhabitantObservation.MaximumObserverGuidanceCount)
+            .Select(item => item.InstructionId).ToArray(), firstGuidance.Select(item => item.InstructionId).ToArray());
+        var afterFirstPrompt = world.ExportState();
+        foreach (var suggestion in suggestions.Take(InhabitantObservation.MaximumObserverGuidanceCount))
+        {
+            var saved = Assert.Single(afterFirstPrompt.Instructions!, item => item.InstructionId == suggestion.InstructionId);
+            Assert.NotNull(saved.GuidancePromptedTick);
+            Assert.Null(saved.ObservedTick);
+            Assert.DoesNotContain(suggestion.InstructionId, afterFirstPrompt.CompletedInstructionIds ?? []);
+        }
+        var hiddenSuggestion = Assert.Single(afterFirstPrompt.Instructions!, item =>
+            item.InstructionId == suggestions[^1].InstructionId);
+        Assert.Null(hiddenSuggestion.GuidancePromptedTick);
+        Assert.Null(hiddenSuggestion.ObservedTick);
+
+        for (var tick = 0; tick < 4; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Single(provider.Requests);
+
+        var order = world.SubmitInstruction(new OwnerInstructionRequest(
+            "bounded-guidance-order", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo,
+            "Please eat the food now."));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var orderPrompt = Assert.Single(provider.Requests, request =>
+            request.ObserverGuidance?.Any(message => message.InstructionId == order.InstructionId) == true);
+        var orderGuidance = orderPrompt.ObserverGuidance ?? throw new InvalidOperationException();
+        Assert.Equal(InhabitantObservation.MaximumObserverGuidanceCount, orderGuidance.Count);
+        Assert.Equal(suggestions.Take(InhabitantObservation.MaximumObserverGuidanceCount - 1)
+                .Select(item => item.InstructionId).Append(order.InstructionId).ToArray(),
+            orderGuidance.Select(item => item.InstructionId).ToArray());
+        var afterOrder = world.ExportState();
+        Assert.Contains(order.InstructionId, afterOrder.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(afterOrder.CompletedInstructionIds ?? [], completedId =>
+            suggestions.Any(item => item.InstructionId == completedId));
+        foreach (var suggestion in suggestions)
+        {
+            var saved = Assert.Single(afterOrder.Instructions!, item => item.InstructionId == suggestion.InstructionId);
+            Assert.Null(saved.ObservedTick);
+            Assert.Null(saved.ObserverReply);
+        }
+        Assert.DoesNotContain(afterOrder.Society.Society.Inventory.Lots, lot => lot.Id == foodLotId);
+        Assert.Contains(afterOrder.Events, item => item.Kind == "food_consumed" && item.Detail == OrderedAgent);
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var afterOverflowPrompt = world.ExportState();
+        var nextGuidance = provider.Requests[^1].ObserverGuidance ?? throw new InvalidOperationException();
+        Assert.Equal(InhabitantObservation.MaximumObserverGuidanceCount, nextGuidance.Count);
+        foreach (var suggestion in suggestions.Take(InhabitantObservation.MaximumObserverGuidanceCount))
+            Assert.NotNull(Assert.Single(afterOverflowPrompt.Instructions!, item => item.InstructionId == suggestion.InstructionId)
+                .GuidancePromptedTick);
+        Assert.Null(Assert.Single(afterOverflowPrompt.Instructions!, item =>
+            item.InstructionId == suggestions[^1].InstructionId).GuidancePromptedTick);
+        var boundedRequestCount = provider.Requests.Count;
+        for (var tick = 0; tick < 4; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(boundedRequestCount, provider.Requests.Count);
+        var finalState = world.ExportState();
+        foreach (var suggestion in suggestions)
+        {
+            var saved = Assert.Single(finalState.Instructions!, item => item.InstructionId == suggestion.InstructionId);
+            Assert.Null(saved.ObservedTick);
+            Assert.Null(saved.ObserverReply);
+            Assert.DoesNotContain(suggestion.InstructionId, finalState.CompletedInstructionIds ?? []);
+        }
+        world.Validate();
+    }
+
+    [Fact]
     public async Task GuidanceIsTargetOnlyAndItsExactWordsChangeTheObservationDigest()
     {
         var targetProvider = new GuidanceRecordingProvider();
