@@ -38,6 +38,10 @@ public partial class Main
     private readonly Button buildingManagementApply = new() { Text = "Change owner" };
     private readonly Button buildingRemoveButton = new() { Text = "Remove building" };
     private readonly ConfirmationDialog buildingRemoveConfirmation = new();
+    private OwnerBuildingRemovalAction? pendingBuildingRemoval;
+    private string? pendingBuildingRemovalWorldId;
+    private string? renderedBuildingManagementWorldId;
+    private string? renderedBuildingManagementId;
     private string? selectedBuildingId;
     private bool buildingDetailsRequested;
     private OwnerWorldSnapshot? buildingCardSnapshot;
@@ -97,11 +101,13 @@ public partial class Main
         buildingManagementApply.Pressed += ApplyBuildingReassignment;
         buildingManagementSection.AddChild(buildingManagementApply);
         StyleButton(buildingRemoveButton);
-        buildingRemoveButton.Pressed += () => buildingRemoveConfirmation.PopupCentered();
+        buildingRemoveButton.Pressed += ConfirmBuildingRemoval;
         buildingManagementSection.AddChild(buildingRemoveButton);
         buildingDetailsContent.AddChild(buildingManagementSection);
-        buildingRemoveConfirmation.DialogText = "Remove this building? Its Town border and existing Roads will remain. The action is saved to the world.";
+        StyleConfirmation(buildingRemoveConfirmation, "Remove this building?", "Remove building");
+        buildingRemoveConfirmation.GetOkButton().ThemeTypeVariation = "DangerButton";
         buildingRemoveConfirmation.Confirmed += RemoveSelectedBuilding;
+        buildingRemoveConfirmation.Canceled += CancelBuildingRemoval;
         uiLayer.AddChild(buildingRemoveConfirmation);
         // On a short view the facts scroll under a header that stays put.
         buildingDetailsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -167,6 +173,9 @@ public partial class Main
 
     private void ClearBuildingSelection()
     {
+        CancelBuildingRemoval();
+        renderedBuildingManagementWorldId = null;
+        renderedBuildingManagementId = null;
         selectedBuildingId = null;
         buildingDetailsRequested = false;
         terrainLayer.SetSelectedBuilding(null);
@@ -196,6 +205,9 @@ public partial class Main
 
     private void RenderBuildingCard(OwnerWorldSnapshot snapshot)
     {
+        if (pendingBuildingRemoval is { } pending &&
+            (pendingBuildingRemovalWorldId != snapshot.WorldId || pending.InstanceId != selectedBuildingId))
+            CancelBuildingRemoval();
         buildingCardSnapshot = snapshot;
         if (SelectedBuilding() is not { } building)
         {
@@ -351,9 +363,15 @@ public partial class Main
         if (!TryGetOwner(out _, out _, out _))
         {
             buildingManagementSection.Hide();
+            renderedBuildingManagementWorldId = null;
+            renderedBuildingManagementId = null;
             return;
         }
 
+        var previousTarget = renderedBuildingManagementWorldId == snapshot.WorldId &&
+            renderedBuildingManagementId == building.InstanceId && buildingManagementChoice.Selected >= 0
+            ? buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString()
+            : null;
         buildingManagementSection.Show();
         buildingManagementChoice.Clear();
         var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
@@ -387,7 +405,16 @@ public partial class Main
             buildingManagementNote.Text = "This building has no household or Town reassignment rule.";
         }
 
-        if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(0);
+        var selectedTarget = 0;
+        for (var index = 0; index < buildingManagementChoice.ItemCount; index++)
+            if (previousTarget is not null && buildingManagementChoice.GetItemMetadata(index).AsString() == previousTarget)
+            {
+                selectedTarget = index;
+                break;
+            }
+        if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(selectedTarget);
+        renderedBuildingManagementWorldId = buildingManagementChoice.ItemCount > 0 ? snapshot.WorldId : null;
+        renderedBuildingManagementId = buildingManagementChoice.ItemCount > 0 ? building.InstanceId : null;
         buildingManagementChoice.Visible = buildingManagementChoice.ItemCount > 0;
         buildingManagementApply.Visible = buildingManagementChoice.ItemCount > 0;
         buildingManagementApply.Disabled = buildingManagementChoice.ItemCount == 0;
@@ -396,7 +423,7 @@ public partial class Main
 
     private async void ApplyBuildingReassignment()
     {
-        if (SelectedBuilding() is not { } building ||
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
             buildingManagementChoice.Selected < 0 || !TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Select a building and a new owner first.", good: false);
@@ -406,7 +433,8 @@ public partial class Main
         var target = buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString();
         var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
         var action = new OwnerBuildingReassignmentAction(building.InstanceId, building.TownId, building.HouseholdId,
-            isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target);
+            isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target,
+            WorldId: snapshot.WorldId);
         OwnerBuildingManagementResult? result = null;
         await RunOwnerActionAsync(async () =>
         {
@@ -419,9 +447,30 @@ public partial class Main
                 good: changed.Applied);
     }
 
+    private void ConfirmBuildingRemoval()
+    {
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
+            !TryGetOwner(out _, out _, out _)) return;
+        pendingBuildingRemoval = new(building.InstanceId, building.TownId, building.HouseholdId, snapshot.WorldId);
+        pendingBuildingRemovalWorldId = snapshot.WorldId;
+        buildingRemoveConfirmation.DialogText = $"Remove {building.DisplayName ?? "this building"}? Its Town border and existing Roads will remain. The action is saved to the world.";
+        PopupDialog(buildingRemoveConfirmation);
+    }
+
+    private void CancelBuildingRemoval()
+    {
+        pendingBuildingRemoval = null;
+        pendingBuildingRemovalWorldId = null;
+        buildingRemoveConfirmation.Hide();
+    }
+
     private async void RemoveSelectedBuilding()
     {
-        if (SelectedBuilding() is not { } building || !TryGetOwner(out var authority, out var deviceId, out var signer))
+        var action = pendingBuildingRemoval;
+        var worldId = pendingBuildingRemovalWorldId;
+        CancelBuildingRemoval();
+        if (action is null || buildingCardSnapshot?.WorldId != worldId || selectedBuildingId != action.InstanceId ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Select a building before removing it.", good: false);
             return;
@@ -431,14 +480,15 @@ public partial class Main
         await RunOwnerActionAsync(async () =>
         {
             result = await ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerBuildingRemovalAction(building.InstanceId, building.TownId, building.HouseholdId),
+                action,
                 signer, CancellationToken.None);
             return result.Applied ? "Building removed" : result.Failure ?? "The building could not be removed.";
         });
         if (result is not { } removed) return;
         SetStatus(removed.Applied ? "Building removed" : removed.Failure ?? "The building could not be removed.",
             good: removed.Applied);
-        if (removed.Applied) ClearBuildingSelection();
+        if (removed.Applied && buildingCardSnapshot?.WorldId == worldId && selectedBuildingId == action.InstanceId)
+            ClearBuildingSelection();
     }
 
     private void RenderBuildingFacts(List<(string Key, string Value)> facts)

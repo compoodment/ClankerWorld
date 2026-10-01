@@ -135,7 +135,7 @@ public sealed partial class PrivateWorldRuntime
             map.CampObjects.Count == 0 && simulation.Buildings.Count == 0)
             return;
 
-        var firstTown = savedTowns.SingleOrDefault(item => item.Id == TownBorderRules.FirstTownId);
+        var firstTown = savedTowns.FirstOrDefault(item => item.Id == TownBorderRules.FirstTownId);
         if (firstTown is null || savedTowns.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != savedTowns.Count)
             throw new InvalidDataException("A founder-setup world must keep its original first Town and unique Town identities.");
 

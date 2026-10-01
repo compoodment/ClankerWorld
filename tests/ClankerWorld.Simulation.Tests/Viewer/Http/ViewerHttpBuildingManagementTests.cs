@@ -29,7 +29,7 @@ public sealed partial class ViewerHttpTests
 
             const string reassignPath = "/api/v1/owner/buildings/reassign";
             var reassignment = new ViewerBuildingReassignmentAction(tailorId, tailor.TownId, tailor.HouseholdId,
-                TargetTownId: null, TargetHouseholdId: "household:camp-beta");
+                TargetTownId: null, TargetHouseholdId: "household:camp-beta", WorldId: runtime.Society.WorldId);
             var beforeTampering = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
             var signed = await CreateSignedRequestAsync(host, client, key, device.DeviceId, reassignPath,
                 reassignment, OwnerContentBinding.BuildingReassignmentPayload(reassignment));
@@ -55,7 +55,7 @@ public sealed partial class ViewerHttpTests
                 .WorldSimulation!.Buildings.Single(item => item.InstanceId == tailorId).HouseholdId);
 
             const string removePath = "/api/v1/owner/buildings/remove";
-            var removal = new ViewerBuildingRemovalAction(tailorId, current.TownId, current.HouseholdId);
+            var removal = new ViewerBuildingRemovalAction(tailorId, current.TownId, current.HouseholdId, runtime.Society.WorldId);
             using var removedResponse = await SendSignedAsync(host, client, key, device.DeviceId, removePath,
                 removal, OwnerContentBinding.BuildingRemovalPayload(removal));
             Assert.Equal(HttpStatusCode.OK, removedResponse.StatusCode);

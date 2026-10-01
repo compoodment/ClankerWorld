@@ -1,5 +1,5 @@
 - The owner can remove a building or change its household/Town assignment from
-  Building Details. The host rejects stale changes and any removal or
+  Building Details. The host rejects changes for a different selected world or stale ownership and any removal or
   reassignment while the building holds stored or inbound stock or active
   production/expansion work. Private-building ownership stays separate from
   Town title; moving a Warehouse updates the recorded assignment without
