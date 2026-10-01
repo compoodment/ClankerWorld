@@ -87,8 +87,12 @@ public sealed class MedicalCareTests
         using var initial = NormalPathWorld.CreateGenerated("care-medicine", _ => new ActionCoverageRecorder(true));
         var state = initial.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
-        state = state with { Survival = new(0, []), Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Survival = new(IllnessBasisPoints: 4_000), HungerBasisPoints = 10_000 } : person).ToArray() };
+        state = state with
+        {
+            Survival = new(0, []),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Survival = new(IllnessBasisPoints: 4_000), HungerBasisPoints = 10_000 } : person).ToArray()
+        };
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "care-medicine", "medicine", actor, 1);
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new ActionCoverageRecorder(true));
         using var control = PrivateWorldRuntime.Restore(state, _ => new ActionCoverageRecorder(true));
@@ -143,8 +147,11 @@ public sealed class MedicalCareTests
         inventory = InventoryFixture.ReleaseReservation(inventory, "reserved-care");
         var far = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
             state.Map.FootDistance(tile.Position, state.Inhabitants.Single(person => person.InhabitantId == patient).Position) > 10).Position;
-        state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == caregiver
-            ? person with { Position = far } : person).ToArray() };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == caregiver
+            ? person with { Position = far } : person).ToArray()
+        };
         using var remote = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new ActionCoverageRecorder(true));
         Assert.False(remote.TreatPatient(caregiver, patient, "bandage").Applied);
         Assert.Equal(1, remote.Society.Inventory.GetLot("reserved-bandage").Quantity);
@@ -161,11 +168,17 @@ public sealed class MedicalCareTests
         Assert.True(world.TreatPatient(caregiver, patient, "bandage").Applied);
         state = world.ExportState();
         var treatment = state.Inhabitants.Single(person => person.InhabitantId == patient).MedicalTreatment!;
-        var forged = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
-            ? person with { MedicalTreatment = treatment with { DoseReservationId = "not-consumed" } } : person).ToArray() };
+        var forged = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
+            ? person with { MedicalTreatment = treatment with { DoseReservationId = "not-consumed" } } : person).ToArray()
+        };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forged));
-        forged = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
-            ? person with { MedicalTreatment = treatment with { RemainingTicks = 19 } } : person).ToArray() };
+        forged = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
+            ? person with { MedicalTreatment = treatment with { RemainingTicks = 19 } } : person).ToArray()
+        };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forged));
     }
 
@@ -181,8 +194,11 @@ public sealed class MedicalCareTests
         return state with
         {
             Survival = new(0, []),
-            Society = state.Society with { Society = state.Society.Society with
-            { Inhabitants = state.Society.Society.Inhabitants.Select(person => person.Id == patientId ? person with { HealthBasisPoints = 4_000 } : person).ToArray() } },
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                { Inhabitants = state.Society.Society.Inhabitants.Select(person => person.Id == patientId ? person with { HealthBasisPoints = 4_000 } : person).ToArray() }
+            },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patientId || person.InhabitantId == caregiverId
                 ? person with { Position = house.Position, HungerBasisPoints = 10_000, Survival = new() } : person).ToArray(),
         };

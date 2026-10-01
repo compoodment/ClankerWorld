@@ -51,16 +51,25 @@ public sealed class StoredFuelRoutingTests
         var society = state.Society.Society;
         // The private fuel stock is at a workplace, separate from the House
         // whose hearth must remain reachable even while stock pickup is blocked.
-        society = society with { Inventory = society.Inventory with { Lots = society.Inventory.Lots.Select(lot =>
+        society = society with
+        {
+            Inventory = society.Inventory with
+            {
+                Lots = society.Inventory.Lots.Select(lot =>
             lot.OwnerId == household && lot.ItemKind == "wood"
-                ? lot with { StorageBuildingId = workStock.InstanceId } : lot).ToArray() } };
+                ? lot with { StorageBuildingId = workStock.InstanceId } : lot).ToArray()
+            }
+        };
         if (blockStorage)
         {
             // This check blocks stock pickup, not the new requirement to use
             // a real axe. Take the Town's actual starter tool before the blockage.
             var axe = society.Inventory.Lots.Single(lot => lot.Id == "first-town-wooden-axe");
-            society = society with { Inventory = InventoryFixture.Transfer(society.Inventory, "fuel-fixture-axe",
-                axe.OwnerId, ids[0], axe.Id, 1, "equipment_collected") };
+            society = society with
+            {
+                Inventory = InventoryFixture.Transfer(society.Inventory, "fuel-fixture-axe",
+                axe.OwnerId, ids[0], axe.Id, 1, "equipment_collected")
+            };
         }
         var storedWood = society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood")
             .Sum(lot => lot.Quantity);
