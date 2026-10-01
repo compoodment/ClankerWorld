@@ -189,6 +189,22 @@ public static class InventoryFixture
             detail: $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}");
     }
 
+    /// <summary>Wear or repair one owned physical item without changing its identity or stock.</summary>
+    public static InventoryCheckpoint ChangeCondition(InventoryCheckpoint checkpoint,
+        string lotId, string ownerId, int change, string eventKind)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventKind);
+        var lot = checkpoint.GetLot(lotId);
+        EnsureOwnerAndAvailableQuantity(checkpoint, lot, ownerId, lot.Quantity);
+        if (lot.Quantity != 1 || lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0)
+            throw new InvalidOperationException("Only one usable owned physical item can wear or be repaired.");
+        var condition = Math.Clamp((long)lot.ConditionBasisPoints + change, 0, 10_000);
+        var lots = checkpoint.Lots.Select(item => item.Id == lotId
+            ? item with { ConditionBasisPoints = (int)condition } : item).ToArray();
+        return Commit(checkpoint, lots: lots, eventKind: eventKind, detail: $"{lotId}:{condition}");
+    }
+
     public static InventoryCheckpoint ProcessSpoilage(
         InventoryCheckpoint checkpoint,
         long targetTick,

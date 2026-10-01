@@ -40,7 +40,8 @@ public sealed record ViewerActor(
     int FoodItems,
     int WoodItems);
 
-public sealed record ViewerInventoryEntry(string Kind, int Quantity);
+public sealed record ViewerInventoryEntry(string Kind, int Quantity, int? ConditionBasisPoints = null,
+    int BrokenQuantity = 0);
 
 public sealed record ViewerDecisionFactor(string Key, string Detail);
 

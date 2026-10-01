@@ -617,7 +617,8 @@ public sealed class OwnerWorldObservationStore
             Survival = physical.Survival is { } survival
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
                     inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
-                    inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
+                    inventory.Any(item => (item.Kind == "tool" || ToolCapabilities.ForItem(item.Kind) is not null) &&
+                        item.Quantity > item.BrokenQuantity), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -854,7 +855,9 @@ public sealed class OwnerWorldObservationStore
             (storageBuildingId is null || lot.StorageBuildingId == storageBuildingId))
         .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal)
-        .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity)))
+        .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity),
+            ToolCapabilities.ForItem(group.Key) is null ? null : group.Min(lot => lot.ConditionBasisPoints),
+            ToolCapabilities.ForItem(group.Key) is null ? 0 : group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity)))
         .ToArray();
 
     private static ViewerRoute DeterminePlaytestRoute(

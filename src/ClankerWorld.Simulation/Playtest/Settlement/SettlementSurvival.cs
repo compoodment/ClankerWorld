@@ -342,6 +342,10 @@ public sealed partial class PrivateWorldRuntime
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null || recipe.Outputs.Any(output =>
     {
+        if (ToolCapabilities.ForItem(output.ResourceId) is not null)
+            return NeedsToolOutput(output.ResourceId, ownerId);
+        if (output.ResourceId == "iron" && ownerId is not null)
+            return NeedsSmithIron(ownerId);
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
                 (ownerId is null || lot.OwnerId == ownerId))
             .Sum(AvailableLotQuantity);

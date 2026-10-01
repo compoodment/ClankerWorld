@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # How the game works
@@ -694,3 +694,33 @@ invalidates the read and disables Apply. Late replies and failures cannot
 replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
+
+## Material extraction and tool maintenance
+
+`ToolCapabilities` shares item kinds, mining tiers, work amounts and wear with
+resource gathering and field work. The normal candidates collect an accessible
+household or Warehouse tool before gathering. Only a usable personally carried,
+unreserved tool can work. Wooden pickaxes extract stone, stone pickaxes extract
+iron ore, and iron pickaxes extract gold ore and diamonds. Trees require an axe;
+finite fallen-wood sites can be collected by hand. Each successful extraction
+reduces the actual ecology quantity and creates personally carried stock. No
+deposit regenerates. Tool yield and wear are provisional: axes and pickaxes yield
+6, 8 or 10 units and lose 500, 250 or 125 condition points per use.
+
+The Blacksmith carries inputs from the household's stock or its members' hands,
+or gathers them locally, for recipes that still need outputs. It counts incoming
+loads before asking for more. Stock demand includes worn tools' repair materials
+even when fresh-tool reserves are full. Refining consumes 2 iron ore and 1 wood
+at the building to create 1 distinct iron item. Tool reserves count the household
+and its members' usable tools; an improved tier satisfies its earlier tier.
+
+A worn tool at 40% condition or below can be taken to the household Blacksmith
+and repaired with one on-site unit of its wood, stone or iron material. The
+provisional hand repair restores 50 percentage points; a carried hammer restores
+full condition and itself wears. A broken tool cannot be repaired. Repair keeps
+the tool's lot ID, owner and location. Condition changes reject another owner's
+or reserved items. Multi-item lots split off one tool before use. A hammer
+speeds construction, a hoe speeds crop preparation, and a knife halves eligible
+food and clothing preparation times; individual fields connect sickle harvesting
+in the farming change. Condition and broken quantities are derived owner
+observations, shown with existing icons or the established crate fallback.

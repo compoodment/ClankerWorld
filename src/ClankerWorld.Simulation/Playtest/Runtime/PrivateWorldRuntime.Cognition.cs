@@ -378,6 +378,21 @@ public sealed partial class PrivateWorldRuntime
                 candidateId == "collect_wooden_axe" ? "wooden_axe" : "wooden_pickaxe");
             return;
         }
+        if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
+        {
+            CollectEquipment(inhabitantId, state, candidateId[CollectToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
+        {
+            RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(MineMaterialPrefix, StringComparison.Ordinal))
+        {
+            MineMaterial(inhabitantId, state, candidateId[MineMaterialPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
         {
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
@@ -637,6 +652,8 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
             AddCraftToolCandidates(candidates, inhabitantId);
+            AddToolRepairCandidate(candidates, inhabitantId);
+            AddMiningCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);

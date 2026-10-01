@@ -1097,6 +1097,12 @@ public static class GeneratedCampMapGenerator
                     break;
             }
         }
+        // Loose fallen wood can be gathered by hand when the last axe breaks.
+        // It is finite, physical map stock; new trees still require an axe.
+        for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            TryGeologySite("fallen_wood", "wood", (tile, _, _) => tile.Water == WaterKind.Land &&
+                    tile.Elevation < 205 && tile.Climate is not (ClimateZone.Polar or ClimateZone.Dry),
+                chunkIndex % columns, chunkIndex / columns, chunkIndex);
         return additions;
 
         void AddGeologySite(string naturalKind, string resourceKind,
@@ -1428,6 +1434,7 @@ public static class MapAcceptance
             "gold_outcrop" => resourceKind == "gold_ore",
             "diamond_outcrop" => resourceKind == "diamond",
             "clay_bank" => resourceKind == "clay",
+            "fallen_wood" => resourceKind == "wood",
             "wild_seed_patch" => resourceKind == "seed",
             "fertile_soil" => resourceKind == "fertile_land",
             _ => false,

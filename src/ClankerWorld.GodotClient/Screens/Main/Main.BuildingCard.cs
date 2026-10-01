@@ -214,7 +214,7 @@ public partial class Main
         {
             storage.Visible = stored is not null;
             if (stored is not null)
-                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, Pretty(item.Kind))).ToArray());
+                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, Pretty(item.Kind), item.ConditionBasisPoints, item.BrokenQuantity)).ToArray());
         }
         RenderBuildingStatus(snapshot, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);

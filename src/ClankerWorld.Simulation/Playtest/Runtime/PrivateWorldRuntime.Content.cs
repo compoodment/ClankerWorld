@@ -398,7 +398,9 @@ public sealed partial class PrivateWorldRuntime
             }
 
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
-            var completionTick = checked(WorldTick + recipe.DurationTicks);
+            var preparation = recipe.Tags.Any(tag => tag is "cooking" or "house-cooking" or "clothing" or "cloth")
+                ? UseTool(normalizedWorkerId, ToolKind.Knife) : null;
+            var completionTick = checked(WorldTick + Math.Max(1, recipe.DurationTicks / (preparation?.WorkQuantity ?? 1)));
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {

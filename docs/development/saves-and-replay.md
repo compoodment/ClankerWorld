@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Saves and replay
@@ -292,3 +292,13 @@ roots and their digest-addressed chains before removing unreferenced segments.
 Unpublished generations conservatively count as roots. Corrupt roots defer history
 cleanup, preserving other saves. This is ordinary file deletion, not secure disk
 erasure, and does not remove copies in external backups.
+
+## Material and tool content
+
+The expanded Blacksmith recipes change its package digest. Fallen wood also
+changes deterministic generated map identity. Worlds from earlier content may
+be refused under the alpha policy; their files are preserved. This change adds
+no private checkpoint schema field: tool wear uses each inventory lot's existing
+condition, while finite deposits use saved ecology quantity. Current-format
+checks exercise extraction, tool wear and repair, and a knife-assisted recipe
+with its reserved inputs through save, load and continued simulation.

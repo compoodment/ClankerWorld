@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private const int WarehouseLoadQuantity = 4;
     private static readonly HashSet<string> WarehouseResourceKinds =
-        new(StringComparer.Ordinal) { "wood", "stone", "fiber", "seed" };
+        new(StringComparer.Ordinal) { "wood", "stone", "fiber", "seed", "iron_ore", "iron", "gold_ore", "gold", "diamond" };
     private static readonly HashSet<string> WarehouseFoodKinds =
         new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potato", "greens", "bread", "porridge", "stew" };
 

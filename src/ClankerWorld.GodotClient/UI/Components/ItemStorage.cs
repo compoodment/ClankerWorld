@@ -49,6 +49,9 @@ public partial class ItemStorage : VBoxContainer
     public string Summary => summaryLabel.Text;
 
     public void SetItems(IReadOnlyList<(string Kind, int Quantity, string DisplayName)> items)
+        => SetItems(items.Select(item => (item.Kind, item.Quantity, item.DisplayName, (int?)null, 0)).ToArray());
+
+    public void SetItems(IReadOnlyList<(string Kind, int Quantity, string DisplayName, int? Condition, int Broken)> items)
     {
         var total = items.Sum(item => item.Quantity);
         summaryLabel.Text = items.Count == 0 ? string.Empty : Named
@@ -56,7 +59,7 @@ public partial class ItemStorage : VBoxContainer
             : Plural(total, "item");
         emptyLabel.Visible = items.Count == 0;
         slots.Visible = items.Count > 0;
-        var signature = string.Join('|', items.Select(item => $"{item.Kind}:{item.Quantity}"));
+        var signature = string.Join('|', items.Select(item => $"{item.Kind}:{item.Quantity}:{item.Condition}:{item.Broken}"));
         if (renderedItems == signature) return;
         renderedItems = signature;
         foreach (var child in slots.GetChildren())
@@ -64,10 +67,12 @@ public partial class ItemStorage : VBoxContainer
             slots.RemoveChild(child);
             child.QueueFree();
         }
-        foreach (var (kind, quantity, displayName) in items)
+        foreach (var (kind, quantity, displayName, condition, broken) in items)
         {
             var slot = new ItemSlot { IconSize = 32, Named = Named };
             slot.SetItem(kind, quantity, displayName);
+            if (condition is { } value) slot.TooltipText += $" · condition {value / 100}%";
+            if (broken > 0) slot.TooltipText += $" · {broken} broken";
             slots.AddChild(slot);
         }
     }

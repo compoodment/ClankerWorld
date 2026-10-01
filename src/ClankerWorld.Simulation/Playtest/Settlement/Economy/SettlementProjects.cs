@@ -595,7 +595,9 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitantId, project with { Stage = "working", Blocker = null });
                 return;
             }
-            var work = (HasCarriedItem(inhabitantId, "tool") ? 2 : 1) + ProjectPracticeBonus(state, project);
+            var specialist = building is not null ? UseTool(inhabitantId, ToolKind.Hammer)
+                : recipe?.IsCrop == true ? UseTool(inhabitantId, ToolKind.Hoe) : null;
+            var work = (specialist?.WorkQuantity ?? (HasCarriedItem(inhabitantId, "tool") ? 2 : 1)) + ProjectPracticeBonus(state, project);
             SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
             return;
         }
@@ -677,25 +679,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var gatheringTool = input.ResourceId switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        if (gatheringTool is not null && !HasCarriedItem(inhabitantId, gatheringTool) &&
-            SharedItem(gatheringTool, inhabitantId) is not null)
-        {
-            CollectEquipment(inhabitantId, state, gatheringTool);
-            return;
-        }
-
-        var source = map.Resources.Where(resource =>
-            (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
-            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableFromCampOnFoot(resource.Position))
-            .OrderBy(resource => map.FootDistance(resource.Position, state.Position))
-            .FirstOrDefault();
+        if (CollectGatheringTool(inhabitantId, state, input.ResourceId)) return;
+        var source = MaterialSource(input.ResourceId, inhabitantId);
         if (source is null)
         {
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = $"No available source of {input.ResourceId}" });
@@ -710,6 +695,14 @@ public sealed partial class PrivateWorldRuntime
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             MoveToward(inhabitantId, inhabitants[inhabitantId], source.Position, "materials", ResourceInteractionRange);
+            return;
+        }
+        var miningTier = ToolCapabilities.RequiredMiningTier(itemKind);
+        var neededTool = itemKind == "wood" && source.TreeKind is not null ? ToolKind.Axe : ToolKind.Pickaxe;
+        var requiresTool = miningTier > 0 || itemKind == "wood" && source.TreeKind is not null;
+        if (requiresTool && CarriedTool(inhabitantId, neededTool, Math.Max(1, miningTier)) is null)
+        {
+            AppendEvent("material_gathering_blocked", $"{inhabitantId}:{itemKind}:required_tool_tier_{Math.Max(1, miningTier)}");
             return;
         }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
@@ -733,13 +726,9 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        var quantity = tool is not null && HasCarriedItem(inhabitantId, tool) ? 6 : 4;
+        var tool = requiresTool ? UseTool(inhabitantId, neededTool, Math.Max(1, miningTier))
+            : itemKind == "wood" ? UseTool(inhabitantId, ToolKind.Axe) : null;
+        var quantity = tool?.WorkQuantity ?? 4;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, $"material:{WorldTick}:{inhabitantId}",
             itemKind, inhabitantId, quantity, WorldTick));
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
@@ -795,6 +784,11 @@ public sealed partial class PrivateWorldRuntime
     private MapResource? MaterialSource(string itemKind, string actor) => map.Resources
         .Where(resource =>
             (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
+            (itemKind != "wood" || resource.TreeKind is null || CarriedTool(actor, ToolKind.Axe) is not null ||
+                SharedTool(actor, ToolKind.Axe) is not null) &&
+            (ToolCapabilities.RequiredMiningTier(itemKind) == 0 ||
+                CarriedTool(actor, ToolKind.Pickaxe, ToolCapabilities.RequiredMiningTier(itemKind)) is not null ||
+                SharedTool(actor, ToolKind.Pickaxe, ToolCapabilities.RequiredMiningTier(itemKind)) is not null) &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
             map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position))
         .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
