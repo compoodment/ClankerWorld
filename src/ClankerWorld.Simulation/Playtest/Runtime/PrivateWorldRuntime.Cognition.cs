@@ -70,7 +70,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -161,6 +161,15 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (current is null)
+        {
+            return true;
+        }
+
+        // Finishing a project frees its inputs and work site for the next
+        // craft. Reconsider once instead of repeating the old recipe before
+        // the usual reevaluation interval has elapsed.
+        if (inhabitants[inhabitantId].Project is { Stage: "completed" } completed &&
+            current.CandidateId == completed.CandidateId && current.WorldTick <= completed.LastTransitionTick)
         {
             return true;
         }

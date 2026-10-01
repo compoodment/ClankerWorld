@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!AdultResident(actor) || FreeCarryCapacity(actor) == 0) return;
         foreach (var (kind, candidate) in new[]
                  { ("wooden_axe", "collect_wooden_axe"), ("wooden_pickaxe", "collect_wooden_pickaxe") })
         {

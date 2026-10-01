@@ -51,8 +51,11 @@ public sealed class PersonalEquipmentTests
         var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "basket-fiber", "fiber", Alpha, 6, storageBuildingId: house.InstanceId);
         state = WithInventory(state, inventory);
-        state = state with { Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == actor
-            ? item with { HungerBasisPoints = 9_000 } : item).ToArray() };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == actor
+            ? item with { HungerBasisPoints = 9_000 } : item).ToArray()
+        };
         var rope = state.WorldContent!.Recipes.Single(item => item.LocalId == "twist-rope");
         var basket = state.WorldContent.Recipes.Single(item => item.LocalId == "weave-basket");
         string[] choices = ["equip_carry_aid", "build:recipe:" + basket.CanonicalId, "build:recipe:" + rope.CanonicalId];
@@ -83,6 +86,93 @@ public sealed class PersonalEquipmentTests
             Assert.Equal(0, world.Society.Inventory.Lots.Where(lot => lot.Id == "basket-fiber").Sum(lot => lot.Quantity));
             Assert.Equal(2, world.WorldSimulation.ProductionJobs.Count(job => job.State == WorldProductionJobState.Completed));
             world.Validate();
+        }
+        finally { world.Dispose(); }
+    }
+
+    [Theory]
+    [InlineData("sew-clothing", "clothing", 6, 2, WeatherKind.Snow)]
+    [InlineData("sew-padded-coat", "padded_coat", 12, 4, WeatherKind.Snow)]
+    [InlineData("sew-rain-cloak", "rain_cloak", 7, 2, WeatherKind.Rain)]
+    [InlineData("sew-sack", "sack", 6, 2, WeatherKind.Clear)]
+    public async Task HouseholdSuppliesWeavesSewsAndEquipsTailorGoodsAcrossReload(string recipeId,
+        string kind, int fiber, int clothCost, WeatherKind weather)
+    {
+        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + kind, fiber);
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        if (kind == "sack")
+            state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+                "sack-rope", "rope", Alpha, 1, storageBuildingId: "first-town-house-a"));
+        var systems = state.WorldSystems!;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
+            WorldSystems = systems with
+            {
+                RegionalWeather = null,
+                Config = systems.Config with
+                {
+                    WeatherProfiles = Enum.GetValues<SeasonKind>()
+                    .Select(season => new WeatherProfile(season,
+                        weather == WeatherKind.Clear ? 1 : 0, 0, weather == WeatherKind.Rain ? 1 : 0, 0,
+                        weather == WeatherKind.Snow ? 1 : 0)).ToArray()
+                },
+                Climate = systems.Climate with { Weather = weather },
+            },
+        };
+        var target = state.WorldContent!.Recipes.Single(item => item.LocalId == recipeId);
+        var weave = state.WorldContent.Recipes.Single(item => item.LocalId == "weave-cloth");
+        string[] choices = ["wear_clothing", "equip_carry_aid", "build:recipe:" + target.CanonicalId,
+            "supply_workstation:rope", "build:recipe:" + weave.CanonicalId, "supply_workstation:fiber",
+            "seek_warmth", "tend_fire", "consume_food", "collect_shared_food"];
+        var actorChoices = new Choices(choices);
+        IDecisionProvider Provider(string id) => id == actor ? actorChoices : new Choices([]);
+        var world = PrivateWorldRuntime.Restore(state, Provider);
+        try
+        {
+            var reopened = false;
+            string? selected = null;
+            WorldProductionJob? sewn = null;
+            for (var tick = 0; tick < 300; tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
+                        job.RecipeId == target.CanonicalId && job.State == WorldProductionJobState.Running))
+                {
+                    var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+                    world.Dispose();
+                    world = PrivateWorldRuntime.Restore(saved, Provider);
+                    reopened = true;
+                }
+                sewn = world.WorldSimulation.ProductionJobs.SingleOrDefault(job =>
+                    job.RecipeId == target.CanonicalId && job.State == WorldProductionJobState.Completed);
+                var equipment = world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+                selected = kind == "sack" ? equipment?.CarryAidLotId : equipment?.ClothingLotId;
+                if (sewn is not null && selected == sewn.JobId + ":output:00") break;
+            }
+            Assert.True(reopened, "Jobs: " + string.Join(",", world.WorldSimulation.ProductionJobs.Select(job => job.RecipeId + ":" + job.State)) +
+                " Project: " + world.Inhabitants.Single(person => person.InhabitantId == actor).Project +
+                " Stock: " + string.Join(",", world.Society.Inventory.Lots.Where(lot => lot.OwnerId == Alpha || lot.OwnerId == actor)
+                    .Select(lot => $"{lot.ItemKind}:{lot.Quantity}@{lot.StorageBuildingId}")) +
+                " Offers: " + string.Join(";", actorChoices.Offers.TakeLast(3)));
+            Assert.NotNull(sewn);
+            Assert.Equal(sewn.JobId + ":output:00", selected);
+            var unit = world.Society.Inventory.GetLot(selected!);
+            Assert.Equal((kind, actor, 1), (unit.ItemKind, unit.OwnerId, unit.Quantity));
+            Assert.Null(unit.StorageBuildingId);
+            Assert.Equal(clothCost, world.WorldSimulation.ProductionJobs.Count(job =>
+                job.RecipeId == weave.CanonicalId && job.State == WorldProductionJobState.Completed));
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot =>
+                lot.OwnerId == Alpha && lot.ItemKind == "cloth" && lot.Quantity > 0);
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "workstation_input_picked_up");
+            if (kind == "sack") Assert.Equal(0, world.Society.Inventory.GetLot("sack-rope").Quantity);
+            Assert.All(world.WorldSimulation.ProductionJobs, job => Assert.Equal(shopId, job.BuildingInstanceId));
+            using var savedWorld = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+                PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
+            Assert.Equal(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment,
+                savedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+            savedWorld.Validate();
         }
         finally { world.Dispose(); }
     }
@@ -169,6 +259,100 @@ public sealed class PersonalEquipmentTests
             };
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(invalid)));
         }
+    }
+
+    [Fact]
+    public async Task AFullCarrierDeclinesGearAndRepairThenCanDeliverAndSwapWithoutLosingGoods()
+    {
+        var (state, _) = TailorTestWorld.Create("equipment-full-carrier", 0);
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "full-garment", "clothing", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, "full-garment", 8_000);
+        inventory = InventoryFixture.AddLot(inventory, "full-cargo", "wood", Alpha, 8,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.Transfer(inventory, "full-cargo-collected", Alpha, actor, "full-cargo", 8,
+            "household_stock_picked_up", destinationDeliveryBuildingId: house.InstanceId);
+        foreach (var (id, kind) in new[] { ("full-coat", "padded_coat"), ("full-cloth", "cloth"), ("full-pickaxe", "wooden_pickaxe") })
+            inventory = InventoryFixture.AddLot(inventory, id, kind, Alpha, 1, storageBuildingId: house.InstanceId);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = house.Position, HungerBasisPoints = 9_000, Equipment = new("full-garment") } : person).ToArray(),
+        };
+        state = WithWeather(state, WeatherKind.Snow);
+        var blocked = new Choices(["wear_clothing", "repair_equipment", "collect_wooden_pickaxe"]);
+        using var full = PrivateWorldRuntime.Restore(state, id => id == actor ? blocked : new Choices([]));
+        for (var tick = 0; tick < 5; tick++) Assert.True((await full.AdvanceOneTickAsync()).Advanced);
+        Assert.All(blocked.Offers, offer =>
+        {
+            Assert.DoesNotContain("wear_clothing", offer);
+            Assert.DoesNotContain("repair_equipment", offer);
+            Assert.DoesNotContain("collect_wooden_pickaxe", offer);
+        });
+        Assert.Equal("full-garment", full.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
+        Assert.Equal((actor, 8), (full.Society.Inventory.GetLot("full-cargo").OwnerId, full.Society.Inventory.GetLot("full-cargo").Quantity));
+        // This controlled provider changes its choice after the declined
+        // actions, so ask for a fresh decision without changing physical stock.
+        var deliveryState = full.ExportState();
+        deliveryState = deliveryState with { Inhabitants = deliveryState.Inhabitants.Select(person =>
+            person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray() };
+        using var delivery = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(deliveryState)), id => new Choices(id == actor ? ["haul_household_stock"] : []));
+        Assert.True((await delivery.AdvanceOneTickAsync()).Advanced);
+        var delivered = delivery.Society.Inventory.GetLot("full-cargo");
+        Assert.Equal((Alpha, 8, house.InstanceId), (delivered.OwnerId, delivered.Quantity, delivered.StorageBuildingId));
+        using var swap = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(delivery.ExportState())), id => new Choices(id == actor ? ["wear_clothing"] : []));
+        for (var tick = 0; tick < 60 && swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId != "full-coat"; tick++)
+            Assert.True((await swap.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("full-coat", swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
+        Assert.Equal((actor, 1), (swap.Society.Inventory.GetLot("full-garment").OwnerId, swap.Society.Inventory.GetLot("full-garment").Quantity));
+        Assert.Equal((Alpha, 1), (swap.Society.Inventory.GetLot("full-cloth").OwnerId, swap.Society.Inventory.GetLot("full-cloth").Quantity));
+        swap.Validate();
+    }
+
+    [Fact]
+    public async Task AnOverloadedCarrierKeepsTheBrokenBasketWhenAReplacementWouldStillExceedCapacity()
+    {
+        using var generated = NormalPathWorld.CreateGenerated("equipment-too-small-replacement", _ => new Choices([]));
+        var state = generated.ExportState();
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "broken-basket", "basket", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, "broken-basket", 10_000);
+        inventory = InventoryFixture.AddLot(inventory, "heavy-cargo", "wood", actor, 20);
+        inventory = InventoryFixture.AddLot(inventory, "small-replacement", "basket", Alpha, 1, storageBuildingId: "first-town-house-a");
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = new(CarryAidLotId: "broken-basket") } : person).ToArray(),
+        };
+        var choices = new Choices(["equip_carry_aid"]);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? choices : new Choices([]));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.All(choices.Offers, offer => Assert.DoesNotContain("equip_carry_aid", offer));
+        Assert.Equal("broken-basket", world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.CarryAidLotId);
+        Assert.Equal((actor, 20), (world.Society.Inventory.GetLot("heavy-cargo").OwnerId, world.Society.Inventory.GetLot("heavy-cargo").Quantity));
+        Assert.Equal((Alpha, 1), (world.Society.Inventory.GetLot("small-replacement").OwnerId, world.Society.Inventory.GetLot("small-replacement").Quantity));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new Choices([]));
+        restored.Validate();
+    }
+
+    private static PrivateWorldRuntimeState WithWeather(PrivateWorldRuntimeState state, WeatherKind weather)
+    {
+        var systems = state.WorldSystems!;
+        return state with
+        {
+            WorldSystems = systems with
+            {
+                RegionalWeather = null,
+                Config = systems.Config with { WeatherProfiles = Enum.GetValues<SeasonKind>()
+                    .Select(season => new WeatherProfile(season, ClearWeight: weather == WeatherKind.Clear ? 1 : 0,
+                        CloudyWeight: 0, RainWeight: weather == WeatherKind.Rain ? 1 : 0,
+                        StormWeight: 0, SnowWeight: weather == WeatherKind.Snow ? 1 : 0)).ToArray() },
+                Climate = systems.Climate with { Weather = weather },
+            },
+        };
     }
 
     private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>

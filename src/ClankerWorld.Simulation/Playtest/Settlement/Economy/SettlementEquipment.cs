@@ -11,6 +11,17 @@ public sealed partial class PrivateWorldRuntime
     private int FreeCarryCapacity(string actor) => PersonalEquipmentRules.FreeCapacity(
         society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
 
+    private string EquipmentNote(string actor)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var equipment = inhabitants[actor].Equipment;
+        var clothing = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.ClothingLotId);
+        var aid = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.CarryAidLotId);
+        return $"Carrying {PersonalEquipmentRules.CarriedQuantity(inventory, actor, equipment)} of " +
+            $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment)} units. Wearing " +
+            $"{clothing?.ItemKind.Replace('_', ' ') ?? "no garment"}. Carry aid: {aid?.ItemKind ?? "none"}.";
+    }
+
     private InventoryLot? EquippedGarment(string actor) =>
         PersonalEquipmentRules.EquippedUnit(society.Checkpoint.Inventory, actor,
             inhabitants[actor].Equipment?.ClothingLotId) is { } selected && AvailableLotQuantity(selected) > 0
@@ -18,6 +29,26 @@ public sealed partial class PrivateWorldRuntime
 
     private int ClothingProtection(string actor, GridPoint position) => EquippedGarment(actor) is { } garment
         ? PersonalEquipmentRules.Protection(garment, WeatherAt(position)) : 0;
+
+    private bool CanEquipPrivateItem(string actor, InventoryLot item, bool carryAid)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var equipment = inhabitants[actor].Equipment;
+        var previous = PersonalEquipmentRules.EquippedUnit(inventory, actor,
+            carryAid ? equipment?.CarryAidLotId : equipment?.ClothingLotId);
+        var before = PersonalEquipmentRules.CarriedQuantity(inventory, actor, equipment);
+        // The new unit fills the slot; a displaced unit stays real cargo.
+        var after = before + (previous is null ? 0 : 1) -
+            (PersonalEquipmentRules.IsCarried(item, actor) ? 1 : 0);
+        var capacity = carryAid ? item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
+            : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
+        return after <= before || after <= capacity;
+    }
+
+    private int MissingRepairInputUnits(string actor, InventoryLot item) =>
+        PersonalEquipmentRules.RepairMaterials(item.ItemKind).Sum(input => Math.Max(0, input.Amount -
+            society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+                lot.DeliveryBuildingId is null && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity)));
 
     private IEnumerable<InventoryLot> PrivateEquipmentSources(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
@@ -29,8 +60,9 @@ public sealed partial class PrivateWorldRuntime
         var current = EquippedGarment(actor);
         var weather = WeatherAt(inhabitants[actor].Position);
         return PrivateEquipmentSources(actor).Where(lot => PersonalEquipmentRules.IsGarment(lot.ItemKind) &&
-                lot.Id != current?.Id && (current is null || PersonalEquipmentRules.Protection(lot, weather) >
-                    PersonalEquipmentRules.Protection(current, weather)))
+                lot.Id != current?.Id && CanEquipPrivateItem(actor, lot, false) &&
+                (current is null || PersonalEquipmentRules.Protection(lot, weather) >=
+                    PersonalEquipmentRules.Protection(current, weather) + 5))
             .OrderByDescending(lot => PersonalEquipmentRules.Protection(lot, weather))
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
@@ -39,6 +71,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var capacity = PersonalEquipmentRules.Capacity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
         return PrivateEquipmentSources(actor).Where(lot => PersonalEquipmentRules.IsCarryAid(lot.ItemKind) &&
+                CanEquipPrivateItem(actor, lot, true) &&
                 (lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity) > capacity)
             .OrderByDescending(lot => lot.ItemKind == "sack")
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -64,6 +97,7 @@ public sealed partial class PrivateWorldRuntime
         if (BetterCarryAid(actor) is { } aid)
             candidates.Add(new("equip_carry_aid", $"Equip a {aid.ItemKind} to carry more supplies.", 14));
         if (!NeedsUrgentFood(person) && !NeedsUrgentWarmth(person) && WornEquipment(actor) is { } worn &&
+            MissingRepairInputUnits(actor, worn) <= FreeCarryCapacity(actor) &&
             EquipmentRepairSite(actor, worn) is { } site &&
             FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0 &&
             PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedItem(actor, input.ResourceId) ||
@@ -127,6 +161,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ||
             WornEquipment(actor) is not { } target || EquipmentRepairSite(actor, target) is not { } site) return;
+        if (MissingRepairInputUnits(actor, target) > FreeCarryCapacity(actor)) return;
         foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
         {
             if (!HasCarriedItem(actor, input.ResourceId))

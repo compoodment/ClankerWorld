@@ -714,6 +714,21 @@ public sealed partial class PrivateWorldRuntime
         GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
     }
 
+    private (int Quantity, int SeedQuantity) ProjectMaterialHarvest(string actor, string itemKind, MapResource source)
+    {
+        var quantity = itemKind == "wood" && HasCarriedItem(actor, "wooden_axe") ||
+            itemKind is "stone" or "iron_ore" && HasCarriedItem(actor, "wooden_pickaxe") ? 6 : 4;
+        var seeds = TreeGrowthRules.IsWoodTree(source.TreeKind) && worldSystems.Ecology.GetResource(source.Id).Quantity == 1
+            ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
+        return (quantity, seeds);
+    }
+
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source)
+    {
+        var harvest = ProjectMaterialHarvest(actor, itemKind, source);
+        return harvest.Quantity + harvest.SeedQuantity;
+    }
+
     private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
     {
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
@@ -722,11 +737,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
-        var gatheredQuantity = itemKind is "wood" && HasCarriedItem(inhabitantId, "wooden_axe") ||
-            itemKind is "stone" or "iron_ore" && HasCarriedItem(inhabitantId, "wooden_pickaxe") ? 6 : 4;
-        var seedQuantity = TreeGrowthRules.IsWoodTree(source.TreeKind) && ecology.Quantity == 1
-            ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
-        if (FreeCarryCapacity(inhabitantId) < gatheredQuantity + seedQuantity)
+        var (quantity, seedQuantity) = ProjectMaterialHarvest(inhabitantId, itemKind, source);
+        if (FreeCarryCapacity(inhabitantId) < quantity + seedQuantity)
         {
             AppendEvent("carrying_full", inhabitantId);
             return;
@@ -751,13 +763,6 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        var quantity = tool is not null && HasCarriedItem(inhabitantId, tool) ? 6 : 4;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, $"material:{WorldTick}:{inhabitantId}",
             itemKind, inhabitantId, quantity, WorldTick));
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
