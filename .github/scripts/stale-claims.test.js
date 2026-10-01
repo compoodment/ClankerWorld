@@ -89,6 +89,24 @@ test('an issue claim with no work for 4 hours goes back to the queue', async () 
   assert.match(state.posted[0].body, /No pushed work was found/);
 });
 
+test('issue and review claims last 1.5 hours from the last push', async () => {
+  for (const [hours, kept] of [[1.4, true], [1.6, false]]) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress', 'status:has-pr'] }],
+      prs: [
+        { number: 8, draft: true, body: 'Closes #1', labels: [], created_at: hoursAgo(10), head: { sha: 'issue-head', ref: 'codex/1' } },
+        { number: 9, labels: ['status:reviewing', 'status:needs-review'], created_at: hoursAgo(10), head: { sha: 'review-head', ref: 'codex/9' } },
+      ],
+      events: { ...claimed(1, 10), 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(10) }] },
+      commits: { 'issue-head': hoursAgo(10), 'review-head': hoursAgo(10) },
+      pushes: { 'codex/1': [hoursAgo(hours)], 'codex/9': [hoursAgo(hours)] },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), kept, `issue at ${hours}h`);
+    assert.equal(state.records.get(9).labels.includes('status:reviewing'), kept, `review at ${hours}h`);
+  }
+});
+
 test('a recent commit on a linked draft keeps the claim', async () => {
   const state = world({
     issues: [{ number: 1, labels: ['status:in-progress', 'status:has-pr'] }],
@@ -114,7 +132,7 @@ test('a recent comment alone does not keep the claim, but a push to a branch nam
       2: [{ body: 'Working on branch `codex/2-fix`.', created_at: hoursAgo(9) }],
       3: [{ body: 'Working on branch `codex/3-fix`.', created_at: hoursAgo(9) }],
     },
-    commits: { 'codex/2-fix': hoursAgo(2), 'codex/3-fix': hoursAgo(9) },
+    commits: { 'codex/2-fix': hoursAgo(1), 'codex/3-fix': hoursAgo(9) },
     pushes: { 'codex/3-fix': [hoursAgo(9), hoursAgo(1)] },
   });
   await state.run();

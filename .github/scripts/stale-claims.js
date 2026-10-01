@@ -1,9 +1,9 @@
 // Releases claims that have gone quiet, so status:in-progress and
 // status:reviewing always mean someone has worked recently.
-// Run every hour by .github/workflows/stale-claims.yml through actions/github-script.
+// Run every 30 minutes by .github/workflows/stale-claims.yml through actions/github-script.
 // It reads only GitHub data; it never checks out or runs pull request code.
 //
-// - An issue's status:in-progress claim is released after 4 hours without
+// - An issue's status:in-progress claim is released after 1.5 hours without
 //   pushed work. Only these count: the claim itself, opening a draft pull
 //   request that closes or refers to the issue, a push to such a draft's
 //   branch, or a push to a branch named in the issue's comments.
@@ -11,7 +11,7 @@
 //   check. The issue goes back to status:needs-pr, unless it is blocked or is
 //   not pull request work, and a comment names the draft pull request or
 //   branch to continue from.
-// - A pull request's status:reviewing claim is released after 2 hours without
+// - A pull request's status:reviewing claim is released after 1.5 hours without
 //   the claim or a push to the pull request's branch. Comments do not count
 //   here either, so a claim cannot hold a place in the review queue.
 // - Anything waiting on the owner (status:needs-decision on the issue or its
@@ -27,8 +27,8 @@ const Reviewing = 'status:reviewing';
 const NeedsPr = 'status:needs-pr';
 const NeedsDecision = 'status:needs-decision';
 const Blocked = 'status:blocked';
-const IssueHours = 4;
-const ReviewHours = 2;
+const IssueHours = 1.5;
+const ReviewHours = 1.5;
 const Hour = 60 * 60 * 1000;
 const Marker = '<!-- claim-check -->';
 const PushActivities = new Set(['push', 'force_push', 'branch_creation']);
@@ -123,7 +123,7 @@ async function removeLabel(github, repo, number, name) {
 }
 
 function age(now, last) {
-  return last === 0 ? 'longer than the records show' : `${Math.floor((now - last) / Hour)} hours`;
+  return last === 0 ? 'longer than the records show' : `${((now - last) / Hour).toFixed(1)} hours`;
 }
 
 // A pull request's pushed work: opening it and pushes to its branch. Both
