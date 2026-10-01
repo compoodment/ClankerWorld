@@ -1023,6 +1023,8 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
         Assert.Equal(delivered, reloaded.Society.Inventory.GetLot(delivered.Id));
         Assert.Equal(stagedStone, reloaded.Society.Inventory.GetLot(stagedStone.Id));
+        Assert.DoesNotContain(reloaded.WorldSimulation.Buildings,
+            building => building.HouseholdId == household && building.DefinitionId == house.CanonicalId);
         reloaded.Validate();
     }
 
