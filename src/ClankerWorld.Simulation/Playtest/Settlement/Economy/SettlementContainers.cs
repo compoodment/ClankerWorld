@@ -80,7 +80,8 @@ public sealed partial class PrivateWorldRuntime
                     lot.ItemKind == InventoryContainerRules.WaterJug && lot.StorageBuildingId == house.InstanceId &&
                     lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
                     ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
-                    ContainerFamilyQuantity(inventory, lot.Id) <= FreeCarryCapacity(actor) &&
+                    // Leave at least one carrying place for fresh water after pickup.
+                    ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
                     !HasActiveContainerReservation(inventory, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (storedJug is not null && FindFreshWaterShore(actor, house.Position) is not null &&
@@ -209,10 +210,10 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == InventoryContainerRules.WaterJug && lot.StorageBuildingId == house.InstanceId &&
                 lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
                 ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
-                ContainerFamilyQuantity(inventory, lot.Id) <= FreeCarryCapacity(actor) &&
+                ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
                 !HasActiveContainerReservation(inventory, lot.Id))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-        if (jug is null || ContainerFamilyQuantity(inventory, jug.Id) > FreeCarryCapacity(actor))
+        if (jug is null || ContainerFamilyQuantity(inventory, jug.Id) >= FreeCarryCapacity(actor))
             return;
         if (person.Position != house.Position)
         {

@@ -161,7 +161,7 @@ public sealed class WarehouseContentTests
         }
 
         var inventory = InventoryFixture.AddLot(reloaded.Society.Society.Inventory,
-            "warehouse-tool", "tool", town.Id, 1, storageBuildingId: warehouse.InstanceId);
+            "warehouse-tool", "wooden_hammer", town.Id, 1, storageBuildingId: warehouse.InstanceId);
         var farmWorkers = (reloaded.Fields ?? []).Where(field => field.Work is not null)
             .Select(field => field.Work!.WorkerId).ToHashSet(StringComparer.Ordinal);
         var toolCollectorId = reloaded.Society.Society.Inhabitants
@@ -175,7 +175,7 @@ public sealed class WarehouseContentTests
         inventory = inventory with
         {
             Lots = inventory.Lots.Where(lot =>
-                !lot.OwnerId.StartsWith("household:", StringComparison.Ordinal) || lot.ItemKind != "tool").ToArray()
+                !lot.OwnerId.StartsWith("household:", StringComparison.Ordinal) || lot.ItemKind != "wooden_hammer").ToArray()
         };
         reloaded = reloaded with
         {
@@ -190,11 +190,11 @@ public sealed class WarehouseContentTests
                 } : person).ToArray(),
             Society = reloaded.Society with { Society = reloaded.Society.Society with { Inventory = inventory } },
         };
-        var toolCollector = new CandidateProvider("collect_tool:tool", requireCandidate: true);
+        var toolCollector = new CandidateProvider("collect_tool:wooden_hammer", requireCandidate: true);
         using var collecting = PrivateWorldRuntime.Restore(reloaded,
             id => id == toolCollectorId ? toolCollector : new CandidateProvider("safe_idle"));
         for (var tick = 0; tick < 20 && !collecting.ExportState().Events.Any(item =>
-                 item.Kind == "equipment_collected" && item.Detail == toolCollectorId + ":tool"); tick++)
+                 item.Kind == "equipment_collected" && item.Detail == toolCollectorId + ":wooden_hammer"); tick++)
             Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
         var finalCollectionState = collecting.ExportState();
         var finalCollector = finalCollectionState.Inhabitants.Single(person => person.InhabitantId == toolCollectorId);
@@ -203,8 +203,8 @@ public sealed class WarehouseContentTests
                 finalInventory, lot, toolCollectorId))
             .Select(lot => $"{lot.Id}={lot.ItemKind}x{lot.Quantity}").ToArray();
         Assert.True(finalCollectionState.Events.Any(item => item.Kind == "equipment_collected" &&
-                item.Detail == toolCollectorId + ":tool"),
-            $"The warehouse's generic work tool should be collected by its available pickup action; " +
+                item.Detail == toolCollectorId + ":wooden_hammer"),
+            $"The warehouse's physical hammer should be collected by its available pickup action; " +
             $"collector={toolCollectorId}, free capacity={PersonalEquipmentRules.FreeCapacity(finalInventory, toolCollectorId, finalCollector.Equipment)}, " +
             $"carried=[{string.Join(",", carried)}], position={finalCollector.Position}, blocker={finalCollector.Project?.Blocker}, " +
             $"choices=[{string.Join(",", toolCollector.SelectedCandidates)}], " +

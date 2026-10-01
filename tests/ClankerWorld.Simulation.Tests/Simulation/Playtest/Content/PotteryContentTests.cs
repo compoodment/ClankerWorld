@@ -694,6 +694,81 @@ public sealed class PotteryContentTests
         Assert.DoesNotContain("store_food_in_pot", candidates);
     }
 
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public async Task CollectingAStoredJugLeavesCarrySpaceForWaterAcrossReload(int storedWater, bool fits)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("jug-leaves-water-room", _ => new IdleProvider());
+        for (var tick = 0; tick < 8; tick++) Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        const string householdId = "household:camp-alpha";
+        const string jugId = "last-slot-jug";
+        var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug,
+            householdId, 1, storageBuildingId: house.InstanceId);
+        if (storedWater > 0)
+            inventory = InventoryFixture.AddLot(inventory, "last-slot-water", InventoryContainerRules.FreshWater,
+                householdId, storedWater, containerLotId: jugId, storageBuildingId: house.InstanceId);
+        var familyQuantity = 1 + storedWater;
+        var capacity = PersonalEquipmentRules.Capacity(inventory, actor, null);
+        inventory = InventoryFixture.AddLot(inventory, "last-slot-ballast", "test_cargo", actor,
+            capacity - familyQuantity - (fits ? 1 : 0));
+        Assert.Equal(familyQuantity + (fits ? 1 : 0), PersonalEquipmentRules.FreeCapacity(inventory, actor, null));
+        state = SetActorCondition(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        }, actor, 10_000, house.Position);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null, LastDecisionContext = null } : person).ToArray(),
+        };
+        var beforeTotal = inventory.Lots.Sum(lot => lot.Quantity);
+        var provider = new WaterLoopProvider();
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new IdleProvider());
+        for (var tick = 0; tick < 10 && (fits
+                 ? world.Society.Inventory.GetLot(jugId).OwnerId != actor
+                 : provider.OfferedCandidates.IsEmpty); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(fits, provider.OfferedCandidates.Contains("collect_water_jug"));
+        Assert.Equal(fits ? actor : householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
+        Assert.Equal(beforeTotal, world.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        Assert.Equal(storedWater, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId)
+            .Sum(lot => lot.Quantity));
+        if (!fits)
+        {
+            Assert.DoesNotContain(world.ExportState().Events, item =>
+                item.Kind is "water_jug_collected" or "water_jug_returned" or "water_jug_filled");
+            Assert.Equal(house.InstanceId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+            world.Validate();
+            return;
+        }
+
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(world.ExportState())), id => id == actor ? provider : new IdleProvider());
+        for (var tick = 0; tick < 500 && !resumed.ExportState().Events.Any(item => item.Kind == "water_jug_filled"); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(resumed.ExportState().Events, item => item.Kind == "water_jug_filled");
+        Assert.Equal(storedWater + 1, resumed.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId)
+            .Sum(lot => lot.Quantity));
+        Assert.Equal(beforeTotal + 1, resumed.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        Assert.Equal(inventory.GetLot("last-slot-ballast") with
+        {
+            LastProcessedTick = resumed.Society.Inventory.GetLot("last-slot-ballast").LastProcessedTick,
+        }, resumed.Society.Inventory.GetLot("last-slot-ballast"));
+        resumed.Validate();
+    }
+
     private static int HouseQuantity(PrivateWorldRuntime world, string ownerId, string buildingId, string itemKind) =>
         world.Society.Inventory.Lots.Where(lot => lot.OwnerId == ownerId && lot.StorageBuildingId == buildingId &&
             lot.ItemKind == itemKind).Sum(lot => lot.Quantity);

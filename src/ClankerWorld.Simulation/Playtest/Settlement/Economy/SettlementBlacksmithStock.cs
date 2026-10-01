@@ -9,6 +9,10 @@ public sealed partial class PrivateWorldRuntime
     private const string GatherBlacksmithInputPrefix = "gather_smith_input:";
     private const string CollectToolPrefix = "collect_tool:";
 
+    private bool MayCollectToolFamily(string actor, ToolFamily family) =>
+        family is not (ToolFamily.Hoe or ToolFamily.Sickle) ||
+        HouseholdFor(actor) is { } householdId && FarmhouseForHousehold(householdId) is not null;
+
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || FreeCarryCapacity(actor) <= 0) return;
@@ -16,6 +20,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var family in ToolProgressionRules.All.GroupBy(tool => tool.Family)
                      .OrderBy(group => group.Key))
         {
+            // Field tools are useful only to a household that can work its fields.
+            if (!MayCollectToolFamily(actor, family.Key)) continue;
             var bestShared = family.Where(tool => SharedItem(tool.ItemKind, actor) is { ContainerLotId: null })
                 .OrderByDescending(tool => tool.Tier)
                 .ThenBy(tool => tool.ItemKind, StringComparer.Ordinal)
@@ -35,9 +41,6 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(candidateId,
                 $"Collect an accessible {bestShared.ItemKind.Replace('_', ' ')} for work.", 18));
         }
-        if (!HasCarriedItem(actor, "tool") && SharedItem("tool", actor) is { ContainerLotId: null })
-            candidates.Add(new CognitionCandidate(CollectToolPrefix + "tool",
-                "Collect an accessible work tool for construction.", 18));
         AddToolRepairCandidates(candidates, actor);
     }
 
