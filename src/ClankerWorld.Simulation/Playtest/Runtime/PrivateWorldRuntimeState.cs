@@ -28,7 +28,17 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestPrivateThought>? RecentThoughts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int TravelCooldownTicks = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChildPersonalModelSelection? ChildModelSelection = null);
+
+/// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
+public sealed record ChildPersonalModelSelection(
+    string Role,
+    string? Provider,
+    string? EndpointIdentity,
+    string? ModelId,
+    string? CredentialSlotId,
+    string ChoiceReason);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 

@@ -290,6 +290,12 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.IdentityChoicePending && state.SchemaVersion < 28)
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
+            if (person.ChildModelSelection is { } childModelSelection)
+            {
+                if (state.SchemaVersion < 29 || !state.Society.Society.Births.Any(item => item.ChildId == person.InhabitantId))
+                    throw new InvalidDataException("A saved child model choice requires schema 29 and a recorded birth.");
+                ValidateChildModelSelection(childModelSelection);
+            }
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);

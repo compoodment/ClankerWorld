@@ -64,6 +64,15 @@ When a personal model names a new agent, it gets a stable first-letter hint to
 encourage varied names. The hint does not prevent two agents choosing the same
 full name.
 
+A child's personal model is recorded at birth from the parents' explicit
+personal assignments. When those differ, the parent who began the family plan
+is the disclosed tie-break. Infants make no personal-model calls. After
+infancy, the child uses the saved model only when its original key is available
+and normal call checks allow it; if the key is missing, built-in choices keep
+the child safe and the game does not substitute another paid model. The child
+card shows the selected model or that it needs setup. Children whose parents
+have no explicit model remain unconfigured; world defaults are not inherited.
+
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant

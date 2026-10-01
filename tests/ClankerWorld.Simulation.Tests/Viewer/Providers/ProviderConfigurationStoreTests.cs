@@ -1,5 +1,6 @@
 using System.Net;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 
@@ -95,6 +96,90 @@ public sealed class ProviderConfigurationStoreTests
 
             _ = restoredStore.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
             Assert.Equal(DecisionProviderKind.Deterministic, restored.KindFor(planning));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task InheritedChildModelKeepsItsChoiceButUsesLocalRulesWhenItsKeyIsMissing()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-child-model-key-");
+        try
+        {
+            var original = new ProviderConfigurationStore(Path.Combine(directory.FullName, "original.json"), EmptySeed());
+            var slotId = Guid.NewGuid().ToString("N");
+            _ = original.CreateCredentialSlot(new(slotId, "openai", "Parent model", "parent-model-secret"));
+            var selection = new ChildPersonalModelSelection("personal", "openai",
+                PrivateWorldRuntime.OpenAiModelEndpointIdentity, "inherited-private-model", slotId,
+                PrivateWorldRuntime.ChildModelChoiceInitiatingParent);
+            original.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, () => { });
+            var savedAssignments = original.CaptureStatus().Assignments!;
+            Assert.Equal(2, savedAssignments.Count);
+            Assert.All(savedAssignments, assignment =>
+            {
+                Assert.Equal("inherited-private-model", assignment.Model);
+                Assert.Equal(slotId, assignment.CredentialSlotId);
+                Assert.Equal(PrivateWorldRuntime.ChildModelChoiceInitiatingParent, assignment.SelectionReason);
+            });
+
+            var selectedHandler = new ProviderResponseHandler();
+            var selectedRouter = new ConfigurableDecisionProvider(original, new FixedHttpClientFactory(selectedHandler));
+            var selectedRequest = Request(selectedRouter.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, selectedRouter.KindFor(selectedRequest.Observation));
+            _ = await selectedRouter.DecideAsync(selectedRequest);
+            Assert.Equal("api.openai.com", selectedHandler.LastUri!.Host);
+            Assert.Equal("inherited-private-model", selectedHandler.LastModel);
+            Assert.Equal("Bearer parent-model-secret", selectedHandler.LastAuthorization);
+
+            var moved = new ProviderConfigurationStore(Path.Combine(directory.FullName, "moved.json"), EmptySeed());
+            _ = moved.Configure(new("planning", "ollama-cloud", "world-paid-model", "world-paid-secret", false));
+            Assert.True(moved.CanRestoreWorldAssignments(savedAssignments));
+            moved.RestoreWorldAssignments(savedAssignments);
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(moved, new FixedHttpClientFactory(handler));
+            var childRequest = Request(router.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.Deterministic, router.KindFor(childRequest.Observation));
+            Assert.Equal(DecisionProviderKind.Deterministic, (await router.DecideAsync(childRequest)).Provider);
+            Assert.Null(handler.LastUri);
+            var retained = Assert.Single(moved.CaptureStatus().Assignments!, item => item.Role == "planning");
+            Assert.Equal("inherited-private-model", retained.Model);
+            Assert.Equal(slotId, retained.CredentialSlotId);
+            Assert.Equal(PrivateWorldRuntime.ChildModelChoiceInitiatingParent, retained.SelectionReason);
+
+            original.DeleteCredentialSlot(slotId);
+            Assert.Equal("inherited-private-model", Assert.Single(original.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
+            var deletedKeyRouter = new ConfigurableDecisionProvider(original, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                deletedKeyRouter.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
+
+            _ = moved.Configure(new("planning", "openai", "world-openai-model", "world-openai-secret", false));
+            _ = moved.Configure(new("planning", "openai", "world-openai-model", null, true));
+            Assert.Equal("inherited-private-model", Assert.Single(moved.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
+            var afterForget = new ConfigurableDecisionProvider(moved, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                afterForget.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
+
+            var defaultKeyStore = new ProviderConfigurationStore(Path.Combine(directory.FullName, "default-key.json"), EmptySeed());
+            _ = defaultKeyStore.Configure(new("planning", "openai", "default-model", "default-key-secret", false));
+            var defaultKeySelection = selection with { CredentialSlotId = null, ModelId = "default-model" };
+            defaultKeyStore.ConfigureChildModelSelectionWithCommit("inhabitant-test", defaultKeySelection, () => { });
+            _ = defaultKeyStore.Configure(new("planning", "openai", "default-model", null, true));
+            Assert.Equal("default-model", Assert.Single(defaultKeyStore.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
+            var afterDefaultForget = new ConfigurableDecisionProvider(defaultKeyStore, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                afterDefaultForget.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
         }
         finally { directory.Delete(recursive: true); }
     }

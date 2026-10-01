@@ -106,7 +106,13 @@ public sealed record OwnerProviderConfigurationAction(
     string? CredentialSlotId = null,
     string? NewCredentialLabel = null);
 
-public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
+public sealed record InhabitantProviderAssignment(
+    string InhabitantId,
+    string Role,
+    string Provider,
+    string? Model = null,
+    string? CredentialSlotId = null,
+    string? SelectionReason = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

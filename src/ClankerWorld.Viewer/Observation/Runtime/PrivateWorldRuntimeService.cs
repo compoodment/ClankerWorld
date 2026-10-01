@@ -212,6 +212,7 @@ public sealed partial class PrivateWorldRuntimeService(
         LogGateTransition(result.Advanced ? "advancing" : result.Outcome, result.WorldTick);
         if (result.Advanced)
         {
+            BindNewbornModelSelections(result);
             writingCheckpoint = true;
             var compacted = stateFile.Save(runtime);
             writingCheckpoint = false;
@@ -384,6 +385,37 @@ public sealed partial class PrivateWorldRuntimeService(
         }
 
         return result.Advanced;
+    }
+
+    private void BindNewbornModelSelections(PrivateWorldStepResult result)
+    {
+        if (providers is null) return;
+        var newbornIds = result.Events.Where(item => item.Kind == "child_born")
+            .Select(item => item.Detail).ToHashSet(StringComparer.Ordinal);
+        if (newbornIds.Count == 0) return;
+
+        lock (providers.WorldMutationGate)
+        {
+            var configuration = providers.CaptureRuntimeConfiguration();
+            var people = runtime.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+            foreach (var childId in newbornIds.Order(StringComparer.Ordinal))
+            {
+                var initiator = people.Values.FirstOrDefault(item => item.Parenthood?.ChildId == childId);
+                if (!people.TryGetValue(childId, out var child) || child.ChildModelSelection is not null ||
+                    initiator?.Parenthood is not { } plan)
+                    continue;
+
+                var selection = ChildModelSelectionResolver.Choose(initiator.InhabitantId, plan.PartnerId, configuration);
+                if (selection.Provider is null)
+                {
+                    runtime.ApplyChildModelSelection(childId, selection);
+                    continue;
+                }
+
+                providers.ConfigureChildModelSelectionWithCommit(childId, selection,
+                    () => runtime.ApplyChildModelSelection(childId, selection));
+            }
+        }
     }
 
     private void LogTownEvent(PlaytestWorldEvent worldEvent)

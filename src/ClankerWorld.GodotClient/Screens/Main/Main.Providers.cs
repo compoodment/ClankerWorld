@@ -385,10 +385,39 @@ public partial class Main
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
             ? "Loading…"
-            : SelectedTargetWasBornHere() && SelectedAssignment() is null
-            ? "No personal model selected for this child. After infancy, safe local decisions continue until a model is assigned; world defaults are not used."
+            : SelectedTargetWasBornHere()
+            ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
         RefreshControlAvailability();
+    }
+
+    private string SelectedChildModelStatus()
+    {
+        var assignment = SelectedAssignment();
+        if (assignment is null)
+            return "No personal model selected for this child. Safe local decisions continue until a model is assigned; world defaults are not used.";
+
+        var provider = ProviderDisplayName(assignment.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        if (ChildModelNeedsSetup(assignment))
+            return $"Model needs setup: {modelName} has no available key on this computer. Add or select a key; built-in choices continue until then, with no other model used.";
+
+        return assignment.SelectionReason switch
+        {
+            "parents_agreed" => $"Their model choices matched: {modelName}.",
+            "initiating_parent" => $"Chosen from the parent who began the family plan: {modelName}.",
+            _ => $"Personal model: {modelName}.",
+        };
+    }
+
+    private bool ChildModelNeedsSetup(InhabitantProviderAssignment assignment)
+    {
+        if (assignment.Provider is "deterministic" or "inherit") return false;
+        if (assignment.CredentialSlotId is { } slotId)
+            return providerConfiguration?.CredentialSlots?.Any(slot => slot.Id == slotId && slot.Provider == assignment.Provider) != true;
+        return providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == assignment.Provider)?.HasCredential != true;
     }
 
     private static string RoleDisplayName(string role) => role == "planning"
