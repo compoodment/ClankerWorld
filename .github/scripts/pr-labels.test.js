@@ -10,7 +10,7 @@ const unlabeled = (name, actor = Bot) => ({ event: 'unlabeled', label: { name },
 
 function scenario({ live = {}, event = {}, action = 'edited', changes, files = ['src/ClankerWorld.Simulation/Kernel/InventoryFixture.cs'],
   issueLabels = ['priority:p2', 'status:needs-pr', 'status:in-progress'], otherPrs = [], otherIssues = {},
-  compareFiles = [], events, recordEvents = true, beforeRemove = () => {}, beforeAdd = () => {} } = {}) {
+  compareFiles = [], compareError = null, events, recordEvents = true, beforeRemove = () => {}, beforeAdd = () => {} } = {}) {
   const pr = {
     number: 25, state: 'open', draft: false, merged: false,
     body: '- [x] Bug fix\nCloses #4', labels: ['status:reviewing'],
@@ -24,7 +24,11 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
   // Labels already on the PR were added by this workflow unless a test says otherwise.
   const prEvents = events ?? pr.labels.map(name => labeled(name));
   const compares = [];
+  const warnings = [];
+  const removals = [];
+  let changedFiles = files;
   let reads = 0;
+  let eventReads = 0;
   const github = {
     rest: {
       pulls: {
@@ -38,6 +42,7 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
       repos: {
         compareCommitsWithBasehead: async ({ basehead }) => {
           compares.push(basehead);
+          if (compareError) throw compareError;
           return { data: { files: compareFiles.map(filename => ({ filename })) } };
         },
       },
@@ -57,6 +62,7 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
         removeLabel: async ({ issue_number, name }) => {
           const record = records.get(issue_number);
           beforeRemove({ issue_number, name, record, otherPrs, pr, issue });
+          removals.push({ issue_number, name });
           if (issue_number === 25 && recordEvents && record.labels.includes(name)) prEvents.push(unlabeled(name));
           record.labels = record.labels.filter(label => label !== name);
         },
@@ -64,8 +70,11 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
       },
     },
     paginate: async method => {
-      if (method === 'files') return files.map(filename => ({ filename }));
-      if (method === 'events') return structuredClone(prEvents);
+      if (method === 'files') return changedFiles.map(filename => ({ filename }));
+      if (method === 'events') {
+        eventReads++;
+        return structuredClone(prEvents);
+      }
       return otherPrs;
     },
   };
@@ -74,8 +83,13 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
     payload: { action, pull_request: { ...structuredClone(pr), ...event }, changes },
   };
   return {
-    pr, issue, records, compares, reads: () => reads,
-    run: () => labelPullRequest({ github, context, core: { info() {} } }),
+    pr, issue, records, compares, warnings, removals, reads: () => reads, eventReads: () => eventReads,
+    run: () => labelPullRequest({ github, context, core: { info() {}, warning: message => warnings.push(message) } }),
+    // The next event on the same PR, such as a push after its base changed.
+    next({ action: nextAction, changes: nextChanges, files: nextFiles } = {}) {
+      context.payload = { action: nextAction, pull_request: structuredClone(pr), changes: nextChanges };
+      if (nextFiles) changedFiles = nextFiles;
+    },
   };
 }
 
@@ -288,6 +302,24 @@ test('a comparison cut short at 300 files keeps the PR\'s own file list', async 
   assert.deepEqual(priorities(state.pr.labels), ['priority:p0']);
 });
 
+test('a failed comparison with main falls back to the PR\'s own files and still writes every label', async () => {
+  for (const status of [404, 500]) {
+    const state = scenario({
+      action: 'ready_for_review', live: { base: stacked, labels: [] },
+      files: ['.github/scripts/pr-labels.js'], compareFiles: [],
+      compareError: Object.assign(new Error('Server Error'), { status }),
+    });
+    await state.run();
+    assert.deepEqual(state.compares, ['main...head-sha'], status);
+    assert.deepEqual(new Set(state.pr.labels), new Set([
+      'area:tooling', 'type:bug', 'status:needs-review', 'priority:p0',
+    ]), status);
+    assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr'], status);
+    assert.equal(state.warnings.length, 1, status);
+    assert.match(state.warnings[0], new RegExp(`Could not compare with main \\(${status}\\)`));
+  }
+});
+
 test('changing the base branch works out the areas again; other edits leave them', async () => {
   for (const [changes, expected] of [
     [{ base: { ref: { from: 'codex/1-lower' } } }, ['area:agents']],
@@ -297,6 +329,29 @@ test('changing the base branch works out the areas again; other edits leave them
     await state.run();
     assert.deepEqual(areas(state.pr.labels), expected);
   }
+});
+
+test('a push after a stacked PR moves to main works out its areas again from its own files', async () => {
+  const upper = [1, 2, 3].map(i => `src/ClankerWorld.Simulation/Cognition/Mind${i}.cs`);
+  const lower = Array.from({ length: 10 }, (_, i) => `src/ClankerWorld.Simulation/World/Terrain${i}.cs`);
+  // The lower PR was squash-merged and GitHub moved this one to main, but its
+  // file list still holds the lower PR's files until main is merged in.
+  const state = scenario({
+    changes: { base: { ref: { from: 'codex/1-lower' }, sha: { from: 'lower-sha' } } },
+    live: { labels: [] }, files: [...upper, ...lower],
+  });
+  await state.run();
+  assert.deepEqual(areas(state.pr.labels), ['area:world']);
+  state.next({ action: 'synchronize', files: upper });
+  await state.run();
+  assert.deepEqual(areas(state.pr.labels), ['area:agents']);
+});
+
+test('a push that leaves the areas as they are does not read the label history', async () => {
+  const state = scenario({ action: 'synchronize', live: { labels: ['area:world', 'priority:p2'] }, issueLabels: ['priority:p2'] });
+  await state.run();
+  assert.deepEqual(areas(state.pr.labels), ['area:world']);
+  assert.equal(state.eventReads(), 0);
 });
 
 test('a closing PR sent back to draft puts its unheld issue back in the queue', async () => {
@@ -326,6 +381,22 @@ test('a draft PR waiting on the owner or blocked leaves its issue out of the que
       action: 'converted_to_draft', live: { draft: true, labels: [held] },
       issueLabels: ['priority:p2', 'status:has-pr'],
     });
+    await state.run();
+    assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr'], held);
+  }
+});
+
+test('a hold added after the PR went back to draft takes its issue out of the queue at the next push or edit', async () => {
+  for (const [held, action] of [['status:needs-decision', 'synchronize'], ['status:blocked', 'edited']]) {
+    const state = scenario({
+      action: 'converted_to_draft', live: { draft: true, labels: [] },
+      issueLabels: ['priority:p2', 'status:has-pr'],
+    });
+    await state.run();
+    assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:needs-pr']), held);
+    // Adding the label does not run the workflow; the next push or edit does.
+    state.pr.labels.push(held);
+    state.next({ action });
     await state.run();
     assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr'], held);
   }
@@ -401,11 +472,36 @@ test('only a keyword directly before a number closes an issue', () => {
   assert.deepEqual([...closingIssueNumbers('Resolves other/repo#9, resolves compoodment/clankerworld#10', repo)], [10]);
 });
 
-test('Refs reads the same way as in the claim cleanup', () => {
+test('Refs reads every issue in a list after it', () => {
   const repo = 'compoodment/ClankerWorld';
-  assert.deepEqual([...referencedIssueNumbers('Refs #7. Closes #4', repo)], [7]);
-  assert.deepEqual([...referencedIssueNumbers('- Refs (related or partly completed issues, and what remains): #7, #8', repo)], [7, 8]);
-  assert.deepEqual([...referencedIssueNumbers('<!-- Refs #9 --> `Refs #10`', repo)], []);
+  const refs = body => [...referencedIssueNumbers(body, repo)];
+  assert.deepEqual(refs('Refs #7. Closes #4'), [7]);
+  assert.deepEqual(refs('- Refs #7, #8 (and what remains)'), [7, 8]);
+  assert.deepEqual(refs('- Refs #598, #599 and #602: resident limits'), [598, 599, 602]);
+  assert.deepEqual(refs('- Refs #562 and #563 for the shared part'), [562, 563]);
+  assert.deepEqual(refs('Refs: #7, #8'), [7, 8]);
+  assert.deepEqual(refs('Refs #7,#8, and #9 & #10'), [7, 8, 9, 10]);
+  assert.deepEqual(refs('- Refs #666, the continuity rule implemented by prerequisite PR #689'), [666]);
+  // A note after the list's colon is not more references.
+  assert.deepEqual(refs('- Refs #666: the continuity rule from prerequisite PR #689'), [666]);
+  assert.deepEqual(refs('- Refs #  (and what remains)'), []);
+});
+
+test('Refs still reads the older template line, and ignores other repositories, comments and code', () => {
+  const repo = 'compoodment/ClankerWorld';
+  const refs = body => [...referencedIssueNumbers(body, repo)];
+  assert.deepEqual(refs('- Refs (related or partly completed issues, and what remains): #7, #8'), [7, 8]);
+  assert.deepEqual(refs('- Refs (related or partly completed issues, and what remains): #7 for the rest, other/repo#9'), [7]);
+  assert.deepEqual(refs('Refs other/repo#9, #10 and compoodment/clankerworld#11'), [10, 11]);
+  assert.deepEqual(refs('Refs other/repo#9'), []);
+  assert.deepEqual(refs('<!-- Refs #9 --> `Refs #10`'), []);
+  assert.deepEqual(refs('Refs #7, `#8`\n```\nRefs #9, #10\n```'), [7]);
+  assert.deepEqual(refs('- Refs (and what remains): see PR#5 and notes.md#6'), []);
+});
+
+test('the claim cleanup reads Refs with the same parser', () => {
+  const staleClaims = require('./stale-claims.js');
+  assert.equal(staleClaims.referencedIssueNumbers, referencedIssueNumbers);
 });
 
 test('Refactor or tooling sets type:tooling, and the first ticked box wins', async () => {
@@ -419,8 +515,8 @@ test('Refactor or tooling sets type:tooling, and the first ticked box wins', asy
   assert.ok(!state.pr.labels.includes('type:feature'));
 });
 
-test('areas changed by hand survive opening, reopening and ready for review', async () => {
-  for (const action of ['opened', 'reopened', 'ready_for_review']) {
+test('areas changed by hand survive opening, reopening, ready for review and pushes', async () => {
+  for (const action of ['opened', 'reopened', 'ready_for_review', 'synchronize']) {
     const added = scenario({
       action, live: { labels: ['area:interface'] },
       events: [labeled('area:world'), unlabeled('area:world', Person), labeled('area:interface', Person)],
@@ -530,4 +626,31 @@ test('closing a PR or sending it back to draft ends its merge turn', async () =>
   });
   await draft.run();
   assert.ok(!draft.pr.labels.some(name => ['status:needs-review', 'status:reviewing', 'status:merging'].includes(name)));
+});
+
+test('a push to a draft without review labels reads the PR once to clear them and removes nothing', async () => {
+  const state = scenario({ action: 'synchronize', live: { draft: true, labels: [] }, issueLabels: ['priority:p2', 'status:has-pr'] });
+  await state.run();
+  // The run's own read, one read to clear review labels and the final check.
+  assert.equal(state.reads(), 3);
+  assert.deepEqual(state.removals.filter(removal => removal.issue_number === 25), []);
+});
+
+test('sending a PR back to draft removes only the review labels it has', async () => {
+  const state = scenario({ action: 'converted_to_draft', live: { draft: true, labels: ['status:reviewing'] } });
+  await state.run();
+  assert.deepEqual(state.removals.filter(removal => removal.issue_number === 25).map(removal => removal.name), ['status:reviewing']);
+  assert.ok(!state.pr.labels.includes('status:reviewing'));
+});
+
+test('a PR marked ready while its review labels are being cleared keeps the rest', async () => {
+  const state = scenario({
+    action: 'converted_to_draft', live: { draft: true, labels: ['status:needs-review', 'status:reviewing'] },
+    beforeRemove({ issue_number, name, pr }) {
+      if (issue_number === 25 && name === 'status:needs-review') pr.draft = false;
+    },
+  });
+  await state.run();
+  assert.ok(state.pr.labels.includes('status:reviewing'));
+  assert.ok(state.pr.labels.includes('status:needs-review'));
 });

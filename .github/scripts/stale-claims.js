@@ -39,7 +39,9 @@
 // and pushed later count from the push. Comments this script writes carry a
 // marker, so the branches they name are never read as someone's work.
 
-const { closingIssueNumbers } = require('./pr-labels.js');
+// pr-labels.js reads closing keywords and Refs, so both scripts link the same
+// pull requests to an issue.
+const { closingIssueNumbers, referencedIssueNumbers } = require('./pr-labels.js');
 
 const InProgress = 'status:in-progress';
 const Reviewing = 'status:reviewing';
@@ -54,8 +56,6 @@ const MaxBranchCandidates = 20; // bounds API calls when comments name many path
 const Marker = '<!-- claim-check -->';
 const PushActivities = new Set(['push', 'force_push', 'branch_creation']);
 
-const RefsPattern = /\brefs?:?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
-const RefsLinePattern = /^\s*[-*]\s*Refs\b[^:\n]*:(.*)$/gim;
 const BranchPatterns = [
   /`([A-Za-z0-9._-]+\/[A-Za-z0-9._\/-]+)`/g,
   /\bbranch\s+([A-Za-z0-9._-]+\/[A-Za-z0-9._\/-]*[A-Za-z0-9_\/-])/gi,
@@ -63,22 +63,6 @@ const BranchPatterns = [
 
 function labelNames(labels) {
   return (labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
-}
-
-function referencedIssueNumbers(body, repoName) {
-  const thisRepo = repoName.toLowerCase();
-  const text = (body ?? '')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`\n]*`/g, ' ');
-  const numbers = new Set();
-  for (const [, otherRepo, number] of text.matchAll(RefsPattern)) {
-    if (!otherRepo || otherRepo.toLowerCase() === thisRepo) numbers.add(Number(number));
-  }
-  for (const [, rest] of text.matchAll(RefsLinePattern)) {
-    for (const [, number] of rest.matchAll(/(?<![\w/])#(\d+)\b/g)) numbers.add(Number(number));
-  }
-  return numbers;
 }
 
 // Names that may be branches, newest first. Some are file paths or other

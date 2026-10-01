@@ -5,16 +5,16 @@
 // Changed files: a PR whose base branch is not main is judged only by the
 // files that also differ from main (main...head), so main's own changes that
 // its base branch has not caught up with do not count. If that comparison
-// lists 300 or more files, the PR's own file list is used.
+// fails or lists 300 or more files, the PR's own file list is used.
 //
 // - At most two area labels, from the changed files, set when the PR opens, is
-//   reopened, is marked ready or has its base branch changed. Each file counts
-//   towards the one area whose path rule matches it most closely; client files
-//   count half and tests count only when nothing else does. The second area is
-//   kept only if it has at least a third of the first one's count. Areas are
-//   left as they are when no rule matches any changed file, and for good once
-//   anyone other than github-actions[bot] has added or removed an area label on
-//   the PR.
+//   reopened, is marked ready, gets new commits or has its base branch
+//   changed. Each file counts towards the one area whose path rule matches it
+//   most closely; client files count half and tests count only when nothing
+//   else does. The second area is kept only if it has at least a third of the
+//   first one's count. Areas are left as they are when no rule matches any
+//   changed file, and for good once anyone other than github-actions[bot] has
+//   added or removed an area label on the PR.
 // - One type label: the first ticked "Type of change" box in the PR template
 //   ("Refactor or tooling" gives type:tooling), or type:docs when no box is
 //   ticked and every changed file is documentation.
@@ -23,12 +23,13 @@
 //   claim and a status:merging turn are removed.
 // - A priority label, worked out again on every event: the highest priority of
 //   the open issues the PR closes; if none of them has one, of the open issues
-//   it names with "Refs #N"; otherwise priority:p2. It is priority:p0 instead
-//   when the PR changes how everyone works on the repository (.github/,
-//   .claude/, CONTRIBUTING.md, AGENTS.md or CLAUDE.md). Other priority labels
-//   that github-actions[bot] added are removed. A priority anyone else added
-//   is never removed; when it is higher than the worked-out one, it takes that
-//   one's place.
+//   it names with "Refs" ("Refs #N", or a list such as "Refs #N, #M and #K");
+//   otherwise priority:p2. It is priority:p0 instead when the PR changes how
+//   everyone works on the repository (.github/, .claude/, CONTRIBUTING.md,
+//   AGENTS.md or CLAUDE.md). Other priority labels that github-actions[bot]
+//   added are removed. A priority anyone else added is never removed: a
+//   higher one takes the worked-out priority's place, and a lower one stays
+//   next to it.
 // - status:has-pr on open issues the PR closes ("Closes #N", "Fixes #N" or
 //   "Resolves #N", one keyword directly before each number, exactly as GitHub
 //   and close-fixed-issues.yml read them), replacing status:needs-pr. "Refs #N"
@@ -42,6 +43,9 @@
 //   nor the PR (status:needs-decision, status:blocked) is held, and the issue
 //   is not type:decision or owner-task, the issue gets status:needs-pr next to
 //   status:has-pr, unless another ready PR closes it.
+//   While a draft PR is held (status:needs-decision or status:blocked), every
+//   push or edit takes status:needs-pr off the issues it closes, so a hold
+//   added after the PR went back to draft also keeps them out of the queue.
 //   When the last open PR closing an issue closes, or stops naming it with a
 //   closing keyword, status:has-pr is removed again. If that PR did not merge,
 //   the issue goes back to status:needs-pr unless it already has one of
@@ -83,10 +87,21 @@ const CompareFileLimit = 300;
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
 // ignoring HTML comments and code.
 const KeywordPattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
-// Mirrors referencedIssueNumbers in stale-claims.js, so "Refs" means the same
+// "Refs" before one issue or a list of them: "Refs #7", "Refs: #7, #8",
+// "Refs #598, #599 and #602". The first word that is not another issue ends
+// the list, so "Refs #666, the rule from PR #689" refers only to #666.
+// stale-claims.js uses referencedIssueNumbers too, so "Refs" means the same
 // to both scripts.
-const RefsPattern = /\brefs?:?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
-const RefsLinePattern = /^\s*[-*]\s*Refs\b[^:\n]*:(.*)$/gim;
+const IssueRef = String.raw`(?:[\w.-]+\/[\w.-]+)?#\d+\b`;
+const RefsPattern = new RegExp(
+  String.raw`\brefs?:?\s+(${IssueRef}(?:\s*(?:,\s*(?:and\s+)?|and\s+|&\s*)${IssueRef})*)`, 'gi');
+// The older template line, "- Refs (related or partly completed issues, and
+// what remains): #7, #8", counts every issue after its colon. Its label has no
+// issue number, so a note after "- Refs #7:" is not read as more references.
+const RefsLinePattern = /^\s*[-*]\s*Refs\b[^:#\n]*:(.*)$/gim;
+// One issue in a Refs list, optionally as owner/repo#N. "PR#5" and "a.md#5"
+// are not issues.
+const IssueRefPattern = /(?<![\w./-])(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/g;
 
 function labelNames(labels) {
   return (labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
@@ -111,12 +126,13 @@ function closingIssueNumbers(body, repoName = '') {
   return keywordNumbers(KeywordPattern, withoutCode(body), repoName);
 }
 
+// Issues this PR refers to with "Refs", ignoring HTML comments, code and
+// other repositories' issues.
 function referencedIssueNumbers(body, repoName = '') {
   const text = withoutCode(body);
-  const numbers = keywordNumbers(RefsPattern, text, repoName);
-  for (const [, rest] of text.matchAll(RefsLinePattern)) {
-    for (const [, number] of rest.matchAll(/(?<![\w/])#(\d+)\b/g)) numbers.add(Number(number));
-  }
+  const numbers = new Set();
+  const lists = [...text.matchAll(RefsPattern), ...text.matchAll(RefsLinePattern)].map(([, list]) => list);
+  for (const list of lists) keywordNumbers(IssueRefPattern, list, repoName, numbers);
   return numbers;
 }
 
@@ -259,11 +275,18 @@ async function setAreaLabels({ github, core, repo, pr, files, events }) {
     core.info('No area rule matches the changed files; areas left as they are.');
     return;
   }
+  const current = labelNames(pr.labels);
+  const currentAreas = current.filter(name => name.startsWith('area:'));
+  // Most pushes change nothing here, so the label history is read only when
+  // the areas would change.
+  if (currentAreas.length === wanted.length && wanted.every(name => currentAreas.includes(name))) {
+    core.info(`Areas already match the changed files: ${wanted.join(', ')}.`);
+    return;
+  }
   if (areasSetByHand(await events())) {
     core.info('Areas were changed by hand on this pull request; leaving them.');
     return;
   }
-  const current = labelNames(pr.labels);
   for (const name of current) {
     if (name.startsWith('area:') && !wanted.includes(name)) await removeLabel(github, repo, pr.number, name);
   }
@@ -287,7 +310,10 @@ function typeLabel(body) {
 // A stacked PR's base branch can be behind main. Once the head has merged main
 // but the base has not, main's own changes show up in the PR's file list. Keep
 // only the files that also differ from main, so areas, type and the workflow
-// priority describe what the PR would change on main.
+// priority describe what the PR would change on main. This only refines the
+// list, so when the comparison fails for any reason (a missing branch, a diff
+// too large to compare, a rate limit or a server error) the PR's own files are
+// used and every label is still written.
 async function filesChangedOnMain({ github, core, repo, pr, files, defaultBranch }) {
   if (!pr.base?.ref || pr.base.ref === defaultBranch || !pr.head?.sha) return files;
   try {
@@ -302,8 +328,8 @@ async function filesChangedOnMain({ github, core, repo, pr, files, defaultBranch
     const kept = new Set(onMain);
     return files.filter(file => kept.has(file));
   } catch (error) {
-    if (error.status !== 404 && error.status !== 422) throw error;
-    core.info(`Could not compare with ${defaultBranch}; using the files changed against ${pr.base.ref}.`);
+    core.warning(`Could not compare with ${defaultBranch} (${error.status ?? error.message}); ` +
+      `using the files changed against ${pr.base.ref}.`);
     return files;
   }
 }
@@ -379,11 +405,23 @@ async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
   }
 }
 
+// Removes the review labels from a closed or draft PR. The PR is read once,
+// and only the labels it has are removed, so a push to a plain draft costs one
+// read and no removals. The PR can be reopened or marked ready, and claimed by
+// a reviewer, while this runs, so it is read again before every removal after
+// the first; once it is open and ready again, nothing more is removed. A label
+// added after the first read may be left on, which is the safe side: this
+// never removes a label from a PR that is open and ready.
 async function clearInactiveReviewLabels(github, repo, number) {
+  const read = async () => (await github.rest.pulls.get({ ...repo, pull_number: number })).data;
+  let live = await read();
+  let fresh = true;
   for (const name of [NeedsReview, Reviewing, Merging]) {
-    const { data: live } = await github.rest.pulls.get({ ...repo, pull_number: number });
+    if (!labelNames(live.labels).includes(name)) continue;
+    if (!fresh) live = await read();
     if (live.state === 'open' && !live.draft) return;
     await removeLabel(github, repo, number, name);
+    fresh = false;
   }
 }
 
@@ -417,8 +455,11 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
     ...repo, issue_number: pr.number, per_page: 100,
   });
 
+  // Pushes count too: when a lower PR is squash-merged and GitHub moves a
+  // stacked PR to main, the file list still holds the lower PR's files until
+  // main is merged in, and that push corrects the areas.
   const baseChanged = action === 'edited' && Boolean(context.payload.changes?.base);
-  if (['opened', 'reopened', 'ready_for_review'].includes(action) || baseChanged) {
+  if (['opened', 'reopened', 'ready_for_review', 'synchronize'].includes(action) || baseChanged) {
     await setAreaLabels({ github, core, repo, pr, files: changed, events: prEvents });
   }
 
@@ -439,8 +480,10 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
     await clearInactiveReviewLabels(github, repo, pr.number);
   }
 
-  // A PR waiting on the owner or on something else keeps its issues out of the
-  // queue when it goes back to draft.
+  // A draft PR waiting on the owner or on something else keeps its issues out
+  // of the queue. Adding a label does not run this workflow, so a hold added
+  // after the PR went back to draft takes status:needs-pr off its issues at the
+  // next push or edit.
   const prHeld = current.includes(NeedsDecision) || current.includes(Blocked);
   let issuePriority = null;
   for (const number of linked) {
@@ -456,10 +499,10 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
     const handedBack = action === 'converted_to_draft' && pr.draft && liveIssue !== null && !prHeld &&
       !liveNames.some(name => HeldStatuses.includes(name)) &&
       !liveNames.some(name => NotQueueable.includes(name));
-    // A released draft keeps its queue entry until someone claims the issue
-    // or a closing PR becomes ready. Edits and synchronize events alone must
-    // not hide unclaimed work again.
-    const abandoned = pr.draft && (handedBack ||
+    // A released draft keeps its queue entry until someone claims the issue,
+    // a closing PR becomes ready or the draft is held. Edits and synchronize
+    // events alone must not hide unclaimed work again.
+    const abandoned = pr.draft && !prHeld && (handedBack ||
       issueLabels.includes(HasPr) && liveNames.includes(Ready) && !liveNames.includes(InProgress));
     const open = abandoned ? await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 }) : [];
     const readyClosing = open.some(other => !other.draft && closingIssueNumbers(other.body, repoName).has(number));
