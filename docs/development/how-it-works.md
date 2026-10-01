@@ -680,6 +680,9 @@ Request, refusal, acceptance, cancellation and pause/reload retain their normal
 flow. A completed lesson changes neither the agent's role nor work proficiency.
 Stored skills currently affect only teaching availability, never ordinary
 action access or work speed. The agent card and Event Log describe the record.
+The owner observation keeps its existing JSON `role` field for the lesson's
+skill name so older clients can still display it; new code calls it `Skill`.
+This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
 

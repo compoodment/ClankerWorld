@@ -197,6 +197,18 @@ public sealed class SettlementLearningTests
         var shown = Assert.Single(new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants.Single(person => person.Id == learner).Skills);
         Assert.Equal(skill.TeacherId, shown.TeacherId);
         Assert.Equal(restored.Society.GetInhabitant(skill.TeacherId!).Name, shown.TeacherName);
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var wire = System.Text.Json.JsonSerializer.Serialize(new OwnerWorldObservationStore(restored).GetSnapshot(), options);
+        using (var document = System.Text.Json.JsonDocument.Parse(wire))
+        {
+            var wireLesson = document.RootElement.GetProperty("inhabitants").EnumerateArray()
+                .Single(person => person.GetProperty("id").GetString() == learner).GetProperty("lesson");
+            Assert.Equal("building", wireLesson.GetProperty("role").GetString());
+            Assert.False(wireLesson.TryGetProperty("skill", out _));
+        }
+        var client = System.Text.Json.JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(wire, options)!;
+        Assert.Equal("building", client.Inhabitants.Single(person => person.Id == learner).Lesson!.Skill);
+        Assert.Equal(skill.TeacherId, Assert.Single(client.Inhabitants.Single(person => person.Id == learner).Skills!).TeacherId);
         using var completedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState())));
         Assert.Equal(completed.Skills, completedReload.Inhabitants.Single(person => person.InhabitantId == learner).Skills);
         Assert.Equal(2, completed.SocialStanding!.Single(item => item.SubjectId == completed.Lesson!.TeacherId).Trust);

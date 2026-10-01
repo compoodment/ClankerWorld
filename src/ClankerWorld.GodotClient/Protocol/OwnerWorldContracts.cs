@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using ClankerWorld.GodotClient.Pairing;
 
 namespace ClankerWorld.GodotClient.UI;
@@ -161,7 +162,8 @@ public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisP
     int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
-public sealed record OwnerWorldLesson(string TeacherName, string Skill, string Stage, int Progress, int Required);
+public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,
+    string Stage, int Progress, int Required);
 public sealed record OwnerWorldSkill(string Kind, long LearnedTick, string? TeacherId, string? TeacherName);
 public sealed record OwnerWorldProficiency(int Building, int Farming, int Crafting);
 public sealed record OwnerWorldSocialStanding(string SubjectId, string SubjectName, int Trust);
