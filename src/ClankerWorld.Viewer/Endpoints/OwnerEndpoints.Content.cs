@@ -417,7 +417,7 @@ internal static partial class OwnerEndpoints
 
             var runtime = services.GetRequiredService<PrivateWorldRuntime>();
             var result = runtime.RemoveBuilding(request.Action.InstanceId, request.Action.ExpectedTownId,
-                request.Action.ExpectedHouseholdId);
+                request.Action.ExpectedHouseholdId, request.Action.WorldId);
             if (result.Applied) services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
             return Results.Ok(result);
         });
@@ -450,7 +450,7 @@ internal static partial class OwnerEndpoints
 
             var runtime = services.GetRequiredService<PrivateWorldRuntime>();
             var result = runtime.ReassignBuilding(request.Action.InstanceId, request.Action.ExpectedTownId,
-                request.Action.ExpectedHouseholdId, request.Action.TargetTownId, request.Action.TargetHouseholdId);
+                request.Action.ExpectedHouseholdId, request.Action.TargetTownId, request.Action.TargetHouseholdId, request.Action.WorldId);
             if (result.Applied) services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
             return Results.Ok(result);
         });
