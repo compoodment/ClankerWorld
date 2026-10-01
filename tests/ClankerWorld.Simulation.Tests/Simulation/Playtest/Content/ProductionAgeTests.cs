@@ -8,13 +8,11 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ProductionAgeTests
 {
     [Theory]
-    [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Adolescent, false)]
-    [InlineData(SocietyAgeBand.Infant, true)]
-    [InlineData(SocietyAgeBand.Adolescent, true)]
-    public async Task YoungWorkersCannotStartRecipesOrCropsBeforeOrAfterReload(SocietyAgeBand age, bool crop)
+    [InlineData(SocietyAgeBand.Infant)]
+    [InlineData(SocietyAgeBand.Adolescent)]
+    public async Task YoungWorkersCannotStartRecipesOrCropsBeforeOrAfterReload(SocietyAgeBand age)
     {
-        var prepared = await PrepareAsync(age, crop);
+        var prepared = await PrepareAsync(age);
         using var world = PrivateWorldRuntime.Restore(prepared.State, _ => new IdleProvider());
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var rejected = world.StartProduction(prepared.RecipeId, prepared.WorkstationId, prepared.WorkerId);
@@ -27,12 +25,11 @@ public sealed class ProductionAgeTests
     }
 
     [Theory]
-    [InlineData(SocietyAgeBand.Adult, false)]
-    [InlineData(SocietyAgeBand.Adult, true)]
-    [InlineData(SocietyAgeBand.Elder, true)]
-    public async Task EligibleWorkersCompleteRecipesAndCropsAfterReload(SocietyAgeBand age, bool crop)
+    [InlineData(SocietyAgeBand.Adult)]
+    [InlineData(SocietyAgeBand.Elder)]
+    public async Task EligibleWorkersCompleteRecipesAndCropsAfterReload(SocietyAgeBand age)
     {
-        var prepared = await PrepareAsync(age, crop);
+        var prepared = await PrepareAsync(age);
         using var world = PrivateWorldRuntime.Restore(prepared.State, _ => new IdleProvider());
         var started = world.StartProduction(prepared.RecipeId, prepared.WorkstationId, prepared.WorkerId);
         Assert.True(started.Applied, started.Failure);
@@ -52,28 +49,22 @@ public sealed class ProductionAgeTests
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.ProductionJobs
             .Concat(restored.WorldSimulation.CropBuilds ?? []).Single(item => item.JobId == jobId).State);
         var recipe = restored.WorldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
-        if (recipe.IsCrop && WorldBuildSiteRules.TryGetFieldPosition(job.BuildingInstanceId, out var field))
-            await FarmTestFields.Harvest(restored, job.WorkerId, field);
         foreach (var output in recipe.Outputs)
             Assert.Contains(restored.Society.Inventory.Lots, lot => lot.Id.StartsWith(jobId + ":", StringComparison.Ordinal) &&
-                lot.ItemKind == output.ResourceId && lot.Quantity == (recipe.IsCrop
-                    ? Math.Max(1, output.Amount * ClankerWorld.Simulation.Harness.LandFertilityRules.YieldPercent(
-                        state.Map.FertilityAt(state.Inhabitants.Single(person => person.InhabitantId == job.WorkerId).Position)) / 100)
-                    : output.Amount));
+                lot.ItemKind == output.ResourceId && lot.Quantity == output.Amount);
         var completed = restored.ExportState();
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(completed)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(completed), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
-    internal static async Task<PreparedProduction> PrepareAsync(SocietyAgeBand age, bool crop = false)
+    internal static async Task<PreparedProduction> PrepareAsync(SocietyAgeBand age)
     {
         using var seed = new PrivateWorldRuntime(SeededWorldObservationStore.SampleSeed, _ => new IdleProvider());
         seed.StageStarterContent();
         for (var tick = 0; tick < 5; tick++) await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
-        var site = crop ? new ClankerWorld.Simulation.Harness.GridPoint(2, 3) :
-            state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
+        var site = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
                 !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !state.Map.Resources.Any(item => item.Position == tile.Position) &&
                 !state.Inhabitants.Any(person => person.InhabitantId != worker.InhabitantId && person.Position == tile.Position)).Position;
@@ -82,17 +73,11 @@ public sealed class ProductionAgeTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId
                 ? person with { Position = site } : person).ToArray(),
         };
-        if (crop) state = FarmTestFields.Prepare(state, worker.InhabitantId, site,
-            seed.WorldContent.Recipes.Single(item => item.LocalId == "vegetables"));
         using var placing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var workstation = WorldBuildSiteRules.FieldSiteId(site);
-        if (!crop)
-        {
-            var workshop = placing.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
-            var placed = placing.PlaceBuilding("age-workshop", workshop.CanonicalId, site);
-            Assert.True(placed.Applied, placed.Failure);
-            workstation = placed.InstanceId;
-        }
+        var workshop = placing.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+        var placed = placing.PlaceBuilding("age-workshop", workshop.CanonicalId, site);
+        Assert.True(placed.Applied, placed.Failure);
+        var workstation = placed.InstanceId;
         placing.Pause();
         state = placing.ExportState();
         var society = state.Society.Society;
@@ -124,7 +109,7 @@ public sealed class ProductionAgeTests
         };
         using var validated = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         validated.Validate();
-        var recipe = placing.WorldContent.Recipes.Single(item => item.LocalId == (crop ? "vegetables" : "tools"));
+        var recipe = placing.WorldContent.Recipes.Single(item => item.LocalId == "tools");
         return new(state, recipe.CanonicalId, workstation, worker.InhabitantId);
     }
 

@@ -99,18 +99,12 @@ public sealed class WorldTerrainMap
 
     public byte At(int x, int y) => terrain[y * Width + x];
     public byte? ClimateAt(int x, int y) => LayerAt(climate, x, y);
-    public string? FertilityNameAt(int x, int y) => LayerAt(fertility, x, y) switch
-    {
-        1 => "Poor",
-        2 => "Fair",
-        3 => "Good",
-        4 => "Rich",
-        _ => null,
-    };
     public byte? ElevationAt(int x, int y) => LayerAt(elevation, x, y);
     public byte? HydrologyAt(int x, int y) => LayerAt(hydrology, x, y);
     public byte? SurfaceAt(int x, int y) => LayerAt(surface, x, y);
     public byte? VegetationAt(int x, int y) => LayerAt(vegetation, x, y);
+    public byte? FertilityAt(int x, int y) => LayerAt(fertility, x, y);
+    public static string FertilityName(int value) => value <= 0 ? "Not farmable" : value < 35 ? "Poor" : value < 55 ? "Fair" : value < 75 ? "Good" : "Rich";
 
     /// <summary>Render-only legacy projection; inspection keeps missing layer facts unavailable.</summary>
     public byte RenderSurfaceAt(int x, int y) => SurfaceAt(x, y) ?? At(x, y) switch
@@ -294,7 +288,7 @@ public sealed class WorldTerrainMap
     {
         if (layers is null) return new WorldTerrainMap(width, height, terrain, wrapsEastWest: wrapsEastWest);
         if (layers.Width != width || layers.Height != height ||
-            layers.Encoding is not ("map-layers-v1" or "map-layers-v2" or "map-layers-v3"))
+            layers.Encoding is not ("map-layers-v1" or "map-layers-v2"))
             throw new InvalidDataException("The packed world map layers have an unsupported encoding or dimensions.");
         var length = checked(width * height);
         var climate = DecodeLayer(layers.Climate, length, 5, "climate");
@@ -302,7 +296,7 @@ public sealed class WorldTerrainMap
         var hydrology = DecodeLayer(layers.Hydrology, length, 3, "hydrology");
         var surface = DecodeLayer(layers.Surface, length, 7, "surface");
         var vegetation = DecodeLayer(layers.Vegetation, length, 5, "vegetation");
-        var fertility = layers.Fertility is { } encoded ? DecodeLayer(encoded, length, 4, "fertility") : null;
+        var fertility = layers.Fertility is null ? null : DecodeLayer(layers.Fertility, length, 100, "fertility");
         return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation,
             wrapsEastWest, fertility);
     }

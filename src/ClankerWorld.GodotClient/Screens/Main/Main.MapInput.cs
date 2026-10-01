@@ -268,7 +268,8 @@ public partial class Main
         var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
         var propertyOwnerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
+            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId ??
+            snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y)?.HouseholdId;
         var lines = new List<string>
         {
             $"Tile {tile.X}, {tile.Y}",
@@ -276,14 +277,16 @@ public partial class Main
         };
         if (climate is not null) lines.Add($"Climate: {climate}");
         if (surface is not null) lines.Add($"Surface: {surface}");
-        if (terrainMap.FertilityNameAt(tile.X, tile.Y) is { } fertility) lines.Add($"Fertility: {fertility}");
+        if (terrainMap.FertilityAt(tile.X, tile.Y) is { } fertility)
+            lines.Add(fertility == 0 ? "Soil: not farmable" : $"Soil fertility: {WorldTerrainMap.FertilityName(fertility)}");
         if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
         {
-            lines.Add($"Field: {Pretty(field.State)}" + (field.Crop is null ? string.Empty : $" · {field.Crop}"));
-            lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
-            if (field.GroundItems.Count > 0)
-                lines.Add("Harvest waiting here: " + string.Join(", ", field.GroundItems.Select(item => $"{item.Quantity} {Pretty(item.Kind)}")));
+            lines.Add($"Field: {Pretty(field.Stage)}" + (field.Crop is null ? "" : $" · {Pretty(field.Crop)}"));
+            lines.Add($"Used by: {snapshot.Stockpiles.FirstOrDefault(stock => stock.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
+            if (field.WorkerId is { } worker) lines.Add($"Worker: {snapshot.Inhabitants.FirstOrDefault(person => person.Id == worker)?.DisplayName ?? worker}");
         }
+        foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
+            lines.Add($"On the ground: {stock.Quantity} {Pretty(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         foreach (var animal in snapshot.Livestock.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
             lines.Add($"{Pretty(animal.Kind)}: {(animal.Deceased ? "Naturally deceased" : animal.CaredFor ? "Cared for" : "Needs feed, water or care")}");

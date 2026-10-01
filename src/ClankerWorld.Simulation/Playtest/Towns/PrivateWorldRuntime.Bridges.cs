@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         return map.Resources.Select(item => item.Position)
+            .Concat(fields.Select(field => field.Position))
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(FarmFields.Select(field => field.Position))
             .Concat(businessTrade.Markets.SelectMany(plot => MarketStallPositions(plot.MarketId)))
@@ -121,6 +122,7 @@ public sealed partial class PrivateWorldRuntime
         BridgeTrafficState traffic,
         SeededMap map,
         IReadOnlyList<GridPoint> roads,
+        IReadOnlyList<FarmFieldState> savedFields,
         WorldContentSimulationState simulation,
         DeclarativeWorldContentState content,
         SocietyCheckpoint society,
@@ -130,7 +132,7 @@ public sealed partial class PrivateWorldRuntime
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var blocked = map.Resources.Select(item => item.Position)
             .Concat(map.CampObjects.Select(item => item.Position))
-            .Concat((simulation.Fields ?? []).Select(field => field.Position))
+            .Concat(savedFields.Select(field => field.Position))
             .Concat(simulation.Buildings.SelectMany(building =>
                 definitions.TryGetValue(building.DefinitionId, out var definition)
                     ? WorldContentSimulationRules.Footprint(definition, building.Position)

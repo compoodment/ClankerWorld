@@ -365,21 +365,6 @@ public sealed partial class PrivateWorldRuntime
         return available < target;
     });
 
-    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather,
-        int soilMoisture)
-    {
-        if (!recipe.IsCrop || survivalState is null || FoodItems.IsPlantingStock(output.ResourceId) && output.ResourceId != "potatoes")
-            return output.Amount;
-        return weather switch
-        {
-            WeatherKind.Snow => Math.Max(1, output.Amount / 2),
-            WeatherKind.Storm => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
-            _ when soilMoisture < 15 => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
-            _ when soilMoisture >= 50 => checked(output.Amount + Math.Max(1, output.Amount / 4)),
-            _ => output.Amount,
-        };
-    }
-
     private string FoodSource(InventoryLot lot)
     {
         if (IsPreparedMeal(lot.ItemKind)) return IsEnrichedPorridge(lot) ? "fruit_porridge" : lot.ItemKind;
@@ -396,13 +381,14 @@ public sealed partial class PrivateWorldRuntime
             }
             lot = source;
         }
-        var job = worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? [])
+        var job = worldSimulation.ProductionJobs
             .FirstOrDefault(job => originId.StartsWith(job.JobId + ":output:", StringComparison.Ordinal));
         if (job is not null)
         {
             return worldContent.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == job.RecipeId)?.IsCrop == true ? "crops" : "cooked";
         }
         if (lot.ItemKind == "fruit") return "orchard";
+        if (FarmFieldRules.IsCrop(lot.ItemKind)) return "crops";
         return originId.StartsWith("food:harvest:", StringComparison.Ordinal) ? "foraged" : "camp_rations";
     }
 

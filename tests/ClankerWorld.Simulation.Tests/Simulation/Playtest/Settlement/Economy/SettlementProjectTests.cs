@@ -283,6 +283,7 @@ public sealed class SettlementProjectTests
         Assert.Contains("fiber", gathered);
         Assert.Contains(state.Events, item => item.Kind == "field_planted");
         Assert.Contains(state.Events, item => item.Kind == "field_harvested");
+        Assert.Contains("wood", gathered);
         Assert.Contains(state.Events, item => item.Kind == "project_request_fulfilled");
         Assert.Contains(state.Events, item => item.Kind == "social_standing_changed");
         Assert.Contains(state.Inhabitants, person => person.SocialStanding?.Any(item => item.Trust >= 2) == true);

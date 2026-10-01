@@ -24,8 +24,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(MarketReservedTiles())
             .Concat(LooseStockTiles())
+            .Concat(fields.Select(field => field.Position))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
-            .Concat(FarmFields.Select(field => field.Position))
             .Concat(Carts.Select(cart => cart.Position))
             .Concat(worldSimulation.Buildings.Where(placed => PortNavigationRules.IsPort(definitions[placed.DefinitionId]))
                 .SelectMany(placed => PortGeometryFor(placed).DockingTiles))
@@ -135,23 +135,6 @@ public sealed partial class PrivateWorldRuntime
         out GridPoint position,
         string? actorId = null)
     {
-        if (recipe.IsCrop)
-        {
-            foreach (var field in FarmFields.Where(item =>
-                         item.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested &&
-                         (actorId is null || item.HouseholdId == HouseholdFor(actorId)))
-                         .OrderBy(item => item.Position.Y).ThenBy(item => item.Position.X))
-            {
-                siteId = WorldBuildSiteRules.FieldSiteId(field.Position);
-                position = field.Position;
-                return true;
-            }
-
-            siteId = string.Empty;
-            position = default;
-            return false;
-        }
-
         if (recipe.WorkstationBuildingId is null)
         {
             siteId = string.Empty;
@@ -248,10 +231,8 @@ public sealed partial class PrivateWorldRuntime
             .Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
-            .Concat(MarketReservedTiles())
-            .Concat(LooseStockTiles())
+            .Concat(fields.Select(field => field.Position))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
-            .Concat(FarmFields.Select(field => field.Position))
             .Concat(Carts.Select(cart => cart.Position))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -469,45 +450,10 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Carts);
             AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
         }
     }
-
-    private void ProcessCropBuilds(long targetTick)
-    {
-        var due = (worldSimulation.CropBuilds ?? [])
-            .Where(job => job.State == WorldProductionJobState.Running && job.CompletionTick <= targetTick)
-            .OrderBy(job => job.CompletionTick)
-            .ThenBy(job => job.JobId, StringComparer.Ordinal)
-            .ToArray();
-        foreach (var job in due)
-        {
-            var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == job.RecipeId);
-            if (recipe is null || !recipe.IsCrop)
-            {
-                throw new InvalidDataException($"Crop build '{job.JobId}' references a recipe that is no longer active.");
-            }
-
-            var completed = PrepareFieldHarvest(job, recipe, targetTick);
-            worldSimulation = new WorldContentSimulationState(
-                worldSimulation.Buildings,
-                worldSimulation.ProductionJobs,
-                worldSimulation.NextProductionJobSequence,
-                (worldSimulation.CropBuilds ?? [])
-                    .Select(candidate => candidate.JobId == job.JobId
-                        ? candidate with { State = completed ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled }
-                        : candidate)
-                    .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
-                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
-            AppendEvent(completed ? "build_completed" : "build_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-        }
-    }
-
-    private GridPoint CropSite(WorldProductionJob job) =>
-        WorldBuildSiteRules.TryGetFieldPosition(job.BuildingInstanceId, out var position)
-            ? position
-            : worldSimulation.Buildings.Single(building => building.InstanceId == job.BuildingInstanceId).Position;
 
     private bool CompleteProductionJob(
         WorldProductionJob job,
@@ -530,12 +476,6 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("production_input_unusable", job.JobId);
             return false;
         }
-        var cropSite = recipe.IsCrop && survivalState is not null ? CropSite(job) : default;
-        var cropWeather = recipe.IsCrop && survivalState is not null ? WeatherAt(cropSite) : WeatherKind.Clear;
-        var soilMoisture = recipe.IsCrop && survivalState is not null
-            ? WeatherRules.SoilMoistureAt(worldSystems, cropSite, map.Height,
-                WeatherRules.RegionClimate(map, cropSite))
-            : 35;
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
         var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
@@ -543,7 +483,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var personalInputs = inputs.Where(input => input.OwnerId == productionOwner &&
                     inventoryState.GetLot(input.LotId).StorageBuildingId is null).Sum(input => input.Quantity);
-            var produced = recipe.Outputs.Sum(output => CropOutputQuantity(recipe, output, cropWeather, soilMoisture));
+            var produced = recipe.Outputs.Sum(output => output.Amount);
             if (Math.Max(0, produced - personalInputs) > CarryingRoom(productionOwner))
             {
                 ApplyInventoryTransition(inventory =>
@@ -556,9 +496,6 @@ public sealed partial class PrivateWorldRuntime
                 return false;
             }
         }
-        // A household's harvest goes into its own Silo when it holds one;
-        // ready-to-eat food still goes home to the House.
-        var silo = recipe.IsCrop ? HouseholdBuildingWithTag(productionOwner, "silo")?.InstanceId : null;
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -575,27 +512,16 @@ public sealed partial class PrivateWorldRuntime
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
                     productionOwner,
-                    CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
+                    output.Amount,
                     targetTick,
                     storageBuildingId: productionBuilding?.HouseholdId is not null || recipe.Tags.Contains("boat", StringComparer.Ordinal) ? productionBuilding!.InstanceId
-                        : IsEdibleFood(output.ResourceId) ? null : silo,
+                        : null,
                     containerCapacity: VesselRules.Capacity(output.ResourceId));
             }
 
             return current;
         });
-        if (recipe.IsCrop && survivalState is not null && cropWeather is WeatherKind.Snow or WeatherKind.Storm)
-        {
-            AppendEvent("crop_weather_loss", $"{job.JobId}:{cropWeather.ToString().ToLowerInvariant()}");
-        }
-        if (recipe.IsCrop && survivalState is not null &&
-            recipe.Outputs.Any(output => output.ResourceId == "food") &&
-            cropWeather is not (WeatherKind.Snow or WeatherKind.Storm) &&
-            (soilMoisture < 15 || soilMoisture >= 50))
-        {
-            AppendEvent("crop_moisture_effect", $"{job.JobId}:{(soilMoisture < 15 ? "dry" : "wet")}:{soilMoisture}");
-        }
-        CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting", SkillForRecipe(recipe));
+        CreditCompletedWork(job.WorkerId, "crafting", SkillForRecipe(recipe));
         return true;
     }
 

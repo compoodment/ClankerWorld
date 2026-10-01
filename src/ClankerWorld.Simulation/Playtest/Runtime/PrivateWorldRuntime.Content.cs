@@ -293,7 +293,7 @@ public sealed partial class PrivateWorldRuntime
                     .ToArray(),
                 worldSimulation.ProductionJobs,
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Carts);
             if (marketPlot is { } reservedPlot) RegisterMarket(placed, reservedPlot);
             if (assignedTownId is not null)
                 AssignBuildingToTown(placed, definition);
@@ -345,55 +345,22 @@ public sealed partial class PrivateWorldRuntime
             }
             if (recipe.Outputs.Any(output => output.ResourceId == "bedding"))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Bedding production was retired with sleep.");
+            if (recipe.IsCrop)
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Prepare and work a tilled field for crops; workstation production cannot grow them.");
 
             if (IsLegacyCampCooking(recipe))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Cook named meals at the household House or Restaurant.");
 
-            GridPoint workPosition;
-            var isFertileLandBuild = recipe.IsCrop && recipe.WorkstationBuildingId is null;
-            PlacedBuilding? placed = null;
-            if (isFertileLandBuild)
-            {
-                if (!WorldBuildSiteRules.TryGetFieldPosition(normalizedBuildingId, out workPosition) ||
-                    !WorldContentSimulationRules.IsFieldPosition(map, workPosition) ||
-                    !FarmFields.Any(field => field.Position == workPosition &&
-                        field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested) ||
-                    society.Checkpoint.Inventory.Lots.Any(lot => lot.Quantity > 0 &&
-                        lot.GroundPosition == new InventoryGroundPosition(workPosition.X, workPosition.Y)))
-                {
-                    return ProductionStartResult.Rejected(normalizedRecipeId, "The crop must use farmable, tilled ground.");
-                }
-
-                if ((worldSimulation.CropBuilds ?? []).Any(job =>
-                        job.State == WorldProductionJobState.Running &&
-                        job.BuildingInstanceId == normalizedBuildingId))
-                {
-                    return ProductionStartResult.Rejected(normalizedRecipeId, "The field is already growing a crop.");
-                }
-            }
-            else
-            {
-                placed = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == normalizedBuildingId);
-                if (placed is null)
-                {
-                    return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation building is not placed.");
-                }
-
-                if (recipe.WorkstationBuildingId is not null && recipe.WorkstationBuildingId != placed.DefinitionId)
-                {
-                    return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
-                }
-
-                var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
-                var activeJobs = worldSimulation.ProductionJobs.Count(item =>
-                    item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
-                if (activeJobs >= buildingDefinition.Capacity)
-                {
-                    return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
-                }
-
-                workPosition = BuildingWorkPosition(placed);
-            }
+            var placed = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == normalizedBuildingId);
+            if (placed is null)
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation building is not placed.");
+            if (recipe.WorkstationBuildingId != placed.DefinitionId)
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
+            var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
+            if (worldSimulation.ProductionJobs.Count(item => item.BuildingInstanceId == placed.InstanceId &&
+                    item.State == WorldProductionJobState.Running) >= buildingDefinition.Capacity)
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
+            var workPosition = BuildingWorkPosition(placed);
 
             var worker = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == normalizedWorkerId);
             if (worker is null || worker.Status != SocietyInhabitantStatus.Active)
@@ -405,16 +372,6 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "This worker is too young to start production. Choose an adult worker.");
             }
-
-            if (isFertileLandBuild && (FarmFields.First(field => field.Position == workPosition).HouseholdId != worker.HouseholdId ||
-                FarmHoe(normalizedWorkerId) is null))
-                return ProductionStartResult.Rejected(normalizedRecipeId,
-                    "Only a member of the field household carrying a usable hoe can plant it.");
-            if (isFertileLandBuild && recipe.Inputs.Any(input => society.Checkpoint.Inventory.Lots
-                    .Where(lot => lot.OwnerId == normalizedWorkerId && lot.GroundPosition is null &&
-                        lot.StorageBuildingId is null && lot.ItemKind == input.ResourceId)
-                    .Sum(AvailableLotQuantity) < input.Amount))
-                return ProductionStartResult.Rejected(normalizedRecipeId, "Carry the planting stock to the field first.");
 
             var workstation = placed is null ? null : worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
             if (placed?.HouseholdId is { } workOwner && worker.HouseholdId != workOwner)
@@ -468,11 +425,9 @@ public sealed partial class PrivateWorldRuntime
                     recipe.Inputs,
                     $"{jobId}:input",
                     completionTick,
-                    isFertileLandBuild ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId),
+                    ProductionOwnerFor(placed, normalizedWorkerId),
                     out reservationIds,
                     onSiteHouseholdRecipe || onSitePortRecipe ? placed!.InstanceId : null);
-                if (isFertileLandBuild && recipe.Tags.Contains("farm-crop", StringComparer.Ordinal))
-                    foreach (var id in reservationIds) reserved = InventoryFixture.ConsumeReservation(reserved, id);
                 return reserved;
             });
 
@@ -485,21 +440,12 @@ public sealed partial class PrivateWorldRuntime
                 completionTick,
                 WorldProductionJobState.Running,
                 reservationIds.ToArray());
-            var productionJobs = isFertileLandBuild
-                ? worldSimulation.ProductionJobs
-                : worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray();
-            var cropBuilds = isFertileLandBuild
-                ? (worldSimulation.CropBuilds ?? []).Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray()
-                : worldSimulation.CropBuilds;
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
-                productionJobs,
+                worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
                 checked(worldSimulation.NextProductionJobSequence + 1),
-                cropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
-            if (isFertileLandBuild)
-                SetField(FarmFields.First(field => field.Position == workPosition) with
-                { Stage = FarmFieldStage.Planted, WorkDone = 0, RecipeId = recipe.CanonicalId, JobId = job.JobId, Harvest = null, TendingWork = 0 });
-            AppendEvent(eventKind == "recipe_started" && isFertileLandBuild ? "build_started" : eventKind,
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Carts);
+            AppendEvent(eventKind,
                 $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
             return ProductionStartResult.Success(job);
         }

@@ -10,7 +10,11 @@ public sealed class EquipmentSchemaTests
     [InlineData("spear", 31)]
     [InlineData("clothing", 32)]
     [InlineData("spear", 32)]
-    public void CurrentEquipmentCannotBeStoredUnderTheOlderSkillsOrHousingSchema(string kind, int schema)
+    [InlineData("clothing", 33)]
+    [InlineData("spear", 33)]
+    [InlineData("clothing", 34)]
+    [InlineData("spear", 34)]
+    public void CurrentEquipmentCannotBeStoredUnderOlderSkillsHousingChildOrFieldFormats(string kind, int schema)
     {
         using var initial = new PrivateWorldRuntime("equipment-version");
         var state = initial.ExportState();
@@ -26,6 +30,33 @@ public sealed class EquipmentSchemaTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state));
         using var current = PrivateWorldRuntime.Restore(state with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion });
         current.Validate();
+    }
+
+    [Fact]
+    public void CanonicalGroundStockKeepsTheFieldsFormatWithoutRequiringLaterPhysicalContent()
+    {
+        using var initial = new PrivateWorldRuntime("ground-format");
+        var state = initial.ExportState();
+        var household = state.Society.Society.GetInhabitant(state.Inhabitants[0].InhabitantId).HouseholdId!;
+        var point = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
+            !state.Map.Resources.Any(resource => resource.Position == tile.Position) &&
+            !state.Map.CampObjects.Any(item => item.Position == tile.Position)).Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "canonical-ground-wood", "wood", household, 2,
+            groundPosition: new(point.X, point.Y));
+        state = state with
+        {
+            SchemaVersion = 34,
+            Fields = [],
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        var saved = restored.ExportState();
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
+        Assert.Empty(saved.Fields!);
+        Assert.Equal(inventory.GetLot("canonical-ground-wood"), restored.Society.Inventory.GetLot("canonical-ground-wood"));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 33 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { Fields = null }));
+        restored.Validate();
     }
 
     [Fact]

@@ -140,6 +140,39 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
 
+            var emptyLayer = Convert.ToBase64String(new byte[16]);
+            var fieldMap = smokeMap with
+            {
+                PackedMapLayers = new OwnerWorldPackedMapLayers(4, 4, "map-layers-v2",
+                    emptyLayer, emptyLayer, emptyLayer, emptyLayer, emptyLayer)
+                {
+                    Fertility = Convert.ToBase64String(Enumerable.Repeat((byte)67, 16).ToArray()),
+                },
+                Fields = [new(new(1, 1), "household:field-smoke", "growing", "cultivated_greens", 67, null, null)],
+                GroundStocks = [new(new(1, 1), "household:field-smoke", "cultivated_greens", 3)],
+                Stockpiles = [new("household:field-smoke", "Farm household", [])],
+            };
+            RenderMap(fieldMap);
+            householdPropertyFilter.ButtonPressed = true;
+            selectedTile = new(1, 1);
+            selectedTilePanel.Show();
+            RenderTileInspection(fieldMap);
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!selectedTileText.Text.Contains("Soil fertility: Good", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Field: Growing", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Used by: Farm household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
+                terrainLayer.HouseholdPropertyTileCount != 1 ||
+                !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
+                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+            householdPropertyFilter.ButtonPressed = false;
+            selectedTile = null;
+            selectedTilePanel.Hide();
+            terrainLayer.SetSelectedTile(null);
+            RenderMap(smokeMap);
+
             var generatedMap = smokeMap with
             {
                 WorldId = "zoom-bounds-smoke",
@@ -302,6 +335,149 @@ public partial class Main
         {
             picker.QueueFree();
         }
+    }
+
+    /// <summary>The selected child's settings show its saved choice without exposing local key data.</summary>
+    private void VerifyChildModelStatus()
+    {
+        const string childId = "agent:ui-child";
+        const string slotId = "4a6fa705672f4aa89a50ba458f6ed8b1";
+        var previousReconnect = observationSession.Current;
+        var previousConfiguration = providerConfiguration;
+        string? restorationFailure = null;
+        try
+        {
+            var inhabitant = new OwnerWorldInhabitant(childId, "Mira", "alive", new(0, 0), 0, [], [],
+                new("none", null, null, [], "ui-test"), new(new(0, 0), [], []), false)
+            {
+                Relationships = [new OwnerWorldInhabitantRelationship(
+                    "ui-child-parentage", "founder:parent", "biological_parentage", "accepted", "family", 0, "child")],
+            };
+            var snapshot = new OwnerWorldSnapshot("ui-child-world", 0, "ui-map", [new(0, 0, "meadow")], [], [],
+                null, 0)
+            { Inhabitants = [inhabitant] };
+            var reconnect = new OwnerWorldReconnect(
+                new OwnerWorldHandshake(new(1, 1),
+                    ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+                        "owner-control.request.v1", "paused-authoring.request.v1"], []),
+                new OwnerWorldReconnectBaseline(snapshot, new OwnerWorldEventSlice(0, 0, [])));
+            if (!observationSession.TryAccept(reconnect, 0, out var failure))
+                throw new InvalidOperationException($"A child status smoke observation must be coherent: {failure}");
+
+            var childConfiguration = new OwnerProviderConfigurationStatus("deterministic", "deterministic", 1,
+                [new("deterministic", string.Empty, false), new("openai", "gpt-6-luna", false),
+                    new("ollama-cloud", "glm-5.3-flash:cloud", false)],
+                [new(childId, "routine", "openai", "gpt-6.1-sol", slotId, "initiating_parent"),
+                    new(childId, "planning", "openai", "gpt-6.1-sol", slotId, "initiating_parent")], []);
+            providerConfiguration = childConfiguration;
+            PopulateCognitionTargets();
+            cognitionTargetChoice.Select(1);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Model needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("gpt-6.1-sol", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("no other model used", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("secret", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("A child whose saved key is unavailable must see its selected model and the setup needed to use it, without key data.");
+
+            providerConfiguration = childConfiguration with
+            {
+                CredentialSlots = [new(slotId, "openai", "Child model key 1")],
+            };
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Chosen from the parent who began the family plan", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("gpt-6.1-sol", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child with its saved key available must see the initiating parent's selected model.");
+
+            providerConfiguration = childConfiguration with { Assignments = [] };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child without a birth-time choice must remain explicitly unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model choice must survive as a safe local child route.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "openai", "gpt-6.1-sol", slotId), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · gpt-6.1-sol needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child with a role-specific override must see both saved routes and setup state.");
+
+            snapshot = snapshot with
+            {
+                Inhabitants = [inhabitant with
+                {
+                    DecisionFactors = [new("birth-model-provider", "openai"), new("birth-model-id", "frozen-before-save-model")],
+                }],
+            };
+            reconnect = reconnect with { Baseline = reconnect.Baseline with { Snapshot = snapshot } };
+            observationSession.ResetAfterLoad();
+            if (!observationSession.TryAccept(reconnect, 0, out failure))
+                throw new InvalidOperationException($"A pending birth model observation must be coherent: {failure}");
+            providerConfiguration = childConfiguration with { Assignments = [] };
+            PopulateCognitionTargets();
+            cognitionTargetChoice.Select(1);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Model needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("waiting", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal))
+                throw new InvalidOperationException("A saved birth choice awaiting provider storage must remain visible instead of appearing unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · frozen-before-save-model waiting", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A pending birth route must remain visible alongside an explicit role-specific override.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model override must take precedence over the historical birth choice.");
+        }
+        finally
+        {
+            observationSession.ResetAfterLoad();
+            if (previousReconnect is not null &&
+                !observationSession.TryAccept(previousReconnect, previousReconnect.Baseline.Events.AfterEventId, out restorationFailure))
+            {
+                restorationFailure ??= "The previous observation was rejected.";
+            }
+            providerConfiguration = previousConfiguration;
+            PopulateCognitionTargets();
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+        }
+        if (restorationFailure is not null)
+            throw new InvalidOperationException($"The child status smoke could not restore the previous observation: {restorationFailure}");
     }
 
     /// <summary>Pixel lettering stays crisp only at whole multiples of its pixel size.</summary>
@@ -917,6 +1093,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyModelPicker();
+            VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
@@ -2569,16 +2746,69 @@ public partial class Main
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
-            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
-            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+            var family = new List<OwnerWorldInhabitant> { parent, child, partner };
+            var currentParent = parent;
+            for (var generation = 0; generation < 8; generation++)
+            {
+                var ancestor = parent with
+                {
+                    Id = $"ancestor:{generation}",
+                    DisplayName = $"Ancestor {generation + 1}",
+                    Relationships = [new OwnerWorldInhabitantRelationship($"birth:ancestor:{generation}", currentParent.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent")],
+                };
+                family.Add(ancestor);
+                currentParent = ancestor;
+            }
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = family.ToArray() }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 9 || familyTreeView.PartnerEdgeCount != 1 ||
                 !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
                 !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
-                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
+                family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
-            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var familyWindow = GetWindow();
+            var originalFamilySize = familyWindow.Size;
+            var originalFamilyRenderSize = familyWindow.ContentScaleSize;
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var expectedFactor = size == new Vector2I(1920, 1080) ? 2 : 1;
+                if (GetViewportRect().Size != new Vector2(size.X, size.Y) || uiLayer.Factor != expectedFactor)
+                    throw new InvalidOperationException($"Family tree smoke must exercise the requested viewport and interface size at {size}: viewport={GetViewportRect().Size}, factor={uiLayer.Factor}.");
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y <= 0 || familyTreeView.Size.Y <= 0 ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect))
+                    throw new InvalidOperationException($"Family tree must show its content in a screen-bounded scroll panel at {size}: panel={panelRect}, scroll={scrollRect}, tree={familyTreeView.Size}.");
+                if (size == new Vector2I(1024, 768) &&
+                    familyTreeScroll.GetVScrollBar().MaxValue <= familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A tall family tree must remain scrollable when the panel is capped to the screen.");
+            }
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                familyTreePanel.Hide();
+                ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y < familyTreeView.GetCombinedMinimumSize().Y ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect) ||
+                    !panelRect.Encloses(familyTreeStatus.GetGlobalRect()))
+                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and help text at {size}: panel={panelRect}, scroll={scrollRect}, help={familyTreeStatus.GetGlobalRect()}.");
+                if (familyTreeScroll.GetVScrollBar().MaxValue > familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A fitting short tree must not retain the long tree's vertical scroll range.");
+            }
+            familyWindow.Size = originalFamilySize;
+            familyWindow.ContentScaleSize = originalFamilyRenderSize;
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             ApplyResponsiveLayout();
-            if (!mapCanvas.GetGlobalRect().Encloses(familyTreePanel.GetGlobalRect()))
-                throw new InvalidOperationException("Family tree panel must fit within the world view.");
             familyTreeView.GetChildren().OfType<Button>().Single(button => button.Text.StartsWith(parent.DisplayName, StringComparison.Ordinal))
                 .EmitSignal(BaseButton.SignalName.Pressed);
             if (selectedInhabitantId != parent.Id || familyTreePanel.Visible)

@@ -1,6 +1,3 @@
-using ClankerWorld.Simulation.Cognition;
-using ClankerWorld.Simulation.Content;
-using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
@@ -10,76 +7,53 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ForestryContentTests
 {
     [Fact]
-    public async Task AdditiveForestryWaitsForResumeAndRespectsRollbackAcrossRestart()
+    public async Task RetiredTimberCropIsNotStagedAcrossPauseReloadAndResume()
     {
-        using var seed = new PrivateWorldRuntime("forestry-migration", _ => new IdleProvider());
+        using var seed = new PrivateWorldRuntime("forestry-migration", _ => new ActionCoverageRecorder(chooseIdle: true));
         seed.StageStarterContent();
-        for (var tick = 0; tick < 2; tick++) await seed.AdvanceOneTickAsync();
+        for (var tick = 0; tick < 2; tick++) Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
         seed.Pause();
         var before = PrivateWorldRuntimeCodec.Encode(seed.ExportState());
-        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before), _ => new IdleProvider());
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before), _ => new ActionCoverageRecorder(chooseIdle: true));
         Assert.False((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.DoesNotContain(world.WorldContent.Recipes, recipe => recipe.LocalId == "managed-coppice");
         world.Resume();
-        await world.AdvanceOneTickAsync();
-        Assert.Single(world.WorldContent.Recipes, recipe => recipe.LocalId == "managed-coppice");
-        world.RollbackContent(ForestryContent.PackageId, "test withdrawal");
-        using var restored = PrivateWorldRuntime.Restore(world.ExportState(), _ => new IdleProvider());
-        for (var tick = 0; tick < 3; tick++) await restored.AdvanceOneTickAsync();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        using var restored = PrivateWorldRuntime.Restore(world.ExportState(), _ => new ActionCoverageRecorder(chooseIdle: true));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
         Assert.DoesNotContain(restored.WorldContent.Recipes, recipe => recipe.LocalId == "managed-coppice");
-        Assert.Equal(ContentPackageLifecycle.Quarantined,
-            restored.ExportState().Content!.Packages.Single(package => package.Manifest.PackageId == ForestryContent.PackageId).Lifecycle);
+        Assert.Empty(restored.WorldSimulation.CropBuilds!);
     }
 
     [Fact]
-    public async Task ManagedTimberTakesAFullDayAndDoesNotRefillWildWood()
+    public void PlantedTimberWaitsForItsSavedSaplingClockAndDoesNotRefillOtherWildWood()
     {
-        using var seed = new PrivateWorldRuntime("forestry-growth", _ => new IdleProvider());
-        seed.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-        var state = seed.ExportState();
-        var site = new GridPoint(2, 3);
-        var worker = state.Inhabitants[0];
-        state = state with
-        {
-            Society = state.Society with
-            {
-                Society = state.Society.Society with
-                {
-                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "forestry-seeds", "seed", "household:camp-alpha", 2),
-                },
-            },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId
-                ? person with { Position = site } : person.Position == site ? person with { Position = worker.Position } : person).ToArray(),
-        };
-        state = FarmTestFields.Prepare(state, worker.InhabitantId, site, seed.WorldContent.Recipes.Single(item => item.LocalId == "managed-coppice"));
-        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var recipe = world.WorldContent.Recipes.Single(recipe => recipe.LocalId == "managed-coppice");
-        Assert.Equal(KernelClock.TicksPerDay, recipe.DurationTicks);
-        var wildWood = world.WorldSystems.Ecology.Resources.Single(resource => resource.Kind == "construction").Quantity;
-        var started = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(site), worker.InhabitantId);
-        Assert.True(started.Applied, started.Failure);
-        for (var tick = 1; tick < recipe.DurationTicks; tick++) await world.AdvanceOneTickAsync();
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == started.JobId + ":output:00");
-        using var restored = PrivateWorldRuntime.Restore(world.ExportState(), _ => new IdleProvider());
-        await restored.AdvanceOneTickAsync();
-        await FarmTestFields.Harvest(restored, worker.InhabitantId, site);
-        var wood = restored.Society.Inventory.Lots.Single(lot => lot.ItemKind == "wood" && lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
-        Assert.Equal("wood", wood.ItemKind);
-        Assert.Equal(24 * LandFertilityRules.YieldPercent(state.Map.FertilityAt(site)) / 100, wood.Quantity);
-        Assert.Equal(wildWood, restored.WorldSystems.Ecology.Resources.Single(resource => resource.Kind == "construction").Quantity);
-        Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.CropBuilds!.Single(job => job.JobId == started.JobId).State);
-    }
-
-    private sealed class IdleProvider : IDecisionProvider
-    {
-        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
-        public long ProviderEpoch => 0;
-        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
-            new DeterministicDecisionProvider().DecideAsync(request with
-            {
-                Observation = request.Observation with { Candidates = request.Observation.Candidates.Where(candidate => candidate.Id == "safe_idle").ToArray() },
-            }, cancellationToken);
+        // Timber now uses the same typed tree lifecycle as the visible forest,
+        // rather than a second crop-production job that manufactures wood stock.
+        var planted = new MapResource(TreeGrowthRules.PlantedTreeId(new(2, 3)), "construction", new(2, 3), true, TreeGrowthRules.Broadleaf);
+        var wild = TreeGrowthRules.GeneratedTree(new("unrelated-wild-tree", "construction", new(3, 3), true, TreeGrowthRules.Conifer));
+        var felled = EcologyRules.Harvest(wild, 1);
+        Assert.True(felled.IsValid);
+        wild = felled.Resource!;
+        Assert.Equal(0, wild.Quantity);
+        var sapling = TreeGrowthRules.PlantedSapling(planted, 0);
+        var config = WorldSystemsConfig.Default;
+        var before = WorldCalendarRules.FromTick(config.TicksPerDay * (TreeGrowthRules.SaplingGrowthDays - 1), config);
+        var waitingState = EcologyRules.Advance(new([sapling, wild]), before, config);
+        var waiting = waitingState.GetResource(planted.Id);
+        Assert.True(waiting.IsPlanted);
+        Assert.Equal(0, waiting.Quantity);
+        Assert.Equal(TreeGrowthRules.SaplingGrowthDays, waiting.NextRegenerationDay);
+        var saved = System.Text.Json.JsonSerializer.Deserialize<EcologyState>(System.Text.Json.JsonSerializer.Serialize(waitingState))!;
+        var grown = EcologyRules.Advance(saved,
+            WorldCalendarRules.FromTick(config.TicksPerDay * TreeGrowthRules.SaplingGrowthDays, config), config);
+        var ready = grown.GetResource(planted.Id);
+        Assert.False(ready.IsPlanted);
+        Assert.Equal(1, ready.Quantity);
+        Assert.Equal(EcologyResourceState.Available, ready.State);
+        Assert.Equal(wild, grown.GetResource(wild.Id));
+        Assert.Equal(0, grown.GetResource(wild.Id).Quantity);
+        Assert.NotEqual(wild.Id, ready.Id);
     }
 }

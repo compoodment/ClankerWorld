@@ -6,8 +6,11 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ArchivedContentSchemaTests
 {
-    [Fact]
-    public async Task ActualWornGearKeepsItsEstateAndHistoricalSlotButCannotUseTheOlderHousingFormat()
+    [Theory]
+    [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(34)]
+    public async Task ActualWornGearKeepsItsEstateAndHistoricalSlotButCannotUseOlderFormats(int olderSchema)
     {
         using var seed = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(true));
         var state = seed.ExportState();
@@ -38,11 +41,14 @@ public sealed class ArchivedContentSchemaTests
         Assert.Equal(deceased, Assert.Single(loaded.ExportState().DeceasedInhabitants!, person => person.InhabitantId == actor));
         Assert.Equal(inherited, loaded.Society.Inventory.GetLot(garment.Id));
         loaded.Validate();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 32, TownCouncils = [] }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = olderSchema, TownCouncils = [] }));
     }
 
-    [Fact]
-    public async Task ActualCareConsentRetainedOnlyInADeceasedProfileCannotBypassThePhysicalContentVersion()
+    [Theory]
+    [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(34)]
+    public async Task ActualCareConsentRetainedOnlyInADeceasedProfileCannotBypassThePhysicalContentVersion(int olderSchema)
     {
         using var prepared = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(true));
         var actor = prepared.Inhabitants[0].InhabitantId;
@@ -59,7 +65,7 @@ public sealed class ArchivedContentSchemaTests
         Assert.Equal([caregiver], Assert.Single(loaded.ExportState().DeceasedInhabitants!, person => person.InhabitantId == actor)
             .LastPhysical.MedicalCaregiverIds);
         loaded.Validate();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 32, TownCouncils = [] }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = olderSchema, TownCouncils = [] }));
     }
 
     [Fact]

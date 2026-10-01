@@ -922,10 +922,12 @@ Clinics stock care goods and sell treatment. An optional Store receives goods
 by actual delivery before selling them. Market sellers carry goods into their
 stalls, trade with agents from any Town and carry remaining goods away.
 
-A household reserves a free marked Market stall by physically bringing its
-goods. It keeps that stall while unsold goods or barter receipts remain; the
-last withdrawal releases it. Spoiled or broken stock may be moved onto clear
-adjacent ground without deletion. The Market and its clear plot belong to
+**Agreed on October 1, 2026:** a household seller may use any empty marked
+Market stall by physically bringing its goods; the Town does not assign stalls.
+It keeps that stall while unsold goods or barter receipts remain. Leaving
+requires physically withdrawing or trading its goods and receipts; the last
+withdrawal frees the stall for another seller. Spoiled or broken stock may be
+moved onto clear adjacent ground without deletion. The Market and its clear plot belong to
 the Town; goods in each held stall belong to that household. An adult resident
 may fund construction using real household supplies or physically collected
 Town Warehouse supplies. Customers gain no private stock or cooking access.

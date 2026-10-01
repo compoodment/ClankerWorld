@@ -352,7 +352,8 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand are unchanged.
-4. **Object placement.** The starter berry bush and tree must stand off sand. Every forest-floor tile then gets a tree. Wild sites come
+4. **Object placement.** The starter berry patch, tree and grain seed patch must
+   stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
    picks another tile rather than stand on sand, water or mountain rock, and
    map acceptance refuses one that does. Stone outcrops and clay banks are not
@@ -455,27 +456,13 @@ adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
 kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
 it follows the same rules once its content exists.
-Fields are saved owned tiles, with tilling, prepared, planted, growing, ready
-and harvested stages. An adult of the household holding the Farmhouse must
-stand on free farmable ground with a usable hoe to till it. Field sites use
-`field:x,y`; there is no `fertile_land` resource object. Fertility is derived
-from the saved world seed and terrain/climate/rainfall layers, and affects yield.
-The observation sends a derived fertility layer for inspection, while saves
-record field ownership, work progress and crop jobs instead of storing fertility
-per tile.
-
-Named grain, potato and greens crops consume personally carried planting stock
-when planting begins. Growth runs on the saved clock; tending at the field can
-shorten it. Completed growth makes the crop ready, then actual field work
-creates harvest lots at a `GroundPosition`. Those lots belong to the household
-and remain there until four-unit pickups carry them into its Silo, Farmhouse or
-House. A harvested field cannot be replanted while stock is still on its tile.
-The planner considers population, expected yield, planting reserve, distance
-and fertility, and keeps enough hoe condition for harvest before adding soil.
-
-A workstation project that finds its work site busy waits with the blocker
-"Waiting for a free work site". While anyone waits, another recipe of the same
-workstation design is withheld so the waiting agent gets the next turn.
+Harvests remain household-owned lots on their actual field tile. An adult
+carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
+Finite storage counts deliveries already on their way; pickup and delivery
+both check remaining space and carrying room. Grain prefers the household's
+Silo when it has one and is supplied to its Farmhouse for milling.
+Ready-to-eat greens and fruit go to the household's House. Neither stock nor
+ownership moves remotely.
 
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
 House has a saved `Housing` record on their physical state: a pending request,
@@ -511,16 +498,23 @@ and overcrowding relocation are follow-ups in
 [#598](https://github.com/compoodment/ClankerWorld/issues/598) and
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
+A recipe project that finds its work site busy waits with the blocker "Waiting
+for a free work site". While anyone waits, no one else is offered a new recipe
+for the same workstation design, so the waiting agent gets the next turn
+instead of losing it each time the site frees. Field work uses its own physical
+tile and cannot be started through a zero-input crop recipe.
+
 Recipes do not depend on a role or on personality or aspiration text. An adult
-resident is offered a crop recipe only when their household holds a Farmhouse,
+resident is offered field work only when their household holds a Farmhouse,
 and a workstation recipe only at a building their household holds or at a
 communal one, which has no holding household. A Farmhouse or Blacksmith that no
 household holds is nobody's workstation. First-Town setup gives the Farmhouse
 to the first starting household and the Blacksmith to the second. The offline
 check in `HouseholdBuildingUseCoverageTests` builds generated worlds the normal
 way and runs two world days with the built-in rule-based chooser and no model
-calls, failing if these offers disappear or cross households. The owner's direct production request also requires owned prepared soil, a
-present adult, a usable hoe and personally carried planting stock.
+calls, failing if these offers disappear or cross households. The owner's direct
+production request checks the same workstation ownership and age. Crop
+recipes are refused; crops need tilled land, a hoe and real planting stock.
 
 For workstation recipes, site selection checks the actor’s current walking route as well as
 ownership and unused production capacity. An occupied or inaccessible workstation
@@ -530,7 +524,7 @@ blocked/reconsideration path rather than travelling toward an unreachable tile.
 
 Recipe preparation and production must use the same actor/building owner.
 Direct production requests use the same age restrictions as autonomous choices:
-only adults and elders may start workstation recipes or crops. A request for an
+only adults and elders may start workstation recipes or field work. A request for an
 infant, child or adolescent is refused before reserving inputs or changing jobs.
 Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
@@ -610,6 +604,58 @@ retains its extra fullness and variety through the production job and item
 provenance when portions are carried or reloaded. Food given to a child uses
 the same nourishment as food eaten by an adult. Trial recipe work, portions,
 nutrition and demand targets remain provisional.
+
+## Fertility and household fields
+
+`LandFertility` derives each land tile's fertility from the world seed,
+rainfall, climate, surface and nearby rivers or lakes. It is derived data,
+not a saved object or a resource lot. Grass and meadow commonly support
+farming; dry scrub is poor, and sand, rock, snow, mountains and water cannot
+be farmed. Inspection uses Poor, Fair, Good and Rich rather than a score.
+
+An adult or elder in a household holding a Farmhouse must stand on a free,
+farmable tile with a carried usable hoe to start tilling. Roads, resource
+objects, buildings, reserved expansion tiles and existing fields are
+excluded. Base tilling takes eight work ticks; planting, tending and harvesting
+take four each before applicable tool effects. These times, growth, yields, storage and planning targets are
+provisional. Neighbouring tiles make a field without a fixed shape or size.
+
+Each authoritative field records its household, crop, stage, work, growth
+times and replanting reserve. Planting reserves and consumes one carried
+grain seed, cultivated-green seed or potato. Moving away, death, lost tools
+or urgent needs cancel unfinished work and release its planting input.
+Completed harvests remain intact. Hoe and sickle tiers affect the applicable
+work and spend actual tool condition; a completed final stroke remains complete
+when its tool breaks. Collecting an existing harvest does not require a hoe.
+Fertility and weather affect crop growth or yield. Harvesting creates grain,
+potatoes or cultivated greens on the
+field, and grain and greens also yield two replacement seeds. One usable
+planting item is reserved before surplus can be traded. Picking it up for
+the next planting releases the reserve and physically carries that item.
+
+Planning compares population and available ready-to-eat food with a trial reserve of two
+days at two meals per resident per day, then estimates fields from expected
+yield. It picks free reachable soil by fertility and distance, favouring
+tiles beside the household's existing fields. It can expand during shortages;
+the existing household-building planner can establish another Farmhouse for a
+household that lacks one and has the materials. Raw grain and potatoes are
+cooking inputs and cannot satisfy this ready-food reserve, so they do not stop
+farmers planting fresh greens. Grain is milled into flour
+at the Farmhouse, one grain to one flour, using actual stored grain supplied
+from the Silo or other reachable household stock. Named cooking and tool tiers
+follow their own material and work requirements above.
+
+Wild berries and greens replenish. Orchard fruit appears in autumn after a
+planted orchard matures. Harvesting fruit also produces a distinct orchard
+seed with a reserved planting unit. An adult carries that seed to legal free
+land and plants a sapling; tree growth, fruiting and the reserve survive reload.
+Ordinary wood-tree seeds remain distinct.
+
+The Godot map draws worked soil and crop growth above the terrain, including
+wrapped map edges; the overview marks field tiles. Fields join the household
+property display, and inspection shows the household, stage, crop, worker and
+actual ground stock. This is current household use, not a separate land-title
+system.
 
 ## Roads and bridges
 

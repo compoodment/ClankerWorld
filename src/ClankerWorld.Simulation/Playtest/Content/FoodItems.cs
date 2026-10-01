@@ -8,9 +8,9 @@ public static class FoodItems
         "vegetable_stew" or "restaurant_meal" or "eggs" or "milk";
 
     public static bool IsFarmStock(string kind) => kind is "grain" or "grain_seed" or
-        "greens_seed" or "potatoes" or "cultivated_greens";
+        "cultivated_green_seed" or "potatoes" or "cultivated_greens";
 
-    public static bool IsPlantingStock(string kind) => kind is "grain_seed" or "greens_seed" or
+    public static bool IsPlantingStock(string kind) => kind is "grain_seed" or "cultivated_green_seed" or
         "potatoes" or "tree_seed" or "orchard_seed";
 
     public static bool IsPerishable(string kind) => IsEdible(kind) || kind is "potatoes" or "flour";
@@ -28,7 +28,7 @@ public static class FoodItems
 
     public static int FreshnessLoss(string kind) => kind switch
     {
-        "grain" or "grain_seed" or "greens_seed" or "tree_seed" or "orchard_seed" => 0,
+        "grain" or "grain_seed" or "cultivated_green_seed" or "tree_seed" or "orchard_seed" => 0,
         "flour" => 2,
         "bread" or "potatoes" or "food" => 4,
         "berries" or "fruit" or "wild_greens" or "cultivated_greens" => 8,

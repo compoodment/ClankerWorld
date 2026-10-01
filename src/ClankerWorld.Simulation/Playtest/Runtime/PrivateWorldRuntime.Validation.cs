@@ -32,17 +32,15 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map, boatTransport, livestock);
+            society.Checkpoint.Inhabitants, map, boatTransport, livestock, fields);
         ValidateBusinessTrade(CaptureState());
         ValidateMedicalCare(CaptureState());
         ValidateCarts(CaptureState());
         ValidateTownCouncils(CaptureState());
+        ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
-        if (FarmFields.Any(field => !society.Checkpoint.Households.Any(household => household.Id == field.HouseholdId) ||
-            RoadAndBridgeTiles().Contains(field.Position)))
-            throw new InvalidDataException("A field has a missing household or overlaps a Road.");
         var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
@@ -79,7 +77,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateTowns(towns, map, founderSetup, society.Checkpoint, worldSimulation, worldContent);
         ValidateRoads(RoadTiles, map, founderSetup);
-        ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
+        ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, fields, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
@@ -90,6 +88,7 @@ public sealed partial class PrivateWorldRuntime
 
         foreach (var inhabitant in inhabitants.Values)
         {
+            ValidateSavedChildModelSelection(inhabitant, society.Checkpoint, checkpointSchemaVersion);
             ValidateProficiency(inhabitant, checkpointSchemaVersion);
             ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), checkpointSchemaVersion, WorldTick);
             ValidatePrivateThoughts(inhabitant.RecentThoughts, checkpointSchemaVersion, WorldTick);
@@ -213,25 +212,29 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, BoatTransportState? transport = null, IReadOnlyList<HouseholdAnimal>? animals = null)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, BoatTransportState? transport = null, IReadOnlyList<HouseholdAnimal>? animals = null,
+        IReadOnlyList<FarmFieldState>? farmFields = null)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var lot in inventory.Lots)
         {
+            if (lot.GroundPosition is { } ground && (!map.Contains(new(ground.X, ground.Y)) ||
+                lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
             if (lot.AnimalId is { } animalId && !(animals ?? []).Any(animal => animal.Id == animalId &&
                 lot.GroundPosition == new InventoryGroundPosition(animal.Position.X, animal.Position.Y)))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' references missing or relocated animal cargo.");
-            if (lot.AnimalId is null && lot.GroundPosition is { } ground && !(simulation.Fields ?? []).Any(field =>
-                field.Position == new GridPoint(ground.X, ground.Y) && field.HouseholdId == lot.OwnerId) &&
+            if (lot.AnimalId is null && lot.GroundPosition is { } location && !(farmFields ?? []).Any(field =>
+                field.Position == new GridPoint(location.X, location.Y) && field.HouseholdId == lot.OwnerId) &&
                 !(simulation.Carts ?? []).Any(cart => (cart.LotId == lot.Id || cart.Id == lot.CartId) &&
-                    cart.Position == new GridPoint(ground.X, ground.Y)) && !IsBoatEstateCargo(transport, lot) &&
-                !(map.IsPassable(new(ground.X, ground.Y)) &&
-                  !map.Resources.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
-                  !map.CampObjects.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
+                    cart.Position == new GridPoint(location.X, location.Y)) && !IsBoatEstateCargo(transport, lot) &&
+                !(map.IsPassable(new(location.X, location.Y)) &&
+                  !map.Resources.Any(item => item.Position == new GridPoint(location.X, location.Y)) &&
+                  !map.CampObjects.Any(item => item.Position == new GridPoint(location.X, location.Y)) &&
                   !simulation.Buildings.Any(building => WorldContentSimulationRules.Footprint(
-                      definitions[building.DefinitionId], building).Contains(new GridPoint(ground.X, ground.Y)))))
+                      definitions[building.DefinitionId], building).Contains(new GridPoint(location.X, location.Y)))))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has no legal physical ground location.");
             if (lot.StorageBuildingId is { } storageId)
             {
@@ -270,15 +273,17 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
+        if (state.SchemaVersion < 34 && (state.Fields is { Count: > 0 } ||
+            state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
+            throw new InvalidDataException("Household fields and ground harvest lots require private-world schema 34.");
+        if (state.SchemaVersion >= 34 && state.Fields is null)
+            throw new InvalidDataException("Private-world schema 34 requires authoritative household field state.");
         if (state.SchemaVersion < 20 && state.Society.Society.Beliefs is { Count: > 0 })
             throw new InvalidDataException("Agent belief history requires private-world schema 20.");
         if (state.SchemaVersion < 22 && state.Society.Society.MemoryCompactions is { Count: > 0 })
             throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
         if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
-        if (state.SchemaVersion < 33 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
-            state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
-            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 33.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
@@ -346,6 +351,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException("The saved model attempt is invalid.");
             if (person.IdentityChoicePending && state.SchemaVersion < 28)
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
+            ValidateSavedChildModelSelection(person, state.Society.Society, state.SchemaVersion);
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);
@@ -392,7 +398,10 @@ public sealed partial class PrivateWorldRuntime
                 state.Society.Society.WorldTick);
             ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society, state.Map, state.SchemaVersion);
             ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-                state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.BoatTransport, state.Livestock);
+                state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.BoatTransport, state.Livestock, state.Fields);
+            ValidateFarmFields((state.Fields ?? []).ToArray(), state.Map, state.WorldSeed, state.Society.Society,
+                state.WorldSimulation, state.WorldContent, (state.RoadTiles ?? []).Concat(
+                    (state.Bridges ?? []).SelectMany(bridge => bridge.Entrances)).ToArray());
             if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
                 !state.Society.Society.Households.Any(household => household.Id == householdId)))
                 throw new InvalidDataException("A House references a missing household.");
@@ -400,7 +409,7 @@ public sealed partial class PrivateWorldRuntime
                 state.Society.Society, state.WorldSimulation, state.WorldContent);
             ValidateRoads(state.RoadTiles ?? [], state.Map, state.FounderSetup);
             ValidateBridges(state.Bridges ?? [], state.BridgeTraffic ?? BridgeTrafficState.Empty, travelMap,
-                state.RoadTiles ?? [], state.WorldSimulation, state.WorldContent, state.Society.Society,
+                state.RoadTiles ?? [], state.Fields ?? [], state.WorldSimulation, state.WorldContent, state.Society.Society,
                 state.Inhabitants);
         }
 
@@ -441,6 +450,15 @@ public sealed partial class PrivateWorldRuntime
         return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 
+    private static void ValidateSavedChildModelSelection(
+        PlaytestInhabitantState person, SocietyCheckpoint society, int schemaVersion)
+    {
+        if (person.ChildModelSelection is not { } selection) return;
+        if (schemaVersion < 33 || !society.Births.Any(item => item.ChildId == person.InhabitantId))
+            throw new InvalidDataException("A saved child model choice requires schema 33 and a recorded birth.");
+        ValidateChildModelSelection(selection);
+    }
+
     private static void ValidateDeceasedArchive(
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
@@ -468,15 +486,16 @@ public sealed partial class PrivateWorldRuntime
             // actual stock passes into an estate. Check the format here, without
             // reapplying a living actor's current lot ownership or permissions.
             var physical = person.LastPhysical;
-            if (schemaVersion < 33 && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
+            if (schemaVersion < 35 && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
                 physical.MedicalTreatment is not null || physical.MedicalCaregiverIds is not null ||
                 physical.Equipment is { } equipment && (equipment.WornClothingLotId is not null ||
                     equipment.CarryAidLotId is not null || equipment.WeaponLotId is not null || equipment.ShieldLotId is not null ||
                     equipment.ArmorLotId is not null || equipment.OrnamentLotId is not null)))
-                throw new InvalidDataException("Archived physical content requires private-world schema 33.");
+                throw new InvalidDataException("Archived physical content requires private-world schema 35.");
             if (schemaVersion < HousingSchemaVersion && physical.Housing is not null)
                 throw new InvalidDataException($"Archived housing state requires private-world schema {HousingSchemaVersion}.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);

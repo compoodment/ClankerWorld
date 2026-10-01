@@ -19,7 +19,7 @@ public sealed class TreeGrowthAndPlantingTests
         var actor = initial.Inhabitants[0].InhabitantId;
         var offered = new List<IReadOnlyList<string>>();
 
-        // Households start with grain seed only; that is not a tree seed.
+        // Crop planting stock is distinct from a wood-tree seed.
         Assert.DoesNotContain(initial.Society.Society.Inventory.Lots, lot => lot.ItemKind == TreeGrowthRules.TreeSeedItem);
         using (var withoutSeed = PrivateWorldRuntime.Restore(Fed(initial, actor),
                    id => id == actor ? new ChooseProvider("plant_tree", offered) : new IdleProvider()))
@@ -94,6 +94,9 @@ public sealed class TreeGrowthAndPlantingTests
     {
         var (state, actor, site) = PlantingWorld("tree-planting-growth");
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var wildWood = world.WorldSystems.Ecology.Resources.Where(tree => tree.Kind == "construction")
+            .OrderBy(tree => tree.Id, StringComparer.Ordinal)
+            .Select(tree => (tree.Id, tree.Quantity)).ToArray();
         var result = world.PlantTree(actor, TreeGrowthRules.Conifer, SeedLotId, site);
         Assert.True(result.Planted, result.Message);
         var treeId = result.TreeId!;
@@ -127,6 +130,9 @@ public sealed class TreeGrowthAndPlantingTests
             Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(1, reloaded.WorldSystems.Ecology.GetResource(treeId).Quantity);
         Assert.Equal(0, SeedCount(reloaded.ExportState(), actor));
+        Assert.Equal(wildWood, reloaded.WorldSystems.Ecology.Resources.Where(tree => tree.Kind == "construction" && tree.Id != treeId)
+            .OrderBy(tree => tree.Id, StringComparer.Ordinal)
+            .Select(tree => (tree.Id, tree.Quantity)).ToArray());
     }
 
     [Fact]
@@ -134,7 +140,7 @@ public sealed class TreeGrowthAndPlantingTests
     {
         var (state, actor, site) = PlantingWorld("tree-planting-refusals");
         var other = state.Inhabitants[1].InhabitantId;
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "grain-seed", "seed", actor, 1);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "grain-seed", "grain_seed", actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "other-tree-seed", TreeGrowthRules.TreeSeedItem, other, 1);
         state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
@@ -235,6 +241,80 @@ public sealed class TreeGrowthAndPlantingTests
 
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
         Assert.Equal(TreeGrowthRules.Broadleaf, restored.ExportState().Map.GetResource(treeId).TreeKind);
+    }
+
+    [Fact]
+    public async Task PlantedOrchardMaturesWithoutSpringFruitAndPropagatesFromItsReservedSeedAfterReload()
+    {
+        var (initial, actor, site) = PlantingWorld("orchard-propagation");
+        var inventory = InventoryFixture.AddLot(initial.Society.Society.Inventory, "orchard-start", "orchard_seed", actor, 1);
+        using var planting = PrivateWorldRuntime.Restore(FarmFieldTests.WithInventory(initial, inventory), _ => new IdleProvider());
+        var result = planting.PlantTree(actor, TreeGrowthRules.Orchard, "orchard-start", site);
+        Assert.True(result.Planted, result.Message);
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(planting.ExportState()));
+        var today = WorldCalendarRules.FromTick(planting.WorldTick, planting.WorldSystems.Config).DayIndex;
+        saved = saved with
+        {
+            WorldSystems = saved.WorldSystems! with
+            {
+                Ecology = saved.WorldSystems.Ecology with
+                {
+                    Resources = saved.WorldSystems.Ecology.Resources.Select(tree => tree.Id == result.TreeId
+                        ? tree with { NextRegenerationDay = today } : tree).ToArray(),
+                },
+            },
+        };
+        using var growing = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
+        Assert.True((await growing.AdvanceOneTickAsync()).Advanced);
+        var mature = growing.WorldSystems.Ecology.GetResource(result.TreeId!);
+        Assert.False(mature.IsPlanted);
+        Assert.Equal(0, mature.Quantity);
+        Assert.Equal("growing", TreeGrowthRules.StageOf("orchard", mature, SeasonKind.Spring));
+        var config = growing.WorldSystems.Config;
+        var autumn = WorldCalendarRules.FromTick((long)(config.SpringDays + config.SummerDays) * config.TicksPerDay, config);
+        var fruiting = EcologyRules.Regenerate(mature, autumn, config);
+        Assert.Equal(1, fruiting.Quantity);
+        Assert.Equal("fruiting", TreeGrowthRules.StageOf("orchard", fruiting, SeasonKind.Autumn));
+
+        // The seasonal calendar is checked above. Bring this tree into the
+        // current season to exercise actual harvesting without a year-long run.
+        saved = growing.ExportState();
+        saved = saved with
+        {
+            Inhabitants = saved.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = site, HungerBasisPoints = 6_000 } : person).ToArray(),
+            WorldSystems = saved.WorldSystems! with
+            {
+                Ecology = saved.WorldSystems.Ecology with
+                {
+                    Resources = saved.WorldSystems.Ecology.Resources.Select(tree => tree.Id == result.TreeId
+                        ? InFruitingSeason(tree, saved) : tree).ToArray(),
+                },
+            },
+        };
+        using var harvesting = PrivateWorldRuntime.Restore(saved, id => id == actor
+            ? new ChooseProvider("harvest_food", []) : new IdleProvider());
+        for (var tick = 0; tick < 10 && !harvesting.ExportState().Events.Any(item => item.Kind == "fruit_harvested" && item.Detail.Contains(result.TreeId!, StringComparison.Ordinal)); tick++)
+            Assert.True((await harvesting.AdvanceOneTickAsync()).Advanced);
+        var harvest = harvesting.ExportState();
+        Assert.Contains(harvest.Events, item => item.Kind == "fruit_harvested" && item.Detail.Contains(result.TreeId!, StringComparison.Ordinal));
+        var seed = Assert.Single(harvest.Society.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "orchard_seed" && lot.Quantity > 0);
+        Assert.Equal(1, seed.Quantity);
+        var replanting = Assert.Single(harvest.Society.Society.Inventory.Reservations, reservation => reservation.LotId == seed.Id &&
+            reservation.State == InventoryReservationState.Reserved);
+        Assert.Equal(actor, replanting.OwnerId);
+        Assert.Equal(1, replanting.Quantity);
+        Assert.Equal("orchard_replanting", replanting.Purpose);
+        Assert.Equal(long.MaxValue, replanting.ExpiryTick);
+        Assert.Equal(4, harvest.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "fruit").Sum(lot => lot.Quantity));
+        using var propagating = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(harvest)),
+            id => id == actor ? new ChooseProvider("plant_orchard", []) : new IdleProvider());
+        for (var tick = 0; tick < 40 && propagating.Society.Inventory.Lots.Any(lot => lot.Id == seed.Id && lot.Quantity > 0); tick++)
+            Assert.True((await propagating.AdvanceOneTickAsync()).Advanced);
+        Assert.DoesNotContain(propagating.Society.Inventory.Lots, lot => lot.Id == seed.Id && lot.Quantity > 0);
+        Assert.DoesNotContain(propagating.Society.Inventory.Reservations, item => item.LotId == seed.Id &&
+            item.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed);
+        Assert.Equal(2, propagating.ExportState().Map.Resources.Count(tree => tree.TreeKind == "orchard" && tree.Id.StartsWith("planted-tree-", StringComparison.Ordinal)));
+        propagating.Validate();
     }
 
     [Fact]

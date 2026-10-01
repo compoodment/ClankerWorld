@@ -19,6 +19,7 @@ public static class BuildingStorageRules
 {
     // Trial stock units per tile. These are storage sizes, never occupant or work-slot limits.
     public const int UnitsPerTile = 64;
+    public const int FarmUnitsPerTile = 96;
     public const int NearlyFullPercent = 80;
 
     public static BuildingDefinition EffectiveDefinition(BuildingDefinition definition, PlacedBuilding building) =>
@@ -32,7 +33,8 @@ public static class BuildingStorageRules
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
         definition.Tags.Any(tag => tag is "house" or "warehouse" or "farmhouse" or "silo" or
             "blacksmith" or "tailor" or "store" or "restaurant" or "clinic" or BusinessContent.StallKind or "port")
-            ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
+            ? (definition.Tags.Any(tag => tag is "farmhouse" or "silo") ? FarmUnitsPerTile : UnitsPerTile) *
+                (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
     public static IReadOnlyList<ContentQuantity> ExpansionCosts(BuildingDefinition definition,
@@ -165,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
         BuildingFootprintRevision footprint, out string failure, string? ownJobId = null)
     {
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        failure = "The expansion overlaps terrain, a resource, a Road, another building, or another expansion.";
+        failure = "The expansion overlaps terrain, a resource, a Road, a field, another building, or another expansion.";
         var target = BuildingStorageRules.WithSize(definition, footprint.Width, footprint.Height);
         if (!BuildingStorageRules.IsSupported(definition, footprint) ||
             !WorldContentSimulationRules.Fits(map, worldSimulation.Buildings
@@ -176,7 +178,7 @@ public sealed partial class PrivateWorldRuntime
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
         if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
-            MarketReservedTiles().Any(tiles.Contains) || LooseStockTiles().Any(tiles.Contains) || FarmFields.Any(field => tiles.Contains(field.Position)) ||
+            MarketReservedTiles().Any(tiles.Contains) || LooseStockTiles().Any(tiles.Contains) || fields.Any(field => tiles.Contains(field.Position)) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);
@@ -195,7 +197,7 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>
+    private static IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>
         Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
             Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
                 new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)));

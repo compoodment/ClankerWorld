@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 33;
+    public const int StateSchemaVersion = 35;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
@@ -40,6 +40,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly int maxCognitionDispatchPerCycle;
     private SeededMap map;
+    private LandFertility fertility;
+    private List<FarmFieldState> fields = [];
     private SocietyWorldRuntime society;
     private ContentPackageRegistry contentRegistry;
     private WorldSystemsState worldSystems;
@@ -127,6 +129,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 ? BaseCampMapGenerator.Generate(this.worldSeed, includeLegacyBedroll)
                 : GeneratedCampMapGenerator.Generate(geographyOptions, includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
+        fertility = new LandFertility(map, this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
@@ -257,6 +260,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.worldSimulation = state.WorldSimulation is null
             ? WorldContentSimulationState.Empty
             : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
+        runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
+        runtime.fields = (state.Fields ?? []).OrderBy(field => field.Position.Y)
+            .ThenBy(field => field.Position.X).ToList();
         runtime.towns = (state.Towns ?? MigrateTowns(state)).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.roadTiles = (state.RoadTiles ?? []).ToHashSet();
         runtime.bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -399,7 +405,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, businessTrade,
-        boatTransport.Boats.Count == 0 && boatTransport.GuestPermissions.Count == 0 ? null : boatTransport, TownCouncils, livestock.Count == 0 ? null : livestock.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray());
+        boatTransport.Boats.Count == 0 && boatTransport.GuestPermissions.Count == 0 ? null : boatTransport, TownCouncils, livestock.Count == 0 ? null : livestock.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), fields.ToArray());
 
     private void AppendEvent(string kind, string detail)
     {

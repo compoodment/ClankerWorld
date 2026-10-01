@@ -15,9 +15,9 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? UnlocatedHouseholdStock(string householdId) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId is null && lot.ContainerLotId is null && lot.GroundPosition is null &&
+            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId is null && lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null &&
                 AvailableLotQuantity(lot) > 0 &&
-                (lot.ItemKind != "grain" || FarmhouseForHousehold(householdId) is null))
+                (!FarmFieldRules.IsFarmStock(lot.ItemKind) || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => FoodItems.IsEdible(lot.ItemKind) ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -36,10 +36,10 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0)
             return;
-        var camp = SettlementStoragePosition;
-        if (UnlocatedHouseholdStock(householdId) is not null &&
-            FindUnoccupiedRoute(actor, state.Position, camp, ResourceInteractionRange).Count > 0 &&
-            FindUnoccupiedRoute(actor, camp, house.Position, 0).Count > 0)
+        if (UnlocatedHouseholdStock(householdId) is { } stock &&
+            (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
+             FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
+            FindUnoccupiedRoute(actor, HouseholdStockPosition(stock), house.Position, 0).Count > 0)
             candidates.Add(new("haul_household_stock",
                 "Carry a load of household supplies to the household's House.", 28, house.InstanceId));
         if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
@@ -102,10 +102,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         if (UnlocatedHouseholdStock(householdId) is not { } stock)
             return;
-        var camp = SettlementStoragePosition;
-        if (!IsWithinInteractionRange(state.Position, camp, ResourceInteractionRange))
+        var source = HouseholdStockPosition(stock);
+        var range = HouseholdStockInteractionRange(stock);
+        if (!IsWithinInteractionRange(state.Position, source, range))
         {
-            MoveToward(actor, state, camp, "household_stock", ResourceInteractionRange);
+            MoveToward(actor, state, source, "household_stock", range);
             return;
         }
         var inbound = society.Checkpoint.Inventory.Lots.Where(lot => lot.DeliveryBuildingId == houseForPickup.InstanceId).Sum(lot => lot.Quantity);

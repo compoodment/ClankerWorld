@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
@@ -36,8 +37,7 @@ public sealed partial class SettlementParenthoodTests
                     Assert.True(child.Status == SocietyInhabitantStatus.Active,
                         $"Child died at tick {world.WorldTick}, age {world.Society.AgeAt(child, world.WorldTick)}, cause {child.DeathCause}.");
                     var physical = world.Inhabitants.Single(person => person.InhabitantId == childId);
-                    if (child.AgeBand == SocietyAgeBand.Adult && physical.Skills?.Count > 0 &&
-                        physical.Project is { Stage: "completed" })
+                    if (child.AgeBand == SocietyAgeBand.Adult && physical.Skills?.Count > 0)
                         break;
                 }
                 if (tick % 256 == 0) file.Save(world);
@@ -68,11 +68,55 @@ public sealed partial class SettlementParenthoodTests
                     person.Project,
                     Choices = observations.GetValueOrDefault(person.InhabitantId),
                 })));
+            // The finite tiny map can have no work left when the child grows
+            // up. Give this adult a real paid-input workstation task rather
+            // than relying on the retired zero-input crop job.
+            world.Pause();
+            var adultState = world.ExportState();
+            var household = grown.HouseholdId!;
+            var inventory = InventoryFixture.AddLot(adultState.Society.Society.Inventory,
+                "adult-work-wood", "wood", household, 13);
+            adultState = FarmFieldTests.WithInventory(adultState, inventory);
+            world.Dispose();
+            var tools = adultState.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "tools");
+            var workFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"),
+                _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
+            world = PrivateWorldRuntime.Restore(adultState, _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
+            var workshop = world.WorldContent.Buildings.Single(building => building.LocalId == "workshop");
+            if (!world.WorldSimulation.Buildings.Any(building => building.DefinitionId == workshop.CanonicalId))
+            {
+                Assert.Contains(adultState.Map.Tiles.Where(tile => adultState.Map.IsBuildable(tile.Position)),
+                    tile => world.PlaceBuilding("adult-workshop", workshop.CanonicalId, tile.Position).Applied);
+            }
+            var savedWhileWorking = false;
+            world.Resume();
+            for (var tick = 0; tick < 300 && world.Inhabitants.Single(person => person.InhabitantId == childId).Project?.Stage != "completed"; tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                if (!savedWhileWorking && world.WorldSimulation.ProductionJobs.Any(job => job.WorkerId == childId &&
+                        job.RecipeId == tools.CanonicalId && job.State == WorldProductionJobState.Running))
+                {
+                    world.Pause();
+                    workFile.Save(world);
+                    world.Dispose();
+                    world = workFile.LoadOrCreate(adultState.WorldSeed);
+                    world.Resume();
+                    savedWhileWorking = true;
+                }
+            }
             Assert.True(world.Inhabitants.Single(person => person.InhabitantId == childId).Project is { Stage: "completed" },
                 $"Role={grown.CurrentRole}; Choices={observations.GetValueOrDefault(childId)}; " +
                 "Physical=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Single(person => person.InhabitantId == childId)) + "; " +
                 "Stock=" + string.Join(',', world.Society.Inventory.Lots.GroupBy(lot => lot.ItemKind).Select(group => group.Key + "=" + group.Sum(lot => lot.Quantity))) +
                 "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)));
+            Assert.True(savedWhileWorking);
+            var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.WorkerId == childId &&
+                job.RecipeId == tools.CanonicalId && job.State == WorldProductionJobState.Completed);
+            var consumed = world.Society.Inventory.Reservations.Where(reservation => completed.InputReservationIds.Contains(reservation.Id)).ToArray();
+            Assert.All(consumed, reservation => Assert.Equal(InventoryReservationState.Completed, reservation.State));
+            Assert.Equal(3, consumed.Sum(reservation => reservation.Quantity));
+            Assert.Contains(world.Society.Inventory.Lots, lot => lot.Id.StartsWith(completed.JobId + ":output:", StringComparison.Ordinal) &&
+                lot.ItemKind == "tool" && lot.Quantity == 1);
             Assert.True(careSeen);
             Assert.Equal(2, restarts);
             Assert.NotNull(world.ExportState().HistoryArchiveHead);
@@ -102,6 +146,27 @@ public sealed partial class SettlementParenthoodTests
                 },
             },
         };
+    }
+
+    private sealed class AdultWorkProvider(string actor, string recipe,
+        System.Collections.Concurrent.ConcurrentDictionary<string, string> observations) : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            observations[observation.InhabitantId] = string.Join(',', observation.Candidates.Select(item => item.Id));
+            var routine = observation.Candidates.Where(item => item.Id is "consume_food" or "collect_shared_food" or
+                "seek_food" or "harvest_food" or "safe_idle");
+            var candidates = observation.InhabitantId == actor && observation.HungerBasisPoints >= 3_500 &&
+                observation.Candidates.FirstOrDefault(item => item.Id == "build:recipe:" + recipe) is { } work
+                ? new[] { work } : routine.ToArray();
+            return new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = observation with { Candidates = candidates },
+            }, cancellationToken);
+        }
     }
 
     private sealed class GenerationProvider(System.Collections.Concurrent.ConcurrentDictionary<string, string> observations) : IDecisionProvider

@@ -35,6 +35,8 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
+            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical))
+                continue;
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
@@ -211,6 +213,7 @@ public sealed partial class PrivateWorldRuntime
                 ContinueLesson(inhabitant.Id);
                 continue;
             }
+            if (ContinueFarmWork(inhabitant.Id)) continue;
             if (CanContinueProject(state))
             {
                 ContinueProject(inhabitant.Id, state);
@@ -313,6 +316,12 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
         }
+        if (ContinueFarmWork(inhabitantId)) return;
+        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
+        {
+            ApplyFieldCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("cart_", StringComparison.Ordinal))
         {
             ApplyCartCandidate(inhabitantId, state, candidateId);
@@ -411,11 +420,6 @@ public sealed partial class PrivateWorldRuntime
             StoreTownResources(inhabitantId, state);
             return;
         }
-        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
-        {
-            ApplyFieldCandidate(inhabitantId, state, candidateId);
-            return;
-        }
         if (candidateId == "haul_farm_grain")
         {
             HaulFarmGrain(inhabitantId, state);
@@ -441,10 +445,10 @@ public sealed partial class PrivateWorldRuntime
             DeliverBlacksmithOre(inhabitantId, state);
             return;
         }
-        if (candidateId == "collect_wooden_axe" || candidateId == "collect_wooden_pickaxe")
+        if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
             CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : "wooden_pickaxe");
+                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
             return;
         }
         if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
@@ -562,14 +566,9 @@ public sealed partial class PrivateWorldRuntime
             ReplantTree(inhabitantId, state);
             return;
         }
-        if (candidateId == "plant_orchard")
+        if (candidateId is "plant_tree" or "plant_orchard")
         {
-            PlantTreeNearby(inhabitantId, state, orchard: true);
-            return;
-        }
-        if (candidateId == "plant_tree")
-        {
-            PlantTreeNearby(inhabitantId, state);
+            PlantTreeNearby(inhabitantId, state, candidateId == "plant_orchard");
             return;
         }
 
@@ -724,8 +723,7 @@ public sealed partial class PrivateWorldRuntime
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
-        var hasFood = society.Checkpoint.Inventory.Lots.Any(item =>
-            item.OwnerId == inhabitantId && IsEdibleFood(item.ItemKind) && AvailableLotQuantity(item) > 0);
+        var hasFood = PreferredFood(inhabitantId, inhabitantId).Any();
         if (hasFood && state.HungerBasisPoints < ComfortableFullness)
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
@@ -809,10 +807,10 @@ public sealed partial class PrivateWorldRuntime
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
-            AddFieldCandidates(candidates, inhabitantId, state);
             AddLivestockCandidates(candidates, inhabitantId);
             AddFarmGrainCandidate(candidates, inhabitantId, state);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
+            AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
@@ -845,20 +843,15 @@ public sealed partial class PrivateWorldRuntime
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the
         // household holds or a communal one (see TryFindRecipeSite).
-        var canGrow = inhabitant.HouseholdId is { } farmingHousehold &&
-            HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Tags.Contains("boat", StringComparer.Ordinal) &&
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     !IsLegacyCampCooking(item) &&
-                     (!item.IsCrop || canGrow && founderSetup is null &&
-                         !item.Tags.Contains("farm-crop", StringComparer.Ordinal))))
+                     !IsLegacyCampCooking(item) && !item.IsCrop))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)))
             {
                 continue;
             }
-            if (recipe.IsCrop && FarmHoe(inhabitant.Id) is null) continue;
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
@@ -876,7 +869,7 @@ public sealed partial class PrivateWorldRuntime
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
                 recipeOwner is not null && UnlocksHouseholdMining(recipe, recipeOwner) ? 18 :
-                    recipe.IsCrop ? 20 : recipe.Tags.Contains("fruit-enriched", StringComparer.Ordinal) ? 27 :
+                    recipe.Tags.Contains("fruit-enriched", StringComparer.Ordinal) ? 27 :
                     HouseCookingContent.IsMealRecipe(recipe) ? 28 :
                     WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));

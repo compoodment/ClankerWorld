@@ -33,9 +33,22 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] EquipmentState? Equipment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatment? MedicalTreatment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? MedicalCaregiverIds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChildPersonalModelSelection? ChildModelSelection = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSkill>? Skills = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null);
+
+/// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
+public sealed record ChildPersonalModelSelection(
+    string Role,
+    string? Provider,
+    string? EndpointIdentity,
+    string? ModelId,
+    string? CredentialSlotId,
+    string ChoiceReason);
+
+/// <summary>A birth-bound child model choice prepared by the playable host.</summary>
+public sealed record PreparedChildModelSelection(string ChildId, ChildPersonalModelSelection Selection);
 
 public sealed record PlaytestModelAttempt(
     string Status,
@@ -96,7 +109,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BusinessTradeState? BusinessTrade = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BoatTransportState? BoatTransport = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TownCouncilState>? TownCouncils = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdAnimal>? Livestock = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdAnimal>? Livestock = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<FarmFieldState>? Fields = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

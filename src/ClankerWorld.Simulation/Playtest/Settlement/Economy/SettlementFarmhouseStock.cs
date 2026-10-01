@@ -8,11 +8,38 @@ public sealed partial class PrivateWorldRuntime
     private PlacedBuilding? FarmhouseForHousehold(string householdId) =>
         HouseholdBuildingWithTag(householdId, "farmhouse");
 
+    private bool IsFarmStorage(PlacedBuilding building) => worldContent.Buildings.Single(definition =>
+        definition.CanonicalId == building.DefinitionId).Tags.Any(tag => tag is "farmhouse" or "silo");
+
+    private int FarmStorageFree(string buildingId, bool includeDeliveries = true) =>
+        includeDeliveries ? FarmhouseGrainDeliveryRoom(buildingId) : StorageRoom(buildingId);
+
+    private PlacedBuilding? FarmStorageFor(string householdId, string kind)
+    {
+        var farmhouse = FarmhouseForHousehold(householdId);
+        var silo = HouseholdBuildingWithTag(householdId, "silo");
+        var choices = kind == FarmFieldRules.Grain ? new[] { farmhouse, silo } : new[] { silo, farmhouse };
+        return choices.FirstOrDefault(building => building is not null && FarmStorageFree(building.InstanceId) > 0);
+    }
+
+    private bool IsOwnedFieldHarvest(InventoryLot lot, string householdId) => lot.GroundPosition is { } ground &&
+        fields.Any(field => field.HouseholdId == householdId && field.Position.X == ground.X && field.Position.Y == ground.Y);
+
+    private PlacedBuilding? FarmDeliveryStorage(string householdId, InventoryLot lot) =>
+        lot.ItemKind == FarmFieldRules.Grain && lot.StorageBuildingId is not null
+            ? FarmhouseForHousehold(householdId) is { } farmhouse && FarmStorageFree(farmhouse.InstanceId) > 0 ? farmhouse : null
+            : FarmStorageFor(householdId, lot.ItemKind);
+
     private InventoryLot? FarmGrainForDelivery(string householdId, string farmhouseId) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == householdId && lot.ItemKind == "grain" &&
-                lot.StorageBuildingId != farmhouseId && AvailableLotQuantity(lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            .Where(lot => lot.OwnerId == householdId && FarmFieldRules.IsFarmStock(lot.ItemKind) &&
+                lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null && lot.DeliveryBuildingId is null &&
+                (lot.ItemKind == "grain" ? lot.StorageBuildingId != farmhouseId : lot.StorageBuildingId is null) &&
+                !(lot.ItemKind == "grain" && IsOwnedFieldHarvest(lot, householdId) && HouseholdBuildingWithTag(householdId, "silo") is not null) &&
+                AvailableLotQuantity(lot) > 0 && FarmDeliveryStorage(householdId, lot) is { } destination &&
+                destination.InstanceId != lot.StorageBuildingId)
+            .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
+            .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private int FarmhouseGrainDeliveryRoom(string farmhouseId) => Math.Max(0,
         StorageRoom(farmhouseId) - society.Checkpoint.Inventory.Lots
@@ -23,9 +50,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarryingRoom(actor) == 0 || CarriedHouseDelivery(actor) is not null ||
-            FarmhouseForHousehold(householdId) is not { } farmhouse ||
-            FarmhouseGrainDeliveryRoom(farmhouse.InstanceId) == 0 ||
-            FarmGrainForDelivery(householdId, farmhouse.InstanceId) is not { } grain)
+            FarmhouseForHousehold(householdId) is not { } mill ||
+            FarmGrainForDelivery(householdId, mill.InstanceId) is not { } grain ||
+            FarmDeliveryStorage(householdId, grain) is not { } farmhouse)
             return;
         var source = HouseholdStockPosition(grain);
         var range = HouseholdStockInteractionRange(grain);
@@ -34,15 +61,16 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedRoute(actor, source, farmhouse.Position, 0).Count == 0)
             return;
         candidates.Add(new CognitionCandidate("haul_farm_grain",
-            "Carry household grain to its Farmhouse for on-site processing.", 24, farmhouse.InstanceId));
+            "Carry household crops and seeds from their actual location to farm storage.", 24, farmhouse.InstanceId));
     }
 
     private void HaulFarmGrain(string actor, PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (!AdultResident(actor) || householdId is null ||
-            FarmhouseForHousehold(householdId) is not { } farmhouse ||
-            FarmGrainForDelivery(householdId, farmhouse.InstanceId) is not { } grain)
+        if (!AdultResident(actor) || householdId is null || CarryingRoom(actor) == 0 || CarriedHouseDelivery(actor) is not null ||
+            FarmhouseForHousehold(householdId) is not { } mill ||
+            FarmGrainForDelivery(householdId, mill.InstanceId) is not { } grain ||
+            FarmDeliveryStorage(householdId, grain) is not { } farmhouse)
             return;
         var source = HouseholdStockPosition(grain);
         var range = HouseholdStockInteractionRange(grain);

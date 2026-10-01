@@ -320,9 +320,11 @@ Boats belong to a **Town**, not a household. Town residents may use its communal
 boats; visitors need permission. Reserve each physical boat for only one
 journey at a time, and persist the boat, traveler and carried goods together
 across save/load. A blocked destination cannot teleport or duplicate any of
-them. If the destination stays blocked for one game day, the boat returns to
-its origin when that water route is reachable. If neither landing is reachable,
-the traveler and cargo keep waiting aboard. Revoking visitor permission affects
+them. **Agreed on October 1, 2026:** a blocked arrival returns to the
+departure Port when it is usable; otherwise the traveler and goods wait safely
+aboard. The first implementation waits one game day before attempting that
+return, and requires an actual water route and free landing. If neither landing
+is reachable, the traveler and cargo keep waiting aboard. Revoking visitor permission affects
 their next departure; it does not strand an underway traveler. Boats do not take
 carts or mounted horses aboard.
 

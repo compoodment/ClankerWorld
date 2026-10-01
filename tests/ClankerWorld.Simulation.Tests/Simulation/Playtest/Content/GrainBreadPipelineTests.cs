@@ -19,14 +19,13 @@ public sealed class GrainBreadPipelineTests
         var occupied = generated.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
             generated.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
         var point = generated.Towns.Single().BorderTiles.OrderBy(tile => state.Map.FootDistance(tile, farmhouse.Position))
-            .First(tile => LandFertilityRules.IsFarmable(state.Map, tile) && !occupied.Contains(tile) &&
+            .First(tile => new ClankerWorld.Simulation.World.LandFertility(state.Map, state.WorldSeed).CanFarm(tile) && !occupied.Contains(tile) &&
                 !generated.RoadTiles.Contains(tile) && !state.Map.Resources.Any(resource => resource.Position == tile) &&
                 !state.Inhabitants.Any(person => person.Position == tile));
-        var recipe = generated.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
         state = FarmTestFields.Prepare(state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = point } : person).ToArray(),
-        }, actor, point, recipe);
+        }, actor, point);
         var inventory = state.Society.Society.Inventory;
         Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == farmhouse.HouseholdId && lot.ItemKind is "grain" or "flour");
         inventory = InventoryFixture.AddLot(inventory, "pipeline-jug", "water_jug", house.HouseholdId!, 1,
@@ -34,11 +33,9 @@ public sealed class GrainBreadPipelineTests
         inventory = InventoryFixture.AddLot(inventory, "pipeline-fuel", "wood", house.HouseholdId!, 1, storageBuildingId: house.InstanceId);
         state = WithInventory(state, inventory);
         using var growing = Load(state);
-        var planted = growing.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(point), actor);
-        Assert.True(planted.Applied, planted.Failure);
-        for (var tick = 0; tick < recipe.DurationTicks; tick++) Assert.True((await growing.AdvanceOneTickAsync()).Advanced);
+        await FarmTestFields.PlantAndGrow(growing, actor, point);
         await FarmTestFields.Harvest(growing, actor, point);
-        var grainId = planted.JobId + ":output:00";
+        var grainId = FarmFieldRules.FieldId(point) + ":harvest:1:crop";
         var grain = growing.Society.Inventory.GetLot(grainId);
         Assert.Equal("grain", grain.ItemKind);
         Assert.True(grain.Quantity >= 2);

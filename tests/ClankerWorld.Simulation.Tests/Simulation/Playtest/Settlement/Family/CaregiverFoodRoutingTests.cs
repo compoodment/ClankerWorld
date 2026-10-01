@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
@@ -8,6 +9,56 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class CaregiverFoodRoutingTests
 {
+    [Theory]
+    [InlineData("berries", 2_000)]
+    [InlineData("wild_greens", 1_500)]
+    [InlineData("cultivated_greens", 4_000)]
+    public async Task FeedingAnInfantKeepsTheNamedFoodsNourishmentAcrossReload(string kind, int nourishment)
+    {
+        var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("named-infant-food");
+        var society = state.Society.Society;
+        var partner = society.Inhabitants.First(person => person.HouseholdId == household && person.Id != actor).Id;
+        society = SocietyFixture.ProposeRelationship(society, new("named-care-parents", 1,
+            SocietyRelationshipType.Partnership, actor, partner, society.WorldTick)).Checkpoint;
+        society = SocietyFixture.AcceptRelationship(society, "named-care-parents", 1, partner).Checkpoint;
+        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
+        var birth = SocietyFixture.CommitBirth(society, new($"family:{actor}:{society.WorldTick}", 1,
+            actor, partner, household, [actor, partner], [actor, partner], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
+        var childId = Assert.IsType<string>(birth.CreatedId);
+        society = birth.Checkpoint;
+        var childPosition = state.Map.FootNeighbors(point).First(tile => state.Map.IsBuildable(tile) &&
+            !state.Inhabitants.Any(person => person.Position == tile));
+        society = society with { Inventory = InventoryFixture.AddLot(society.Inventory, "named-child-serving", kind, actor, 1) };
+        state = state with
+        {
+            Society = state.Society with { Society = society },
+            Survival = new SettlementSurvivalState(0, []),
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                HungerBasisPoints = 9_000,
+                Survival = new SurvivalCondition(10_000),
+            }).Append(new PlaytestInhabitantState(childId, childPosition, 1_000, 0, "curious", "grow",
+                Survival: new SurvivalCondition(10_000))).OrderBy(person => person.InhabitantId, StringComparer.Ordinal).ToArray(),
+            Towns = state.Towns!.Select(town => town.ResidentIds.Contains(actor) ? town with
+            {
+                ResidentIds = town.ResidentIds.Append(childId).Order(StringComparer.Ordinal).ToArray(),
+            } : town).ToArray(),
+        };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var caring = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new CareProvider(actor));
+        using var waiting = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new CareProvider("no-caregiver"));
+        Assert.True((await caring.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await waiting.AdvanceOneTickAsync()).Advanced);
+        var child = caring.Inhabitants.Single(person => person.InhabitantId == childId);
+        Assert.Equal(nourishment, child.HungerBasisPoints - waiting.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints);
+        Assert.DoesNotContain(caring.Society.Inventory.Lots, lot => lot.Id == "named-child-serving");
+        Assert.Equal(1, waiting.Society.Inventory.GetLot("named-child-serving").Quantity);
+        Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
+        using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(caring.ExportState())));
+        Assert.Equal(child.HungerBasisPoints, restored.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -31,31 +82,7 @@ public sealed class CaregiverFoodRoutingTests
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
         for (var index = 0; index < 4; index++) initial.PlaceFounder(ids[index], positions[index]);
         initial.StartWorld();
-        var blockerPositions = new Dictionary<string, GridPoint>();
-        if (blockStorage)
-        {
-            var map = initial.ExportState().Map;
-            var neighbors = map.Tiles.Where(tile => map.FootDistance(tile.Position, storagePosition) == 1 &&
-                map.IsPassable(tile.Position) && !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
-            foreach (var neighbor in neighbors)
-            {
-                var spawn = map.Tiles.First(tile => map.IsBuildable(tile.Position) &&
-                    !map.Resources.Any(resource => resource.Position == tile.Position) &&
-                    !initial.Inhabitants.Any(person => person.Position == tile.Position)).Position;
-                var blocker = $"agent:{100 + blockerPositions.Count:D32}";
-                initial.AddAgent(blocker, spawn);
-                blockerPositions.Add(blocker, neighbor.Position);
-            }
-        }
-        var state = initial.ExportState();
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person =>
-            blockerPositions.TryGetValue(person.InhabitantId, out var point) ? person with { Position = point } : person).ToArray()
-        };
-        if (blockStorage)
-            Assert.All(state.Map.Tiles.Where(tile => state.Map.FootDistance(tile.Position, storagePosition) == 1 && state.Map.IsPassable(tile.Position)),
-                tile => Assert.Contains(state.Inhabitants, person => person.Position == tile.Position));
+        var state = blockStorage ? StorageRoutingTestFixture.BlockAccess(initial, storagePosition, 1) : initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
         society = SocietyFixture.ProposeRelationship(society, new("care-parents", 1,
@@ -96,6 +123,7 @@ public sealed class CaregiverFoodRoutingTests
                 Climate = systems.Climate with { Weather = WeatherKind.Clear },
             },
         };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
         var provider = new CareProvider(ids[0]);
         var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
         try
@@ -113,7 +141,9 @@ public sealed class CaregiverFoodRoutingTests
             var result = world.ExportState();
             var child = result.Inhabitants.Single(person => person.InhabitantId == childId);
             Assert.True(child.HungerBasisPoints >= 3_000,
-                $"child fullness={child.HungerBasisPoints}; care={result.Events.Count(item => item.Kind == "child_cared_for")}; blocked={result.Events.Count(item => item.Kind == "movement_blocked")}; parent={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position}; care choices={provider.CareChoices}; food site={localFood}; home={storagePosition}");
+                $"child fullness={child.HungerBasisPoints}; care={result.Events.Count(item => item.Kind == "child_cared_for")}; blocked={result.Events.Count(item => item.Kind == "movement_blocked")}; parent={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position}; care choices={provider.CareChoices}; food site={localFood}; home={storagePosition}\n" +
+                string.Join("\n", result.Events.Where(item => item.Detail.Contains(ids[0], StringComparison.Ordinal)).TakeLast(20)
+                    .Select(item => $"{item.WorldTick} {item.Kind}: {item.Detail}")));
             Assert.Contains(result.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
             var remainingFood = result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind)).Sum(lot => lot.Quantity);
             if (blockStorage)

@@ -12,9 +12,9 @@ public sealed partial class PrivateWorldRuntime
         if (business.NextSequence <= 0 || business.Listings is null || business.Offers is null ||
             business.Markets is null || business.Stalls is null || business.ToolOrders is null)
             throw new InvalidDataException("Business trade has invalid collections or sequence.");
-        if (state.SchemaVersion < 33 && (business.NextSequence != 1 || business.Listings.Count > 0 ||
+        if (state.SchemaVersion < 35 && (business.NextSequence != 1 || business.Listings.Count > 0 ||
             business.Offers.Count > 0 || business.Markets.Count > 0 || business.Stalls.Count > 0 || business.ToolOrders.Count > 0))
-            throw new InvalidDataException("Physical business trade requires private-world schema 33.");
+            throw new InvalidDataException("Physical business trade requires private-world schema 35.");
         var inventory = state.Society.Society.Inventory;
         var buildings = state.WorldSimulation!.Buildings.ToDictionary(building => building.InstanceId, StringComparer.Ordinal);
         var definitions = state.WorldContent!.Buildings.ToDictionary(definition => definition.CanonicalId, StringComparer.Ordinal);
@@ -119,7 +119,7 @@ public sealed partial class PrivateWorldRuntime
                     state.Map.CampObjects.Any(item => item.Position == point) ||
                     (state.RoadTiles ?? []).Contains(point) && (point.X - plot.Position.X) % 2 == 0 &&
                         (point.Y - plot.Position.Y) % 2 == 0 ||
-                    (state.WorldSimulation.Fields ?? []).Any(field => field.Position == point) ||
+                    (state.Fields ?? []).Any(field => field.Position == point) ||
                     (state.WorldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running &&
                         point.X >= job.TargetPosition.X && point.Y >= job.TargetPosition.Y &&
                         point.X < job.TargetPosition.X + job.TargetFootprint.Width &&

@@ -31,22 +31,9 @@ public sealed class StoredFuelRoutingTests
         var householdId = initial.Society.GetInhabitant(ids[0]).HouseholdId!;
         var workStock = initial.WorldSimulation.Buildings.First(building => building.HouseholdId == householdId &&
             !initial.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
-        if (blockStorage)
-        {
-            var map = initial.ExportState().Map;
-            var storage = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
-            var blockers = map.Tiles.Where(tile => (map.FootDistance(tile.Position, storage) <= 1 ||
-                map.FootDistance(tile.Position, workStock.Position) <= 1) &&
-                map.IsBuildable(tile.Position) && !map.Resources.Any(resource => resource.Position == tile.Position) &&
-                !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
-            Assert.NotEmpty(blockers);
-            for (var index = 0; index < blockers.Length; index++)
-                initial.AddAgent($"agent:{index + 100:D32}", blockers[index].Position);
-            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 && map.IsPassable(tile.Position) &&
-                !map.Resources.Any(resource => resource.Position == tile.Position)),
-                tile => Assert.Contains(initial.Inhabitants, person => person.Position == tile.Position));
-        }
-        var state = initial.ExportState();
+        var state = blockStorage
+            ? BlockFuelStorageAccess(initial, storagePosition, workStock.Position)
+            : initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
         // The private fuel stock is at a workplace, separate from the House
@@ -91,6 +78,7 @@ public sealed class StoredFuelRoutingTests
                 Climate = systems.Climate with { Weather = WeatherKind.Snow },
             },
         };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Snow);
         var local = state.Map.Resources.Single(resource => resource.Id == "wild-128-16");
         Assert.True(state.Map.IsReachableOnFoot(positions[0], local.Position));
         Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
@@ -122,6 +110,38 @@ public sealed class StoredFuelRoutingTests
             Assert.NotEmpty(restored.ExportState().Survival!.Fires);
         }
         finally { world.Dispose(); }
+    }
+
+    private static PrivateWorldRuntimeState BlockFuelStorageAccess(PrivateWorldRuntime initial,
+        GridPoint warehouse, GridPoint workplace)
+    {
+        var map = initial.ExportState().Map;
+        var positions = map.Tiles.Where(tile => map.IsPassable(tile.Position) &&
+            (map.FootDistance(tile.Position, warehouse) <= 1 || map.FootDistance(tile.Position, workplace) <= 1))
+            .Select(tile => tile.Position).ToArray();
+        Assert.NotEmpty(positions);
+        var placements = new Dictionary<string, GridPoint>(StringComparer.Ordinal);
+        foreach (var position in positions.Where(position => !initial.Inhabitants.Any(person => person.Position == position)))
+        {
+            var id = $"agent:{placements.Count + 100:D32}";
+            // Occupy all legal approaches, including gathering sites, while
+            // preserving the map and the real fuel at both storage locations.
+            var spare = map.Tiles.First(tile => map.IsBuildable(tile.Position) &&
+                map.FootDistance(tile.Position, warehouse) > 1 && map.FootDistance(tile.Position, workplace) > 1 &&
+                !map.Resources.Any(resource => resource.Position == tile.Position) &&
+                !map.CampObjects.Any(item => item.Position == tile.Position) &&
+                !initial.Inhabitants.Any(person => person.Position == tile.Position) &&
+                initial.Towns.Any(town => town.BorderTiles.Contains(tile.Position))).Position;
+            initial.AddAgent(id, spare);
+            placements.Add(id, position);
+        }
+        var state = initial.ExportState() with
+        {
+            Inhabitants = initial.ExportState().Inhabitants.Select(person => placements.TryGetValue(person.InhabitantId, out var position)
+                ? person with { Position = position } : person).ToArray(),
+        };
+        Assert.All(positions, position => Assert.Contains(state.Inhabitants, person => person.Position == position));
+        return state;
     }
 
     private sealed class HeatProvider(string actor) : IDecisionProvider

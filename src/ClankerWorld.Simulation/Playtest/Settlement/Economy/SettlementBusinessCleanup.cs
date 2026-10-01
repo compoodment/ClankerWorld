@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private IEnumerable<GridPoint> LooseStockTiles() => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.GroundPosition is not null && lot.Quantity > 0).Select(lot =>
-            new GridPoint(lot.GroundPosition!.X, lot.GroundPosition.Y)).Distinct();
+            new GridPoint(lot.GroundPosition!.Value.X, lot.GroundPosition.Value.Y)).Distinct();
 
     private bool RejectedBusinessStock(InventoryLot lot) => lot.ConditionBasisPoints == 0 ||
         lot.FreshnessBasisPoints == 0 || society.Checkpoint.Inventory.Lots.Any(content =>

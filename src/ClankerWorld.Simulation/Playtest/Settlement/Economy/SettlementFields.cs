@@ -1,366 +1,229 @@
-using ClankerWorld.Simulation.Cognition;
-using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
-using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-public enum FarmFieldStage { Tilling, Prepared, Planted, Growing, Ready, Harvested }
-
-public sealed record FarmFieldTile(GridPoint Position, string HouseholdId, FarmFieldStage Stage,
-    long PreparedTick, int WorkDone = 0, long LastWorkedTick = -1, string? RecipeId = null,
-    string? JobId = null, IReadOnlyList<ContentQuantity>? Harvest = null, int TendingWork = 0);
-
-public sealed record FarmActionResult(bool Applied, bool Completed, string? Failure);
-
 public sealed partial class PrivateWorldRuntime
 {
-    // All field sizes, work times and reserves are provisional playtest balance.
-    private const int TillingWork = 8;
-    private const int HarvestWork = 4;
-    private static readonly string[] CropStockKinds = ["grain", "potatoes", "cultivated_greens"];
-
-    private IReadOnlyList<FarmFieldTile> FarmFields => worldSimulation.Fields ?? [];
-
-    private void SetField(FarmFieldTile field) => worldSimulation = worldSimulation with
-    {
-        Fields = FarmFields.Where(item => item.Position != field.Position).Append(field)
-            .OrderBy(item => item.Position.Y).ThenBy(item => item.Position.X).ToArray(),
-    };
-
+    public IReadOnlyList<FarmFieldState> Fields => fields.ToArray();
+    private IReadOnlyList<FarmFieldState> FarmFields => fields;
     private InventoryLot? FarmHoe(string actor) => CarriedTool(actor, ToolKind.Hoe);
+    private InventoryLot? FarmWorkTool(string actor, FarmWorkKind kind) =>
+        kind == FarmWorkKind.Harvest ? CarriedTool(actor, ToolKind.Sickle) ?? FarmHoe(actor) : FarmHoe(actor);
 
-    private InventoryLot? HarvestTool(string actor) => CarriedTool(actor, ToolKind.Sickle) ?? FarmHoe(actor);
-
-    private string? FieldPermissionFailure(string actor, GridPoint point, bool newTile)
-    {
-        if (!AdultResident(actor) || !inhabitants.TryGetValue(actor, out var worker) ||
-            society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } household ||
-            newTile && FarmhouseForHousehold(household) is null)
-            return "An adult from the household holding a Farmhouse must do the field work.";
-        var farmhouse = FarmhouseForHousehold(household);
-        if (!LandFertilityRules.IsFarmable(map, point)) return "Crops cannot grow on this ground.";
-        if (FarmFields.FirstOrDefault(field => field.Position == point) is { } field && field.HouseholdId != household)
-            return "This field belongs to another household.";
-        if (newTile && (RoadAndBridgeTiles().Contains(point) || MarketReservedTiles().Contains(point) || LooseStockTiles().Contains(point) ||
-            (worldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running && ExpansionTiles(job).Contains(point)) ||
-            map.CampObjects.Any(item => item.Position == point) ||
-            map.Resources.Any(item => item.Position == point) || worldSimulation.Buildings.Any(building =>
-                WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition =>
-                    definition.CanonicalId == building.DefinitionId), building).Contains(point))))
-            return "Choose free ground away from Roads, buildings and resource objects.";
-        if (farmhouse is not null && towns.Any(town => town.Id != farmhouse.TownId && town.BorderTiles.Contains(point)))
-            return "This ground belongs to another Town.";
-        if (farmhouse?.TownId is { } townId && towns.FirstOrDefault(town => town.Id == townId) is { } ownTown &&
-            !TownBorderRules.IsWithinOrAdjacent(ownTown, point, 1, 1))
-            return "Choose ground in or beside the Farmhouse's Town.";
-        if (!map.IsReachableOnFoot(worker.Position, point)) return "The field cannot be reached on foot.";
-        return null;
-    }
-
-    public FarmActionResult TillField(string actor, GridPoint point)
+    /// <summary>Start physical work at one tile. Refusal leaves the field and inventory untouched.</summary>
+    public FarmWorkResult StartFieldWork(string workerId, GridPoint position, FarmWorkKind kind,
+        string? crop = null, string? seedLotId = null)
     {
         gate.Wait();
-        try { return TillFieldCore(actor, point); }
+        try { return StartFieldWorkCore(workerId, position, kind, crop, seedLotId); }
         finally { gate.Release(); }
     }
 
-    private FarmActionResult TillFieldCore(string actor, GridPoint point)
+    private FarmWorkResult StartFieldWorkCore(string workerId, GridPoint position, FarmWorkKind kind,
+        string? crop = null, string? seedLotId = null)
     {
-        if (FieldPermissionFailure(actor, point, true) is { } failure) return new(false, false, failure);
-        if (inhabitants[actor].Position != point) return new(false, false, "Stand on the chosen tile to till it.");
-        if (FarmHoe(actor) is not { } hoe) return new(false, false, "Carry a usable hoe to prepare the ground.");
-        var field = FarmFields.FirstOrDefault(item => item.Position == point);
-        if (field is not null && field.Stage != FarmFieldStage.Tilling)
-            return new(false, false, "This tile has already been tilled.");
-        field ??= new FarmFieldTile(point, HouseholdFor(actor), FarmFieldStage.Tilling, WorldTick);
-        if (field.LastWorkedTick == WorldTick) return new(false, false, "This tile has already been worked this turn.");
-        if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
-            return new(false, false, "Illness slowed this turn's field work.");
-        var work = Math.Min(TillingWork, field.WorkDone + ToolCapabilities.ForItem(hoe.ItemKind)!.WorkQuantity);
-        UseTool(actor, ToolKind.Hoe);
-        SetField(field with
+        if (!Enum.IsDefined(kind) || !inhabitants.TryGetValue(workerId, out var worker) || !AdultResident(workerId) ||
+            society.Checkpoint.GetInhabitant(workerId).HouseholdId is not { } householdId ||
+            FarmhouseForHousehold(householdId) is null)
+            return new(false, "An adult from a household with a Farmhouse must do the work.");
+        if (worker.Position != position) return new(false, "The worker must stand on the field tile.");
+        if (FarmWorkTool(workerId, kind) is null) return new(false, "The worker needs a usable hoe, or a sickle for harvest.");
+        if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) ||
+            worker.Project is { Stage: not ("completed" or "cancelled") } || FarmWorkFor(workerId) is not null)
+            return new(false, "The worker must finish other work or meet urgent needs first.");
+        var field = fields.SingleOrDefault(item => item.Position == position);
+        if (kind == FarmWorkKind.Till)
         {
-            WorkDone = work,
-            LastWorkedTick = WorldTick,
-            Stage = work == TillingWork ? FarmFieldStage.Prepared : FarmFieldStage.Tilling
-        });
-        if (work == TillingWork)
-        {
-            if (FarmhouseForHousehold(field.HouseholdId)?.TownId is { } townId)
-            {
-                var town = towns.Single(item => item.Id == townId);
-                SetTown(town with { BorderTiles = TownBorderRules.Expand(map, town, [point]) });
-            }
-            AppendEvent("field_prepared", $"{actor}:{point.X},{point.Y}:{field.HouseholdId}");
-            CreditCompletedWork(actor, "farming");
+            if (field is not null || !FarmableFreeTile(position) || !FarmTownPermits(householdId, position))
+                return new(false, "This land cannot be tilled: choose free farmable land.");
+            field = new(position, householdId, FarmFieldStage.Preparing);
         }
+        else if (field is null || field.HouseholdId != householdId || field.Work is not null)
+            return new(false, "This household does not have a free field here.");
+        if (kind == FarmWorkKind.Plant &&
+            (field.Stage is not (FarmFieldStage.Prepared or FarmFieldStage.Harvested) || !FarmFieldRules.IsCrop(crop)))
+            return new(false, "Plant a supported crop on prepared or harvested soil.");
+        if (kind == FarmWorkKind.Tend && (field.Stage != FarmFieldStage.Growing || field.Tended))
+            return new(false, "This crop does not need tending now.");
+        if (kind == FarmWorkKind.Harvest && field.Stage != FarmFieldStage.Ready)
+            return new(false, "The crop is not ready to harvest.");
+        string? reservationId = null;
+        if (kind == FarmWorkKind.Plant)
+        {
+            var seed = society.Checkpoint.Inventory.Lots.SingleOrDefault(lot => lot.Id == seedLotId);
+            if (seed is null || seed.OwnerId != workerId || seed.GroundPosition is not null ||
+                seed.StorageBuildingId is not null || seed.DeliveryBuildingId is not null ||
+                seed.ContainerLotId is not null || seed.CartId is not null || seed.AnimalId is not null ||
+                seed.ItemKind != FarmFieldRules.PlantingItem(crop!) || AvailableLotQuantity(seed) < 1)
+                return new(false, "Carry one of your own usable planting items to the field.");
+            reservationId = $"{FarmFieldRules.FieldId(position)}:plant:{field.Cycle}:{WorldTick}:{workerId}";
+            ApplyInventoryTransition(inventory => InventoryFixture.Reserve(inventory, reservationId,
+                workerId, seed.Id, 1, "field_planting", checked(WorldTick + FarmFieldRules.WorkTicks(kind) * 4 + 1)));
+        }
+        SetFarmField(field with { Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop) });
         checkpointSchemaVersion = StateSchemaVersion;
-        return new(true, work == TillingWork, null);
+        AppendEvent("field_work_started", $"{workerId}:{FarmFieldRules.FieldId(position)}:{kind}");
+        return new(true, "Field work started.");
     }
 
-    public FarmActionResult HarvestField(string actor, GridPoint point)
+    private FarmFieldState? FarmWorkFor(string workerId) => fields.SingleOrDefault(field => field.Work?.WorkerId == workerId);
+
+    private bool FarmableFreeTile(GridPoint position)
     {
-        gate.Wait();
-        try { return HarvestFieldCore(actor, point); }
-        finally { gate.Release(); }
+        if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) ||
+            RoadAndBridgeTiles().Contains(position) || MarketReservedTiles().Contains(position) || LooseStockTiles().Contains(position) ||
+            map.CampObjects.Any(item => item.Position == position) ||
+            (worldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running && ExpansionTiles(job).Contains(position)) ||
+            map.Resources.Any(item => item.Position == position)) return false;
+        return !worldSimulation.Buildings.Any(building => WorldContentSimulationRules.Footprint(
+            worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).Contains(position));
     }
 
-    private FarmActionResult HarvestFieldCore(string actor, GridPoint point)
+    private bool FarmTownPermits(string householdId, GridPoint point)
     {
-        if (FieldPermissionFailure(actor, point, false) is { } failure) return new(false, false, failure);
-        if (inhabitants[actor].Position != point) return new(false, false, "Stand in the field to harvest it.");
-        if (FarmFields.FirstOrDefault(item => item.Position == point) is not { Stage: FarmFieldStage.Ready, Harvest: not null } field)
-            return new(false, false, "The crop is not ready to harvest.");
-        if (field.LastWorkedTick == WorldTick) return new(false, false, "This field has already been worked this turn.");
-        if (HarvestTool(actor) is not { } harvestTool) return new(false, false, "Carry a usable hoe or sickle to harvest the crop.");
-        if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
-            return new(false, false, "Illness slowed this turn's field work.");
-        var capability = ToolCapabilities.ForItem(harvestTool.ItemKind)!;
-        var work = Math.Min(HarvestWork, field.WorkDone + (capability.Kind == ToolKind.Sickle ? capability.WorkQuantity : 1));
-        UseTool(actor, capability.Kind);
-        if (work < HarvestWork)
+        var farmhouse = FarmhouseForHousehold(householdId);
+        if (towns.Any(town => town.Id != farmhouse?.TownId && town.BorderTiles.Contains(point))) return false;
+        return farmhouse?.TownId is not { } townId || towns.SingleOrDefault(town => town.Id == townId) is not { } ownTown ||
+            TownBorderRules.IsWithinOrAdjacent(ownTown, point, 1, 1);
+    }
+
+    private void SetFarmField(FarmFieldState field)
+    {
+        fields.RemoveAll(item => item.Position == field.Position);
+        fields.Add(field);
+        fields = fields.OrderBy(item => item.Position.Y).ThenBy(item => item.Position.X).ToList();
+    }
+
+    private void MaintainFarmFields()
+    {
+        foreach (var field in fields.ToArray())
         {
-            SetField(field with { WorkDone = work, LastWorkedTick = WorldTick });
-            return new(true, false, null);
-        }
-        ApplyInventoryTransition(inventory =>
-        {
-            for (var index = 0; index < field.Harvest.Count; index++)
+            if (field.Work is { } work && (!inhabitants.TryGetValue(work.WorkerId, out var worker) ||
+                !AdultResident(work.WorkerId) || HouseholdFor(work.WorkerId) != field.HouseholdId || FarmhouseForHousehold(field.HouseholdId) is null ||
+                worker.Position != field.Position || FarmWorkTool(work.WorkerId, work.Kind) is null ||
+                NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) ||
+                work.SeedReservationId is { } id && !ActiveFarmReservation(id)))
             {
-                var output = field.Harvest[index];
-                inventory = InventoryFixture.AddLot(inventory, $"{field.JobId}:output:{index:D2}",
-                    output.ResourceId, field.HouseholdId, output.Amount, WorldTick,
-                    groundPosition: new InventoryGroundPosition(point.X, point.Y));
+                CancelFarmWork(field);
+                continue;
             }
-            return inventory;
-        });
-        SetField(field with { Stage = FarmFieldStage.Harvested, WorkDone = 0, LastWorkedTick = WorldTick, Harvest = null });
-        AppendEvent("field_harvested", $"{actor}:{point.X},{point.Y}:{field.JobId}");
-        CreditCompletedWork(actor, "farming");
-        return new(true, true, null);
+            if (field.Stage == FarmFieldStage.Planted && WorldTick > field.PlantedTick)
+                SetFarmField(field with { Stage = FarmFieldStage.Growing });
+            else if (field.Stage == FarmFieldStage.Growing && field.Tended && WorldTick >= field.ReadyTick)
+            {
+                SetFarmField(field with { Stage = FarmFieldStage.Ready });
+                AppendEvent("field_ready", FarmFieldRules.FieldId(field.Position));
+            }
+            if (field.ReplantingReservationId is { } reserve && !ActiveFarmReservation(reserve))
+                SetFarmField(fields.Single(item => item.Position == field.Position) with { ReplantingReservationId = null });
+        }
     }
 
-    private bool PrepareFieldHarvest(WorldProductionJob job, RecipeDefinition recipe, long targetTick)
+    private bool ActiveFarmReservation(string id) => society.Checkpoint.Inventory.Reservations.Any(reservation =>
+        reservation.Id == id && reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed);
+
+    private void CancelFarmWork(FarmFieldState field)
     {
-        if (!WorldBuildSiteRules.TryGetFieldPosition(job.BuildingInstanceId, out var point) ||
-            FarmFields.FirstOrDefault(field => field.Position == point && field.JobId == job.JobId) is not { } field)
-            return false;
-        var inventory = society.Checkpoint.Inventory;
-        var planted = recipe.Tags.Contains("farm-crop", StringComparer.Ordinal);
-        if (job.InputReservationIds.Any(id => planted ? inventory.GetReservation(id).State != InventoryReservationState.Completed :
-            inventory.GetReservation(id) is not
-            { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed } reservation ||
-            inventory.GetLot(reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 }))
-            return false;
-        ApplyInventoryTransition(current =>
+        if (field.Work?.SeedReservationId is { } reservationId && ActiveFarmReservation(reservationId))
+            ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, reservationId, "field_work_interrupted"));
+        if (field.Stage == FarmFieldStage.Preparing) fields.RemoveAll(item => item.Position == field.Position);
+        else SetFarmField(field with { Work = null });
+        AppendEvent("field_work_interrupted", FarmFieldRules.FieldId(field.Position));
+    }
+
+    private bool ContinueFarmWork(string workerId)
+    {
+        if (FarmWorkFor(workerId) is not { Work: { } work } field) return false;
+        if (work.LastWorkedTick == WorldTick) return true;
+        if (!inhabitants.TryGetValue(workerId, out var worker) || !AdultResident(workerId) || HouseholdFor(workerId) != field.HouseholdId ||
+            FarmhouseForHousehold(field.HouseholdId) is null || worker.Position != field.Position ||
+            NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || FarmWorkTool(workerId, work.Kind) is not { } tool)
         {
-            foreach (var id in job.InputReservationIds)
-                if (current.GetReservation(id).State != InventoryReservationState.Completed)
-                    current = InventoryFixture.ConsumeReservation(current, id);
-            return current;
-        });
-        var weather = WeatherAt(point);
-        var moisture = WeatherRules.SoilMoistureAt(worldSystems, point, map.Height, WeatherRules.RegionClimate(map, point));
-        var harvest = recipe.Outputs.Select(output => new ContentQuantity(output.ResourceId,
-            FoodItems.IsPlantingStock(output.ResourceId) && output.ResourceId != "potatoes" ? output.Amount :
-                Math.Max(1, CropOutputQuantity(recipe, output, weather, moisture) *
-                    LandFertilityRules.YieldPercent(LandFertilityRules.At(map, point)) / 100))).ToArray();
-        SetField(field with { Stage = FarmFieldStage.Ready, WorkDone = 0, Harvest = harvest });
-        if (survivalState is not null && weather is WeatherKind.Snow or WeatherKind.Storm)
-            AppendEvent("crop_weather_loss", $"{job.JobId}:{weather.ToString().ToLowerInvariant()}");
-        if (survivalState is not null && weather is not (WeatherKind.Snow or WeatherKind.Storm) &&
-            (moisture < 15 || moisture >= 50))
-            AppendEvent("crop_moisture_effect", $"{job.JobId}:{(moisture < 15 ? "dry" : "wet")}:{moisture}");
-        AppendEvent("crop_ready", $"{job.JobId}:{point.X},{point.Y}");
-        CreditCompletedWork(job.WorkerId, "farming");
+            CancelFarmWork(field);
+            return false;
+        }
+        if (!SettlementIllnessRules.AllowsWork(workerId, WorldTick, worker.Survival?.IllnessBasisPoints ?? 0))
+        {
+            SetFarmField(field with { Work = work with { LastWorkedTick = WorldTick } });
+            return true;
+        }
+        var capability = ToolCapabilities.ForItem(tool.ItemKind)!;
+        // Hoes prepare and tend soil faster by tier; sickles speed the harvest.
+        // The final stroke completes before a worn-out tool can interrupt later work.
+        var quantity = work.Kind == FarmWorkKind.Plant || work.Kind == FarmWorkKind.Harvest && capability.Kind != ToolKind.Sickle
+            ? 1 : capability.WorkQuantity;
+        UseTool(workerId, capability.Kind);
+        work = work with { RemainingTicks = Math.Max(0, work.RemainingTicks - quantity), LastWorkedTick = WorldTick };
+        if (work.RemainingTicks > 0) { SetFarmField(field with { Work = work }); return true; }
+        switch (work.Kind)
+        {
+            case FarmWorkKind.Till:
+                SetFarmField(field with { Stage = FarmFieldStage.Prepared, Work = null });
+                break;
+            case FarmWorkKind.Plant:
+                ApplyInventoryTransition(inventory =>
+                {
+                    if (field.ReplantingReservationId is { } previous && ActiveFarmReservation(previous))
+                        inventory = InventoryFixture.ReleaseReservation(inventory, previous, "field_replanting_completed");
+                    return InventoryFixture.ConsumeReservation(inventory, work.SeedReservationId!);
+                });
+                SetFarmField(field with
+                {
+                    Stage = FarmFieldStage.Planted,
+                    Crop = work.Crop,
+                    PlantedTick = WorldTick,
+                    ReadyTick = checked(WorldTick + FarmFieldRules.GrowthTicks(worldSystems.Config.TicksPerDay, fertility.At(field.Position))),
+                    Tended = false,
+                    Work = null,
+                    ReplantingReservationId = null
+                });
+                break;
+            case FarmWorkKind.Tend:
+                SetFarmField(field with { Tended = true, Work = null });
+                break;
+            case FarmWorkKind.Harvest:
+                CompleteFieldHarvest(field);
+                break;
+        }
+        CreditCompletedWork(workerId, "farming");
+        AppendEvent(work.Kind == FarmWorkKind.Till ? "field_prepared" : work.Kind == FarmWorkKind.Plant ? "field_planted" :
+            work.Kind == FarmWorkKind.Tend ? "field_tended" : "field_harvested",
+            $"{workerId}:{FarmFieldRules.FieldId(field.Position)}:{(work.Kind == FarmWorkKind.Plant ? work.Crop : field.Crop)}");
         return true;
     }
 
-    public FarmActionResult TendField(string actor, GridPoint point)
+    private void CompleteFieldHarvest(FarmFieldState field)
     {
-        gate.Wait();
-        try { return TendFieldCore(actor, point); }
-        finally { gate.Release(); }
-    }
-
-    private FarmActionResult TendFieldCore(string actor, GridPoint point)
-    {
-        if (FieldPermissionFailure(actor, point, false) is { } failure) return new(false, false, failure);
-        if (inhabitants[actor].Position != point || FarmHoe(actor) is null)
-            return new(false, false, "Stand in the field with a usable hoe to tend it.");
-        if (FarmFields.FirstOrDefault(field => field.Position == point) is not
-            { Stage: FarmFieldStage.Growing, TendingWork: < 4 } field || field.LastWorkedTick == WorldTick)
-            return new(false, false, "This crop does not need more tending now.");
-        if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
-            return new(false, false, "Illness slowed this turn's field work.");
-        var capability = UseTool(actor, ToolKind.Hoe)!;
-        var tending = Math.Min(4, field.TendingWork + capability.WorkQuantity);
-        SetField(field with { TendingWork = tending, LastWorkedTick = WorldTick });
-        worldSimulation = worldSimulation with
+        var cycle = checked(field.Cycle + 1);
+        var prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
+        var crop = field.Crop!;
+        var plantingItem = FarmFieldRules.PlantingItem(crop);
+        var plantingLotId = plantingItem == crop ? prefix + ":crop" : prefix + ":seed";
+        var replantId = prefix + ":replant";
+        var quantity = FarmFieldRules.HarvestQuantity(crop, fertility.At(field.Position));
+        var weather = WeatherAt(field.Position);
+        var moisture = WeatherRules.SoilMoistureAt(worldSystems, field.Position, map.Height,
+            WeatherRules.RegionClimate(map, field.Position));
+        if (weather == WeatherKind.Snow) quantity = Math.Max(1, quantity / 2);
+        else if (weather == WeatherKind.Storm || moisture < 15) quantity = Math.Max(1, quantity * 3 / 4);
+        else if (moisture >= 50) quantity += Math.Max(1, quantity / 4);
+        ApplyInventoryTransition(inventory =>
         {
-            CropBuilds = (worldSimulation.CropBuilds ?? []).Select(job => job.JobId == field.JobId
-                ? job with { CompletionTick = Math.Max(WorldTick + 1, job.CompletionTick - (tending - field.TendingWork)) } : job).ToArray(),
-        };
-        AppendEvent("field_tended", $"{actor}:{point.X},{point.Y}");
-        return new(true, tending == 4, null);
+            var next = InventoryFixture.AddLot(inventory, prefix + ":crop", crop, field.HouseholdId,
+                quantity, WorldTick,
+                groundPosition: new(field.Position.X, field.Position.Y));
+            if (plantingItem != crop)
+                next = InventoryFixture.AddLot(next, plantingLotId, plantingItem, field.HouseholdId, 2, WorldTick,
+                    groundPosition: new(field.Position.X, field.Position.Y));
+            return InventoryFixture.Reserve(next, replantId, field.HouseholdId, plantingLotId, 1, "field_replanting", long.MaxValue);
+        });
+        SetFarmField(field with { Stage = FarmFieldStage.Harvested, Cycle = cycle, Work = null, ReplantingReservationId = replantId });
+        if (weather is WeatherKind.Snow or WeatherKind.Storm)
+            AppendEvent("crop_weather_loss", $"{prefix}:{weather.ToString().ToLowerInvariant()}");
+        else if (moisture < 15 || moisture >= 50)
+            AppendEvent("crop_moisture_effect", $"{prefix}:{(moisture < 15 ? "dry" : "wet")}:{moisture}");
     }
-
-    private bool CanAffordTending(string actor, string household)
-    {
-        if (FarmHoe(actor) is not { } hoe) return false;
-        var growing = FarmFields.Count(field => field.HouseholdId == household &&
-            field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready);
-        if (CarriedTool(actor, ToolKind.Sickle) is { } sickle)
-        {
-            var harvest = ToolCapabilities.ForItem(sickle.ItemKind)!;
-            if (sickle.ConditionBasisPoints >= (HarvestWork + harvest.WorkQuantity - 1) /
-                harvest.WorkQuantity * growing * harvest.WearPerUse) return true;
-        }
-        return hoe.ConditionBasisPoints >= (HarvestWork * growing + 1) * ToolCapabilities.ForItem(hoe.ItemKind)!.WearPerUse;
-    }
-
-    private void MaintainFields(long targetTick)
-    {
-        foreach (var field in FarmFields.ToArray())
-        {
-            var job = (worldSimulation.CropBuilds ?? []).FirstOrDefault(item => item.JobId == field.JobId);
-            if (field.Stage == FarmFieldStage.Planted && job?.StartedTick < targetTick)
-                SetField(field with { Stage = FarmFieldStage.Growing });
-            else if (field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing &&
-                job?.State == WorldProductionJobState.Cancelled)
-                SetField(field with { Stage = FarmFieldStage.Prepared, RecipeId = null, JobId = null, WorkDone = 0 });
-        }
-    }
-
-    private long HouseholdCropStock(string household, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.ItemKind == kind && (lot.OwnerId == household ||
-            inhabitants.ContainsKey(lot.OwnerId) && HouseholdFor(lot.OwnerId) == household))
-        .Sum(lot => (long)AvailableLotQuantity(lot));
-
-    /// <summary>Planting reserve is kept before trading surplus; potatoes are also their own seed.</summary>
-    public int FarmPlantingReserve(string household, string kind) => FoodItems.IsPlantingStock(kind)
-        ? Math.Max(1, FarmFields.Count(field => field.HouseholdId == household &&
-            (kind == "potatoes" ? worldContent.Recipes.Any(recipe => recipe.CanonicalId == field.RecipeId &&
-                recipe.Inputs.Any(input => input.ResourceId == kind)) : true))) : 0;
-
-    private RecipeDefinition? PlannedCrop(string household) => worldContent.Recipes
-        .Where(recipe => recipe.IsCrop && recipe.Tags.Contains("farm-crop", StringComparer.Ordinal) &&
-            recipe.Inputs.All(input => HouseholdCropStock(household, input.ResourceId) >= input.Amount))
-        .OrderBy(recipe => HouseholdCropStock(household, recipe.Outputs[0].ResourceId))
-        .ThenBy(recipe => recipe.LocalId, StringComparer.Ordinal).FirstOrDefault();
-
-    private GridPoint? PlannedFieldTile(string actor, PlacedBuilding farmhouse)
-    {
-        var town = towns.FirstOrDefault(item => item.Id == farmhouse.TownId);
-        var candidates = town is null ? map.Tiles.Select(tile => tile.Position) :
-            TownLayoutContext.CandidateBounds(map, town);
-        return candidates.Where(point => !FarmFields.Any(field => field.Position == point) &&
-                FieldPermissionFailure(actor, point, true) is null)
-            .OrderByDescending(point => LandFertilityRules.At(map, point))
-            .ThenBy(point => map.FootDistance(point, farmhouse.Position))
-            .ThenBy(point => point.Y).ThenBy(point => point.X)
-            .Cast<GridPoint?>().FirstOrDefault(point => point is { } position &&
-                FindUnoccupiedRoute(actor, inhabitants[actor].Position, position, 0).Count > 0);
-    }
-
-    private void AddFieldCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState state)
-    {
-        if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } household ||
-            FarmhouseForHousehold(household) is not { } farmhouse || CarriedHouseDelivery(actor) is not null) return;
-        var ground = FieldHarvestStock(household);
-        if (ground is not null && CarryingRoom(actor) > 0)
-            candidates.Add(new("farm:collect", "Carry the household's harvested crop from its field into storage.", 16));
-        if (FarmHoe(actor) is null)
-        {
-            if (SharedTool(actor, ToolKind.Hoe) is { } sharedHoe)
-                candidates.Add(new("farm:hoe:" + sharedHoe.ItemKind, "Collect a hoe for household field work.", 23));
-            if (HarvestTool(actor) is not null && FarmFields.FirstOrDefault(field =>
-                field.HouseholdId == household && field.Stage == FarmFieldStage.Ready) is { } ready)
-                candidates.Add(new($"farm:harvest:{ready.Position.X},{ready.Position.Y}", "Harvest the ripe crop with a sickle.", 17));
-            return;
-        }
-        if (CanAffordTending(actor, household) && FarmFields.FirstOrDefault(field => field.HouseholdId == household &&
-            field.Stage == FarmFieldStage.Growing && field.TendingWork < 4) is { } growing)
-            candidates.Add(new($"farm:tend:{growing.Position.X},{growing.Position.Y}",
-                "Tend the growing household crop with a hoe.", 18));
-        var field = FarmFields.Where(item => item.HouseholdId == household && item.Stage is
-                FarmFieldStage.Tilling or FarmFieldStage.Ready or FarmFieldStage.Prepared or FarmFieldStage.Harvested)
-            .OrderBy(item => item.Stage == FarmFieldStage.Ready ? 0 : item.Stage == FarmFieldStage.Tilling ? 1 : 2)
-            .ThenBy(item => map.FootDistance(state.Position, item.Position)).FirstOrDefault();
-        if (field is not null)
-        {
-            var action = field.Stage == FarmFieldStage.Ready ? "harvest" : field.Stage == FarmFieldStage.Tilling ? "till" : "plant";
-            if (action != "plant" || PlannedCrop(household) is not null && !society.Checkpoint.Inventory.Lots.Any(lot =>
-                    lot.Quantity > 0 && lot.GroundPosition == new InventoryGroundPosition(field.Position.X, field.Position.Y)))
-                candidates.Add(new($"farm:{action}:{field.Position.X},{field.Position.Y}",
-                     $"{(action == "till" ? "Prepare" : action == "plant" ? "Plant" : "Harvest")} the household field.", action == "harvest" ? 17 : 22));
-        }
-        var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == household &&
-            person.Status == SocietyInhabitantStatus.Active);
-        var stock = CropStockKinds.Sum(kind => HouseholdCropStock(household, kind));
-        var expected = FarmFields.Where(item => item.HouseholdId == household &&
-            item.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready)
-            .Sum(item => worldContent.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == item.RecipeId)?.Outputs[0].Amount ?? 0);
-        var prepared = FarmFields.Count(item => item.HouseholdId == household && item.Stage is
-            FarmFieldStage.Tilling or FarmFieldStage.Prepared or FarmFieldStage.Harvested);
-        var active = FarmFields.Count(item => item.HouseholdId == household &&
-            item.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready);
-        var hoe = FarmHoe(actor)!;
-        var capability = ToolCapabilities.ForItem(hoe.ItemKind)!;
-        var requiredUses = (TillingWork + capability.WorkQuantity - 1) / capability.WorkQuantity + HarvestWork * (active + 1);
-        var enoughTool = hoe.ConditionBasisPoints >= requiredUses * capability.WearPerUse;
-        if (enoughTool && prepared == 0 && stock + expected < Math.Max(6, population * 6) &&
-            PlannedCrop(household) is not null && PlannedFieldTile(actor, farmhouse) is { } newTile)
-            candidates.Add(new($"farm:till:{newTile.X},{newTile.Y}",
-                $"Prepare another {LandFertilityRules.At(map, newTile).ToString().ToLowerInvariant()} field tile near the Farmhouse.", 24));
-    }
-
-    private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate)
-    {
-        if (candidate.StartsWith("farm:hoe:", StringComparison.Ordinal))
-        { CollectEquipment(actor, state, candidate["farm:hoe:".Length..]); return; }
-        if (candidate == "farm:collect") { CollectFieldHarvest(actor, state); return; }
-        var pieces = candidate.Split(':');
-        if (pieces.Length != 3 || !WorldBuildSiteRules.TryGetFieldPosition("field:" + pieces[2], out var point) ||
-            FieldPermissionFailure(actor, point, pieces[1] == "till") is not null) return;
-        if (pieces[1] == "plant")
-        {
-            if (PlannedCrop(HouseholdFor(actor)) is not { } recipe) return;
-            foreach (var input in recipe.Inputs)
-                if (!HasCarriedItem(actor, input.ResourceId))
-                { CollectEquipment(actor, state, input.ResourceId); return; }
-            if (state.Position != point) { MoveToward(actor, state, point, "plant_field", 0); return; }
-            StartProductionCore(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(point), actor, "field_planted");
-            return;
-        }
-        if (state.Position != point) { MoveToward(actor, state, point, "field_work", 0); return; }
-        if (pieces[1] == "till") TillFieldCore(actor, point);
-        else if (pieces[1] == "harvest") HarvestFieldCore(actor, point);
-        else if (pieces[1] == "tend") TendFieldCore(actor, point);
-    }
-
-    private void CollectFieldHarvest(string actor, PlaytestInhabitantState state)
-    {
-        var household = HouseholdFor(actor);
-        var stock = FieldHarvestStock(household);
-        if (stock?.GroundPosition is not { } ground || FarmhouseForHousehold(household) is not { } farmhouse) return;
-        var point = new GridPoint(ground.X, ground.Y);
-        if (state.Position != point) { MoveToward(actor, state, point, "field_harvest", 0); return; }
-        var store = stock.ItemKind is "grain" or "grain_seed" or "greens_seed" ||
-            stock.ItemKind == "potatoes" && HouseholdCropStock(household, "potatoes") <= FarmPlantingReserve(household, "potatoes")
-            ? HouseholdBuildingWithTag(household, "silo") ?? farmhouse : HouseForHousehold(household) ?? farmhouse;
-        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"field-pickup:{WorldTick}:{actor}",
-            household, actor, stock.Id, Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock))),
-            "field_harvest_collected", destinationDeliveryBuildingId: store.InstanceId));
-        AppendEvent("field_harvest_collected", $"{actor}:{stock.Id}:{store.InstanceId}");
-    }
-
-    private InventoryLot? FieldHarvestStock(string? household) => society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.GroundPosition is { } ground && FarmFields.Any(field => field.HouseholdId == household &&
-                field.Position == new GridPoint(ground.X, ground.Y)) && lot.ContainerLotId is null && lot.CartId is null &&
-            (FoodItems.IsEdible(lot.ItemKind) || FoodItems.IsPlantingStock(lot.ItemKind)) &&
-            AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 }

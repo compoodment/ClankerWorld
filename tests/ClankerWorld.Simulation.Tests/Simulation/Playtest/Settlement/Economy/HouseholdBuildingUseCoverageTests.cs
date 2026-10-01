@@ -22,7 +22,7 @@ public sealed class HouseholdBuildingUseCoverageTests
          "building:storage", "building:fire", "building:stone-hearth"];
 
     private static readonly string[] FarmWorkFamilies =
-        ["farm:till", "farm:plant", "farm:harvest", "farm:collect", "recipe:mill-grain", "building:blacksmith-1x2"];
+        ["farm:Till", "farm:Plant", "farm:Harvest", "farm:collect", "recipe:mill-grain", "building:blacksmith-1x2"];
 
     private static readonly string[] SmithWorkFamilies =
         ["recipe:wooden-axe", "recipe:wooden-pickaxe", "haul_smith_input", "building:farmhouse-1x1"];
@@ -45,10 +45,9 @@ public sealed class HouseholdBuildingUseCoverageTests
         Assert.Contains("explore", families);
         // A household may build a Farmhouse during the run; one that never
         // holds one is never offered a crop.
-        var cropRecipes = world.WorldContent.Recipes.Where(item => item.IsCrop).Select(item => "recipe:" + item.LocalId).ToArray();
         foreach (var household in world.Society.Households.Where(household => !Holds(world, household.Id, "farmhouse")))
             Assert.DoesNotContain(FamiliesForHousehold(world, recorder, household.Id), family =>
-                cropRecipes.Contains(family) || family.StartsWith("farm:", StringComparison.Ordinal));
+                family.StartsWith("farm:", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -57,7 +56,13 @@ public sealed class HouseholdBuildingUseCoverageTests
     public async Task HouseholdsWorkAtTheBuildingsTheyHoldAndPlanOnlyWhatTheyLack(string seed)
     {
         var recorder = new ActionCoverageRecorder();
-        using var world = NormalPathWorld.CreateGenerated(seed, _ => recorder);
+        using var setup = NormalPathWorld.CreateGenerated(seed, _ => recorder);
+        var state = setup.ExportState();
+        var farmingHousehold = setup.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse").HouseholdId!;
+        // Work is demand-driven. Start with a real shortage rather than
+        // requiring unnecessary crop work while starter rations are plentiful.
+        using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(state, farmingHousehold),
+            _ => recorder);
         for (var tick = 0; tick < CoverageTicks; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -74,7 +79,7 @@ public sealed class HouseholdBuildingUseCoverageTests
 
         var farmFamilies = FamiliesForHousehold(world, recorder, farmhouse.HouseholdId!);
         var smithFamilies = FamiliesForHousehold(world, recorder, blacksmith.HouseholdId!);
-        foreach (var family in new[] { "farm:till", "farm:plant", "farm:harvest", "farm:collect" })
+        foreach (var family in new[] { "farm:Till", "farm:Plant", "farm:Harvest", "farm:collect" })
             Assert.Contains(family, farmFamilies);
         Assert.Contains("recipe:mill-grain", farmFamilies);
         Assert.Contains("recipe:wooden-axe", smithFamilies);
@@ -90,7 +95,6 @@ public sealed class HouseholdBuildingUseCoverageTests
 
         // No claim means no access: a household that never holds a kind of
         // building is never offered its work.
-        var cropRecipes = content.Recipes.Where(item => item.IsCrop).Select(item => "recipe:" + item.LocalId).ToArray();
         var farmhouseRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == farmhouse.DefinitionId)
             .Select(item => "recipe:" + item.LocalId).ToArray();
         var blacksmithRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == blacksmith.DefinitionId)
@@ -102,7 +106,7 @@ public sealed class HouseholdBuildingUseCoverageTests
         {
             var families = FamiliesForHousehold(world, recorder, household.Id);
             if (!Holds(world, household.Id, "farmhouse"))
-                Assert.DoesNotContain(families, family => cropRecipes.Contains(family) || farmhouseRecipes.Contains(family) ||
+                Assert.DoesNotContain(families, family => farmhouseRecipes.Contains(family) ||
                     family.StartsWith("farm:", StringComparison.Ordinal));
             if (!Holds(world, household.Id, "blacksmith"))
                 Assert.DoesNotContain(families, blacksmithRecipes.Contains);
@@ -114,10 +118,9 @@ public sealed class HouseholdBuildingUseCoverageTests
         Assert.All(recorder.WorkstationSupplySites.Keys, site => Assert.Equal(
             world.Society.GetInhabitant(site.AgentId).HouseholdId,
             world.WorldSimulation.Buildings.Single(building => building.InstanceId == site.BuildingId).HouseholdId));
-        Assert.All(world.WorldSimulation.Fields!, field => Assert.True(Holds(world, field.HouseholdId, "farmhouse")));
+        Assert.All(world.Fields, field => Assert.True(Holds(world, field.HouseholdId, "farmhouse")));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "field_harvest_collected");
-        Assert.Contains(world.WorldSimulation.CropBuilds!, job => job.State == WorldProductionJobState.Completed &&
-            content.Recipes.Any(recipe => recipe.CanonicalId == job.RecipeId && recipe.LocalId == "universal-grain-field"));
+        Assert.Contains(world.Fields, field => field.Crop == FarmFieldRules.Grain && field.Cycle > 0);
         Assert.Contains(world.WorldSimulation.ProductionJobs, job => job.State == WorldProductionJobState.Completed &&
             job.BuildingInstanceId == farmhouse.InstanceId && content.Recipes.Any(recipe =>
                 recipe.CanonicalId == job.RecipeId && recipe.LocalId == "mill-grain"));
@@ -207,8 +210,7 @@ public sealed class HouseholdBuildingUseCoverageTests
         if (map.Resources.Any(resource => resource.Kind == "iron_ore" && map.IsReachableOnFoot(smith.Position, resource.Position)) &&
             !smithFamilies.Contains("gather_smith_ore")) return false;
         return world.ExportState().Events.Any(item => item.Kind == "field_harvest_collected") &&
-            (world.WorldSimulation.CropBuilds ?? []).Any(job => job.State == WorldProductionJobState.Completed &&
-                world.WorldContent.Recipes.Any(recipe => recipe.CanonicalId == job.RecipeId && recipe.LocalId == "universal-grain-field")) &&
+            world.Fields.Any(field => field.Crop == FarmFieldRules.Grain && field.Cycle > 0) &&
             world.WorldSimulation.ProductionJobs.Any(job => job.State == WorldProductionJobState.Completed && job.BuildingInstanceId == farmhouse.InstanceId &&
                 world.WorldContent.Recipes.Any(recipe => recipe.CanonicalId == job.RecipeId && recipe.LocalId == "mill-grain"));
     }

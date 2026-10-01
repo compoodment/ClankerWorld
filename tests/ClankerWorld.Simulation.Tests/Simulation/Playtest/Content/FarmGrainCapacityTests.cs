@@ -17,25 +17,22 @@ public sealed class FarmGrainCapacityTests
         var footprints = generated.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
             generated.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
         var point = generated.Towns.Single().BorderTiles.OrderBy(tile => state.Map.FootDistance(tile, farmhouse.Position))
-            .First(tile => LandFertilityRules.IsFarmable(state.Map, tile) && !footprints.Contains(tile) &&
+            .First(tile => new ClankerWorld.Simulation.World.LandFertility(state.Map, state.WorldSeed).CanFarm(tile) && !footprints.Contains(tile) &&
                 !generated.RoadTiles.Contains(tile) && !state.Map.Resources.Any(resource => resource.Position == tile) &&
                 !state.Inhabitants.Any(person => person.Position == tile));
-        var recipe = generated.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
         state = FarmTestFields.Prepare(state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = point } : person).ToArray(),
-        }, actor, point, recipe);
+        }, actor, point);
         var capacity = BuildingStorageRules.Capacity(generated.WorldContent.Buildings.Single(definition => definition.CanonicalId == farmhouse.DefinitionId), farmhouse)!.Value;
         var inventory = state.Society.Society.Inventory;
         inventory = InventoryFixture.AddLot(inventory, "full-farmhouse-stock", "stone", farmhouse.HouseholdId!,
             checked((int)(capacity - inventory.Lots.Where(lot => lot.StorageBuildingId == farmhouse.InstanceId).Sum(lot => lot.Quantity))), storageBuildingId: farmhouse.InstanceId);
         state = WithInventory(state, inventory);
         using var growing = Load(state);
-        var planted = growing.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(point), actor);
-        Assert.True(planted.Applied, planted.Failure);
-        for (var tick = 0; tick < recipe.DurationTicks; tick++) Assert.True((await growing.AdvanceOneTickAsync()).Advanced);
+        await FarmTestFields.PlantAndGrow(growing, actor, point);
         await FarmTestFields.Harvest(growing, actor, point);
-        var grainId = planted.JobId + ":output:00";
+        var grainId = FarmFieldRules.FieldId(point) + ":harvest:1:crop";
         var harvested = growing.Society.Inventory.GetLot(grainId).Quantity;
         Assert.True(harvested > 3);
         using var full = Load(FreshChoice(growing.ExportState(), actor), actor, allowDelivery: false);

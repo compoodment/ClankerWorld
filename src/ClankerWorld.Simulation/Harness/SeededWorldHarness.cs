@@ -92,9 +92,6 @@ public sealed record SeededMap(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ElevationLevels { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public byte[]? RainfallLevels { get; init; }
-    public uint FertilitySeed { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? HydrologyKinds { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? SurfaceKinds { get; init; }
@@ -249,8 +246,6 @@ public sealed record SeededMap(
             ? (ClimateZone)zones[point.Y * Width + point.X] : null;
 
     public byte? ElevationAt(GridPoint point) => LayerAt(ElevationLevels, point);
-    public byte? RainfallAt(GridPoint point) => LayerAt(RainfallLevels, point);
-    public LandFertility FertilityAt(GridPoint point) => LandFertilityRules.At(this, point);
     public WaterKind? HydrologyAt(GridPoint point) => LayerAt(HydrologyKinds, point) is { } value
         ? (WaterKind)value : null;
     public SurfaceKind? SurfaceAt(GridPoint point) => LayerAt(SurfaceKinds, point) is { } value
@@ -467,11 +462,12 @@ public static class SeededMapGenerator
             campObjects = [new CampObject("bedroll", "bedroll", new GridPoint(1, 0)), .. campObjects];
         var resources = new[]
         {
-            new MapResource("berry-patch", "food", new GridPoint(4, 1), true),
+            new MapResource("berry-patch", "food", new GridPoint(4, 1), true, NaturalObjectKind: "berry_bush"),
             new MapResource("timber-tree", "construction", new GridPoint(4, 3), false),
+            new MapResource("grain-seed-patch", "grain_seed", new GridPoint(2, 3), true, NaturalObjectKind: "wild_seed_patch"),
+            new MapResource("wild-greens-patch", "food", new GridPoint(3, 3), true, NaturalObjectKind: "wild_greens"),
         };
-        var withoutDigest = new SeededMap(width, height, attempt, tiles, campObjects, resources, string.Empty)
-        { FertilitySeed = Pcg32XshRrV1.Create(worldSeed, "soil-fertility").NextUInt() };
+        var withoutDigest = new SeededMap(width, height, attempt, tiles, campObjects, resources, string.Empty);
         return withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
     }
 }
@@ -538,7 +534,6 @@ public static class GeneratedCampMapGenerator
         var kinds = new TerrainKind[tiles.Length];
         var climateZones = new byte[tiles.Length];
         var elevationLevels = new byte[tiles.Length];
-        var rainfallLevels = new byte[tiles.Length];
         var hydrologyKinds = new byte[tiles.Length];
         var surfaceKinds = new byte[tiles.Length];
         var vegetationKinds = new byte[tiles.Length];
@@ -564,7 +559,6 @@ public static class GeneratedCampMapGenerator
                     _ => TerrainKind.Meadow,
                 };
                 var index = y * width + x;
-                rainfallLevels[index] = tile.Rainfall;
                 kinds[index] = kind;
                 climateZones[index] = (byte)tile.Climate;
                 elevationLevels[index] = tile.Elevation;
@@ -598,12 +592,15 @@ public static class GeneratedCampMapGenerator
         var resources = template.Resources.Select(item => item with
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
-            Kind = !legacyLayout && item.Kind == "food" ? "berries" : item.Kind,
+            Kind = !legacyLayout && item.Kind == "food"
+                ? item.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries" : item.Kind,
             IsRenewable = item.Id == "timber-tree" || item.IsRenewable,
             TreeKind = !legacyLayout && item.Id == "timber-tree" ? "broadleaf" : item.TreeKind,
             NaturalObjectKind = legacyLayout ? null : item.Id switch
             {
                 "berry-patch" => "berry_bush",
+                "grain-seed-patch" => "wild_seed_patch",
+                "wild-greens-patch" => "wild_greens",
                 _ => null,
             },
         }).ToArray();
@@ -628,8 +625,6 @@ public static class GeneratedCampMapGenerator
             placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards).ToArray(), string.Empty)
         {
             ClimateZones = climateZones,
-            RainfallLevels = rainfallLevels,
-            FertilitySeed = Pcg32XshRrV1.Create(options.Seed, "soil-fertility").NextUInt(),
             ElevationLevels = elevationLevels,
             HydrologyKinds = hydrologyKinds,
             SurfaceKinds = surfaceKinds,
@@ -894,10 +889,10 @@ public static class GeneratedCampMapGenerator
                             ClimateZone.Polar or ClimateZone.Cold => selection == 0 ? "food" : "stone",
                             _ => selection switch
                             {
-                                0 => "food",
+                                0 => "grain_seed",
                                 1 => "food",
                                 2 => "fiber",
-                                _ => "seed",
+                                _ => "cultivated_green_seed",
                             },
                         };
                         // Everything but a stone outcrop grows from the soil,
@@ -908,8 +903,8 @@ public static class GeneratedCampMapGenerator
                             resourceKind = "medicinal_herbs";
                         var natural = NaturalObjectFor(resourceKind, tile, x, y, geography, options.WrapEastWest);
                         resourceKind = resourceKind == "food" ? natural == "wild_greens" ? "wild_greens" : "berries"
-                            : resourceKind == "seed" ? (selection == 3 && (x + y) % 2 == 0 ? "greens_seed" : "grain_seed") : resourceKind;
-                        var renewable = resourceKind is "construction" or "berries" or "wild_greens" or "fiber" or "grain_seed" or "greens_seed" or "medicinal_herbs";
+                            : resourceKind;
+                        var renewable = resourceKind is "construction" or "berries" or "wild_greens" or "fiber" or "grain_seed" or "cultivated_green_seed" or "medicinal_herbs";
                         var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
                         sites.Add(new MapResource(id, resourceKind, position, renewable,
                             resourceKind == "construction" ? TreeKindFor(tile.Climate) : null,
@@ -984,7 +979,7 @@ public static class GeneratedCampMapGenerator
                 ? "berry_bush" : "wild_greens",
             "fiber" => IsAdjacentToWater(geography, x, y, wrap) ? "reeds" : "fiber_plant",
             "stone" => "stone_outcrop",
-            "seed" => "wild_seed_patch",
+            "grain_seed" or "cultivated_green_seed" => "wild_seed_patch",
             "medicinal_herbs" => "medicinal_herb_patch",
             _ => null,
         };
@@ -1223,8 +1218,6 @@ public static class MapLayerManifestCodec
             writer.Write(Header);
             writer.Write(map.Width);
             writer.Write(map.Height);
-            writer.Write(map.FertilitySeed);
-            writer.Write(map.RainfallLevels ?? []);
             foreach (var layer in new[] { climate, elevation, hydrology, surface, vegetation })
             {
                 writer.Write(layer.Length);
@@ -1251,9 +1244,6 @@ public static class MapManifestCodec
         builder.Append(Header).Append('\n');
         builder.Append("dimensions=").Append(map.Width).Append('x').Append(map.Height).Append('\n');
         builder.Append("generation_attempt=").Append(map.GenerationAttempt).Append('\n');
-        builder.Append("fertility-seed=").Append(map.FertilitySeed).Append('\n');
-        if (map.RainfallLevels is not null)
-            builder.Append("rainfall=").Append(Convert.ToBase64String(map.RainfallLevels)).Append('\n');
         if (map.ClimateZones is not null)
             builder.Append("climate-zones=").Append(Convert.ToBase64String(map.ClimateZones)).Append('\n');
         foreach (var tile in map.Tiles.OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X))
@@ -1336,8 +1326,7 @@ public static class MapAcceptance
         if (map.ClimateZones is { } zones &&
             (zones.Length != map.Width * map.Height || zones.Any(zone => !Enum.IsDefined((ClimateZone)zone))))
             return MapValidationResult.Invalid("The climate layer is invalid.");
-        if (map.RainfallLevels is { } rain && rain.Length != map.Width * map.Height ||
-            map.ElevationLevels is { } elevation && elevation.Length != map.Width * map.Height ||
+        if (map.ElevationLevels is { } elevation && elevation.Length != map.Width * map.Height ||
             map.HydrologyKinds is { } hydrology &&
                 (hydrology.Length != map.Width * map.Height || hydrology.Any(value => !Enum.IsDefined((WaterKind)value))) ||
             map.SurfaceKinds is { } surfaces &&
@@ -1405,7 +1394,7 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("The starting area has no reachable food resource.");
         var reachable = ReachableFrom(map, startingPoint.Value);
         var starterResources = allowEmptyCamp
-            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree")
+            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch")
             : map.Resources;
         if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
             starterResources.Any(resource => !reachable.Contains(resource.Position)))
@@ -1439,7 +1428,8 @@ public static class MapAcceptance
             "diamond_outcrop" => resourceKind == "diamond",
             "clay_bank" => resourceKind == "clay",
             "fallen_wood" => resourceKind == "wood",
-            "wild_seed_patch" => resourceKind is "seed" or "grain_seed" or "greens_seed",
+            "wild_seed_patch" => resourceKind is "grain_seed" or "cultivated_green_seed",
+            "fertile_soil" => resourceKind == "fertile_land",
             _ => false,
         };
 

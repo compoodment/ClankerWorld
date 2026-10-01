@@ -41,8 +41,10 @@ public sealed class TailorContentTests
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
         var weave = state.WorldContent!.Recipes.Single(item => item.LocalId == "weave-cloth");
         var sew = state.WorldContent.Recipes.Single(item => item.LocalId == "sew-clothing");
-        var allowed = new[] { "haul_household_stock", "supply_workstation:fiber", "build:recipe:" + weave.CanonicalId,
-            "build:recipe:" + sew.CanonicalId };
+        // The shop also stocks wood for leather tanning. Let ordinary supply
+        // finish that input before another fiber load becomes the offered choice.
+        var allowed = new[] { "haul_household_stock", "supply_workstation:fiber", "supply_workstation:wood",
+            "build:recipe:" + weave.CanonicalId, "build:recipe:" + sew.CanonicalId };
         IDecisionProvider Provider(string id) => new AllowedChoices(id == actor ? allowed : []);
 
         var world = PrivateWorldRuntime.Restore(state, Provider);

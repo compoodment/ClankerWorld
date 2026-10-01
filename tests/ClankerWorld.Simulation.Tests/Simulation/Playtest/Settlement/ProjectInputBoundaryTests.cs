@@ -13,59 +13,28 @@ public sealed class ProjectInputBoundaryTests
     [Fact]
     public async Task CropPreparationDoesNotUseAnotherHouseholdsSeeds()
     {
-        using var seed = NormalPathWorld.CreateGenerated("probe-a", _ => new Idle());
-        var state = seed.ExportState();
-        var farmhouse = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse");
-        var household = farmhouse.HouseholdId!;
-        var actor = seed.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
-        var otherHousehold = seed.Society.Households.First(item => item.Id != household).Id;
-        var recipe = seed.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
-        var occupied = seed.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-            seed.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
-            .Concat(seed.RoadTiles).Concat(state.Map.Resources.Select(resource => resource.Position))
-            .Concat(state.Inhabitants.Select(person => person.Position)).ToHashSet();
-        var point = seed.Towns.Single().BorderTiles.First(tile => LandFertilityRules.IsFarmable(state.Map, tile) && !occupied.Contains(tile));
-        var hoe = state.Society.Society.Inventory.Lots.Single(lot => lot.OwnerId == household && lot.ItemKind == "wooden_hoe");
-        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "boundary-hoe", household, actor, hoe.Id, 1, "field-work");
-        state = state with
+        var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("foreign-field-stock");
+        var inventory = state.Society.Society.Inventory;
+        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind is "grain_seed" or "cultivated_green_seed" or "potatoes").ToArray())
         {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = point, HungerBasisPoints = 9_500 } : person).ToArray(),
-        };
-        using var tilling = PrivateWorldRuntime.Restore(state, _ => new Idle());
-        for (var turn = 0; turn < 8; turn++)
-        {
-            Assert.True(tilling.TillField(actor, point).Applied);
-            Assert.True((await tilling.AdvanceOneTickAsync()).Advanced);
+            inventory = InventoryFixture.Reserve(inventory, "used-" + lot.Id, household, lot.Id, lot.Quantity, "fixture", long.MaxValue);
+            inventory = InventoryFixture.ConsumeReservation(inventory, "used-" + lot.Id);
         }
-        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(tilling.WorldSimulation.Fields!).Stage);
-        state = tilling.ExportState();
-        inventory = state.Society.Society.Inventory;
-        foreach (var lot in inventory.Lots.Where(lot => (lot.OwnerId == household || lot.OwnerId == actor) && lot.ItemKind == "grain_seed").ToArray())
-        {
-            inventory = InventoryFixture.Reserve(inventory, "use-" + lot.Id, lot.OwnerId, lot.Id, lot.Quantity, "used", 1000);
-            inventory = InventoryFixture.ConsumeReservation(inventory, "use-" + lot.Id);
-        }
-        inventory = InventoryFixture.AddLot(inventory, "other-household-seed", "grain_seed", otherHousehold, 2);
-        var otherSeeds = inventory.Lots.Where(lot => lot.OwnerId == otherHousehold && lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity);
-        state = state with
-        {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            {
-                Project = new SettlementProject("build:recipe:" + recipe.CanonicalId, "Plant", state.Society.Society.WorldTick, "working", 10,
-                    LastTransitionTick: state.Society.Society.WorldTick),
-            } : person).ToArray(),
-        };
-        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new Idle());
-        var denied = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(point), actor);
-        Assert.False(denied.Applied);
-        Assert.Contains("Carry the planting stock", denied.Failure, StringComparison.Ordinal);
-        _ = await world.AdvanceOneTickAsync();
-        Assert.NotEqual("working", world.Inhabitants.Single(person => person.InhabitantId == actor).Project!.Stage);
-        Assert.DoesNotContain(world.WorldSimulation.CropBuilds ?? [], job => job.WorkerId == actor);
-        Assert.Equal(otherSeeds, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == otherHousehold && lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity));
-        _ = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var foreign = inventory.Lots.Where(lot => lot.OwnerId != household && lot.ItemKind is "grain_seed" or "cultivated_green_seed" or "potatoes")
+            .Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)).ToArray();
+        Assert.NotEmpty(foreign);
+        state = FarmFieldTests.WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        var recorder = new ActionCoverageRecorder();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? recorder : new Idle());
+        var foreignSeed = inventory.Lots.First(lot => lot.OwnerId != household && lot.ItemKind == "grain_seed");
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False(world.StartFieldWork(actor, point, FarmWorkKind.Plant, "grain", foreignSeed.Id).Accepted);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 6; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.DoesNotContain(recorder.OfferedByAgent[actor].Keys, id => id.StartsWith("farm:Plant:", StringComparison.Ordinal));
+        Assert.Equal(foreign, world.Society.Inventory.Lots.Where(lot => lot.OwnerId != household && lot.ItemKind is "grain_seed" or "cultivated_green_seed" or "potatoes")
+            .Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)).ToArray());
+        world.Validate();
     }
 
     [Fact]

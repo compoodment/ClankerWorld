@@ -273,7 +273,7 @@ public sealed partial class PrivateWorldRuntime
                     reservation.State == InventoryReservationState.Completed))
                 throw new InvalidDataException("Medical treatment has invalid physical supply, work or patient state.");
         }
-        if (state.SchemaVersion < 33 && state.Inhabitants.Any(person => person.MedicalTreatment is not null || person.MedicalCaregiverIds is not null))
-            throw new InvalidDataException("Medical treatment and consent require private-world schema 33.");
+        if (state.SchemaVersion < 35 && state.Inhabitants.Any(person => person.MedicalTreatment is not null || person.MedicalCaregiverIds is not null))
+            throw new InvalidDataException("Medical treatment and consent require private-world schema 35.");
     }
 }

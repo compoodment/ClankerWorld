@@ -98,10 +98,9 @@ public sealed partial class PrivateWorldRuntime
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-pickaxe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-pickaxe", "wooden_pickaxe",
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
-        foreach (var household in new[] { HouseholdId, SecondHouseholdId })
-            if (!stock.Lots.Any(lot => lot.Id == "first-town-hoe:" + household))
-                stock = InventoryFixture.AddLot(stock, "first-town-hoe:" + household, "wooden_hoe",
-                    household, 1, storageBuildingId: household == HouseholdId ? firstHouse : secondHouse);
+        if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-hoe"))
+            stock = InventoryFixture.AddLot(stock, "first-town-wooden-hoe", "wooden_hoe",
+                TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
         return stock;
     }
 }

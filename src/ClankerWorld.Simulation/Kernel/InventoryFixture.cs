@@ -34,7 +34,7 @@ public enum DirectBarterState
 /// Immutable inventory identity. A split retains the source lot as provenance;
 /// quantities, condition and freshness are never fabricated by a transfer.
 /// </summary>
-public sealed record InventoryGroundPosition(int X, int Y);
+public readonly record struct InventoryGroundPosition(int X, int Y);
 
 public sealed record InventoryLot(
     string Id,
@@ -368,7 +368,8 @@ public static partial class InventoryFixture
         int quantity,
         string purpose,
         string? destinationStorageBuildingId = null,
-        string? destinationDeliveryBuildingId = null)
+        string? destinationDeliveryBuildingId = null,
+        InventoryGroundPosition? destinationGroundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(transferId);
@@ -392,7 +393,7 @@ public static partial class InventoryFixture
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
                         ContainerLotId = null,
-                        GroundPosition = null,
+                        GroundPosition = destinationGroundPosition,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -409,11 +410,14 @@ public static partial class InventoryFixture
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
                     ContainerLotId = null,
-                    GroundPosition = null,
+                    GroundPosition = destinationGroundPosition,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
         lots = MoveContainedLots(lots, source.Id, recipientId, destinationStorageBuildingId, destinationDeliveryBuildingId);
+        if (destinationGroundPosition is not null)
+            lots = lots.Select(lot => lot.ContainerLotId == source.Id
+                ? lot with { GroundPosition = destinationGroundPosition } : lot).ToArray();
         ValidateLots(lots);
         return Commit(
             checkpoint,

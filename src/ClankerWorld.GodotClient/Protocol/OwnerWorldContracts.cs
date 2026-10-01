@@ -24,13 +24,16 @@ public sealed record OwnerWorldPosition(int X, int Y);
 public sealed record OwnerWorldTile(int X, int Y, string Terrain);
 public sealed record OwnerWorldPackedTerrain(int Width, int Height, string Encoding, string Data);
 public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation,
-    string? Fertility = null);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation)
+{
+    public string? Fertility { get; init; }
+}
+public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
+    int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
+
 public sealed record OwnerWorldAnimal(string Id, string Kind, string HouseholdId, OwnerWorldPosition Position,
     bool CaredFor, string? RiderId, string? Product, int ProductQuantity, bool Deceased, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
-
-public sealed record OwnerWorldField(OwnerWorldPosition Position, string HouseholdId, string State, string? Crop,
-    int WorkDone, int WorkRequired, IReadOnlyList<OwnerWorldInventoryEntry> GroundItems);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
 public sealed record OwnerWorldBoat(string Id, string TownId, OwnerWorldPosition Position, string? PassengerId,
@@ -328,6 +331,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
+    public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
@@ -340,7 +345,6 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public IReadOnlyList<OwnerWorldCart> Carts { get; init; } = [];
-    public IReadOnlyList<OwnerWorldField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
     public IReadOnlyList<OwnerWorldAnimal> Livestock { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
@@ -493,7 +497,13 @@ public sealed record OwnerProviderConfigurationAction(
     string? CredentialSlotId = null,
     string? NewCredentialLabel = null);
 
-public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
+public sealed record InhabitantProviderAssignment(
+    string InhabitantId,
+    string Role,
+    string Provider,
+    string? Model = null,
+    string? CredentialSlotId = null,
+    string? SelectionReason = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

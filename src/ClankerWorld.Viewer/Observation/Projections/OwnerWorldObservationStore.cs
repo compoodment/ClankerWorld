@@ -200,6 +200,7 @@ public sealed partial class OwnerWorldObservationStore
         string? knownMapLayersDigest = null)
     {
         var map = state.Map;
+        var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
@@ -219,7 +220,7 @@ public sealed partial class OwnerWorldObservationStore
                 inventory.Where(item => item.Kind == "food").Sum(item => item.Quantity),
                 inventory.Where(item => item.Kind == "wood").Sum(item => item.Quantity));
         }
-        var jobs = state.WorldSimulation?.ProductionJobs.Concat(state.WorldSimulation.CropBuilds ?? []).ToArray() ?? [];
+        var jobs = state.WorldSimulation?.ProductionJobs.ToArray() ?? [];
         var latestEventId = state.Events.Count == 0 ? 0 : state.Events[^1].EventId;
         var terrainUnchanged = state.Geography is not null &&
             string.Equals(knownTerrainWorldId, state.Society.Society.WorldId, StringComparison.Ordinal) &&
@@ -274,7 +275,7 @@ public sealed partial class OwnerWorldObservationStore
             latestEventId)
         {
             PackedTerrain = packedTerrain,
-            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map),
+            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed),
             MapLayersDigest = mapLayersDigest,
             Livestock = (state.Livestock ?? []).Select(animal => new ViewerAnimal(animal.Id,
                 animal.Kind.ToString().ToLowerInvariant(), animal.HouseholdId, ToPosition(animal.Position),
@@ -284,14 +285,15 @@ public sealed partial class OwnerWorldObservationStore
                 animal.NaturalDeathTick is not null, state.Society.Society.Inventory.Lots.Where(lot => lot.AnimalId == animal.Id)
                     .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
                     .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
-            Fields = (state.WorldSimulation?.Fields ?? []).Select(field => new ViewerField(
-                ToPosition(field.Position), field.HouseholdId, field.Stage.ToString().ToLowerInvariant(),
-                state.WorldContent?.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == field.RecipeId)?.DisplayName,
-                field.WorkDone, field.Stage == FarmFieldStage.Ready ? 4 : 8,
-                state.Society.Society.Inventory.Lots.Where(lot => lot.AnimalId is null && lot.GroundPosition is { } ground &&
-                        ground.X == field.Position.X && ground.Y == field.Position.Y)
-                    .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
-                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
+            Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,
+                field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
+                field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
+            GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0)
+                .GroupBy(lot => (Position: lot.GroundPosition!.Value, lot.OwnerId, lot.ItemKind))
+                .OrderBy(group => group.Key.Position.Y).ThenBy(group => group.Key.Position.X)
+                .ThenBy(group => group.Key.ItemKind, StringComparer.Ordinal).ThenBy(group => group.Key.OwnerId, StringComparer.Ordinal)
+                .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
+                    group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
             Boats = (state.BoatTransport?.Boats ?? []).Select(boat => new ViewerBoat(boat.Id, boat.TownId, ToPosition(boat.Position),
                 boat.Journey?.PassengerId, boat.Journey?.OriginPortId, boat.Journey?.DestinationPortId,
@@ -511,17 +513,20 @@ public sealed partial class OwnerWorldObservationStore
             Convert.ToBase64String(bytes));
     }
 
-    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map)
+    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed = null)
     {
         if (map.ClimateZones is not { } climate || map.ElevationLevels is not { } elevation ||
             map.HydrologyKinds is not { } hydrology || map.SurfaceKinds is not { } surface ||
             map.VegetationKinds is not { } vegetation) return null;
-        var fertility = map.Tiles.OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X)
-            .Select(tile => (byte)map.FertilityAt(tile.Position)).ToArray();
-        return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v3",
+        var fertility = worldSeed is null ? null : new LandFertility(map, worldSeed);
+        return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v2",
             Convert.ToBase64String(climate), Convert.ToBase64String(elevation),
             Convert.ToBase64String(hydrology), Convert.ToBase64String(surface),
-            Convert.ToBase64String(vegetation), Convert.ToBase64String(fertility));
+            Convert.ToBase64String(vegetation))
+        {
+            Fertility = fertility is null ? null : Convert.ToBase64String(map.Tiles.OrderBy(tile => tile.Position.Y)
+                .ThenBy(tile => tile.Position.X).Select(tile => checked((byte)fertility.At(tile.Position))).ToArray()),
+        };
     }
 
     private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)
@@ -641,6 +646,12 @@ public sealed partial class OwnerWorldObservationStore
         };
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("birth-model-provider", birthProvider));
+            if (birthModel.ModelId is { } modelId)
+                decisionFactors.Add(new ViewerDecisionFactor("birth-model-id", modelId));
+        }
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         var modelStatus = physical.LastModelAttempt?.Status ?? "ready";
