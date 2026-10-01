@@ -505,21 +505,9 @@ public static class GeneratedCampMapGenerator
     private const int CampHeight = 5;
 
     public static SeededMap Generate(GeographyOptions options, bool includeLegacyBedroll = false)
-        => GenerateCore(options, includeLegacyBedroll, legacyLayout: false, retainLegacyCamp: false);
+        => GenerateCore(options, includeLegacyBedroll);
 
-    // Preserve the exact map lineage of pre-site-selection generated worlds.
-    // Their saved camp objects remain valid and are never silently rewritten.
-    public static SeededMap GenerateWithLegacyCamp(GeographyOptions options, bool includeLegacyBedroll = false)
-        => GenerateCore(options, includeLegacyBedroll, legacyLayout: false, retainLegacyCamp: true);
-
-    // Reconstruct the pre-layer generated manifest when validating old saves.
-    // The old resource placement and camp-site rules are part of that map's
-    // identity; accepting its self-digest alone would not prove provenance.
-    public static SeededMap GenerateLegacy(GeographyOptions options, bool includeLegacyBedroll)
-        => GenerateCore(options, includeLegacyBedroll, legacyLayout: true, retainLegacyCamp: true);
-
-    private static SeededMap GenerateCore(GeographyOptions options, bool includeLegacyBedroll,
-        bool legacyLayout, bool retainLegacyCamp)
+    private static SeededMap GenerateCore(GeographyOptions options, bool includeLegacyBedroll)
     {
         ArgumentNullException.ThrowIfNull(options);
         // This bridge still allocates one object per tile for the old
@@ -571,30 +559,24 @@ public static class GeneratedCampMapGenerator
         // rules, never from simply touching a river or lake.
         ClassifySurfaces(options, geography, surfaceKinds, width, height);
         var template = BaseCampMapGenerator.Generate(options.Seed, includeLegacyBedroll);
-        var origin = legacyLayout
-            ? FindLegacyCampOrigin(kinds, width, height)
-            : FindCampOrigin(hydrologyKinds, elevationLevels, surfaceKinds, width, height,
-                template.Resources.Select(item => item.Position).ToArray());
+        var origin = FindCampOrigin(hydrologyKinds, elevationLevels, surfaceKinds, width, height,
+            template.Resources.Select(item => item.Position).ToArray());
         // Forest floor marks the groves that object placement fills with trees,
         // outside the starting clearing so the first Town keeps open ground.
-        if (!legacyLayout)
-            MarkForestGroves(options, surfaceKinds, forestPotential, origin, width, height);
+        MarkForestGroves(options, surfaceKinds, forestPotential, origin, width, height);
         // Pass 3, vegetation eligibility: cover follows climate and the surface
         // beneath it, so an open beach carries no forest or grass cover.
         ClassifyVegetation(geography, surfaceKinds, forestPotential, vegetationKinds, width, height);
 
         // Pass 4, object placement, checks every tree and plant against the
         // surface and vegetation chosen above.
-        var objects = (retainLegacyCamp ? template.CampObjects : []).Select(item => item with
-        {
-            Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
-        }).ToArray();
+        var objects = Array.Empty<CampObject>();
         var resources = template.Resources.Select(item => item with
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
             IsRenewable = item.Id == "timber-tree" || item.IsRenewable,
-            TreeKind = !legacyLayout && item.Id == "timber-tree" ? "broadleaf" : item.TreeKind,
-            NaturalObjectKind = legacyLayout ? null : item.Id switch
+            TreeKind = item.Id == "timber-tree" ? "broadleaf" : item.TreeKind,
+            NaturalObjectKind = item.Id switch
             {
                 "berry-patch" => "berry_bush",
                 SeededMapGenerator.FertileLandResourceId => "fertile_soil",
@@ -603,24 +585,21 @@ public static class GeneratedCampMapGenerator
         }).ToArray();
         // Grove trees come straight after the starter sites so every
         // forest-floor tile gets its tree before other sites use the budget.
-        List<MapResource> groves = legacyLayout ? [] : PlaceGroveTrees(options, geography, surfaceKinds,
+        List<MapResource> groves = PlaceGroveTrees(options, geography, surfaceKinds,
             width, objects, resources);
         var placed = resources.Concat(groves).ToArray();
-        var distributed = legacyLayout
-            ? GenerateLegacyResourceSites(options, kinds, width, height, objects, resources)
-            : GenerateResourceSites(options, geography, hydrologyKinds, elevationLevels,
+        var distributed = GenerateResourceSites(options, geography, hydrologyKinds, elevationLevels,
             surfaceKinds, vegetationKinds, objects, placed);
         // Rare deposits come before the scattered filler trees so that a
         // forested chunk cannot crowd out the map's only iron or gold.
-        List<MapResource> geology = legacyLayout ? [] : GenerateGeologySites(options, geography, objects,
+        List<MapResource> geology = GenerateGeologySites(options, geography, objects,
             placed.Concat(distributed).ToArray());
-        List<MapResource> trees = legacyLayout ? [] : GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
+        List<MapResource> trees = GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
             width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
-        List<MapResource> orchards = legacyLayout ? [] : GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
+        List<MapResource> orchards = GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
             placed.Concat(distributed).Concat(geology).Concat(trees).ToArray());
-        if (!legacyLayout)
-            MarkFertileSoilSites(surfaceKinds,
-                placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards), width, height);
+        MarkFertileSoilSites(surfaceKinds,
+            placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards), width, height);
         var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
             placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards).ToArray(), string.Empty)
         {
@@ -636,89 +615,6 @@ public static class GeneratedCampMapGenerator
         if (!validation.IsValid)
             throw new InvalidOperationException($"Generated world is invalid: {validation.Failure}");
         return map;
-    }
-
-    private static List<MapResource> GenerateLegacyResourceSites(GeographyOptions options,
-        TerrainKind[] kinds, int width, int height, IReadOnlyList<CampObject> camp,
-        IReadOnlyList<MapResource> starter)
-    {
-        const int spacing = 16;
-        var occupied = camp.Select(item => item.Position)
-            .Concat(starter.Select(item => item.Position)).ToHashSet();
-        var sites = new List<MapResource>();
-        for (var top = 0; top < height; top += spacing)
-            for (var left = 0; left < width; left += spacing)
-            {
-                var sitesInCell = options.ResourceAbundance switch
-                {
-                    ResourceAbundance.Sparse => (left / spacing + top / spacing) % 2 == 0 ? 1 : 0,
-                    ResourceAbundance.Normal => 1,
-                    ResourceAbundance.Abundant => 2,
-                    _ => throw new ArgumentOutOfRangeException(nameof(options)),
-                };
-                var random = Pcg32XshRrV1.Create(options.Seed, $"resource-site:{left},{top}");
-                for (var site = 0; site < sitesInCell; site++)
-                    for (var attempt = 0; attempt < 12; attempt++)
-                    {
-                        var x = left + (int)(random.NextUInt() % (uint)Math.Min(spacing, width - left));
-                        var y = top + (int)(random.NextUInt() % (uint)Math.Min(spacing, height - top));
-                        var position = new GridPoint(x, y);
-                        var kind = kinds[y * width + x];
-                        if (kind is not (TerrainKind.Meadow or TerrainKind.Sand or TerrainKind.Forest or TerrainKind.Snow) ||
-                            occupied.Contains(position)) continue;
-                        var selection = random.NextUInt() % 4;
-                        var resourceKind = kind switch
-                        {
-                            TerrainKind.Forest => "construction",
-                            TerrainKind.Sand => selection == 0 ? "fiber" : "stone",
-                            TerrainKind.Snow => selection == 0 ? "food" : "stone",
-                            _ => selection switch
-                            {
-                                0 => "fertile_land",
-                                1 => "food",
-                                2 => "fiber",
-                                _ => "seed",
-                            },
-                        };
-                        var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
-                        var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
-                        sites.Add(new MapResource(id, resourceKind, position, renewable));
-                        occupied.Add(position);
-                        break;
-                    }
-            }
-        return sites;
-    }
-
-    private static GridPoint FindLegacyCampOrigin(TerrainKind[] kinds, int width, int height)
-    {
-        var centerX = (width - CampWidth) / 2;
-        var centerY = (height - CampHeight) / 2;
-        var maxRadius = width + height;
-        for (var radius = 0; radius <= maxRadius; radius++)
-            for (var offsetX = -radius; offsetX <= radius; offsetX++)
-            {
-                var offsetY = radius - Math.Abs(offsetX);
-                if (TryLegacySite(centerX + offsetX, centerY + offsetY, kinds, width, height))
-                    return new GridPoint(centerX + offsetX, centerY + offsetY);
-                if (offsetY > 0 && TryLegacySite(centerX + offsetX, centerY - offsetY, kinds, width, height))
-                    return new GridPoint(centerX + offsetX, centerY - offsetY);
-            }
-        throw new InvalidOperationException("The generated geography has no suitable base-camp clearing.");
-    }
-
-    private static bool TryLegacySite(int left, int top, TerrainKind[] kinds, int width, int height)
-    {
-        if (left < 0 || top < 0 || left + CampWidth > width || top + CampHeight > height)
-            return false;
-        if (left / GeographyGenerator.ChunkSize != (left + CampWidth - 1) / GeographyGenerator.ChunkSize ||
-            top / GeographyGenerator.ChunkSize != (top + CampHeight - 1) / GeographyGenerator.ChunkSize)
-            return false;
-        for (var y = top; y < top + CampHeight; y++)
-            for (var x = left; x < left + CampWidth; x++)
-                if (kinds[y * width + x] is not (TerrainKind.Meadow or TerrainKind.Sand or
-                    TerrainKind.Forest or TerrainKind.Snow)) return false;
-        return true;
     }
 
     private static void ClassifySurfaces(GeographyOptions options, GeneratedGeography geography, byte[] surfaces,
