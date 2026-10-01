@@ -81,9 +81,9 @@ placeholder name until the player changes it.
 
 Player renames follow the same rule: a full name held by another living or
 deceased agent is refused. The Profile explains that the name is taken and
-keeps the name field open so you can choose another. This makes no model
-request. Renaming keeps the same person and leaves past spoken lines as they
-were.
+keeps the name field open with your attempt in it until you change it, close
+it or choose another agent. This makes no model request. Renaming keeps the
+same person and leaves past spoken lines as they were.
 
 A child's personal model is recorded at birth from the parents' explicit
 personal assignments. When those differ, the parent who began the family plan

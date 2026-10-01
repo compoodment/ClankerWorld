@@ -159,6 +159,11 @@ public partial class Main
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
+        /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
+        public OwnerWorldReconnect? Reconnect { get; set; }
+        /// <summary>Full names the host refuses as already taken.</summary>
+        public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -227,6 +232,20 @@ public partial class Main
                     // Stop after recording the signed ID; this check does not claim a live-host playtest.
                     context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                     response = new { error = "Controlled selection refusal." };
+                    break;
+                case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
+                    response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerAgentRename:
+                    var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;
+                    RenameRequests.Enqueue(rename);
+                    if (TakenAgentNames.Contains(rename.Name))
+                    {
+                        // The same refusal the world host sends for a taken full name.
+                        context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                        response = new { code = "name_taken", message = "That full name belongs to another agent." };
+                    }
+                    else response = new OwnerAgentRenameReceipt(rename.AgentId, rename.Name, true);
                     break;
                 case "/api/v1/owner/delete":
                     Interlocked.Increment(ref deleteCount);

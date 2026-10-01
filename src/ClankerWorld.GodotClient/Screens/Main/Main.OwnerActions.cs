@@ -235,22 +235,38 @@ public partial class Main
     private async Task RenameSelectedAgentAsync()
     {
         if (selectedInhabitantId is not { } agentId ||
-            observationSession.Current?.Baseline.Snapshot.Inhabitants.All(person => person.Id != agentId) != false)
+            observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            snapshot.Inhabitants.All(person => person.Id != agentId))
             return;
-        var name = renameAgentInput.Text.Trim();
+        var attempted = renameAgentInput.Text;
+        var name = attempted.Trim();
         if (name.Length is < 1 or > 48 || name.Any(char.IsControl))
         {
             SetStatus("Pick a name of 48 characters or fewer.", good: false);
             return;
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var worldId = snapshot.WorldId;
         await RunOwnerActionAsync(async () =>
         {
-            var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
-            renamingAgentId = null;
-            renameRow.Hide();
-            return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
+            try
+            {
+                var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
+                renamingAgentId = null;
+                refusedAgentRename.Forget();
+                renameRow.Hide();
+                return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
+            }
+            catch (OwnerAgentNameTakenException) when (selectedInhabitantId == agentId &&
+                renamingAgentId == agentId && renameRow.Visible && renameAgentInput.Text == attempted &&
+                observationSession.Current?.Baseline.Snapshot.WorldId == worldId)
+            {
+                // The field keeps the refused name until the player changes or
+                // cancels it; refreshes still show the host's name above it.
+                refusedAgentRename.Remember(worldId, agentId, attempted);
+                throw;
+            }
         });
     }
 
