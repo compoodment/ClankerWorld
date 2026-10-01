@@ -584,7 +584,8 @@ public sealed partial class PrivateWorldRuntime
             }
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"project-delivery:{WorldTick}:{inhabitantId}", inhabitantId, constructionOwner, carried.Id,
-                deliveryQuantity, "project_contribution", house?.InstanceId));
+                deliveryQuantity, "project_contribution", house?.InstanceId,
+                destinationGroundPosition: house is null ? new InventoryGroundPosition(store.X, store.Y) : null));
             AppendEvent("project_material_delivered", $"{inhabitantId}:{input.ResourceId}");
             return;
         }
@@ -782,12 +783,20 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddProjectAssistanceCandidates(List<CognitionCandidate> candidates, string helperId)
     {
-        foreach (var request in ProjectRequests(helperId).DistinctBy(request => request.Input.ResourceId))
+        foreach (var request in ProjectRequests(helperId))
         {
             var itemKind = request.Input.ResourceId;
-            if (MaterialSource(itemKind, helperId) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
+            if (candidates.Any(candidate => candidate.Id == "assist:" + itemKind)) continue;
+            var house = HouseForHousehold(request.OwnerId);
+            var stagesAtCamp = house is null && society.Checkpoint.Households.Any(item => item.Id == request.OwnerId);
+            if (house is not null && StorageRoom(house.InstanceId) == 0 ||
+                house is null && !stagesAtCamp && FreeCarryCapacity(request.Requester) == 0)
+                continue;
+            var hasCarriedMaterial = society.Checkpoint.Inventory.Lots.Any(lot =>
                     PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
-                    AvailableLotQuantity(lot) > 0))
+                    AvailableLotQuantity(lot) > 0);
+            if (hasCarriedMaterial || MaterialSource(itemKind, helperId) is { } source &&
+                FreeCarryCapacity(helperId) >= ProjectMaterialCarryUnits(helperId, itemKind, source))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
                     $"Help {society.Checkpoint.GetInhabitant(request.Requester).Name}: gather and share {itemKind} for their project.", 15));
@@ -815,10 +824,12 @@ public sealed partial class PrivateWorldRuntime
         }
         var house = HouseForHousehold(request.OwnerId);
         // A helper may deliver supplies without gaining access to the recipient's stock.
-        // Without a House, hand them to the requester to keep them physically carried.
-        var recipient = house is null ? request.Requester : request.OwnerId;
-        var store = house?.Position ?? inhabitants[request.Requester].Position;
-        var interactionRange = society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId ? 0 : ResourceInteractionRange;
+        // Before its first House, a household keeps its construction supplies at camp.
+        var stagesAtCamp = house is null && society.Checkpoint.Households.Any(item => item.Id == request.OwnerId);
+        var recipient = house is not null || stagesAtCamp ? request.OwnerId : request.Requester;
+        var store = house?.Position ?? (stagesAtCamp ? SettlementStoragePosition : inhabitants[request.Requester].Position);
+        var interactionRange = house is not null && society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId
+            ? 0 : ResourceInteractionRange;
         if (!IsWithinInteractionRange(state.Position, store, interactionRange))
         {
             MoveToward(helperId, state, store, "share_materials", interactionRange);
@@ -826,11 +837,11 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
-        else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
+        else if (!stagesAtCamp) quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, recipient, carried.Id, quantity, "project_request_fulfilled",
-            house?.InstanceId));
+            house?.InstanceId, destinationGroundPosition: stagesAtCamp ? new InventoryGroundPosition(store.X, store.Y) : null));
         IncreaseTrust(request.Requester, helperId, 2, "material_help");
         var memoryId = $"project-gratitude:{request.Requester}:{helperId}";
         if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
