@@ -185,8 +185,8 @@ placement, the local search extent, the placement boundary's exact distance
 measurement near tile/footprint edges, whether geometric proximity also
 requires a walkable route, and how changing site revalidates any positions or
 claims tied to the previous layout without clearing model/provider choices.
-Warehouse details remain open: formal ownership, how Town residency is
-determined, access when the building is outside all Town borders or borders
+Town residency follows the [agreed membership rules](towns.md#town-membership).
+Warehouse details remain open: formal ownership, access when the building is outside all Town borders or borders
 change, and how its hard access gate relates to any future crime system. The
 optional survival grace period still
 needs a duration and precise effects. Also open:

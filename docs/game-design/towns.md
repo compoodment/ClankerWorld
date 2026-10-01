@@ -82,7 +82,8 @@ everything that is available in the current build. See [what works today](../wha
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
-  are Town residents with access to its Warehouse. Towns have generated,
+  are Town residents with access to its Warehouse. Later membership follows the
+  [agreed Town rules](#town-membership). Towns have generated,
   inspectable borders with room to grow. The border follows the
   Town's assigned buildings, includes spare space around them, and expands
   when new buildings join that Town. **Agreed after the September 30 road
@@ -98,7 +99,8 @@ everything that is available in the current build. See [what works today](../wha
   inspectable resource stock at its location for agents/households resident in
   its Town, within that Town's borders. Food belongs at home instead. It is for
   residents only, checked when they pick something up; what someone already
-  carries stays theirs. Residency and border-change access cases remain open.
+  carries stays theirs. Use [recorded Town membership](#town-membership),
+  including homeless residents; border-change access cases remain open.
 - **Household buildings and who may use them:** work roles do not decide what
   an agent may do. One household holds each household building: the Farmhouse,
   Blacksmith, Store and Tailor Shop. Any adult resident of that household may
@@ -174,8 +176,8 @@ everything that is available in the current build. See [what works today](../wha
 The household's existing limit of one planned House remains separate from the
 number of people in its family. Splitting into two households does not erase
 parentage or other family relationships. Care during a living adult's departure
-is agreed below; care after death, other guardianship cases and Town residency
-changes still need their own decisions.
+is agreed below. Town affiliation follows the [Town membership rules](#town-membership);
+care after death and other guardianship cases still need their own decisions.
 
 ### Household goods and departure
 
@@ -327,6 +329,52 @@ remain their original implementation slices; the new residence and relocation
 rules require their own follow-up work, without competing with active claims.
 Resident limits and housing-driven expansion are tracked in [#598](https://github.com/compoodment/ClankerWorld/issues/598),
 and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
+### Town membership
+
+**Agreed with the owner on October 1, answers 15A–18A:**
+
+- **Residence is recorded membership in one Town, or none.** A journey, visit
+  or border crossing does not change that record. Household membership,
+  permanent House residence, physical location and Town membership are separate
+  facts. Rowan can gather near another Town for three days while remaining a
+  resident of the original Town.
+- **Homeless residents keep their Town membership.** Leaving a household,
+  eviction or losing a House does not alone remove Town membership, ordinary
+  eligibility to collect communal Warehouse stock or adult voting rights.
+  The person can seek another accepting household or build normally while
+  remaining a Town resident. Available stock, physical collection, carrying
+  limits, access and ordinary construction rules still apply.
+- **An ordinary adult newcomer needs Town approval.** The current council or
+  other legitimate Town government accepts them. Household admission is a
+  separate decision: an accepting household alone cannot grant Town membership,
+  communal stock access or a vote. A homeless newcomer may request Town
+  membership before finding a House. A request or model claim is not approval;
+  walking into the border does not register a resident. The council's voting
+  procedure remains a separate governance choice.
+- **Dependent children follow their primary caregiver.** A newborn joins that
+  caregiver's Town without a separate admission vote; the other parent's Town
+  membership is unchanged. Approval for a caregiver moving Towns with dependent
+  children covers the care group. Keep the group's membership consistent with
+  actual caregiver placement, preserve parentage and count everyone as a
+  resident. Children gain no adult council or voting rights before adulthood.
+  The household still needs agreement and places for the complete care group;
+  Town approval creates no free House, private access or extra resident places.
+
+The separately agreed New World and Add Agent placement rules still initialize
+Town membership: the first four agents belong to the first Town, and confirmed
+Add Agent placement uses the recorded household property/Town precedence. Those
+setup exceptions do not turn later travel into membership or bypass the agreed
+House capacity checks.
+
+The [initial council and elections](#town-laws-and-governance) use these recorded
+adult residents rather than the agents physically inside a border. How the
+first returning resident is admitted when an abandoned Town has no government,
+border-change Warehouse access, and abandoned stock/claims still need the next
+interview batch. The approved membership work is tracked in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602); council voting and
+election procedures follow separately in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
 
 ### Agreed content and building sizes
 
@@ -565,8 +613,9 @@ adult residents should retain a vote in those elections.
 
 ### Still to decide
 
-What qualifies an adult as a Town resident, elected council size,
-election timing/terms, vote threshold/quorum, proposal/repeal procedure, and
+Town residency and newcomer approval are agreed in [Town membership](#town-membership).
+Still open: elected council size, election timing/terms, vote threshold/quorum,
+proposal/repeal procedure, and
 how governments may change; which laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
@@ -761,8 +810,10 @@ These remain open; they are not new decisions.
    settle footprint-scaled places, family priority, births and relocation. The
    [goods and departure rules](#household-goods-and-departure) settle personal
    ownership, collection access, the food allowance and care during a living
-   adult's departure. Care after death, other guardianship cases and Town
-   residency remain open; they do not reopen the agreed home rules.
+   adult's departure. [Town membership](#town-membership) settles recorded
+   affiliation, homeless residents, ordinary newcomer approval and dependent
+   children. Care after death, other guardianship cases, abandoned-Town admission
+   and remaining border/access cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
