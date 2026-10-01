@@ -281,9 +281,12 @@ everything that is available in the current build. See [what works today](../wha
   normal task system and its physical, resource and access rules.
 - Conversations, relationships, inventions/mods and combat are agreed parts
   of the intended game, with their full systems planned for later alpha work.
-  This development order does not make their inclusion provisional or decide
-  that the player can only use Suggest for them. Their eventual order-level
-  controls still need clarification in this session.
+  Their supported actions may become **Orders** too: "Talk to Ari", "Propose
+  marriage" or "Work on a bridge invention" can require the addressed agent
+  to attempt the activity once the game supports it. An order does not
+  guarantee another person's agreement or a successful invention. Each
+  system's participation and validation rules still apply; later development
+  does not make these features provisional or restrict them to Suggest.
 - When an order does not specify its target, the agent chooses a suitable
   target using its own knowledge and the normal access and travel rules. It
   may also explore to find new resources rather than always returning to the
@@ -299,6 +302,11 @@ everything that is available in the current build. See [what works today](../wha
   two sacks" finishes after two sacks; "Keep gathering food" continues until
   cancelled. Emergency interruptions preserve the outstanding task, quantity
   or ongoing instruction.
+- A **new Order replaces the previous order by default**, including an ongoing
+  or waiting order. The player can explicitly choose **Queue** to have the
+  new order done afterward instead. Pending and ongoing orders can be
+  cancelled. For example, "Make two sacks" replaces "Keep gathering food"
+  unless the player chooses Queue.
 
 **Existing agreed order handling, from September 30:** the agent card's
 **Speak to them** box sends a message as **Suggest** or **Order**. An order
@@ -310,12 +318,11 @@ that cannot be carried out yet, such as "eat" while the agent carries no food,
 keeps waiting, including across saves. It is checked again only when the agent
 next makes one of its usual decisions, never on every tick.
 
-**Still to decide in this design session:** the eventual order controls for
-social, creative and other later systems; message delivery and replies;
-cancellation and replacement; and whether the agent's own model reads the
-words of an order. The remaining normal-player edit controls and player-name
-collision rules also need decisions. These are intended rules, not a claim
-that the current prototype reads suggestions or supports the full catalogue.
+**Still to decide in this design session:** message delivery and replies,
+including whether the agent's own model reads the words of an order; the
+remaining normal-player edit controls; and player-name collision rules. These
+are intended rules, not a claim that the current prototype reads suggestions
+or supports the full catalogue.
 
 ### Leaning toward
 
