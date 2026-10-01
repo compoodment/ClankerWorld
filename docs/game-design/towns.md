@@ -531,6 +531,11 @@ Clinics stock care goods and sell treatment. An optional Store receives goods
 by actual delivery before selling them. Market sellers carry goods into their
 stalls, trade with agents from any Town and carry remaining goods away.
 
+**Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
+it until they leave. The Town does not assign stalls. Leaving frees the stall
+for another seller; goods still belong to the seller's household and must be
+carried away or transferred through an actual trade.
+
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods
 personally; payment becomes seller-household stock at that location. Later
@@ -589,4 +594,4 @@ These remain open; they are not new decisions.
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
     choices raise storage, not House occupancy. The other chosen building
     footprints are in the accepted roster above. Decide capacities, costs,
-    other expansion triggers, Market reservation behavior and Port clearance details.
+    other expansion triggers and Port clearance details.
