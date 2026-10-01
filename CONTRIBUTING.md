@@ -114,9 +114,9 @@ not show which agent took it.
 
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
-- If you stop, put `status:needs-pr` back in place of `status:in-progress`, or
-  `status:blocked` if it now waits on something, and comment with what you
-  learned and where your branch is.
+- If you stop, push your branch, put `status:needs-pr` back in place of
+  `status:in-progress` (or `status:blocked` if it now waits on something), and
+  comment with what you learned and the branch name.
 - You don't remove it when you open the pull request: once a pull request that
   closes the issue is ready for review, the issue switches to `status:has-pr`
   automatically. A `Refs` pull request leaves the claim alone.

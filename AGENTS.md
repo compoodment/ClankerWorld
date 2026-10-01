@@ -77,6 +77,10 @@ different point.
 - Fix CI failures and review requests on the same branch, but convert the pull
   request back to draft first and mark it ready again when you are done
   ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)).
+- If you are paused or stop before finishing, push your branch first, even
+  unfinished, so another agent on another machine can continue it. Then
+  [release the claim](CONTRIBUTING.md#claim-an-issue) with a comment naming the
+  branch and what is left.
 - Do not merge it yourself. Report the pull request link as your result.
 
 ### Review and merge
