@@ -101,7 +101,8 @@ public sealed partial class PrivateWorldRuntime
     private void AddBusinessToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
         foreach (var order in businessTrade.ToolOrders.Where(order => order.HouseholdId == HouseholdFor(actor) &&
-                     order.State == "queued" && order.Blocker is null))
+                     order.State == "queued" && order.Blocker is null && BusinessSite(order.BuildingId) is { } site &&
+                     BusinessSiteReachable(actor, site, 0)))
             candidates.Add(new("business_make_tool:" + order.Id,
                 "Make the customer's requested tool from actual stocked Blacksmith inputs.", 25, order.BuildingId));
         if (businessTrade.ToolOrders.Any(order => order.BuyerId == actor && order.State is "queued" or "running" or "ready")) return;
@@ -110,7 +111,8 @@ public sealed partial class PrivateWorldRuntime
         if (CarriedTool(actor, wanted) is not null || SharedTool(actor, wanted) is not null) return;
         foreach (var site in worldSimulation.Buildings.Where(site => site.HouseholdId is not null &&
                      site.HouseholdId != HouseholdFor(actor) && worldContent.Buildings.Any(definition =>
-                         definition.CanonicalId == site.DefinitionId && definition.Tags.Contains("blacksmith", StringComparer.Ordinal))))
+                         definition.CanonicalId == site.DefinitionId && definition.Tags.Contains("blacksmith", StringComparer.Ordinal)) &&
+                     BusinessSiteReachable(actor, site, ResourceInteractionRange)))
         {
             var recipe = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId &&
                     recipe.Outputs.Any(output => ToolCapabilities.ForItem(output.ResourceId)?.Kind == wanted))
