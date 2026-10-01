@@ -98,10 +98,11 @@ Describing them in plain words on a stated scale, such as "hungry (starving,
 hungry, fine, full; starving is worst, full is best)", is built for personal
 models and Jev but stays switched off until it has been compared with the
 numbers using a real model
-([#672](https://github.com/compoodment/ClankerWorld/issues/672)). Newly placed adults can choose their own
-personality and aspiration in their first personal-model reply. The choice is
-saved and shown on their profile. A missing or invalid choice keeps "undecided"
-and "find a purpose" without an extra call; later replies cannot overwrite it.
+([#672](https://github.com/compoodment/ClankerWorld/issues/672)). Newly placed
+adults can choose their own personality and aspiration in their first
+personal-model reply. The choice is saved and shown on their profile. A
+missing or invalid choice keeps "undecided" and "find a purpose" without an
+extra call; later replies cannot overwrite it.
 Children's initial identity and later life changes are still unfinished. The household
 and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now

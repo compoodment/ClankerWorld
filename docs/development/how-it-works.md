@@ -124,8 +124,8 @@ word followed by its whole scale, worst to best, with no exact value, such as
 Fullness is *full* from 70%, *fine* from 40%, *hungry* from 20% and *starving*
 below that, matching the comfortable and urgent food references. Warmth is
 *warm* from 60%, *chilly* from 35% and *freezing* below that. Illness is *well*
-below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: the
-points where illness slows work and travel. In words, the personal request
+below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: each
+step is where illness slows work further. In words, the personal request
 sends `fullness`, `self.warmth` and `self.illness` in place of the three
 `_basis_points` fields, in the same positions, and drops the numeric scale
 sentences; Jev's routine request sends `fullness` in the same way. Unknown

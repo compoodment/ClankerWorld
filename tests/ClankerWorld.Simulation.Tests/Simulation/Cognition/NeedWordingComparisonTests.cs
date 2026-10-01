@@ -228,7 +228,7 @@ public sealed class NeedWordingComparisonTests(ITestOutputHelper output)
             $"| {weather} | {run + 1} | {format} | {Decisions} | {Share(ChoiceCategories.GetValueOrDefault("survival"), Decisions)} | " +
             $"{Share(SurvivalAgentTicks, AgentTicks)} | {StarvingAgentTicks} | {HungryAgentTicks} | {FreezingAgentTicks} | {UnwellAgentTicks} | " +
             $"{PeakIllness / 100.0:0.00}% | {InitialFood}/{MinimumFood}/{FinalFood} | {Meals} | {Deaths} | {Failures} | " +
-            $"{(Decisions == 0 ? 0 : RequestCharacters / Decisions)} avg | {InputTokens}/{OutputTokens} |";
+            $"{(RequestCharacters == 0 ? "not measured" : $"{RequestCharacters / Decisions} avg")} | {InputTokens}/{OutputTokens} |";
 
         private string Categories() => string.Join(',', ChoiceCategories.OrderBy(item => item.Key, StringComparer.Ordinal)
             .Select(item => $"{item.Key}:{item.Value}"));
