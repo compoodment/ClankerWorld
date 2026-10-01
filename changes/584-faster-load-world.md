@@ -1,0 +1,1 @@
+- Load World reuses checks for unchanged worlds, so reopening its list is faster. It still notices changed or damaged saves and missing history or model keys.

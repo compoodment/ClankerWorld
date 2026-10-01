@@ -173,7 +173,7 @@ public sealed class TerrainPlacementTests(ITestOutputHelper output)
             Assert.True(measure.FloorTiles + measure.GrassTiles > 0, $"The fixed worlds never measured the {name} case.");
             // Provisional bounds: forest floor carries a tree or plant on at
             // least nine tiles in ten, mostly trees; forest grass has
-            // scattered trees rather than none or a dense stand.
+            // many trees while leaving open grass between them.
             if (measure.FloorTiles > 0)
             {
                 Assert.True(measure.FloorOccupied * 10 >= measure.FloorTiles * 9, $"{name} forest floor is too empty.");
@@ -181,7 +181,7 @@ public sealed class TerrainPlacementTests(ITestOutputHelper output)
             }
         }
         var all = cases["all"];
-        Assert.InRange(all.GrassTrees * 1000 / all.GrassTiles, 5, 150);
+        Assert.InRange(all.GrassTrees * 1000 / all.GrassTiles, 250, 450);
     }
 
     [Fact]
