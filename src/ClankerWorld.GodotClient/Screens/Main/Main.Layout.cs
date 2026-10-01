@@ -219,13 +219,10 @@ public partial class Main
         familyBody.AddChild(familyHeading);
         familyTreeStatus.Text = "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
         familyBody.AddChild(familyTreeStatus);
-        var familyScroll = new ScrollContainer
-        {
-            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-        };
-        familyScroll.AddChild(familyTreeView);
-        familyBody.AddChild(familyScroll);
+        familyTreeScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        familyTreeScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        familyTreeScroll.AddChild(familyTreeView);
+        familyBody.AddChild(familyTreeScroll);
         familyTreeView.PersonRequested += SelectFromFamilyTree;
         AddPanelContents(familyTreePanel, familyBody);
         familyTreePanel.ZIndex = 85;
