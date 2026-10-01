@@ -45,7 +45,7 @@ public partial class Main
     private readonly SegmentedChoice worldMountainChoice = new();
     private readonly SegmentedChoice worldRiverChoice = new();
     private readonly VBoxContainer worldAdvancedOptions = new();
-    private readonly Button worldAdvancedToggle = new() { Text = "More options", ToggleMode = true };
+    private readonly Button worldAdvancedToggle = new() { Text = "+ More options", ToggleMode = true };
     private readonly SegmentedChoice worldResourceChoice = new();
     private readonly SegmentedChoice worldClimateModeChoice = new();
     private readonly OptionButton worldClimateFamilyChoice = new();
@@ -340,14 +340,19 @@ public partial class Main
         options.AddChild(SettingsBox("World", WorldOptionRow("Name", worldNameInput), seedRow,
             WorldOptionRow("Size", worldSizeChoice)));
 
-        // The rarer choices stay folded away until asked for.
+        // The rarer choices stay folded away until asked for. The toggle reads
+        // as a link, not as a pressed button, whichever way it is set.
         StyleButton(worldAdvancedToggle);
         worldAdvancedToggle.ThemeTypeVariation = "TabButton";
         worldAdvancedToggle.Alignment = HorizontalAlignment.Left;
+        worldAdvancedToggle.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+        var unpressed = new StyleBoxEmpty { ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 7, ContentMarginBottom = 7 };
+        worldAdvancedToggle.AddThemeStyleboxOverride("pressed", unpressed);
+        worldAdvancedToggle.AddThemeStyleboxOverride("hover_pressed", unpressed);
         worldAdvancedToggle.Toggled += visible =>
         {
             worldAdvancedOptions.Visible = visible;
-            worldAdvancedToggle.Text = visible ? "Fewer options" : "More options";
+            worldAdvancedToggle.Text = visible ? "− Fewer options" : "+ More options";
         };
         options.AddChild(worldAdvancedToggle);
         options.AddChild(worldAdvancedOptions);

@@ -272,6 +272,37 @@ public partial class Main
         var readRegistration = registration;
         pendingDeletion = null;
         listedSaveWorldId = readWorldId;
+        ShowManualSavePanel(loadMode);
+        bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
+            manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
+            readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
+        try
+        {
+            var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
+                deviceId, signer, read.Token));
+            if (!IsCurrentRead()) return;
+            listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
+            RenderManualSaveList();
+            if (listedManualSaves.Length == 0)
+                manualSaveStatus.Text = loadMode
+                    ? "No saves yet. Continue the world and use Pause Menu → Save World."
+                    : "No named saves yet. Name one above and choose Save.";
+            RefreshManualSaveAvailability();
+        }
+        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(manualSaveListCancellation, read)) manualSaveListCancellation = null;
+        }
+    }
+
+    /// <summary>Opens Save World or Load Save with an empty list while the saves are read.</summary>
+    private void ShowManualSavePanel(bool loadMode)
+    {
         listedManualSaves = [];
         manualSaveList.Clear();
         manualSaveDeleteButton.Disabled = true;
@@ -293,37 +324,18 @@ public partial class Main
         manualSaveOverwriteButton.Disabled = true;
         manualSaveOverlay.Show();
         RefreshManualSaveAvailability();
-        bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
-            manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
-            readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
-        try
-        {
-            var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
-                deviceId, signer, read.Token));
-            if (!IsCurrentRead()) return;
-            listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
-            manualSaveList.Clear();
-            var icon = SlotIcon(PixelGlyph.Book);
-            foreach (var save in listedManualSaves)
-                manualSaveList.AddItem(save.IsAutosave ? "Autosave" : save.Name,
-                    $"{DisplayWorldClock(save.WorldTick)} · Saved {GameUiText.SavedAgo(save.CreatedUtc, DateTimeOffset.Now)}",
-                    icon, save.IsAutosave ? [new SlotTag("Automatic", Note: true)] : null);
-            manualSaveList.Placeholder = loadMode ? "No saves yet." : "No named saves yet.";
-            if (listedManualSaves.Length == 0)
-                manualSaveStatus.Text = loadMode
-                    ? "No saves yet. Continue the world and use Pause Menu → Save World."
-                    : "No named saves yet. Name one above and choose Save.";
-            RefreshManualSaveAvailability();
-        }
-        catch (OperationCanceledException) when (read.IsCancellationRequested) { }
-        catch (Exception exception)
-        {
-            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
-        }
-        finally
-        {
-            if (ReferenceEquals(manualSaveListCancellation, read)) manualSaveListCancellation = null;
-        }
+    }
+
+    /// <summary>Each save is a card with its name, the world's date when it was made and how long ago that was.</summary>
+    private void RenderManualSaveList()
+    {
+        manualSaveList.Clear();
+        var icon = SlotIcon(PixelGlyph.Book);
+        foreach (var save in listedManualSaves)
+            manualSaveList.AddItem(save.IsAutosave ? "Autosave" : save.Name,
+                $"{DisplayWorldClock(save.WorldTick)} · Saved {GameUiText.SavedAgo(save.CreatedUtc, DateTimeOffset.Now)}",
+                icon, save.IsAutosave ? [new SlotTag("Automatic", Note: true)] : null);
+        manualSaveList.Placeholder = manualSaveLoadMode ? "No saves yet." : "No named saves yet.";
     }
 
     private async Task CreateManualSaveAsync()
