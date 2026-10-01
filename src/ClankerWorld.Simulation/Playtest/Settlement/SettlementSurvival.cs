@@ -114,7 +114,8 @@ public sealed partial class PrivateWorldRuntime
     };
 
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>
-        lot.OwnerId == actor && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
+        lot.OwnerId == actor && lot.ItemKind == kind && lot.StorageBuildingId is null &&
+        lot.DeliveryBuildingId is null && lot.ContainerLotId is null && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&

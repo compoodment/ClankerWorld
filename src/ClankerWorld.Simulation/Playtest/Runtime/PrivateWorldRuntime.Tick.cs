@@ -323,6 +323,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StagePotteryContent();
+            StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");
             StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
             StageBuiltInContent(CombatGearContent.PackageId, BlacksmithContent.PackageId, CombatGearContent.Create, "combat_gear_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -400,6 +401,7 @@ public sealed partial class PrivateWorldRuntime
 
             WearClothing();
             AdvanceSettlementSurvival();
+            AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();

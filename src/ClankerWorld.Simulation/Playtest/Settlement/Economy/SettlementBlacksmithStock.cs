@@ -154,7 +154,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, smith.Position, "smith_input", 0);
                 return;
             }
-            var quantity = Math.Min(need.Missing, AvailableLotQuantity(personal));
+            var quantity = Math.Min(StorageRoom(smith.InstanceId), Math.Min(need.Missing, AvailableLotQuantity(personal)));
+            if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, personal.Id,
                 quantity, "smith_input_delivered", smith.InstanceId));

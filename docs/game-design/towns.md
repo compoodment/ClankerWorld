@@ -530,6 +530,18 @@ for a basket. These amounts and rates are provisional.
 | Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
 | Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
 
+The first care trial uses a **1x2 Clinic**, built with ten wood and four stone.
+One cloth makes two bandages at a House or Tailor Shop. Two medicinal herbs,
+one unit of fresh water and one wood make two medicine at the Clinic. A dose
+is physically consumed before twenty steps of gradual recovery: a bandage
+adds fifty health points per step, and medicine removes seventy-five illness
+points per step, on the ten-thousand-point meters. These are provisional
+playtest quantities and rates. An adult patient explicitly accepts a named
+caregiver; existing accepted caregiver relationships permit dependent care.
+Revoking permission or the caregiver dying stops the remaining effect and
+never restores the consumed dose. Bought care goods belong to the patient;
+a care permission never opens another household's stock.
+
 Bandages treat injuries; medicine supports illness recovery. Neither instantly
 restores full health. Medicinal herbs, paper, hides and ornaments are approved
 additions to the catalogue. Animals, mounts, combat and invention work retain

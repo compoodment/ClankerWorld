@@ -65,7 +65,7 @@ public static class TerrainPlacementRules
     {
         ArgumentNullException.ThrowIfNull(resource);
         return resource.TreeKind is not null || resource.NaturalObjectKind is
-            "berry_bush" or "wild_greens" or "fiber_plant" or "reeds" or "wild_seed_patch";
+            "berry_bush" or "wild_greens" or "medicinal_herb_patch" or "fiber_plant" or "reeds" or "wild_seed_patch";
     }
 
     /// <summary>

@@ -231,6 +231,7 @@ public sealed partial class PrivateWorldRuntime
     {
         ArgumentNullException.ThrowIfNull(state);
         ValidateVessels(state);
+        ValidateMedicalCare(state);
         if (state.SchemaVersion < 10 && (state.Society.Society.LifeClock is not null ||
             state.Society.Society.Inhabitants.Any(person => person.BirthLifeTick is not null)))
         {

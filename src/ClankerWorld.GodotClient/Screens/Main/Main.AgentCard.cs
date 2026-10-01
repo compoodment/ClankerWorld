@@ -589,6 +589,27 @@ public partial class Main
             : survival is null ? carrying :
                 $"{carrying} · {(survival.HasClothing ? "Clothed" : "No warm clothing")} · {(survival.HasTool ? "Has a tool" : "Working by hand")}";
 
+        if (!isDeceased && inhabitant.Equipment is { } equipment)
+        {
+            var worn = new[]
+            {
+                ("Wearing", equipment.Clothing), ("Carry aid", equipment.CarryAid),
+                ("Weapon", equipment.Weapon), ("Shield", equipment.Shield),
+                ("Armor", equipment.Armor), ("Ornament", equipment.Ornament),
+            }.Where(slot => slot.Item2 is not null).Select(slot =>
+                $"{slot.Item1}: {Pretty(slot.Item2!.Kind)} ({slot.Item2.ConditionBasisPoints / 100}%)");
+            selectedActorConditionLabel.Text += $" · Load {equipment.Load}/{equipment.Capacity}";
+            var equipmentText = string.Join(" · ", worn);
+            if (equipmentText.Length > 0) selectedActorConditionLabel.Text += "\n" + equipmentText;
+        }
+
+        if (!isDeceased && inhabitant.MedicalCare is { } medical)
+        {
+            selectedActorConditionLabel.Text += $" · Health {medical.HealthBasisPoints / 100}%";
+            if (medical.TreatmentKind is not null)
+                selectedActorConditionLabel.Text += $"\n{Pretty(medical.TreatmentKind)} treatment · {medical.RemainingTicks} ticks remaining · {medical.CaregiverName}";
+        }
+
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
         if (inhabitant.Project is { } project)

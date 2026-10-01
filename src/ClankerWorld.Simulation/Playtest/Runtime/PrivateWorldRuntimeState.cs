@@ -30,7 +30,9 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WaterCollectionWork? WaterWork = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] EquipmentState? Equipment = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] EquipmentState? Equipment = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatment? MedicalTreatment = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? MedicalCaregiverIds = null);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 

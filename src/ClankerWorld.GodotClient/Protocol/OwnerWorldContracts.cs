@@ -141,6 +141,8 @@ public sealed record OwnerWorldInhabitant(
 
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
+    public OwnerWorldEquipment? Equipment { get; init; }
+    public OwnerWorldMedicalCare? MedicalCare { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSocialStanding> SocialStanding { get; init; } = [];
@@ -161,6 +163,13 @@ public sealed record OwnerWorldInhabitant(
 }
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
+public sealed record OwnerWorldMedicalCare(int HealthBasisPoints, string? TreatmentKind, int RemainingTicks, string? CaregiverName);
+
+public sealed record OwnerWorldEquippedItem(string Kind, int ConditionBasisPoints);
+public sealed record OwnerWorldEquipment(long Load, int Capacity, OwnerWorldEquippedItem? Clothing,
+    OwnerWorldEquippedItem? CarryAid, OwnerWorldEquippedItem? Weapon, OwnerWorldEquippedItem? Shield,
+    OwnerWorldEquippedItem? Armor, OwnerWorldEquippedItem? Ornament);
+
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);
 

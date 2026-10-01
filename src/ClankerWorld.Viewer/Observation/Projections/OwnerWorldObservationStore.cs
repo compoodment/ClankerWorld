@@ -634,9 +634,13 @@ public sealed class OwnerWorldObservationStore
                 : null,
             Survival = physical.Survival is { } survival
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
-                    inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
+                    EquipmentItem(state, physical, physical.Equipment?.WornClothingLotId) is { ConditionBasisPoints: > 0 },
                     inventory.Any(item => (item.Kind == "tool" || ToolCapabilities.ForItem(item.Kind) is not null) &&
                         item.Quantity > item.BrokenQuantity), survival.NutritionBasisPoints, survival.LastMealKind) : null,
+            Equipment = EquipmentFor(state, physical),
+            MedicalCare = new(inhabitant.HealthBasisPoints, physical.MedicalTreatment?.Kind,
+                physical.MedicalTreatment?.RemainingTicks ?? 0, physical.MedicalTreatment is { } treatment
+                    ? state.Society.Society.GetInhabitant(treatment.CaregiverId).Name : null),
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -865,17 +869,41 @@ public sealed class OwnerWorldObservationStore
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 
+    private static ViewerEquippedItem? EquipmentItem(PrivateWorldRuntimeState state,
+        PlaytestInhabitantState person, string? lotId)
+    {
+        var lot = state.Society.Society.Inventory.Lots.FirstOrDefault(item => item.Id == lotId &&
+            item.OwnerId == person.InhabitantId && item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.ContainerLotId is null && item.GroundPosition is null && item.Quantity == 1);
+        return lot is null ? null : new(lot.ItemKind, lot.ConditionBasisPoints);
+    }
+
+    private static ViewerEquipment EquipmentFor(PrivateWorldRuntimeState state, PlaytestInhabitantState person) =>
+        new(CarryEquipmentRules.Load(state.Society.Society.Inventory, person.InhabitantId),
+            CarryEquipmentRules.Capacity(state.Society.Society.Inventory, person),
+            EquipmentItem(state, person, person.Equipment?.WornClothingLotId),
+            EquipmentItem(state, person, person.Equipment?.CarryAidLotId),
+            EquipmentItem(state, person, person.Equipment?.WeaponLotId),
+            EquipmentItem(state, person, person.Equipment?.ShieldLotId),
+            EquipmentItem(state, person, person.Equipment?.ArmorLotId),
+            EquipmentItem(state, person, person.Equipment?.OrnamentLotId));
+
+    private static bool HasCondition(string kind) => ToolCapabilities.ForItem(kind) is not null ||
+        CarryEquipmentRules.IsClothing(kind) || CarryEquipmentRules.IsCarryAid(kind) || CombatGearContent.IsGear(kind);
+
     private static ViewerInventoryEntry[] InventoryFor(
         PrivateWorldRuntimeState state,
         string ownerId,
         string? storageBuildingId = null) => state.Society.Society.Inventory.Lots
-        .Where(lot => lot.OwnerId == ownerId && lot.Quantity > 0 &&
+        .Where(lot => lot.OwnerId == ownerId && lot.Quantity > 0 && lot.ContainerLotId is null &&
+            (!state.Inhabitants.Any(person => person.InhabitantId == ownerId) ||
+                lot.StorageBuildingId is null && lot.GroundPosition is null) &&
             (storageBuildingId is null || lot.StorageBuildingId == storageBuildingId))
         .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal)
         .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity),
-            ToolCapabilities.ForItem(group.Key) is null ? null : group.Min(lot => lot.ConditionBasisPoints),
-            ToolCapabilities.ForItem(group.Key) is null ? 0 : group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity),
+            !HasCondition(group.Key) ? null : group.Min(lot => lot.ConditionBasisPoints),
+            !HasCondition(group.Key) ? 0 : group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity),
             group.Sum(lot => lot.ContainerCapacity), group.Any(lot => lot.ContainerCapacity > 0)
                 ? state.Society.Society.Inventory.Lots.Where(lot => lot.ContainerLotId is not null &&
                         group.Any(vessel => vessel.Id == lot.ContainerLotId))

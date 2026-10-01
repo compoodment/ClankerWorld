@@ -297,6 +297,11 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
         }
+        if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
+        {
+            ApplyMedicalCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("child_", StringComparison.Ordinal))
         {
             ApplyChildCandidate(inhabitantId, state, candidateId);
@@ -699,6 +704,7 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, inhabitantId);
         AddPersonalGearCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
+        AddMedicalCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);

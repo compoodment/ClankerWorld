@@ -132,6 +132,8 @@ public sealed record ViewerInhabitant(
 
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
+    public ViewerEquipment? Equipment { get; init; }
+    public ViewerMedicalCare? MedicalCare { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSocialStanding> SocialStanding { get; init; } = [];
@@ -152,6 +154,13 @@ public sealed record ViewerInhabitant(
 }
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
+public sealed record ViewerMedicalCare(int HealthBasisPoints, string? TreatmentKind, int RemainingTicks, string? CaregiverName);
+
+public sealed record ViewerEquippedItem(string Kind, int ConditionBasisPoints);
+public sealed record ViewerEquipment(long Load, int Capacity, ViewerEquippedItem? Clothing,
+    ViewerEquippedItem? CarryAid, ViewerEquippedItem? Weapon, ViewerEquippedItem? Shield,
+    ViewerEquippedItem? Armor, ViewerEquippedItem? Ornament);
+
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);
 

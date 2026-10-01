@@ -904,10 +904,12 @@ public static class GeneratedCampMapGenerator
                         // so it looks for another tile instead of standing on sand.
                         if (resourceKind != "stone" && !TerrainPlacementRules.CanHoldOrdinaryVegetation(surface))
                             continue;
+                        if (resourceKind == "food" && selection == 1 && (x + y) % 5 == 0)
+                            resourceKind = "medicinal_herbs";
                         var natural = NaturalObjectFor(resourceKind, tile, x, y, geography, options.WrapEastWest);
                         resourceKind = resourceKind == "food" ? natural == "wild_greens" ? "wild_greens" : "berries"
                             : resourceKind == "seed" ? (selection == 3 && (x + y) % 2 == 0 ? "greens_seed" : "grain_seed") : resourceKind;
-                        var renewable = resourceKind is "construction" or "berries" or "wild_greens" or "fiber" or "grain_seed" or "greens_seed";
+                        var renewable = resourceKind is "construction" or "berries" or "wild_greens" or "fiber" or "grain_seed" or "greens_seed" or "medicinal_herbs";
                         var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
                         sites.Add(new MapResource(id, resourceKind, position, renewable,
                             resourceKind == "construction" ? TreeKindFor(tile.Climate) : null,
@@ -983,6 +985,7 @@ public static class GeneratedCampMapGenerator
             "fiber" => IsAdjacentToWater(geography, x, y, wrap) ? "reeds" : "fiber_plant",
             "stone" => "stone_outcrop",
             "seed" => "wild_seed_patch",
+            "medicinal_herbs" => "medicinal_herb_patch",
             _ => null,
         };
 
@@ -1428,6 +1431,7 @@ public static class MapAcceptance
         {
             "berry_bush" => resourceKind is "food" or "berries",
             "wild_greens" => resourceKind is "food" or "wild_greens",
+            "medicinal_herb_patch" => resourceKind == "medicinal_herbs",
             "fiber_plant" or "reeds" => resourceKind == "fiber",
             "stone_outcrop" => resourceKind == "stone",
             "iron_outcrop" => resourceKind == "iron_ore",
