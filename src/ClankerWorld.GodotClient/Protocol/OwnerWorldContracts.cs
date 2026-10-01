@@ -24,7 +24,13 @@ public sealed record OwnerWorldPosition(int X, int Y);
 public sealed record OwnerWorldTile(int X, int Y, string Terrain);
 public sealed record OwnerWorldPackedTerrain(int Width, int Height, string Encoding, string Data);
 public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation)
+{
+    public string? Fertility { get; init; }
+}
+public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
+    int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
 
@@ -327,6 +333,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
+    public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

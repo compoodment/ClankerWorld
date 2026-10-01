@@ -23,81 +23,22 @@ public sealed partial class PrivateWorldRuntime
     private const int ProjectWorkTicks = 10;
     private const string WaitingForWorkSiteBlocker = "Waiting for a free work site";
     private const int BlockedProjectRetryDelayTicks = 60;
-    // The pre-energy-removal settlement package included bedding. Its digest
-    // remains a valid provenance marker for three staged map resources.
-    internal const string LegacySettlementPackageDigest =
-        "sha256:037c1b07a6a88989adfc6fe61fb03e7c625524dfbbb530b3e1b30701f66a21ac";
-
     private static bool IsCompatibleSavedMap(SeededMap generated, PrivateWorldRuntimeState state)
     {
         if (MapManifestCodec.Digest(state.Map) != state.Map.ManifestDigest)
         {
             return false;
         }
-        var baseline = state.Geography is { } savedGeography && state.Map.CampObjects.Count > 0
-            ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(savedGeography,
-                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
-            : generated;
-        if (baseline.ManifestDigest == state.Map.ManifestDigest)
-            return true;
-        var withoutNaturalDetails = baseline with
-        {
-            Resources = baseline.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        withoutNaturalDetails = withoutNaturalDetails with
-        {
-            ManifestDigest = MapManifestCodec.Digest(withoutNaturalDetails),
-        };
-        var withoutGeology = baseline with
-        {
-            Resources = baseline.Resources.Where(resource =>
-                !resource.Id.StartsWith("geology-", StringComparison.Ordinal)).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        withoutGeology = withoutGeology with { ManifestDigest = MapManifestCodec.Digest(withoutGeology) };
-        var legacyNaturalDetails = withoutGeology with
-        {
-            Resources = withoutGeology.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        legacyNaturalDetails = legacyNaturalDetails with
-        {
-            ManifestDigest = MapManifestCodec.Digest(legacyNaturalDetails),
-        };
-        var previousTrees = legacyNaturalDetails with
-        {
-            Resources = legacyNaturalDetails.Resources.Where(resource =>
-                !resource.Id.StartsWith("orchard-", StringComparison.Ordinal)).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        previousTrees = previousTrees with { ManifestDigest = MapManifestCodec.Digest(previousTrees) };
-        var previousVegetation = previousTrees with
-        {
-            Resources = previousTrees.Resources.Where(resource => !resource.Id.StartsWith("tree-", StringComparison.Ordinal))
-                .Select(resource => resource with { TreeKind = null }).ToArray(),
-            ManifestDigest = string.Empty,
-        };
-        previousVegetation = previousVegetation with
-        {
-            ManifestDigest = MapManifestCodec.Digest(previousVegetation),
-        };
-        foreach (var candidateBaseline in new[]
-                 { baseline, withoutNaturalDetails, withoutGeology, legacyNaturalDetails, previousTrees, previousVegetation })
-        {
-            if (SavedMapMatchesBaseline(state, candidateBaseline)) return true;
-        }
-        // Before independent map layers, resource placement and clearing
-        // selection used the flattened TerrainKind. Validate that historical
-        // generator as a separate immutable lineage, including worlds that
-        // were later resaved under a newer checkpoint schema.
-        return state.Geography is { } geography &&
-            SavedMapMatchesBaseline(state, GeneratedCampMapGenerator.GenerateLegacy(geography,
-                state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll")));
+        return SavedMapMatchesBaseline(state, generated);
     }
 
     private static bool SavedMapMatchesBaseline(PrivateWorldRuntimeState state, SeededMap baseline)
     {
+        if (state.Geography is not null &&
+            (state.Map.WrapsEastWest != baseline.WrapsEastWest ||
+             !string.Equals(MapLayerManifestCodec.Digest(state.Map), MapLayerManifestCodec.Digest(baseline),
+                 StringComparison.Ordinal)))
+            return false;
         if (baseline.ManifestDigest == state.Map.ManifestDigest)
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
@@ -111,18 +52,16 @@ public sealed partial class PrivateWorldRuntime
             added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
                 baseline.Resources.Any(item => item.Position == resource.Position)))
             return false;
-        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 3 ||
+        if (staged.Length > 0 && (staged.Length > 3 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
-                (package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest ||
-                 package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
+                package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest &&
                 package.ActivationTick is not null) != true ||
             staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
-                resource.Kind is not ("stone" or "fiber" or "seed") ||
-                resource.IsRenewable != (resource.Kind is "fiber" or "seed") ||
+                resource.Kind is not ("stone" or "fiber" or "grain_seed") ||
+                resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed") ||
                 !baseline.IsBuildable(resource.Position))))
             return false;
-        if (planted.Length > 0 && (state.SchemaVersion < PlantedTreeSchemaVersion ||
-            planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree))))
+        if (planted.Length > 0 && planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree)))
             return false;
         var original = state.Map with
         {
@@ -146,21 +85,6 @@ public sealed partial class PrivateWorldRuntime
         contentRegistry.Approve(manifest.PackageId, WorldTick);
         contentRegistry.Stage(manifest.PackageId, WorldTick);
         AppendEvent("settlement_content_staged", manifest.PackageId);
-    }
-
-    private void StageForestryContent()
-    {
-        var packages = contentRegistry.ExportState().Packages;
-        if (packages.Any(package => package.Manifest.PackageId == ForestryContent.PackageId) ||
-            !packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
-            return;
-        var manifest = ForestryContent.Create();
-        var resolution = ContentPackageResolver.Resolve(packages.Select(package => package.Manifest).Append(manifest), [manifest.PackageId]);
-        contentRegistry.Propose(manifest, WorldTick);
-        contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
-        contentRegistry.Approve(manifest.PackageId, WorldTick);
-        contentRegistry.Stage(manifest.PackageId, WorldTick);
-        AppendEvent("forestry_content_staged", manifest.PackageId);
     }
 
     private void StageHouseContent()
@@ -279,6 +203,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddSettlementResources()
     {
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
@@ -289,7 +214,7 @@ public sealed partial class PrivateWorldRuntime
         var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
             ChunkRules.ToChunkCoordinate(townStorage, chunk.ChunkSize));
         var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
-        foreach (var kind in new[] { "stone", "fiber", "seed" })
+        foreach (var kind in new[] { "stone", "fiber", "grain_seed" })
         {
             var id = "settlement-" + kind;
             if (map.Resources.Any(resource => resource.Id == id))
@@ -307,7 +232,7 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("settlement_resource_blocked", kind);
                 continue;
             }
-            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "seed"));
+            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "grain_seed"));
             occupied.Add(tile.Position);
         }
         if (additions.Count == 0)

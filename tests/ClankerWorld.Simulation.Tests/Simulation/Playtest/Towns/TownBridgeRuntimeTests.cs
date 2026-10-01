@@ -19,8 +19,11 @@ public sealed class TownBridgeRuntimeTests
 {
     private const string GrowthSeed = "town-bridge-5";
     private static readonly GridPoint GrowthTownSite = new(86, 3);
-    private static readonly GridPoint GrowthBuildingSite = new(92, 2);
-    private const string GrowthBridgeId = "bridge-90-3-ew-2";
+    private static readonly GridPoint GrowthBuildingSite = new(89, 5);
+    private const string GrowthBridgeId = "bridge-90-6-ew-2";
+    private static readonly GridPoint RunOnTownSite = new(86, 5);
+    private static readonly GridPoint RunOnBuildingSite = new(87, 3);
+    private const string RunOnBridgeId = "bridge-90-5-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -142,7 +145,7 @@ public sealed class TownBridgeRuntimeTests
         var town = Assert.Single(first.Towns);
         var farBank = bridges.Single().Entrances[1];
         var neighbor = map.Tiles.Select(tile => tile.Position)
-            .Where(point => point.X > farBank.X && map.FootDistance(point, GrowthBuildingSite) <= 3)
+            .Where(point => point.X >= farBank.X && map.FootDistance(point, GrowthBuildingSite) <= 3)
             .OrderBy(point => map.FootDistance(point, GrowthBuildingSite)).ThenBy(point => point.Y).ThenBy(point => point.X)
             .First(point => map.IsBuildable(point) && !occupied.Contains(point) && !roads.Contains(point) &&
                 TownBorderRules.IsWithinOrAdjacent(town, point, 1, 1));
@@ -156,16 +159,16 @@ public sealed class TownBridgeRuntimeTests
     {
         // The workshop faces an existing street, so no new side street is
         // needed; a nearby dead end then runs on and meets a two-tile river.
-        using var world = await GrowthWorldAsync();
+        using var world = await GrowthWorldAsync(townSite: RunOnTownSite);
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var roadsBefore = world.RoadTiles.ToHashSet();
         var eventsBefore = world.ExportState().Events.Count;
 
-        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(85, 2));
+        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, RunOnBuildingSite);
         Assert.True(placed.Applied, placed.Failure);
 
         var bridge = Assert.Single(world.Bridges);
-        Assert.Equal((GrowthBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
+        Assert.Equal((RunOnBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
             (bridge.Id, bridge.Trigger, bridge.RouteId));
         var events = world.ExportState().Events.Skip(eventsBefore).Select(item => item.Kind).ToArray();
         Assert.DoesNotContain("town_road_generated", events);
@@ -210,13 +213,12 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(withoutBuilding.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         // A Road bridge whose Road ends were lost, a missing bridge list, an
-        // older schema carrying bridges, or a deck over dry land is refused.
+        // or a deck over dry land is refused.
         PrivateWorldRuntimeState[] damaged =
         [
             state with { RoadTiles = state.RoadTiles!.Where(tile => tile != bridge.Entrances[1]).ToArray() },
             state with { Bridges = null },
             state with { BridgeTraffic = null },
-            state with { SchemaVersion = 27 },
             state with { Bridges = [bridge with { Span = [bridge.Entrances[0], bridge.Span[1]] }] },
         ];
         foreach (var item in damaged)

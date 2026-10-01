@@ -229,48 +229,19 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task InhabitantCanBuildAZeroInputCropOnGeneratedFertileLand()
+    public async Task CropRecipeCannotBypassPhysicalFieldsAndSeeds()
     {
-        using var runtime = new PrivateWorldRuntime(
-            "playtest-alpha",
-            _ => new BuildSelectingProvider());
-        var (package, farmhouse, recipe) = CropPackage();
+        using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => new BuildSelectingProvider());
+        var (package, _, recipe) = CropPackage();
         Activate(runtime, package);
-        var decisions = new List<SocietyCognitionDispatchResult>((await runtime.AdvanceOneTickAsync()).Decisions);
-        // Crops belong to a household that holds a Farmhouse, not to a role.
-        var farmhousePlaced = runtime.ExportState().Map.Tiles.Select(tile => tile.Position)
-            .Where(point => point != new GridPoint(2, 3))
-            .Any(point => runtime.PlaceBuilding("camp-farmhouse", farmhouse.CanonicalId, point, "household:camp-alpha").Applied);
-        Assert.True(farmhousePlaced);
-
-        for (var tick = 0; tick < 60 && !(runtime.WorldSimulation.CropBuilds ?? []).Any(job => job.State == WorldProductionJobState.Completed); tick++)
-        {
-            var result = await runtime.AdvanceOneTickAsync();
-            decisions.AddRange(result.Decisions);
-        }
-
-        Assert.Equal(
-            new GridPoint(2, 3),
-            runtime.ExportState().Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position);
-        Assert.Contains(
-            decisions,
-            decision => runtime.Society.GetInhabitant(decision.InhabitantId).HouseholdId == "household:camp-alpha" &&
-                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
-        var build = Assert.Single(
-            runtime.WorldSimulation.CropBuilds ?? [],
-            item => item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
-        Assert.Equal(
-            WorldBuildSiteRules.FertileLandSiteId(new GridPoint(2, 3)),
-            build.BuildingInstanceId);
-        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
-        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "carrot" && item.Quantity > 0);
-
-        var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(restoredState);
-        Assert.Equal(
-            PrivateWorldRuntimeCodec.Encode(runtime.ExportState()),
-            PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
+        await runtime.AdvanceOneTickAsync();
+        var before = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+        var refused = runtime.StartProduction(recipe.CanonicalId, "arbitrary-ground", runtime.Inhabitants[0].InhabitantId);
+        Assert.False(refused.Applied);
+        Assert.Contains("tilled field", refused.Failure, StringComparison.Ordinal);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before));
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]

@@ -34,11 +34,11 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task RollbackWithCommittedProductionReferencesRejectsWithoutDeletingWorldState(bool crop, bool completed)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RollbackWithCommittedProductionReferencesRejectsWithoutDeletingWorldState(bool completed)
     {
-        var (world, usedPackage, _, jobId) = await WorldWithRollbackJob(crop);
+        var (world, usedPackage, _, jobId) = await WorldWithRollbackJob();
         using (world)
         {
             if (completed)
@@ -62,11 +62,10 @@ public sealed partial class PrivateWorldRuntimeTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    public async Task WithdrawingUnusedPackageDoesNotCancelOtherPackagesWork(bool crop)
+    [Fact]
+    public async Task WithdrawingUnusedPackageDoesNotCancelOtherPackagesWork()
     {
-        var (world, _, unusedPackage, jobId) = await WorldWithRollbackJob(crop);
+        var (world, _, unusedPackage, jobId) = await WorldWithRollbackJob();
         using (world)
         {
             var beforeInventory = world.Society.Inventory;
@@ -84,19 +83,18 @@ public sealed partial class PrivateWorldRuntimeTests
         }
     }
 
-    private static async Task<(PrivateWorldRuntime World, string Used, string Unused, string JobId)> WorldWithRollbackJob(bool crop)
+    private static async Task<(PrivateWorldRuntime World, string Used, string Unused, string JobId)> WorldWithRollbackJob()
     {
         using var seed = new PrivateWorldRuntime("rollback-safety",
             _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var (workPackage, building, workRecipe) = MaterialPackage(2);
-        var (cropPackage, _, cropRecipe) = CropPackage();
+        var (cropPackage, _, _) = CropPackage();
         Activate(seed, workPackage);
         Activate(seed, cropPackage);
         await seed.AdvanceOneTickAsync();
         var state = seed.ExportState();
         var worker = state.Inhabitants[0];
-        var site = crop ? state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position :
-            state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
+        var site = state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
                 !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !state.Map.Resources.Any(item => item.Position == tile.Position) &&
                 !state.Inhabitants.Any(person => person.InhabitantId != worker.InhabitantId && person.Position == tile.Position)).Position;
@@ -107,17 +105,11 @@ public sealed partial class PrivateWorldRuntimeTests
         };
         var world = PrivateWorldRuntime.Restore(state,
             _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
-        var workstation = WorldBuildSiteRules.FertileLandSiteId(site);
-        if (!crop)
-        {
-            var placed = world.PlaceBuilding("rollback-workshop", building.CanonicalId, site);
-            Assert.True(placed.Applied, placed.Failure);
-            workstation = placed.InstanceId;
-        }
-        var started = world.StartProduction((crop ? cropRecipe : workRecipe).CanonicalId, workstation, worker.InhabitantId);
+        var placed = world.PlaceBuilding("rollback-workshop", building.CanonicalId, site);
+        Assert.True(placed.Applied, placed.Failure);
+        var started = world.StartProduction(workRecipe.CanonicalId, placed.InstanceId, worker.InhabitantId);
         Assert.True(started.Applied, started.Failure);
         Assert.NotNull(started.JobId);
-        return (world, crop ? cropPackage.PackageId : workPackage.PackageId,
-            crop ? workPackage.PackageId : cropPackage.PackageId, started.JobId);
+        return (world, workPackage.PackageId, cropPackage.PackageId, started.JobId);
     }
 }

@@ -51,7 +51,8 @@ public static class SettlementIllnessRules
 public sealed partial class PrivateWorldRuntime
 {
     private SettlementSurvivalState? survivalState;
-    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal) { "food" };
+    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
+        { "food", "fruit", "berries", "wild_greens", "cultivated_greens" };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -114,7 +115,8 @@ public sealed partial class PrivateWorldRuntime
     };
 
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>
-        lot.OwnerId == actor && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
+        lot.OwnerId == actor && lot.ItemKind == kind && lot.GroundPosition is null &&
+        lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
@@ -350,21 +352,6 @@ public sealed partial class PrivateWorldRuntime
         return available < target;
     });
 
-    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather,
-        int soilMoisture)
-    {
-        if (!recipe.IsCrop || survivalState is null || output.ResourceId != "food")
-            return output.Amount;
-        return weather switch
-        {
-            WeatherKind.Snow => Math.Max(1, output.Amount / 2),
-            WeatherKind.Storm => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
-            _ when soilMoisture < 15 => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
-            _ when soilMoisture >= 50 => checked(output.Amount + Math.Max(1, output.Amount / 4)),
-            _ => output.Amount,
-        };
-    }
-
     private string FoodSource(InventoryLot lot)
     {
         var inventory = society.Checkpoint.Inventory;
@@ -386,16 +373,26 @@ public sealed partial class PrivateWorldRuntime
             return worldContent.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == job.RecipeId)?.IsCrop == true ? "crops" : "cooked";
         }
         if (lot.ItemKind == "fruit") return "orchard";
+        if (FarmFieldRules.IsCrop(lot.ItemKind)) return "crops";
         return originId.StartsWith("food:harvest:", StringComparison.Ordinal) ? "foraged" : "camp_rations";
     }
 
-    private static bool IsEdibleFood(string kind) => kind is "food" or "fruit";
+    private static bool IsEdibleFood(string kind) => kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
+
+    private static int FoodNourishment(string kind) => kind switch
+    {
+        "berries" => 2_000,
+        "wild_greens" => 1_500,
+        "cultivated_greens" => 4_000,
+        _ => 3_000,
+    };
 
     private IEnumerable<InventoryLot> PreferredFood(string owner, string? actor = null)
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
+                IsEdibleFood(lot.ItemKind) && (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
+                AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);
     }
@@ -416,7 +413,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidateSurvival(PrivateWorldRuntimeState state)
     {
-        if (state.Survival is { } survival && (state.SchemaVersion < 6 || survival.ActivatedTick < 0 ||
+        if (state.Survival is { } survival && (survival.ActivatedTick < 0 ||
             survival.ActivatedTick > state.Society.Society.WorldTick || survival.Fires.Count > (state.WorldSimulation?.Buildings.Count ?? 0) ||
             survival.Fires.Select(fire => fire.BuildingId).Distinct(StringComparer.Ordinal).Count() != survival.Fires.Count ||
             survival.Fires.Any(fire => fire.FuelUntilTick <= state.Society.Society.WorldTick || fire.FuelUntilTick - state.Society.Society.WorldTick > 120 ||
@@ -426,7 +423,7 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var person in state.Inhabitants)
         {
-            if (person.Survival is { } condition && (state.SchemaVersion < 6 || state.Survival is null ||
+            if (person.Survival is { } condition && (state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
                 condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard")))
             {

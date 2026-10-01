@@ -183,7 +183,8 @@ public sealed partial class PrivateWorldRuntime
         var householdOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
                 WorldContentSimulationRules.Footprint(definition, building).Contains(position))
-            .Select(building => building.HouseholdId);
+            .Select(building => building.HouseholdId)
+            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
         return AgentPlacementRules.Resolve(householdOwners, townIds);
     }
@@ -311,18 +312,6 @@ public sealed partial class PrivateWorldRuntime
         if (index < 0) throw new InvalidOperationException("The Town identity does not exist.");
         towns[index] = updated;
         checkpointSchemaVersion = StateSchemaVersion;
-    }
-
-    private static IReadOnlyList<TownRuntimeState> MigrateTowns(PrivateWorldRuntimeState state)
-    {
-        if (state.FounderSetup is not { } setup) return [];
-        if (!setup.Started && setup.FounderIds.Count == 0 && state.Map.CampObjects.Count == 0)
-            return [];
-        var active = state.Society.Society.Inhabitants
-            .Where(person => person.Status == SocietyInhabitantStatus.Active)
-            .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        var residents = setup.FounderIds.Where(active.Contains).ToArray();
-        return [TownBorderRules.CreateFirstTown(state.Map, residents, founded: setup.Started)];
     }
 
 }

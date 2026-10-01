@@ -57,11 +57,6 @@ public sealed class AgentBeliefLedgerTests
         Assert.Equal(before.Events, reloaded.ExportState().Events);
         Assert.Equal(before.Society.Society.Events, reloaded.Society.Events);
 
-        var schema19 = before with { SchemaVersion = 19 };
-        var migrated = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(schema19));
-        using var oldWorld = PrivateWorldRuntime.Restore(migrated);
-        Assert.Empty(oldWorld.Society.Beliefs ?? []);
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, oldWorld.ExportState().SchemaVersion);
     }
 
     [Fact]

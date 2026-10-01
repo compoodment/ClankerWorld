@@ -20,9 +20,10 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 34;
+    public const int StateSchemaVersion = 35;
     public const int ChildModelSelectionSchemaVersion = 33;
-    public const int ConversationSchemaVersion = 34;
+    public const int ConversationSchemaVersion = 35;
+    internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
@@ -42,6 +43,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly int maxCognitionDispatchPerCycle;
     private SeededMap map;
+    private LandFertility fertility;
+    private List<FarmFieldState> fields = [];
     private SocietyWorldRuntime society;
     private ContentPackageRegistry contentRegistry;
     private WorldSystemsState worldSystems;
@@ -138,6 +141,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 ? BaseCampMapGenerator.Generate(this.worldSeed, includeLegacyBedroll)
                 : GeneratedCampMapGenerator.Generate(geographyOptions, includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
+        fertility = new LandFertility(map, this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
@@ -238,21 +242,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new InvalidDataException("The private-world map does not match deterministic regeneration.");
         }
 
-        // Older generated checkpoints did not serialize the route-topology flag.
-        // Geography already binds that choice, while the v1 terrain manifest
-        // remains byte-compatible with existing saves.
-        runtime.map = state.Geography is null ? state.Map :
-            state.Map with
-            {
-                WrapsEastWest = state.Geography.WrapEastWest,
-                // Schema 19 saved only climate and the flattened terrain. Its
-                // deterministic generator still recovers the original layers
-                // without changing the v1 manifest or resource topology.
-                ElevationLevels = state.Map.ElevationLevels ?? runtime.map.ElevationLevels,
-                HydrologyKinds = state.Map.HydrologyKinds ?? runtime.map.HydrologyKinds,
-                SurfaceKinds = state.Map.SurfaceKinds ?? runtime.map.SurfaceKinds,
-                VegetationKinds = state.Map.VegetationKinds ?? runtime.map.VegetationKinds,
-            };
+        runtime.map = state.Map;
         runtime.eventHistoryFloor = state.EventHistoryFloor;
         runtime.historyArchiveHead = state.HistoryArchiveHead;
         runtime.checkpointSchemaVersion = StateSchemaVersion;
@@ -264,25 +254,22 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             state.Society,
             providerFactory);
         runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
-        runtime.worldContent = state.WorldContent ?? RebuildWorldContent(runtime.contentRegistry.ExportState());
-        runtime.worldSimulation = state.WorldSimulation is null
-            ? WorldContentSimulationState.Empty
-            : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
-        runtime.towns = (state.Towns ?? MigrateTowns(state)).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
-        runtime.roadTiles = (state.RoadTiles ?? []).ToHashSet();
-        runtime.bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
-        runtime.bridgeTraffic = state.BridgeTraffic ?? BridgeTrafficState.Empty;
-        runtime.conversations = (state.Conversations ?? []).ToList();
-        runtime.conversationBudgets = (state.ConversationBudgets ?? []).ToList();
+        runtime.worldContent = state.WorldContent!;
+        runtime.worldSimulation = state.WorldSimulation! with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
+        runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
+        runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
+            .ThenBy(field => field.Position.X).ToList();
+        runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.roadTiles = state.RoadTiles!.ToHashSet();
+        runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.bridgeTraffic = state.BridgeTraffic!;
+        runtime.conversations = state.Conversations!.ToList();
+        runtime.conversationBudgets = state.ConversationBudgets!.ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
-        runtime.worldSystems = state.WorldSystems is null
-            ? AdvanceWorldSystemsTo(
-                CreateWorldSystems(state.WorldSeed, state.Map, regionalWeather: false),
-                state.Society.Society.WorldTick)
-            : state.WorldSystems;
+        runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)
@@ -300,7 +287,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             runtime.resources.Add(resource.ResourceId, resource.State);
         }
-        runtime.knowledge = state.Knowledge ?? PrivateWorldKnowledgeState.Empty;
+        runtime.knowledge = state.Knowledge!;
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
@@ -410,7 +397,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles, Bridges, bridgeTraffic,
+        RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
 

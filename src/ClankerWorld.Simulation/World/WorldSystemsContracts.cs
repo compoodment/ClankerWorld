@@ -532,11 +532,12 @@ public static class EcologyRules
         {
             if (calendar.DayIndex < resource.NextRegenerationDay)
                 return resource;
+            var fruitOutOfSeason = resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason;
             return resource with
             {
-                Quantity = 1,
-                NextRegenerationDay = checked(calendar.DayIndex + resource.RegenerationIntervalDays),
-                State = EcologyResourceState.Available,
+                Quantity = fruitOutOfSeason ? 0 : 1,
+                NextRegenerationDay = fruitOutOfSeason ? calendar.DayIndex : checked(calendar.DayIndex + resource.RegenerationIntervalDays),
+                State = fruitOutOfSeason ? EcologyResourceState.Regenerating : EcologyResourceState.Available,
                 IsPlanted = false,
             };
         }
