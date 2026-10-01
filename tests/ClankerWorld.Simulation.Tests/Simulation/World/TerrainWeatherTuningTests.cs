@@ -41,18 +41,23 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
     [Fact]
     public void CactiStayOnDesertSandAndAcceptanceRefusesThemElsewhere()
     {
-        var map = GeneratedCampMapGenerator.Generate(Current("terrain-dry-cacti") with
+        var options = Current("terrain-dry-cacti") with
         {
             ClimateMode = ClimateMode.Uniform,
             SelectedClimate = ClimateZone.Dry,
             LatitudeCooling = false,
-        });
+        };
+        var map = GeneratedCampMapGenerator.Generate(options);
+        var geography = GeographyGenerator.Generate(options);
         var cacti = map.Tiles.Where(tile => map.VegetationAt(tile.Position) == VegetationCover.Cactus).ToArray();
         Assert.NotEmpty(cacti);
         Assert.All(cacti, tile =>
         {
             Assert.Equal(SurfaceKind.Sand, map.SurfaceAt(tile.Position));
             Assert.Equal(ClimateZone.Dry, map.ClimateAt(tile.Position));
+            // A dry-climate beach is not enough: cacti require the actual
+            // rainfall-based desert rule as well.
+            Assert.InRange(geography.At(tile.Position.X, tile.Position.Y).Rainfall, 0, 42);
         });
         var balanced = GeneratedCampMapGenerator.Generate(Current("probe-a"));
         foreach (var point in new[]
@@ -86,6 +91,29 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
                     AssertReduction(day => WeatherRules.WeatherForRegion("weather-quarter", day, season,
                             WorldSystemsConfig.Default, 0, row, 5, climate),
                         day => WeatherRules.WeatherForRegion("weather-quarter", day, season, previous, 0, row, 5, climate));
+        }
+    }
+
+    [Fact]
+    public void SavedDefaultAndExplicitWeatherProfilesKeepTheirRolls()
+    {
+        foreach (var explicitProfiles in new[] { false, true })
+        {
+            var config = WorldSystemsConfig.Default with { WeatherProfiles = explicitProfiles ? PreviousWeatherProfiles : null };
+            var saved = WorldSystemsRules.CreateGenesis("weather-config-reload", config);
+            var encoded = WorldSystemsCodec.Encode(saved);
+            var loaded = WorldSystemsCodec.Decode(encoded);
+            Assert.Equal(encoded, WorldSystemsCodec.Encode(loaded));
+            if (explicitProfiles) Assert.Equal(PreviousWeatherProfiles, loaded.Config.WeatherProfiles);
+            else Assert.Null(loaded.Config.WeatherProfiles);
+            foreach (var season in Enum.GetValues<SeasonKind>())
+                foreach (var day in Enumerable.Range(0, 64))
+                {
+                    Assert.Equal(WeatherRules.WeatherForDay(saved.WorldSeed, day, season, saved.Config),
+                        WeatherRules.WeatherForDay(loaded.WorldSeed, day, season, loaded.Config));
+                    Assert.Equal(WeatherRules.WeatherForRegion(saved.WorldSeed, day, season, saved.Config, 0, 0, 5, ClimateZone.Tropical),
+                        WeatherRules.WeatherForRegion(loaded.WorldSeed, day, season, loaded.Config, 0, 0, 5, ClimateZone.Tropical));
+                }
         }
     }
 
