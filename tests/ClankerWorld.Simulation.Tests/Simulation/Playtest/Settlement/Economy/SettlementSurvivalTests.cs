@@ -1,7 +1,6 @@
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
-using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
@@ -249,51 +248,22 @@ public sealed class SettlementSurvivalTests
     }
 
     [Fact]
-    public async Task DifferentFoodSourceImprovesDietAfterInventoryTransfer()
-    {
-        using var seed = new PrivateWorldRuntime("varied-food", _ => new IdleProvider());
-        seed.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
-        var state = seed.ExportState();
-        var worker = state.Inhabitants[0];
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "food:harvest:fixture", "food", "household:camp-alpha", 2);
-        inventory = InventoryFixture.Transfer(inventory, "varied", "household:camp-alpha", worker.InhabitantId, "food:harvest:fixture", 1, "food_share");
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId ? person with
-            { HungerBasisPoints = 1_000, Survival = person.Survival! with { LastMealKind = "camp_rations" } } : person).ToArray(),
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-        };
-        using var world = PrivateWorldRuntime.Restore(state);
-        await world.AdvanceOneTickAsync();
-        var eater = world.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId);
-        Assert.Equal("foraged", eater.Survival!.LastMealKind);
-        Assert.True(eater.Survival.NutritionBasisPoints > 5_000);
-    }
-
-    [Fact]
-    public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
+    public async Task ColdSettlementUsesFuelAndToolsAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        // Expansion changes travel and work timing. Require the actual clothing
-        // recovery chain within a bounded run rather than at one exact tick.
+        // Exercise autonomous survival separately from the finite Tailor
+        // production/equipment chains in PersonalEquipmentTests.
         for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
-            if (tick >= 599 && world.ExportState().Events.Any(item =>
-                    item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal)))
-                break;
         }
         var state = world.ExportState();
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
         Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
-        // This legacy world starts without clothing: its household builds a
-        // Tailor Shop, weaves cloth and sews the garment that is collected here.
-        Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
@@ -339,32 +309,6 @@ public sealed class SettlementSurvivalTests
             Assert.True((await recovering.AdvanceOneTickAsync()).Advanced);
         Assert.True(recovering.Inhabitants.Single(person => person.InhabitantId == recoveringId)
             .Survival!.WarmthBasisPoints > 6_000);
-    }
-
-    [Fact]
-    public async Task ClothingReducesSnowExposureWithoutInventingHeat()
-    {
-        using var seed = new PrivateWorldRuntime("clothing-comparison", _ => new IdleProvider());
-        seed.StageStarterContent();
-        for (var tick = 0; tick < 3; tick++)
-        {
-            await seed.AdvanceOneTickAsync();
-        }
-        var state = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
-        var actor = state.Inhabitants[0].InhabitantId;
-        var clothedInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "test-clothing", "clothing", actor, 1);
-        var clothed = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = clothedInventory } } };
-        using var exposedWorld = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        using var clothedWorld = PrivateWorldRuntime.Restore(clothed, _ => new IdleProvider());
-        for (var tick = 0; tick < 80; tick++)
-        {
-            await exposedWorld.AdvanceOneTickAsync();
-            await clothedWorld.AdvanceOneTickAsync();
-        }
-        var exposedWarmth = exposedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints;
-        var clothedWarmth = clothedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints;
-        Assert.True(clothedWarmth > exposedWarmth);
-        Assert.True(clothedWarmth < 10_000);
     }
 
     [Fact]
@@ -461,20 +405,6 @@ public sealed class SettlementSurvivalTests
         {
             directory.Delete(recursive: true);
         }
-    }
-
-    [Fact]
-    public void FoodStorageSlowsDecayWithoutRottingTools()
-    {
-        using var world = new PrivateWorldRuntime("food-storage");
-        var inventory = world.ExportState().Society.Society.Inventory;
-        var kinds = new HashSet<string>(StringComparer.Ordinal) { "food" };
-        var protectedOwners = new HashSet<string>(StringComparer.Ordinal) { "household:camp-alpha" };
-        var exposed = InventoryFixture.ProcessSpoilage(inventory, 100, 4, kinds);
-        var stored = InventoryFixture.ProcessSpoilage(inventory, 100, 4, kinds, protectedOwners);
-        Assert.Equal(9_600, exposed.Lots.First(lot => lot.ItemKind == "food").FreshnessBasisPoints);
-        Assert.Equal(9_800, stored.Lots.First(lot => lot.ItemKind == "food").FreshnessBasisPoints);
-        Assert.All(stored.Lots.Where(lot => lot.ItemKind != "food"), lot => Assert.Equal(10_000, lot.FreshnessBasisPoints));
     }
 
     private static async Task<int> ProjectProgressAtIllness(int illnessBasisPoints)

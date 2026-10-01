@@ -281,6 +281,13 @@ public sealed class AgentLifeMomentIdentityTests
                 item with { IdentityMoments = [moment with { Outcome = "accepted", CompletedTick = 0, Personality = "bad\ntext" }] } : item).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(invalid));
+        var older = state with
+        {
+            SchemaVersion = PrivateWorldRuntime.LifeMomentIdentitySchemaVersion - 1,
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == ActorId ?
+                item with { IdentityMoments = [moment] } : item).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(older));
     }
 
     [Theory]

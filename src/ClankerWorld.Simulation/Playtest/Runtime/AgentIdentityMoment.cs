@@ -35,9 +35,12 @@ public sealed record AgentIdentityMoment(
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    internal static void Validate(IReadOnlyList<AgentIdentityMoment>? moments, long worldTick)
+    internal static void Validate(IReadOnlyList<AgentIdentityMoment>? moments, long worldTick, int schemaVersion)
     {
         if (moments is null) return;
+        if (schemaVersion < PrivateWorldRuntime.LifeMomentIdentitySchemaVersion)
+            throw new InvalidDataException(
+                $"Saved life moments require private-world schema {PrivateWorldRuntime.LifeMomentIdentitySchemaVersion}.");
         if (moments.Count > 5 || moments.Any(item => item is null) ||
             moments.Select(item => item.Kind).Distinct().Count() != moments.Count)
             throw new InvalidDataException("The saved life moments exceed their per-life limit.");

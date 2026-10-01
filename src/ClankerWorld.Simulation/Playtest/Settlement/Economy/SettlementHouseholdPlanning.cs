@@ -1,6 +1,9 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -17,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state, string householdId)
     {
         TownLayoutContext? sharedLayout = null;
-        foreach (var definition in PlannableHouseholdBuildings(householdId))
+        foreach (var definition in PlannableHouseholdBuildings(householdId, inhabitant.Id))
         {
             if (NeedsUrgentWarmth(state) && !definition.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
                 continue;
@@ -45,25 +48,28 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Active building designs this household may plan now, in a stable order.</summary>
-    private IEnumerable<BuildingDefinition> PlannableHouseholdBuildings(string householdId) => worldContent.Buildings
+    private IEnumerable<BuildingDefinition> PlannableHouseholdBuildings(string householdId, string actor) => worldContent.Buildings
         .Where(definition => !RetiredBuildings.Contains(definition) &&
-            HouseholdBuildingKind(definition) is { } kind && HouseholdMayPlan(householdId, kind))
+            HouseholdBuildingKind(definition) is { } kind && HouseholdMayPlan(householdId, kind, actor))
         .OrderBy(definition => HouseholdBuildingKinds.PlanOrder(HouseholdBuildingKind(definition)))
         .ThenBy(definition => definition.CanonicalId, StringComparer.Ordinal);
 
-    private bool HouseholdMayPlan(string householdId, string kind) =>
+    private bool HouseholdMayPlan(string householdId, string kind, string actor) =>
         HouseholdBuildingWithTag(householdId, kind) is null &&
         (kind != "silo" || FarmhouseForHousehold(householdId) is not null) &&
-        !HouseholdBuildingProjectInProgress(householdId, kind);
+        !HouseholdBuildingProjectInProgress(householdId, kind, actor);
 
     /// <summary>Whether a member already has a live plan for this kind, so the household plans at most one.</summary>
-    private bool HouseholdBuildingProjectInProgress(string householdId, string? kind = null) =>
+    private bool HouseholdBuildingProjectInProgress(string householdId, string? kind = null,
+        string? retryingActor = null) =>
         inhabitants.Values.Any(person =>
-            person.Project is { Stage: not ("completed" or "cancelled") } project &&
+            person.Project is { } project && project.Stage is not ("completed" or "cancelled") &&
             TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) && selection.IsBuilding &&
             society.Checkpoint.GetInhabitant(person.InhabitantId).HouseholdId == householdId &&
             worldContent.Buildings.FirstOrDefault(definition => definition.CanonicalId == selection.DefinitionId) is { } planned &&
-            HouseholdBuildingKind(planned) is { } plannedKind && (kind is null || plannedKind == kind));
+            HouseholdBuildingKind(planned) is { } plannedKind && (kind is null || plannedKind == kind) &&
+            !(person.InhabitantId == retryingActor && project.Stage == "blocked" &&
+                WorldTick - project.LastTransitionTick >= BlockedProjectRetryDelayTicks));
 
     /// <summary>Materials the household owns, wherever it stores them, plus what its members carry.</summary>
     private bool HouseholdHasMaterialsInHand(string householdId, IReadOnlyList<ContentQuantity> costs) =>
@@ -82,9 +88,9 @@ public sealed partial class PrivateWorldRuntime
     /// </summary>
     private (BuildingDefinition Building, ContentQuantity Material)? NeededBuildingMaterial(string actor, string householdId)
     {
-        if (HouseholdBuildingProjectInProgress(householdId))
+        if (HouseholdBuildingProjectInProgress(householdId, retryingActor: actor))
             return null;
-        foreach (var definition in PlannableHouseholdBuildings(householdId))
+        foreach (var definition in PlannableHouseholdBuildings(householdId, actor))
         {
             var missing = definition.BuildCosts.FirstOrDefault(cost =>
                 HouseholdMaterialInHand(householdId, cost.ResourceId) < cost.Amount);
@@ -98,11 +104,53 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddBuildingMaterialCandidate(List<CognitionCandidate> candidates, string actor, string householdId)
     {
-        if (NeededBuildingMaterial(actor, householdId) is not { } need)
+        if (NeededBuildingMaterial(actor, householdId) is not { } need ||
+            MaterialSource(need.Material.ResourceId, actor) is not { } source)
             return;
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, need.Material.ResourceId, source);
+        if (FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source, useHarvestBonus))
+            return;
+        var load = useHarvestBonus ? "using its faster whole load" : "as a smaller whole load that fits your carrying space";
         candidates.Add(new CognitionCandidate(GatherBuildingMaterialPrefix + need.Material.ResourceId,
-            $"Gather {need.Material.ResourceId} so the household has what it needs to build its own {need.Building.DisplayName}.",
+            $"Gather {need.Material.ResourceId} {load} so the household has what it needs to build its own {need.Building.DisplayName}.",
             34));
+    }
+
+    /// <summary>Use the faster harvest only when its complete output fits the current carry space.</summary>
+    private bool UseHarvestBonusForBuildingMaterial(string actor, string itemKind, MapResource source)
+    {
+        var tool = itemKind switch
+        {
+            "wood" => "wooden_axe",
+            "stone" or "iron_ore" => "wooden_pickaxe",
+            _ => null,
+        };
+        return tool is not null && HasCarriedItem(actor, tool) &&
+            FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, itemKind, source, useHarvestBonus: true);
+    }
+
+    /// <summary>
+    /// A carried project tool is kept at home until preparation materials have
+    /// room to travel. Building work can collect it again from the household.
+    /// </summary>
+    private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
+    {
+        if (inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
+            HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
+            NeededBuildingMaterial(actor, householdId) is not { } need ||
+            MaterialSource(need.Material.ResourceId, actor) is not { } source)
+            return null;
+
+        var free = FreeCarryCapacity(actor);
+        var required = ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source, useHarvestBonus: false);
+        if (free >= required)
+            return null;
+
+        var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        return tool is not null && free + Math.Min(1, AvailableLotQuantity(tool)) >= required ? tool : null;
     }
 
     private void GatherBuildingMaterial(string actor, PlaytestInhabitantState state, string itemKind)
@@ -111,17 +159,8 @@ public sealed partial class PrivateWorldRuntime
             NeededBuildingMaterial(actor, householdId) is not { } need || need.Material.ResourceId != itemKind ||
             MaterialSource(itemKind, actor) is not { } source)
             return;
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        if (tool is not null && !HasCarriedItem(actor, tool) && SharedItem(tool, actor) is not null)
-        {
-            CollectEquipment(actor, state, tool);
-            return;
-        }
-        GatherProjectMaterial(actor, state, itemKind, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, itemKind, source);
+        var deliveryBuildingId = HouseForHousehold(householdId)?.InstanceId;
+        GatherProjectMaterial(actor, state, itemKind, source, useHarvestBonus, deliveryBuildingId);
     }
 }

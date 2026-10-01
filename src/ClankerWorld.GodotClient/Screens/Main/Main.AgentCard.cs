@@ -595,6 +595,17 @@ public partial class Main
         if (Factor("aspiration") is { } aspiration) details.Add("Aspiration: " + aspiration);
         details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "identity-change")
             .Select(factor => factor.Detail));
+        if (!isDeceased && inhabitant.Equipment is { } equipment)
+        {
+            details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
+                (equipment.CarriedQuantity > equipment.Capacity ? " · Full; store or set down a load before picking up more." : ""));
+            if (equipment.ClothingKind is { } garment)
+                details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
+            if (equipment.CarryAidKind is { } aid)
+                details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.RepairItemKind is { } repairItem)
+                details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
+        }
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")

@@ -79,13 +79,14 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
             ValidateProficiency(inhabitant);
             ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), WorldTick);
             ValidatePrivateThoughts(inhabitant.RecentThoughts, WorldTick);
-            AgentIdentityMoment.Validate(inhabitant.IdentityMoments, WorldTick);
+            AgentIdentityMoment.Validate(inhabitant.IdentityMoments, WorldTick, checkpointSchemaVersion);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -252,6 +253,9 @@ public sealed partial class PrivateWorldRuntime
             (state.FounderSetup is null ||
              !string.Equals(state.Geography.Seed, state.WorldSeed, StringComparison.Ordinal)))
             throw new InvalidDataException("Generated geography does not match the saved world setup.");
+        // New worlds can only be created at these sizes, so any other saved size is damage.
+        if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
+            throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)
@@ -291,6 +295,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCouncil(state);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
@@ -308,7 +313,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.Society.Society.WorldTick);
             ValidatePrivateThoughts(person.RecentThoughts, state.Society.Society.WorldTick);
-            AgentIdentityMoment.Validate(person.IdentityMoments, state.Society.Society.WorldTick);
+            AgentIdentityMoment.Validate(person.IdentityMoments, state.Society.Society.WorldTick, state.SchemaVersion);
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
@@ -448,11 +453,13 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
-            AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick);
+            AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
+            if (person.LastPhysical.Equipment is { } equipment)
+                ValidateEquipmentShape(equipment, person.DeathTick, schemaVersion);
         }
     }
 

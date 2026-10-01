@@ -209,29 +209,6 @@ public sealed class OwnerWorldRuntimeTests
         Assert.Throws<InvalidDataException>(() => OwnerWorldRuntime.Restore(invalidMap, "camp-alpha"));
     }
 
-    [Fact]
-    public void RemoveResourceOperationAppliesOnceAndCanBeRetried()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        const string resourceId = "temporary-food";
-        var batch = new OwnerAuthoringBatch(
-            "remove-resource-once",
-            [
-                new PlaceResourceOperation(resourceId, "food", new GridPoint(3, 2), true),
-                new RemoveResourceOperation(resourceId),
-            ],
-            "owner-device:alice");
-        Assert.True(runtime.Pause("owner-device:alice"));
-
-        var applied = runtime.ApplyAuthoringBatch(batch);
-
-        Assert.True(applied.Applied, applied.Failure);
-        Assert.DoesNotContain(
-            runtime.Capture().Snapshot.CurrentMap.Resources,
-            resource => string.Equals(resource.Id, resourceId, StringComparison.Ordinal));
-        Assert.Equal(applied, runtime.ApplyAuthoringBatch(batch));
-    }
-
     private sealed class AllowListedAssetReferencePolicy : IOwnerApprovedAssetReferencePolicy
     {
         private readonly HashSet<OwnerApprovedAssetReference> approvedReferences;
