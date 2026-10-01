@@ -92,6 +92,18 @@ public partial class Main
             await oldWorldOpening;
             if (manualSaveList.ItemCount != 0 || !manualSaveOverwriteButton.Disabled)
                 throw new InvalidOperationException("A previous world's save list must not publish after changing worlds.");
+            AcceptWorld("save-world-A");
+            foreach (var loadMode in new[] { false, true })
+            {
+                await OpenManualSavesAsync(loadMode, _ => Task.FromException<ManualWorldSave[]>(
+                    new IOException("Controlled current save-list failure.")));
+                if (manualSaveList.Placeholder != "No saves to show." ||
+                    !manualSaveStatus.Text.StartsWith("Could not list saves:", StringComparison.Ordinal) ||
+                    !manualSaveLoadButton.Disabled || !manualSaveOverwriteButton.Disabled ||
+                    !manualSaveDeleteButton.Disabled || manualSaveCreateButton.Disabled != loadMode)
+                    throw new InvalidOperationException("A failed save-list read must end its checking placeholder and keep only creating a new save available.");
+                manualSaveOverlay.Hide();
+            }
         }
         finally
         {
