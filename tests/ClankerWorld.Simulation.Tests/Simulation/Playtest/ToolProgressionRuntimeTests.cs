@@ -137,6 +137,118 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Null(collected.GroundPosition);
     }
 
+    [Theory]
+    [InlineData("wooden_axe", "own")]
+    [InlineData("wooden_hoe", "own")]
+    [InlineData("wooden_axe", "empty")]
+    [InlineData("wooden_hoe", "empty")]
+    [InlineData("wooden_axe", "inhabited")]
+    [InlineData("wooden_hoe", "inhabited")]
+    [InlineData("wooden_axe", "reserved")]
+    [InlineData("wooden_hoe", "reserved")]
+    public async Task SharedWorkToolsRespectTownWarehouseAccessAndReservationsAcrossReload(
+        string itemKind, string scenario)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("tool-warehouse-access",
+            _ => new CandidateProvider("safe_idle"));
+        var state = setup.ExportState();
+        var actor = state.Society.Society.Inhabitants[0].Id;
+        var warehouse = Assert.Single(setup.WorldSimulation.Buildings, building =>
+            setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                .Tags.Contains("warehouse", StringComparer.Ordinal));
+        var warehouseLots = state.Society.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == warehouse.InstanceId).Select(lot => lot.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !warehouseLots.Contains(lot.Id)).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations
+                .Where(reservation => !warehouseLots.Contains(reservation.LotId)).ToArray(),
+        };
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        if (scenario != "own")
+        {
+            var firstTown = Assert.Single(state.Towns!);
+            var outside = state.Map.Tiles.Select(tile => tile.Position)
+                .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
+            var otherResidents = scenario == "inhabited"
+                ? state.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-beta")
+                    .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray()
+                : [];
+            state = state with
+            {
+                Towns =
+                [
+                    firstTown with { ResidentIds = firstTown.ResidentIds.Except(otherResidents).ToArray() },
+                    new TownRuntimeState("town:tool-yard", "Tool Yard", "founded",
+                        state.Society.Society.WorldTick, otherResidents, [], [outside]),
+                ],
+            };
+            using var reassigned = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
+            var result = reassigned.ReassignBuilding(warehouse.InstanceId, warehouse.TownId, warehouse.HouseholdId,
+                targetTownId: "town:tool-yard", targetHouseholdId: null);
+            Assert.True(result.Applied, result.Failure);
+            state = reassigned.ExportState();
+            warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == warehouse.InstanceId);
+        }
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "warehouse-work-tool", itemKind, warehouse.TownId!, 1, storageBuildingId: warehouse.InstanceId);
+        if (scenario == "reserved")
+            inventory = InventoryFixture.Reserve(inventory, "held-work-tool", warehouse.TownId!,
+                "warehouse-work-tool", 1, "pending_trade", state.Society.Society.WorldTick + 120);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = warehouse.Position, HungerBasisPoints = 10_000, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var candidateId = itemKind == "wooden_axe" ? "collect_wooden_axe" : "collect_tool:" + itemKind;
+        var chooser = new CandidateProvider(candidateId);
+        using var collecting = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 20 && chooser.ObservedCandidateSets.Count == 0; tick++)
+        {
+            Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
+            collecting.Validate();
+        }
+        Assert.NotEmpty(chooser.ObservedCandidateSets);
+        var tool = collecting.Society.Inventory.GetLot("warehouse-work-tool");
+        Assert.Equal((1, 10_000), (tool.Quantity, tool.ConditionBasisPoints));
+        Assert.Null(tool.DeliveryBuildingId);
+        Assert.Null(tool.GroundPosition);
+        if (scenario is "own" or "empty")
+        {
+            Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
+            Assert.Equal(actor, tool.OwnerId);
+            Assert.Null(tool.StorageBuildingId);
+            Assert.Contains(collecting.ExportState().Events, item =>
+                item.Kind == "equipment_collected" && item.Detail == actor + ":" + itemKind);
+        }
+        else
+        {
+            Assert.DoesNotContain(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
+            Assert.Equal(warehouse.TownId, tool.OwnerId);
+            Assert.Equal(warehouse.InstanceId, tool.StorageBuildingId);
+            if (scenario == "reserved")
+                Assert.Equal(InventoryReservationState.Reserved,
+                    collecting.Society.Inventory.GetReservation("held-work-tool").State);
+        }
+        Assert.Equal(1, collecting.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
+        var bytes = PrivateWorldRuntimeCodec.Encode(collecting.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        reloaded.Validate();
+        Assert.Equal(tool with { LastProcessedTick = reloaded.Society.WorldTick },
+            reloaded.Society.Inventory.GetLot("warehouse-work-tool"));
+    }
+
     private sealed class CandidateProvider(string candidateId) : IDecisionProvider
     {
         public List<string[]> ObservedCandidateSets { get; } = [];
