@@ -10,29 +10,6 @@ public sealed class SettlementChildhoodActionsTests
 {
     private const string Child = "founder-scout";
 
-    [Theory]
-    [InlineData("child_play:", "child_play")]
-    [InlineData("child_learn:", "child_learn")]
-    public async Task ChildCanChooseBoundedSocialActivitiesAndKeepTheMemoryAfterReload(string choice, string eventKind)
-    {
-        var state = await ChildState();
-        var childProvider = new SelectProvider(choice);
-        using var world = PrivateWorldRuntime.Restore(state, id => id == Child ? childProvider : new SelectProvider("safe_idle"));
-        for (var tick = 0; tick < 45 && !world.ExportState().Events.Any(item => item.Kind == eventKind); tick++)
-            await world.AdvanceOneTickAsync();
-
-        Assert.Contains(childProvider.SeenCandidates, id => id.StartsWith(choice, StringComparison.Ordinal));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == eventKind);
-        var memory = Assert.Single(world.Society.Memories, item =>
-            item.OwnerId == Child && item.Id.StartsWith("child-social:" + eventKind[6..] + ":", StringComparison.Ordinal));
-        Assert.True(world.Inhabitants.Single(item => item.InhabitantId == Child).SocialStanding?.Any() == true);
-
-        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new SelectProvider("safe_idle"));
-        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
-        Assert.Contains(reloaded.Society.Memories, item => item.Id == memory.Id);
-    }
-
     [Fact]
     public async Task IllnessDoesNotSuppressOrdinaryChildConversationOrChangePersonality()
     {
@@ -46,40 +23,27 @@ public sealed class SettlementChildhoodActionsTests
                 LastDecisionContext = null,
             } : person).ToArray(),
         };
-        var childProvider = new SelectProvider("child_converse:");
-        using var world = PrivateWorldRuntime.Restore(state,
-            id => id == Child ? childProvider : new SelectProvider("safe_idle"));
-        for (var tick = 0; tick < 45 && !world.ExportState().Events.Any(item => item.Kind == "child_converse"); tick++)
-            await world.AdvanceOneTickAsync();
+        foreach (var kind in new[] { "converse", "play", "learn" })
+        {
+            var choice = "child_" + kind + ":";
+            var eventKind = "child_" + kind;
+            var childProvider = new SelectProvider(choice);
+            using var world = PrivateWorldRuntime.Restore(state,
+                id => id == Child ? childProvider : new SelectProvider("safe_idle"));
+            for (var tick = 0; tick < 45 && !world.ExportState().Events.Any(item => item.Kind == eventKind); tick++)
+                await world.AdvanceOneTickAsync();
 
-        Assert.Contains(childProvider.SeenCandidates, id => id.StartsWith("child_converse:", StringComparison.Ordinal));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "child_converse");
-        Assert.Equal(original.Personality, world.Inhabitants.Single(person => person.InhabitantId == Child).Personality);
-        var memory = Assert.Single(world.Society.Memories, item =>
-            item.OwnerId == Child && item.Id.StartsWith("child-social:converse:", StringComparison.Ordinal));
-        Assert.True(world.Inhabitants.Single(item => item.InhabitantId == Child).SocialStanding?.Any() == true);
-        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new SelectProvider("safe_idle"));
-        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
-        Assert.Contains(reloaded.Society.Memories, item => item.Id == memory.Id);
-    }
-
-    [Fact]
-    public async Task ChildCanCarrySpareFoodToHouseholdButCannotTakeAdultWork()
-    {
-        var state = await ChildState(withCarriedFood: true);
-        var provider = new SelectProvider("child_help_food");
-        using var world = PrivateWorldRuntime.Restore(state, id => id == Child ? provider : new SelectProvider("safe_idle"));
-        var householdBefore = world.Society.Inventory.Lots.Where(item => item.OwnerId == "household:camp-alpha" && item.ItemKind == "food").Sum(item => item.Quantity);
-        for (var tick = 0; tick < 45 && !world.ExportState().Events.Any(item => item.Kind == "child_helped_household"); tick++)
-            await world.AdvanceOneTickAsync();
-        Assert.Contains(provider.SeenCandidates, id => id == "child_help_food");
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "child_helped_household");
-        Assert.Equal(householdBefore + 1, world.Society.Inventory.Lots.Where(item => item.OwnerId == "household:camp-alpha" && item.ItemKind == "food").Sum(item => item.Quantity));
-        Assert.Null(world.Inhabitants.Single(item => item.InhabitantId == Child).Project);
-        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
-        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+            Assert.Contains(childProvider.SeenCandidates, id => id.StartsWith(choice, StringComparison.Ordinal));
+            Assert.Contains(world.ExportState().Events, item => item.Kind == eventKind);
+            Assert.Equal(original.Personality, world.Inhabitants.Single(person => person.InhabitantId == Child).Personality);
+            var memory = Assert.Single(world.Society.Memories, item =>
+                item.OwnerId == Child && item.Id.StartsWith("child-social:" + kind + ":", StringComparison.Ordinal));
+            Assert.True(world.Inhabitants.Single(item => item.InhabitantId == Child).SocialStanding?.Any() == true);
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new SelectProvider("safe_idle"));
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+            Assert.Contains(reloaded.Society.Memories, item => item.Id == memory.Id);
+        }
     }
 
     [Theory]
@@ -112,6 +76,19 @@ public sealed class SettlementChildhoodActionsTests
         Assert.DoesNotContain(world.Society.Relationships, item => item.Type == SocietyRelationshipType.Partnership);
         Assert.Equal(SocietyWorkRole.Unassigned, world.Society.GetInhabitant(Child).CurrentRole);
         Assert.DoesNotContain(instruction.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+
+        var helpProvider = new SelectProvider("child_help_food");
+        using var helping = PrivateWorldRuntime.Restore(state, id => id == Child ? helpProvider : new SelectProvider("safe_idle"));
+        var householdBefore = helping.Society.Inventory.Lots.Where(item => item.OwnerId == "household:camp-alpha" && item.ItemKind == "food").Sum(item => item.Quantity);
+        for (var tick = 0; tick < 45 && !helping.ExportState().Events.Any(item => item.Kind == "child_helped_household"); tick++)
+            await helping.AdvanceOneTickAsync();
+        Assert.Contains(helpProvider.SeenCandidates, id => id == "child_help_food");
+        Assert.Contains(helping.ExportState().Events, item => item.Kind == "child_helped_household");
+        Assert.Equal(householdBefore + 1, helping.Society.Inventory.Lots.Where(item => item.OwnerId == "household:camp-alpha" && item.ItemKind == "food").Sum(item => item.Quantity));
+        Assert.Null(helping.Inhabitants.Single(item => item.InhabitantId == Child).Project);
+        var saved = PrivateWorldRuntimeCodec.Encode(helping.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     private static async Task<PrivateWorldRuntimeState> ChildState(bool withCarriedFood = false)

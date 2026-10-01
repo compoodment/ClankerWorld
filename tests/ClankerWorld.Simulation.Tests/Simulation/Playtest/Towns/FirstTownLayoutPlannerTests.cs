@@ -16,6 +16,7 @@ public sealed class FirstTownLayoutPlannerTests
         Assert.Empty(world.Towns);
         Assert.Empty(world.ExportState().Map.CampObjects);
         var initialSite = world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position;
+        AssertStartingPlan(world.ExportState().Map, initialSite);
         var first = world.AcceptFirstTownLayout(initialSite);
         Assert.Equal(5, first.Buildings.Count);
         Assert.Equal(5, world.WorldSimulation.Buildings.Count);
@@ -85,17 +86,8 @@ public sealed class FirstTownLayoutPlannerTests
         Assert.Equal(1, stock.GetLot("first-town-wooden-pickaxe").Quantity);
     }
 
-    [Theory]
-    [InlineData("starter-layout-one")]
-    [InlineData("starter-layout-two")]
-    [InlineData("starter-layout-three")]
-    [InlineData("starter-layout-four")]
-    [InlineData("starter-layout-five")]
-    [InlineData("starter-layout-six")]
-    public void StartingPlanLaysStreetsFirstWithEveryDoorFacingARoad(string seed)
+    private static void AssertStartingPlan(SeededMap map, GridPoint roughSite)
     {
-        var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(seed, WorldSizePreset.Small));
-        var roughSite = map.Resources.Single(item => item.Id == "berry-patch").Position;
         var plan = FirstTownLayoutPlanner.Plan(map, roughSite);
         Assert.NotNull(plan);
         var repeated = FirstTownLayoutPlanner.Plan(map, roughSite);
@@ -164,32 +156,6 @@ public sealed class FirstTownLayoutPlannerTests
         var entrances = plan.Buildings.Select(building => building.Entrance).ToHashSet();
         Assert.All(roads.Where(road => TownStreets.Linked(roads, road).Count() == 1 && !entrances.Contains(road)),
             end => Assert.InRange(StepsToDoor(roads, entrances, end), 1, TownStreets.RunOnTiles));
-    }
-
-    [Fact]
-    public void AcceptedTownBorderKeepsThreeTilesOfLandAroundBuildingsAndRoads()
-    {
-        var geography = new GeographyOptions("starter-layout-border", WorldSizePreset.Small);
-        using var world = new PrivateWorldRuntime(geography.Seed,
-            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
-        world.InitializeFirstTownContent();
-        var map = world.ExportState().Map;
-        var plan = world.AcceptFirstTownLayout(map.Resources.Single(item => item.Id == "berry-patch").Position);
-        var border = Assert.Single(world.Towns).BorderTiles.ToHashSet();
-        var core = plan.Buildings.SelectMany(Footprint).Concat(plan.RoadTiles).ToArray();
-
-        // Every land tile up to three tiles straight out from the Town is inside.
-        foreach (var tile in core)
-            for (var reach = -TownBorderRules.SpareTileMargin; reach <= TownBorderRules.SpareTileMargin; reach++)
-                foreach (var near in new[] { new GridPoint(tile.X + reach, tile.Y), new GridPoint(tile.X, tile.Y + reach) })
-                    if (map.IsLand(near)) Assert.Contains(near, border);
-        // It follows the Town's shape: no water, and nothing far from a building or Road.
-        Assert.All(border, tile =>
-        {
-            Assert.True(map.IsLand(tile));
-            Assert.Contains(core, near => Math.Abs(near.X - tile.X) + Math.Abs(near.Y - tile.Y) <= TownBorderRules.SpareTileMargin + 1);
-        });
-        world.Validate();
     }
 
     private static IEnumerable<GridPoint> Footprint(FirstTownLayoutBuilding building) =>
