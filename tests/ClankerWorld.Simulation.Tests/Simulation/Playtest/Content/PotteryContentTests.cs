@@ -241,7 +241,17 @@ public sealed class PotteryContentTests
         var jugId = productionState.Society.Society.Inventory.Lots.Single(lot =>
             lot.ItemKind == InventoryContainerRules.WaterJug).Id;
         var collector = new PrefixCandidateProvider("collect_water_jug");
-        using var collecting = PrivateWorldRuntime.Restore(productionState, id => id == actor
+        // The generated-world supplier may have left this actor on safe_idle
+        // with a recent cognition context. Reset that context so the controlled
+        // collector provider receives a fresh choice without waiting for the
+        // ordinary safe-idle reevaluation interval.
+        var collectionStartState = productionState with
+        {
+            Inhabitants = productionState.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using var collecting = PrivateWorldRuntime.Restore(collectionStartState, id => id == actor
             ? collector : new IdleProvider());
         for (var tick = 0; tick < 80 && collecting.Society.Inventory.GetLot(jugId).OwnerId != actor; tick++)
             Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
