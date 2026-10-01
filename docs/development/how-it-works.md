@@ -142,8 +142,18 @@ and belief confidence remain explicit.
 When an unnamed agent is asked to choose a full name, the personal-model
 request includes a soft first-letter hint derived from that agent's stable ID.
 The hint stays the same if the request is retried, is computed per agent, and
-does not reveal anyone else's name or add a separate model call. It does not
-guarantee unique names; duplicate handling remains separate.
+does not reveal anyone else's name. If a current reply supplies a valid full
+name already used by another agent, the scheduler queues one extra metered
+personal-model request. That request marks `name_retry` and says the chosen
+name is taken, but it still does not include anyone else's name. Names are
+compared after Unicode normalization, case folding and collapsing whitespace;
+deceased agents count too. A second duplicate, a missing or invalid name, or an
+unusable retry reply leaves the placeholder for the player to rename. The
+retry marker uses the existing saved cognition queue trigger list, so it
+survives pause and restore without a new per-agent save field. The name check
+is separate from action admission: a valid name from a current legal-choice,
+low-confidence or rejected-action reply is kept, while malformed replies and
+stale replies cannot name the agent.
 
 The response must select a legal candidate. Confidence below 0.5 permits only
 the safe-idle fallback; probabilities are validated/retained but do not select

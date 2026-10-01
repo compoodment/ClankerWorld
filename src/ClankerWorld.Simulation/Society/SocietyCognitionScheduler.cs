@@ -1,4 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Society;
@@ -43,6 +45,7 @@ public sealed record SocietyCognitionSchedulerState(
 public sealed class SocietyCognitionScheduler
 {
     public const int StateSchemaVersion = 1;
+    public const string NameRetryTriggerId = "agent_name_retry";
 
     private readonly Dictionary<string, CognitionRuntime> runtimes;
     private readonly List<SocietyCognitionScheduleEntry> queue = [];
@@ -160,6 +163,20 @@ public sealed class SocietyCognitionScheduler
         var infants = current.Where(item => item.AgeBand == SocietyAgeBand.Infant)
             .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         queue.RemoveAll(entry => infants.Contains(entry.InhabitantId));
+        var named = current.Where(item => !item.NeedsName).Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        for (var index = queue.Count - 1; index >= 0; index--)
+        {
+            var entry = queue[index];
+            if (!named.Contains(entry.InhabitantId) || !entry.TriggerIds.Contains(NameRetryTriggerId, StringComparer.Ordinal))
+                continue;
+            var remaining = entry.TriggerIds.Where(trigger => trigger != NameRetryTriggerId).ToArray();
+            if (remaining.Length == 0) queue.RemoveAt(index);
+            else queue[index] = entry with
+            {
+                TriggerIds = remaining,
+                Observation = entry.Observation with { NeedsName = false },
+            };
+        }
         if (bornChildIds is not null)
         {
             for (var index = 0; index < queue.Count; index++)
@@ -186,7 +203,7 @@ public sealed class SocietyCognitionScheduler
         ArgumentNullException.ThrowIfNull(excludedInhabitantIds);
         var selected = OrderedQueue()
             .Where(entry => !excludedInhabitantIds.Contains(entry.InhabitantId) &&
-                runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) != DecisionProviderKind.Deterministic)
+                runtimes[entry.InhabitantId].ProviderKindFor(ObservationFor(entry)) != DecisionProviderKind.Deterministic)
             .Take(maxDispatchPerCycle)
             .ToArray();
         var previews = new List<SocietyDeferredCognitionRequest>(selected.Length);
@@ -195,7 +212,7 @@ public sealed class SocietyCognitionScheduler
             var runtime = runtimes[entry.InhabitantId];
             try
             {
-                var request = runtime.PreviewRequest(entry.Observation);
+                var request = runtime.PreviewRequest(ObservationFor(entry));
                 previews.Add(new SocietyDeferredCognitionRequest(
                     entry.InhabitantId,
                     request,
@@ -211,7 +228,7 @@ public sealed class SocietyCognitionScheduler
     }
 
     public IReadOnlySet<string> PendingHostedInhabitantIds() => queue
-        .Where(entry => runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) != DecisionProviderKind.Deterministic)
+        .Where(entry => runtimes[entry.InhabitantId].ProviderKindFor(ObservationFor(entry)) != DecisionProviderKind.Deterministic)
         .Select(entry => entry.InhabitantId)
         .ToHashSet(StringComparer.Ordinal);
 
@@ -231,8 +248,9 @@ public sealed class SocietyCognitionScheduler
             originalRequest.Observation.RunEpoch != currentRunEpoch ||
             originalRequest.ProviderEpoch != runtime.ProviderEpoch)
             return null;
-        var currentRequest = runtime.PreviewRequest(entry.Observation);
+        var currentRequest = runtime.PreviewRequest(ObservationFor(entry));
         if (currentRequest.RequestId != originalRequest.RequestId ||
+            currentRequest.Observation.IsNameRetry != originalRequest.Observation.IsNameRetry ||
             currentRequest.Observation.RunEpoch != currentRunEpoch ||
             response is not null &&
                 originalRequest.Observation.Candidates.Any(candidate => candidate.Id == response.SelectedCandidateId) &&
@@ -261,7 +279,7 @@ public sealed class SocietyCognitionScheduler
         CancellationToken cancellationToken)
     {
         var selected = OrderedQueue()
-            .Where(predicate)
+            .Where(entry => predicate(entry with { Observation = ObservationFor(entry) }))
             .Take(maxDispatchPerCycle)
             .ToArray();
 
@@ -272,7 +290,7 @@ public sealed class SocietyCognitionScheduler
             CognitionAdmissionResult admission;
             try
             {
-                admission = await runtime.RequestAndDecideAsync(entry.Observation, cancellationToken)
+                admission = await runtime.RequestAndDecideAsync(ObservationFor(entry), cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (InvalidOperationException exception)
@@ -308,6 +326,16 @@ public sealed class SocietyCognitionScheduler
         }
 
         return results;
+    }
+
+    private static InhabitantObservation ObservationFor(SocietyCognitionScheduleEntry entry)
+    {
+        if (!entry.TriggerIds.Contains(NameRetryTriggerId, StringComparer.Ordinal))
+            return entry.Observation with { IsNameRetry = false };
+
+        var retryDigest = $"sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{entry.Observation.ObservationDigest}\nname_retry=true")))}";
+        return entry.Observation with { IsNameRetry = true, ObservationDigest = retryDigest };
     }
 
     public CognitionRuntimeSnapshot CaptureRuntime(string inhabitantId) =>
