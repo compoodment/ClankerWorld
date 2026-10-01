@@ -268,7 +268,10 @@ public sealed record ViewerPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null)
+{
+    public bool AllowsHouseholdOwner { get; init; }
+}
 
 public sealed record ViewerProductionJob(
     string JobId,

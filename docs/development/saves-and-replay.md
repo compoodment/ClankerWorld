@@ -75,6 +75,14 @@ choice after its inputs become unavailable; validation only accepts that flag
 on a paused project without a linked job. Older schemas carrying equipment
 records are refused. No migration is added.
 
+Private-world schema 38 retains a building's definition identity in completed
+or cancelled expansion history after an owner removes that building. A
+building with active production or expansion work cannot be removed or
+reassigned, and a household's last Farmhouse stays assigned until its field
+work finishes. Town membership, building assignments and physical inventory
+locations are validated together; older alpha saves need not load and no
+migration is provided.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -309,7 +317,7 @@ current alpha cutoff.
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
-| Schema 38 | Combines selected garments and carrying aids with timed repairs, separate weapon/shield/armor/ornament slots, physical vessels and carts, gradual medical care, Port boats and journeys, business stock promises, livestock, knowledge goods and Town Hall councils. Current-format replay preserves ownership, consent, elections and underway travel with fields, housing, skills and expansion records. All earlier checkpoint schemas, including both schema-37 equipment shapes, are refused and preserved under the alpha cutoff. |
+| Schema 38 | Combines selected garments and carrying aids with timed repairs, separate weapon/shield/armor/ornament slots, physical vessels and carts, gradual medical care, Port boats and journeys, business stock promises, livestock, knowledge goods and Town Hall councils. Current-format replay preserves ownership, consent, elections and underway travel with fields, housing, skills and expansion records. Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. All earlier checkpoint schemas, including both schema-37 equipment shapes, are refused and preserved under the alpha cutoff. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

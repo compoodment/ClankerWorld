@@ -127,7 +127,8 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == kind && lot.StorageBuildingId != smithId && lot.ContainerLotId is null &&
                 lot.GroundPosition is null && lot.CartId is null && lot.AnimalId is null && lot.DeliveryBuildingId is null &&
                 AvailableLotQuantity(lot) > 0)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault() : null;
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault() ??
+                AvailableWarehouseStock(actor, kind).FirstOrDefault() : null;
             var source = personal is null && stock is null ? MaterialSource(kind, actor) : null;
             if (stock is not null && FreeCarryCapacity(actor) == 0) stock = null;
             if (source is not null && FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, kind, source)) source = null;
@@ -187,7 +188,7 @@ public sealed partial class PrivateWorldRuntime
                 Math.Min(FreeCarryCapacity(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(input)))));
             if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,
+                $"smith-input-pickup:{WorldTick}:{actor}", input.OwnerId, actor, input.Id,
                 quantity, "smith_input_picked_up", destinationDeliveryBuildingId: smith.InstanceId));
             AppendEvent("smith_input_picked_up", $"{actor}:{input.Id}:{quantity}:{smith.InstanceId}");
             return;

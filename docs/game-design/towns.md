@@ -94,7 +94,14 @@ everything that is available in the current build. See [what works today](../wha
   building and road (tuned in playtests) and follows the Town's shape rather
   than a rectangle, so there is room, and a reason, to build inside it.
   Removing a building does not automatically shrink the existing border;
-  later construction may expand it. Assignment and overlap handling remain open.
+  later construction may expand it. A Warehouse keeps its recorded Town access
+  if its footprint is outside that Town's border. Moving a Warehouse to a
+  different recorded Town updates that building assignment but does not move
+  either Town's border or transfer land title. Reassigning a private building
+  changes its household owner while preserving its recorded Town assignment.
+  Town identity and current resident membership are separate: the founding
+  roster is historical provenance, while each living resident belongs to at
+  most one recorded Town.
   When its last resident leaves or dies, the Town becomes **abandoned**, not
   erased. Its identity, buildings, border and infrastructure remain in the
   world, and later residents can revive that same Town under the
@@ -401,7 +408,16 @@ election procedures follow separately in
   may still collect stock under the usual physical pickup rules. Do not suspend
   access merely because of geometry or grant it to a neighboring Town.
   Reassignment remains a separate validated change; it cannot erase stock or
-  bypass the agreed removal/reassignment safeguards.
+  bypass the agreed removal/reassignment safeguards. Moving one updates both
+  Towns' assigned-building records and leaves their borders unchanged.
+- **Owner building changes preserve physical state.** The owner may remove a
+  placed building or reassign its household/Town owner through a signed action.
+  Removal and reassignment are refused while the building has stored or
+  inbound stock, or active production/expansion work. Completed work history is
+  retained after removal. Removing a building keeps its Town border and Roads;
+  changing a private building's household owner never changes its Town title
+  or assignment. Removing or reassigning a House clears its shelter-only guest
+  invitations. An action against an outdated owner record is refused.
 - **An empty Town permits public salvage of unreserved communal stock.** When
   no recorded living residents remain, any agent may physically collect that
   stock, including from its Warehouse, within carrying and availability limits.

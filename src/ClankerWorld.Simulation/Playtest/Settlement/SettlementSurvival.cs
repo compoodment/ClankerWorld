@@ -122,11 +122,8 @@ public sealed partial class PrivateWorldRuntime
         lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
-        society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-            lot.ItemKind == kind && kind != "food" && lot.GroundPosition is null && lot.ContainerLotId is null &&
-            lot.CartId is null && lot.AnimalId is null && AvailableLotQuantity(lot) > 0 &&
-            lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId &&
-            CanReachSharedItem(actor, lot));
+        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault(lot =>
+            lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null));
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),

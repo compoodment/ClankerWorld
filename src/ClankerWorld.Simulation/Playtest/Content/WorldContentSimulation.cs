@@ -148,8 +148,10 @@ public static class WorldContentSimulationRules
         {
             ArgumentNullException.ThrowIfNull(job);
             ContentPackageRules.ValidateLocalId(job.JobId);
+            ContentPackageRules.ValidateLocalId(job.BuildingInstanceId);
             if (!jobIds.Add(job.JobId) || !recipeDefinitions.TryGetValue(job.RecipeId, out var recipe) ||
-                recipe.IsCrop || !buildingIds.Contains(job.BuildingInstanceId))
+                recipe.IsCrop ||
+                job.State == WorldProductionJobState.Running && !buildingIds.Contains(job.BuildingInstanceId))
             {
                 throw new InvalidDataException("Production jobs must have unique IDs and registered references.");
             }
@@ -243,7 +245,9 @@ public static class WorldContentSimulationRules
         ContentPackageRules.ValidateDigest(packageDigest, nameof(packageDigest));
         if (state.Buildings.Any(item => item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
             state.ProductionJobs.Concat(state.CropBuilds ?? []).Any(item =>
-                item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
+                item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
+            (state.BuildingExpansions ?? []).Any(item =>
+                item.DefinitionId?.StartsWith($"{packageDigest}/", StringComparison.Ordinal) == true))
         {
             throw new InvalidOperationException("Content with committed buildings or production history requires an explicit migration before removal.");
         }

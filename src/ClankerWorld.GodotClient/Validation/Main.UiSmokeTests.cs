@@ -120,6 +120,8 @@ public partial class Main
             var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
             if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
                 !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                !Mathf.IsEqualApprox(buildingRemoveConfirmation.ContentScaleFactor, factor) ||
+                buildingRemoveConfirmation.OkButtonText != "Remove building" ||
                 deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
                 DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
                 quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||

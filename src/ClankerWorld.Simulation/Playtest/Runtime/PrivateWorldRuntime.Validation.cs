@@ -143,7 +143,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         if (!setup.Started && savedTowns.Count != 1)
             throw new InvalidDataException("A founder-setup world must have exactly one first Town.");
-        if (savedTowns.Any(town => town is null || string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() ||
+        if (savedTowns.Any(town => town is null || string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() || town.Id.Length > 128 ||
                 town.Id.Any(char.IsControl)) || savedTowns.Select(town => town.Id).Distinct(StringComparer.Ordinal).Count() != savedTowns.Count)
             throw new InvalidDataException("Saved Town identities must be distinct and canonical.");
         var firstTown = savedTowns.SingleOrDefault(town => town.Id == TownBorderRules.FirstTownId);
@@ -161,7 +161,7 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("A placed building references an unknown Town.");
         foreach (var town in savedTowns)
         {
-            if (string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() || town.Name.Any(char.IsControl) ||
+            if (string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() || town.Name.Length > 120 || town.Name.Any(char.IsControl) ||
                 town.FoundingState != (setup.Started ? "founded" : "founding") || town.FoundedTick < 0 || town.FoundedTick > society.WorldTick ||
                 town.OriginSite is { } origin && !map.IsBuildable(origin) || town.ResidentIds is null ||
                 town.AssignedBuildingIds is null || town.BorderTiles is null || town.BorderTiles.Count == 0 ||
@@ -183,8 +183,12 @@ public sealed partial class PrivateWorldRuntime
                 town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
                     (PortNavigationRules.IsPort(definition)
                         ? PortNavigationRules.Geometry(map, definition, byInstance[id].Position).LandTiles
-                        : WorldContentSimulationRules.Footprint(definition, byInstance[id])).Any(tile => !border.Contains(tile))))
+                        : WorldContentSimulationRules.Footprint(definition, byInstance[id])).Any(tile => !border.Contains(tile)) &&
+                    !definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
                 throw new InvalidDataException("A saved Town border does not cover its founding site and assigned buildings.");
+            if (town.AssignedBuildingIds.Count(id => definitions[byInstance[id].DefinitionId].Tags
+                    .Contains("warehouse", StringComparer.Ordinal)) > 1)
+                throw new InvalidDataException("A Town can have only one assigned Warehouse.");
         }
     }
 

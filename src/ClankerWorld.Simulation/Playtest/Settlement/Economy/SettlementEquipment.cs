@@ -154,8 +154,9 @@ public sealed partial class PrivateWorldRuntime
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             lot.ContainerLotId is null && lot.CartId is null && lot.AnimalId is null &&
             (PersonalEquipmentRules.IsCarriedRoot(lot, actor) ||
-                (lot.OwnerId == HouseholdFor(actor) || lot.OwnerId == TownForResident(actor) &&
-                    WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId) && CanReachSharedItem(actor, lot)));
+                lot.OwnerId == HouseholdFor(actor) && CanReachSharedItem(actor, lot)))
+        .Concat(AvailableWarehouseStock(actor).Where(lot => lot.ContainerLotId is null && lot.CartId is null &&
+            lot.AnimalId is null)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
     {
