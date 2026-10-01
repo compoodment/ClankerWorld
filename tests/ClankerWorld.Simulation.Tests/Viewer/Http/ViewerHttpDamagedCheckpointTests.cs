@@ -84,6 +84,61 @@ public sealed partial class ViewerHttpTests
     }
 
     [Theory]
+    [InlineData("towns")]
+    [InlineData("society.society.inhabitants")]
+    [InlineData("worldContent.buildings")]
+    [InlineData("geography.size")]
+    public async Task DamagedGeneratedWorldDoesNotHideHealthyWorldsOrReplaceActiveWorld(string damage)
+    {
+        var directory = Directory.CreateTempSubdirectory("damaged-world-entry-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            file.Save(runtime);
+            var activeBytes = File.ReadAllBytes(file.Path);
+            var runtimeBytes = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
+            using var other = NormalPathWorld.CreateGenerated("damaged-entry-other", _ => new ActionCoverageRecorder());
+            other.Pause();
+            var entry = catalog.Add("Recoverable", other.ExportState());
+            var path = Path.Combine(file.Path + ".worlds", entry.Id + ".save");
+            var healthy = File.ReadAllBytes(path);
+            var document = JsonNode.Parse(healthy)!.AsObject();
+            var state = document["state"]!.AsObject();
+            if (damage == "geography.size") state["geography"]!["size"] = int.MaxValue;
+            else
+            {
+                JsonNode list = state;
+                foreach (var part in damage.Split('.')) list = list[part]!;
+                ((JsonArray)list)[0] = null;
+            }
+            var damaged = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+            File.WriteAllBytes(path, damaged);
+            using var listed = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/worlds/list", new OwnerControlAction("list-worlds"), OwnerHttpBinding.EmptyPayload("list-worlds"));
+            Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+            var snapshot = (await listed.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!;
+            Assert.Equal("compatible", snapshot.Worlds.Single(world => world.Id == snapshot.ActiveId).Compatibility);
+            Assert.Equal("incompatible", snapshot.Worlds.Single(world => world.Id == entry.Id).Compatibility);
+            var select = new OwnerManualSaveAction("select-world", entry.Id);
+            using var rejected = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/worlds/select", select, OwnerHttpBinding.ManualSavePayload(select));
+            Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+            Assert.Equal(activeBytes, File.ReadAllBytes(file.Path));
+            Assert.Equal(runtimeBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            Assert.Equal(snapshot.ActiveId, catalog.Capture().ActiveId);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
     [InlineData("society", false)]
     [InlineData("society", true)]
     [InlineData("society.society", false)]

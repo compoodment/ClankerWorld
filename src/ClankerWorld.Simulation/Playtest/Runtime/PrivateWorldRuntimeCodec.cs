@@ -63,6 +63,8 @@ public static class PrivateWorldRuntimeCodec
             var version = format.GetString();
             if (version != ChunkedHeader)
                 throw new InvalidDataException("The private-world runtime checkpoint format is unsupported.");
+            if (header.RootElement.TryGetProperty("state", out var savedState))
+                RejectEmptyListEntries(savedState);
             var document = JsonSerializer.Deserialize<RuntimeDocument>(bytes.Span, CurrentReadOptions)
                 ?? throw new InvalidDataException("The private-world runtime checkpoint is empty.");
             if (document.State is null)
@@ -73,6 +75,30 @@ public static class PrivateWorldRuntimeCodec
         catch (JsonException exception)
         {
             throw new InvalidDataException("The private-world runtime checkpoint JSON is damaged.", exception);
+        }
+    }
+
+    /// <summary>
+    /// No saved list holds empty entries. <see cref="JsonSerializerOptions.RespectNullableAnnotations"/>
+    /// rejects null members but not null list entries, which would otherwise
+    /// reach validators as unexpected faults instead of a refused checkpoint.
+    /// </summary>
+    private static void RejectEmptyListEntries(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var member in element.EnumerateObject())
+                    RejectEmptyListEntries(member.Value);
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Null)
+                        throw new InvalidDataException("The private-world runtime checkpoint has an empty entry in a saved list.");
+                    RejectEmptyListEntries(item);
+                }
+                break;
         }
     }
 

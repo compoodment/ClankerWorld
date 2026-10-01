@@ -43,6 +43,9 @@ public sealed partial class ViewerHttpTests
                 // The catalog keeps them, so the next list needs no work for them.
                 var stored = JsonNode.Parse(File.ReadAllText(catalogPath))!["Worlds"]!.AsArray();
                 Assert.All(stored, world => Assert.NotNull(world!["Thumbnail"]));
+                // A repeat list reuses the checked checkpoint and keeps the pictures.
+                var relisted = restarted.Services.GetRequiredService<WorldSelectionCoordinator>().List();
+                Assert.All(relisted.Worlds, world => Assert.Equal(created[world.Id], world.Thumbnail));
             }
         }
         finally { directory.Delete(recursive: true); }
