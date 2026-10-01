@@ -2,12 +2,47 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.AgentPlacement;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class FounderSetupTests
 {
+    [Fact]
+    public void AgentPlacementRulesUseHouseholdThenTownAndRefuseEveryOverlapWithoutListOrder()
+    {
+        var householdAndTown = AgentPlacementRules.Resolve(["household:one"], ["town:first"]);
+        Assert.False(householdAndTown.IsAmbiguous);
+        Assert.Equal("household:one", householdAndTown.HouseholdIdFor("agent:one"));
+        Assert.Equal("town:first", householdAndTown.TownId);
+
+        var townOnly = AgentPlacementRules.Resolve([], ["town:first"]);
+        Assert.Null(townOnly.HouseholdIdFor("agent:town"));
+        var outside = AgentPlacementRules.Resolve([], []);
+        Assert.Equal("household:agent:outside", outside.HouseholdIdFor("agent:outside"));
+
+        var householdOverlap = AgentPlacementRules.Resolve(
+            ["household:one", "household:two"], ["town:first"]);
+        var reversedHouseholds = AgentPlacementRules.Resolve(
+            ["household:two", "household:one"], ["town:first"]);
+        Assert.Equal(AgentPlacementAmbiguity.HouseholdProperty, householdOverlap.Ambiguity);
+        Assert.Equal(householdOverlap.Ambiguity, reversedHouseholds.Ambiguity);
+        Assert.Null(householdOverlap.HouseholdPropertyOwnerId);
+
+        var townOverlap = AgentPlacementRules.Resolve(
+            ["household:one"], ["town:first", "town:second"]);
+        Assert.Equal(AgentPlacementAmbiguity.TownBorders, townOverlap.Ambiguity);
+        var bothOverlap = AgentPlacementRules.Resolve(
+            ["household:one", "household:two"], ["town:first", "town:second"]);
+        Assert.Equal(AgentPlacementAmbiguity.HouseholdProperty | AgentPlacementAmbiguity.TownBorders,
+            bothOverlap.Ambiguity);
+
+        var repeatedRecord = AgentPlacementRules.Resolve(
+            ["household:one", "household:one"], ["town:first", "town:first"]);
+        Assert.False(repeatedRecord.IsAmbiguous);
+    }
+
     [Fact]
     public void FounderCanMoveBeforeTimeStartsWithoutChangingIdentityOrMembership()
     {
@@ -127,7 +162,7 @@ public sealed class FounderSetupTests
     }
 
     [Fact]
-    public async Task AddedAdultOnRecordedHouseholdPropertyJoinsThatHouseholdAndEnclosingTown()
+    public async Task AddedAdultOnRecordedHouseholdPropertyJoinsOwnerAndRefusesStaleTownOnlyPreview()
     {
         using var world = new PrivateWorldRuntime("new-agent-house-property", startPace: WorldStartPace.FounderSetup);
         foreach (var position in new[]
@@ -142,18 +177,33 @@ public sealed class FounderSetupTests
 
         var state = world.ExportState();
         var house = world.WorldContent.Buildings.Single(building => building.LocalId == "house-1x1");
+        var town = world.Towns.Single();
         var site = state.Map.Tiles.Select(tile => tile.Position).First(point =>
             state.Map.IsBuildable(point) &&
+            town.BorderTiles.Contains(point) &&
             TownBorderRules.IsWithinOrAdjacent(world.Towns.Single(), point, house.Width, house.Height) &&
             !state.Map.CampObjects.Any(item => item.Position == point) &&
             !state.Map.Resources.Any(item => item.Position == point) &&
-            !state.Inhabitants.Any(person => person.Position == point));
+            !state.Inhabitants.Any(person => person.Position == point) &&
+            !state.WorldSimulation!.Buildings.Any(building =>
+                WorldContentSimulationRules.Footprint(house, building.Position)
+                    .Contains(point)));
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        var townId = town.Id;
+        world.ValidateAgentPlacement(agentId, site, expectedHouseholdId: null, expectedTownId: townId);
         var placed = world.PlaceBuilding("starter-house-alpha", house.CanonicalId, site, "household:camp-alpha");
         Assert.True(placed.Applied, placed.Failure);
 
-        var agentId = "agent:" + Guid.NewGuid().ToString("N");
         var householdCount = world.Society.Households.Count;
-        Assert.Equal("household:camp-alpha", world.AddAgent(agentId, site));
+        Assert.Throws<AgentPlacementChangedException>(() =>
+        {
+            _ = world.AddAgent(agentId, site, expectedHouseholdId: null, expectedTownId: townId);
+        });
+        Assert.DoesNotContain(agentId, world.Inhabitants.Select(person => person.InhabitantId));
+        Assert.DoesNotContain(agentId, world.Towns.Single().ResidentIds);
+        Assert.Equal(householdCount, world.Society.Households.Count);
+        world.ValidateAgentPlacement(agentId, site, "household:camp-alpha", townId);
+        Assert.Equal("household:camp-alpha", world.AddAgent(agentId, site, "household:camp-alpha", townId));
         Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == agentId).Skills ?? []);
         Assert.Equal(householdCount, world.Society.Households.Count);
         Assert.Contains(agentId, world.Society.GetHousehold("household:camp-alpha").MemberIds);

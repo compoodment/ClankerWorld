@@ -101,6 +101,7 @@ builder.Services.AddSingleton(new ProviderConfigurationStore(
 builder.Services.AddSingleton(services => new ProviderModelCatalog(
     services.GetRequiredService<ProviderConfigurationStore>(),
     services.GetRequiredService<IHttpClientFactory>()));
+builder.Services.AddSingleton<ProviderSetupCheckService>();
 builder.Services.AddSingleton<ConfigurableDecisionProvider>();
 builder.Services.AddSingleton<IDecisionProvider>(services =>
     services.GetRequiredService<ConfigurableDecisionProvider>());

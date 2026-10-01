@@ -236,7 +236,13 @@ public sealed record ViewerPlacedBuilding(
     string? TownId = null,
     string? HouseholdId = null,
     IReadOnlyList<ViewerInventoryEntry>? StoredItems = null,
-    ViewerPosition? Entrance = null);
+    ViewerPosition? Entrance = null,
+    int? StorageCapacity = null,
+    int StoredQuantity = 0,
+    int FootprintRevision = 0,
+    IReadOnlyList<string>? InvitedGuests = null,
+    string? ExpansionState = null,
+    string? ExpansionFailure = null);
 
 public sealed record ViewerProductionJob(
     string JobId,

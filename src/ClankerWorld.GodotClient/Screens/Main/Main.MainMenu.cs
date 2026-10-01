@@ -223,7 +223,7 @@ public partial class Main
         mainMenuCenter.MouseFilter = MouseFilterEnum.Ignore;
         menuShade.ZIndex = 190;
         gameMenuPanel.ZIndex = 200;
-        menuHeadingLabel.Text = "Game Settings";
+        menuHeadingLabel.Text = "Settings";
         StyleIconButton(menuCloseButton, PixelGlyph.Back);
         menuCloseButton.TooltipText = "Back to Main Menu";
         SetWorldMenuActionsVisible(false);
