@@ -204,8 +204,10 @@ room first sets down spare supplies for their household, in the House if it
 has room or on the camp pile otherwise. Tools go last; maps, field records,
 worn gear and reserved goods stay carried. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
-Before the first House, builders and helpers deliver construction materials in loads
-to their household's pile at camp. Household adults
+Before the first House, builders carry their construction materials to the camp
+pile in loads. A helper meets the adult who requested materials and transfers only
+what that adult has room to carry. Once a House exists, helpers can deliver to its
+storage. Household adults
 can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
 and rope to repair a basket at their House. Work, reservations, equipment and
 overloaded cargo survive saving and reopening. These paths have automated

@@ -895,11 +895,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var itemKind = request.Input.ResourceId;
             if (candidates.Any(candidate => candidate.Id == "assist:" + itemKind)) continue;
-            var house = HouseForHousehold(request.OwnerId);
-            var stagesAtCamp = house is null && society.Checkpoint.Households.Any(item => item.Id == request.OwnerId);
-            if (house is not null && StorageRoom(house.InstanceId) == 0 ||
-                house is null && !stagesAtCamp && FreeCarryCapacity(request.Requester) == 0)
-                continue;
+            if (!CanReceiveProjectAssistance(request)) continue;
             var hasCarriedMaterial = society.Checkpoint.Inventory.Lots.Any(lot =>
                     PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0);
@@ -912,9 +908,18 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private bool CanReceiveProjectAssistance((string Requester, ContentQuantity Input, string OwnerId) request)
+    {
+        var house = HouseForHousehold(request.OwnerId);
+        return house is null
+            ? FreeCarryCapacity(request.Requester) > 0
+            : StorageRoom(house.InstanceId) > 0;
+    }
+
     private void AssistProject(string helperId, PlaytestInhabitantState state, string itemKind)
     {
-        var request = ProjectRequests(helperId).FirstOrDefault(request => request.Input.ResourceId == itemKind);
+        var request = ProjectRequests(helperId).FirstOrDefault(request =>
+            request.Input.ResourceId == itemKind && CanReceiveProjectAssistance(request));
         if (request.Requester is null)
         {
             return;
@@ -931,11 +936,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var house = HouseForHousehold(request.OwnerId);
-        // A helper may deliver supplies without gaining access to the recipient's stock.
-        // Before its first House, a household keeps its construction supplies at camp.
-        var stagesAtCamp = house is null && society.Checkpoint.Households.Any(item => item.Id == request.OwnerId);
-        var recipient = house is not null || stagesAtCamp ? request.OwnerId : request.Requester;
-        var store = house?.Position ?? (stagesAtCamp ? SettlementStoragePosition : inhabitants[request.Requester].Position);
+        // A helper can hand supplies to the requesting adult without gaining access to the
+        // recipient household's stock. Before a House exists, that handoff needs real carry room.
+        if (house is null && FreeCarryCapacity(request.Requester) == 0) return;
+        var recipient = house is null ? request.Requester : request.OwnerId;
+        var store = house?.Position ?? inhabitants[request.Requester].Position;
         var interactionRange = house is not null && society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId
             ? 0 : ResourceInteractionRange;
         if (!IsWithinInteractionRange(state.Position, store, interactionRange))
@@ -945,11 +950,11 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
-        else if (!stagesAtCamp) quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
+        else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, recipient, carried.Id, quantity, "project_request_fulfilled",
-            house?.InstanceId, destinationGroundPosition: stagesAtCamp ? new InventoryGroundPosition(store.X, store.Y) : null));
+            house?.InstanceId));
         IncreaseTrust(request.Requester, helperId, 2, "material_help");
         var memoryId = $"project-gratitude:{request.Requester}:{helperId}";
         if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
