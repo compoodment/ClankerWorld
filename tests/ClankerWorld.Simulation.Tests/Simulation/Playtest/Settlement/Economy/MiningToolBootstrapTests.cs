@@ -45,7 +45,12 @@ public sealed class MiningToolBootstrapTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var order = Assert.Single(world.BusinessTrade.ToolOrders);
         Assert.Equal((buyer, Beta, Smith, "wooden_pickaxe"), (order.BuyerId, order.HouseholdId, order.BuildingId, order.ToolKind));
-        Assert.Contains(buyerChoice.DeterministicFirst, id => id == "business_request_tool:" + Smith + "|wooden_pickaxe");
+        var requestedPick = "business_request_tool:" + Smith + "|wooden_pickaxe";
+        Assert.Contains(requestedPick, buyerChoice.Offered);
+        Assert.Contains(requestedPick, buyerChoice.Selected);
+        Assert.Contains("farm:hoe:wooden_hoe", buyerChoice.DeterministicFirst);
+        Assert.True(buyerChoice.FirstPriorities["farm:hoe:wooden_hoe"] <
+            buyerChoice.FirstPriorities[requestedPick]);
         for (var tick = 0; tick < 120 && !world.BusinessTrade.ToolOrders.Any(item => item.State == "ready"); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var ready = world.BusinessTrade.ToolOrders.Single(item => item.Id == order.Id);
@@ -79,7 +84,7 @@ public sealed class MiningToolBootstrapTests
     [Fact]
     public async Task StockedSmithPrioritizesTheMissingStonePickAndOffersRealOreWork()
     {
-        using var seed = NormalPathWorld.CreateGenerated("probe-b", _ => new LaneChoice([]));
+        using var seed = NormalPathWorld.CreateGenerated("identity-pause", _ => new LaneChoice([]));
         var state = seed.ExportState();
         var actor = seed.Society.Inhabitants.First(person => person.HouseholdId == Beta).Id;
         var building = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == Smith);
@@ -127,16 +132,21 @@ public sealed class MiningToolBootstrapTests
     {
         public HashSet<string> Offered { get; } = new(StringComparer.Ordinal);
         public HashSet<string> DeterministicFirst { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> Selected { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> FirstPriorities { get; } = new(StringComparer.Ordinal);
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             Offered.UnionWith(request.Observation.Candidates.Select(candidate => candidate.Id));
+            foreach (var candidate in request.Observation.Candidates)
+                FirstPriorities.TryAdd(candidate.Id, candidate.DeterministicPriority);
             DeterministicFirst.Add(request.Observation.Candidates.OrderBy(candidate => candidate.DeterministicPriority)
                 .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).First().Id);
             var selected = prefixes.Select(prefix => request.Observation.Candidates.FirstOrDefault(candidate =>
                     candidate.Id.StartsWith(prefix, StringComparison.Ordinal))).FirstOrDefault(candidate => candidate is not null)
                 ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            Selected.Add(selected.Id);
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId, Kind,
                 ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected.Id, 1, new Dictionary<string, double> { [selected.Id] = 1 }));
