@@ -7,7 +7,8 @@
 // owner request ends it; nobody else decides on their own clock that it lapsed.
 // Each claim's clock starts when its label was last added, so claiming again
 // after a release, a stop or a hand-back starts a fresh claim. For an issue,
-// removing status:needs-decision from it also restarts the clock.
+// removing status:needs-decision from it, or from the claimant's own draft,
+// also restarts the clock.
 //
 // - An issue's status:in-progress claim is released after 1.5 hours without
 //   pushed work. Only these count: adding the claim label, opening the

@@ -295,8 +295,9 @@ remains on the issue and pull request, not in a second tracker.
    stacked, bring in newer main only by merging your base branch. When #A
    merges, GitHub moves your pull request to main, and main then needs merging
    in. If #A closes without merging, change your base to main and drop the
-   parts of #A you don't need; if yours is already ready, whoever closed #A
-   does this ([after closing without merging](#review-and-merge)). If your pull request needs another one's code but is not stacked on
+   parts of #A you don't need. If yours is already ready, whoever closed #A
+   changes its base ([after closing without merging](#review-and-merge)) and
+   its reviewer drops those parts. If your pull request needs another one's code but is not stacked on
    it, write `Waits on #A` on the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
@@ -539,9 +540,14 @@ After merging:
   a ready pull request closes them, and comment naming the merge commit.
 
 Closing a pull request without merging leaves the work that depended on it
-stuck, so whoever closes it changes the base of each pull request stacked on
-it to main, with a comment saying which parts of the closed one remain, and
-runs the unblocking search above for it.
+stuck, so whoever closes it:
+
+- changes the base of each pull request stacked on it to main, with a comment
+  saying which of the closed pull request's parts it still carries;
+- searches `is:open label:"status:blocked" <number>` and comments on each pull
+  request or issue that waited on it that it closed without merging. They keep
+  `status:blocked` until whoever holds them, or the owner, decides how to go
+  on without it.
 
 A merged change does not need a release; see the
 [release policy](docs/development/releasing.md).

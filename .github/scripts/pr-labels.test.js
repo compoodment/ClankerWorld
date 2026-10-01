@@ -498,6 +498,8 @@ test('Refs reads every issue in a list after it', () => {
   assert.deepEqual(refs('- Refs #666: the continuity rule from prerequisite PR #689'), [666]);
   assert.deepEqual(refs('- Refs #  (and what remains)'), []);
   assert.deepEqual(refs('- Refs #  (and what remains): #12, #13'), [12, 13]);
+  assert.deepEqual(refs('- Refs #  (and what remains): #666, the continuity rule from prerequisite PR #689'), [666]);
+  assert.deepEqual(refs('- Refs #  (and what remains): none; overlaps #700'), []);
 });
 
 test('Refs still reads the older template line, and ignores other repositories, comments and code', () => {

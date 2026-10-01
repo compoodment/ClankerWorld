@@ -98,8 +98,11 @@ const RefsPattern = new RegExp(
 // The older template line, "- Refs (related or partly completed issues, and
 // what remains): #7, #8", counts every issue after its colon. Its label has no
 // issue number, so a note after "- Refs #7:" is not read as more references.
-// The template's own `- Refs #  (and what remains):` prefix may come before the list.
-const RefsLinePattern = /^\s*[-*]\s*Refs\b(?:[^:#\n]|#(?!\d))*:(.*)$/gim;
+const RefsLinePattern = /^\s*[-*]\s*Refs\b[^:#\n]*:(.*)$/gim;
+// The current template line, "- Refs #  (and what remains):", may be followed
+// by a list after its colon; like "Refs #7", only that leading list counts.
+const RefsTemplatePattern = new RegExp(
+  String.raw`^\s*[-*]\s*Refs\s+#\s*\(and what remains\)\s*:?\s*(${IssueRef}(?:\s*(?:,\s*(?:and\s+)?|and\s+|&\s*)${IssueRef})*)`, 'gim');
 // One issue in a Refs list, optionally as owner/repo#N. "PR#5" and "a.md#5"
 // are not issues.
 const IssueRefPattern = /(?<![\w./-])(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/g;
@@ -132,7 +135,8 @@ function closingIssueNumbers(body, repoName = '') {
 function referencedIssueNumbers(body, repoName = '') {
   const text = withoutCode(body);
   const numbers = new Set();
-  const lists = [...text.matchAll(RefsPattern), ...text.matchAll(RefsLinePattern)].map(([, list]) => list);
+  const lists = [...text.matchAll(RefsPattern), ...text.matchAll(RefsLinePattern), ...text.matchAll(RefsTemplatePattern)]
+    .map(([, list]) => list);
   for (const list of lists) keywordNumbers(IssueRefPattern, list, repoName, numbers);
   return numbers;
 }

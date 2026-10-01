@@ -52,11 +52,13 @@ highest priority first:
 
 ```text
 is:open label:"status:needs-decision"
+is:issue is:open label:"type:decision"
 is:issue is:open label:owner-task
 ```
 
-A Decision issue without `status:needs-decision` has been answered and waits
-only for its answer to be recorded, so don't ask about it again.
+Before asking about a Decision issue without `status:needs-decision`, read its
+comments: if they record the owner's answer, record it in the game design
+instead of asking again.
 
 Then add the [playtest list](playtest/README.md): how many files and checks are
 waiting for the owner to try in the game by hand. Playtest checks are never
@@ -133,8 +135,9 @@ What each job adds:
 - **Find bugs:** reproduce the problem on current main first, and say whether
   you saw it in the game or in code or tests. Fix it only if asked.
 - **Fix issues:** before you claim, check whether an owner decision outranks
-  your next issue: search `is:open label:"status:needs-decision"` for the
-  same or a higher priority.
+  your next issue: search `is:open label:"status:needs-decision"` and
+  `is:issue is:open label:"type:decision"` for the same or a higher priority,
+  skipping Decision issues whose comments already record the owner's answer.
   If you find one, ask the owner about it in your reply, then carry on with the
   ready work. Push as you go: only pushes keep your claim.
 - **Review and merge:** claim one pull request at a time, when you start
