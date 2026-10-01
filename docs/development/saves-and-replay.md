@@ -45,7 +45,7 @@ retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
 Older alpha saves need not load; no field or orchard migration is provided.
 
-Schema 36 adds authoritative garment and carrying-aid lot IDs and timed repair
+Schema 37 adds authoritative garment and carrying-aid lot IDs and timed repair
 work, with exact material reservations. Loading checks the selected goods are
 single, unreserved units physically carried by their recorded owner; repair
 work also needs its private work site and exact live inputs. Broken gear and
@@ -209,7 +209,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
