@@ -1,0 +1,1 @@
+- Agents can hold bounded public conversations using their own assigned models, then resume interrupted talks only when both people agree.

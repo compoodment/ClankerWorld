@@ -176,6 +176,7 @@ public static class AgentConversationFailureClassifier
         return exception switch
         {
             ProviderConversationUnavailableException => AgentConversationInterruption.ProviderUnavailable,
+            TimeoutException => AgentConversationInterruption.ProviderTimedOut,
             OperationCanceledException => AgentConversationInterruption.ProviderTimedOut,
             System.IO.InvalidDataException => AgentConversationInterruption.ProviderRejected,
             _ => AgentConversationInterruption.ProviderUnavailable,

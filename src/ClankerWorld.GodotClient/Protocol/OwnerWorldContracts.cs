@@ -269,6 +269,28 @@ public sealed record OwnerWorldBridge(
     IReadOnlyList<OwnerWorldPosition> Span,
     long BuiltTick);
 
+public sealed record OwnerWorldConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record OwnerWorldConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<OwnerWorldConversationTurn> Turns);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -313,6 +335,8 @@ public sealed record OwnerWorldSnapshot(
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldConversation> Conversations { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
 

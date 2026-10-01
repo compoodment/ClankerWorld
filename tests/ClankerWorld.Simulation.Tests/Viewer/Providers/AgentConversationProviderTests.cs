@@ -39,7 +39,9 @@ public sealed class AgentConversationProviderTests
                 var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
                 Assert.Contains("public_turn", prompt, StringComparison.Ordinal);
                 Assert.Contains("public history only", prompt, StringComparison.Ordinal);
-                Assert.Contains("Agent A's own personality", prompt, StringComparison.Ordinal);
+                using var context = JsonDocument.Parse(prompt);
+                Assert.Equal("Agent A's own personality",
+                    context.RootElement.GetProperty("speaker").GetProperty("personality").GetString());
                 Assert.DoesNotContain("private reasoning must not be sent", prompt, StringComparison.Ordinal);
             }
 

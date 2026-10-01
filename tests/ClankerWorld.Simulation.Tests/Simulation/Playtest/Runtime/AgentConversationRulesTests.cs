@@ -107,7 +107,61 @@ public sealed class AgentConversationRulesTests
         Assert.Equal("agent-b", conversation.CurrentSpeakerId);
         Assert.Equal(6, conversation.RunEpoch);
         Assert.Single(conversation.Turns);
+        Assert.False(AgentConversationRules.TryResume(conversation, "agent-a", 7, 6, out _, out _));
         AgentConversationRules.Validate(conversation, 6);
+    }
+
+    [Fact]
+    public void RefusalAndDeadlineCloseWithoutStartingPublicDialogue()
+    {
+        var refused = AgentConversationRules.Propose("conversation:refused", "agent-a", "agent-b", 0, 1);
+        Assert.False(AgentConversationRules.TryDeclineProposal(refused, "agent-a", 1, out _));
+        Assert.True(AgentConversationRules.TryDeclineProposal(refused, "agent-b", 1, out refused));
+        Assert.Equal(AgentConversationStatus.Closed, refused.Status);
+        Assert.Equal("refused", refused.Outcome);
+        Assert.Empty(refused.Turns);
+        AgentConversationRules.Validate(refused, 1);
+
+        var expired = AgentConversationRules.Propose("conversation:expired", "agent-a", "agent-b", 0, 1);
+        Assert.False(AgentConversationRules.TryExpireProposal(expired, 30, out _));
+        Assert.True(AgentConversationRules.TryExpireProposal(expired, 31, out expired));
+        Assert.Equal("deadline", expired.Outcome);
+        Assert.Empty(expired.Turns);
+        AgentConversationRules.Validate(expired, 31);
+    }
+
+    [Fact]
+    public void DisagreeingWithAProviderSuggestedWrapUpClosesWithoutApplyingItsProposal()
+    {
+        var conversation = AcceptedConversation();
+        long worldTick = 2;
+        for (var index = 0; index < AgentConversationRules.MaximumPublicTurns; index++)
+        {
+            Assert.True(AgentConversationRules.TryBeginTurn(conversation, worldTick, 5, out var started));
+            var speaker = index % 2 == 0 ? "agent-a" : "agent-b";
+            var request = Request(started, AgentConversationPurpose.PublicTurn, speaker, [AgentConversationEffect.None]);
+            Assert.True(AgentConversationRules.TryAdmitTurn(started, request,
+                Response(request, $"Public turn {index + 1}."), [speaker == "agent-a" ? "agent-b" : "agent-a"],
+                worldTick + 1, 5, out conversation, out _));
+            worldTick++;
+        }
+
+        Assert.True(AgentConversationRules.TryBeginTurn(conversation, worldTick, 5, out var wrapUpState));
+        var wrapUpRequest = Request(wrapUpState, AgentConversationPurpose.WrapUp, "agent-a",
+            [AgentConversationEffect.None, AgentConversationEffect.MutualTrust]);
+        Assert.True(AgentConversationRules.TryAdmitTurn(wrapUpState, wrapUpRequest,
+            Response(wrapUpRequest, "The speaker asks for trust.", AgentConversationEffect.MutualTrust),
+            ["agent-b"], worldTick + 1, 5, out conversation, out _));
+        Assert.True(AgentConversationRules.TryAcceptWrapUp(conversation, "agent-a", worldTick + 2,
+            out conversation, out var agreed));
+        Assert.False(agreed);
+        Assert.True(AgentConversationRules.TryDeclineWrapUp(conversation, "agent-b", worldTick + 3,
+            out conversation));
+        Assert.Equal(AgentConversationStatus.Closed, conversation.Status);
+        Assert.Equal("disagreed", conversation.Outcome);
+        Assert.Equal(AgentConversationEffect.MutualTrust, conversation.WrapUpEffect);
+        Assert.Single(conversation.WrapUpAcceptedBy);
+        AgentConversationRules.Validate(conversation, worldTick + 3);
     }
 
     [Fact]
@@ -122,6 +176,13 @@ public sealed class AgentConversationRulesTests
         budgets = Reserve(budgets, "agent-b", 7);
         Assert.True(AgentConversationRules.CanStartToday(budgets, "agent-b", 7));
         Assert.True(AgentConversationRules.CanStartToday(budgets, "agent-a", 8));
+    }
+
+    [Fact]
+    public void TimeoutsMapToABoundedPublicInterruptionCategory()
+    {
+        Assert.Equal(AgentConversationInterruption.ProviderTimedOut,
+            AgentConversationFailureClassifier.Classify(new TimeoutException("private provider detail")));
     }
 
     private static IReadOnlyList<AgentConversationDailyBudget> Reserve(

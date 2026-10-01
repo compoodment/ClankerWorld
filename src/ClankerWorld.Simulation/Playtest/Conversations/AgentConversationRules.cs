@@ -422,10 +422,13 @@ public static class AgentConversationRules
 
     public static void Validate(AgentConversation conversation, long worldTick)
     {
-        ArgumentNullException.ThrowIfNull(conversation);
+        if (conversation is null)
+            throw new InvalidDataException("A saved conversation entry is missing.");
         if (worldTick < 0 || conversation.AcceptedParticipantIds is null || conversation.Turns is null ||
             conversation.WrapUpAcceptedBy is null || conversation.ResumeAcceptedBy is null)
             throw new InvalidDataException("The saved conversation state is incomplete.");
+        if (conversation.Turns.Any(turn => turn is null))
+            throw new InvalidDataException("A saved conversation turn is missing.");
         ValidateIdentifier(conversation.Id, nameof(conversation.Id), 512);
         ValidateIdentifier(conversation.InitiatorId, nameof(conversation.InitiatorId));
         ValidateIdentifier(conversation.InviteeId, nameof(conversation.InviteeId));

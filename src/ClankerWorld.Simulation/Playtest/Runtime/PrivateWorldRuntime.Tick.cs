@@ -124,6 +124,13 @@ public sealed partial class PrivateWorldRuntime
                 {
                     return result;
                 }
+                // A provider assignment can change without advancing a world
+                // event or tick. Admit its completed turn only now, while
+                // the live-state gate protects the commit boundary.
+                proposed.CompleteConversationTurns(
+                    completedConversationTurns,
+                    proposed.WorldTick,
+                    IsConversationTurnProviderCurrent);
                 CommitPreparedTick(proposed);
                 if (deferHosted)
                 {
@@ -427,7 +434,6 @@ public sealed partial class PrivateWorldRuntime
             MaintainParenthood();
             MaintainDependentCare();
             UpdateConversationsForTick(targetTick);
-            CompleteConversationTurns(completedConversationTurns, targetTick);
             EnqueueDueCognition();
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)

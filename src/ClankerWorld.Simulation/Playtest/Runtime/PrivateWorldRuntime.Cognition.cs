@@ -43,12 +43,13 @@ public sealed partial class PrivateWorldRuntime
             }
             if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
+            var conversationChoiceContext = ConversationChoiceContextFor(inhabitant.Id);
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
-                !NeedsCognition(inhabitant.Id, current, candidates))
+                !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;
             }
@@ -85,7 +86,10 @@ public sealed partial class PrivateWorldRuntime
                 RetrievedMemories: retrievedMemories,
                 KnownMapFacts: knownMapFacts, Self: self,
                 NeedsPersonality: physical.IdentityChoicePending,
-                NeedsAspiration: physical.IdentityChoicePending);
+                NeedsAspiration: physical.IdentityChoicePending)
+            {
+                ConversationChoiceContext = conversationChoiceContext,
+            };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
             {
                 try
@@ -131,7 +135,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
                 {
-                    LastDecisionContext = DecisionContext(physical, candidates),
+                    LastDecisionContext = DecisionContext(physical, candidates, conversationChoiceContext),
                 };
             }
         }
@@ -140,8 +144,15 @@ public sealed partial class PrivateWorldRuntime
     private bool NeedsCognition(
         string inhabitantId,
         CognitionIntention? current,
-        List<CognitionCandidate> candidates)
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext)
     {
+        if (conversationChoiceContext is not null &&
+            !HasPromptedConversationChoice(inhabitants[inhabitantId].LastDecisionContext, conversationChoiceContext))
+        {
+            return true;
+        }
+
         // A new instruction prompts one fresh decision. If it cannot progress
         // yet, it waits for the agent's usual decisions instead of requesting
         // another (possibly paid) decision on every tick.
@@ -179,16 +190,32 @@ public sealed partial class PrivateWorldRuntime
         if (current.CandidateId == "safe_idle")
         {
             var physical = inhabitants[inhabitantId];
-            return DecisionContext(physical, candidates) != physical.LastDecisionContext ||
+            return DecisionContext(physical, candidates, conversationChoiceContext) != physical.LastDecisionContext ||
                 checked(WorldTick - current.WorldTick) >= 300;
         }
 
         return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
     }
 
-    private string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
-        $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
-        string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+    private string DecisionContext(
+        PlaytestInhabitantState state,
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext = null)
+    {
+        var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
+            string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+        return conversationChoiceContext is null
+            ? context
+            : $"{context}|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}";
+    }
+
+    private static bool HasPromptedConversationChoice(string? lastDecisionContext, string conversationChoiceContext) =>
+        lastDecisionContext?.EndsWith(
+            $"|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}",
+            StringComparison.Ordinal) == true;
+
+    private static string ConversationChoiceContextDigest(string conversationChoiceContext) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(conversationChoiceContext)));
 
     private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
     {

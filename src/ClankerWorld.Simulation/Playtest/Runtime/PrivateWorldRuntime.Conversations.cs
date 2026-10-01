@@ -71,6 +71,14 @@ public sealed partial class PrivateWorldRuntime
          conversation.Status == AgentConversationStatus.WrapUp && conversation.Turns.Any(turn => turn.IsWrapUp) &&
             !conversation.WrapUpAcceptedBy.Contains(agentId, StringComparer.Ordinal));
 
+    private string? ConversationChoiceContextFor(string agentId)
+    {
+        var conversation = ConversationFor(agentId);
+        return conversation is null || !ShouldDispatchConversationChoice(agentId)
+            ? null
+            : $"{agentId}|{conversation.Id}|{conversation.Revision}|{conversation.Status}";
+    }
+
     private long CurrentConversationWorldDay =>
         WorldTick / society.Checkpoint.Config.TicksPerWorldDay;
 
@@ -402,13 +410,26 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyConversationTurnOutcome(
         PendingConversationTurn pending,
         ConversationTurnOutcome outcome,
-        long worldTick)
+        long worldTick,
+        Func<PendingConversationTurn, bool> providerRouteIsCurrent)
     {
         var index = conversations.FindIndex(item => item.Id == pending.Request.ConversationId);
         if (index < 0) return;
         var current = conversations[index];
         if (current.Status != AgentConversationStatus.AwaitingSpeaker || current.Revision != pending.Request.Revision)
             return;
+
+        // The provider route may change independently of runtime events while
+        // a proposed tick is being prepared. Reject the reply before it can
+        // add public history, listener memories, or a structured effect.
+        if (!providerRouteIsCurrent(pending))
+        {
+            conversations[index] = AgentConversationRules.Suspend(
+                current, AgentConversationInterruption.ProviderUnavailable, worldTick);
+            checkpointSchemaVersion = StateSchemaVersion;
+            AppendEvent("conversation_interrupted", $"{current.Id}:provider_unavailable");
+            return;
+        }
 
         if (outcome.Failure is not null || outcome.Response is null)
         {
@@ -474,12 +495,17 @@ public sealed partial class PrivateWorldRuntime
 
     private void CompleteConversationTurns(
         IReadOnlyList<PendingConversationTurn> completed,
-        long worldTick)
+        long worldTick,
+        Func<PendingConversationTurn, bool> providerRouteIsCurrent)
     {
         foreach (var pending in completed.OrderBy(item => item.Request.ConversationId, StringComparer.Ordinal))
         {
             if (!pending.Task.IsCompleted) continue;
-            ApplyConversationTurnOutcome(pending, pending.Task.GetAwaiter().GetResult(), worldTick);
+            ApplyConversationTurnOutcome(
+                pending,
+                pending.Task.GetAwaiter().GetResult(),
+                worldTick,
+                providerRouteIsCurrent);
         }
     }
 
@@ -652,6 +678,21 @@ public sealed partial class PrivateWorldRuntime
             {
                 CancelPendingConversationTurn(id, AgentConversationInterruption.ProviderUnavailable);
             }
+        }
+    }
+
+    private bool IsConversationTurnProviderCurrent(PendingConversationTurn pending)
+    {
+        try
+        {
+            var provider = providerFactory?.Invoke(pending.Request.SpeakerId) as IAgentConversationProvider;
+            return provider is not null &&
+                provider.ProviderEpoch == pending.ProviderEpoch &&
+                provider.CanSpeakAs(pending.Request.SpeakerId);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return false;
         }
     }
 

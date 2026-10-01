@@ -66,7 +66,7 @@ public partial class Main
         familyTreePanel.Position = new Vector2(
             Math.Max(14, (viewport.X - familySize.X) / 2),
             Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
-        foreach (var reader in new[] { memoriesPanel, thoughtsPanel })
+        foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
             PlaceReaderPanel(reader);

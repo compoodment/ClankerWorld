@@ -1178,13 +1178,39 @@ public static partial class SocietyFixture
         if (belief.SourceTurnId is not null &&
             (belief.Provenance != SocietyBeliefProvenance.Hearsay || belief.SourceAgentId is null ||
              (checkpoint.Beliefs ?? []).Any(item => item.OwnerId == belief.OwnerId &&
-                 item.SourceTurnId == belief.SourceTurnId && item.Id != belief.SupersedesBeliefId)))
+                 item.SourceTurnId == belief.SourceTurnId &&
+                 !SharesCorrectionLineage(checkpoint, belief, item))))
             throw new InvalidDataException("An agent belief source turn is invalid or already recorded for this owner.");
 
         if ((!allowSupersedes && (belief.SupersedesBeliefId is not null ||
                                   belief.SupersededByBeliefId is not null || belief.SupersededTick is not null)) ||
             belief.SupersededByBeliefId is null && belief.SupersededTick is not null)
             throw new InvalidDataException("Only a correction may link a belief to its predecessor.");
+    }
+
+    private static bool SharesCorrectionLineage(
+        SocietyCheckpoint checkpoint,
+        SocietyAgentBelief first,
+        SocietyAgentBelief second) =>
+        BeliefDescendsFrom(checkpoint, first, second.Id) ||
+        BeliefDescendsFrom(checkpoint, second, first.Id);
+
+    private static bool BeliefDescendsFrom(
+        SocietyCheckpoint checkpoint,
+        SocietyAgentBelief descendant,
+        string ancestorId)
+    {
+        if (descendant.Id == ancestorId) return true;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var current = descendant;
+        while (current.SupersedesBeliefId is { } previousId && seen.Add(previousId))
+        {
+            if (previousId == ancestorId) return true;
+            var previous = (checkpoint.Beliefs ?? []).FirstOrDefault(item => item.Id == previousId);
+            if (previous is null) return false;
+            current = previous;
+        }
+        return false;
     }
 
     private static SocietyAgentBelief NormalizeBelief(SocietyAgentBelief belief) => belief with
