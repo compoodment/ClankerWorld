@@ -594,7 +594,9 @@ public partial class Main
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
         if (inhabitant.Lesson is { } lesson)
-            details.Add($"Learning {Pretty(lesson.Role)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+            details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+        foreach (var skill in inhabitant.Skills ?? [])
+            details.Add($"{Pretty(skill.Kind)} skill · {(skill.TeacherName is { } teacher ? "taught by " + teacher : "learned by doing")} · {DisplayWorldClock(skill.LearnedTick)}");
         if (inhabitant.Proficiency is { } practice)
             details.Add($"Practice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30");
         if (isDeceased)

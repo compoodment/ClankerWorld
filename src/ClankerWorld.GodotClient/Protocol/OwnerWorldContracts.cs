@@ -138,6 +138,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
+    public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
     public IReadOnlyList<OwnerWorldSocialStanding> SocialStanding { get; init; } = [];
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
@@ -160,7 +161,8 @@ public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisP
     int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
-public sealed record OwnerWorldLesson(string TeacherName, string Role, string Stage, int Progress, int Required);
+public sealed record OwnerWorldLesson(string TeacherName, string Skill, string Stage, int Progress, int Required);
+public sealed record OwnerWorldSkill(string Kind, long LearnedTick, string? TeacherId, string? TeacherName);
 public sealed record OwnerWorldProficiency(int Building, int Farming, int Crafting);
 public sealed record OwnerWorldSocialStanding(string SubjectId, string SubjectName, int Trust);
 

@@ -653,7 +653,24 @@ Create use the same validated options and digest; old clients need an update.
 Small and Medium remain the only playable sizes; no continent-count control
 is exposed for them. Existing saved water settings are not rewritten.
 
+## Skills and practical lessons
+
+Agents start with no skills, including added adults and newborn children.
+Finishing construction first records building; finishing a Farmhouse recipe
+records farming, a Blacksmith recipe records smithing, and other production
+records crafting. The record keeps the first learning time. Learning by work
+has no teacher; completing an accepted lesson records the teacher's agent ID.
+
+Lesson candidates use saved skills and the existing food/warmth readiness
+rules, independently of work roles. A mentor cannot be working on an active
+project, handling another social decision, or reserved for another lesson.
+Request, refusal, acceptance, cancellation and pause/reload retain their normal
+flow. A completed lesson changes neither the agent's role nor work proficiency.
+Stored skills currently affect only teaching availability, never ordinary
+action access or work speed. The agent card and Event Log describe the record.
+
 ## World-list requests
+
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening

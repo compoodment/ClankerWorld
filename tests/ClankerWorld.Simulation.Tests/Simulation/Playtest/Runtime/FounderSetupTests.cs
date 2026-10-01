@@ -154,11 +154,13 @@ public sealed class FounderSetupTests
         var agentId = "agent:" + Guid.NewGuid().ToString("N");
         var householdCount = world.Society.Households.Count;
         Assert.Equal("household:camp-alpha", world.AddAgent(agentId, site));
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == agentId).Skills ?? []);
         Assert.Equal(householdCount, world.Society.Households.Count);
         Assert.Contains(agentId, world.Society.GetHousehold("household:camp-alpha").MemberIds);
         Assert.Contains(agentId, world.Towns.Single().ResidentIds);
         var secondAgentId = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Equal("household:camp-alpha", world.AddAgent(secondAgentId, site));
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == secondAgentId).Skills ?? []);
         Assert.Equal(householdCount, world.Society.Households.Count);
         Assert.Equal(site, world.Inhabitants.Single(item => item.InhabitantId == secondAgentId).Position);
 

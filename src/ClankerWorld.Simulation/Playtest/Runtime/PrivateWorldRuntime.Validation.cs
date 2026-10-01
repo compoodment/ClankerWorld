@@ -405,6 +405,8 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
+                society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
         }
     }

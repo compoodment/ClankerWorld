@@ -528,7 +528,7 @@ public sealed partial class PrivateWorldRuntime
         {
             AppendEvent("crop_moisture_effect", $"{job.JobId}:{(soilMoisture < 15 ? "dry" : "wet")}:{soilMoisture}");
         }
-        CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting");
+        CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting", SkillForRecipe(recipe));
         return true;
     }
 

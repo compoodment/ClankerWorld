@@ -129,6 +129,7 @@ public sealed record ViewerInhabitant(
     public ViewerSurvival? Survival { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
+    public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
     public IReadOnlyList<ViewerSocialStanding> SocialStanding { get; init; } = [];
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
@@ -151,7 +152,8 @@ public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoint
     int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
-public sealed record ViewerLesson(string TeacherName, string Role, string Stage, int Progress, int Required);
+public sealed record ViewerLesson(string TeacherName, string Skill, string Stage, int Progress, int Required);
+public sealed record ViewerSkill(string Kind, long LearnedTick, string? TeacherId, string? TeacherName);
 public sealed record ViewerProficiency(int Building, int Farming, int Crafting);
 public sealed record ViewerSocialStanding(string SubjectId, string SubjectName, int Trust);
 
