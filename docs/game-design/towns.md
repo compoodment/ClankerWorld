@@ -703,8 +703,10 @@ adult residents should retain a vote in those elections.
   per available seat.** In a three-seat election a voter may choose up to three
   distinct willing candidates, or fewer. No repeated vote for one candidate on
   the same ballot. Candidates with the highest totals win the available seats.
-  Ties, too few candidates, turnout, candidate eligibility, self-voting and
-  ballot revision remain in the follow-up interview; do not choose them in code.
+  Ties and too few candidates follow the agreed
+  [council continuity rules](#election-terms-and-council-continuity).
+  Turnout, candidate eligibility, self-voting and ballot revision remain in
+  the follow-up interview; do not choose them in code.
 
 Use recorded Town adult residents for civic eligibility, including homeless
 residents and travelers, under the agreed membership work in
@@ -713,12 +715,50 @@ These proposal, voting-window, seat-count and ballot choices are settled.
 Remaining election/roster and governing procedures are tracked in
 [#601](https://github.com/compoodment/ClankerWorld/issues/601).
 
+### Election terms and council continuity
+
+**Agreed with the owner on October 1, answers 29A–33A:**
+
+- **An elected council's initial term is ten unpaused world days**, one
+  season. Open voting before the scheduled term ends so residents can choose
+  the next council. For example, a council seated on day 12 has its next term
+  due on day 22. Paused time does not advance the term.
+- **A tie for an unresolved seat gets one runoff lasting one unpaused world
+  day, then a fair draw if the tie remains.** Only the tied candidates and
+  unresolved seats enter the runoff; already settled seats stay settled.
+  Record the draw so saving and reloading cannot reroll the outcome.
+- **A vacant seat needs a replacement election for the remainder of the
+  existing term.** Do not automatically promote a runner-up from an earlier
+  election or restart the term. If three willing representatives cannot be
+  formed, temporarily return to the all-adult council. How to count proposal
+  majorities while a seat is vacant, and when to retry an election after too
+  few candidates volunteer, remain to be decided.
+- **Falling below eight adults does not immediately end representation.**
+  Keep the elected arrangement until only three or fewer adult Town residents
+  remain. Then use the all-adult council until the Town reaches eight adults
+  again. A fall from eight adults to seven therefore keeps representation.
+  Count recorded residents, including travelers and homeless adults, rather
+  than adults currently standing inside the border.
+- **The initial election window is one unpaused world day.** The existing
+  council governs until a valid replacement is ready. During the first
+  election, the all-adult council continues governing. The vacancy and small
+  population rules above supply the all-adult fallback when needed. Election
+  windows and terms are initial values to try, not immutable world laws.
+
+Candidate and voter eligibility, turnout, ballot handling and the treatment of
+pending proposals when the council changes still need answers in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601). These agreed
+term, tie, replacement and population rules do not silently decide those details.
+
 ### Still to decide
 
 Town residency and newcomer approval are agreed in [Town membership](#town-membership).
-Still open: election timing/terms, ties, vacancies, population changes,
-turnout, candidate eligibility and self-voting, ballot revision, proposal
-delivery and changes to voter eligibility during an open vote; repeal details;
+Election terms, ties, replacements and population transitions are agreed in
+[Election terms and council continuity](#election-terms-and-council-continuity).
+Still open: turnout, candidate eligibility and self-voting, ballot revision,
+proposal delivery, changes to voter eligibility during an open vote,
+proposal majorities during vacancies, retry timing after too few candidates,
+repeated requests and pending proposals when the council changes; repeal details;
 how governments may change; which laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
