@@ -268,14 +268,37 @@ everything that is available in the current build. See [what works today](../wha
 - A recognized **Order** takes priority over the agent's ordinary plans. The
   agent obeys within the game's physical and access rules; its model cannot
   refuse the order merely because it prefers another activity. An order cannot
-  create goods, grant ownership or make an impossible action happen. Urgent
-  interruptions and the supported order catalogue still need decisions.
+  create goods, grant ownership or make an impossible action happen.
 - The player may deliberately tell an agent something that agent has not
   discovered, such as the location of a berry patch across a river. The agent
   learns that the observer told it something; the statement can be true or
   false and is not automatically firsthand knowledge or a verified world
   fact. It still needs to travel there and verify the claim. Merely inspecting
   the map or another agent's private thoughts teaches no agent anything.
+- The practical order catalogue covers movement, shelter, eating, gathering,
+  carrying, storage, farming, cooking, crafting, repairs and building work,
+  as those tasks become supported by the game. A recognized task uses the
+  normal task system and its physical, resource and access rules.
+- Conversations, relationships, inventions/mods and combat are agreed parts
+  of the intended game, with their full systems planned for later alpha work.
+  This development order does not make their inclusion provisional or decide
+  that the player can only use Suggest for them. Their eventual order-level
+  controls still need clarification in this session.
+- When an order does not specify its target, the agent chooses a suitable
+  target using its own knowledge and the normal access and travel rules. It
+  may also explore to find new resources rather than always returning to the
+  same known plant. Exploration discovers things through actual travel and
+  observation; it does not grant hidden map knowledge. An explicitly named
+  target takes precedence over this free target choice.
+- Urgent survival needs may **temporarily interrupt an order**. For example,
+  an agent gathering wood may seek warmth during a dangerous storm, then
+  resume the pending order when the emergency passes. Ordinary preferences
+  cannot interrupt it on the same basis.
+- An order means **one task by default**, unless it specifies a quantity or
+  repetition. "Gather food" finishes after one normal gathering job; "Make
+  two sacks" finishes after two sacks; "Keep gathering food" continues until
+  cancelled. Emergency interruptions preserve the outstanding task, quantity
+  or ongoing instruction.
 
 **Existing agreed order handling, from September 30:** the agent card's
 **Speak to them** box sends a message as **Suggest** or **Order**. An order
@@ -287,10 +310,11 @@ that cannot be carried out yet, such as "eat" while the agent carries no food,
 keeps waiting, including across saves. It is checked again only when the agent
 next makes one of its usual decisions, never on every tick.
 
-**Still to decide in this design session:** which orders the game understands;
-how their targets, prerequisites, duration and interruptions work; message
-delivery and replies; cancellation and replacement; and whether the agent's
-own model reads the words of an order. These are intended rules, not a claim
+**Still to decide in this design session:** the eventual order controls for
+social, creative and other later systems; message delivery and replies;
+cancellation and replacement; and whether the agent's own model reads the
+words of an order. The remaining normal-player edit controls and player-name
+collision rules also need decisions. These are intended rules, not a claim
 that the current prototype reads suggestions or supports the full catalogue.
 
 ### Leaning toward
