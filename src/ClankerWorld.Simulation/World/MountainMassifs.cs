@@ -169,6 +169,18 @@ internal static class MountainMassifs
         }
 
         var sizes = KeepOneWholePiecePerMassif(owner, massifs.Count, elevation, baseElevation, width, height, wrap);
+        // A peak keeps only if its own massif surrounds it on all eight
+        // sides, so peaks never meet water, lowland or the map's edge.
+        for (var index = 0; index < length; index++)
+        {
+            if (owner[index] == 0 || elevation[index] < Peak) continue;
+            var x = index % width;
+            var y = index / width;
+            var surrounded = y > 0 && y < height - 1 && (wrap || x > 0 && x < width - 1);
+            foreach (var near in EightNeighbours(index, width, height, wrap))
+                surrounded &= owner[near] == owner[index];
+            if (!surrounded) elevation[index] = Peak - 1;
+        }
         RaiseFoothills(owner, sizes, elevation, water, width, height, wrap);
     }
 

@@ -281,6 +281,11 @@ public sealed partial class PrivateWorldRuntime
         // New worlds can only be created at these sizes, so any other saved size is damage.
         if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
             throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
+        // A map from an older terrain generator cannot be rebuilt; refuse it
+        // by name rather than as a mismatched regeneration.
+        if (state.Geography is { } geography &&
+            geography.BalancedVisibilityVersion != GeographyGenerator.CurrentBalancedVisibilityVersion)
+            throw new InvalidDataException(GeographyGenerator.OlderTerrainVersionMessage);
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)
