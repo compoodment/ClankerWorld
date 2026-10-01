@@ -512,7 +512,7 @@ public partial class Main
                     !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
                     throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
                 worldAdvancedToggle.ButtonPressed = true;
-                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
