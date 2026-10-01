@@ -78,21 +78,28 @@ public sealed class WorldSelectionCoordinator(
     /// while decoding or restoring, so ticks, saves and owner actions do not wait
     /// for the checks. A result belongs to the exact checkpoint bytes it was made
     /// from, and List checks a checkpoint again if its bytes have changed since.
+    /// A list opened meanwhile checks any world not done yet itself; both reach
+    /// the same result, so the duplicate work only costs time.
     /// </summary>
     public void WarmUp(CancellationToken cancellationToken)
     {
         var elapsed = Stopwatch.StartNew();
-        var (checks, skipped, failed) = (0, 0, 0);
+        var (checks, incompatible, skipped, failed) = (0, 0, 0, 0);
+        WorldSelectionTelemetry.WarmUpStarted(logger);
         var snapshot = catalog.Capture();
         foreach (var world in snapshot.Worlds.Where(world => world.Id != snapshot.ActiveId))
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                WorldSelectionTelemetry.WarmUpCanceled(logger, checks, skipped, failed, elapsed.ElapsedMilliseconds);
+                WorldSelectionTelemetry.WarmUpCanceled(logger, checks, incompatible, skipped, failed,
+                    elapsed.ElapsedMilliseconds);
                 return;
             }
-            // A list that ran first already holds a result at least as recent.
-            if (checkedCheckpoints.ContainsKey(world.Id))
+            // Skip worlds deleted or opened since the warm-up began, and worlds a
+            // list already checked: its result is at least as recent.
+            var current = catalog.Capture();
+            if (current.ActiveId == world.Id || current.Worlds.All(entry => entry.Id != world.Id) ||
+                checkedCheckpoints.ContainsKey(world.Id))
             {
                 skipped++;
                 continue;
@@ -100,18 +107,24 @@ public sealed class WorldSelectionCoordinator(
             try
             {
                 var bytes = catalog.ReadSnapshotBytes(world.Id);
-                if (checkedCheckpoints.TryAdd(world.Id, CheckCheckpoint(world, bytes, Digest(bytes)))) checks++;
-                else skipped++;
+                var result = CheckCheckpoint(world, bytes, Digest(bytes));
+                if (!checkedCheckpoints.TryAdd(world.Id, result)) skipped++;
+                else
+                {
+                    checks++;
+                    if (!result.Restorable) incompatible++;
+                }
             }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
+            catch (Exception exception)
             {
                 // Never stop the host over one save. Load World checks this world
                 // itself and reports it as it would without the warm-up.
                 failed++;
                 WorldSelectionTelemetry.WarmUpFailed(logger, world.Id, exception.GetType().Name);
+                if (exception is OutOfMemoryException) break;
             }
         }
-        WorldSelectionTelemetry.WarmedUp(logger, checks, skipped, failed, elapsed.ElapsedMilliseconds);
+        WorldSelectionTelemetry.WarmedUp(logger, checks, incompatible, skipped, failed, elapsed.ElapsedMilliseconds);
     }
 
     private static string Digest(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));

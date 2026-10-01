@@ -26,13 +26,17 @@ public static partial class WorldSelectionTelemetry
         Message = "world_list outcome=canceled worlds={WorldCount} cache_hits={CacheHits} scans={Scans} elapsed_ms={ElapsedMilliseconds}")]
     public static partial void ListCanceled(ILogger logger, int worldCount, int cacheHits, int scans, long elapsedMilliseconds);
 
+    [LoggerMessage(EventId = 2277, Level = LogLevel.Information,
+        Message = "world_list_warmup outcome=started")]
+    public static partial void WarmUpStarted(ILogger logger);
+
     [LoggerMessage(EventId = 2274, Level = LogLevel.Information,
-        Message = "world_list_warmup outcome=finished checked={Checked} skipped={Skipped} failed={Failed} elapsed_ms={ElapsedMilliseconds}")]
-    public static partial void WarmedUp(ILogger logger, int @checked, int skipped, int failed, long elapsedMilliseconds);
+        Message = "world_list_warmup outcome=finished checked={Checked} incompatible={Incompatible} skipped={Skipped} failed={Failed} elapsed_ms={ElapsedMilliseconds}")]
+    public static partial void WarmedUp(ILogger logger, int @checked, int incompatible, int skipped, int failed, long elapsedMilliseconds);
 
     [LoggerMessage(EventId = 2275, Level = LogLevel.Information,
-        Message = "world_list_warmup outcome=canceled checked={Checked} skipped={Skipped} failed={Failed} elapsed_ms={ElapsedMilliseconds}")]
-    public static partial void WarmUpCanceled(ILogger logger, int @checked, int skipped, int failed, long elapsedMilliseconds);
+        Message = "world_list_warmup outcome=canceled checked={Checked} incompatible={Incompatible} skipped={Skipped} failed={Failed} elapsed_ms={ElapsedMilliseconds}")]
+    public static partial void WarmUpCanceled(ILogger logger, int @checked, int incompatible, int skipped, int failed, long elapsedMilliseconds);
 
     [LoggerMessage(EventId = 2276, Level = LogLevel.Warning,
         Message = "world_list_warmup outcome=world_failed catalog_id={CatalogId} error={Error}")]
