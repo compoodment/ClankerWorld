@@ -167,7 +167,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
 | 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot**. A household reserves a free stall by physically bringing goods, keeps it while stock remains, and releases it after withdrawing its goods and barter receipts. Trading admits any Town's agents; customers receive transaction access only. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
-| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
+| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Reserve one water tile along each long side and a clear land approach; first rule in [Towns](towns.md). |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Stocks bandages and medicine and sells care. Patients visit or caregivers deliver supplies; treatment consumes goods. Exact name, quantities and recovery rates remain open or provisional. |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
@@ -183,8 +183,9 @@ water:     · P P ·
 water:     · P P · ← 3 rows over water, side docking clearance
 ```
 
-The clear `·` cells are **not** extra footprint tiles. Their exact number and
-approach/occupancy rules are still to be designed.
+The clear `·` cells are **not** extra footprint tiles. The first rule reserves
+all six side cells, requires clear land behind the shore row, and permits a
+Road on that land approach. Reserved docking water cannot hold construction.
 
 **Do not include as base buildings:** Shelter, Storehouse, separate Cooking
 fire/Campfire, Stone hearth, Weaving frame, bed/bedroll, or the player-facing
@@ -198,7 +199,7 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports (see [The world](world.md#first-boat-and-port-travel)). Quantities and speed are provisional; queueing/recovery details remain open. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports (see [The world](world.md#first-boat-and-port-travel)). Quantities and speed are provisional. A blocked destination waits one day, then returns to the origin if reachable; otherwise traveler and cargo wait aboard. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |

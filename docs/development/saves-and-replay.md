@@ -22,6 +22,16 @@ overfilled or unsuitable contents, bare water and inconsistent collection
 work. In-progress fresh-water collection survives a save with its jug, shore
 and last period of work. This is new alpha state, without an older-save migration.
 
+A communal boat retains its completed Port job, consumed launch output, Town
+owner, water position, dock or reserved journey, traveler and timed water route.
+The decoder checks the boat against those physical records and both Ports.
+Only its actual passenger may occupy water. Save/reload retains waiting and
+return journeys; revoked visitor permission does not cancel a trip underway.
+If the passenger dies, their actual estate roots stay at the moving boat's
+position, including whole filled vessels. Inheritance preserves that physical
+location until a beneficiary collects reachable cargo at the Port. Foot-only
+archive validation does not move an aboard death onto land.
+
 World state includes its seed and generation options, clock, agents, accepted
 events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage

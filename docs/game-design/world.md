@@ -298,8 +298,15 @@ Boats belong to a **Town**, not a household. Town residents may use its communal
 boats; visitors need permission. Reserve each physical boat for only one
 journey at a time, and persist the boat, traveler and carried goods together
 across save/load. A blocked destination cannot teleport or duplicate any of
-them. Exact recipes, costs, travel speed, queueing and recovery when a Port
-becomes unavailable remain open for implementation and playtesting. Later
+them. If the destination stays blocked for one game day, the boat returns to
+its origin when that water route is reachable. If neither landing is reachable,
+the traveler and cargo keep waiting aboard. Revoking visitor permission affects
+their next departure; it does not strand an underway traveler. Boats do not take
+carts or mounted horses aboard.
+
+The first trial boat uses eight wood, two rope and two refined iron, worked at
+a Port for 48 ticks. A boat moves one water tile every three ticks. A Port costs
+16 wood and four stone. These quantities and speeds are provisional. Later
 transport inventions do not silently change this first-stage Port rule.
 
 ### Still to decide

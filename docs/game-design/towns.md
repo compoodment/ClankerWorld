@@ -182,10 +182,14 @@ and invented content are not silently approved. In particular:
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. A legal land
-  approach and clear docking space are required. Boats are communal Town
-  property, usable by residents or visitors with permission; the first
+  approach and clear docking space are required. The first clearance rule
+  reserves one water tile along each of the two long sides, six tiles total,
+  plus clear land behind the two land tiles; a Road may occupy that approach.
+  The pier does not claim water as Town land. Boats are communal Town property,
+  usable by residents or visitors with permission; the first
   [boat journey](world.md#first-boat-and-port-travel) needs a completed Port at
-  each end. Exact queue and construction-cost rules remain open.
+  each end. Costs and speeds there are provisional. The first planner tries to
+  establish two reachable Town Ports; extra Ports can be placed on legal shores.
 - Combat gear includes a spear, sword, shield and armor alongside the
   dual-purpose axe. Clothing does not change an agent's map appearance; the
   visual treatment of worn armor remains open.
@@ -639,4 +643,5 @@ These remain open; they are not new decisions.
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
     choices raise storage, not House occupancy. The other chosen building
     footprints are in the accepted roster above. Decide capacities, costs,
-    other expansion triggers and Port clearance details.
+    other expansion triggers. Port clearance follows the first boat rule above;
+    Market stalls follow the approved physical-stock reservation rule.
