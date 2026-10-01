@@ -26,7 +26,9 @@ public sealed class DeletionRecoveryTests
             }
             var reopened = new ManualWorldSaveStore(path);
             reopened.RecoverDeletions();
-            Assert.Empty(Directory.GetFiles(path + ".manual"));
+            // Only the world's own branch record remains; the world itself still exists.
+            var remaining = Assert.Single(Directory.GetFiles(path + ".manual"));
+            Assert.StartsWith("timeline-", Path.GetFileName(remaining), StringComparison.Ordinal);
         }
         finally { directory.Delete(recursive: true); }
     }
