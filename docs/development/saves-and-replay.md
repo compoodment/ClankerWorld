@@ -230,22 +230,23 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, and bounded conversations with daily allowances.
+with ground harvest lots, bounded conversations with daily allowances, and
+owner messages with whether a personal model heard them and any short reply.
 These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
-Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, and schema 35 for conversations, record when those
-fields were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
+for fields and ground lots, schema 35 for conversations and schema 37 for
+owner-message delivery, record when those fields were introduced; they do not
+allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -268,6 +269,7 @@ current alpha cutoff.
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
+| Schema 37 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
