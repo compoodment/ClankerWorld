@@ -53,8 +53,7 @@ public sealed partial class PrivateWorldRuntime
     private int HouseHaulPickupQuantity(string actor, InventoryLot stock, string destinationId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var inbound = InboundDeliveryQuantity(inventory, destinationId);
-        var room = Math.Max(0, StorageRoom(destinationId) - inbound);
+        var room = StorageRoomAfterInboundDeliveries(destinationId);
         if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId) is { } building &&
             IsFarmStorage(building))
             room = Math.Min(room, FarmStorageFree(destinationId));
@@ -91,7 +90,7 @@ public sealed partial class PrivateWorldRuntime
                     carried.DeliveryBuildingId));
             return;
         }
-        if (HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0)
+        if (HouseForHousehold(householdId) is not { } house || StorageRoomAfterInboundDeliveries(house.InstanceId) == 0)
             return;
         if (BuildingPreparationToolToStore(actor, householdId) is not null &&
             (state.Position == house.Position || FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0))
@@ -130,7 +129,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, house.Position, "household_food", 0);
             return;
         }
-        var quantity = Math.Min(StorageRoom(house.InstanceId), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(food) - 1));
+        var quantity = Math.Min(StorageRoomAfterInboundDeliveries(house.InstanceId), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(food) - 1));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"house-food-storage:{WorldTick}:{actor}", actor, householdId, food.Id,
@@ -218,13 +217,17 @@ public sealed partial class PrivateWorldRuntime
             SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
             return;
         candidates.Add(new("make_room_for_food",
-            "Set down spare supplies with your household so gathered food fits in your load.", priority,
+            "Set down spare supplies with your household so food fits in your load.", priority,
             destination.StorageBuildingId));
     }
 
     private int FoodRoomMissing(string actor, PlaytestInhabitantState state)
     {
-        var required = AvailableFoodSource(actor, state.Position) is { } source ? FoodHarvestCarryUnits(source)
+        var potFoodAvailable = society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
+            HouseForHousehold(householdId) is { } house && FindFoodInPot(householdId, house.InstanceId) is not null &&
+            FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0;
+        var required = potFoodAvailable ? 1
+            : AvailableFoodSource(actor, state.Position) is { } source ? FoodHarvestCarryUnits(source)
             : AvailableSharedFood(actor) is not null ? 1 : 0;
         return Math.Max(0, required - FreeCarryCapacity(actor));
     }
@@ -263,7 +266,7 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state, int quantity)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId!;
-        if (HouseForHousehold(householdId) is { } house && StorageRoom(house.InstanceId) >= quantity &&
+        if (HouseForHousehold(householdId) is { } house && StorageRoomAfterInboundDeliveries(house.InstanceId) >= quantity &&
             (state.Position == house.Position || FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0))
             return (house.Position, 0, house.InstanceId);
         var camp = SettlementStoragePosition;

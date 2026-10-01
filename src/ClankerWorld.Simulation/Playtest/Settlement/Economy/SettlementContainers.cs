@@ -30,6 +30,9 @@ public sealed partial class PrivateWorldRuntime
     private static int InboundDeliveryQuantity(InventoryCheckpoint inventory, string buildingId) =>
         inventory.Lots.Where(lot => lot.DeliveryBuildingId == buildingId).Sum(lot => lot.Quantity);
 
+    private int StorageRoomAfterInboundDeliveries(string buildingId) =>
+        Math.Max(0, StorageRoom(buildingId) - InboundDeliveryQuantity(society.Checkpoint.Inventory, buildingId));
+
     private static bool HasActiveContainerReservation(InventoryCheckpoint inventory, string containerId) =>
         inventory.Reservations.Any(reservation =>
             (reservation.LotId == containerId || inventory.Lots.Any(lot =>
@@ -64,7 +67,7 @@ public sealed partial class PrivateWorldRuntime
                     $"shore:{pointText}"));
             }
             else if (!HasActiveContainerReservation(inventory, carriedJug.Id) &&
-                     ContainerFamilyQuantity(inventory, carriedJug.Id) <= StorageRoom(house.InstanceId) &&
+                     ContainerFamilyQuantity(inventory, carriedJug.Id) <= StorageRoomAfterInboundDeliveries(house.InstanceId) &&
                      FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count > 0)
             {
                 candidates.Add(new CognitionCandidate("return_water_jug",
@@ -96,7 +99,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         var foodToStore = FindFoodToStore(actor, householdId, house.InstanceId);
-        if (foodToStore is not null)
+        if (foodToStore is not null &&
+            FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count > 0)
         {
             candidates.Add(new CognitionCandidate("store_food_in_pot",
                 "Put available household food into its storage pot.", 24, foodToStore.Pot.Id));
@@ -136,7 +140,7 @@ public sealed partial class PrivateWorldRuntime
     private PotFoodChoice? FindFoodToStore(string actor, string householdId, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var houseStorageRoom = Math.Max(0, StorageRoom(houseId));
+        var houseStorageRoom = StorageRoomAfterInboundDeliveries(houseId);
         var pots = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == InventoryContainerRules.StoragePot && lot.StorageBuildingId == houseId &&
                 lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
@@ -253,7 +257,7 @@ public sealed partial class PrivateWorldRuntime
             CarriedContainer(actor, InventoryContainerRules.WaterJug) is not { } jug)
             return;
         var inventory = society.Checkpoint.Inventory;
-        if (ContainerFamilyQuantity(inventory, jug.Id) > StorageRoom(house.InstanceId))
+        if (ContainerFamilyQuantity(inventory, jug.Id) > StorageRoomAfterInboundDeliveries(house.InstanceId))
             return;
         if (person.Position != house.Position)
         {
@@ -281,7 +285,7 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var contentRoom = InventoryContainerRules.StoragePotCapacity -
             ContainerContentsQuantity(inventory, choice.Pot.Id);
-        var storageRoom = choice.Food.OwnerId == actor ? StorageRoom(house.InstanceId) : int.MaxValue;
+        var storageRoom = choice.Food.OwnerId == actor ? StorageRoomAfterInboundDeliveries(house.InstanceId) : int.MaxValue;
         var available = AvailableLotQuantity(choice.Food) - (choice.Food.OwnerId == actor ? 1 : 0);
         var quantity = Math.Min(available, Math.Min(contentRoom, storageRoom));
         if (quantity <= 0)
