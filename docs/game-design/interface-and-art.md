@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # The interface, art and audio
@@ -15,6 +15,7 @@ everything that is available in the current build. See [what works today](../wha
 ## On this page
 
 - [Main Menu, world view, and controls](#main-menu-world-view-and-controls)
+- [Player guidance and orders](#player-guidance-and-orders)
 - [Pixel art and generated images](#pixel-art-and-generated-images)
 - [Audio and dialogue presentation](#audio-and-dialogue-presentation)
 
@@ -156,6 +157,23 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
+- **Agreed after the October 1 playtest** (replacing the UI Scale choices
+  above): **there is no UI Scale setting.** The interface grows with the
+  screen in whole steps, so pixel letters always stay crisp: 100% on small
+  screens, 200% at 1080p and 1440p and 300% at 4K, one step lower whenever
+  the menus would have less than 960 × 540 interface pixels. computment
+  tried a 150% size and found its pixel letters too uneven, and found 100%
+  too small and anything above 200% unnecessary at 1440p. **Render
+  Resolution is removed**: the game always draws at the screen's own
+  resolution. Settings is titled simply **Settings**, with its sections in
+  their own boxes.
+- **Agreed on October 1:** agents inside a building are not drawn shrunk onto
+  its tile. They are hidden from the map while inside, the building shows a
+  small badge with how many people are in it, and its card names them.
+- **Agreed on October 1:** Developer tools leave the pause menu for their own
+  panel on a key, and become genuinely useful: for example tile coordinates,
+  a performance readout, jumping to any agent and showing an agent's planned
+  path. The exact set is open.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -221,7 +239,9 @@ everything that is available in the current build. See [what works today](../wha
   player can change. The comparison covers every agent in the world, including
   those who have died; similar but distinct names are allowed (see
   [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages)).
-  Player renaming collisions and cultural naming context remain open.
+  Player renaming follows the same full-name check, as recorded in
+  [Player guidance and orders](#player-guidance-and-orders). Cultural naming
+  context remains open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
   household and which Town the new agent will belong to. One shared rule
   decides this, checked in this order: household property first, then
@@ -250,16 +270,100 @@ everything that is available in the current build. See [what works today](../wha
   parent-child ancestry and partnerships; household membership is displayed
   separately, never as proof of biological family. Unrelated starter
   housemates must not be drawn as relatives.
-- **Agreed on September 30:** the agent card's **Speak to them** box sends a
-  message as a **Suggest** or an **Order**. An order that asks for nothing
-  the game can act on, such as "build a house", is accepted and closed at
-  once, and the Event Log says the agent did not understand it. It uses no
-  model request and does not hold up later suggestions or orders to that
-  agent. An order the game understands but that cannot be carried out yet,
-  such as "eat" while the agent carries no food, keeps waiting, including
-  across saves. It is checked again only when the agent next makes one of its
-  usual decisions, never on every tick. Which orders the game understands is
-  covered under **Still to decide** below.
+
+### Player guidance and orders
+
+**Agreed on October 1, during the owner design session:**
+
+- The player is an **outside observer whom agents can hear**, rather than a
+  physical character in the world or an impulse agents mistake for their own
+  thought. An agent can distinguish the observer's guidance from its own
+  intentions.
+- **Suggest** sends the player's actual words to the agent's own model at its
+  next ordinary personal-model decision. The agent may accept, modify or
+  reject the suggestion. Sending a suggestion does not trigger a separate
+  model request. For example, "Growing potatoes could help your household
+  through winter" conveys the reasoning, not just a farming task hint.
+- A recognized **Order** takes priority over the agent's ordinary plans. The
+  agent obeys within the game's physical and access rules; its model cannot
+  refuse the order merely because it prefers another activity. An order cannot
+  create goods, grant ownership or make an impossible action happen.
+- The player may deliberately tell an agent something that agent has not
+  discovered, such as the location of a berry patch across a river. The agent
+  learns that the observer told it something; the statement can be true or
+  false and is not automatically firsthand knowledge or a verified world
+  fact. It still needs to travel there and verify the claim. Merely inspecting
+  the map or another agent's private thoughts teaches no agent anything.
+- The practical order catalogue covers movement, shelter, eating, gathering,
+  carrying, storage, farming, cooking, crafting, repairs and building work,
+  as those tasks become supported by the game. A recognized task uses the
+  normal task system and its physical, resource and access rules.
+- Conversations, relationships, inventions/mods and combat are agreed parts
+  of the intended game, with their full systems planned for later alpha work.
+  Their supported actions may become **Orders** too: "Talk to Ari", "Propose
+  marriage" or "Work on a bridge invention" can require the addressed agent
+  to attempt the activity once the game supports it. An order does not
+  guarantee another person's agreement or a successful invention. Each
+  system's participation and validation rules still apply; later development
+  does not make these features provisional or restrict them to Suggest.
+- When an order does not specify its target, the agent chooses a suitable
+  target using its own knowledge and the normal access and travel rules. It
+  may also explore to find new resources rather than always returning to the
+  same known plant. Exploration discovers things through actual travel and
+  observation; it does not grant hidden map knowledge. An explicitly named
+  target takes precedence over this free target choice.
+- Urgent survival needs may **temporarily interrupt an order**. For example,
+  an agent gathering wood may seek warmth during a dangerous storm, then
+  resume the pending order when the emergency passes. Ordinary preferences
+  cannot interrupt it on the same basis.
+- An order means **one task by default**, unless it specifies a quantity or
+  repetition. "Gather food" finishes after one normal gathering job; "Make
+  two sacks" finishes after two sacks; "Keep gathering food" continues until
+  cancelled. Emergency interruptions preserve the outstanding task, quantity
+  or ongoing instruction.
+- A **new Order replaces the previous order by default**, including an ongoing
+  or waiting order. The player can explicitly choose **Queue** to have the
+  new order done afterward instead. Pending and ongoing orders can be
+  cancelled. For example, "Make two sacks" replaces "Keep gathering food"
+  unless the player chooses Queue.
+- The agent's own model sees an order's **original words and the task the
+  game understood** in its next ordinary request. The wording supplies
+  context, such as why the household needs food; it does not let the model
+  refuse an otherwise valid order merely because it prefers another plan.
+  Sending an order does not trigger a separate paid request.
+- The agent card shows orders and their status: **waiting, doing,
+  interrupted, blocked with a reason, finished, cancelled or not understood**.
+  For example, "Waiting for cloth: needs two pieces" explains a blocked job.
+  A brief natural reply may accompany the agent's ordinary model response;
+  the game does not generate an extra paid reply just to acknowledge a click.
+- Normal direct agent edits are **names and model/key settings**, alongside
+  the existing Add Agent and Suggest/Order controls. Needs, skills, goods,
+  memories, relationships and world objects change through simulation actions.
+  Direct manipulation of those fields belongs in developer tools, whose
+  exact tool set has not been chosen. This preserves the separately agreed
+  founder setup, world settings and Mod Library controls.
+- **Player renaming uses the same full-name check as model naming**, against
+  every other living or deceased agent in the world. A taken full name is
+  rejected; the player supplies another name, without a model retry. Similar
+  but distinct full names remain allowed. Renaming keeps the same person,
+  relationships and memories; old conversation text remains as originally
+  spoken rather than being rewritten to use the new name.
+
+**Existing agreed order handling, from September 30:** the agent card's
+**Speak to them** box sends a message as **Suggest** or **Order**. An order
+that asks for nothing the game can act on, such as "build a house" in the
+current prototype, is accepted and closed at once, and the Event Log says the
+agent did not understand it. It uses no model request and does not hold up
+later suggestions or orders to that agent. An order the game understands but
+that cannot be carried out yet, such as "eat" while the agent carries no food,
+keeps waiting, including across saves. It is checked again only when the agent
+next makes one of its usual decisions, never on every tick.
+
+These are intended rules, not a claim that the current prototype reads
+suggestions or supports the full catalogue. Supported actions expand as the
+normal game implements each system; this section does not settle those
+systems' remaining game rules or authorize their development ahead of their
+agreed stage.
 
 ### Leaning toward
 
@@ -311,10 +415,10 @@ Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
 which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
-month/season names and date presentation; and the detailed player-control/
-observer boundary beyond adding and renaming agents. That boundary includes
-which orders the game should understand and whether an agent's own model reads
-the words of a suggestion or order. Computment may provide a UI drawing.
+month/season names and date presentation. The player's role, direct edits,
+suggestions and order rules are agreed in
+[Player guidance and orders](#player-guidance-and-orders). Computment may
+provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
 retention count, how memories are grouped/searched/labeled, family-tree

@@ -63,6 +63,8 @@ everything that is available in the current build. See [what works today](../wha
   playtests):** to make names more varied, each agent's naming request suggests
   a fixed starting letter for that agent. In a test on one model this raised
   the number of different first names from 8 to 15 without extra requests.
+  [Player renaming](interface-and-art.md#player-guidance-and-orders) uses the
+  same full-name check and preserves the person's identity and historical text.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, culture, and
