@@ -731,6 +731,7 @@ public sealed partial class PrivateWorldConversationTests
                 1d,
                 observation.Candidates.ToDictionary(item => item.Id,
                     item => item.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
+                ChosenName: observation.NeedsName ? observation.Self?.Name ?? "Test Agent" : null,
                 ChosenPersonality: observation.NeedsPersonality ? "patient and curious" : null,
                 ChosenAspiration: observation.NeedsAspiration ? "learn the valley" : null));
         }

@@ -35,7 +35,8 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
-            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical))
+            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+                !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
