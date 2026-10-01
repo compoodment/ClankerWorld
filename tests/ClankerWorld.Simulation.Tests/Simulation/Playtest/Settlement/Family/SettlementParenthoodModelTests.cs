@@ -285,7 +285,7 @@ public sealed partial class SettlementParenthoodTests
             File.WriteAllText(providerDirectory, "block the provider configuration directory");
             Assert.False(await service.TryAdvanceOnceAsync());
 
-            var child = Assert.Single(world.Inhabitants.Where(item => item.ChildModelSelection is not null));
+            var child = Assert.Single(world.Inhabitants, item => item.ChildModelSelection is not null);
             var birthChoice = child.ChildModelSelection;
             File.Delete(providerDirectory);
             Directory.CreateDirectory(providerDirectory);
@@ -304,11 +304,14 @@ public sealed partial class SettlementParenthoodTests
                 Assert.Null(assignment.SelectionReason);
             });
 
-            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.False(await service.TryAdvanceOnceAsync(),
+                "Recovering the child route must leave the world paused until the owner resumes it.");
             Assert.Equal(birthChoice, world.Inhabitants.Single(item => item.InhabitantId == child.InhabitantId)
                 .ChildModelSelection);
             Assert.Equal("owner-selected-model", providers.CaptureRuntimeConfiguration().Assignments!
                 .Single(item => item.InhabitantId == child.InhabitantId && item.Role == PlayerDecisionProviders.PlanningRole).Model);
+            world.Resume();
+            Assert.True(await service.TryAdvanceOnceAsync());
 
             using var restartedWorld = stateFile.LoadOrCreate("settlement-parenthood");
             var restartedProviders = new ProviderConfigurationStore(providerPath,
