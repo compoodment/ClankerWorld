@@ -170,6 +170,9 @@ public sealed partial class PrivateWorldRuntime
             cart.PullerId is not null && cart.PullerId != actor) return new(false, "Bring repair materials to this owned cart.");
         var body = society.Checkpoint.Inventory.GetLot(cart.LotId);
         if (body.ConditionBasisPoints == 10_000) return new(false, "This cart does not need repair.");
+        if (society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == body.Id &&
+            reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+            return new(false, "Finish the cart's reserved use before repairing it.");
         var materials = CartRepairMaterials.Select(kind => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
             lot.ItemKind == kind && lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null &&
             lot.CartId is null && lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)).ToArray();
