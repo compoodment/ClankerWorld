@@ -483,15 +483,40 @@ the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
-building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
+building without its own dedicated hauling (every kind except the Farmhouse
+and Blacksmith) is kept stocked by the
 `supply_workstation:<item>` choice. It is offered to an adult of the holding
 household while the building holds less of an input than two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
 or Silo (the existing delivery step then carries it in), or gathers from a
-reachable source. Stock already set aside at another workstation is left
-alone.
+reachable source. Grain and flour may also come from the household's Farmhouse.
+Other stock already set aside at another workstation is left alone. Deliveries
+and pickups account for free storage, incoming loads and carrying room. A filled
+water jug moves as a whole vessel, preserving the water lot and vessel IDs;
+reserved contents prevent hauling it. Cooking consumes only reserved water,
+leaving the jug for another refill.
+
+House cooking uses potatoes or greens with wood for simple meals. Grain,
+water and wood make porridge, optionally enriched with berries or fruit;
+flour, water and wood make bread; potatoes, cultivated greens, water and wood
+make vegetable stew. The optional household Restaurant has the same porridge,
+bread and stew recipes plus a bread-and-greens Restaurant meal. The accepted
+trial quantities are in [the pipelines](../game-design/towns.md#food-and-replanting).
+All outputs remain at the building that made them. A cooking job reserves real
+on-site inputs and its storage growth before starting, including during a save.
+Potatoes kept for replanting cannot be spent on cooking. Missing stock names the
+ingredient in the blocked project or refused production request.
+
+Generated Houses start with eight cooked meal portions each. The household
+aims to keep two prepared portions per living member, including personally
+carried meals and running cooking jobs; Restaurant work allows another two
+portions for sale. This prevents preparing every recipe after needs are covered.
+Different named meals count toward dietary variety. Fruit-enriched porridge
+retains its extra fullness and variety through the production job and item
+provenance when portions are carried or reloaded. Food given to a child uses
+the same nourishment as food eaten by an adult. Trial recipe work, portions,
+nutrition and demand targets remain provisional.
 
 ## Roads and bridges
 
