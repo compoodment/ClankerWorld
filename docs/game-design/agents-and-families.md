@@ -201,8 +201,9 @@ Computment briefly considered removing the close-relative pairing ban, then
 retracted that thought; the ban still stands. A model-usage meter and optional
 AI-usage limit have since been accepted; neither is a population cap.
 
-For inheritance, still open: the exact final-model-turn contract; which assets
-are personal versus already household-owned; conflicts between a will and
+Personal ownership is separate from storage or carrying location under the
+[agreed household goods rules](towns.md#household-goods-and-departure).
+For inheritance, still open: the exact final-model-turn contract; conflicts between a will and
 agent-made law; minors, multiple heirs, debts, and no-household cases; and
 whether a final message beyond the will is part of the death event. Clanker's
 proposed safety rule is to freeze the estate at death, validate the model's

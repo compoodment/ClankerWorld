@@ -162,8 +162,8 @@ everything that is available in the current build. See [what works today](../wha
   consent step. It still needs a valid free resident place under the agreed
   capacity checks; consent and room are separate requirements.
 - An adult may **leave voluntarily without the household's permission**.
-  What personal goods they take and how shared property is divided still need
-  decisions; leaving does not itself settle those rights.
+  Personal goods, shared stock, access and dependent care follow the
+  [agreed departure rules](#household-goods-and-departure).
 - **One adult may start a household alone**; a partner or second founder is
   not required. A newly added homeless adult still seeks suitable existing
   household housing first. If none is suitable or accepts them, they may form
@@ -173,8 +173,54 @@ everything that is available in the current build. See [what works today](../wha
 
 The household's existing limit of one planned House remains separate from the
 number of people in its family. Splitting into two households does not erase
-parentage or other family relationships. Remaining child-placement/care cases, stock access
-during a move and Town residency changes still need their own decisions.
+parentage or other family relationships. Care during a living adult's departure
+is agreed below; care after death, other guardianship cases and Town residency
+changes still need their own decisions.
+
+### Household goods and departure
+
+**Agreed with the owner on October 1, answers 10A–14A:**
+
+- **Ownership and location are separate.** A person may keep recorded personal
+  belongings in the House without donating them to the household. Shared food,
+  materials and household equipment remain household property. For example,
+  Rowan's own coat remains Rowan's beside the shared grain in House storage.
+  Carrying a borrowed household axe does not make the axe personal property.
+- **Moving out ends the old household membership.** This applies to voluntary
+  departure and overcrowding displacement. The person keeps their personal
+  belongings and the departure allowance below; they get no automatic equal
+  share of shared stock. Shared goods and buildings remain with their recorded
+  household owner, including when its last member leaves. Moving out does not
+  settle abandoned-property claims or transfer buildings to a new household.
+- **Personal belongings remain retrievable after departure.** The former
+  member retains limited access to collect their recorded personal goods,
+  without needing to rejoin or obtain a new permission for each collection.
+  Ordinary shared-stock and cooking access end with membership. Retrieval is
+  physical, follows carrying limits and may take repeated trips; it grants no
+  remote transfer or access to other people's goods. Borrowed goods keep their
+  original owner and must be physically returned rather than silently becoming
+  the departing person's property. Leaving itself needs no household vote.
+- **A small food allowance supports the move.** The initial trial is up to
+  **two ready-to-eat food portions**, from available **unreserved** household
+  stock, for both voluntary departures and evictions. Existing care and work
+  reservations are respected. Missing food is not created. The allowance is
+  allocated once for the departure and collected physically within carrying
+  limits; repeated requests, collection trips or a saved-and-resumed move
+  cannot multiply it.
+- **Care continues when a caregiver leaves.** A departing sole caregiver
+  remains responsible: dependent children move with them unless another capable
+  adult explicitly accepts their care. An accepting destination must have room
+  for the whole moving care group under the resident rules. Travel and care
+  happen physically; no child is left alone, teleported or assigned to an adult
+  who has not accepted. If no home is ready, the housing task remains visible
+  while that adult continues care. Parentage is unchanged. The overcrowding
+  timer still cannot expel a child alone or remove their only caregiver.
+
+Adult departure, personal ownership, limited collection access, the food
+allowance and solo formation are implementation work in
+[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+Death, wills and other guardianship cases remain separate choices in
+[Agents and families](agents-and-families.md#still-to-decide).
 
 ### House resident capacity and relocation
 
@@ -231,11 +277,12 @@ resident counts.
 - **One unpaused world day of notice for displaced adults** is the initial
   trial period. During notice they look for a suitable
   accepting household with room; otherwise they may form their own household
-  and build normally. If notice ends with no home ready, the adult leaves
-  residence and continues a visible homeless housing task. Immediate storm
+  and build normally. If notice ends with no home ready, the eligible adult
+  leaves residence and the old household membership, and continues a visible
+  homeless housing task. Immediate storm
   shelter is still possible under the guest rules. No person or goods are
-  teleported to a new home. Personal and shared goods on departure remain part
-  of the separate property decision.
+  teleported to a new home. Goods, collection access and care follow the
+  [departure rules](#household-goods-and-departure).
 - **Expansion can solve crowding.** The household may plan its next supported
   footprint for a storage or housing need, under the ordinary terrain,
   overlap, land-use, materials and work rules. Reserved space or an unfinished
@@ -272,13 +319,12 @@ resident counts.
 | Four residents in two equally sized family units in a 1×1 House | No family majority. A voluntary fourth admission is refused; an existing birth-related case needs expansion or relocation with no family favored. |
 | A resident is away gathering; a guest is invited | The traveler still occupies their resident place. The guest gains shelter only. |
 
-The resident counts, family scope, birth exceptions and notice rule are now
-agreed. Personal versus shared goods, departure access and care when the last
-adult leaves still need the owner interview. The existing claimed
+The resident counts, family scope, birth exceptions, notice and departure
+rules are agreed. The existing
 [housing-admission work](https://github.com/compoodment/ClankerWorld/issues/464)
 and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/463)
-remain their current implementation slices; the new residence and relocation
-rules require their own follow-up work, without competing with those claims.
+remain their original implementation slices; the new residence and relocation
+rules require their own follow-up work, without competing with active claims.
 Resident limits and housing-driven expansion are tracked in [#598](https://github.com/compoodment/ClankerWorld/issues/598),
 and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
@@ -477,7 +523,7 @@ must not pass through blocked corners. Playable foot movement now uses the stric
 
 Further structure effects; exact configurations and unchosen footprints;
 building
-inspection fields, invitation details, access to other non-residential
+inspection fields, access to other non-residential
 buildings, reservations and queues;
 claim boundaries, shared-use grants and mayoral powers; Town borders and
 governance; currency/land pricing;
@@ -712,10 +758,11 @@ These remain open; they are not new decisions.
 - **Homes, membership and family growth.** The [membership rules](#household-membership)
    settle one household at a time, unanimous adult admission, voluntary adult
    departure and solo formation. The [resident-capacity rules](#house-resident-capacity-and-relocation)
-   settle footprint-scaled places, family priority, births and relocation. Decide
-   stock access during departure, personal versus shared goods, guest
-   invitation details and remaining child-placement/care cases. These open
-   details do not reopen the agreed residence limits.
+   settle footprint-scaled places, family priority, births and relocation. The
+   [goods and departure rules](#household-goods-and-departure) settle personal
+   ownership, collection access, the food allowance and care during a living
+   adult's departure. Care after death, other guardianship cases and Town
+   residency remain open; they do not reopen the agreed home rules.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
