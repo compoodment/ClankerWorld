@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # The interface, art and audio
@@ -15,6 +15,7 @@ everything that is available in the current build. See [what works today](../wha
 ## On this page
 
 - [Main Menu, world view, and controls](#main-menu-world-view-and-controls)
+- [Player guidance and orders](#player-guidance-and-orders)
 - [Pixel art and generated images](#pixel-art-and-generated-images)
 - [Audio and dialogue presentation](#audio-and-dialogue-presentation)
 
@@ -250,16 +251,47 @@ everything that is available in the current build. See [what works today](../wha
   parent-child ancestry and partnerships; household membership is displayed
   separately, never as proof of biological family. Unrelated starter
   housemates must not be drawn as relatives.
-- **Agreed on September 30:** the agent card's **Speak to them** box sends a
-  message as a **Suggest** or an **Order**. An order that asks for nothing
-  the game can act on, such as "build a house", is accepted and closed at
-  once, and the Event Log says the agent did not understand it. It uses no
-  model request and does not hold up later suggestions or orders to that
-  agent. An order the game understands but that cannot be carried out yet,
-  such as "eat" while the agent carries no food, keeps waiting, including
-  across saves. It is checked again only when the agent next makes one of its
-  usual decisions, never on every tick. Which orders the game understands is
-  covered under **Still to decide** below.
+
+### Player guidance and orders
+
+**Agreed on October 1, during the owner design session:**
+
+- The player is an **outside observer whom agents can hear**, rather than a
+  physical character in the world or an impulse agents mistake for their own
+  thought. An agent can distinguish the observer's guidance from its own
+  intentions.
+- **Suggest** sends the player's actual words to the agent's own model at its
+  next ordinary personal-model decision. The agent may accept, modify or
+  reject the suggestion. Sending a suggestion does not trigger a separate
+  model request. For example, "Growing potatoes could help your household
+  through winter" conveys the reasoning, not just a farming task hint.
+- A recognized **Order** takes priority over the agent's ordinary plans. The
+  agent obeys within the game's physical and access rules; its model cannot
+  refuse the order merely because it prefers another activity. An order cannot
+  create goods, grant ownership or make an impossible action happen. Urgent
+  interruptions and the supported order catalogue still need decisions.
+- The player may deliberately tell an agent something that agent has not
+  discovered, such as the location of a berry patch across a river. The agent
+  learns that the observer told it something; the statement can be true or
+  false and is not automatically firsthand knowledge or a verified world
+  fact. It still needs to travel there and verify the claim. Merely inspecting
+  the map or another agent's private thoughts teaches no agent anything.
+
+**Existing agreed order handling, from September 30:** the agent card's
+**Speak to them** box sends a message as **Suggest** or **Order**. An order
+that asks for nothing the game can act on, such as "build a house" in the
+current prototype, is accepted and closed at once, and the Event Log says the
+agent did not understand it. It uses no model request and does not hold up
+later suggestions or orders to that agent. An order the game understands but
+that cannot be carried out yet, such as "eat" while the agent carries no food,
+keeps waiting, including across saves. It is checked again only when the agent
+next makes one of its usual decisions, never on every tick.
+
+**Still to decide in this design session:** which orders the game understands;
+how their targets, prerequisites, duration and interruptions work; message
+delivery and replies; cancellation and replacement; and whether the agent's
+own model reads the words of an order. These are intended rules, not a claim
+that the current prototype reads suggestions or supports the full catalogue.
 
 ### Leaning toward
 
@@ -311,10 +343,10 @@ Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
 which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
-month/season names and date presentation; and the detailed player-control/
-observer boundary beyond adding and renaming agents. That boundary includes
-which orders the game should understand and whether an agent's own model reads
-the words of a suggestion or order. Computment may provide a UI drawing.
+month/season names and date presentation; and the remaining player-control
+details in [Player guidance and orders](#player-guidance-and-orders), beyond
+the agreed observer role, suggestions and order authority. Computment may
+provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
 retention count, how memories are grouped/searched/labeled, family-tree
