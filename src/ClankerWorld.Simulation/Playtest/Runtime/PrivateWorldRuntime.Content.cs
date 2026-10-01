@@ -406,11 +406,11 @@ public sealed partial class PrivateWorldRuntime
                     "The household workshop must be claimed before production.");
 
             var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
-            if (onSiteHouseholdRecipe && !KeepsPlantingReserve(recipe, worker.HouseholdId!))
-                return ProductionStartResult.Rejected(normalizedRecipeId, "Keep some potatoes to replant the household fields.");
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     $"The household building lacks {MissingWorkstationIngredients(recipe, worker.HouseholdId!, placed!.InstanceId)} in its on-site stock.");
+            if (onSiteHouseholdRecipe && !KeepsPlantingReserve(recipe, worker.HouseholdId!))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Keep some potatoes to replant the household fields.");
 
             if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != workPosition)
             {
