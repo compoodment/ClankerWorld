@@ -257,6 +257,9 @@ public sealed partial class PrivateWorldRuntime
     private void StageTailorContent() =>
         StageBuiltInContent(TailorContent.PackageId, HouseContent.PackageId, TailorContent.Create, "tailor_content_staged");
 
+    private void StageBusinessContent() =>
+        StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
+
     /// <summary>
     /// Stages a shipped package once its dependency is active, so worlds that
     /// did not start with it still receive it. It activates on a later tick.
@@ -520,6 +523,7 @@ public sealed partial class PrivateWorldRuntime
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
         }
         var constructionOwner = recipe is not null ? ProductionOwnerFor(recipeBuilding, inhabitantId)
+            : building?.Tags.Contains("market", StringComparer.Ordinal) == true ? HouseholdFor(inhabitantId) ?? inhabitantId
             : BuildingConstructionOwner(inhabitantId, building!);
         if (recipe is not null && recipeBuilding?.HouseholdId is not null &&
             worldContent.Buildings.Any(definition => definition.CanonicalId == recipeBuilding.DefinitionId &&
@@ -647,7 +651,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var project = state.Project!;
         var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
-            lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
+            lot.ItemKind == input.ResourceId && lot.GroundPosition is null && lot.StorageBuildingId is null &&
+            lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
         {
             var house = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId == constructionOwner
@@ -827,7 +832,7 @@ public sealed partial class PrivateWorldRuntime
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
         string? residentId = null) => inputs.All(input =>
     {
-        var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
+        var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId && lot.GroundPosition is null &&
                 (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
                     (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
             .Sum(lot => (long)AvailableLotQuantity(lot));

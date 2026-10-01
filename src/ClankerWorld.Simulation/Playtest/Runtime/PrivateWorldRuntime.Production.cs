@@ -22,6 +22,8 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat(MarketReservedTiles())
+            .Concat(LooseStockTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(FarmFields.Select(field => field.Position))
             .Concat(Carts.Select(cart => cart.Position))
@@ -189,7 +191,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var requested in quantities)
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId)
+                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId && lot.GroundPosition is null)
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
@@ -204,6 +206,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
+        if (definition.Tags.Contains("market", StringComparer.Ordinal)) return household;
         if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
         // Existing household supplies remain usable; new supplies stay personally
         // carried until a household has a physical House to receive them.
@@ -236,6 +239,8 @@ public sealed partial class PrivateWorldRuntime
             .Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
+            .Concat(MarketReservedTiles())
+            .Concat(LooseStockTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(FarmFields.Select(field => field.Position))
             .Concat(Carts.Select(cart => cart.Position))
@@ -265,20 +270,21 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private void ApplyInventoryTransition(Func<InventoryCheckpoint, InventoryCheckpoint> transition)
+    private void ApplyInventoryTransition(Func<InventoryCheckpoint, InventoryCheckpoint> transition,
+        string? committedBusinessOfferId = null)
     {
         ArgumentNullException.ThrowIfNull(transition);
         society.Apply(checkpoint =>
         {
             var updated = transition(checkpoint.Inventory);
-            ValidateCarryingTransition(checkpoint.Inventory, updated);
+            ValidateCarryingTransition(checkpoint.Inventory, updated, committedBusinessOfferId);
             foreach (var building in worldSimulation.Buildings)
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
                 if (BuildingStorageRules.Capacity(definition, building) is not { } capacity) continue;
                 var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => (long)lot.Quantity);
                 var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => (long)lot.Quantity);
-                if (after > capacity && after > before)
+                if (after > capacity - ReservedBusinessStorageSpace(building.InstanceId, committedBusinessOfferId) && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
@@ -297,7 +303,8 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.GroundPosition is null &&
+                    lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
             foreach (var lot in lots)
@@ -366,7 +373,7 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.GroundPosition is null &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
                     (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

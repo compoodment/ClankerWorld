@@ -63,6 +63,14 @@ rest, not protection against software already running as the same user.
 
 ## Commit and restore rules
 
+Business state saves concrete listings, accepted offers, both stock
+reservations, vessel-content commitments, receiving-space promises, Market
+plots and household stalls, and tool-making requests. Restore refuses missing
+or mismatched lots, owners, locations, contents and overbooked receiving space.
+Stall stock and barter receipts remain household-owned until physically
+withdrawn; only an empty stall is released. Rejected stock placed on adjacent
+ground keeps its identity and contents and cannot be used as carried stock.
+
 Canonical state is the accepted state used by the simulation. A replay checks
 that recorded events reproduce its expected results and digests.
 

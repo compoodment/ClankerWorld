@@ -2,6 +2,31 @@ namespace ClankerWorld.Simulation.Kernel;
 
 public static partial class InventoryFixture
 {
+    /// <summary>Commit a vessel, its exact contents and other exchange goods from one unchanged snapshot.</summary>
+    public static InventoryCheckpoint ReserveTogether(InventoryCheckpoint checkpoint,
+        IReadOnlyList<InventoryReservation> reservations)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentNullException.ThrowIfNull(reservations);
+        if (reservations.Count == 0 || reservations.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != reservations.Count ||
+            reservations.Select(item => item.ExpiryTick).Distinct().Count() != 1 ||
+            reservations.Select(item => item.Purpose).Distinct(StringComparer.Ordinal).Count() != 1 ||
+            reservations.Any(item => string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Purpose) ||
+                item.State != InventoryReservationState.Reserved || item.Quantity <= 0 || item.ExpiryTick < checkpoint.WorldTick ||
+                checkpoint.Reservations.Any(existing => existing.Id == item.Id)))
+            throw new InvalidOperationException("A reservation group needs unique live identities and positive exact quantities.");
+        foreach (var group in reservations.GroupBy(item => item.LotId, StringComparer.Ordinal))
+        {
+            var lot = checkpoint.GetLot(group.Key);
+            if (group.Any(item => item.OwnerId != lot.OwnerId))
+                throw new InvalidOperationException("Every grouped reservation must belong to the actual stock owner.");
+            EnsureOwnerAndAvailableQuantity(checkpoint, lot, lot.OwnerId, checked(group.Sum(item => item.Quantity)));
+        }
+        return Commit(checkpoint,
+            reservations: checkpoint.Reservations.Concat(reservations).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            eventKind: "inventory_reserved_together", detail: string.Join("|", reservations.Select(item => item.Id)));
+    }
+
     /// <summary>Loads include contents: carrying a full jug moves its water too.</summary>
     public static int TransferLoadQuantity(InventoryCheckpoint checkpoint, string lotId, int quantity)
     {

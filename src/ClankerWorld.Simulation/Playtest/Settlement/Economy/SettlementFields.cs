@@ -44,8 +44,7 @@ public sealed partial class PrivateWorldRuntime
         if (!LandFertilityRules.IsFarmable(map, point)) return "Crops cannot grow on this ground.";
         if (FarmFields.FirstOrDefault(field => field.Position == point) is { } field && field.HouseholdId != household)
             return "This field belongs to another household.";
-        if (newTile && (RoadAndBridgeTiles().Contains(point) ||
-            society.Checkpoint.Inventory.Lots.Any(lot => lot.GroundPosition == new InventoryGroundPosition(point.X, point.Y)) ||
+        if (newTile && (RoadAndBridgeTiles().Contains(point) || MarketReservedTiles().Contains(point) || LooseStockTiles().Contains(point) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running && ExpansionTiles(job).Contains(point)) ||
             map.CampObjects.Any(item => item.Position == point) ||
             map.Resources.Any(item => item.Position == point) || worldSimulation.Buildings.Any(building =>
@@ -271,10 +270,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } household ||
             FarmhouseForHousehold(household) is not { } farmhouse || CarriedHouseDelivery(actor) is not null) return;
-        var ground = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-                lot.GroundPosition is { } point && lot.CartId is null && lot.ContainerLotId is null &&
-                FarmFields.Any(field => field.Position == new GridPoint(point.X, point.Y)) && AvailableLotQuantity(lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        var ground = FieldHarvestStock(household);
         if (ground is not null && CarryingRoom(actor) > 0)
             candidates.Add(new("farm:collect", "Carry the household's harvested crop from its field into storage.", 16));
         if (FarmHoe(actor) is null)
@@ -349,10 +345,7 @@ public sealed partial class PrivateWorldRuntime
     private void CollectFieldHarvest(string actor, PlaytestInhabitantState state)
     {
         var household = HouseholdFor(actor);
-        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.GroundPosition is { } point && lot.CartId is null && lot.ContainerLotId is null &&
-            FarmFields.Any(field => field.Position == new GridPoint(point.X, point.Y)) && AvailableLotQuantity(lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        var stock = FieldHarvestStock(household);
         if (stock?.GroundPosition is not { } ground || FarmhouseForHousehold(household) is not { } farmhouse) return;
         var point = new GridPoint(ground.X, ground.Y);
         if (state.Position != point) { MoveToward(actor, state, point, "field_harvest", 0); return; }
@@ -364,4 +357,10 @@ public sealed partial class PrivateWorldRuntime
             "field_harvest_collected", destinationDeliveryBuildingId: store.InstanceId));
         AppendEvent("field_harvest_collected", $"{actor}:{stock.Id}:{store.InstanceId}");
     }
+
+    private InventoryLot? FieldHarvestStock(string? household) => society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
+            lot.GroundPosition is { } ground && FarmFields.Any(field => field.HouseholdId == household &&
+                field.Position == new GridPoint(ground.X, ground.Y)) && lot.ContainerLotId is null && lot.CartId is null &&
+            (FoodItems.IsEdible(lot.ItemKind) || FoodItems.IsPlantingStock(lot.ItemKind)) &&
+            AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 }

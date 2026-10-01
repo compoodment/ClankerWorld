@@ -215,7 +215,8 @@ materials in hand. There is no Town-wide limit on how many of a kind exist
 until playtests show agents overbuilding. Only the household that holds the
 Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
 exception**: a household may plan it, and once it is built the Town holds it.
-Other buildings the Town shares wait for governance. Any Town resident may plan
+An adult resident may also plan and fund a shared Market with its clear stall
+plot. Other buildings the Town shares wait for governance. Any Town resident may plan
 the Warehouse's expansion once its stock is nearly full.
 
 The intended building roles now include House, Warehouse, Workshop,
@@ -558,12 +559,34 @@ Clinics stock care goods and sell treatment. An optional Store receives goods
 by actual delivery before selling them. Market sellers carry goods into their
 stalls, trade with agents from any Town and carry remaining goods away.
 
+A household reserves a free marked Market stall by physically bringing its
+goods. It keeps that stall while unsold goods or barter receipts remain; the
+last withdrawal releases it. Spoiled or broken stock may be moved onto clear
+adjacent ground without deletion. The Market and its clear plot belong to
+the Town; goods in each held stall belong to that household. An adult resident
+may fund construction using real household supplies or physically collected
+Town Warehouse supplies. Customers gain no private stock or cooking access.
+
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods
 personally; payment becomes seller-household stock at that location. Later
 agent-created currencies use the same transaction system, with issuer and
 acceptance rules designed alongside governance. No universal starting money
 or gold standard is chosen.
+
+The first business trial offers one item for one wood, or one wood for one
+stone. Restaurant meals ask for one grain; Clinic bandages ask for one cloth.
+Adults may name other exact barter quantities. Offers expire after 120 ticks;
+tool-making requests after 600. Stores cost 8 wood and 2 stone for 1×1, or 12
+wood and 4 stone for 1×2. A 2×2 Market costs 20 wood and 8 stone and funds its
+1×1 stalls, each holding 64 item units. All numbers are provisional.
+
+Accepted offers reserve the actual goods, payment, vessel contents and net
+receiving space. Other work respects those commitments. Both participants
+must reach the stocked building before an atomic exchange; cancellation,
+expiry, death or a changed route releases reservations without transferring
+either side. A Blacksmith request starts real production from its on-site
+inputs; the finished tool remains private stock until exact barter completes.
 
 Ownership and physical location remain inspectable across every transfer.
 Production reserves actual inputs and output space. Full storage, missing
@@ -616,4 +639,4 @@ These remain open; they are not new decisions.
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
     choices raise storage, not House occupancy. The other chosen building
     footprints are in the accepted roster above. Decide capacities, costs,
-    other expansion triggers, Market reservation behavior and Port clearance details.
+    other expansion triggers and Port clearance details.

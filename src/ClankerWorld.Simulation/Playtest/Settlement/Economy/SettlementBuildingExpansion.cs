@@ -31,7 +31,7 @@ public static class BuildingStorageRules
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
         definition.Tags.Any(tag => tag is "house" or "warehouse" or "farmhouse" or "silo" or
-            "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
+            "blacksmith" or "tailor" or "store" or "restaurant" or "clinic" or BusinessContent.StallKind)
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -60,12 +60,13 @@ public sealed partial class PrivateWorldRuntime
     private long StoredQuantity(string buildingId) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.StorageBuildingId == buildingId).Sum(lot => (long)lot.Quantity);
 
-    private int StorageRoom(string buildingId)
+    private int StorageRoom(string buildingId, string? exceptBusinessOfferId = null)
     {
         var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? checked((int)Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId))) : int.MaxValue;
+            ? checked((int)Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
+                ReservedBusinessStorageSpace(buildingId, exceptBusinessOfferId))) : int.MaxValue;
     }
 
     private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
@@ -80,9 +81,9 @@ public sealed partial class PrivateWorldRuntime
         });
 
     private IEnumerable<InventoryLot> ExpansionMaterialLots(string actor, PlacedBuilding building) =>
-        society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null ||
-            lot.OwnerId == (building.HouseholdId ?? building.TownId) && lot.StorageBuildingId == building.InstanceId);
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.GroundPosition is null &&
+            (lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null ||
+            lot.OwnerId == (building.HouseholdId ?? building.TownId) && lot.StorageBuildingId == building.InstanceId));
 
     private bool HasExpansionMaterials(string actor, PlacedBuilding building, IReadOnlyList<ContentQuantity> costs) =>
         costs.All(cost => ExpansionMaterialLots(actor, building).Where(lot => lot.ItemKind == cost.ResourceId)
@@ -174,8 +175,8 @@ public sealed partial class PrivateWorldRuntime
             return false;
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
-        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) || FarmFields.Any(field => tiles.Contains(field.Position)) ||
-            society.Checkpoint.Inventory.Lots.Any(lot => lot.GroundPosition is { } ground && tiles.Contains(new(ground.X, ground.Y))) ||
+        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
+            MarketReservedTiles().Any(tiles.Contains) || LooseStockTiles().Any(tiles.Contains) || FarmFields.Any(field => tiles.Contains(field.Position)) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);

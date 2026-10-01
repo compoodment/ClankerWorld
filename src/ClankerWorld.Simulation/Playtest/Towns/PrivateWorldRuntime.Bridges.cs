@@ -30,6 +30,7 @@ public sealed partial class PrivateWorldRuntime
         return map.Resources.Select(item => item.Position)
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(FarmFields.Select(field => field.Position))
+            .Concat(businessTrade.Markets.SelectMany(plot => MarketStallPositions(plot.MarketId)))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))

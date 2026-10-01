@@ -16,11 +16,12 @@ public sealed partial class PrivateWorldRuntime
         HouseContent.PackageId, PotteryContent.Create, "pottery_content_staged");
 
     private InventoryLot? PersonalJug(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "water_jug" && AvailableLotQuantity(lot) > 0)
+        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "water_jug" && lot.StorageBuildingId is null &&
+            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private int HouseholdVesselQuantity(string ownerId, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+        .Where(lot => lot.ItemKind == kind && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
             (lot.OwnerId == ownerId || inhabitants.ContainsKey(lot.OwnerId) && HouseholdFor(lot.OwnerId) == ownerId))
         .Sum(lot => lot.Quantity);
 
@@ -111,7 +112,7 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? EmptyHouseholdJug(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == "water_jug" &&
-            AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot) &&
+            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot) &&
             !society.Checkpoint.Inventory.Lots.Any(item => item.ContainerLotId == lot.Id))
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 

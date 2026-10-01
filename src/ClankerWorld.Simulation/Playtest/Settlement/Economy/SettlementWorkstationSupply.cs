@@ -77,7 +77,7 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.ContainerLotId is null && lot.StorageBuildingId != destinationId && AvailableLotQuantity(lot) > 0 &&
+                lot.ContainerLotId is null && lot.GroundPosition is null && lot.StorageBuildingId != destinationId && AvailableLotQuantity(lot) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&

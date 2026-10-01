@@ -225,6 +225,7 @@ public sealed partial class PrivateWorldRuntime
         deceasedInhabitants = proposed.deceasedInhabitants;
         resources = proposed.resources;
         knowledge = proposed.knowledge;
+        businessTrade = proposed.businessTrade;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
         completedInstructionIds = proposed.completedInstructionIds;
@@ -322,6 +323,7 @@ public sealed partial class PrivateWorldRuntime
             StageForestryContent();
             StageSiloContent();
             StageTailorContent();
+            StageBusinessContent();
             StagePotteryContent();
             StageBuiltInContent(CartContent.PackageId, BlacksmithContent.PackageId, CartContent.Create, "cart_content_staged");
             StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");
@@ -408,6 +410,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             RemoveDeadPhysicalState();
             ReleaseDeadCartPullers();
+            MaintainBusinessTrades();
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();

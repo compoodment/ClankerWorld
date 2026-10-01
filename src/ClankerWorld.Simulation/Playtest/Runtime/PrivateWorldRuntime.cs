@@ -306,6 +306,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             runtime.resources.Add(resource.ResourceId, resource.State);
         }
         runtime.knowledge = state.Knowledge ?? PrivateWorldKnowledgeState.Empty;
+        runtime.businessTrade = state.BusinessTrade ?? BusinessTradeState.Empty;
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
@@ -413,7 +414,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles, Bridges, bridgeTraffic);
+        RoadTiles, Bridges, bridgeTraffic, businessTrade);
 
     private void AppendEvent(string kind, string detail)
     {

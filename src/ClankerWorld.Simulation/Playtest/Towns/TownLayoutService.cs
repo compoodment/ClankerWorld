@@ -181,6 +181,9 @@ public static class TownLayoutService
         var footprint = Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
             return false;
+        if (definition.Tags.Contains("market", StringComparer.Ordinal) &&
+            !BusinessMarketLayout.TryFindPlot(map, context.OccupiedTiles, position, out _))
+            return false;
         var neighborDistance = context.RequiredNeighborTiles is { } neighbors
             ? footprint.SelectMany(point => neighbors.Select(neighbor =>
                 Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)))).DefaultIfEmpty(int.MaxValue).Min()

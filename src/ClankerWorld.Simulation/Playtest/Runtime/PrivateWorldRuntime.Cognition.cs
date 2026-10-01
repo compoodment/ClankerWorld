@@ -317,6 +317,7 @@ public sealed partial class PrivateWorldRuntime
             ApplyDependentCareCandidate(inhabitantId, candidateId);
             return;
         }
+        if (ApplyBusinessCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith("parent_", StringComparison.Ordinal) || candidateId.StartsWith("care:", StringComparison.Ordinal))
         {
             ApplyParenthoodCandidate(inhabitantId, candidateId);
@@ -707,6 +708,7 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddEquipmentCandidates(candidates, inhabitantId);
+        AddBusinessCandidates(candidates, inhabitantId);
         AddPersonalGearCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
         AddMedicalCareCandidates(candidates, inhabitantId);
@@ -758,6 +760,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
+        AddBusinessBuildingPlans(candidates, inhabitant.Id);
 
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the

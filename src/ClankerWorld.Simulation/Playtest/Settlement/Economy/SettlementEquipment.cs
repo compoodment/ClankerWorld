@@ -24,7 +24,8 @@ public static class CarryEquipmentRules
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
 
     public static long Load(InventoryCheckpoint inventory, string actor) => inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null).Sum(lot => (long)lot.Quantity);
+        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null)
+        .Sum(lot => (long)lot.Quantity);
 
     public static int Capacity(InventoryCheckpoint inventory, PlaytestInhabitantState person)
     {
@@ -55,15 +56,16 @@ public static class CarryEquipmentRules
 public sealed partial class PrivateWorldRuntime
 {
     private static readonly string[] WearableClothingKinds = ["clothing", "padded_coat", "rain_cloak"];
-    private int CarryingRoom(string actor) => CarryEquipmentRules.Room(society.Checkpoint.Inventory, inhabitants[actor]);
+    private int CarryingRoom(string actor) => BusinessCarryingRoom(actor);
 
-    private void ValidateCarryingTransition(InventoryCheckpoint before, InventoryCheckpoint after)
+    private void ValidateCarryingTransition(InventoryCheckpoint before, InventoryCheckpoint after, string? committedBusinessOfferId = null)
     {
         foreach (var person in inhabitants.Values)
         {
             var oldLoad = CarryEquipmentRules.Load(before, person.InhabitantId);
             var newLoad = CarryEquipmentRules.Load(after, person.InhabitantId);
-            if (newLoad > CarryEquipmentRules.Capacity(after, person) && newLoad > oldLoad)
+            if (newLoad > CarryEquipmentRules.Capacity(after, person) -
+                ReservedBusinessCarrySpace(person.InhabitantId, committedBusinessOfferId) && newLoad > oldLoad)
                 throw new InvalidOperationException("The agent cannot carry that load; deliver goods or equip a larger carrying aid first.");
         }
     }
@@ -89,7 +91,8 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             if (!inhabitants.TryGetValue(actor, out var person)) return new(false, "This agent is not active.");
-            if (CarryEquipmentRules.Load(society.Checkpoint.Inventory, actor) > CarryEquipmentRules.BasicCapacity)
+            if (CarryEquipmentRules.Load(society.Checkpoint.Inventory, actor) + ReservedBusinessCarrySpace(actor) >
+                CarryEquipmentRules.BasicCapacity)
                 return new(false, "Put down or deliver some carried goods before removing the carrying aid.");
             inhabitants[actor] = person with { Equipment = (person.Equipment ?? new()) with { CarryAidLotId = null } };
             AppendEvent("carry_aid_removed", actor);
@@ -114,7 +117,7 @@ public sealed partial class PrivateWorldRuntime
             Equipment = CarryEquipmentRules.IsCarryAid(lot.ItemKind)
             ? equipment with { CarryAidLotId = lot.Id } : equipment with { WornClothingLotId = lot.Id }
         };
-        if (CarryEquipmentRules.IsCarryAid(lot.ItemKind) && CarryEquipmentRules.Load(inventory, actor) >
+        if (CarryEquipmentRules.IsCarryAid(lot.ItemKind) && CarryEquipmentRules.Load(inventory, actor) + ReservedBusinessCarrySpace(actor) >
             CarryEquipmentRules.Capacity(inventory, proposed))
             return new(false, "Deliver some goods before changing to a smaller carrying aid.");
         if (lot.Quantity > 1)

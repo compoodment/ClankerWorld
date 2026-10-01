@@ -118,11 +118,12 @@ public sealed partial class PrivateWorldRuntime
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && lot.GroundPosition is null &&
+        lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
         society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-            lot.ItemKind == kind && kind != "food" && AvailableLotQuantity(lot) > 0 &&
+            lot.ItemKind == kind && kind != "food" && lot.GroundPosition is null && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0 &&
             lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId &&
             CanReachSharedItem(actor, lot));
 
@@ -301,7 +302,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, building.Position, "fuel_fire", interactionRange);
             return;
         }
-        var fuel = society.Checkpoint.Inventory.Lots.First(lot => lot.OwnerId == actor && lot.ItemKind == "wood" && AvailableLotQuantity(lot) > 0);
+        var fuel = society.Checkpoint.Inventory.Lots.First(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+            lot.StorageBuildingId is null && lot.GroundPosition is null && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0);
         society.Apply(checkpoint => ClankerWorld.Simulation.Society.SocietyFixture.ConsumeInventory(checkpoint, actor, fuel.Id, 1, "heating_fuel"));
         survivalState = survivalState with { Fires = survivalState.Fires.Append(new CampFireState(building.InstanceId, WorldTick + 120)).ToArray() };
         AppendEvent("fire_fuelled", building.InstanceId);
@@ -340,7 +342,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null || recipe.Outputs.Any(output =>
+    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null ||
+        HasBusinessToolDemand(recipe, ownerId) || recipe.Outputs.Any(output =>
     {
         if (output.ResourceId == "handcart") return NeedsCartOutput(ownerId);
         if (ToolCapabilities.ForItem(output.ResourceId) is not null)
@@ -409,7 +412,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
+                lot.GroundPosition is null && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);
     }

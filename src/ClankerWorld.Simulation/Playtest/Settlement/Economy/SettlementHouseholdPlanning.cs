@@ -47,6 +47,7 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>Active building designs this household may plan now, in a stable order.</summary>
     private IEnumerable<BuildingDefinition> PlannableHouseholdBuildings(string householdId) => worldContent.Buildings
         .Where(definition => !RetiredBuildings.Contains(definition) &&
+            !definition.Tags.Contains("market-slot", StringComparer.Ordinal) &&
             HouseholdBuildingKind(definition) is { } kind && HouseholdMayPlan(householdId, kind))
         .OrderBy(definition => HouseholdBuildingKinds.PlanOrder(HouseholdBuildingKind(definition)))
         .ThenBy(definition => definition.CanonicalId, StringComparer.Ordinal);
@@ -70,7 +71,7 @@ public sealed partial class PrivateWorldRuntime
         costs.All(cost => HouseholdMaterialInHand(householdId, cost.ResourceId) >= cost.Amount);
 
     private long HouseholdMaterialInHand(string householdId, string itemKind) =>
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == itemKind &&
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == itemKind && lot.GroundPosition is null &&
                 (lot.OwnerId == householdId ||
                  inhabitants.ContainsKey(lot.OwnerId) && HouseholdFor(lot.OwnerId) == householdId))
             .Sum(lot => (long)AvailableLotQuantity(lot));

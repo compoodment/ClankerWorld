@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), HouseCraftingContent.Create(), SiloContent.Create(), TailorContent.Create(), PotteryContent.Create(),
-                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(), CartContent.Create(),
+                OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(), CartContent.Create(), BusinessContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -254,6 +254,17 @@ public sealed partial class PrivateWorldRuntime
                     position,
                     placementFailure);
             }
+            GridPoint? marketPlot = null;
+            if (definition.Tags.Contains("market", StringComparer.Ordinal))
+            {
+                if (assignedTownId is null || householdId is not null || worldSimulation.Buildings.Any(building =>
+                        building.TownId == assignedTownId && worldContent.Buildings.Any(existing =>
+                            existing.CanonicalId == building.DefinitionId && existing.Tags.Contains("market", StringComparer.Ordinal))) ||
+                    !TryFindMarketPlot(position, out var plotPosition))
+                    return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                        "A shared Market needs a Town without one and a clear adjacent 10 by 12 plot for stalls.");
+                marketPlot = plotPosition;
+            }
 
             ApplyInventoryTransition(inventory => ConsumeQuantities(
                 inventory,
@@ -275,6 +286,7 @@ public sealed partial class PrivateWorldRuntime
                 worldSimulation.ProductionJobs,
                 worldSimulation.NextProductionJobSequence,
                 worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations, worldSimulation.Fields, worldSimulation.Carts);
+            if (marketPlot is { } reservedPlot) RegisterMarket(placed, reservedPlot);
             if (assignedTownId is not null)
                 AssignBuildingToTown(placed, definition);
             AppendEvent(eventKind, $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}" +
