@@ -204,7 +204,10 @@ public sealed class InventoryFixtureTests
     {
         var checkpoint = new InventoryCheckpoint(
             7,
-            [new InventoryLot("lot|1", "berries,🍓\nkind", "owner|1", 2, 10_000, 9_000, 7, "source|lot")],
+            [
+                new InventoryLot("lot|1", "berries,🍓\nkind", "owner|1", 2, 10_000, 9_000, 7, "source|lot"),
+                new InventoryLot("other-lot", "food", "other,owner", 1, 10_000, 10_000, 7),
+            ],
             [new InventoryReservation("reserve|1", "owner|1", "lot|1", 1, "meal\nwith|separators", 12, true, InventoryReservationState.Reserved)],
             [new DirectBarterOffer("offer|1", 2, "owner|1", "other,owner", "lot|1", 1, "other-lot", 1, 20, DirectBarterState.Open, ["owner|1", "other\nowner"])],
             [new InventoryEvent(1, 7, "event|kind", "detail,with\nseparators")]);

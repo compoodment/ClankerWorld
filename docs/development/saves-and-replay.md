@@ -167,7 +167,7 @@ compatibility.
 Private-world schema 36 sets the strict terrain/weather checkpoint cutoff for
 the current generator. Earlier alpha maps that fail current deterministic map
 validation are refused and preserved; no terrain or weather migration is
-provided. Schema 39 records each owner's exact pending message, target,
+provided. Schema 40 records each owner's exact pending message, target,
 submission identity, whether a personal model observed it, and its optional
 short reply. The one-fresh-decision prompt tick is scheduling state, not a read
 receipt. Accepted replies stay attached to the original message ID; pause,
@@ -249,25 +249,26 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 40. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, bounded conversations with daily allowances,
-selected garments/carry aids with timed equipment repairs and exact reservations,
-and owner messages with whether a personal model heard them and any short reply.
-These fields retain their current validation and roundtrip behavior.
+with ground harvest lots, bounded conversations with daily allowances, personal
+equipment with timed repairs and exact reservations, reusable container lots
+with their contents, locations, owners and reservations, and owner messages
+with whether a personal model heard them and any short reply. These fields
+retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 37 for personal
-equipment and schema 39 for owner-message delivery, record when those fields
-were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+equipment, schema 39 for reusable containers and schema 40 for owner-message
+delivery, record when those fields were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -292,7 +293,8 @@ current alpha cutoff.
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
 | Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
-| Schema 39 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
+| Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
+| Schema 40 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
