@@ -1,9 +1,11 @@
 name: Label pull requests
 
-# pull_request_target runs this file from main, so pull requests from forks can
-# be labeled too. The checkout below is main's own copy (for the label script);
-# the pull request's code is never checked out or run. Only the changed-file
-# list and the description text are read.
+# pull_request_target runs this file from the pull request's base branch, so
+# pull requests from forks can be labeled too. The checkout below is always
+# main's copy of the label script, even for a pull request stacked on another
+# branch, so unreviewed script changes never run with write access. The pull
+# request's code is never checked out or run. Only the changed-file list and
+# the description text are read.
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft, closed]
@@ -19,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           persist-credentials: false
 
       - name: Update area, type, review and linked-issue labels

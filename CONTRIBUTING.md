@@ -164,8 +164,9 @@ closes other open issues that nobody holds, claim them together with yours as
 combined work, naming its branch on each, so the queue does not hand them to
 another session working on the same branch. Say on the pull request that you
 are taking it over, fetch its latest head before each push, and never
-force-push. If a push is rejected because the branch moved, find out who pushed
-and merge their work in before you continue.
+force-push. If a push is rejected because the branch moved, read its newest
+comments first: if another session has claimed the work since, stop and leave
+it to them; otherwise merge the new commits in before you continue.
 
 ### Claim an issue
 
@@ -193,8 +194,8 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   branch or to one of the five branches most recently named in the issue's
   comments. A draft that only refers to the issue (`Refs`) counts when its
   branch is named in the issue's comments or, after one optional `prefix/`,
-  starts with the issue number and a hyphen, such as `codex/123-fix` or
-  `claude/issue-123-fix`. A push counts from when it reached GitHub, even if
+  starts with the issue number and a hyphen, optionally after `issue-`, such
+  as `codex/123-fix` or `claude/issue-123-fix`. A push counts from when it reached GitHub, even if
   its commits are older. Comments, edits, other label changes and pushes to
   ready pull requests, which belong to their reviewers, do not count. The
   released issue goes back to `status:needs-pr`, unless it is blocked, a
@@ -211,7 +212,7 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   ([how](AGENTS.md#take-over-work-only-when-the-owner-asks)).
 - **Waiting on the owner:** add `status:needs-decision` to the issue, or to
   your own draft, and ask in chat. That keeps the claim, and the 1.5 hours
-  start again when the label comes off the issue.
+  start again when the label comes off the issue or the draft.
 - **Waiting on anything else:** if you can keep working, keep pushing.
   Otherwise add `status:blocked`, name each blocker in the issue description
   as `Blocked by #123` or describe the outside event, push what you have and
@@ -294,8 +295,8 @@ remains on the issue and pull request, not in a second tracker.
    stacked, bring in newer main only by merging your base branch. When #A
    merges, GitHub moves your pull request to main, and main then needs merging
    in. If #A closes without merging, change your base to main and drop the
-   parts of #A you don't need; if yours is already ready, its reviewer does
-   this. If your pull request needs another one's code but is not stacked on
+   parts of #A you don't need; if yours is already ready, whoever closed #A
+   does this ([after closing without merging](#review-and-merge)). If your pull request needs another one's code but is not stacked on
    it, write `Waits on #A` on the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
@@ -377,12 +378,12 @@ completes, and nothing left to ask the owner.
   needs something they can't do, such as an owner decision or a redesign,
   converts it to draft and comments with what is needed. For an owner decision,
   add `status:needs-decision` before converting, so its issues wait instead of
-  rejoining the queue. The issues it closes
-  go back to the queue automatically, and the author, or any fixing agent,
-  picks it up again. If it closes none, the reviewer also replaces
-  `status:blocked` on its `Refs` issues with `status:needs-pr`, naming the draft
-  to continue, or, for a direct owner request, tells the owner in chat what is
-  needed.
+  rejoining the queue. Otherwise the issues it closes go back to the queue
+  automatically, and the author, or any fixing agent, picks it up again. If it
+  closes none, the reviewer also updates its `Refs` issues: for an owner
+  decision, add `status:needs-decision` to them; otherwise replace
+  `status:blocked` with `status:needs-pr`, naming the draft to continue. For a
+  direct owner request, tell the owner in chat what is needed.
 
 Once the work is finished, waiting for review or for a prerequisite pull
 request to merge is not a reason to stay in draft. If it must wait for a pull
@@ -421,7 +422,8 @@ Several reviewers may be merging at the same time, so:
   stacked or wait on another pull request; if that one is ready and unclaimed,
   review it instead.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
-  second pull request only while the first waits on CI.
+  second pull request only while the first waits on CI or for its merging
+  turn.
 - **Priority decides what you claim, not when you merge.** Once your pull
   request passes the checks below, merge it. Don't hold it back for
   higher-priority pull requests that are still in review. Wait only for a pull
@@ -458,11 +460,13 @@ Several reviewers may be merging at the same time, so:
   and merging. Get CI green and conflicts resolved first, so the final run is
   only a catch-up. Before you start, search
   `is:pr is:open label:"status:merging"`. If another pull request has the
-  label, keep reviewing and wait. Otherwise add `status:merging` to yours,
-  comment, and search again; if another pull request got the label first,
-  remove yours and wait. Remove the label when you merge, when CI fails or when
-  you stop. A merging turn is not a claim: one taken more than 30 minutes ago
-  has lapsed, and anyone may remove the label with a comment.
+  label, keep reviewing and wait; merging main in again after it merges is a
+  push that keeps your review claim. Otherwise add `status:merging` to yours,
+  comment, and search again; if another pull request also has the label, the
+  one whose `status:merging` comment came first keeps the turn, and the other
+  removes its label and waits. Remove the label when you merge, when CI fails
+  or when you stop. A merging turn is not a claim: one taken more than 60
+  minutes ago has lapsed, and anyone may remove the label with a comment.
 - **Version numbers go to whoever merges first.** A save-format, schema or
   other version number in an unmerged pull request is provisional, and nobody
   reserves one, in a comment or anywhere else. Git merges two identical number
@@ -482,6 +486,8 @@ Before merging, check that:
    new head.
 3. A session that is not one of its authors reviewed that exact head. The
    authors' own subagents may check the work, but they are not this review.
+   The one exception is a pure revert of a commit that broke main (After
+   merging).
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. If the description says this pull request must follow another, that one has
@@ -531,6 +537,11 @@ After merging:
   on it, and from issues whose named blockers have all merged or closed as
   completed; give those issues `status:needs-pr` unless someone claims them or
   a ready pull request closes them, and comment naming the merge commit.
+
+Closing a pull request without merging leaves the work that depended on it
+stuck, so whoever closes it changes the base of each pull request stacked on
+it to main, with a comment saying which parts of the closed one remain, and
+runs the unblocking search above for it.
 
 A merged change does not need a release; see the
 [release policy](docs/development/releasing.md).

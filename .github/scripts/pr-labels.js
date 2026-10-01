@@ -98,7 +98,8 @@ const RefsPattern = new RegExp(
 // The older template line, "- Refs (related or partly completed issues, and
 // what remains): #7, #8", counts every issue after its colon. Its label has no
 // issue number, so a note after "- Refs #7:" is not read as more references.
-const RefsLinePattern = /^\s*[-*]\s*Refs\b[^:#\n]*:(.*)$/gim;
+// The template's own `- Refs #  (and what remains):` prefix may come before the list.
+const RefsLinePattern = /^\s*[-*]\s*Refs\b(?:[^:#\n]|#(?!\d))*:(.*)$/gim;
 // One issue in a Refs list, optionally as owner/repo#N. "PR#5" and "a.md#5"
 // are not issues.
 const IssueRefPattern = /(?<![\w./-])(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/g;
@@ -425,7 +426,7 @@ async function clearInactiveReviewLabels(github, repo, number) {
   }
 }
 
-async function applyPullRequestLabels({ github, context, core, pr, previousBodies, addedPriorities }) {
+async function applyPullRequestLabels({ github, context, core, pr, previousBodies, addedPriorities, wentBackToDraft = false }) {
   const repo = context.repo;
   const action = context.payload.action;
   const repoName = `${repo.owner}/${repo.repo}`;
@@ -496,7 +497,9 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
     // A ready PR sent back to draft leaves an issue nobody holds (its claim
     // ended when the PR was marked ready). Put it back in the queue next to
     // status:has-pr, so any fixing agent can claim it and continue the branch.
-    const handedBack = action === 'converted_to_draft' && pr.draft && liveIssue !== null && !prHeld &&
+    // wentBackToDraft: an earlier pass of this run saw the PR ready, so another
+    // run's hand-back may have been undone by this run's ready-state pass.
+    const handedBack = (action === 'converted_to_draft' || wentBackToDraft) && pr.draft && liveIssue !== null && !prHeld &&
       !liveNames.some(name => HeldStatuses.includes(name)) &&
       !liveNames.some(name => NotQueueable.includes(name));
     // A released draft keeps its queue entry until someone claims the issue,
@@ -553,12 +556,14 @@ async function labelPullRequest({ github, context, core }) {
     context.payload.changes?.body?.from,
   ]);
   const addedPriorities = new Set();
+  let wentBackToDraft = false;
   for (let attempt = 0; attempt < 3; attempt++) {
-    await applyPullRequestLabels({ github, context, core, pr, previousBodies, addedPriorities });
+    await applyPullRequestLabels({ github, context, core, pr, previousBodies, addedPriorities, wentBackToDraft });
     const { data: live } = await github.rest.pulls.get(request);
     if (live.state === pr.state && live.draft === pr.draft &&
         live.merged === pr.merged && live.body === pr.body) return;
     previousBodies.add(pr.body);
+    wentBackToDraft = wentBackToDraft || (!pr.draft && live.draft && live.state === 'open');
     pr = live;
   }
   throw new Error('The PR kept changing during label reconciliation; retry against its current state.');

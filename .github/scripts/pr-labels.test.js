@@ -415,6 +415,18 @@ test('a PR sent back to draft does not queue an issue another ready PR closes, e
   assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr']);
 });
 
+test('a hand-back undone by a concurrent ready-state run is put back when that run sees the draft', async () => {
+  // An edit event's run read the PR as ready; the reviewer then converted it to
+  // draft, and that run queued the issue before this run removed the label.
+  const state = scenario({
+    action: 'edited', live: { draft: false, labels: [] },
+    issueLabels: ['priority:p2', 'status:has-pr', 'status:needs-pr'],
+    beforeRemove: ({ name, pr }) => { if (name === 'status:needs-pr') pr.draft = true; },
+  });
+  await state.run();
+  assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:needs-pr']));
+});
+
 test('other events on a draft do not queue an issue that only has status:has-pr', async () => {
   for (const action of ['edited', 'synchronize']) {
     const state = scenario({ action, live: { draft: true, labels: [] }, issueLabels: ['priority:p2', 'status:has-pr'] });
@@ -485,6 +497,7 @@ test('Refs reads every issue in a list after it', () => {
   // A note after the list's colon is not more references.
   assert.deepEqual(refs('- Refs #666: the continuity rule from prerequisite PR #689'), [666]);
   assert.deepEqual(refs('- Refs #  (and what remains)'), []);
+  assert.deepEqual(refs('- Refs #  (and what remains): #12, #13'), [12, 13]);
 });
 
 test('Refs still reads the older template line, and ignores other repositories, comments and code', () => {

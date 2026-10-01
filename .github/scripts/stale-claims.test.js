@@ -12,7 +12,11 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
   const lookups = [];
   const records = new Map();
   for (const issue of issues) records.set(issue.number, { pull_request: undefined, state: 'open', ...issue });
-  for (const pr of prs) records.set(pr.number, { state: 'open', draft: false, body: '', ...pr, pull_request: {} });
+  // Pull requests come from this repository unless a test gives head.repo itself.
+  for (const pr of prs) {
+    const head = { repo: { full_name: 'compoodment/ClankerWorld' }, ...pr.head };
+    records.set(pr.number, { state: 'open', draft: false, body: '', ...pr, head, pull_request: {} });
+  }
   const posted = [];
   const github = {
     rest: {
@@ -585,6 +589,37 @@ test('ending an owner wait restarts the clock instead of releasing the claim at 
   await state.run();
   assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
   assert.equal(state.posted.length, 0);
+});
+
+test('ending an owner wait on the claimant\'s draft restarts the clock too', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    prs: [{ number: 9, draft: true, body: 'Closes #1', labels: [], created_at: hoursAgo(5),
+      head: { sha: 'abc', ref: 'codex/1-fix' } }],
+    commits: { abc: hoursAgo(4.5) },
+    events: {
+      ...claimed(1, 6),
+      9: [
+        { event: 'labeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(4) },
+        { event: 'unlabeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(0.1) },
+      ],
+    },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
+});
+
+test('a review claim on a pull request from a deleted fork does not count pushes to main', async () => {
+  const state = world({
+    prs: [{ number: 9, labels: ['status:reviewing'], created_at: hoursAgo(10),
+      head: { sha: 'old', ref: 'main', repo: null } }],
+    commits: { old: hoursAgo(10) },
+    pushes: { main: [hoursAgo(0.2)] },
+    events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(5) }] },
+  });
+  await state.run();
+  assert.ok(!state.records.get(9).labels.includes('status:reviewing'));
 });
 
 test('adding the claim label again after a release starts a fresh claim', async () => {

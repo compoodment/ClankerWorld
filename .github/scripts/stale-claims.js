@@ -29,7 +29,8 @@
 //   the newest real branch to continue from, and any ready pull request that
 //   refers to the issue, so the next agent reads it and leaves its branch alone.
 //   A claim waiting on the owner (status:needs-decision on the issue or on
-//   the claimant's draft) is kept.
+//   the claimant's draft) is kept, and removing that label from either
+//   restarts the clock.
 // - A pull request's status:reviewing claim is released after 1.5 hours without
 //   adding the claim label or a push to the pull request's branch. Comments do
 //   not count here either, so a claim cannot hold a place in the review queue.
@@ -150,7 +151,8 @@ function age(now, last) {
 // kinds of claim count only this. The signature also catches a new head
 // whose push the activity log has not recorded yet.
 async function prActivity(github, repo, pr) {
-  const ownBranch = !pr.head.repo || pr.head.repo.full_name?.toLowerCase() === `${repo.owner}/${repo.repo}`.toLowerCase();
+  // A deleted fork has no head repository; its branch name is not ours.
+  const ownBranch = pr.head.repo?.full_name?.toLowerCase() === `${repo.owner}/${repo.repo}`.toLowerCase();
   const head = await pushActivity(github, repo, pr.head.sha, ownBranch ? pr.head.ref : null);
   return { pushed: Math.max(newest([pr.created_at]), head.pushed), signature: [pr.number, pr.head.sha, head.pushed] };
 }
@@ -174,7 +176,9 @@ async function issueSnapshot(github, repo, repoName, number, now = null) {
   // another agent's draft that only mentions the issue is not this claim's.
   const own = linked.filter(pr => pr.draft && (closing.includes(pr) || ownRefsBranch(pr.head.ref, number, named)));
   const keep = labels.includes(NeedsDecision) || own.some(pr => labelNames(pr.labels).includes(NeedsDecision));
-  const claim = await lastLabeled(github, repo, number, InProgress, NeedsDecision);
+  // Ending an owner wait on the claimant's own draft restarts the clock too.
+  let claim = await lastLabeled(github, repo, number, InProgress, NeedsDecision);
+  for (const pr of own) claim = Math.max(claim, await lastLabeled(github, repo, pr.number, null, NeedsDecision));
   const activities = [];
   for (const pr of own) activities.push(await prActivity(github, repo, pr));
   const prBranches = new Set(linked.map(pr => pr.head.ref));

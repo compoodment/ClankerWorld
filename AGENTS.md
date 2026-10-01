@@ -52,9 +52,11 @@ highest priority first:
 
 ```text
 is:open label:"status:needs-decision"
-is:issue is:open label:"type:decision"
 is:issue is:open label:owner-task
 ```
+
+A Decision issue without `status:needs-decision` has been answered and waits
+only for its answer to be recorded, so don't ask about it again.
 
 Then add the [playtest list](playtest/README.md): how many files and checks are
 waiting for the owner to try in the game by hand. Playtest checks are never
@@ -121,7 +123,7 @@ parts of CONTRIBUTING named in its row and ends at a different point.
 
 | Job | Follow | Ends when |
 | --- | --- | --- |
-| Find bugs | [Issues](CONTRIBUTING.md#issues-and-design-questions) and the bug and security rules in [Priorities](CONTRIBUTING.md#priorities) | Each problem has its own Bug issue, or, for a security problem, the owner has it in chat |
+| Find bugs | [Issues](CONTRIBUTING.md#issues-and-design-questions) and the bug and security rules in [Priorities](CONTRIBUTING.md#priorities) | Each problem has its own Bug issue, or, for a security problem, the owner has it in chat and its placeholder issue is open |
 | Fix issues | [Find work](CONTRIBUTING.md#find-work) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness) | Its pull request is ready for review and linked to its issues |
 | Review and merge | [Review and merge](CONTRIBUTING.md#review-and-merge) | The change is on main, main's CI passes on it, its issues are closed or updated, and what waited on it is unblocked |
 | Owner requests | [Issues](CONTRIBUTING.md#issues-and-design-questions), [Prepare a pull request](CONTRIBUTING.md#prepare-a-pull-request) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness), and the Decisions rule in [Close issues when the work merges](CONTRIBUTING.md#close-issues-when-the-work-merges) | The requested pull request is ready, or a draft if the owner asked for one, or decisions are recorded |
@@ -131,12 +133,13 @@ What each job adds:
 - **Find bugs:** reproduce the problem on current main first, and say whether
   you saw it in the game or in code or tests. Fix it only if asked.
 - **Fix issues:** before you claim, check whether an owner decision outranks
-  your next issue: search `is:open label:"status:needs-decision"` and
-  `is:issue is:open label:"type:decision"` for the same or a higher priority.
+  your next issue: search `is:open label:"status:needs-decision"` for the
+  same or a higher priority.
   If you find one, ask the owner about it in your reply, then carry on with the
   ready work. Push as you go: only pushes keep your claim.
 - **Review and merge:** claim one pull request at a time, when you start
-  reviewing it. Fix what you find yourself, push each fix as it builds, take
+  reviewing it (a second only while the first waits on CI or its merging
+  turn). Fix what you find yourself, push each fix as it builds, take
   your turn for the final run with `status:merging`, and check main's CI after
   each merge.
 - **Owner requests:** the owner asks you directly for something, such as a
