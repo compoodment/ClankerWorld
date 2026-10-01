@@ -20,8 +20,8 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 38;
-    public const int ObserverGuidanceSchemaVersion = 38;
+    public const int StateSchemaVersion = 39;
+    public const int ObserverGuidanceSchemaVersion = 39;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
