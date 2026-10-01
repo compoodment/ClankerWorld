@@ -273,7 +273,7 @@ public sealed partial class PrivateWorldRuntime
         var ground = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
                 lot.GroundPosition is not null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-        if (ground is not null)
+        if (ground is not null && CarryingRoom(actor) > 0)
             candidates.Add(new("farm:collect", "Carry the household's harvested crop from its field into storage.", 16));
         if (FarmHoe(actor) is null)
         {
@@ -356,7 +356,7 @@ public sealed partial class PrivateWorldRuntime
             stock.ItemKind == "potatoes" && HouseholdCropStock(household, "potatoes") <= FarmPlantingReserve(household, "potatoes")
             ? HouseholdBuildingWithTag(household, "silo") ?? farmhouse : HouseForHousehold(household) ?? farmhouse;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"field-pickup:{WorldTick}:{actor}",
-            household, actor, stock.Id, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock)),
+            household, actor, stock.Id, Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock))),
             "field_harvest_collected", destinationDeliveryBuildingId: store.InstanceId));
         AppendEvent("field_harvest_collected", $"{actor}:{stock.Id}:{store.InstanceId}");
     }
