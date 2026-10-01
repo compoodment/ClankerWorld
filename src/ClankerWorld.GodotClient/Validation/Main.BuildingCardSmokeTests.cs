@@ -9,7 +9,7 @@ public partial class Main
     /// Clicking a building opens its quick card and outlines it; Details docks
     /// on the left with its facts, work, storage and people; Escape steps back;
     /// an agent's card replaces it; world updates refresh it; and Details stays
-    /// inside the view at a large UI Scale.
+    /// inside the view.
     /// </summary>
     private async Task VerifyBuildingCardsAsync(OwnerWorldSnapshot baseMap)
     {
@@ -66,7 +66,7 @@ public partial class Main
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
 
-        // World updates refresh the open panel, and a large UI Scale scrolls it rather than cutting it off.
+        // World updates refresh the open panel, which scrolls rather than running off the view.
         RenderBuildingCard(buildingMap with
         {
             PlacedBuildings = [.. buildingMap.PlacedBuildings.Where(item => item.InstanceId != house.InstanceId),
@@ -76,13 +76,10 @@ public partial class Main
         if (buildingDetailsStorage.Summary != "4 kinds · 11 items" || buildingDetailsStorage.SlotCount != 4 ||
             buildingWorkSection.Visible)
             throw new InvalidOperationException("Building Details must follow the building's latest storage and work.");
-        ApplyUiScale(200);
         ApplyResponsiveLayout();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
-            throw new InvalidOperationException($"Building Details must stay inside the view at a large UI Scale: {buildingDetailsPanel.GetGlobalRect()}.");
-        ApplyUiScale(displayPreferences.UiScalePercent);
-        ApplyResponsiveLayout();
+            throw new InvalidOperationException($"Building Details must stay inside the view: {buildingDetailsPanel.GetGlobalRect()}.");
 
         // Escape closes open top-bar panels first, so keep Filters out of the way.
         var filtersWereOpen = filtersPanel.Visible;

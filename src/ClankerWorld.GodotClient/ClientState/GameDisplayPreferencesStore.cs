@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Text.Json;
 
 namespace ClankerWorld.GodotClient.ClientState;
@@ -11,7 +10,6 @@ public sealed record GameDisplayPreferences(
     string DateFormat = "dmy",
     int WindowWidth = 1280,
     int WindowHeight = 720,
-    int UiScalePercent = DisplayUiScalePolicy.Automatic,
     bool? Fullscreen = null,
     string Theme = "light",
     bool CloudHaze = true,
@@ -23,67 +21,29 @@ public sealed record GameDisplayPreferences(
 }
 
 /// <summary>
-/// UI Scale offers named sizes that magnify the whole interface. Small and
-/// Large are whole multiples and perfectly crisp; Medium (150%) and Extra
-/// large (300% at 4K) fill the gaps, with Medium's pixel letters slightly
-/// uneven. Sizes that would leave too little room are not offered.
+/// The interface is magnified by a whole number picked from the screen size,
+/// so pixel letters, frames and icons always stay crisp. There is no setting:
+/// in-between sizes made the pixel letters uneven.
 /// </summary>
 public static class DisplayUiScalePolicy
 {
-    /// <summary>Saved as the UI Scale when the game picks it from the screen size.</summary>
-    public const int Automatic = 0;
-
     /// <summary>The smallest area, in unscaled interface pixels, the menus and panels are laid out for.</summary>
     public const int MinimumWidth = 960;
     public const int MinimumHeight = 540;
 
-    /// <summary>Automatic aims to leave the interface about this many pixels tall.</summary>
-    private const float AutomaticHeight = 720;
-
-    private static readonly ReadOnlyCollection<int> SupportedValues = Array.AsReadOnly(new[] { Automatic, 100, 150, 200, 300 });
-
-    public static IReadOnlyList<int> SupportedPercentages => SupportedValues;
-
-    /// <summary>What a size is called in Settings.</summary>
-    public static string Name(int percent) => NormalizePercent(percent) switch
-    {
-        100 => "Small",
-        150 => "Medium",
-        200 => "Large",
-        300 => "Extra large",
-        _ => "Automatic",
-    };
-
     /// <summary>
-    /// Keeps a supported choice, moves an older step such as 400% to the
-    /// nearest size, and treats anything else as Automatic.
+    /// The whole-number scale for a screen this size. It keeps the interface
+    /// near 720 pixels tall: 100% on small screens, 200% at 1080p and 1440p,
+    /// 300% at 4K, and lower whenever the interface would have less than the
+    /// minimum area.
     /// </summary>
-    public static int NormalizePercent(int percent) =>
-        SupportedValues.Contains(percent) ? percent :
-        percent is > 100 and <= 400 ? SupportedValues.Skip(1).MinBy(value => Math.Abs(value - percent)) : Automatic;
-
-    /// <summary>
-    /// How many screen pixels each interface pixel covers for a choice on a
-    /// screen this size. Automatic picks the size that leaves the interface
-    /// closest to 720 pixels tall: Small at 720p, Medium at 1080p, Large at
-    /// 1440p and Extra large at 4K. Any choice drops to the next smaller size
-    /// until the interface keeps at least the minimum area.
-    /// </summary>
-    public static float FittingFactor(int percent, float width, float height)
+    public static int FittingFactor(float width, float height)
     {
-        var choice = NormalizePercent(percent);
-        var steps = SupportedValues.Skip(1).Select(value => value / 100f).ToArray();
-        var factor = choice == Automatic
-            ? steps.MinBy(step => Math.Abs(height / step - AutomaticHeight))
-            : choice / 100f;
+        var factor = Math.Max(1, (int)Math.Round(height / 720.0, MidpointRounding.AwayFromZero));
         while (factor > 1 && (width / factor < MinimumWidth || height / factor < MinimumHeight))
-            factor = steps.Where(step => step < factor).Max();
+            factor--;
         return factor;
     }
-
-    /// <summary>Whether a size has room on a screen this size, so Settings lists it.</summary>
-    public static bool Fits(int percent, float width, float height) =>
-        percent == Automatic || Math.Abs(FittingFactor(percent, width, height) * 100 - percent) < 0.5f;
 }
 
 public readonly record struct DisplayDimensions(int Width, int Height)
@@ -109,10 +69,9 @@ public sealed class GameDisplayPreferencesStore(string path)
     {
         try
         {
-            var preferences = File.Exists(path)
+            return File.Exists(path)
                 ? JsonSerializer.Deserialize<GameDisplayPreferences>(File.ReadAllText(path)) ?? new()
                 : new();
-            return preferences with { UiScalePercent = DisplayUiScalePolicy.NormalizePercent(preferences.UiScalePercent) };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -129,10 +88,7 @@ public sealed class GameDisplayPreferencesStore(string path)
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(preferences with
-            {
-                UiScalePercent = DisplayUiScalePolicy.NormalizePercent(preferences.UiScalePercent),
-            }));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(preferences));
             File.Move(temporary, path, overwrite: true);
         }
         finally

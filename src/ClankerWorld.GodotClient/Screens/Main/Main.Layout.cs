@@ -33,7 +33,7 @@ public partial class Main
         BuildManualSavesPanel();
 
         // A smaller window can lower the UI Scale that fits, as well as re-lay the panels.
-        Resized += () => ApplyUiScale(displayPreferences.UiScalePercent);
+        Resized += ApplyUiScale;
         foreach (var panel in HudPanels())
         {
             panel.VisibilityChanged += PlaceHudPanels;
@@ -356,11 +356,7 @@ public partial class Main
         themeChoice.TooltipText = "Light parchment or dark wood panels. Match system follows your computer's setting.";
         themeChoice.ItemSelected += SetUiTheme;
 
-        // ApplyUiScale lists the sizes that fit the screen.
-        uiScaleChoice.TooltipText = "Makes menus, panels and text bigger or smaller. Automatic picks a size for your screen. Only sizes that fit are listed.";
-        uiScaleChoice.ItemSelected += SetUiScale;
-        gameSettingsContent.AddChild(SettingsBox("Interface",
-            DisplaySettingRow("Theme", themeChoice), DisplaySettingRow("UI Scale", uiScaleChoice)));
+        gameSettingsContent.AddChild(SettingsBox("Interface", DisplaySettingRow("Theme", themeChoice)));
 
         fullscreenToggle.Text = string.Empty;
         fullscreenToggle.TooltipText = "Fill the whole screen.";

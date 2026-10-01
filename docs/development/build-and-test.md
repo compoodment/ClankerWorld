@@ -112,7 +112,7 @@ to run this checklist: obtain the separate operational authorization first.
 Use a disposable world for setup, placement and damaged-save cases.
 
 Record client commit/export digest, host commit, Windows build, date, viewport,
-and UI Scale. For each case record Pass/Fail/Blocked, exact
+and the interface size it picked. For each case record Pass/Fail/Blocked, exact
 steps, observed result, and a screenshot or bounded diagnostic reference with
 private keys, pairing codes, thoughts and raw provider payloads excluded. Keep
 failures linked to their focused issue; a successful unrelated case cannot close
@@ -152,7 +152,7 @@ presentation evidence when the deployed server predates the client.
 | Add Agent preview | Place adults on a House footprint, on unclaimed Town land and outside any Town. The preview matches the household and Town the agent actually gets, also after save and reload (#195, #467). Move from those tiles into the panel and wait through a refresh: model/key controls stay in place and the preview does not describe land hidden behind the panel (#529). |
 | Stalled refresh and Pause | With a disposable world running, delay or block the host connection for more than four seconds, without paid calls. Within about four seconds the client keeps the last view and says the connection was lost; Pause and Quit to Menu stay usable and retry instead of freezing; when the connection returns, an older snapshot never overwrites a newer action (#263). |
 | Map names and captions | At several zooms, hover and select agents with short, long (over 12 letters) and non-English names. Names are readable on every terrain and very long first names show an initial. Resource captions appear only at 32 px tiles or larger and every resource glyph renders (#268). |
-| UI Scale and fullscreen | At 1920×1080 or larger, Medium and Large enlarge buttons, panels and click targets, not just text, across Settings, Add Agent, Filters, World Info and agent inspection; content that does not fit scrolls inside its panel and no bottom action is unreachable. At 1280×720 only Small is listed, and a saved Large falls back cleanly. Note whether the text-field right-click menu is usable at Large. A new installation starts fullscreen; a saved windowed choice stays windowed across restart, save and load (#281, #467). |
+| Interface size and fullscreen | At 1920×1080 or 2560×1440 the interface shows at 200%, enlarging buttons, panels and click targets, not just text, across Settings, Add Agent, Filters, World Info and agent inspection; content that does not fit scrolls inside its panel and no bottom action is unreachable. At 1280×720 it shows at 100%, and resizing the window between the two switches cleanly. Note whether the text-field right-click menu is usable at 200%. A new installation starts fullscreen; a saved windowed choice stays windowed across restart, save and load (#281, #467). |
 
 **Exit criterion:** each applicable row has evidence against the stated builds.
 Blocked live migration or missing Windows access remains Blocked, not Pass. The
