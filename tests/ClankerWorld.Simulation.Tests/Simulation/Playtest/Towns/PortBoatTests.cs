@@ -9,7 +9,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PortBoatTests
+public sealed partial class PortBoatTests
 {
     private static readonly Lazy<Task<byte[]>> CompletedBoat = new(BuildBoatAsync);
 

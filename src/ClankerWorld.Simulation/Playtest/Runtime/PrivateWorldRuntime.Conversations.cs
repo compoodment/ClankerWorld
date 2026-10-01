@@ -98,6 +98,7 @@ public sealed partial class PrivateWorldRuntime
     private List<CognitionCandidate> ConversationCandidates(string agentId)
     {
         var result = new List<CognitionCandidate>();
+        if (PassengerBoat(agentId) is not null) return result;
         var current = ConversationFor(agentId);
         if (current is not null)
         {
@@ -153,7 +154,8 @@ public sealed partial class PrivateWorldRuntime
                      .OrderBy(item => map.FootDistance(state.Position, inhabitants[item.Id].Position))
                      .ThenBy(item => item.Id, StringComparer.Ordinal))
         {
-            if (!HasConversationAllowance(target.Id) || !HasExplicitConversationProvider(target.Id) ||
+            if (PassengerBoat(target.Id) is not null ||
+                !HasConversationAllowance(target.Id) || !HasExplicitConversationProvider(target.Id) ||
                 ConversationFor(target.Id) is not null ||
                 NeedsUrgentFood(inhabitants[target.Id]) || NeedsUrgentWarmth(inhabitants[target.Id]) ||
                 !IsWithinInteractionRange(state.Position, inhabitants[target.Id].Position, ResourceInteractionRange))
@@ -186,7 +188,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool ProposeConversation(string initiatorId, string inviteeId)
     {
-        if (initiatorId == inviteeId || !inhabitants.TryGetValue(initiatorId, out var initiator) ||
+        if (initiatorId == inviteeId || PassengerBoat(initiatorId) is not null || PassengerBoat(inviteeId) is not null ||
+            !inhabitants.TryGetValue(initiatorId, out var initiator) ||
             !inhabitants.TryGetValue(inviteeId, out var invitee) ||
             society.Checkpoint.GetInhabitant(initiatorId).Status != SocietyInhabitantStatus.Active ||
             society.Checkpoint.GetInhabitant(inviteeId).Status != SocietyInhabitantStatus.Active ||
@@ -302,7 +305,8 @@ public sealed partial class PrivateWorldRuntime
     {
         if (conversation.Status == AgentConversationStatus.Proposed && WorldTick > conversation.ProposalDeadlineTick)
             return false;
-        if (!inhabitants.TryGetValue(conversation.InitiatorId, out var first) ||
+        if (PassengerBoat(conversation.InitiatorId) is not null || PassengerBoat(conversation.InviteeId) is not null ||
+            !inhabitants.TryGetValue(conversation.InitiatorId, out var first) ||
             !inhabitants.TryGetValue(conversation.InviteeId, out var second) ||
             !society.Checkpoint.Inhabitants.Any(item => item.Id == conversation.InitiatorId && item.Status == SocietyInhabitantStatus.Active) ||
             !society.Checkpoint.Inhabitants.Any(item => item.Id == conversation.InviteeId && item.Status == SocietyInhabitantStatus.Active))

@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
@@ -72,6 +73,10 @@ public sealed partial class PrivateWorldRuntime
                     person.Status == SocietyInhabitantStatus.Dead &&
                     !(state.DeceasedInhabitants ?? []).Any(item => item.InhabitantId == person.Id && item.BoatIdAtDeath == boat.Id))
                     throw new InvalidDataException("The passenger and physical boat positions disagree.");
+                if (person.Status == SocietyInhabitantStatus.Active && (state.Conversations ?? []).Any(conversation =>
+                    conversation is not null && conversation.Status != AgentConversationStatus.Closed &&
+                    AgentConversationRules.IsParticipant(conversation, person.Id)))
+                    throw new InvalidDataException("A living boat passenger cannot participate in an unfinished conversation.");
             }
             else
             {
