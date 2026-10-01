@@ -1398,8 +1398,10 @@ public partial class Main
                 throw new InvalidOperationException("Started worlds must offer Add Agent instead of founder setup controls.");
             Render(sample, []);
             RenderModLibrary(sample);
-            if (!modLibraryContents.Text.Contains("proposed by builder-test", StringComparison.Ordinal))
-                throw new InvalidOperationException("Mod Library must show existing agent proposal provenance.");
+            if (!ModLibraryText().Contains("Proposed by an agent", StringComparison.Ordinal) ||
+                ModLibraryText().Contains("builder-test", StringComparison.Ordinal))
+                throw new InvalidOperationException("Mod Library must show who proposed an add-on without raw ids.");
+            VerifyModsDialogsAndStatus(sample);
             RenderMap(sample);
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!terrainLayer.DrawsGroundTextures)
@@ -3077,7 +3079,7 @@ public partial class Main
             // and a long one wraps at a readable width instead of stretching.
             var shortDialog = FitDialog(quitGameConfirmation);
             var dialogMargins = quitGameConfirmation.GetThemeStylebox("panel").GetMinimumSize();
-            deletionConfirmation.DialogText = "Permanently delete ‘A world with quite a long name’ and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
+            deletionConfirmation.DialogText = "Permanently delete \"A world with quite a long name\" and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
             var longDialog = FitDialog(deletionConfirmation);
             if (shortDialog.Y >= 120 || quitGameConfirmation.GetLabel().GetLineCount() != 1 ||
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||

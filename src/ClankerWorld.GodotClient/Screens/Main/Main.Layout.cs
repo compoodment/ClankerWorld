@@ -566,10 +566,14 @@ public partial class Main
     private void BuildStatusToast(Control content)
     {
         statusLabel.Text = "Connecting…";
-        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        statusLabel.CustomMinimumSize = new Vector2(320, 0);
-        AddPanelContents(statusToast, statusLabel);
+        statusLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        statusIcon.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        statusIcon.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        row.AddChild(statusIcon);
+        row.AddChild(statusLabel);
+        AddPanelContents(statusToast, row);
         // Above the title backdrop and menus, so connection and pairing
         // results remain visible from Main Menu Settings.
         statusToast.ZIndex = 250;
