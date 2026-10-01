@@ -98,34 +98,56 @@ public partial class Main
             CancelFirstTownSiteSelection();
             return;
         }
-        if (observationSession.Current?.Baseline.Snapshot.FounderSetup is not
-            { CanChooseTownSite: true }) return;
+        if (observationSession.Current?.Baseline.Snapshot is not
+            { FounderSetup: { CanChooseTownSite: true } } snapshot) return;
         choosingFirstTownSite = true;
-        townSiteButton.Text = TownSiteButtonText(observationSession.Current.Baseline.Snapshot.FounderSetup);
+        townSiteButton.Text = TownSiteButtonText(snapshot.FounderSetup);
         founderApiKeyInput.Text = string.Empty;
         founderSetupPanel.Hide();
-        SetStatus("Click buildable land to generate the first Town. Choose again to redo before placing founders.", good: true,
+        UpdateTownSiteGuidance(snapshot, force: true);
+        SetStatus("Town-site tips are guidance only: greener land has more nearby food, fertile ground, wood and stone, plus room for Roads. Layout fit is checked when chosen.", good: true,
             StatusToastKind.Sticky);
+        UpdateHoverReadout(snapshot, hoverReadoutTile);
     }
 
     private void CancelFirstTownSiteSelection()
     {
         choosingFirstTownSite = false;
         townSiteButton.Text = TownSiteButtonText(observationSession.Current?.Baseline.Snapshot.FounderSetup);
+        UpdateTownSiteGuidance(null);
+        UpdateHoverReadout(observationSession.Current?.Baseline.Snapshot, hoverReadoutTile);
         SetStatus("Town-site selection closed", good: true);
     }
 
+    private void UpdateTownSiteGuidance(OwnerWorldSnapshot? snapshot, bool force = false)
+    {
+        if (!choosingFirstTownSite || terrainMap is null ||
+            snapshot?.FounderSetup is not { CanChooseTownSite: true })
+        {
+            terrainLayer.SetTownSiteGuidance(null);
+            return;
+        }
+        if (force || terrainLayer.CurrentTownSiteGuidance is null)
+            terrainLayer.SetTownSiteGuidance(TownSiteGuidance.Create(terrainMap, snapshot));
+    }
+
+    private bool CanSubmitFirstTownSiteChoice(OwnerWorldSnapshot snapshot, Vector2I tile) =>
+        choosingFirstTownSite && snapshot.FounderSetup is { CanChooseTownSite: true } &&
+        MapContains(snapshot, tile.X, tile.Y);
+
     private async Task AcceptFirstTownSiteAtAsync(Vector2I tile)
     {
-        if (!choosingFirstTownSite || isOwnerAction ||
-            observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { CanChooseTownSite: true } } snapshot ||
-            !MapContains(snapshot, tile.X, tile.Y) ||
+        if (isOwnerAction ||
+            observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            !CanSubmitFirstTownSiteChoice(snapshot, tile) ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
             var result = await ownerApi.AcceptFirstTownLayoutAsync(ResolveWorldUri(), authority, deviceId,
                 new OwnerFirstTownLayoutAction(tile.X, tile.Y), signer, CancellationToken.None);
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            UpdateHoverReadout(snapshot, hoverReadoutTile);
             return $"Your Town is set: {result.Buildings} buildings and {result.RoadTiles} road tiles near {result.X}, {result.Y}. Add founders, or pick a different spot.";
         });
     }
@@ -423,12 +445,21 @@ public partial class Main
         addAgentButton.Visible = setup is { Started: true };
         if (setup is not { Started: false })
         {
+            var wasChoosingTownSite = choosingFirstTownSite;
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
             movingFounderId = null;
             if (!placingAddedAgent) founderSetupPanel.Hide();
             return;
         }
-        if (!setup.CanChooseTownSite) choosingFirstTownSite = false;
+        if (!setup.CanChooseTownSite)
+        {
+            var wasChoosingTownSite = choosingFirstTownSite;
+            choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
+        }
         townSiteButton.Text = TownSiteButtonText(setup);
         if (movingFounderId is not null && !snapshot.Inhabitants.Any(person => person.Id == movingFounderId))
         {

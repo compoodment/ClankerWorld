@@ -474,7 +474,7 @@ public sealed partial class PrivateWorldRuntime
 
             return current;
         });
-        CreditCompletedWork(job.WorkerId, "crafting");
+        CreditCompletedWork(job.WorkerId, "crafting", SkillForRecipe(recipe));
         return true;
     }
 

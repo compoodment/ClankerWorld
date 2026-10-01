@@ -138,10 +138,15 @@ everything that is available in the current build. See [what works today](../wha
 
 ### Agreed starter Town and remaining choices
 
+These setup decisions come from [issue #160](https://github.com/compoodment/ClankerWorld/issues/160)
+and its reviewed [design PR #296](https://github.com/compoodment/ClankerWorld/pull/296).
+
 The player chooses a **rough site for the first Town** in New World, with the
 best suitable areas shown as **guidance, not the only allowed locations**.
 Fertile land, reachable wood and stone, and short connected Roads make a site
 more suitable; lack of an ideal score does not forbid the player's choice.
+The current map tint and hovered tips are provisional advice from nearby map
+resources and open ground; they do not decide whether a site can be chosen.
 Water or another physically impossible location cannot hold the Town. Within
 the chosen rough site, Town generation automatically picks a feasible layout
 for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
@@ -277,12 +282,16 @@ another sprite family at first.
   expose one agent's private memories to another. Jev does not replace the
   agent's personal model or become mandatory for memory to work. With Jev off,
   the game still needs a functioning memory/retrieval path.
-- **Leaning toward (provisional): a lesson teaches a saved skill.** A skill,
+- **Agreed: a lesson teaches a saved skill.** A skill,
   such as farming or smithing, is saved for the learner and the lesson records
   who taught it. In the first version a skill does not change what an agent is
   able to do. Later, skills could speed up work or unlock advanced tools, but
   that is not decided. Agents start with no skills, and an agent first gains a
   skill by finishing that kind of work.
+  The first version records building, farming, crafting and smithing. An adult
+  can ask a free, healthy adult who already knows that skill to teach it. Both
+  remain free to refuse or stop; completing a lesson keeps the teacher and time
+  in the learner's record. Lessons do not assign work roles.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 
