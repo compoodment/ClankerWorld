@@ -54,7 +54,7 @@ one, and a workflow updates the repository.
 | Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
 - **Automatic:** the templates set the type and `priority:p2`. A pull request
-  gets the highest priority of the issues it closes, and at least P1 if it
+  gets the highest priority of the issues it closes, and P0 if it
   changes [how we work](#priorities); at most two areas from the code it
   changes, set when it opens and again when it is marked ready (fix them by
   hand if they are wrong); one type, from the first ticked **Type of change**
@@ -72,7 +72,7 @@ one, and a workflow updates the repository.
 
 | Priority | Means | Agents |
 | --- | --- | --- |
-| `priority:p0` | Broken now: a crash, lost or damaged saves or keys, a security problem, or the game can't be played or playtested | Drop other work and fix it first |
+| `priority:p0` | Broken now: a crash, lost or damaged saves or keys, a security problem, or the game can't be played or playtested. Also every change to how we work | Drop other work and fix it first |
 | `priority:p1` | Next up: hurts normal play, or needed for the next playtest | Take before any P2 or P3 |
 | `priority:p2` | Normal: agreed features and ordinary bugs. The default | In order, oldest first |
 | `priority:p3` | Polish: cosmetic issues, edge cases, nice-to-haves | Only when nothing higher is ready |
@@ -84,7 +84,7 @@ one, and a workflow updates the repository.
   next playtest needs them.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
-  are at least P1.
+  are P0.
 - **At most 5 open P0 and 10 open P1 issues.** When a level is full, the least
   urgent issue there, counting the new one, goes down a level; between equals,
   the newest goes down.
@@ -187,15 +187,26 @@ Use a short title about the effect, such as
 
 ### Drafts and readiness
 
-Open a pull request as a **draft** and keep it there while anyone is still
-working on it. Mark it **ready for review** only when it is finished: every
-change pushed, the checks run and the description final. To change a ready pull
-request, whether for a review comment, a CI failure or something you forgot,
-convert it back to draft first, push, recheck, and mark it ready again. That way
-nobody merges it halfway through. A proposal awaiting a decision also stays a
-draft; say what must happen before it is ready. Once the work is finished,
-waiting for review or for a prerequisite pull request to merge is not a reason
-to stay in draft.
+Open a pull request as a **draft** and keep it there while you are working on
+it. Mark it **ready for review** only when it is finished: every change pushed,
+the checks passing, the description final and nothing left to ask the owner.
+
+- **Waiting on the owner means draft.** If the pull request needs an owner
+  decision, add `status:needs-decision`, ask in chat, and keep it a draft until
+  every answer is in; don't mark it ready between batches of answers.
+- **Ready means handed over.** From then on a reviewer owns the branch: they
+  merge main in and fix CI failures and review findings themselves
+  ([Review and merge](#review-and-merge)). The author stops pushing. Before a
+  reviewer has claimed it (no `status:reviewing`), the author may still convert
+  it back to draft to fix something they missed; once it is claimed, comment
+  instead, and the reviewer includes the change or hands the pull request back.
+- **Only a hand-back sends a claimed pull request to draft.** A reviewer who
+  needs something they can't do, such as an owner decision or a redesign,
+  converts it to draft and comments with what is needed; the author, or any
+  fixing agent, then picks it up again.
+
+Once the work is finished, waiting for review or for a prerequisite pull request
+to merge is not a reason to stay in draft.
 
 Routine playtesting by computment can happen after merge during the alpha, so a
 missing Windows playtest, tuning session or latency measurement does not by
@@ -259,6 +270,11 @@ More than one reviewer may be merging at the same time, so:
   activity for 2 hours is stale: say you are taking it over, then claim it
   again. The label comes off automatically when the pull request closes or
   goes back to draft; remove it yourself if you stop without merging.
+- **Never use draft as a hold.** Your `status:reviewing` claim already keeps
+  others away while you merge main in, add a fix or wait for a prerequisite
+  pull request; if you are waiting, say which pull request in a comment.
+  Convert to draft only to hand a pull request back
+  ([Drafts and readiness](#drafts-and-readiness)).
 - **Merge only on top of current main.** Two pull requests can each pass on
   their own and still break main together, for example by both raising the
   save format to the same new version. Just before merging, check whether main
