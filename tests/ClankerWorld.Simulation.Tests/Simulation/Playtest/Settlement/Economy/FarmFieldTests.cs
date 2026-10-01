@@ -150,8 +150,10 @@ public sealed class FarmFieldTests
         Assert.Contains(restored.Fields, field => field.HouseholdId == household && field.Crop == FarmFieldRules.Greens);
     }
 
-    [Fact]
-    public async Task TemporarilyOccupiedFieldKeepsItsPlantingChoiceAndSiblingDoesNotReplaceIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TemporarilyOccupiedFieldKeepsItsPlantingChoiceAndSiblingDoesNotReplaceIt(bool pausedBuild)
     {
         var (state, actor, household, point) = PreparedFarmer("field-claim-through-occupancy");
         state = FeedHouseholdFromAvailableStock(state, household);
@@ -171,6 +173,11 @@ public sealed class FarmFieldTests
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             "field-claim-greens-seed", FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "field-claim-sibling-hoe", FarmFieldRules.Hoe, sibling, 1);
+        var savedPlan = pausedBuild ? new SettlementProject(
+            "build:recipe:" + state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe").CanonicalId,
+            "Wooden axe", state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true) : null;
         state = state with
         {
             Society = state.Society with
@@ -187,7 +194,13 @@ public sealed class FarmFieldTests
             },
             Fields = [new(point, household, FarmFieldStage.Prepared)],
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = siblingOrigin, HungerBasisPoints = 10_000, LastDecisionContext = null }
+                ? person with
+                {
+                    Position = siblingOrigin,
+                    HungerBasisPoints = 10_000,
+                    LastDecisionContext = null,
+                    Project = savedPlan
+                }
                 : person.InhabitantId == sibling
                     ? person with { Position = siblingAway, HungerBasisPoints = 10_000, LastDecisionContext = null }
                     : person).ToArray(),
@@ -224,6 +237,7 @@ public sealed class FarmFieldTests
         Assert.Equal(candidateId, contested.ExportState().Society.Cognition.Runtimes
             .Single(item => item.InhabitantId == actor).CurrentIntention?.CandidateId);
         Assert.Contains(contested.Fields, field => field.Position == point && field.Stage == FarmFieldStage.Prepared);
+        Assert.Equal(savedPlan, contested.Inhabitants.Single(person => person.InhabitantId == actor).Project);
         contested.Validate();
     }
 
