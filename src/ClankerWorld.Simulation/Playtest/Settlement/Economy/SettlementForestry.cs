@@ -10,6 +10,18 @@ public sealed partial class PrivateWorldRuntime
 {
     // How far from an agent the built-in choice looks for open planting ground.
     private const int PlantingSearchRadius = 10;
+    private const string OrchardReplantingPrefix = "orchard-replant:";
+
+    private int PlantingSeedQuantity(InventoryLot lot) => lot.FreshnessBasisPoints <= 0 || lot.ConditionBasisPoints <= 0 ? 0 : AvailableLotQuantity(lot) +
+        society.Checkpoint.Inventory.Reservations.Where(reservation => reservation.LotId == lot.Id &&
+            reservation.OwnerId == lot.OwnerId && reservation.State is (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) &&
+            reservation.ExpiryTick >= WorldTick && reservation.Id.StartsWith(OrchardReplantingPrefix, StringComparison.Ordinal))
+        .Sum(reservation => reservation.Quantity);
+
+    private InventoryLot? CarriedPlantingSeed(string actor, string kind) => society.Checkpoint.Inventory.Lots
+        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.GroundPosition is null &&
+            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && PlantingSeedQuantity(lot) > 0)
+        .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private static bool IsPlantedTree(MapResource resource) =>
         resource.Id.StartsWith(TreeGrowthRules.PlantedTreeIdPrefix, StringComparison.Ordinal);
@@ -17,6 +29,9 @@ public sealed partial class PrivateWorldRuntime
     private void AddForestryCandidates(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
+        if ((CarriedPlantingSeed(actor, TreeGrowthRules.OrchardSeedItem) is not null ||
+             SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) && PlantingSite(actor, state.Position) is not null)
+            candidates.Add(new CognitionCandidate("plant_orchard", "Plant an orchard seed on open ground.", 31));
         if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem) &&
             SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)
             return;
@@ -56,8 +71,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var seed = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-            lot.OwnerId == actor && lot.ItemKind == TreeGrowthRules.TreeSeedItem && AvailableLotQuantity(lot) > 0);
+        var seed = CarriedPlantingSeed(actor, TreeGrowthRules.TreeSeedItem);
         if (seed is null) return;
         var ecology = worldSystems.Ecology.GetResource(tree.Id);
         if (ecology.Quantity != 0 || ecology.IsPlanted) return;
@@ -112,11 +126,11 @@ public sealed partial class PrivateWorldRuntime
         var seed = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == seedLotId);
         if (seed is null)
             return TreePlantingResult.Refused(TreePlantingRefusal.NoSeedLeft);
-        if (seed.ItemKind != TreeGrowthRules.TreeSeedItem)
+        if (seed.ItemKind != TreeGrowthRules.SeedItem(species))
             return TreePlantingResult.Refused(TreePlantingRefusal.NotATreeSeed);
-        if (seed.OwnerId != planterId)
+        if (seed.OwnerId != planterId || seed.GroundPosition is not null || seed.StorageBuildingId is not null || seed.DeliveryBuildingId is not null)
             return TreePlantingResult.Refused(TreePlantingRefusal.SeedNotOwned);
-        if (AvailableLotQuantity(seed) < 1)
+        if (PlantingSeedQuantity(seed) < 1)
             return TreePlantingResult.Refused(TreePlantingRefusal.NoSeedLeft);
         var obstacles = PlantingObstacles();
         if (PlantingSiteRefusal(destination, obstacles) is { } site)
@@ -126,9 +140,13 @@ public sealed partial class PrivateWorldRuntime
         if (TreeAreaFull(destination))
             return TreePlantingResult.Refused(TreePlantingRefusal.AreaFull);
 
+        if (species == TreeGrowthRules.Orchard)
+            foreach (var reservation in society.Checkpoint.Inventory.Reservations.Where(item => item.LotId == seed.Id &&
+                         item.State is (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) && item.Id.StartsWith(OrchardReplantingPrefix, StringComparison.Ordinal)).ToArray())
+                ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, reservation.Id));
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint,
             planterId, seed.Id, 1, "tree_planting"));
-        var tree = new MapResource(TreeGrowthRules.PlantedTreeId(destination), "construction", destination, true,
+        var tree = new MapResource(TreeGrowthRules.PlantedTreeId(destination), TreeGrowthRules.ResourceKind(species), destination, true,
             species);
         map = map with
         {
@@ -161,12 +179,13 @@ public sealed partial class PrivateWorldRuntime
         return TreePlantingResult.Success(tree.Id, species);
     }
 
-    private void PlantTreeNearby(string actor, PlaytestInhabitantState state)
+    private void PlantTreeNearby(string actor, PlaytestInhabitantState state, bool orchard = false)
     {
         if (PlantingSite(actor, state.Position) is not { } site) return;
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem))
+        var seedKind = orchard ? TreeGrowthRules.OrchardSeedItem : TreeGrowthRules.TreeSeedItem;
+        if (CarriedPlantingSeed(actor, seedKind) is not { } seed)
         {
-            CollectEquipment(actor, state, TreeGrowthRules.TreeSeedItem);
+            CollectEquipment(actor, state, seedKind);
             return;
         }
         if (!IsWithinInteractionRange(state.Position, site, ResourceInteractionRange))
@@ -174,11 +193,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, site, "plant_tree", ResourceInteractionRange);
             return;
         }
-        var seed = society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == actor && lot.ItemKind == TreeGrowthRules.TreeSeedItem &&
-                AvailableLotQuantity(lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).First();
-        var result = PlantTreeCore(actor, PlantingSpecies(site), seed.Id, site);
+        var result = PlantTreeCore(actor, orchard ? TreeGrowthRules.Orchard : PlantingSpecies(site), seed.Id, site);
         if (!result.Planted)
             AppendEvent("tree_planting_refused", $"{actor}:{result.Refusal}");
     }
@@ -235,6 +250,7 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .ToHashSet();
         return (buildings, occupied);
     }

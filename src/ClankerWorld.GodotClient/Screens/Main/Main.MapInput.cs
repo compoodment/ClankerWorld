@@ -268,7 +268,8 @@ public partial class Main
         var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
         var propertyOwnerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
+            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId ??
+            snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y)?.HouseholdId;
         var lines = new List<string>
         {
             $"Tile {tile.X}, {tile.Y}",
@@ -276,6 +277,16 @@ public partial class Main
         };
         if (climate is not null) lines.Add($"Climate: {climate}");
         if (surface is not null) lines.Add($"Surface: {surface}");
+        if (terrainMap.FertilityAt(tile.X, tile.Y) is { } fertility)
+            lines.Add(fertility == 0 ? "Soil: not farmable" : $"Soil fertility: {WorldTerrainMap.FertilityName(fertility)}");
+        if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
+        {
+            lines.Add($"Field: {Pretty(field.Stage)}" + (field.Crop is null ? "" : $" · {Pretty(field.Crop)}"));
+            lines.Add($"Used by: {snapshot.Stockpiles.FirstOrDefault(stock => stock.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
+            if (field.WorkerId is { } worker) lines.Add($"Worker: {snapshot.Inhabitants.FirstOrDefault(person => person.Id == worker)?.DisplayName ?? worker}");
+        }
+        foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
+            lines.Add($"On the ground: {stock.Quantity} {Pretty(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
         if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");

@@ -11,6 +11,7 @@ public sealed class WorldTerrainMap
     private readonly byte[]? hydrology;
     private readonly byte[]? surface;
     private readonly byte[]? vegetation;
+    private readonly byte[]? fertility;
     private TerrainStyle[]? styles;
     private bool[]? hills;
 
@@ -22,7 +23,7 @@ public sealed class WorldTerrainMap
 
     private WorldTerrainMap(int width, int height, byte[] terrain, byte[]? climate = null,
         byte[]? elevation = null, byte[]? hydrology = null, byte[]? surface = null,
-        byte[]? vegetation = null, bool wrapsEastWest = false)
+        byte[]? vegetation = null, bool wrapsEastWest = false, byte[]? fertility = null)
     {
         Width = width;
         Height = height;
@@ -33,6 +34,7 @@ public sealed class WorldTerrainMap
         this.hydrology = hydrology;
         this.surface = surface;
         this.vegetation = vegetation;
+        this.fertility = fertility;
     }
 
     public int Width { get; }
@@ -101,6 +103,8 @@ public sealed class WorldTerrainMap
     public byte? HydrologyAt(int x, int y) => LayerAt(hydrology, x, y);
     public byte? SurfaceAt(int x, int y) => LayerAt(surface, x, y);
     public byte? VegetationAt(int x, int y) => LayerAt(vegetation, x, y);
+    public byte? FertilityAt(int x, int y) => LayerAt(fertility, x, y);
+    public static string FertilityName(int value) => value <= 0 ? "Not farmable" : value < 35 ? "Poor" : value < 55 ? "Fair" : value < 75 ? "Good" : "Rich";
 
     /// <summary>Render-only legacy projection; inspection keeps missing layer facts unavailable.</summary>
     public byte RenderSurfaceAt(int x, int y) => SurfaceAt(x, y) ?? At(x, y) switch
@@ -292,8 +296,9 @@ public sealed class WorldTerrainMap
         var hydrology = DecodeLayer(layers.Hydrology, length, 3, "hydrology");
         var surface = DecodeLayer(layers.Surface, length, 7, "surface");
         var vegetation = DecodeLayer(layers.Vegetation, length, 5, "vegetation");
+        var fertility = layers.Fertility is null ? null : DecodeLayer(layers.Fertility, length, 100, "fertility");
         return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation,
-            wrapsEastWest);
+            wrapsEastWest, fertility);
     }
 
     private static byte[] DecodeLayer(string encoded, int expectedLength, int? maximumValue, string name)

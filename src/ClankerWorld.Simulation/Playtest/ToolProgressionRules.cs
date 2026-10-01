@@ -67,7 +67,7 @@ public static class ToolProgressionRules
 
         return inventory.Lots
             .Where(lot => lot.OwnerId == actorId && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null && lot.ConditionBasisPoints > 0 &&
+                lot.DeliveryBuildingId is null && lot.GroundPosition is null && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == family)
@@ -111,7 +111,7 @@ public static class ToolProgressionRules
 
         var toolLot = inventory.Lots
             .Where(lot => lot.OwnerId == actorId && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null && lot.ConditionBasisPoints > 0 &&
+                lot.DeliveryBuildingId is null && lot.GroundPosition is null && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == required.Family &&

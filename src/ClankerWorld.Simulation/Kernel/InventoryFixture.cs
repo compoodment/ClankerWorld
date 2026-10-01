@@ -34,6 +34,8 @@ public enum DirectBarterState
 /// Immutable inventory identity. A split retains the source lot as provenance;
 /// quantities, condition and freshness are never fabricated by a transfer.
 /// </summary>
+public readonly record struct InventoryGroundPosition(int X, int Y);
+
 public sealed record InventoryLot(
     string Id,
     string ItemKind,
@@ -44,7 +46,8 @@ public sealed record InventoryLot(
     long LastProcessedTick,
     string? ProvenanceLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StorageBuildingId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -150,7 +153,8 @@ public static partial class InventoryFixture
         long? targetTick = null,
         int conditionBasisPoints = 10_000,
         int freshnessBasisPoints = 10_000,
-        string? storageBuildingId = null)
+        string? storageBuildingId = null,
+        InventoryGroundPosition? groundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
@@ -176,7 +180,9 @@ public static partial class InventoryFixture
             conditionBasisPoints,
             freshnessBasisPoints,
             nextTick,
-            StorageBuildingId: storageBuildingId);
+            StorageBuildingId: storageBuildingId,
+            GroundPosition: groundPosition);
+        ValidateLots([lot]);
         var lots = checkpoint.Lots
             .Append(lot)
             .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
@@ -331,7 +337,8 @@ public static partial class InventoryFixture
         int quantity,
         string purpose,
         string? destinationStorageBuildingId = null,
-        string? destinationDeliveryBuildingId = null)
+        string? destinationDeliveryBuildingId = null,
+        InventoryGroundPosition? destinationGroundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(transferId);
@@ -358,6 +365,7 @@ public static partial class InventoryFixture
                         OwnerId = recipientId,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
+                        GroundPosition = destinationGroundPosition,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -373,6 +381,7 @@ public static partial class InventoryFixture
                     ProvenanceLotId = source.Id,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = destinationGroundPosition,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
@@ -662,6 +671,9 @@ public static partial class InventoryFixture
             {
                 throw new ArgumentOutOfRangeException(nameof(lots));
             }
+            if (lot.GroundPosition is { } ground &&
+                (ground.X < 0 || ground.Y < 0 || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
         }
     }
 

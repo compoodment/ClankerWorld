@@ -113,7 +113,7 @@ public sealed partial class PrivateWorldRuntime
 
         var inventory = society.Checkpoint.Inventory;
         foreach (var tool in inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                     lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                     lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
                      ToolProgressionRules.Find(lot.ItemKind) is not null &&
                      lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
                  .OrderBy(lot => lot.Id, StringComparer.Ordinal))
@@ -135,7 +135,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId && lot.OwnerId == actor &&
-            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
             ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints < 10_000 &&
             UnreservedQuantity(inventory, lot) > 0);
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
@@ -182,7 +182,8 @@ public sealed partial class PrivateWorldRuntime
             {
                 var material = updated.Lots.Where(lot => lot.OwnerId == actor &&
                         lot.ItemKind == input.ResourceId && lot.StorageBuildingId is null &&
-                        lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) >= input.Amount)
+                        lot.DeliveryBuildingId is null && lot.GroundPosition is null &&
+                        AvailableLotQuantity(lot) >= input.Amount)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 if (material is null)
                     throw new InvalidOperationException("Repair materials must be physically carried by the tool owner.");
@@ -199,7 +200,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool HasCarriedMaterial(string actor, string itemKind, int quantity) =>
         society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == itemKind &&
-                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.GroundPosition is null)
             .Sum(AvailableLotQuantity) >= quantity;
 
     private static int UnreservedQuantity(InventoryCheckpoint inventory, InventoryLot lot)

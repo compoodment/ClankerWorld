@@ -140,6 +140,39 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
 
+            var emptyLayer = Convert.ToBase64String(new byte[16]);
+            var fieldMap = smokeMap with
+            {
+                PackedMapLayers = new OwnerWorldPackedMapLayers(4, 4, "map-layers-v2",
+                    emptyLayer, emptyLayer, emptyLayer, emptyLayer, emptyLayer)
+                {
+                    Fertility = Convert.ToBase64String(Enumerable.Repeat((byte)67, 16).ToArray()),
+                },
+                Fields = [new(new(1, 1), "household:field-smoke", "growing", "cultivated_greens", 67, null, null)],
+                GroundStocks = [new(new(1, 1), "household:field-smoke", "cultivated_greens", 3)],
+                Stockpiles = [new("household:field-smoke", "Farm household", [])],
+            };
+            RenderMap(fieldMap);
+            householdPropertyFilter.ButtonPressed = true;
+            selectedTile = new(1, 1);
+            selectedTilePanel.Show();
+            RenderTileInspection(fieldMap);
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!selectedTileText.Text.Contains("Soil fertility: Good", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Field: Growing", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Used by: Farm household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
+                terrainLayer.HouseholdPropertyTileCount != 1 ||
+                !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
+                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+            householdPropertyFilter.ButtonPressed = false;
+            selectedTile = null;
+            selectedTilePanel.Hide();
+            terrainLayer.SetSelectedTile(null);
+            RenderMap(smokeMap);
+
             var generatedMap = smokeMap with
             {
                 WorldId = "zoom-bounds-smoke",
@@ -2713,16 +2746,69 @@ public partial class Main
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
-            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
-            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+            var family = new List<OwnerWorldInhabitant> { parent, child, partner };
+            var currentParent = parent;
+            for (var generation = 0; generation < 8; generation++)
+            {
+                var ancestor = parent with
+                {
+                    Id = $"ancestor:{generation}",
+                    DisplayName = $"Ancestor {generation + 1}",
+                    Relationships = [new OwnerWorldInhabitantRelationship($"birth:ancestor:{generation}", currentParent.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent")],
+                };
+                family.Add(ancestor);
+                currentParent = ancestor;
+            }
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = family.ToArray() }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 9 || familyTreeView.PartnerEdgeCount != 1 ||
                 !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
                 !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
-                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
+                family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
-            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var familyWindow = GetWindow();
+            var originalFamilySize = familyWindow.Size;
+            var originalFamilyRenderSize = familyWindow.ContentScaleSize;
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var expectedFactor = size == new Vector2I(1920, 1080) ? 2 : 1;
+                if (GetViewportRect().Size != new Vector2(size.X, size.Y) || uiLayer.Factor != expectedFactor)
+                    throw new InvalidOperationException($"Family tree smoke must exercise the requested viewport and interface size at {size}: viewport={GetViewportRect().Size}, factor={uiLayer.Factor}.");
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y <= 0 || familyTreeView.Size.Y <= 0 ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect))
+                    throw new InvalidOperationException($"Family tree must show its content in a screen-bounded scroll panel at {size}: panel={panelRect}, scroll={scrollRect}, tree={familyTreeView.Size}.");
+                if (size == new Vector2I(1024, 768) &&
+                    familyTreeScroll.GetVScrollBar().MaxValue <= familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A tall family tree must remain scrollable when the panel is capped to the screen.");
+            }
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                familyTreePanel.Hide();
+                ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y < familyTreeView.GetCombinedMinimumSize().Y ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect) ||
+                    !panelRect.Encloses(familyTreeStatus.GetGlobalRect()))
+                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and help text at {size}: panel={panelRect}, scroll={scrollRect}, help={familyTreeStatus.GetGlobalRect()}.");
+                if (familyTreeScroll.GetVScrollBar().MaxValue > familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A fitting short tree must not retain the long tree's vertical scroll range.");
+            }
+            familyWindow.Size = originalFamilySize;
+            familyWindow.ContentScaleSize = originalFamilyRenderSize;
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             ApplyResponsiveLayout();
-            if (!mapCanvas.GetGlobalRect().Encloses(familyTreePanel.GetGlobalRect()))
-                throw new InvalidOperationException("Family tree panel must fit within the world view.");
             familyTreeView.GetChildren().OfType<Button>().Single(button => button.Text.StartsWith(parent.DisplayName, StringComparison.Ordinal))
                 .EmitSignal(BaseButton.SignalName.Pressed);
             if (selectedInhabitantId != parent.Id || familyTreePanel.Visible)

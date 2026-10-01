@@ -21,7 +21,6 @@ public static class SettlementContent
         RecipeDefinition[] recipes =
         [
             new(digest, "hearty-meal", version, "Hearty meal", [new("food", 2), new("wood", 1)], [new("food", 5)], 12, hearth.CanonicalId, ["food"]),
-            new(digest, "grain-plot", version, "Plant a grain plot", [new("seed", 1)], [new("food", 8), new("seed", 2)], 60, null, ["crop"]),
         ];
         return StarterContent.BuildManifest(PackageId, version, digest, [hearth], recipes,
             [new ContentDependency(StarterContent.PackageId, new ContentVersionRange(version, ContentVersion.Parse("2.0.0")))]);

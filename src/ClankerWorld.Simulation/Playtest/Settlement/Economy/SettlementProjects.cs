@@ -111,14 +111,14 @@ public sealed partial class PrivateWorldRuntime
             added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
                 baseline.Resources.Any(item => item.Position == resource.Position)))
             return false;
-        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 4 ||
+        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 5 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
                 (package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest ||
                  package.Manifest.PackageDigest == LegacySettlementPackageDigest) &&
                 package.ActivationTick is not null) != true ||
             staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
-                resource.Kind is not ("stone" or "fiber" or "seed" or "wood") ||
-                resource.IsRenewable != (resource.Kind is "fiber" or "seed") ||
+                resource.Kind is not ("stone" or "fiber" or "seed" or "grain_seed" or "wood") ||
+                resource.IsRenewable != (resource.Kind is "fiber" or "seed" or "grain_seed") ||
                 resource.NaturalObjectKind != (resource.Kind == "wood" ? "fallen_wood" : null) ||
                 !baseline.IsBuildable(resource.Position))))
             return false;
@@ -147,21 +147,6 @@ public sealed partial class PrivateWorldRuntime
         contentRegistry.Approve(manifest.PackageId, WorldTick);
         contentRegistry.Stage(manifest.PackageId, WorldTick);
         AppendEvent("settlement_content_staged", manifest.PackageId);
-    }
-
-    private void StageForestryContent()
-    {
-        var packages = contentRegistry.ExportState().Packages;
-        if (packages.Any(package => package.Manifest.PackageId == ForestryContent.PackageId) ||
-            !packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
-            return;
-        var manifest = ForestryContent.Create();
-        var resolution = ContentPackageResolver.Resolve(packages.Select(package => package.Manifest).Append(manifest), [manifest.PackageId]);
-        contentRegistry.Propose(manifest, WorldTick);
-        contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
-        contentRegistry.Approve(manifest.PackageId, WorldTick);
-        contentRegistry.Stage(manifest.PackageId, WorldTick);
-        AppendEvent("forestry_content_staged", manifest.PackageId);
     }
 
     private void StageHouseContent()
@@ -280,6 +265,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddSettlementResources()
     {
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
@@ -290,7 +276,7 @@ public sealed partial class PrivateWorldRuntime
         var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
             ChunkRules.ToChunkCoordinate(townStorage, chunk.ChunkSize));
         var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
-        foreach (var kind in new[] { "stone", "fiber", "seed", "wood" })
+        foreach (var kind in new[] { "stone", "fiber", "seed", "grain_seed", "wood" })
         {
             var id = "settlement-" + kind;
             if (map.Resources.Any(resource => resource.Id == id))
@@ -308,7 +294,8 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("settlement_resource_blocked", kind);
                 continue;
             }
-            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "seed",
+            additions.Add(new MapResource(id, kind, tile.Position,
+                kind is "fiber" or "seed" or "grain_seed",
                 NaturalObjectKind: kind == "wood" ? "fallen_wood" : null));
             occupied.Add(tile.Position);
         }

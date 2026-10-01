@@ -463,9 +463,10 @@ public static class SeededMapGenerator
             campObjects = [new CampObject("bedroll", "bedroll", new GridPoint(1, 0)), .. campObjects];
         var resources = new[]
         {
-            new MapResource("berry-patch", "food", new GridPoint(4, 1), true),
+            new MapResource("berry-patch", "food", new GridPoint(4, 1), true, NaturalObjectKind: "berry_bush"),
             new MapResource("timber-tree", "construction", new GridPoint(4, 3), false),
-            new MapResource(FertileLandResourceId, "fertile_land", new GridPoint(2, 3), false),
+            new MapResource("grain-seed-patch", "grain_seed", new GridPoint(2, 3), true, NaturalObjectKind: "wild_seed_patch"),
+            new MapResource("wild-greens-patch", "food", new GridPoint(3, 3), true, NaturalObjectKind: "wild_greens"),
         };
         var withoutDigest = new SeededMap(width, height, attempt, tiles, campObjects, resources, string.Empty);
         return withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
@@ -597,7 +598,8 @@ public static class GeneratedCampMapGenerator
             NaturalObjectKind = legacyLayout ? null : item.Id switch
             {
                 "berry-patch" => "berry_bush",
-                SeededMapGenerator.FertileLandResourceId => "fertile_soil",
+                "grain-seed-patch" => "wild_seed_patch",
+                "wild-greens-patch" => "wild_greens",
                 _ => null,
             },
         }).ToArray();
@@ -618,9 +620,6 @@ public static class GeneratedCampMapGenerator
             width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
         List<MapResource> orchards = legacyLayout ? [] : GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
             placed.Concat(distributed).Concat(geology).Concat(trees).ToArray());
-        if (!legacyLayout)
-            MarkFertileSoilSites(surfaceKinds,
-                placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards), width, height);
         var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
             placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards).ToArray(), string.Empty)
         {
@@ -821,18 +820,6 @@ public static class GeneratedCampMapGenerator
         return trees;
     }
 
-    private static void MarkFertileSoilSites(byte[] surfaces, IEnumerable<MapResource> resources,
-        int width, int height)
-    {
-        foreach (var resource in resources)
-        {
-            if (resource.NaturalObjectKind != "fertile_soil") continue;
-            var point = resource.Position;
-            if (point.X < 0 || point.X >= width || point.Y < 0 || point.Y >= height) continue;
-            surfaces[point.Y * width + point.X] = (byte)SurfaceKind.FertileSoil;
-        }
-    }
-
     private static bool IsAdjacentToWater(GeneratedGeography geography, int x, int y, bool wrap) =>
         HasCardinalNeighbor(geography, x, y, wrap, water => water != WaterKind.Land);
 
@@ -901,17 +888,17 @@ public static class GeneratedCampMapGenerator
                             ClimateZone.Polar or ClimateZone.Cold => selection == 0 ? "food" : "stone",
                             _ => selection switch
                             {
-                                0 => "fertile_land",
+                                0 => "grain_seed",
                                 1 => "food",
                                 2 => "fiber",
-                                _ => "seed",
+                                _ => "cultivated_green_seed",
                             },
                         };
                         // Everything but a stone outcrop grows from the soil,
                         // so it looks for another tile instead of standing on sand.
                         if (resourceKind != "stone" && !TerrainPlacementRules.CanHoldOrdinaryVegetation(surface))
                             continue;
-                        var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
+                        var renewable = resourceKind is "construction" or "food" or "fiber" or "grain_seed" or "cultivated_green_seed";
                         var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
                         sites.Add(new MapResource(id, resourceKind, position, renewable,
                             resourceKind == "construction" ? TreeKindFor(tile.Climate) : null,
@@ -986,8 +973,7 @@ public static class GeneratedCampMapGenerator
                 ? "berry_bush" : "wild_greens",
             "fiber" => IsAdjacentToWater(geography, x, y, wrap) ? "reeds" : "fiber_plant",
             "stone" => "stone_outcrop",
-            "seed" => "wild_seed_patch",
-            "fertile_land" => "fertile_soil",
+            "grain_seed" or "cultivated_green_seed" => "wild_seed_patch",
             _ => null,
         };
 
@@ -1383,11 +1369,9 @@ public static class MapAcceptance
 
         if (!map.Resources.Any(resource => resource.IsRenewable &&
                 string.Equals(resource.Kind, "food", StringComparison.Ordinal)) ||
-            !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)) ||
-            !map.Resources.Any(resource => string.Equals(resource.Id, SeededMapGenerator.FertileLandResourceId, StringComparison.Ordinal) &&
-                string.Equals(resource.Kind, "fertile_land", StringComparison.Ordinal)))
+            !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)))
         {
-            return MapValidationResult.Invalid("Reachable food, construction, or fertile-land resources are missing.");
+            return MapValidationResult.Invalid("Reachable food or construction resources are missing.");
         }
 
         var startingPoint = founder?.Position ??
@@ -1397,7 +1381,7 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("The starting area has no reachable food resource.");
         var reachable = ReachableFrom(map, startingPoint.Value);
         var starterResources = allowEmptyCamp
-            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "fertile-land")
+            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch")
             : map.Resources;
         if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
             starterResources.Any(resource => !reachable.Contains(resource.Position)))
@@ -1429,7 +1413,7 @@ public static class MapAcceptance
             "gold_outcrop" => resourceKind == "gold_ore",
             "diamond_outcrop" => resourceKind == "diamond",
             "clay_bank" => resourceKind == "clay",
-            "wild_seed_patch" => resourceKind == "seed",
+            "wild_seed_patch" => resourceKind is "grain_seed" or "cultivated_green_seed",
             "fertile_soil" => resourceKind == "fertile_land",
             _ => false,
         };

@@ -65,7 +65,8 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.ItemKind == "iron_ore" &&
-            lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
+            lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private void AddBlacksmithOreCandidates(List<CognitionCandidate> candidates, string actor,
@@ -141,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
                     lot.ItemKind == kind).Sum(AvailableLotQuantity);
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
-                .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null &&
+                .Where(lot => lot.OwnerId == actor && lot.GroundPosition is null && lot.StorageBuildingId is null &&
                     lot.DeliveryBuildingId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
