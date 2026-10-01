@@ -205,6 +205,7 @@ if (advanceRuntime)
             services.GetRequiredService<WorldAutosaveStore>(),
             services.GetRequiredService<ManualWorldSaveStore>(),
             services.GetRequiredService<ProviderConfigurationStore>()));
+        builder.Services.AddHostedService<WorldCatalogWarmUpService>();
     }
     else
     {

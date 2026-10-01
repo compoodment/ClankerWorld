@@ -1,0 +1,1 @@
+- After the server starts, it checks saved worlds in the background, so once those checks finish, the first Load World list opens as quickly as later ones.
