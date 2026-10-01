@@ -64,6 +64,13 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
+Private-world schema 39 stores recognized food-order targets, progress, retry
+state, cancellation receipts and their exact actor/world identity alongside the
+original owner instructions. Loading validates these records together so an
+unrelated action or a stale order cannot advance a replacement task. Alpha saves
+must use the current checkpoint schema; older saves are refused without
+migration and remain unchanged.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the

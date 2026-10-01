@@ -351,6 +351,7 @@ public sealed partial class PrivateWorldRuntime
         if (words.Overlaps(UnsupportedInstructionOperationWords) ||
             words.Overlaps(CompoundInstructionWords))
             return null;
+        if (HasNegatedFoodInstruction(text)) return null;
 
         var namesFoodTarget = words.Contains("food") || words.Overlaps(BerryInstructionWords) ||
             words.Overlaps(FruitInstructionWords) || WildGreenInstructionWords.All(words.Contains) ||
@@ -363,7 +364,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (words.Overlaps(EatInstructionWords))
         {
-            return HasUnsupportedEatObject(text) || HasNegatedEatInstruction(text) ? null : "consume_food";
+            return HasUnsupportedEatObject(text) ? null : "consume_food";
         }
 
         if (words.Overlaps(TravelInstructionWords))
@@ -410,10 +411,11 @@ public sealed partial class PrivateWorldRuntime
         return match.Success && !SupportedFoodObjectInstructionWords.Contains(match.Groups["object"].Value.ToLowerInvariant());
     }
 
-    private static bool HasNegatedEatInstruction(string text) =>
+    private static bool HasNegatedFoodInstruction(string text) =>
         Regex.IsMatch(text,
-            @"\b(?:(?:do|does)\s+not|don't|doesn't|never|not)\s+(?:to\s+)?(?:eat|eats|eating)\b",
+            @"\b(?:(?:do|does|did)\s+not|don['’]t|doesn['’]t|didn['’]t|never|not)\s+(?:to\s+)?(?:eat|eats|eating|harvest|harvests|harvesting|gather|gathers|gathering|go|goes|going|travel|travels|traveling|find|finds|finding|seek|seeks|seeking)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
     {
         var action = InstructionCandidate(text);

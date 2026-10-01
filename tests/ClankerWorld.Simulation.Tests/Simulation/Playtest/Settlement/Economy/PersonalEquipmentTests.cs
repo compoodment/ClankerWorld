@@ -275,7 +275,14 @@ public sealed class PersonalEquipmentTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
         Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
         Assert.Equal(coatId, restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
-        Assert.Equal(pausedPlan, restored.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        var savedProject = Assert.IsType<SettlementProject>(
+            restored.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        Assert.Equal(pausedPlan.CandidateId, savedProject.CandidateId);
+        Assert.Equal(pausedPlan.WorkDone, savedProject.WorkDone);
+        Assert.Equal("paused", savedProject.Stage);
+        Assert.Null(savedProject.JobId);
+        Assert.True(savedProject.RequiresFreshChoice);
+        Assert.False(string.IsNullOrWhiteSpace(savedProject.Blocker));
         Assert.Equal(InventoryReservationState.Released, restored.Society.Inventory.GetReservation(reservationId).State);
         Assert.Equal(2, restored.Society.Inventory.GetLot(clothId).Quantity);
         Assert.Equal(2_000, restored.Society.Inventory.GetLot(coatId).ConditionBasisPoints);

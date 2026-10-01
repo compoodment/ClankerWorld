@@ -1,1 +1,1 @@
-- The supported food orders now keep their task and target through waiting, queuing, and cancellation.
+- Food orders are limited to eating carried food, finding known or discoverable food, and harvesting a named food kind or source. Their target and progress survive waiting, urgent-need interruptions, queuing and cancellation; unsupported, mixed, negated or invalid-quantity wording is refused without substituting another food action.

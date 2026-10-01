@@ -72,6 +72,10 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("eat -3 wood")]
     [InlineData("eat 1.5 berries")]
     [InlineData("do not eat berries")]
+    [InlineData("do not gather berries from berry-patch")]
+    [InlineData("never harvest berries from berry-patch")]
+    [InlineData("don’t gather berries from berry-patch")]
+    [InlineData("don't harvest berries from berry-patch")]
     [InlineData("gather -3 berries")]
     public async Task UnsupportedInstructionsDoNotSubstituteARealFoodAction(string text)
     {
@@ -80,7 +84,9 @@ public sealed partial class PrivateWorldRuntimeTests
         var initialState = setup.ExportState();
         setup.Dispose();
         if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("do not eat ", StringComparison.OrdinalIgnoreCase))
+            text.StartsWith("do not eat ", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("don’t eat ", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("don't eat ", StringComparison.OrdinalIgnoreCase))
         {
             initialState = initialState with
             {
