@@ -262,7 +262,13 @@ def main():
     if args.questions and os.path.exists(args.questions):
         with open(args.questions) as f:
             questions_html = markdown.markdown(f.read())
-    page = TEMPLATE.replace('__STYLE_HTML__', style_html).replace('__QUESTIONS__', questions_html).replace('__DATA__', payload)
+    lead = ('Every texture the game draws today is shown beside its proposed improvement, drawn in code the same way. '
+            'Round 1 covers a reference set from every family; the rest follows once you like the direction. Nothing here is in the game yet.'
+            if args.round == 1 else
+            f'Round {args.round} shows only what changed since round {args.round - 1}: each redrawn picture beside the one you sent back. '
+            'Everything you approved earlier is kept exactly as it was.')
+    page = (TEMPLATE.replace('__STYLE_HTML__', style_html).replace('__QUESTIONS__', questions_html)
+            .replace('__LEAD__', html.escape(lead)).replace('__DATA__', payload))
     with open(args.out, 'w') as f:
         f.write(page)
     total = sum(len(f['cards']) for f in ordered)
@@ -367,7 +373,8 @@ input[type=range].slider { width: 100%; }
 .guide { background: var(--surface); border: 2px solid var(--wood); padding: 8px 18px 18px; margin-top: 16px; }
 .guide h1 { font-size: 1.4rem; margin-top: 12px; } .guide h2 { font-size: 1.15rem; margin-top: 18px; } .guide h3 { font-size: 1rem; margin-top: 12px; }
 .guide table { border-collapse: collapse; font-size: 0.9rem; } .guide th, .guide td { border: 1px solid var(--line); padding: 3px 8px; text-align: left; }
-.guide .tablewrap { overflow-x: auto; }
+.guide .tablewrap, #styleguide .tablewrap { overflow-x: auto; max-width: 100%; }
+#styleguide code { overflow-wrap: anywhere; }
 .guide code { background: var(--surface2); padding: 0 4px; }
 .guide pre { overflow-x: auto; background: var(--surface2); padding: 8px; }
 .guide ul { padding-left: 20px; }
@@ -388,7 +395,7 @@ details > summary { cursor: pointer; font-family: var(--display); font-size: 1.1
 <div class="wrap">
   <div class="lead">
     <h1 id="title">ClankerWorld art: current versus proposed</h1>
-    <p id="lead">Every texture the game draws today is shown beside its proposed improvement, drawn in code the same way. Round 1 covers a reference set from every family; the rest follows once you like the direction. Nothing here is in the game yet. Your decisions save as you click, and I read them back from this page.</p>
+    <p id="lead">__LEAD__ Your decisions save as you click, and I read them back from this page.</p>
     <div class="how">
       <strong>How to review</strong>
       <ul>
@@ -501,7 +508,7 @@ function render() {
   $('#direction .overall').dataset.card = PREFIX + 'direction~overall';
   bindNote($('#direction .overall textarea'), PREFIX + 'direction~overall');
   $('#direction .overall .decide').replaceWith(decideRow(PREFIX + 'direction~overall'));
-  if (DATA.round > 1) { $('#title').textContent = 'ClankerWorld art: round ' + DATA.round; $('#lead').textContent = 'Round ' + DATA.round + ' shows the changes you asked for in round 1 and the rest of the catalogue. Pictures you already approved and that did not change are left out. Nothing here is in the game yet. Your decisions save as you click, and I read them back from this page.'; }
+  if (DATA.round > 1) $('#title').textContent = 'ClankerWorld art: round ' + DATA.round;
   // Make tables in the guide scroll instead of widening the page.
   $$('#styleguide table').forEach(t => { const w = el('div', { class: 'tablewrap' }); t.replaceWith(w); w.appendChild(t); });
   applyDecisions();
