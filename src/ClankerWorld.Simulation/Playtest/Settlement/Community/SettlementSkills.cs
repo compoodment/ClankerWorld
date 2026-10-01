@@ -46,6 +46,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (person.Skills is not { } skills) return;
         if (schema < SkillsSchemaVersion || skills.Count > Enum.GetValues<SettlementSkillKind>().Length ||
+            skills.Any(item => item is null) ||
             skills.Select(item => item.Kind).Distinct().Count() != skills.Count ||
             skills.Any(item => !Enum.IsDefined(item.Kind) || item.LearnedTick < 0 || item.LearnedTick > latestTick ||
                 item.TeacherId is { } teacher && (teacher == person.InhabitantId || !known.Contains(teacher))))
