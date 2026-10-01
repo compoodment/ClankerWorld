@@ -288,6 +288,16 @@ public sealed partial class PrivateWorldRuntime
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {
+            if (person.LastModelAttempt is { } attempt &&
+                (state.SchemaVersion < 29 || !CognitionProviderFailures.IsStatus(attempt.Status) ||
+                 attempt.WorldTick < 0 || attempt.WorldTick > state.Society.Society.WorldTick ||
+                 (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
+                 attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
+                 attempt.LastAcceptedCandidateId is { } candidate &&
+                    (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
+                 attempt.SetupBlocker is not (null or "unsupported_request") ||
+                 attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
+                throw new InvalidDataException("The saved model attempt is invalid.");
             if (person.IdentityChoicePending && state.SchemaVersion < 28)
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
             ValidateProficiency(person, state.SchemaVersion);

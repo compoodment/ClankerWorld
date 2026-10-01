@@ -156,6 +156,7 @@ stands. A save that fails these checks is refused with a reason and kept.
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 | Schema 27 | Optional building entrances and trees planted on new tiles. An entrance must lie directly beside a footprint edge. Planted trees are saved as `planted-tree-{x}-{y}` map resources with their growth record and must be legal plantings (see [Trees and planting](how-it-works.md#trees-and-planting)). Invalid state is refused and the file is kept. Older builds refuse schema 27 saves. |
 | Schema 28 | Saved bridges and bounded bridge-traffic evidence, plus an optional pending first personality/aspiration choice for newly placed adults. An older save has no bridges; an older schema that carries bridges or pending identity choices is refused. Accepted personal replies consume the identity opportunity; missing or invalid fields keep the placeholders. The marker, selected text and ID-only choice event survive current-format save/reload. |
+| Schema 29 | Optional bounded model-attempt status and a separate last accepted model choice per agent. Current-format reload preserves failed/canceled attempts without replacing the last choice. Old builds may refuse these alpha checkpoints; no migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
