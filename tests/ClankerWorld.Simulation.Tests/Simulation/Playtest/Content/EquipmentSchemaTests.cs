@@ -14,7 +14,7 @@ public sealed class EquipmentSchemaTests
     [InlineData("spear", 33)]
     [InlineData("clothing", 34)]
     [InlineData("spear", 34)]
-    public void CurrentEquipmentCannotBeStoredUnderOlderSkillsHousingChildOrFieldFormats(string kind, int schema)
+    public void CurrentEquipmentRoundTripsWhileOlderAlphaFormatsAreRefused(string kind, int schema)
     {
         using var initial = new PrivateWorldRuntime("equipment-version");
         var state = initial.ExportState();
@@ -33,7 +33,7 @@ public sealed class EquipmentSchemaTests
     }
 
     [Fact]
-    public void CanonicalGroundStockKeepsTheFieldsFormatWithoutRequiringLaterPhysicalContent()
+    public void CurrentAlphaKeepsCanonicalGroundStockAndRequiresExplicitFields()
     {
         using var initial = new PrivateWorldRuntime("ground-format");
         var state = initial.ExportState();
@@ -45,7 +45,7 @@ public sealed class EquipmentSchemaTests
             groundPosition: new(point.X, point.Y));
         state = state with
         {
-            SchemaVersion = 34,
+            SchemaVersion = PrivateWorldRuntime.StateSchemaVersion,
             Fields = [],
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
         };
@@ -55,15 +55,16 @@ public sealed class EquipmentSchemaTests
         Assert.Empty(saved.Fields!);
         Assert.Equal(inventory.GetLot("canonical-ground-wood"), restored.Society.Inventory.GetLot("canonical-ground-wood"));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 33 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 34 }));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { Fields = null }));
         restored.Validate();
     }
 
     [Fact]
-    public void SkillsKeepTheirExistingSchemaWithoutRequiringPhysicalEquipment()
+    public void CurrentAlphaKeepsSavedSkillsWithoutPhysicalEquipment()
     {
         using var initial = new PrivateWorldRuntime("skills-version");
-        var state = initial.ExportState() with { SchemaVersion = 31 };
+        var state = initial.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
         state = state with
         {
@@ -73,6 +74,7 @@ public sealed class EquipmentSchemaTests
         using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(SettlementSkillKind.Crafting, Assert.Single(loaded.Inhabitants.Single(person => person.InhabitantId == actor).Skills!).Kind);
         Assert.Equal(new EquipmentState(null, null), loaded.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 31 }));
         loaded.Validate();
     }
 }
