@@ -10,9 +10,9 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateBuildingExpansionState(WorldContentSimulationState simulation,
         DeclarativeWorldContentState content, SocietyCheckpoint society, SeededMap map, int schemaVersion)
     {
-        if (schemaVersion < 29 && (simulation.Buildings.Any(item => item.Footprint is not null) ||
+        if (schemaVersion < 30 && (simulation.Buildings.Any(item => item.Footprint is not null) ||
                 simulation.BuildingExpansions is { Count: > 0 } || simulation.GuestInvitations is { Count: > 0 }))
-            throw new InvalidDataException("Building expansions and guest invitations require private-world schema 29.");
+            throw new InvalidDataException("Building expansions and guest invitations require private-world schema 30.");
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = society.Inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);

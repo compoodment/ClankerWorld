@@ -377,7 +377,7 @@ public sealed partial class PrivateWorldRuntime
         if (inventory.Lots.Any(lot => lot.ItemKind == "handcart" && lot.GroundPosition is not null &&
             !carts.Any(cart => cart.LotId == lot.Id)))
             throw new InvalidDataException("Every deployed cart body requires its actual cart state.");
-        if (state.SchemaVersion < 30 && (carts.Count > 0 || inventory.Lots.Any(lot => lot.CartId is not null)))
-            throw new InvalidDataException("Physical carts require private-world schema 30.");
+        if (state.SchemaVersion < 32 && (carts.Count > 0 || inventory.Lots.Any(lot => lot.CartId is not null)))
+            throw new InvalidDataException("Physical carts require private-world schema 32.");
     }
 }

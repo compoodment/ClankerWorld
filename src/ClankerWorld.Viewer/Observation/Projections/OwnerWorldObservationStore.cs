@@ -691,10 +691,11 @@ public sealed partial class OwnerWorldObservationStore
                 physical.MedicalTreatment?.RemainingTicks ?? 0, physical.MedicalTreatment is { } treatment
                     ? state.Society.Society.GetInhabitant(treatment.CaregiverId).Name : null),
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
-                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
+                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
             Proficiency = physical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(physical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, physical),
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
@@ -714,6 +715,11 @@ public sealed partial class OwnerWorldObservationStore
                 .ToArray(),
         };
     }
+
+    private static ViewerSkill[] ProjectSkills(PlaytestInhabitantState physical, SocietyCheckpoint society) =>
+        (physical.Skills ?? []).Select(skill => new ViewerSkill(skill.Kind.ToString().ToLowerInvariant(),
+            skill.LearnedTick, skill.TeacherId,
+            skill.TeacherId is { } teacher ? society.GetInhabitant(teacher).Name : null)).ToArray();
 
     private static ViewerInhabitant ToDeceasedInhabitant(
         PrivateWorldRuntimeState state,
@@ -757,6 +763,7 @@ public sealed partial class OwnerWorldObservationStore
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
         };
     }

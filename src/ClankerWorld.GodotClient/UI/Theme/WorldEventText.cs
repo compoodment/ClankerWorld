@@ -105,6 +105,7 @@ public static class WorldEventText
             "field_harvest_collected" => $"{LeadingName(snapshot, worldEvent.Detail)} carried a field harvest into storage.",
             "crop_ready" => "A planted field is ready to harvest.",
             "crop_weather_loss" => "Bad weather destroyed a planted crop.",
+            "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
@@ -122,6 +123,15 @@ public static class WorldEventText
             "resumed" => "The world resumed.",
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    private static string DescribeSkill(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = detail.Split('|', 3);
+        if (fields.Length != 3 || fields[1] is not ("building" or "farming" or "crafting" or "smithing"))
+            return "An agent learned a skill.";
+        var source = fields[2] == "work" ? "by doing the work" : "from " + Name(snapshot, fields[2]);
+        return $"{Name(snapshot, fields[0])} learned {fields[1]} {source}.";
     }
 
     private static string Name(OwnerWorldSnapshot? snapshot, string id) =>

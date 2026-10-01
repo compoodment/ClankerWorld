@@ -9,6 +9,8 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateBusinessTrade(PrivateWorldRuntimeState state)
     {
         if (state.BusinessTrade is not { } business) return;
+        if (state.SchemaVersion < 32)
+            throw new InvalidDataException("Physical business trade requires private-world schema 32.");
         if (business.NextSequence <= 0 || business.Listings is null || business.Offers is null ||
             business.Markets is null || business.Stalls is null || business.ToolOrders is null)
             throw new InvalidDataException("Business trade has invalid collections or sequence.");

@@ -275,9 +275,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Agent memory compaction indexes require private-world schema 22.");
         if (state.SchemaVersion < 24 && state.RoadTiles is { Count: > 0 })
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
-        if (state.SchemaVersion < 29 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
+        if (state.SchemaVersion < 32 && (state.WorldSimulation?.Fields is { Count: > 0 } ||
             state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
-            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 29.");
+            throw new InvalidDataException("Tilled fields and field harvest require private-world schema 32.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
@@ -463,6 +463,8 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
+                society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
         }
     }

@@ -13,6 +13,8 @@ public partial class WorldTerrainLayer : Control
 
     private WorldTerrainMap? world;
     private Texture2D? paletteTexture;
+    private ImageTexture? townSiteGuidanceTexture;
+    private TownSiteGuidance? currentTownSiteGuidance;
     private Rect2 visibleTiles;
     private int tileSize;
     private int tileGap;
@@ -68,6 +70,8 @@ public partial class WorldTerrainLayer : Control
 
     public WorldTerrainMap? World => world;
 
+    public TownSiteGuidance? CurrentTownSiteGuidance => currentTownSiteGuidance;
+
     public int WeatherRegionSize => weatherRegionSize;
 
     /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
@@ -88,6 +92,8 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        townSiteGuidanceTexture = null;
+        currentTownSiteGuidance = null;
         // At overview scale, thousands of individual draw commands are much
         // slower than one nearest-neighbor pixel per tile from the same map.
         // This is a render cache, not a separate regional art set.
@@ -109,6 +115,44 @@ public partial class WorldTerrainLayer : Control
         householdPropertyTiles.Clear();
         fields.Clear();
         QueueRedraw();
+    }
+
+    /// <summary>Shows provisional Town-site advice over open land; this never gates a map click.</summary>
+    public void SetTownSiteGuidance(TownSiteGuidance? guidance)
+    {
+        if (ReferenceEquals(currentTownSiteGuidance, guidance)) return;
+        if (guidance is not null)
+        {
+            var currentWorld = world;
+            if (currentWorld is null || guidance.Width != currentWorld.Width ||
+                guidance.Height != currentWorld.Height)
+                throw new InvalidOperationException("Town-site guidance must match the current terrain map.");
+        }
+        currentTownSiteGuidance = guidance;
+        townSiteGuidanceTexture = null;
+        if (guidance is not null)
+        {
+            var image = Image.CreateEmpty(guidance.Width, guidance.Height, false, Image.Format.Rgba8);
+            for (var y = 0; y < guidance.Height; y++)
+                for (var x = 0; x < guidance.Width; x++)
+                {
+                    var assessment = guidance.At(x, y);
+                    if (assessment.IsBuildableGround)
+                        image.SetPixel(x, y, GuidanceColor(assessment.GuidanceStrength));
+                }
+            townSiteGuidanceTexture = ImageTexture.CreateFromImage(image);
+        }
+        QueueRedraw();
+    }
+
+    private static Color GuidanceColor(float strength)
+    {
+        var low = new Color(0.75f, 0.31f, 0.20f, 0.22f);
+        var middle = new Color(0.91f, 0.67f, 0.27f, 0.22f);
+        var high = new Color(0.27f, 0.72f, 0.43f, 0.22f);
+        return strength < 0.5f
+            ? low.Lerp(middle, strength * 2)
+            : middle.Lerp(high, (strength - 0.5f) * 2);
     }
 
     public void SetWeatherRegions(int regionSize, IReadOnlyList<OwnerWeatherRegion> regions)
@@ -480,6 +524,7 @@ public partial class WorldTerrainLayer : Control
             }
         }
         DrawFields(bounds, stride);
+        DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
@@ -553,6 +598,25 @@ public partial class WorldTerrainLayer : Control
                 DrawCircle(center, Math.Max(2, tileSize * (animal.Kind == "chicken" ? 0.15f : 0.25f)), color);
                 if (animal.ProductQuantity > 0) DrawCircle(center + new Vector2(tileSize * 0.25f, 0), Math.Max(1, tileSize * 0.08f), new Color("91D483"));
                 if (animal.RiderId is not null) DrawArc(center, Math.Max(3, tileSize * 0.32f), 0, Mathf.Tau, 12, new Color("D5F6FF"));
+            }
+        }
+    }
+
+    private void DrawTownSiteGuidance((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || townSiteGuidanceTexture is null || bounds.Width == 0 || bounds.Height == 0)
+            return;
+        var end = bounds.Left + bounds.Width;
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+        {
+            for (var x = bounds.Left; x < end;)
+            {
+                var sourceX = wrapsEastWest ? Mod(x, world.Width) : x;
+                var span = Math.Min(end - x, world.Width - sourceX);
+                DrawTextureRectRegion(townSiteGuidanceTexture,
+                    new Rect2(x * stride, y * stride, span * stride, stride),
+                    new Rect2(sourceX, y, span, 1));
+                x += span;
             }
         }
     }

@@ -80,6 +80,8 @@ public sealed class FarmContentTests
         Assert.True(started.Applied, started.Failure);
         for (var tick = 0; tick < mill.DurationTicks; tick++)
             Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(delivering.Inhabitants.Single(person => person.InhabitantId == alpha).Skills!,
+            skill => skill.Kind == SettlementSkillKind.Farming && skill.TeacherId is null);
         var flour = delivering.Society.Inventory.Lots.Single(lot => lot.OwnerId == "household:camp-alpha" &&
             lot.ItemKind == "flour" && lot.StorageBuildingId == placed.InstanceId);
         Assert.Equal(1, flour.Quantity);

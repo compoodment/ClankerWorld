@@ -8,6 +8,16 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void SkillEventsShowLearnerAndTeacherWithoutSplittingTheirIds()
+    {
+        var snapshot = Snapshot(Person(ChildId, "Aster"), Person(FounderId, "Mira", "dead"));
+        Assert.Equal("Aster learned farming from Mira.", WorldEventText.Describe(
+            new(1, 1, "skill_learned", $"{ChildId}|farming|{FounderId}"), snapshot));
+        Assert.Equal("Aster learned smithing by doing the work.", WorldEventText.Describe(
+            new(2, 2, "skill_learned", $"{ChildId}|smithing|work"), snapshot));
+    }
+
     [Theory]
     [InlineData(ChildId)]
     [InlineData("founder-scout")]

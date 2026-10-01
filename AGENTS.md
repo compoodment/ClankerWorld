@@ -1,26 +1,21 @@
 # Working on ClankerWorld
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) for the shared contribution workflow,
-review requirements, writing rules, tests, documentation and changelog policy.
-This file adds instructions for coding agents; it does not repeat that guide.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before you start. It holds the shared
+rules for issues, labels, priorities, pull requests, review, playtesting and
+writing, or links to the page that does. This file adds only what is specific
+to coding agents; when the two seem to disagree, CONTRIBUTING wins.
 
-## Start with the user's requested outcome
+## Start with what you were asked
 
-If the user asks for a proposal or review first, present it before implementing.
-If they request a draft or PR only, stop at that stage. For authorized
-implementation, carry the work through verification to a pull request that is
-ready for review. Do not merge your own pull request unless the owner
-explicitly asks and someone else has already reviewed it. Do not bypass
-required review to satisfy a delivery deadline.
-
-Inspect the current branch, working tree and open PRs before changing files.
-Preserve unrelated and uncommitted work. Refresh the relevant repository state
-rather than relying on old notes. Keep the diff focused on the requested concern.
-
-Follow [Organize the work](CONTRIBUTING.md#organize-the-work). For a task with
-several steps, keep a short working plan, update it as evidence changes, and
-leave a clear handoff if the work cannot finish in this session. Keep scratch
-files out of the delivered diff.
+- If the user asks for a proposal or review first, present it before
+  implementing. If they ask only for a draft or a pull request, stop there.
+  When you are asked to implement something, carry it through to a pull
+  request that is ready for review. Other jobs end where
+  [Know your job](#know-your-job) says.
+- Before changing files, look at the current branch, working tree and open pull
+  requests. Keep unrelated and uncommitted work, and refresh the repository
+  state instead of trusting old notes.
+- Never skip required review to meet a deadline.
 
 ## Ask the owner in chat
 
@@ -41,72 +36,37 @@ is:issue is:open label:owner-task
 
 ## Know your job
 
-Several agents usually work at once, each given one job. All of them follow
-[Work on an issue](CONTRIBUTING.md#work-on-an-issue). Each job ends at a
-different point.
+Several agents usually work at once, each given one job. Every job follows
+[Work on an issue](CONTRIBUTING.md#work-on-an-issue); each ends at a different
+point.
 
-| Job | Ends when |
-| --- | --- |
-| Find bugs | Each problem has its own Bug issue |
-| Fix issues | A pull request is ready for review and linked to its issues |
-| Review and merge | The change is on main and its issues are closed or updated |
-| Owner requests | The requested pull request is ready, or decisions are recorded |
+| Job | Follow | Ends when |
+| --- | --- | --- |
+| Find bugs | [Issues](CONTRIBUTING.md#issues-and-design-questions) and the bug rule in [Priorities](CONTRIBUTING.md#priorities) | Each problem has its own Bug issue |
+| Fix issues | [Find work](CONTRIBUTING.md#find-work) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness) | A pull request is ready for review and linked to its issues |
+| Review and merge | [Review and merge](CONTRIBUTING.md#review-and-merge) | The change is on main and its issues are closed or updated |
+| Owner requests | [Issues](CONTRIBUTING.md#issues-and-design-questions), [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness) and the Decisions rule in [Close issues when the work merges](CONTRIBUTING.md#close-issues-when-the-work-merges) | The requested pull request is ready, or decisions are recorded |
 
-### Find bugs
+What each job adds:
 
-- Reproduce the problem on current main. Search open and closed issues first.
-  If a closed fix did not work, reopen that issue with the new evidence instead
-  of filing a duplicate.
-- File one problem per issue with the Bug template. Say whether you saw it in
-  the game or reproduced it in code or tests, and set its
-  [priority](CONTRIBUTING.md#priorities) by the bug rule there.
-- Fix it only if asked. If you do, [claim it](CONTRIBUTING.md#claim-an-issue)
-  straight away.
-
-### Fix issues
-
-- Choose the highest-priority [agent-ready issue](CONTRIBUTING.md#find-work) and
-  claim it before you start.
-- If the highest-priority work is waiting on a decision rather than code, ask
-  the owner about it in your reply ([Ask the owner in chat](#ask-the-owner-in-chat))
-  instead of skipping it silently.
-- Open the pull request as a draft while you work, with `Closes` for each issue
-  it completes and `Refs` for the rest. Mark it ready for review only when it is
-  finished. If the change still needs a hands-on check in the game, add a file
-  to the [playtest list](playtest/README.md).
-- Fix CI failures and review requests on the same branch, but convert the pull
-  request back to draft first and mark it ready again when you are done
-  ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)).
-- If you are paused or stop before finishing, push your branch first, even
-  unfinished, so another agent on another machine can continue it. Then
-  [release the claim](CONTRIBUTING.md#claim-an-issue) with a comment naming the
-  branch and what is left.
-- Do not merge it yourself. Report the pull request link as your result.
-
-### Review and merge
-
-- Review only pull requests you did not write, and follow the
-  [Review and merge](CONTRIBUTING.md#review-and-merge) checklist, taking
-  higher-priority pull requests first. Never merge a
-  draft, or a pull request its author pushed to after marking it ready.
-- Fix what you find yourself, small or large, and list each fix in the squash
-  commit body.
-- Merge dependent pull requests in their stated order. After each merge, later
-  pull requests may need main merged in and CI run again.
-- After merging, confirm the commit on GitHub's `origin/main` and that the
-  linked issues closed. Report the commit hash.
-
-### Owner requests
-
-When the owner asks you directly for something, such as a change to how the
-repository works or a set of decisions:
-
-- A direct owner request needs no issue. Say that in the pull request.
-- Record agreed design choices in the right game-design chapter. That pull
-  request closes the Decision issue it answers.
-- Turn agreed work into Implementation issues. Search for older issues about
-  the same work first. Update the older issue, or close it as a duplicate of
-  the new one.
+- **Find bugs:** reproduce the problem on current main first, and say whether
+  you saw it in the game or in code or tests. Fix it only if asked.
+- **Fix issues:** if the highest-priority work is waiting on a decision rather
+  than code, ask the owner about it instead of skipping it silently. Keep your
+  pull request in draft until it is finished, and go back to draft before
+  fixing a CI failure or review comment; those are still your work. If you are
+  paused, push your branch before you stop, so another agent on another machine
+  can continue it ([Claim an issue](CONTRIBUTING.md#claim-an-issue)).
+- **Review and merge:** another reviewer may be merging at the same time, so
+  claim each pull request with `status:reviewing` before you start and merge
+  only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).
+  Fix what you find yourself instead of handing it back. After each merge,
+  check main's CI; later pull requests may need main merged in again.
+- **Owner requests:** the owner asks you directly for something, such as a
+  change to how the repository works or a set of decisions. It needs no issue;
+  say so in the pull request. Turn agreed work into Implementation issues:
+  reuse an older issue if one covers it, and give new ones their
+  [labels](CONTRIBUTING.md#labels), including `status:needs-pr`.
 
 ## Find the right source
 
@@ -122,46 +82,13 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 
-GitHub Issues owns bug reports, reproduction steps, progress and repair evidence.
-Do not recreate a bug register in Markdown. Keep [labels](CONTRIBUTING.md#labels)
-current on every issue you open, claim or change: one type, one or two areas,
-a priority and, while it waits on something, a status. An open PR is proposed work, not
-proof that its design is agreed or its feature is available.
+## Report your result
 
-## Keep explanations understandable
-
-Keep documentation in plain English wherever possible. Follow
-[Writing clearly](CONTRIBUTING.md#writing-clearly), including its rules for
-game text. Keep exact technical details where needed in developer references,
-and explain what they mean.
-
-Update the appropriate page alongside the implementation. Link between pages
-instead of duplicating rules or maintaining parallel feature lists. Preserve
-agreement labels and open questions when reorganizing design notes.
-
-Check the actual normal game path before describing a feature as available.
-Distinguish code or test evidence from deployment and hands-on playtesting.
-Put detailed unresolved findings in Issues and link them from the overview
-only when they help a reader understand a limitation.
-
-## Verify and deliver
-
-Use the checks appropriate to the change in
-[Build and test](docs/development/build-and-test.md#which-checks-to-run).
-Docs-only edits need no new tests or separate full runtime suite. Check links
-and update existing documentation checks if files move. Report unrun or failed
-checks clearly.
-
-For changes intended for main, use the reviewed PR workflow in CONTRIBUTING.
-Follow [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness): keep a
-pull request in draft while you are still working on it, and do not leave
-finished work in draft solely for routine owner playtesting or pending
-independent review. Report unperformed checks without turning them into
-unrequested merge gates.
-If you merged, fetch and verify the resulting commit on GitHub's `origin/main`
-before reporting the implementation delivered. Report its hash or link.
-If review or another required step is pending, report that remaining step and
-the reviewable PR instead of claiming completion.
-
-Follow the release guide for versions, compatibility checks and annotated tags.
-Do not create a release or tag merely because a change was merged.
+- **Fixing:** give the pull request link, the checks you ran, any you could not
+  run, and what is still pending, such as review or a playtest. Do not merge
+  it yourself; [Review and merge](CONTRIBUTING.md#review-and-merge) has the one
+  exception.
+- **Merging:** fetch `origin/main`, confirm the squash commit is there and its
+  issues closed, and give the commit hash.
+- Never call work delivered while review or another required step is still
+  pending.

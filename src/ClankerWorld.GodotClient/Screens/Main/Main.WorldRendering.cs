@@ -92,6 +92,7 @@ public partial class Main
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
             terrainLayer.SetHoveredTile(null);
+            UpdateTownSiteGuidance(null);
             return;
         }
 
@@ -133,6 +134,7 @@ public partial class Main
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
         }
         UpdateMapGeometry(snapshot);
+        UpdateTownSiteGuidance(snapshot);
 
         foreach (var resource in snapshot.Resources)
         {
