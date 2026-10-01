@@ -188,8 +188,9 @@ measurement near tile/footprint edges, whether geometric proximity also
 requires a walkable route, and how changing site revalidates any positions or
 claims tied to the previous layout without clearing model/provider choices.
 Town residency follows the [agreed membership rules](towns.md#town-membership).
-Warehouse details remain open: formal ownership, access when the building is outside all Town borders or borders
-change, and how its hard access gate relates to any future crime system. The
+Warehouse access across border changes and public salvage in an abandoned Town
+follow the [agreed Town rules](towns.md#borders-abandoned-towns-and-salvage).
+How its ordinary access gate relates to a future crime system remains open. The
 optional survival grace period still
 needs a duration and precise effects. Also open:
 whether unrelated newcomers can arrive without player action or are only

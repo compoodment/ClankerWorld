@@ -93,17 +93,20 @@ everything that is available in the current build. See [what works today](../wha
   review:** the border keeps about **three tiles** of spare land beyond every
   building and road (tuned in playtests) and follows the Town's shape rather
   than a rectangle, so there is room, and a reason, to build inside it.
-  Assignment and overlap handling remain open.
+  Removing a building does not automatically shrink the existing border;
+  later construction may expand it. Assignment and overlap handling remain open.
   When its last resident leaves or dies, the Town becomes **abandoned**, not
   erased. Its identity, buildings, border and infrastructure remain in the
-  world, and later residents can revive that same Town. Exact treatment of
-  abandoned stock and claims still needs its own decision.
+  world, and later residents can revive that same Town under the
+  [agreed abandonment and salvage rules](#borders-abandoned-towns-and-salvage).
 - **Warehouse** replaces Storehouse. It is communal: it holds actual
   inspectable resource stock at its location for agents/households resident in
-  its Town, within that Town's borders. Food belongs at home instead. It is for
-  residents only, checked when they pick something up; what someone already
+  its recorded Town. Food belongs at home instead. Ordinary access is for
+  residents, with the agreed abandoned-Town salvage exception below, checked
+  when they pick something up; what someone already
   carries stays theirs. Use [recorded Town membership](#town-membership),
-  including homeless residents; border-change access cases remain open.
+  including homeless residents. The recorded Town controls access even if a
+  formal border change leaves the Warehouse outside its border.
 - **Household buildings and who may use them:** work roles do not decide what
   an agent may do. One household holds each household building: the Farmhouse,
   Blacksmith, Store and Tailor Shop. Any adult resident of that household may
@@ -375,13 +378,67 @@ setup exceptions do not turn later travel into membership or bypass the agreed
 House capacity checks.
 
 The [initial council and elections](#town-laws-and-governance) use these recorded
-adult residents rather than the agents physically inside a border. How the
-first returning resident is admitted when an abandoned Town has no government,
-border-change Warehouse access, and abandoned stock/claims still need the next
-interview batch. The approved membership work is tracked in
+adult residents rather than the agents physically inside a border. Admission
+to an abandoned Town follows the [revival exception](#borders-abandoned-towns-and-salvage).
+The approved membership work is tracked in
 [#602](https://github.com/compoodment/ClankerWorld/issues/602); council voting and
 election procedures follow separately in
 [#601](https://github.com/compoodment/ClankerWorld/issues/601).
+
+### Borders, abandoned Towns and salvage
+
+**Agreed with the owner on October 1, answers 19A, 20A, 21B, 22A and 23A:**
+
+- **Removing a building does not shrink the border automatically.** Keep the
+  existing boundary and room for rebuilding; assigned new construction may
+  expand it under the existing layout rules. A formal boundary change does
+  not by itself change Town membership, title, household use rights or the
+  owner of buildings and goods.
+- **A Warehouse's recorded Town controls ordinary access.** If a formal
+  boundary change leaves the Warehouse outside that Town's border, its residents
+  may still collect stock under the usual physical pickup rules. Do not suspend
+  access merely because of geometry or grant it to a neighboring Town.
+  Reassignment remains a separate validated change; it cannot erase stock or
+  bypass the agreed removal/reassignment safeguards.
+- **An empty Town permits public salvage of unreserved communal stock.** When
+  no recorded living residents remain, any agent may physically collect that
+  stock, including from its Warehouse, within carrying and availability limits.
+  This is the owner's chosen exception to resident-only communal access. Check
+  the current abandoned state and reservations when pickup actually happens;
+  no missing goods are created and no reserved lot is silently released.
+  Visiting or salvaging creates no Town membership, council vote or access to
+  private household goods/buildings. Salvage does not erase the Town's identity,
+  stock history, claims or existing ownership records.
+- **One adult may explicitly resettle an abandoned Town.** The adult must be
+  physically there and choose residence, rather than merely visit or collect
+  salvage. Record the deliberate membership change, preserving the one-Town
+  limit and dependent-care rules, revive the same Town identity and restart its
+  council from the returning adult residents. No previous council approval or
+  second adult is required for this first-resident exception. Later ordinary
+  newcomers need the restored government's approval. Resettling grants no free
+  House, materials or ownership of old private buildings; ordinary housing,
+  care, construction and rights rules still apply.
+- **Revival ends public salvage access.** Remaining communal stock again uses
+  ordinary resident eligibility, checked at the next physical pickup. Goods
+  already collected legitimately stay with the person carrying them; revival
+  neither duplicates those goods nor confiscates them. A stale salvage plan
+  cannot collect new stock after the Town is occupied unless it now has normal
+  resident access.
+- **The Town's existing laws survive abandonment.** The restored council may
+  amend or repeal them through the agreed governing process once that process
+  is defined. Old councillors or offices are not resurrected automatically.
+  The laws remain social rules that can be broken; their persistence does not
+  rewrite fixed world facts or grant agents knowledge they have not learned.
+
+For example, a visitor may collect five available unreserved logs from an
+abandoned Town without joining it. An adult later chooses to settle there;
+the remaining logs become resident-only communal stock again, the same Town
+revives, and its protected-grove law still exists until validly repealed.
+Private coats, Houses and household equipment retain their recorded owners.
+Abandonment/revival and salvage implementation remains recorded in
+[#410](https://github.com/compoodment/ClankerWorld/issues/410), which the owner
+previously parked until play reaches this stage; these design answers do not
+claim that it is implemented or change that timing.
 
 ### Agreed content and building sizes
 
@@ -819,8 +876,10 @@ These remain open; they are not new decisions.
    ownership, collection access, the food allowance and care during a living
    adult's departure. [Town membership](#town-membership) settles recorded
    affiliation, homeless residents, ordinary newcomer approval and dependent
-   children. Care after death, other guardianship cases, abandoned-Town admission
-   and remaining border/access cases stay open.
+   children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
+   settle the empty-Town exception and communal access. Care after death,
+   other guardianship cases, private abandoned-property transfers and remaining
+   border assignment/dispute cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
