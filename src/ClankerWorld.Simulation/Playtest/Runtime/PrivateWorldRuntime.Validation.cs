@@ -303,8 +303,8 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
             if (person.ChildModelSelection is { } childModelSelection)
             {
-                if (state.SchemaVersion < 31 || !state.Society.Society.Births.Any(item => item.ChildId == person.InhabitantId))
-                    throw new InvalidDataException("A saved child model choice requires schema 31 and a recorded birth.");
+                if (state.SchemaVersion < 32 || !state.Society.Society.Births.Any(item => item.ChildId == person.InhabitantId))
+                    throw new InvalidDataException("A saved child model choice requires schema 32 and a recorded birth.");
                 ValidateChildModelSelection(childModelSelection);
             }
             ValidateProficiency(person, state.SchemaVersion);
@@ -425,6 +425,8 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
+                society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
         }
     }
