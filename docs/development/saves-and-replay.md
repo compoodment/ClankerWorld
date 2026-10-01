@@ -19,6 +19,14 @@ events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+The October 1 terrain tuning changes deterministic generation for new worlds.
+Loading retains the saved map and current weather episode; it does not replace
+either with a freshly generated map or a new weather roll. Earlier alpha maps
+may fail the existing regeneration checks and are refused and preserved; no
+terrain migration is provided. New saves with default weather store a null
+profile list to select the reduced built-in preset. Explicit profile lists
+keep their configured weather weights.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
@@ -72,6 +80,16 @@ without preventing the healthy active world from starting. Unverified files and
 the deletion intent are preserved; later recovery can finish after the file is repaired.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
+
+Load World checks each inactive checkpoint against the current runtime before
+marking it compatible. The host keeps only a process-local structural verdict
+and history head for each catalog identity, keyed by a SHA-256 hash of the
+checkpoint bytes. File replacement, catalog-identity changes and a host restart
+force a new structural check. Every list still verifies the referenced history
+chain and current model credentials;
+selection reads and restores the checkpoint again before changing worlds.
+Checking a changed checkpoint can therefore still be slow, especially on a
+large generated map, while repeated unchanged lists avoid rebuilding worlds.
 
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
@@ -201,7 +219,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -217,10 +235,11 @@ The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
-for fields and ground lots, schema 35 for conversations, schema 36 for personal
-equipment, schema 37 for reusable containers, and schema 38 for selected tools
-on saved field and recipe work, record when those fields were introduced; they
-do not allow an earlier checkpoint schema past the current alpha cutoff.
+for fields and ground lots, schema 35 for conversations, schema 36 for terrain
+and weather generation, schema 37 for personal equipment, schema 38 for
+reusable containers, and schema 39 for selected tools on saved field and recipe
+work, record when those fields or behaviors were introduced; they do not allow
+an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -242,9 +261,10 @@ do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
-| Schema 36 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
-| Schema 37 | Pottery container lots, their contents and ownership, physical locations, and saved reservations. Earlier schemas cannot represent stored contents or container transfers. |
-| Schema 38 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; completion wears the tool only when the work commits. Older checkpoints cannot contain these links. |
+| Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
+| Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 38 | Pottery container lots, their contents and ownership, physical locations, and saved reservations. Earlier schemas cannot represent stored contents or container transfers. |
+| Schema 39 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; completion wears the tool only when the work commits. Older checkpoints cannot contain these links. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
