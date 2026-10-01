@@ -356,6 +356,37 @@ public sealed class PersonalEquipmentTests
         restored.Validate();
     }
 
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(4, true)]
+    public async Task FoodHarvestIsOfferedOnlyWhenTheWholeOutputFits(int cargo, bool fits)
+    {
+        using var initial = new PrivateWorldRuntime("food-capacity-boundary", _ => new Choices([]));
+        initial.StageStarterContent();
+        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var source = state.Map.Resources.First(item => item.Kind == "food" && item.TreeKind is null);
+        var inventory = state.Society.Society.Inventory;
+        inventory = inventory with { Lots = inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray() };
+        inventory = InventoryFixture.AddLot(inventory, "harvest-cargo", "wood", actor, cargo);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = source.Position, HungerBasisPoints = 6_000, LastDecisionContext = null } : person).ToArray(),
+        };
+        var provider = new Choices(["harvest_food"]);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new Choices([]));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        if (fits) Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("harvest_food", StringComparer.Ordinal));
+        else Assert.All(provider.Offers, offer => Assert.DoesNotContain("harvest_food", offer.Split(',')));
+        Assert.Equal(fits ? 1 : 0, world.ExportState().Events.Count(item => item.Kind == "food_harvested" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)));
+        Assert.Equal(cargo + (fits ? 4 : 0), PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+        Assert.Equal(cargo, world.Society.Inventory.GetLot("harvest-cargo").Quantity);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
+    }
+
     private static PrivateWorldRuntimeState WithWeather(PrivateWorldRuntimeState state, WeatherKind weather)
     {
         var systems = state.WorldSystems!;

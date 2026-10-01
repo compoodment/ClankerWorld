@@ -142,6 +142,12 @@ public sealed partial class PrivateWorldRuntime
         .FirstOrDefault(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||
             FindUnoccupiedRoute(actor, position, resource.Position, ResourceInteractionRange).Count > 0);
 
+    private static int FoodHarvestQuantity(MapResource source) => source.TreeKind == TreeGrowthRules.Orchard
+        ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
+
+    private static int FoodHarvestCarryUnits(MapResource source) => FoodHarvestQuantity(source) +
+        (source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardSeedsPerPick : 0);
+
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
         var source = AvailableFoodSource(inhabitantId, state.Position);
@@ -151,8 +157,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var harvestYield = source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
-        if (FreeCarryCapacity(inhabitantId) < harvestYield)
+        var harvestYield = FoodHarvestQuantity(source);
+        if (FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(source))
         {
             AppendEvent("carrying_full", inhabitantId);
             return;
