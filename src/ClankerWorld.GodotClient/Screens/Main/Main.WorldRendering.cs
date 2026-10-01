@@ -54,6 +54,7 @@ public partial class Main
         RenderWorldDetails(snapshot);
         RenderModLibrary(snapshot);
         RenderEventLog();
+        RenderDeveloperTools(snapshot);
         RefreshControlAvailability();
     }
 

@@ -53,6 +53,7 @@ public partial class Main
         }
 
         if (controlsPanel.Visible) PositionControlsPanel();
+        PositionDeveloperTools();
         PositionAgentProfile();
         PositionBuildingDetails();
         PositionMapHud();
@@ -169,8 +170,8 @@ public partial class Main
     }
 
     /// <summary>
-    /// Settings and Developer tools scroll inside the menu panel, as tall as
-    /// their contents but never taller than the screen leaves room for.
+    /// Settings scrolls inside the menu panel, as tall as its contents but
+    /// never taller than the screen leaves room for.
     /// </summary>
     private void FitMenuScrolls(float viewportHeight)
     {
@@ -178,13 +179,12 @@ public partial class Main
         settingsScroll.CustomMinimumSize = new Vector2(
             Math.Max(gameSettingsContent.GetCombinedMinimumSize().X, worldSettingsContent.GetCombinedMinimumSize().X) +
             SettingsScrollGap + settingsScroll.GetVScrollBar().GetCombinedMinimumSize().X, settingsScroll.CustomMinimumSize.Y);
-        foreach (var scroll in new[] { settingsScroll, developerScroll })
+        if (settingsScroll.IsVisibleInTree() && settingsScroll.GetChildCount() > 0 && settingsScroll.GetChild(0) is Control content)
         {
-            if (!scroll.IsVisibleInTree() || scroll.GetChildCount() == 0 || scroll.GetChild(0) is not Control content) continue;
-            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, 0);
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, 0);
             var around = gameMenuPanel.GetCombinedMinimumSize().Y;
             var height = Math.Clamp(content.GetCombinedMinimumSize().Y, 120, Math.Max(120, viewportHeight - 28 - around));
-            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, height);
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, height);
         }
         gameMenuPanel.Size = gameMenuPanel.GetCombinedMinimumSize();
     }

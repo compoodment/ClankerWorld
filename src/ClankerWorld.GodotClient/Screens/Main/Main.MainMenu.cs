@@ -152,6 +152,7 @@ public partial class Main
     private void ShowMainMenu()
     {
         isInWorld = false;
+        if (developerPanel.Visible) CloseDeveloperTools();
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
         mainMenuCenter.MouseFilter = MouseFilterEnum.Pass;
@@ -278,7 +279,6 @@ public partial class Main
         settingsButton.Visible = visible;
         modLibraryButton.Visible = visible;
         worldSettingsCategoryButton.Visible = visible;
-        developerToggleButton.Visible = visible;
         menuQuitToMainButton.Visible = visible;
         menuQuitSeparator.Visible = visible;
         modLibraryPanel.Hide();

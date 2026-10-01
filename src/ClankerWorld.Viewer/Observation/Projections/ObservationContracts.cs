@@ -60,6 +60,20 @@ public sealed record ViewerRoute(
     IReadOnlyList<ViewerPosition> Steps,
     string TopologyManifestDigest);
 
+/// <summary>
+/// Developer tools: the route an agent is walking, as the server planned it on
+/// its latest step. <see cref="Steps"/> holds at most the first
+/// <see cref="StepLimit"/> tiles still ahead; <see cref="StepCount"/> counts all of them.
+/// </summary>
+public sealed record ViewerPlannedRoute(
+    string Reason,
+    ViewerPosition Destination,
+    IReadOnlyList<ViewerPosition> Steps,
+    int StepCount)
+{
+    public const int StepLimit = 256;
+}
+
 public sealed record ViewerSpatialKnowledge(
     ViewerPosition CurrentTile,
     IReadOnlyList<ViewerPosition> PerceivedTiles,
@@ -133,6 +147,9 @@ public sealed record ViewerInhabitant(
     bool IsDraft)
 {
     public ViewerPublicIntention? PublicIntention { get; init; }
+
+    /// <summary>Developer tools only; null when the agent is not walking anywhere.</summary>
+    public ViewerPlannedRoute? PlannedRoute { get; init; }
 
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
@@ -358,6 +375,8 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
+    /// <summary>Developer tools: how long the host took to work out the latest tick; null before one runs.</summary>
+    public double? LastTickMilliseconds { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

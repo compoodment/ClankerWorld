@@ -62,9 +62,12 @@ public sealed class OwnerWorldObservationStore
         privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
         OwnerClientCapabilities.ToArray());
 
-    public ViewerWorldSnapshot GetSnapshot() => privateRuntime is not null
-        ? ToSnapshot(privateRuntime.ExportState())
-        : ToSnapshot(ownerRuntime!.Capture(0).Snapshot);
+    public ViewerWorldSnapshot GetSnapshot()
+    {
+        if (privateRuntime is null) return ToSnapshot(ownerRuntime!.Capture(0).Snapshot);
+        var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+        return ToSnapshot(state, diagnostics);
+    }
 
     public ViewerEventSlice GetEventsAfter(long afterEventId)
     {
@@ -93,8 +96,8 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var state = privateRuntime.ExportState();
-            var privateSnapshot = ToSnapshot(state, knownTerrainWorldId, knownTerrainDigest,
+            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
                 privateSnapshot,
@@ -196,7 +199,7 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
-    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state,
+    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
         string? knownTerrainWorldId = null, string? knownTerrainDigest = null,
         string? knownMapLayersDigest = null)
     {
@@ -290,8 +293,12 @@ public sealed class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
-                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
+                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
+                {
+                    PlannedRoute = ToPlannedRoute(diagnostics.PlannedRoutes.GetValueOrDefault(inhabitant.Id)),
+                })
                 .Concat(state.Society.Society.Inhabitants
                     .Where(inhabitant => inhabitant.Status == SocietyInhabitantStatus.Dead && deceasedById.ContainsKey(inhabitant.Id))
                     .Select(inhabitant => ToDeceasedInhabitant(state, inhabitant, deceasedById[inhabitant.Id])))
@@ -1044,6 +1051,11 @@ public sealed class OwnerWorldObservationStore
 
         return new ViewerRoute("idle", null, null, [], state.Map.ManifestDigest);
     }
+
+    /// <summary>A planned route as the owner sees it, with at most <see cref="ViewerPlannedRoute.StepLimit"/> steps.</summary>
+    public static ViewerPlannedRoute? ToPlannedRoute(PlaytestPlannedRoute? route) => route is null ? null :
+        new ViewerPlannedRoute(route.Reason, ToPosition(route.Destination),
+            route.Steps.Take(ViewerPlannedRoute.StepLimit).Select(ToPosition).ToArray(), route.Steps.Count);
 
     private static bool IsWithinInteractionRange(GridPoint origin, GridPoint destination) =>
         Math.Abs(origin.X - destination.X) + Math.Abs(origin.Y - destination.Y) <= 1;
