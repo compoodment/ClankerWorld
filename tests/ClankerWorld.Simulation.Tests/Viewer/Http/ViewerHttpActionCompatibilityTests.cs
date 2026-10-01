@@ -20,7 +20,7 @@ public sealed partial class ViewerHttpTests
     [Theory]
     [InlineData(null)]
     [InlineData("clankerworld.owner-world-creation.v1")]
-    [InlineData("clankerworld.owner-world-creation.v3")]
+    [InlineData("clankerworld.owner-world-creation.v2")]
     public async Task OlderActionHostAllowsReconnectButClientExplainsNewWorldUpdate(string? advertisedDomain)
     {
         using var baseHost = new ViewerWebApplicationFactory(null, privateWorld: true, legacyPrivateWorld: false);
@@ -42,7 +42,7 @@ public sealed partial class ViewerHttpTests
         Assert.NotNull(reconnect.Baseline.Snapshot);
 
         var action = new OwnerWorldCreationAction("Disposable", "compatibility", "Small", 50, false);
-        // Reproduce the old host's actual strict v1 verification with a new v2 proof.
+        // Reproduce the old host's actual strict v1 verification with a new v3 proof.
         using var failedAction = await SendSignedAsync(host, client, key, device.DeviceId,
             OwnerPairingEndpoints.OwnerWorldPreview, action, OwnerHttpBinding.WorldCreationPayload(action));
         Assert.Equal(HttpStatusCode.Unauthorized, failedAction.StatusCode);
@@ -86,7 +86,13 @@ public sealed partial class ViewerHttpTests
         var action = new Client.OwnerWorldCreationAction("Disposable", "compatible-advanced", "Small", 50, false,
             "Dominant", "Temperate", false, "Abundant", "High", "Low", "High");
         var preview = await api.PreviewWorldAsync(uri, authority, device.DeviceId, action, signer, default);
-        var created = await api.CreateWorldAsync(uri, authority, device.DeviceId, action, signer, default);
+        var createAction = action with
+        {
+            CandidateAttempt = preview.Coverage!.Attempt,
+            ExpectedManifestDigest = preview.ManifestDigest,
+            ExpectedMapLayersDigest = preview.MapLayersDigest,
+        };
+        var created = await api.CreateWorldAsync(uri, authority, device.DeviceId, createAction, signer, default);
         var state = host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState();
         Assert.Equal(created.WorldId, state.Society.Society.WorldId);
         Assert.Equal(preview.ManifestDigest, state.Map.ManifestDigest);
@@ -134,7 +140,7 @@ public sealed partial class ViewerHttpTests
 
         public static string V1Payload(OwnerWorldCreationAction action) => string.Join('\n',
             OwnerHttpBinding.WorldCreationPayload(action).Split('\n').Take(10))
-            .Replace("clankerworld.owner-world-creation.v2", "clankerworld.owner-world-creation.v1", StringComparison.Ordinal);
+            .Replace("clankerworld.owner-world-creation.v3", "clankerworld.owner-world-creation.v1", StringComparison.Ordinal);
 
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
         {

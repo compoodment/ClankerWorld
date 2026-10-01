@@ -527,7 +527,16 @@ public static class GeneratedCampMapGenerator
         var surfaceKinds = new byte[tiles.Length];
         var vegetationKinds = new byte[tiles.Length];
         var forestPotential = new bool[tiles.Length];
-        var forestRainfall = options.ForestCover switch { GenerationAmount.Low => 175, GenerationAmount.High => 125, _ => 150 };
+        var trialBalancedVisibility = options.BalancedVisibilityVersion == GeographyGenerator.CurrentBalancedVisibilityVersion &&
+            options.Size is WorldSizePreset.Small or WorldSizePreset.Medium &&
+            options.ClimateMode == ClimateMode.Balanced;
+        var forestRainfall = options.ForestCover switch
+        {
+            GenerationAmount.Low => 175,
+            GenerationAmount.High => 125,
+            GenerationAmount.Normal when trialBalancedVisibility => 135,
+            _ => 150,
+        };
         // Pass 1, elevation and water, comes from the geography. The flattened
         // terrain summary and the forest potential are read from it directly.
         for (var y = 0; y < height; y++)

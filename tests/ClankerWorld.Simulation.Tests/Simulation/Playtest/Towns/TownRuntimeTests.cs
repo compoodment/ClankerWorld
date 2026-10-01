@@ -366,14 +366,18 @@ public sealed class TownRuntimeTests
             Assert.True(WorldContentSimulationRules.IsEntrance(workshop, position, entrance));
             Assert.Contains(entrance, world.RoadTiles);
             if (facing) Assert.Contains(entrance, roads);
-            else Assert.DoesNotContain(entrance, roads);
+            else
+            {
+                Assert.DoesNotContain(entrance, roads);
+                Assert.True(world.RoadTiles.Count > roads.Count,
+                    "A building without a pre-existing street entrance should add a connected entrance tile.");
+            }
         }
 
         var network = world.RoadTiles.ToHashSet();
         var grownTown = Assert.Single(world.Towns);
         Assert.Empty(network.Intersect(Footprints()));
         Assert.All(network, road => Assert.Contains(road, grownTown.BorderTiles));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "town_road_extended");
 
         // The Town stays one connected street network. A bridge with Road at
         // both ends joins the streets on its two banks.

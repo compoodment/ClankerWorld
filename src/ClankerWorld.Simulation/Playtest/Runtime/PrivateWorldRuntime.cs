@@ -140,7 +140,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         map = preparedMap ?? (startPace == WorldStartPace.FounderSetup
             ? geographyOptions is null
                 ? BaseCampMapGenerator.Generate(this.worldSeed, includeLegacyBedroll)
-                : GeneratedCampMapGenerator.Generate(geographyOptions, includeLegacyBedroll)
+                : GeographyCandidateSelector.GenerateCandidate(geographyOptions, includeLegacyBedroll: includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
         fertility = new LandFertility(map, this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
@@ -171,6 +171,29 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
+    }
+
+    /// <summary>Creates a world from the already previewed deterministic map.</summary>
+    public static PrivateWorldRuntime CreateFromGeneratedGeography(string worldSeed,
+        GeographyOptions geographyOptions, SeededMap preparedMap,
+        Func<string, IDecisionProvider>? providerFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(geographyOptions);
+        ArgumentNullException.ThrowIfNull(preparedMap);
+        if (!MatchesGeneratedCandidate(preparedMap, geographyOptions))
+            throw new ArgumentException("The prepared map does not match the selected geography candidate.", nameof(preparedMap));
+
+        return new PrivateWorldRuntime(worldSeed, providerFactory, 64, 4,
+            WorldStartPace.FounderSetup, geographyOptions, preparedMap);
+    }
+
+    private static bool MatchesGeneratedCandidate(SeededMap map, GeographyOptions options)
+    {
+        var (width, height) = GeographyGenerator.Dimensions(options.Size);
+        return map.Width == width && map.Height == height &&
+            map.WrapsEastWest == options.WrapEastWest &&
+            map.GenerationAttempt == options.CandidateAttempt &&
+            string.Equals(MapManifestCodec.Digest(map), map.ManifestDigest, StringComparison.Ordinal);
     }
 
     public long WorldTick => society.Checkpoint.WorldTick;
