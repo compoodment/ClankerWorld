@@ -6,21 +6,24 @@
 //   and again when it is marked ready. Each file counts towards the one area
 //   whose path rule matches it most closely; client files count half and tests
 //   count only when nothing else does. The second area is kept only if it has
-//   at least a third of the first one's count. type:docs when every changed
-//   file is documentation.
-// - A type label from the ticked "Type of change" box in the PR template.
+//   at least a third of the first one's count.
+// - One type label: the first ticked "Type of change" box in the PR template,
+//   or type:docs when no box is ticked and every changed file is documentation.
 // - status:needs-review while a PR is open and not a draft.
 // - The highest priority label (priority:p0 to priority:p3) of the open issues
-//   the PR links, and at least priority:p1 when it changes how everyone works
-//   on the repository (.github/, CONTRIBUTING.md or AGENTS.md).
-// - status:has-pr on open issues the PR links as described in CONTRIBUTING
-//   ("Closes #N", "Fixes #N", "Resolves #N" or "Refs #N", one keyword per issue,
-//   or any #N on the template's Closes and Refs lines), replacing status:needs-pr.
+//   the PR closes, and at least priority:p1 when it changes how everyone works
+//   on the repository (.github/, .claude/, CONTRIBUTING.md or AGENTS.md).
+// - status:has-pr on open issues the PR closes as described in CONTRIBUTING
+//   ("Closes #N", "Fixes #N" or "Resolves #N", one keyword per issue, or any #N
+//   on the template's Closes line), replacing status:needs-pr. "Refs #N" only
+//   mentions an issue and changes none of its labels.
 //   Once the PR is ready for review (not a draft), the issue's claim label
 //   status:in-progress is removed too, so the issue shows only status:has-pr.
-//   When the last open PR linking an issue closes, status:has-pr is removed
+//   When the last open PR closing an issue closes, status:has-pr is removed
 //   again; an issue whose PR closed without merging goes back to status:needs-pr
 //   if it has no other status.
+// - Events on a PR that is already closed, such as an edit after merging,
+//   change nothing.
 
 const NeedsReview = 'status:needs-review';
 const HasPr = 'status:has-pr';
@@ -29,15 +32,19 @@ const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const InProgress = 'status:in-progress';
 // Changes to CI, labels, templates or the contribution rules affect every
 // agent, so they are at least P1.
-const WorkflowPaths = ['.github/', 'CONTRIBUTING.md', 'AGENTS.md'];
+const WorkflowPaths = ['.github/', '.claude/', 'CONTRIBUTING.md', 'AGENTS.md'];
 const WorkflowPriority = 'priority:p1';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
-// ignoring HTML comments and code. Refs links an issue without closing it.
-const KeywordPattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?):?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
-const TemplateLinePattern = /^\s*[-*]\s*(?:Closes|Refs)\b[^:\n]*:(.*)$/gim;
+// ignoring HTML comments and code.
+const KeywordPattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
+const TemplateLinePattern = /^\s*[-*]\s*Closes\b[^:\n]*:(.*)$/gim;
 
-function linkedIssueNumbers(body, repoName = '') {
+function labelNames(labels) {
+  return (labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
+}
+
+function closingIssueNumbers(body, repoName = '') {
   const thisRepo = repoName.toLowerCase();
   const text = (body ?? '')
     .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -106,6 +113,7 @@ const AreaRules = {
   ],
   'area:tooling': [
     '.github/',
+    '.claude/',
     'scripts/',
     'global.json',
     'Directory.Build.props',
@@ -162,26 +170,24 @@ function higherPriority(a, b) {
 
 async function setAreaLabels({ github, core, repo, pr, files }) {
   const wanted = areaLabels(files);
-  const current = (pr.labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
+  const current = labelNames(pr.labels);
   for (const name of current) {
     if (name.startsWith('area:') && !wanted.includes(name)) await removeLabel(github, repo, pr.number, name);
   }
-  const add = [...wanted];
-  if (files.length > 0 && files.every(isDocumentation)) add.push('type:docs');
-  const missing = add.filter(name => !current.includes(name));
+  const missing = wanted.filter(name => !current.includes(name));
   if (missing.length > 0) {
     await github.rest.issues.addLabels({ ...repo, issue_number: pr.number, labels: missing });
   }
   core.info(`Areas for this pull request: ${wanted.join(', ') || 'none'}.`);
 }
 
-function typeLabels(body) {
+// The first ticked box, in the template's order; null when none sets a type.
+function typeLabel(body) {
   const ticked = box => new RegExp(`^\\s*[-*] \\[[xX]\\] ${box}\\s*$`, 'm').test(body ?? '');
-  const labels = new Set();
-  if (ticked('Bug fix')) labels.add('type:bug');
-  if (ticked('New or changed gameplay') || ticked('UI or game text')) labels.add('type:feature');
-  if (ticked('Documentation') && labels.size === 0 && !ticked('Refactor or tooling')) labels.add('type:docs');
-  return labels;
+  if (ticked('Bug fix')) return 'type:bug';
+  if (ticked('New or changed gameplay') || ticked('UI or game text')) return 'type:feature';
+  if (ticked('Documentation') && !ticked('Refactor or tooling')) return 'type:docs';
+  return null;
 }
 
 async function removeLabel(github, repo, number, name) {
@@ -204,13 +210,13 @@ async function openIssue(github, repo, number, includeClosed = false) {
 
 async function otherOpenPrLinks(github, repo, number, exceptPr) {
   const open = await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 });
-  return open.some(pr => pr.number !== exceptPr && linkedIssueNumbers(pr.body, `${repo.owner}/${repo.repo}`).has(number));
+  return open.some(pr => pr.number !== exceptPr && closingIssueNumbers(pr.body, `${repo.owner}/${repo.repo}`).has(number));
 }
 
 async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
   const issue = await openIssue(github, repo, number, true);
   if (!issue || issue.state === 'open' && await otherOpenPrLinks(github, repo, number, prNumber)) return;
-  const names = issue.labels.map(label => (typeof label === 'string' ? label : label.name));
+  const names = labelNames(issue.labels);
   if (names.includes(HasPr)) {
     await removeLabel(github, repo, number, HasPr);
     core.info(`Removed ${HasPr} from #${number}.`);
@@ -228,7 +234,7 @@ async function labelPullRequest({ github, context, core }) {
   const action = context.payload.action;
   const pr = context.payload.pull_request;
   const repoName = `${repo.owner}/${repo.repo}`;
-  const linked = linkedIssueNumbers(pr.body, repoName);
+  const linked = closingIssueNumbers(pr.body, repoName);
 
   if (action === 'closed') {
     await removeLabel(github, repo, pr.number, NeedsReview);
@@ -237,6 +243,9 @@ async function labelPullRequest({ github, context, core }) {
     }
     return;
   }
+  // An edit or other event on a closed pull request, for example a description
+  // edited after merging, must not put back its review or issue labels.
+  if (pr.state !== undefined && pr.state !== 'open') return;
 
   const files = (await github.paginate(github.rest.pulls.listFiles, {
     ...repo, pull_number: pr.number, per_page: 100,
@@ -245,8 +254,14 @@ async function labelPullRequest({ github, context, core }) {
     await setAreaLabels({ github, core, repo, pr, files });
   }
 
-  const types = typeLabels(pr.body);
-  const prLabels = [...types];
+  const current = labelNames(pr.labels);
+  const type = typeLabel(pr.body) ?? (files.length > 0 && files.every(isDocumentation) ? 'type:docs' : null);
+  if (type !== null) {
+    for (const name of current) {
+      if (name.startsWith('type:') && name !== type) await removeLabel(github, repo, pr.number, name);
+    }
+  }
+  const prLabels = type !== null ? [type] : [];
   if (!pr.draft) prLabels.push(NeedsReview);
   if (prLabels.length > 0) {
     await github.rest.issues.addLabels({ ...repo, issue_number: pr.number, labels: prLabels });
@@ -262,20 +277,19 @@ async function labelPullRequest({ github, context, core }) {
     await removeLabel(github, repo, number, Ready);
     if (!pr.draft) await removeLabel(github, repo, number, InProgress);
     core.info(`Marked #${number} as ${HasPr}${pr.draft ? '' : ` and cleared ${InProgress}`}.`);
-    const issueLabels = issue.labels.map(label => (typeof label === 'string' ? label : label.name));
+    const issueLabels = labelNames(issue.labels);
     for (const name of Priorities) {
       if (issueLabels.includes(name)) priority = higherPriority(priority, name);
     }
   }
 
-  // The pull request takes the highest priority of the open issues it links,
+  // The pull request takes the highest priority of the open issues it closes,
   // and at least P1 if it changes the repository's workflow.
   if (priority !== null) {
-    const prLabels = (pr.labels ?? []).map(label => (typeof label === 'string' ? label : label.name));
     for (const name of Priorities) {
-      if (name !== priority && prLabels.includes(name)) await removeLabel(github, repo, pr.number, name);
+      if (name !== priority && current.includes(name)) await removeLabel(github, repo, pr.number, name);
     }
-    if (!prLabels.includes(priority)) {
+    if (!current.includes(priority)) {
       await github.rest.issues.addLabels({ ...repo, issue_number: pr.number, labels: [priority] });
       core.info(`Set this pull request to ${priority}.`);
     }
@@ -284,7 +298,7 @@ async function labelPullRequest({ github, context, core }) {
   // An edit that drops a reference releases that issue.
   const previousBody = context.payload.changes?.body?.from;
   if (action === 'edited' && previousBody !== undefined) {
-    for (const number of linkedIssueNumbers(previousBody, repoName)) {
+    for (const number of closingIssueNumbers(previousBody, repoName)) {
       if (!linked.has(number)) {
         await releaseIssue({ github, core, repo, number, prNumber: pr.number, merged: false });
       }
@@ -293,6 +307,6 @@ async function labelPullRequest({ github, context, core }) {
 }
 
 module.exports = labelPullRequest;
-module.exports.linkedIssueNumbers = linkedIssueNumbers;
-module.exports.typeLabels = typeLabels;
+module.exports.closingIssueNumbers = closingIssueNumbers;
+module.exports.typeLabel = typeLabel;
 module.exports.areaLabels = areaLabels;

@@ -22,6 +22,23 @@ several steps, keep a short working plan, update it as evidence changes, and
 leave a clear handoff if the work cannot finish in this session. Keep scratch
 files out of the delivered diff.
 
+## Ask the owner in chat
+
+computment reads your chat replies, not GitHub comments, issues or pull request
+descriptions. Put whatever you need from them in your reply: a decision, an
+owner task, a go-ahead for something outside your job, or a problem you cannot
+solve. Give the options and your recommendation, highest priority first. Then
+record the answer yourself: a design choice in its game-design chapter, and a
+short comment on the issue saying it was the owner's answer.
+
+When the owner asks what you need from them, answer from these searches,
+highest priority first:
+
+```text
+is:issue is:open label:"status:needs-decision"
+is:issue is:open label:owner-task
+```
+
 ## Know your job
 
 Several agents usually work at once, each given one job. All of them follow
@@ -33,7 +50,7 @@ different point.
 | Find bugs | Each problem has its own Bug issue |
 | Fix issues | A pull request is ready for review and linked to its issues |
 | Review and merge | The change is on main and its issues are closed or updated |
-| Work with the owner | The requested pull request is ready, or decisions are recorded |
+| Owner requests | The requested pull request is ready, or decisions are recorded |
 
 ### Find bugs
 
@@ -50,10 +67,13 @@ different point.
 
 - Choose the highest-priority [agent-ready issue](CONTRIBUTING.md#find-work) and
   claim it before you start.
+- If the highest-priority work is waiting on a decision rather than code, ask
+  the owner about it in your reply ([Ask the owner in chat](#ask-the-owner-in-chat))
+  instead of skipping it silently.
 - Open the pull request as a draft while you work, with `Closes` for each issue
   it completes and `Refs` for the rest. Mark it ready for review only when it is
-  finished. If the change still needs a hands-on check in the game, add
-  `status:needs-playtest` to the issue.
+  finished. If the change still needs a hands-on check in the game, add a file
+  to the [playtest list](playtest/README.md).
 - Fix CI failures and review requests on the same branch, but convert the pull
   request back to draft first and mark it ready again when you are done
   ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)).
@@ -64,13 +84,18 @@ different point.
 - Review only pull requests you did not write, and follow the
   [Review and merge](CONTRIBUTING.md#review-and-merge) checklist, taking
   higher-priority pull requests first. Never merge a
-  draft, or a pull request someone pushed to after marking it ready.
+  draft, or a pull request its author pushed to after marking it ready.
+- Fix what you find yourself, small or large, and list each fix in the squash
+  commit body.
 - Merge dependent pull requests in their stated order. After each merge, later
   pull requests may need main merged in and CI run again.
 - After merging, confirm the commit on GitHub's `origin/main` and that the
   linked issues closed. Report the commit hash.
 
-### Work with the owner
+### Owner requests
+
+When the owner asks you directly for something, such as a change to how the
+repository works or a set of decisions:
 
 - A direct owner request needs no issue. Say that in the pull request.
 - Record agreed design choices in the right game-design chapter. That pull
@@ -95,8 +120,8 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 
 GitHub Issues owns bug reports, reproduction steps, progress and repair evidence.
 Do not recreate a bug register in Markdown. Keep [labels](CONTRIBUTING.md#labels)
-current on every issue you open, claim or change: one type, one or two areas and
-a status. An open PR is proposed work, not
+current on every issue you open, claim or change: one type, one or two areas,
+a priority and, while it waits on something, a status. An open PR is proposed work, not
 proof that its design is agreed or its feature is available.
 
 ## Keep explanations understandable
