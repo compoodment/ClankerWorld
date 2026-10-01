@@ -295,7 +295,8 @@ public sealed partial class PrivateWorldConversationTests
         {
             InitiatorId, InviteeId,
         });
-        using var world = NewWorld("nearby-conversation", provider);
+        // Bystanders stay nearby through the save boundary; only the two participants can speak.
+        using var world = NewWorld("nearby-conversation", _ => provider);
         world.StartWorld();
 
         for (var attempt = 0; attempt < 40 && world.Conversations.All(item => item.Turns.Count == 0); attempt++)
@@ -329,7 +330,7 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Equal(turn, Assert.Single(provider.TurnRequests[1].PublicHistory));
 
         var saved = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.ConversationSchemaVersion, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
         Assert.Equal(2, saved.Conversations!.Single().Turns.Count);
         var budgets = saved.ConversationBudgets!;
         Assert.Equal(1, budgets.Single(item => item.AgentId == InitiatorId).Count);
@@ -576,7 +577,7 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Single(provider.TurnRequests);
         var saved = world.ExportState();
         Assert.DoesNotContain(saved.Events, item => item.Detail.Contains("secret provider payload", StringComparison.Ordinal));
-        Assert.Equal(PrivateWorldRuntime.ConversationSchemaVersion, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
     }
 
     [Fact]
