@@ -794,6 +794,127 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
+    public async Task AHouseholdCanExpandFromItsAccessibleTownWarehouseWithoutMapWood()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var state = seed.ExportState();
+        var householdId = house.HouseholdId!;
+        var townId = house.TownId!;
+        var warehouse = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-warehouse");
+        Assert.Equal(townId, warehouse.TownId);
+        Assert.Contains(actor, state.Towns!.Single(item => item.Id == townId).ResidentIds);
+
+        var members = state.Society.Society.GetHousehold(householdId).MemberIds.ToHashSet(StringComparer.Ordinal);
+        var otherHouse = state.WorldSimulation.Buildings.First(item => item.HouseholdId != householdId &&
+            item.HouseholdId is not null && state.WorldContent!.Buildings.Single(definition =>
+                definition.CanonicalId == item.DefinitionId).Tags.Contains("house", StringComparer.Ordinal));
+        var otherHouseholdId = otherHouse.HouseholdId!;
+        var inventory = state.Society.Society.Inventory;
+        var obsoleteWoodLots = inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
+                (lot.OwnerId == householdId || members.Contains(lot.OwnerId) ||
+                 lot.OwnerId == townId && lot.StorageBuildingId == warehouse.InstanceId))
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => !obsoleteWoodLots.Contains(lot.Id)).ToArray(),
+            Reservations = inventory.Reservations.Where(reservation => !obsoleteWoodLots.Contains(reservation.LotId)).ToArray(),
+        };
+        const string townWoodId = "house-expansion-town-warehouse-wood";
+        inventory = InventoryFixture.AddLot(inventory, townWoodId, "wood", townId, 4,
+            storageBuildingId: warehouse.InstanceId);
+        const string foreignWoodId = "house-expansion-foreign-house-wood";
+        inventory = InventoryFixture.AddLot(inventory, foreignWoodId, "wood", otherHouseholdId, 4,
+            storageBuildingId: otherHouse.InstanceId);
+
+        var houseDefinition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(houseDefinition, house)!.Value;
+        var nearlyFullTarget = (capacity * BuildingStorageRules.NearlyFullPercent + 99) / 100;
+        var currentHouseStock = inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        var addedHouseStock = Math.Max(0, nearlyFullTarget - currentHouseStock);
+        if (addedHouseStock > 0)
+            inventory = InventoryFixture.AddLot(inventory, "house-expansion-near-full-stone", "stone", householdId,
+                addedHouseStock, storageBuildingId: house.InstanceId);
+        Assert.True(capacity - inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity) >= 4);
+
+        var woodResourceIds = state.Map.Resources.Where(resource => resource.Kind is "wood" or "construction")
+            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Resources = state.Resources.Select(resource => woodResourceIds.Contains(resource.ResourceId)
+                ? resource with { State = ResourceState.Depleted }
+                : resource).ToArray(),
+            WorldSystems = state.WorldSystems! with
+            {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource =>
+                        resource.Kind is "wood" or "construction"
+                            ? resource with { Quantity = 0, State = EcologyResourceState.Depleted, NextRegenerationDay = 100 }
+                            : resource).ToArray(),
+                },
+            },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = warehouse.Position, LastDecisionContext = null, Project = null }
+                : person).ToArray(),
+        };
+
+        var provider = new IdleProvider("expand_building:" + house.InstanceId);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == actor ? provider : new IdleProvider());
+        GridPoint? pickupPosition = null;
+        for (var tick = 0; tick < 20 && !provider.Seen.SelectMany(request => request.Observation.Candidates)
+                 .Any(candidate => candidate.Id == "expand_building:" + house.InstanceId); tick++)
+        {
+            var step = await world.AdvanceOneTickAsync();
+            Assert.True(step.Advanced);
+            if (step.Events.Any(item => item.Kind == "building_expansion_material_picked_up" &&
+                    item.Detail.Contains(townWoodId, StringComparison.Ordinal)))
+                pickupPosition = world.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+        }
+        Assert.Contains(provider.Seen.SelectMany(request => request.Observation.Candidates),
+            candidate => candidate.Id == "expand_building:" + house.InstanceId);
+
+        for (var tick = 0; tick < 100 && pickupPosition is null; tick++)
+        {
+            var step = await world.AdvanceOneTickAsync();
+            Assert.True(step.Advanced);
+            if (!step.Events.Any(item => item.Kind == "building_expansion_material_picked_up" &&
+                    item.Detail.Contains(townWoodId, StringComparison.Ordinal))) continue;
+            pickupPosition = world.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+            break;
+        }
+        if (pickupPosition is null)
+        {
+            var person = world.Inhabitants.Single(item => item.InhabitantId == actor);
+            var recentEvents = string.Join(";", world.ExportState().Events.TakeLast(12)
+                .Select(item => $"{item.Kind}:{item.Detail}"));
+            var cargo = string.Join(";", world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor)
+                .Select(lot => $"{lot.ItemKind}={lot.Quantity}@{lot.StorageBuildingId ?? lot.DeliveryBuildingId ?? "ground"}"));
+            Assert.Fail($"No expansion pickup after 100 ticks; position={person.Position}; cargo={cargo}; recent={recentEvents}");
+        }
+        Assert.NotEqual(house.Position, pickupPosition);
+        var transit = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "wood" && lot.DeliveryBuildingId == house.InstanceId);
+        Assert.InRange(transit.Quantity, 1, 4);
+        var woodBeforeCompletion = world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())),
+            id => id == actor ? provider : new IdleProvider());
+        var completed = false;
+        for (var tick = 0; tick < 500 && !completed; tick++)
+        {
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+            completed = (resumed.WorldSimulation.BuildingExpansions ?? []).Any(job =>
+                job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Completed);
+        }
+        Assert.True(completed, "Town warehouse stock should travel to the House and complete its expansion after reload.");
+        Assert.Equal(woodBeforeCompletion - 4,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(4, resumed.Society.Inventory.GetLot(foreignWoodId).Quantity);
+        Assert.Equal(otherHouse.InstanceId, resumed.Society.Inventory.GetLot(foreignWoodId).StorageBuildingId);
+        resumed.Validate();
+    }
+    [Fact]
     public async Task AnInvitedGuestCanReachAnOccupiedHouseDuringAStorm()
     {
         using var seed = PreparedWorld("first-town-house-a", out var actor, out var house);

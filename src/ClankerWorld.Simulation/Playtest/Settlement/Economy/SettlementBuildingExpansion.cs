@@ -117,8 +117,12 @@ public sealed partial class PrivateWorldRuntime
     {
         var owner = ExpansionOwner(building);
         var site = ExpansionGroundPosition(building);
+        var residentWarehouse = building.HouseholdId is not null && building.TownId == TownForResident(actor)
+            ? WarehouseForResident(actor) : null;
         return society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == owner && lot.ItemKind == itemKind &&
+            .Where(lot => (lot.OwnerId == owner || residentWarehouse is { } warehouse &&
+                    warehouse.TownId == building.TownId && lot.OwnerId == warehouse.TownId &&
+                    lot.StorageBuildingId == warehouse.InstanceId) && lot.ItemKind == itemKind &&
                 lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null &&
                 lot.GroundPosition != site && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
