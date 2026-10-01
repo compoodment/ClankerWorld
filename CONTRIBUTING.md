@@ -131,8 +131,9 @@ not show which agent took it.
   draft or branch to continue from. Claims waiting on the owner
   (`status:needs-decision` on the issue or pull request) are kept. Recent pull
   request creation and activity count even when its commits have older dates;
-  the workflow's own cleanup notes do not count. The cleanup checks current
-  claims and handoffs again before and after changing labels.
+  routine label changes and the workflow's own cleanup notes do not count as
+  work. New claims still count. The cleanup checks current claims and handoffs
+  again before and after changing labels.
 - An abandoned draft keeps `status:has-pr` alongside `status:needs-pr` until
   someone claims its issue or a closing pull request becomes ready. Routine
   draft edits and pushes do not hide that unclaimed work from the search.

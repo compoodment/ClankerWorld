@@ -23,6 +23,10 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
         addLabels: async ({ issue_number, labels }) => {
           const record = records.get(issue_number);
           beforeAdd({ issue_number, labels, record, records, comments, events });
+          for (const name of labels.filter(name => !record.labels.includes(name))) {
+            (events[issue_number] ??= []).push({ event: 'labeled', label: { name }, created_at: hoursAgo(0) });
+            record.updated_at = hoursAgo(0);
+          }
           record.labels = [...new Set([...record.labels, ...labels])];
         },
         removeLabel: async ({ issue_number, name }) => {
@@ -30,6 +34,8 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
           beforeRemove({ issue_number, name, record, records, comments, events });
           if (!record.labels.includes(name)) throw Object.assign(new Error('missing'), { status: 404 });
           record.labels = record.labels.filter(label => label !== name);
+          (events[issue_number] ??= []).push({ event: 'unlabeled', label: { name }, created_at: hoursAgo(0) });
+          record.updated_at = hoursAgo(0);
         },
         createComment: async ({ issue_number, body }) => {
           beforeComment({ issue_number, body, records, comments, events });
@@ -369,4 +375,36 @@ test('edited progress comments count while automated review notes remain ignored
   await state.run();
   assert.ok(state.records.get(1).labels.includes('status:in-progress'));
   assert.ok(!state.records.get(9).labels.includes('status:reviewing'));
+});
+
+test('cleanup label writes do not restore a stale review claim or repeat its note', async () => {
+  const state = world({
+    prs: [{ number: 9, labels: ['status:reviewing', 'status:needs-review'], created_at: hoursAgo(10),
+      updated_at: hoursAgo(8), head: { sha: 'old', ref: 'codex/9' } }],
+    events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(8) }] },
+    commits: { old: hoursAgo(8) },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(9).labels, ['status:needs-review']);
+  assert.equal(state.records.get(9).updated_at, hoursAgo(0));
+  assert.ok(state.posted.some(note => note.number === 9 && /Review claim released/.test(note.body)));
+  const notes = state.posted.length;
+  await state.run();
+  assert.deepEqual(state.records.get(9).labels, ['status:needs-review']);
+  assert.equal(state.posted.length, notes);
+});
+
+test('label-only PR updates do not freshen an abandoned draft but later activity does', async () => {
+  for (const laterActivity of [false, true]) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress', 'status:has-pr'] }],
+      prs: [{ number: 9, draft: true, body: 'Closes #1', labels: ['type:feature'], created_at: hoursAgo(10),
+        updated_at: hoursAgo(laterActivity ? 0.1 : 0.2), head: { sha: 'old', ref: 'codex/1' } }],
+      events: { ...claimed(1, 8), 9: [{ event: 'labeled', label: { name: 'type:feature' }, created_at: hoursAgo(0.2) }] },
+      commits: { old: hoursAgo(8) },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), laterActivity);
+    assert.equal(state.records.get(1).labels.includes('status:needs-pr'), !laterActivity);
+  }
 });

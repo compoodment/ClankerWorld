@@ -109,16 +109,20 @@ function age(now, last) {
 
 async function prActivity(github, repo, pr) {
   const comments = await commentsFor(github, repo, pr.number);
+  const events = await github.paginate(github.rest.issues.listEvents, { ...repo, issue_number: pr.number, per_page: 100 });
   const commit = await commitActivity(github, repo, pr.head.sha);
   // The PR's update time also captures a push of commits with older commit
-  // dates. Our own release comments update that time too, so exclude updates
-  // explained by those comments. Neither they nor the proxy enter the work
-  // signature: this cleanup must not undo itself because it posted a note.
-  const automaticTime = newest(commentTimes(comments.automated));
+  // dates. Release comments and label writes update it too, so exclude
+  // updates explained by those actions. Explicit claims still count below.
+  // Neither these updates nor the proxy enter the work signature: this
+  // cleanup must not undo itself because it changed a label or posted a note.
+  const nonWorkTime = Math.max(newest(commentTimes(comments.automated)),
+    newest(events.filter(event => event.event === 'labeled' || event.event === 'unlabeled').map(event => event.created_at)));
   const updateTime = newest([pr.updated_at]);
   const last = Math.max(newest([pr.created_at, commit.date, ...commentTimes(comments.work)]),
-    updateTime > automaticTime ? updateTime : 0);
-  return { last, signature: [pr.number, pr.head.sha, commentSignature(comments.work)] };
+    updateTime > nonWorkTime ? updateTime : 0);
+  const reviewClaim = newest(events.filter(event => event.event === 'labeled' && event.label?.name === Reviewing).map(event => event.created_at));
+  return { last, reviewClaim, signature: [pr.number, pr.head.sha, commentSignature(comments.work)] };
 }
 
 async function issueSnapshot(github, repo, repoName, number) {
@@ -223,8 +227,8 @@ async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun })
 async function reviewSnapshot(github, repo, number) {
   const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
   const labels = labelNames(pr.labels);
-  const claim = await lastLabeled(github, repo, number, Reviewing);
   const activity = await prActivity(github, repo, pr);
+  const claim = activity.reviewClaim;
   return { pr, labels, keep: labels.includes(NeedsDecision), last: Math.max(claim, activity.last),
     signature: JSON.stringify([claim, activity.signature]) };
 }
