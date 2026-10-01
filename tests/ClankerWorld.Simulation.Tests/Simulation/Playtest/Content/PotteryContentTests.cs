@@ -351,19 +351,79 @@ public sealed class PotteryContentTests
                 Society = foodState.Society.Society with { Inventory = foodInventory },
             },
         };
+        var houseCapacity = BuildingStorageRules.Capacity(
+            setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == house.DefinitionId), house)!.Value;
+        var storedBeforeFiller = foodInventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId)
+            .Sum(lot => lot.Quantity);
+        foodInventory = InventoryFixture.AddLot(foodInventory, "test-pot-capacity-filler", "wood", householdId,
+            houseCapacity - storedBeforeFiller, storageBuildingId: house.InstanceId);
+        foodState = foodState with
+        {
+            Society = foodState.Society with
+            {
+                Society = foodState.Society.Society with { Inventory = foodInventory },
+            },
+        };
+        Assert.Equal(houseCapacity, foodInventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId)
+            .Sum(lot => lot.Quantity));
+        Assert.Equal(3, foodInventory.Lots.Where(lot => lot.Id == "test-pot-food").Sum(lot => lot.Quantity));
         foodState = SetActorCondition(foodState, actor, 10_000, house.Position);
+
+        var carriedFoodInventory = foodState.Society.Society.Inventory with
+        {
+            Lots = foodState.Society.Society.Inventory.Lots.Where(lot => lot.Id != "test-pot-food")
+                .Concat([
+                    new InventoryLot("test-pot-storage-replacement", "wood", householdId, 3, 10_000, 10_000,
+                        foodState.Society.Society.WorldTick, StorageBuildingId: house.InstanceId),
+                    new InventoryLot("test-carried-pot-food", "berries", actor, 2, 10_000, 10_000,
+                        foodState.Society.Society.WorldTick),
+                ])
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray(),
+        };
+        var carriedFoodState = foodState with
+        {
+            Society = foodState.Society with
+            {
+                Society = foodState.Society.Society with { Inventory = carriedFoodInventory },
+            },
+        };
+        var carriedFoodProvider = new PrefixCandidateProvider("store_food_in_pot");
+        using var storingCarriedFood = PrivateWorldRuntime.Restore(carriedFoodState, id => id == actor
+            ? carriedFoodProvider : new IdleProvider());
+        for (var tick = 0; tick < 5 && carriedFoodProvider.OfferedCandidates.IsEmpty; tick++)
+            Assert.True((await storingCarriedFood.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(carriedFoodProvider.OfferedCandidates, id => id == "safe_idle");
+        Assert.DoesNotContain(carriedFoodProvider.OfferedCandidates, id => id == "store_food_in_pot");
+        Assert.Equal(houseCapacity, storingCarriedFood.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
+        Assert.Contains(storingCarriedFood.Society.Inventory.Lots, lot => lot.Id == "test-carried-pot-food" &&
+            lot.OwnerId == actor && lot.Quantity == 2 && lot.ContainerLotId is null);
+
+        var foodStorageProvider = new PrefixCandidateProvider("store_food_in_pot");
         using var storingFood = PrivateWorldRuntime.Restore(foodState, id => id == actor
-            ? new PrefixCandidateProvider("store_food_in_pot") : new IdleProvider());
+            ? foodStorageProvider : new IdleProvider());
         for (var tick = 0; tick < 5 &&
              !storingFood.Society.Inventory.Lots.Any(lot => lot.ContainerLotId == potId); tick++)
             Assert.True((await storingFood.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(foodStorageProvider.OfferedCandidates, id => id == "store_food_in_pot");
         var storedFood = Assert.Single(storingFood.Society.Inventory.Lots,
             lot => lot.ContainerLotId == potId);
         Assert.Equal("berries", storedFood.ItemKind);
         Assert.Equal(3, storedFood.Quantity);
+        Assert.Equal(3, storingFood.Society.Inventory.Lots.Where(lot => lot.Id == "test-pot-food")
+            .Sum(lot => lot.Quantity));
         Assert.Equal(householdId, storingFood.Society.Inventory.GetLot(potId).OwnerId);
+        Assert.Equal(houseCapacity, storingFood.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
 
         var foodReload = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(storingFood.ExportState()));
+        var reloadedStoredFood = Assert.Single(foodReload.Society.Society.Inventory.Lots,
+            lot => lot.Id == "test-pot-food");
+        Assert.Equal(3, reloadedStoredFood.Quantity);
+        Assert.Equal(potId, reloadedStoredFood.ContainerLotId);
+        Assert.Equal(householdId, reloadedStoredFood.OwnerId);
+        Assert.Equal(houseCapacity, foodReload.Society.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
         foodReload = SetActorCondition(foodReload, actor, 0, house.Position);
         var inventoryWithoutCarriedFood = foodReload.Society.Society.Inventory with
         {
