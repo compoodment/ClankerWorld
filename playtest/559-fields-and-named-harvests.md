@@ -1,0 +1,10 @@
+# Fields and named harvests
+
+Pending Windows playtests for [#559](https://github.com/compoodment/ClankerWorld/issues/559) and [#579](https://github.com/compoodment/ClankerWorld/issues/579). No hands-on check is claimed.
+
+- Create two worlds with the same seed. Inspect several land tiles in each, including grass, sand and hills. Each matching tile should show the same fertility; fertility should vary across the land rather than appear only at old fertile-soil patches. ([#579](https://github.com/compoodment/ClankerWorld/issues/579))
+- Let a household with a Farmhouse and a hoe work its own land. Watch a field progress through tilling, planting, growing, readiness and harvesting. A building, Road or another household's land should never become that household's field. ([#559](https://github.com/compoodment/ClankerWorld/issues/559))
+- Watch potatoes, grain and cultivated greens grow. Planting uses the matching seed stock, and the household keeps enough planting stock for another crop. Tree seeds and orchard seeds should never plant a grain or greens field. ([#559](https://github.com/compoodment/ClankerWorld/issues/559))
+- Follow a ready crop. After harvesting, its goods should stay on that field until an adult collects them and carries them to the household's building. A full-handed adult should leave the harvest where it is, and the Silo should gain stock only after a delivery. ([#559](https://github.com/compoodment/ClankerWorld/issues/559))
+- Save and load with a growing field, then again with a harvested field awaiting collection. The crop, its used seeds and the goods left on the ground should remain, and each harvest should be collected only once. ([#559](https://github.com/compoodment/ClankerWorld/issues/559))
+- Follow the same field through another planting and harvest. It should remain the same household's field and produce another real load of goods. Compare different fertility and weather conditions; the trial growth and yield values need tuning during play. ([#579](https://github.com/compoodment/ClankerWorld/issues/579))

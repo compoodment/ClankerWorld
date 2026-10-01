@@ -1,0 +1,11 @@
+# Food from field to meal
+
+Pending Windows playtests for [#561](https://github.com/compoodment/ClankerWorld/issues/561). No hands-on check is claimed. Recipe quantities and cooking times are provisional.
+
+- Start a new world and inspect each House. Each starts with eight meal portions. Let those supplies run down, then follow a potato or greens harvest home: an adult should cook the delivered vegetables with wood and later eat the resulting meal. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Follow grain from a field to porridge, and grain through the Farmhouse mill to flour and bread. Cooking should use the ingredients actually delivered to the House, including water carried in a jug and wood for fuel. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Watch water being carried to a cooking building. The jug and its contents should travel together; cooking uses water while leaving the jug available for refilling. A jug that does not fit in the destination should stay where it is until there is room. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Compare plain porridge with porridge containing berries or fruit. The enriched meal should keep its food variety and fuller portion after an adult collects it and after a save and load. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Watch a House cook stew from potatoes and cultivated greens. Missing vegetables, water or fuel should leave the work waiting; no meal should appear until the household has brought in the required ingredients. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Let a household build and stock a Restaurant. It should cook bread with cultivated greens into a better meal and also prepare porridge, bread and stew from its own delivered ingredients. Another household should obtain its meals through the available trade, without taking the owner's stock freely. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
+- Save and load while a meal is cooking and while its ingredients are being carried. The same supplies should finish that meal, the water jug should remain, and the meal should appear once. ([#561](https://github.com/compoodment/ClankerWorld/issues/561))
