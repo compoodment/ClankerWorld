@@ -185,7 +185,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)

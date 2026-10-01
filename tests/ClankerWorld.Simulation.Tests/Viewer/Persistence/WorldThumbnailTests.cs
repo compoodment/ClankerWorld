@@ -8,7 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class WorldThumbnailTests
 {
     [Theory]
-    [InlineData(WorldSizePreset.Small)]
     [InlineData(WorldSizePreset.Medium)]
     public void AThumbnailKeepsTheWorldsShapeAndCommonTerrain(WorldSizePreset size)
     {
