@@ -555,9 +555,11 @@ The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
 The Town border alone does not silently take over another claim or transfer a
 building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. A later mayor, once that role exists,
-reviews land rights; how that office is created and what changes it may make
-remain open. The first Town begins with a council, not an assumed mayor.
+model text cannot rewrite these records. The first Town begins with a council,
+not an assumed mayor. Residents can later approve creating an elected mayor
+through the protected government-change process. Its creation, term and
+elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+specific adjudication procedures remain open.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -565,8 +567,16 @@ are not seized and ordinary physical movement is not stopped by the dispute
 record. Resolution needs an adjudicator authorized by Town law, with the
 authority, evidence and exact change recorded. With no such law or adjudicator,
 the dispute remains pending; there is no automatic first-claimer winner.
-Plot boundaries, ordinary shared-use grants, expiry and transfer procedures,
-and the future mayor's precise powers still need decisions.
+Later October 1 owner answers on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5924016895)
+settle the following land rules: a plot is a connected group of tiles and may
+include empty land; ordinary household permission continues unless disputed,
+with an optional agreed end date; households may transfer permission by
+agreement without mayor approval for every transfer. The elected mayor makes
+the final decision on disputes and what happens when an agreed period ends.
+These rules do not imply automatic confiscation or unilateral household
+transfers. Evidence, hearings, specific adjudication outcomes and handling
+conflicts of interest remain their own decision topic.
 
 ### How Roads and bridges appear
 
@@ -637,8 +647,8 @@ Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, access to other non-residential
 buildings, reservations and queues;
-claim boundaries, shared-use grants and mayoral powers; Town borders and
-governance; currency/land pricing;
+land adjudication and changes to claim boundaries; Town borders and
+cross-Town jurisdiction; currency/land pricing;
 transport progression; other terrain eligibility,
 travel effects; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
@@ -854,7 +864,7 @@ election interview.
 
 These rules complete the initial ordinary proposal and election process.
 Law scope and the protected government-change process are agreed below.
-The remaining mayor-office choices, enforcement and other topics stay separate.
+The mayor's office is also agreed below; enforcement and other topics stay separate.
 Implementation is tracked in
 [#618](https://github.com/compoodment/ClankerWorld/issues/618), followed by
 Town membership and admission integration in
@@ -931,7 +941,7 @@ action authority.
   ordinary law text cannot create them. Creating a role does not itself grant
   new land powers or authority to confiscate household property. The mayor's
   already agreed land-dispute role and election method remain applicable;
-  its remaining office rules are still to be settled.
+  its office rules are agreed below.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
@@ -952,11 +962,71 @@ action authority.
   forward from its parked stage.
 
 The initiative, vote, serialization, supported forms, handover and restoration
-rules are settled. Remaining mayor timing, tenure, succession and council
-relationships are tracked in
-[#619](https://github.com/compoodment/ClankerWorld/issues/619), alongside the
-recorded land work in
-[#426](https://github.com/compoodment/ClankerWorld/issues/426).
+rules are settled. Law and government decisions are recorded through
+[#619](https://github.com/compoodment/ClankerWorld/issues/619); land implementation
+remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
+
+### The mayor's office and elections
+
+**Agreed with the owner on October 1, answers 58A, 59A, 60B and 61A–63A:**
+
+- **Start the first mayoral election promptly after residents approve creating
+  the office through the protected government-change vote.** There is no
+  minimum population. A four-adult Town can approve the office without waiting
+  to reach eight adults. Authority begins only at a valid recorded handover;
+  approval alone does not appoint a mayor.
+- **Initially the mayor works alongside the council.** The mayor handles the
+  already agreed land disputes and permission expiries; the council retains
+  ordinary laws and admissions. Giving one elected leader those broader
+  government powers requires an explicit protected government change. Land
+  adjudication and ordinary governing authority are distinct mandates even
+  when one person holds both; neither role silently grants the other, an extra
+  council vote, or ownership of the disputed property.
+- **A mayoral term initially lasts twenty unpaused world days.** Open renewal
+  voting one day before expiry. Incumbents may stand again; early removal or
+  replacement uses the protected resident process. A mayor seated on day 12
+  serves until day 32, with renewal voting opening on day 31. The council's
+  separate ten-day terms are unchanged.
+- **The mayoral office becomes vacant on death, resignation, Town departure,
+  or term expiry without a valid successor.** Travel alone does not remove
+  Town membership or the office. Land decisions wait for a valid mayor; an
+  eligible outgoing mayor does not continue beyond the term as a caretaker.
+  Hold an election promptly and give its winner a fresh full twenty-day term,
+  rather than the council's remainder-term replacement. The existing council
+  continues ordinary government. If the ordinary governing leader's mandate
+  is also vacant, use the protected all-adult fallback for ordinary decisions;
+  ending a separate land-mayor mandate does not remove an independently valid
+  governing leader. Lawful succession resumes the already approved arrangement
+  without another government-change vote. Nobody inherits the office or
+  becomes mayor automatically as runner-up.
+- **Reuse council ballot handling with explicit mayoral rules.** Only adult
+  Town residents vote or stand; homeless residents and travelers remain
+  eligible. Use one-day rounds, the continuing candidate-register mechanics,
+  fixed opening voter/candidate eligibility, departure/death removals, actual
+  notices, withdrawal handling, self-voting and revisable election ballots.
+  Willingness must specifically cover seeking the mayoral office; a council
+  candidacy is not mayoral consent. Each voter chooses one candidate. There
+  is no turnout minimum, but a winner needs at least one actual vote in the
+  deciding round. Most votes wins; tied highest candidates face another vote,
+  repeatedly if necessary, with fresh eligible voters and only the tied,
+  still-eligible candidates. Never use the council's draw. Failed attempts
+  retry after one unpaused day, or earlier following a material change.
+- **Keep one active election process per Town, with scheduled full council
+  elections taking priority.** Queue mayoral voting while that election runs.
+  An interrupted mayoral round closes without a result and its unfinished
+  ballots are discarded; resume with a fresh voting round and fresh eligible
+  voters. Preserve any previously recorded mayoral top tie and its remaining
+  eligible candidate field. The government-change handover's three-day clock
+  keeps running through scheduling delays. If that transition expires and
+  is cancelled, cancel its dependent mayoral contest too; do not later seat
+  an office that was never validly established.
+
+These choices settle creation, ordinary-government boundaries, tenure,
+vacancies, ballot handling and scheduling. Land evidence, hearings, specific
+outcomes, conflicts of interest and review of decisions remain separate from
+this office design. Law, government-change and office implementation is tracked
+in [#631](https://github.com/compoodment/ClankerWorld/issues/631), after the
+ordinary council and formal land-record foundations.
 
 ### Still to decide
 
@@ -971,13 +1041,16 @@ Law scope, visitor obligations, repeal and prospective application are agreed
 in [Town law scope and changes](#town-law-scope-and-changes).
 The protected resident vote and handover are agreed in
 [Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
-Still open: the mayor's first-election trigger, tenure, succession, relationship
-to the council and election scheduling; how a violation is witnessed,
-investigated, enforced, or punished; specific land adjudication procedures;
+Mayor creation, terms, vacancies and elections are agreed in
+[The mayor's office and elections](#the-mayors-office-and-elections).
+Still open: how a violation is witnessed, investigated, enforced, or punished;
+specific land adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
-The next law and government interview is tracked separately in
-[#619](https://github.com/compoodment/ClankerWorld/issues/619).
+Law and government choices in
+[#619](https://github.com/compoodment/ClankerWorld/issues/619) are settled;
+land case procedures are the next decision topic in
+[#630](https://github.com/compoodment/ClankerWorld/issues/630).
 
 ## Item and resource pipelines
 
