@@ -475,9 +475,11 @@ and invented content are not silently approved. In particular:
   without stalls, and its stalls stand on an open plaza of packed earth around
   it, the same ground as Roads laid as an area rather than as streets. The
   market need not be as large as the earlier approximately 10×12 reservation;
-  the plaza's size and how it grows remain open. In the third art review
-  computment found a 7×5 plaza "a bit too big for the eight stalls"; a 5×4
-  plaza is in review. Town Hall is
+  how the plaza grows remains open. For eight stalls computment settled on a
+  **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
+  eight stalls", and 5×4 lost the open column on each side that it needed.
+  The stalls stand in two back-to-back rows of four, each facing an aisle,
+  with a path from the hall's door down the middle. Town Hall is
   **3×4**. These are building/plot footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking

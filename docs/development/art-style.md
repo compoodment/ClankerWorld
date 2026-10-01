@@ -243,8 +243,9 @@ black overlay; the ramps already shift hue toward blue in the shade.
   pot sign; Clinic shingles with a cross-and-herb sign. The Market is a
   timber hall without stalls; its 1×1 stalls stand on a plaza of packed earth
   in front of it, drawn as an area of the Road's surface. The plaza fits its
-  stalls: two back-to-back rows, each facing an aisle, and a path from the
-  hall's door; the 5 × 4 plaza for eight stalls is in review.
+  stalls: two back-to-back rows, each facing an aisle, a path from the
+  hall's door, and one open column on each side. Eight stalls take a 7 × 4
+  plaza.
 - B4 The ridge runs along the long side as a one-pixel light line; the
   north or west half is lit and the south or east half shaded. Square roofs
   are hipped.

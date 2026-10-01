@@ -520,7 +520,8 @@ The recent history should persist with the world save but remain bounded.
   prickly pear, standing on some of the desert's cactus cover; and a soft snow
   edge that thins into clumps and frost, shaded like a low drift, instead of
   ending in a flat white band. The plaza was "a bit too big for the eight
-  stalls", so a smaller one is in review.
+  stalls"; in the fourth round computment kept a shorter plaza but wanted
+  the open column on each side back, so eight stalls take a 7×4 plaza.
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.

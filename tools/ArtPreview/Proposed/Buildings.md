@@ -1,4 +1,4 @@
-# Buildings: rounds 1 to 4
+# Buildings: rounds 1 to 5
 
 What to look at: `out/proposed/sheet-buildings.png` next to
 `out/baseline/sheet-buildings.png`, and the town in
@@ -7,6 +7,15 @@ What to look at: `out/proposed/sheet-buildings.png` next to
 baseline, and also on its own (the `.sprite` entries) so it can be placed in a
 scene. The newest round is described first; the earlier notes follow
 unchanged below it.
+
+## Round 5
+
+You kept round 4's height but wanted back the open column on each side of the
+stalls. Only `Market.plaza` and `Market.plaza.16` change.
+
+- **Market.plaza (7 × 4):** round 3's width with round 4's four rows. The
+  eight stalls stand where they did in round 4, with one open column of
+  packed earth on each side of them. Also `Market.plaza.16`.
 
 ## Round 4
 

@@ -213,9 +213,9 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         foreach (var (id, w, h, side, water, note) in MooredPorts)
             yield return new(Family, id, MooredPort(w, h, side, water), note);
         yield return new(Family, "Market.plaza", MarketPlaza(32),
-            "Round 4: the plaza is smaller, 5 x 4 tiles instead of 7 x 5. The eight approved stalls stand back to back in two rows of four, each row facing its own aisle, with the path from the hall's door to the Road down the middle. Nothing else changed.");
+            "Round 5: 7 x 4 tiles. It keeps round 4's four rows and brings back round 3's open column on each side of the stalls. The eight approved stalls stand back to back in two rows of four, each row facing its own aisle, with the path from the hall's door to the Road down the middle. Nothing else changed.");
         yield return new(Family, "Market.plaza.16", MarketPlaza(16),
-            "Round 4, 16 px: the same smaller Market plaza at mid zoom.");
+            "Round 5, 16 px: the same 7 x 4 Market plaza at mid zoom.");
     }
 
     /// <summary>
@@ -3231,28 +3231,28 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     // ----------------------------------------------------------------------
-    // Market plaza (round 3, made smaller in round 4).
+    // Market plaza (round 3, resized in rounds 4 and 5).
     // ----------------------------------------------------------------------
 
     /// <summary>
     /// The Market as a whole: the market hall at the head of a small plaza of
     /// packed earth with stalls standing on it, and a Road leading in. The
-    /// plaza is a block of ordinary Road tiles (5 × 4) drawn by the game's
+    /// plaza is a block of ordinary Road tiles (7 × 4) drawn by the game's
     /// <see cref="RoadSprites"/>: where every neighbour is Road the pieces
     /// join into one continuous area, so it shows no lanes and no tile grid,
     /// only the soft worn edge round the outside. The stall tiles count as
     /// plaza ground, so the earth runs under them. Eight approved stalls
     /// stand back to back in two rows of four, each row facing its own aisle,
-    /// with an open way from the hall's door to the Road. Round 4: the owner
-    /// found the 7 × 5 plaza a bit too big for eight stalls, so the spare row
-    /// and the two spare columns are gone and every open tile is an aisle or
-    /// the path.
+    /// with an open way from the hall's door to the Road and one open column on
+    /// each side. Round 4: the owner found the 7 × 5 plaza a bit too big for
+    /// eight stalls, so the spare row went. Round 5: the four-row height was
+    /// right, but the owner wanted the open column on each side back.
     /// </summary>
     private static Image MarketPlaza(int tilePixels)
     {
         const int tilesWide = 9, tilesHigh = 9;
         var image = Grass(tilesWide, tilesHigh, tilePixels);
-        static bool Plaza(int x, int y) => x is >= 2 and <= 6 && y is >= 2 and <= 5;
+        static bool Plaza(int x, int y) => x is >= 1 and <= 7 && y is >= 2 and <= 5;
         // The Road leads in from the south on the middle column and carries on past the picture's edge.
         static bool Road(int x, int y) => Plaza(x, y) || (x == 4 && y > 5);
         // The hall's door asks the plaza tile in front of it for a doorstep path, as any building does.
