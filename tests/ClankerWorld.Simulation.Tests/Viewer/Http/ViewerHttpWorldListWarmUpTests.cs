@@ -54,7 +54,7 @@ public sealed partial class ViewerHttpTests
     }
 
     [Fact]
-    public async Task WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
+    public void WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
     {
         var directory = Directory.CreateTempSubdirectory("world-list-warmup-gate-");
         try
@@ -78,7 +78,10 @@ public sealed partial class ViewerHttpTests
                 catalog.Add("Medium " + n, other.ExportState());
             }
 
-            var warmUp = Task.Run(() => selection.WarmUp(CancellationToken.None));
+            // Keep the warm-up and probes independent of thread-pool saturation
+            // during the full suite; probe delay must not consume the whole check.
+            var warmUp = Task.Factory.StartNew(() => selection.WarmUp(CancellationToken.None),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             var probes = 0;
             while (!warmUp.IsCompleted)
             {
@@ -86,9 +89,9 @@ public sealed partial class ViewerHttpTests
                 Assert.True(Monitor.TryEnter(gate, TimeSpan.FromMilliseconds(100)));
                 Monitor.Exit(gate);
                 probes++;
-                await Task.Delay(20);
+                Thread.Sleep(20);
             }
-            await warmUp;
+            warmUp.GetAwaiter().GetResult();
 
             Assert.True(probes > 1);
             Assert.Contains(log.Messages, message => message.Contains(

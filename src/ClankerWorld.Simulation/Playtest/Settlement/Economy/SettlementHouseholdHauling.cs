@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 24, house.InstanceId));
             return;
         }
-        if (UnlocatedHouseholdStock(householdId) is { } stock &&
+        if (FreeCarryCapacity(actor) > 0 && UnlocatedHouseholdStock(householdId) is { } stock &&
             HouseHaulPickupQuantity(actor, stock, house.InstanceId) > 0 &&
             (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
              FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
@@ -243,7 +243,10 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.DeliveryBuildingId is null &&
                 lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
-                lot.ItemKind is not ("field_map" or "field_record") && AvailableLotQuantity(lot) == lot.Quantity &&
+                lot.ItemKind is not ("field_map" or "field_record") &&
+                !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
+                    reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
+                        InventoryReservationState.Committed) &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) || !HasActiveContainerReservation(inventory, lot.Id)))
             // Tools speed up later gathering, so they are set down last.
             .OrderBy(lot => lot.ItemKind is "tool" or "wooden_axe" or "wooden_pickaxe" ? 1 : 0)

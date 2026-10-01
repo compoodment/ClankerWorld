@@ -154,8 +154,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("equipment_equipped", $"{actor}|{equippedId}|{item.ItemKind}");
     }
 
-    private bool CanContinueEquipmentRepair(string actor) => inhabitants[actor].Equipment?.Repair is not null &&
-        !NeedsUrgentFood(inhabitants[actor]) && !NeedsUrgentWarmth(inhabitants[actor]);
+    private bool CanContinueEquipmentRepair(string actor) => inhabitants[actor].Equipment?.Repair is { } repair &&
+        !NeedsUrgentFood(inhabitants[actor]) && !NeedsUrgentWarmth(inhabitants[actor]) &&
+        repair.MaterialReservationIds.All(id => society.Checkpoint.Inventory.GetReservation(id) is
+        { State: InventoryReservationState.Reserved } reservation && reservation.ExpiryTick >= WorldTick);
 
     private void RepairEquipment(string actor, PlaytestInhabitantState person)
     {
