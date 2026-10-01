@@ -1,6 +1,8 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -73,6 +75,45 @@ public sealed partial class PrivateWorldRuntime
     private bool NeedsSmithIron(string householdId) =>
         ToolsForHousehold(householdId).Where(lot => lot.ItemKind == "iron" &&
             AvailableLotQuantity(lot) > 0).Sum(lot => lot.Quantity) < 4;
+
+    // One usable household pick unlocks its next real material demand. This
+    // bootstrap precedes optional stockpiles; it does not buy a pick per adult.
+    private int MissingHouseholdMiningTier(string householdId)
+    {
+        var members = inhabitants.Values.Where(person => HouseholdFor(person.InhabitantId) == householdId &&
+            AdultResident(person.InhabitantId) && society.Checkpoint.GetInhabitant(person.InhabitantId).Status == SocietyInhabitantStatus.Active).ToArray();
+        bool ReachableOutcrop(string kind, GridPoint origin) => map.Resources.Any(resource => resource.Kind == kind &&
+            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
+            map.IsReachableOnFoot(origin, resource.Position));
+        var required = BlacksmithForHousehold(householdId) is { } smith && NeedsSmithIron(householdId) &&
+            BlacksmithOreStocked(householdId, smith.InstanceId) < 8 && members.Any(person =>
+                ReachableOutcrop("iron_ore", person.Position) && map.IsReachableOnFoot(person.Position, smith.Position)) ? 2 :
+            PlannableHouseholdBuildings(householdId).Any(building => building.BuildCosts.Any(cost =>
+                cost.ResourceId == "stone" && HouseholdMaterialInHand(householdId, "stone") < cost.Amount)) &&
+            members.Any(person => ReachableOutcrop("stone", person.Position)) ? 1 : 0;
+        var resourceKind = required == 2 ? "iron_ore" : "stone";
+        var destination = required == 2 ? BlacksmithForHousehold(householdId)?.Position : HouseForHousehold(householdId)?.Position;
+        if (required == 0 || ToolsForHousehold(householdId).Any(lot => lot.ConditionBasisPoints > 0 &&
+            lot.ContainerLotId is null && lot.GroundPosition is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+            ToolCapabilities.ForItem(lot.ItemKind) is { Kind: ToolKind.Pickaxe } tool && tool.Tier >= required &&
+            (lot.OwnerId == householdId ? members.Any(person => ReachableOutcrop(resourceKind, person.Position) &&
+                map.IsReachableOnFoot(person.Position, HouseholdStockPosition(lot)) &&
+                (destination is null || map.IsReachableOnFoot(person.Position, destination.Value))) :
+                lot.StorageBuildingId is null && AdultResident(lot.OwnerId) &&
+                society.Checkpoint.GetInhabitant(lot.OwnerId).Status == SocietyInhabitantStatus.Active &&
+                (destination is null || map.IsReachableOnFoot(inhabitants[lot.OwnerId].Position, destination.Value)) &&
+                ReachableOutcrop(resourceKind, inhabitants[lot.OwnerId].Position)))) return 0;
+        return required;
+    }
+
+    private bool UnlocksHouseholdMining(string actor, string itemKind) =>
+        ToolCapabilities.ForItem(itemKind) is { Kind: ToolKind.Pickaxe } tool && HouseholdFor(actor) is { } household &&
+        MissingHouseholdMiningTier(household) is > 0 and var tier && tool.Tier >= tier;
+
+    private bool UnlocksHouseholdMining(RecipeDefinition recipe, string householdId) =>
+        recipe.Outputs.Any(output => ToolCapabilities.ForItem(output.ResourceId)?.Kind == ToolKind.Pickaxe) &&
+        MissingHouseholdMiningTier(householdId) is > 0 and var tier && recipe.Outputs.Any(output =>
+            ToolCapabilities.ForItem(output.ResourceId) is { Kind: ToolKind.Pickaxe } tool && tool.Tier >= tier);
 
     private (InventoryLot Lot, PlacedBuilding Smith, ToolCapability Tool)? ToolRepairNeed(string actor)
     {

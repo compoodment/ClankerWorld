@@ -104,24 +104,30 @@ public sealed partial class PrivateWorldRuntime
                      order.State == "queued" && order.Blocker is null && BusinessSite(order.BuildingId) is { } site &&
                      BusinessSiteReachable(actor, site, 0)))
             candidates.Add(new("business_make_tool:" + order.Id,
-                "Make the customer's requested tool from actual stocked Blacksmith inputs.", 25, order.BuildingId));
+                "Make the customer's requested tool from actual stocked Blacksmith inputs.",
+                UnlocksHouseholdMining(order.BuyerId, order.ToolKind) ? 17 : 25, order.BuildingId));
         if (businessTrade.ToolOrders.Any(order => order.BuyerId == actor && order.State is "queued" or "running" or "ready")) return;
-        var wanted = HouseholdFor(actor) is { } householdId && FarmhouseForHousehold(householdId) is not null
+        var miningTier = HouseholdFor(actor) is { } miningHousehold ? MissingHouseholdMiningTier(miningHousehold) : 0;
+        var wanted = miningTier > 0 ? ToolKind.Pickaxe :
+            HouseholdFor(actor) is { } householdId && FarmhouseForHousehold(householdId) is not null
             ? ToolKind.Hoe : inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ? ToolKind.Hammer : ToolKind.Axe;
-        if (CarriedTool(actor, wanted) is not null || SharedTool(actor, wanted) is not null) return;
+        if (CarriedTool(actor, wanted, Math.Max(1, miningTier)) is not null ||
+            SharedTool(actor, wanted, Math.Max(1, miningTier)) is not null) return;
         foreach (var site in worldSimulation.Buildings.Where(site => site.HouseholdId is not null &&
                      site.HouseholdId != HouseholdFor(actor) && worldContent.Buildings.Any(definition =>
                          definition.CanonicalId == site.DefinitionId && definition.Tags.Contains("blacksmith", StringComparer.Ordinal)) &&
                      BusinessSiteReachable(actor, site, ResourceInteractionRange)))
         {
             var recipe = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId &&
-                    recipe.Outputs.Any(output => ToolCapabilities.ForItem(output.ResourceId)?.Kind == wanted))
+                    recipe.Outputs.Any(output => ToolCapabilities.ForItem(output.ResourceId) is { } tool &&
+                        tool.Kind == wanted && tool.Tier >= Math.Max(1, miningTier)))
                 .OrderBy(recipe => recipe.Outputs.Where(output => ToolCapabilities.ForItem(output.ResourceId) is not null)
                     .Min(output => ToolCapabilities.ForItem(output.ResourceId)!.Tier)).FirstOrDefault();
             if (recipe is null) continue;
             var item = recipe.Outputs.First(output => ToolCapabilities.ForItem(output.ResourceId)?.Kind == wanted).ResourceId;
             candidates.Add(new("business_request_tool:" + site.InstanceId + "|" + item,
-                $"Visit the Blacksmith and request a {item.Replace('_', ' ')}; missing inputs and storage are reported.", 33, site.InstanceId));
+                $"Visit the Blacksmith and request a {item.Replace('_', ' ')}; missing inputs and storage are reported.",
+                miningTier > 0 ? 17 : 33, site.InstanceId));
         }
     }
 

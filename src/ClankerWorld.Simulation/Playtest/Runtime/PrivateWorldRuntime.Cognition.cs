@@ -868,7 +868,8 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : recipe.Tags.Contains("fruit-enriched", StringComparer.Ordinal) ? 27 :
+                recipeOwner is not null && UnlocksHouseholdMining(recipe, recipeOwner) ? 18 :
+                    recipe.IsCrop ? 20 : recipe.Tags.Contains("fruit-enriched", StringComparer.Ordinal) ? 27 :
                     HouseCookingContent.IsMealRecipe(recipe) ? 28 :
                     WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));

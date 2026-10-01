@@ -32,14 +32,14 @@ public sealed partial class PrivateWorldRuntime
                 if (payment is null && BusinessPaymentOpportunity(actor, listing))
                     candidates.Add(new("business_payment:" + listing.Id,
                         $"Collect or gather {listing.PaymentQuantity} {listing.PaymentKind} to bring to the business.",
-                        FoodItems.IsEdible(goods.ItemKind) ? 10 : 27, listing.BuildingId));
+                        FoodItems.IsEdible(goods.ItemKind) ? 10 : UnlocksHouseholdMining(actor, goods.ItemKind) ? 17 : 27, listing.BuildingId));
                 if (payment is not null &&
                     BusinessCarryingRoom(actor) >= Math.Max(0,
                         InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, goods.Id, listing.GoodsQuantity) -
                         InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, payment.Id, listing.PaymentQuantity)))
                     candidates.Add(new("business_buy:" + listing.Id,
                         $"Buy {listing.GoodsQuantity} {goods.ItemKind} for {listing.PaymentQuantity} {listing.PaymentKind}; bring both sides to the business.",
-                        FoodItems.IsEdible(goods.ItemKind) ? 9 : 23, listing.BuildingId));
+                        FoodItems.IsEdible(goods.ItemKind) ? 9 : UnlocksHouseholdMining(actor, goods.ItemKind) ? 17 : 23, listing.BuildingId));
             }
         if (HouseholdFor(actor) is not { } householdId) return;
         foreach (var site in worldSimulation.Buildings.Where(building => building.HouseholdId == householdId))
@@ -53,7 +53,9 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("business_receipts:" + site.InstanceId, "Collect the household's barter receipts from its business.", 22, site.InstanceId));
             if (BusinessGoodsToList(site) is { } goods)
                 candidates.Add(new("business_list:" + site.InstanceId,
-                    $"Offer actual stocked {goods.ItemKind} for an exact quantity of household supplies.", 26, site.InstanceId));
+                    $"Offer actual stocked {goods.ItemKind} for an exact quantity of household supplies.",
+                    businessTrade.ToolOrders.Any(order => order.BuildingId == site.InstanceId && order.ToolKind == goods.ItemKind &&
+                        order.State == "ready" && UnlocksHouseholdMining(order.BuyerId, goods.ItemKind)) ? 17 : 26, site.InstanceId));
             if (MarketUnsoldStock(actor, site) is not null)
                 candidates.Add(new("market_withdraw:" + site.InstanceId,
                     "Withdraw the household's unsold Market goods; the stall remains held while any goods or barter receipts remain.",
