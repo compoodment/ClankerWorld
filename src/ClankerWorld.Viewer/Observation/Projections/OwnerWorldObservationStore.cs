@@ -477,7 +477,10 @@ public sealed class OwnerWorldObservationStore
                     (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
                         .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
                     (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
-                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure)
+                {
+                    Trades = BusinessTradesAt(state, item.InstanceId),
+                })
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
@@ -724,6 +727,7 @@ public sealed class OwnerWorldObservationStore
                 .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)
                     ? "Waiting for the other inhabitant to accept or decline an exchange."
                     : "An exchange is offered; acceptance or refusal is still undecided.")
+                .Concat(BusinessTradeNotes(state, inhabitant))
                 .Concat(state.Inhabitants.Where(person => person.Parenthood is { } plan &&
                     (person.InhabitantId == inhabitant.Id || plan.PartnerId == inhabitant.Id)).Select(person =>
                     person.Parenthood!.Stage == "preparing" ? "Preparing for parenthood; food, shelter and both parents' consent are still required."
@@ -737,6 +741,36 @@ public sealed class OwnerWorldObservationStore
                 .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
+    }
+
+    private static ViewerBusinessTrade[] BusinessTradesAt(PrivateWorldRuntimeState state, string buildingId) =>
+        (state.BusinessTrades ?? []).Where(trade => trade.BuildingInstanceId == buildingId)
+            .OrderByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal)
+            .Take(8).Select(trade =>
+            {
+                var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
+                return new ViewerBusinessTrade(trade.OfferId, state.Society.Society.GetInhabitant(trade.BuyerId).Name,
+                    trade.GoodsKind, offer.FirstQuantity, trade.PaymentKind, offer.SecondQuantity,
+                    offer.State.ToString().ToLowerInvariant(), trade.CancellationReason);
+            }).ToArray();
+
+    private static IEnumerable<string> BusinessTradeNotes(PrivateWorldRuntimeState state, SocietyInhabitant person)
+    {
+        foreach (var trade in (state.BusinessTrades ?? []).Where(trade =>
+                     trade.BuyerId == person.Id || trade.SellerHouseholdId == person.HouseholdId)
+                     .OrderByDescending(trade => trade.ProposedTick).Take(4))
+        {
+            var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
+            var building = state.WorldSimulation?.Buildings.FirstOrDefault(item => item.InstanceId == trade.BuildingInstanceId);
+            var name = state.WorldContent?.Buildings.FirstOrDefault(item => item.CanonicalId == building?.DefinitionId)?.DisplayName ?? "shop";
+            var terms = $"{offer.FirstQuantity} {trade.GoodsKind.Replace('_', ' ')} for {offer.SecondQuantity} {trade.PaymentKind.Replace('_', ' ')}";
+            yield return offer.State switch
+            {
+                DirectBarterState.Open => $"Exchange at the {name}: {terms}. Both traders must meet there; goods are set aside until then.",
+                DirectBarterState.Settled => $"Bought at the {name}: {terms}. The buyer carries the purchase; payment is stored at the shop.",
+                _ => $"Exchange at the {name} cancelled: {trade.CancellationReason}",
+            };
+        }
     }
 
     /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>

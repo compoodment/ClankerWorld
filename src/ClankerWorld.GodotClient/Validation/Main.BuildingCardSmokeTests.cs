@@ -86,6 +86,23 @@ public partial class Main
             !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
             !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
             throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
+        RenderBuildingCard(buildingMap with
+        {
+            PlacedBuildings = [house with
+            {
+                DisplayName = "Store", Tags = ["store", "storage"],
+                Trades = [new("trade-ui-test", "Lina", "wooden_axe", 1, "wood", 3, "open", null)],
+            }],
+        });
+        facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+        quickText = string.Join('\n', buildingQuickStatus.FindChildren("*", "Label", owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
+            !facts.Contains("waiting for both traders at the shop", StringComparison.Ordinal) ||
+            !facts.Contains("household stock and other uses remain private", StringComparison.Ordinal) ||
+            !quickText.Contains("1 customer exchange waiting", StringComparison.Ordinal) ||
+            BuildingSprites.KindFor(["store", "storage"]) != BuildingKind.Store)
+            throw new InvalidOperationException("A shop card must show exact terms, transaction progress and limited customer access.");
         ApplyResponsiveLayout();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))

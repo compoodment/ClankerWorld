@@ -232,7 +232,8 @@ public partial class Main
         var signature = jobs.Length > 0
             ? string.Join('|', JobSummary(snapshot, jobs[0])) + (jobs.Length > 1 ? "+" + (jobs.Length - 1) : "")
             : string.Join('|', inside);
-        signature += $"|{building.ExpansionState}|{building.ExpansionFailure}";
+        signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
+            string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status));
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -244,6 +245,9 @@ public partial class Main
                 Text = failure,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
+        var openTrades = building.Trades.Count(trade => trade.Status == "open");
+        if (openTrades > 0)
+            buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -287,6 +291,19 @@ public partial class Main
         };
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
+        if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
+            facts.Add(("Customers", "May trade here; household stock and other uses remain private"));
+        foreach (var trade in building.Trades)
+        {
+            var terms = $"{trade.GoodsQuantity} {GameUiText.ItemName(trade.GoodsKind)} for {trade.PaymentQuantity} {GameUiText.ItemName(trade.PaymentKind)}";
+            var status = trade.Status switch
+            {
+                "open" => "waiting for both traders at the shop",
+                "settled" => "completed · purchase carried away, payment stored here",
+                _ => "cancelled · " + trade.CancellationReason,
+            };
+            facts.Add((trade.BuyerName, $"{terms} · {status}"));
+        }
         if (building.ExpansionState == "running")
             facts.Add(("Expansion", "Work in progress"));
         else if (building.ExpansionFailure is { } failure)

@@ -14,6 +14,7 @@ public enum BuildingKind : byte
     Storehouse,
     Hearth,
     TailorShop,
+    Store,
     Workshop,
     Path,
     Bedroll,
@@ -77,6 +78,7 @@ public static class BuildingSprites
         if (Has("silo")) return BuildingKind.Silo;
         if (Has("workshop")) return BuildingKind.Workshop;
         if (Has("tailor")) return BuildingKind.TailorShop;
+        if (Has("store")) return BuildingKind.Store;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -128,6 +130,7 @@ public static class BuildingSprites
         BuildingKind.Blacksmith => (new Color("62666E"), new Color("4A4E55"), new Color("2B2E33"), new Color("80858E")),
         BuildingKind.Silo => (new Color("B7A07A"), new Color("8E7A58"), new Color("54462F"), new Color("D3C09A")),
         BuildingKind.TailorShop => (new Color("8F6A9E"), new Color("6E4F7C"), new Color("3E2B47"), new Color("B08CBE")),
+        BuildingKind.Store => (new Color("689787"), new Color("4C7467"), new Color("2C473D"), new Color("8CB9A8")),
         BuildingKind.Shelter => (new Color("8C8A4E"), new Color("6D6B3C"), new Color("403F22"), new Color("A8A564")),
         BuildingKind.Storehouse => (new Color("8E6C47"), new Color("6E5236"), new Color("3F2E1F"), new Color("AC8A60")),
         BuildingKind.Workshop => (new Color("6F7C6A"), new Color("566150"), new Color("30372D"), new Color("8E9B88")),
@@ -225,6 +228,15 @@ public static class BuildingSprites
                 canvas.Rect(spoolX - 3, spoolY - 2, 6, 1, new Color("7A5634"));
                 canvas.Rect(spoolX - 2, spoolY - 1, 4, 3, new Color("C0504A"));
                 canvas.Rect(spoolX - 3, spoolY + 2, 6, 1, new Color("7A5634"));
+                Doorstep(canvas, roof, door);
+                break;
+            case BuildingKind.Store:
+                // Crates on a sign distinguish a shop from private storage.
+                var (crateX, crateY) = Inward(roof, door, 9);
+                canvas.Rect(crateX - 5, crateY - 4, 10, 9, palette.Edge);
+                canvas.Rect(crateX - 4, crateY - 3, 8, 7, new Color("D4B781"));
+                canvas.Line(crateX - 3, crateY - 2, crateX + 3, crateY + 2, new Color("87623D"));
+                canvas.Line(crateX + 3, crateY - 2, crateX - 3, crateY + 2, new Color("87623D"));
                 Doorstep(canvas, roof, door);
                 break;
             case BuildingKind.Workshop:

@@ -254,7 +254,13 @@ public sealed record ViewerPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null)
+{
+    public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
+}
+
+public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
+    string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
 
 public sealed record ViewerProductionJob(
     string JobId,

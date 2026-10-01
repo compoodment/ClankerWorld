@@ -30,7 +30,8 @@ public static class BuildingStorageRules
             width, height, definition.Capacity, definition.BuildCosts, definition.Tags);
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
-        definition.Tags.Any(tag => tag is "house" or "warehouse")
+        definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -64,7 +65,8 @@ public sealed partial class PrivateWorldRuntime
         var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId)) : int.MaxValue;
+            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
+                ReservedBusinessStorageSpace(buildingId)) : int.MaxValue;
     }
 
     private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs

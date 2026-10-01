@@ -492,8 +492,8 @@ touching sites ranked first. This provisional reading of "next to" keeps a Silo
 possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
 adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
-kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
-it follows the same rules once its content exists.
+kinds are listed in `HouseholdBuildingKinds`. The optional Store uses the same
+household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
@@ -575,6 +575,23 @@ belongings while they have no legal trade response. The society transaction
 checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
+
+**Household shops** bind an inventory barter offer to its actual business and
+holding household in `BusinessTradeState`. Offers use unreserved goods in that
+building and payment already carried by the adult customer. The inventory
+remains the only authority for quantities, acceptance and lot reservations;
+the business binding keeps the transaction location and readable outcome.
+Positive net incoming space is held for both parties, alongside production and
+inbound delivery space. Both traders must reach the shop before the household
+accepts and the inventory transfers anything. Payment is placed in that exact
+building; the purchase becomes personal cargo. Cancelled, expired or
+invalidated offers release their reservations without transporting goods.
+Customers receive transaction access only. Store stocking first moves actual
+surplus into carried delivery lots, then uses ordinary household hauling to
+reach the Store. A remote House, field or Warehouse is never sale stock.
+Rates, the eight-unit shelf target and four-unit carried loads are provisional.
+Market stalls, tool orders, meals and care remain tracked in #564 and its
+domain issues; no imaginary money or refined-metal retail is introduced.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded

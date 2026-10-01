@@ -18,6 +18,7 @@ public sealed partial class PrivateWorldRuntime
         SocietyFixture.Validate(society.Checkpoint);
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
+        ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
@@ -285,6 +286,7 @@ public sealed partial class PrivateWorldRuntime
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
+        ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);

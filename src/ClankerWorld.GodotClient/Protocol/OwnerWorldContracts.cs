@@ -260,7 +260,13 @@ public sealed record OwnerWorldPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null)
+{
+    public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
+}
+
+public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
+    string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,

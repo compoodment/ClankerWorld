@@ -132,6 +132,14 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 38 records each physical shop exchange beside its inventory
+offer: the shop, holding household, customer, transaction position and time,
+item kinds, seller who completed it and any cancellation reason. Inventory
+offers retain the exact quantities and lot reservations. Pending exchanges and
+Store delivery lots survive save/reload without granting customer access to
+private stock. Earlier alpha saves need not load; no shop-state migration is
+provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. Compatibility
