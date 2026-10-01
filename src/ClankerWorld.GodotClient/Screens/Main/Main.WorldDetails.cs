@@ -183,6 +183,7 @@ public partial class Main
         familyTreePanel.Hide();
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        conversationPanel.Hide();
         selectedInhabitantId = null;
         inhabitantList.DeselectAll();
         selectedInhabitantCard.Hide();

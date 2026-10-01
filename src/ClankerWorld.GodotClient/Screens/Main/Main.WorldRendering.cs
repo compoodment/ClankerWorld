@@ -231,6 +231,7 @@ public partial class Main
                         else
                             SelectInhabitant(inhabitant.Id);
                     };
+                    actorMarker.ConversationActivated += () => OpenAgentConversation(inhabitant.Id);
                     actorMarker.MouseEntered += RefreshTileHoverAtMouse;
                     actorMarker.MouseExited += RefreshTileHoverAtMouse;
                     entityLayer.AddChild(actorMarker);
@@ -242,6 +243,12 @@ public partial class Main
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                var conversation = LatestConversationFor(snapshot, inhabitant.Id);
+                actorMarker.ConversationBadgeVisible = conversation is not null;
+                actorMarker.ConversationUnread = conversation is not null &&
+                    ConversationUnreadCount(snapshot.WorldId, conversation, inhabitant.Id) > 0;
+                if (conversation is not null)
+                    actorTooltip += "\n" + ConversationTooltipSummary(inhabitant.Id, conversation);
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;
                 actorMarker.Selected = string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal);
                 inhabitantCanonicalXs[inhabitant.Id] = targetPosition.X;
@@ -265,6 +272,7 @@ public partial class Main
         }
 
         RenderTileInspection(snapshot);
+        RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);
         PositionBuildingQuickCard(snapshot);
         RefreshTileHoverAtMouse();

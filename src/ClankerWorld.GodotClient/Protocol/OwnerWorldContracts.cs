@@ -296,6 +296,28 @@ public sealed record OwnerWorldBridge(
     IReadOnlyList<OwnerWorldPosition> Span,
     long BuiltTick);
 
+public sealed record OwnerWorldConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record OwnerWorldConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<OwnerWorldConversationTurn> Turns);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -350,6 +372,8 @@ public sealed record OwnerWorldSnapshot(
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldConversation> Conversations { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
 
@@ -407,7 +431,9 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
     string ResourceAbundance = "Normal", string ForestCover = "Normal",
-    string MountainRelief = "Normal", string RiverAbundance = "Normal");
+    string MountainRelief = "Normal", string RiverAbundance = "Normal",
+    int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
+    string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
 public sealed record CatalogWorld(string Id, string Name, string WorldId, string Seed,
     DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings, string Compatibility = "unknown",
@@ -420,6 +446,30 @@ public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWor
 {
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
+    public OwnerWorldCandidateReport? Coverage { get; init; }
+    public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+}
+public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
+    int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
+    int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,
+    bool ForestTargetApplicable, bool MountainTargetApplicable,
+    bool ForestTargetMet, bool MountainTargetMet)
+{
+    public bool TargetsApplicable => ForestTargetApplicable || MountainTargetApplicable;
+    public bool MeetsTargets => (!ForestTargetApplicable || ForestTargetMet) &&
+        (!MountainTargetApplicable || MountainTargetMet);
+    public IReadOnlyList<string> UnmetTargets
+    {
+        get
+        {
+            var unmet = new List<string>(2);
+            if (ForestTargetApplicable && !ForestTargetMet)
+                unmet.Add($"Forest {ForestPercent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% (target 20–40%)");
+            if (MountainTargetApplicable && !MountainTargetMet)
+                unmet.Add($"Mountains {MountainPercent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% (target 5–12%)");
+            return unmet;
+        }
+    }
 }
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false);

@@ -251,20 +251,25 @@ another sprite family at first.
   in-world; inspecting a thought as the player does not broadcast it to anyone.
 - A conversation is a real joint activity with a reason, turns, and a chance to
   conclude, disagree, withdraw, or postpone. Ordinary job scheduling should
-  not cut it off mid-sentence. Danger or urgent needs may interrupt; a bounded
+  not cut it off mid-sentence. Danger or urgent needs can interrupt; a bounded
   final wrap-up round can avoid endless looping. If unresolved, say so rather
-  than fabricate agreement, and allow later resumption. The marriage-surname
-  conversation above is a special case: it must be started even across the
-  world, has the four-turn bound described above, and a marriage cannot
-  complete with its surname undecided. Ordinary conversations have no agreed
-  numeric turn limit yet; a provisional limit is recorded below. These are intended rules, not a claim that the
-  marriage conversation is implemented.
+  than fabricate agreement. Resuming requires both participants to choose it;
+  loading a saved world leaves an interrupted conversation stopped until they
+  agree again. The marriage-surname conversation above is a special case: it
+  must be started even across the world, has the four-turn bound described
+  above, and a marriage cannot complete with its surname undecided. The
+  ordinary conversation limits below are provisional and may change after
+  playtesting; they do not imply that the separate marriage-surname feature is
+  implemented.
 - **Each participant's own model speaks that participant's turns** in a
   conversation, as in the marriage-surname conversation above.
 - **Leaning toward (provisional; tuned in playtests):** a conversation has at
   most **six public turns**, three per participant, plus **one wrap-up
   round**. An agent starts a conversation by choosing a talk action, and each
-  agent has at most two conversations per world day.
+  agent has at most two conversations per world day. Both participants must
+  accept the invitation, any later resumption, and the same structured
+  wrap-up before it can apply an effect. Spoken text alone never changes the
+  world or counts as agreement.
 - **Spoken promises are not tracked as commitments in the first version.**
   Tracking whether promises are kept or broken comes later.
 - Socializing agents display a chat bubble above their sprites. Clicking opens
@@ -303,12 +308,13 @@ another sprite family at first.
 
 ### Still to decide
 
-Real token and turn budgets, conversation frequency beyond the provisional
-limits above, group-planning mechanics, interrupt/resume behavior, memory
+Real token budgets and conversation costs, whether the provisional frequency
+and turn limits above feel right, group-planning mechanics, memory
 importance/retention rules, compaction triggers and fallback method without
 Jev, and Jev's exact role need implementation and playtesting. The budgets
-stay open until they are measured in play. The proposed lifecycle is accepted
-as a direction, not proof that it will feel right in the finished game.
+stay open until they are measured in play. The bounded consent and
+interrupt/resume behavior is the current baseline, not proof that it will feel
+right in the finished game.
 The September 29 external code review raised additional **questions, not
 decisions**. On 30 September computment settled or deferred three of them:
 each participant's own model speaks its own conversation turns (agreed above);

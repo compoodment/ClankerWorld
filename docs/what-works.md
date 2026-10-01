@@ -29,7 +29,7 @@ test alone does not make it available in the game.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
+| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
@@ -44,6 +44,17 @@ and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.
+
+Default Balanced Small/Medium previews measure forests and mountains against
+dry land and try at most three deterministic maps for the Normal settings. The
+preview shows every candidate's coverage and creates the exact selected map.
+If a selected map misses a target, Create World stays unavailable until the
+player accepts the displayed result or changes the seed. Uniform Dry and
+polar-only settings do not use those trial bands; each band applies only while
+its own forest or mountain control is Normal. This is connected to the normal
+owner/server path; the current measurements are
+automated fixture evidence, not a Windows visual playtest or a final balance
+claim.
 
 World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
@@ -109,8 +120,15 @@ requests. The card does not yet show which orders are still waiting.
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
-rank existing memories during a normal call. Automatic capture of experiences,
-generated memory summaries and full conversations are unfinished.
+rank existing memories during a normal call. Agents can also start a nearby
+public conversation: each speaker uses their own assigned planning model,
+accepted speech is saved with the people who could hear it, and only those
+listeners receive a hearsay memory. A conversation can have up to six public
+turns and one wrap-up; both people must accept the same wrap-up before its
+structured effect applies. These conversation and daily-call limits are still
+provisional and need a Windows playtest. Private thoughts are never shared as
+conversation history. Other automatic experience capture and generated memory
+summaries remain unfinished.
 
 ## Life, work and society
 
@@ -126,7 +144,7 @@ generated memory summaries and full conversations are unfinished.
 | Ports and communal boats | Basic version | Adults build Town Ports on legal shores in four rotations, preserving their land approach and six docking-water tiles. Real wood, rope and refined iron must be carried into a Port before building its Town-owned boat. One adult and their carried goods travel together between two completed Ports, including after save/reload. A blocked landing waits one day, then returns to its origin if reachable; otherwise it keeps traveler and cargo aboard. Costs, work time and speed are provisional. A generated-world runtime probe built and traveled in a real boat; hands-on Windows playtesting remains pending. |
 | Household animals and horses | Mechanics available for acquired animals | Chickens provide eggs, sheep provide wool, and cows provide milk in an actual jug after feeding, watering and care. Horses have named riding permissions and actual cargo; owners can retrieve their goods after permission is revoked. Missed care pauses work without inventing deaths. Hide from a recorded natural death can become leather clothing. Acquisition, breeding and natural-death schedules remain open, so generated worlds do not begin with a herd. These values need playtesting. |
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from fiber and actual jug water; an adult writes a map, one-site record or book at their own House, consuming on-site paper and a cloth book cover. The item can be carried, read, copied, shared or traded. Copies keep the actual source's contents and original discoverer. The generated-world runtime probe followed exploration, paper-making, book writing, transfer, reading, copying and save/reload; a hands-on playtest remains pending. |
-| Trade, relationships and teaching | Basic version | Physical barter and business catalogues use actual offered goods and exact payments, with room reserved at both destinations. Adults carry stock into their Store or household Market stall; other Town residents can buy without taking private stock. A stall remains held while goods or receipts are stocked and is released when empty. Positive trust and accepted/refused partnerships are also available. Adults can ask a free, healthy agent with a saved skill for a practical lesson. The learner keeps the skill, teacher and time; the agent card shows them. Skills currently change no access or work speed. Prices are provisional barter quantities. Agent-created currency, conflict and rich dialogue remain unfinished. |
+| Trade, relationships, conversations and teaching | Basic version | Physical barter and business catalogues use actual offered goods and exact payments, with room reserved at both destinations. Adults carry stock into their Store or household Market stall; other Town residents can buy without taking private stock. A stall remains held while goods or receipts are stocked and is released when empty. Positive trust, accepted/refused partnerships and bounded public conversations are also available. Each agent has at most two conversation starts or acceptances per world day and up to six public turns; a structured trust effect needs mutual wrap-up consent. These conversation limits are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson. The learner keeps the skill, teacher and time; the agent card shows them. Skills currently change no access or work speed. Prices are provisional barter quantities. Agent-created currency, conflict and broader group dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership and household stores are available. An adult with no household can ask to join a household holding a House; every adult member must agree. A completed Town Hall supports local councils: all adults below eight adults, then three representatives elected for one game year. Proposals need a majority and tied votes keep the current rule; enacted laws can be read at the Hall. Laws do not bypass physical ownership or permissions. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. Council balance values are provisional. |
 

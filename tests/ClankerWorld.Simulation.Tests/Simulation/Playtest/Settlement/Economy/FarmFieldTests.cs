@@ -88,19 +88,19 @@ public sealed class FarmFieldTests
     }
 
     [Fact]
-    public void FieldsAndGroundHarvestLotsRequireTheirOwnSchema()
+    public void CurrentAlphaCutoffPreservesCurrentFieldsAndGroundHarvestLots()
     {
         var (state, _, household, point) = PreparedFarmer("field-schema");
-        // Keep the preceding-schema boundary independent of the later Council payload.
-        var compatible = state with { TownCouncils = [] };
-        using var preceding = Restore(compatible with { SchemaVersion = 33, Fields = null });
-        Assert.Throws<InvalidDataException>(() => Restore(compatible with { Fields = null }));
-        var fieldState = compatible with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        var preceding = Assert.Throws<InvalidDataException>(() => Restore(state with { SchemaVersion = 33, Fields = null }));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}", preceding.Message,
+            StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => Restore(state with { Fields = null }));
+        var fieldState = state with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
         Assert.Throws<InvalidDataException>(() => Restore(fieldState with { SchemaVersion = 33 }));
         using var fieldsRestored = Restore(fieldState);
         Assert.Single(fieldsRestored.Fields);
 
-        var groundState = WithInventory(compatible, InventoryFixture.AddLot(compatible.Society.Society.Inventory,
+        var groundState = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
             "field-ground-schema", "grain", household, 1, groundPosition: new(point.X, point.Y)));
         Assert.Throws<InvalidDataException>(() => Restore(groundState with { SchemaVersion = 33 }));
         using var groundRestored = Restore(groundState);

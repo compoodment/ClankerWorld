@@ -60,8 +60,6 @@ public sealed partial class ViewerHttpTests
                 Assert.True((await configured.Content.ReadFromJsonAsync<OwnerControlReceipt>())!.Changed);
                 Assert.False(runtime.JevEnabled);
                 Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, runtime.ExportState().SchemaVersion);
-                Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-                    runtime.ExportState() with { SchemaVersion = 14 }));
                 Assert.Equal(1, runtime.JevPolicyRevision);
                 savedProviderEpoch = host.Services.GetRequiredService<ConfigurableDecisionProvider>().ProviderEpoch;
                 Assert.Equal(initialProviderEpoch + 1, savedProviderEpoch);

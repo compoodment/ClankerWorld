@@ -20,9 +20,9 @@ public sealed class TownBridgeRuntimeTests
     private const string GrowthSeed = "town-bridge-5";
     private static readonly GridPoint GrowthTownSite = new(86, 3);
     private static readonly GridPoint GrowthBuildingSite = new(89, 5);
-    private const string GrowthBridgeId = "bridge-90-6-ew-2";
+    private const string GrowthBridgeId = "bridge-90-3-ew-2";
     private static readonly GridPoint RunOnTownSite = new(86, 5);
-    private static readonly GridPoint RunOnBuildingSite = new(87, 2);
+    private static readonly GridPoint RunOnBuildingSite = new(88, 4);
     private const string RunOnBridgeId = "bridge-90-5-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
@@ -163,9 +163,12 @@ public sealed class TownBridgeRuntimeTests
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var roadsBefore = world.RoadTiles.ToHashSet();
         var eventsBefore = world.ExportState().Events.Count;
+        Assert.Contains(roadsBefore, tile => WorldContentSimulationRules.IsEntrance(workshop, RunOnBuildingSite, tile));
 
         var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, RunOnBuildingSite);
         Assert.True(placed.Applied, placed.Failure);
+        Assert.Contains(Assert.IsType<GridPoint>(world.WorldSimulation.Buildings.Single(
+            building => building.InstanceId == "bridge-run-on").Entrance), roadsBefore);
 
         var bridge = Assert.Single(world.Bridges);
         Assert.Equal((RunOnBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
@@ -213,20 +216,21 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(withoutBuilding.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         // A Road bridge whose Road ends were lost, a missing bridge list, an
-        // older schema carrying bridges, or a deck over dry land is refused.
+        // or a deck over dry land is refused.
         PrivateWorldRuntimeState[] damaged =
         [
             state with { RoadTiles = state.RoadTiles!.Where(tile => tile != bridge.Entrances[1]).ToArray() },
             state with { Bridges = null },
             state with { BridgeTraffic = null },
-            state with { SchemaVersion = 27 },
             state with { Bridges = [bridge with { Span = [bridge.Entrances[0], bridge.Span[1]] }] },
         ];
         foreach (var item in damaged)
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(item));
         var bytes = PrivateWorldRuntimeCodec.Encode(state);
-        var tampered = System.Text.Encoding.UTF8.GetString(bytes).Replace(GrowthBridgeId, "bridge-221-4-ew-1", StringComparison.Ordinal);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(tampered)));
+        var tampered = System.Text.Encoding.UTF8.GetString(bytes).Replace(bridge.Id, "bridge-221-4-ew-1", StringComparison.Ordinal);
+        var tamperedBytes = System.Text.Encoding.UTF8.GetBytes(tampered);
+        Assert.False(bytes.AsSpan().SequenceEqual(tamperedBytes));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(tamperedBytes));
     }
 
     [Fact]

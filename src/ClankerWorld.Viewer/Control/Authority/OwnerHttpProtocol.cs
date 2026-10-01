@@ -46,7 +46,9 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
     string ResourceAbundance = "Normal", string ForestCover = "Normal",
-    string MountainRelief = "Normal", string RiverAbundance = "Normal");
+    string MountainRelief = "Normal", string RiverAbundance = "Normal",
+    int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
+    string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
@@ -248,7 +250,7 @@ public static class OwnerHttpBinding
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
-    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
     public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
@@ -265,7 +267,11 @@ public static class OwnerHttpBinding
         $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
         $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
         $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
-        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}",
+        $"candidate-attempt={action.CandidateAttempt?.ToString(CultureInfo.InvariantCulture) ?? "-"}",
+        $"expected-manifest-digest={EncodeOptional(action.ExpectedManifestDigest)}",
+        $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
+        $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
 
     public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',

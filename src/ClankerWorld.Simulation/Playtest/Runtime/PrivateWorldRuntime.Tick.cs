@@ -44,6 +44,7 @@ public sealed partial class PrivateWorldRuntime
             long baselineEventId;
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
+            PendingConversationTurn[] completedConversationTurns = [];
             string[] activeWillIds = [];
             IReadOnlyDictionary<string, string> inactiveWillReasons = new Dictionary<string, string>();
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -94,6 +95,9 @@ public sealed partial class PrivateWorldRuntime
                     activeWillIds = pendingWills.Keys.ToArray();
                     inactiveWillReasons = new Dictionary<string, string>(pendingWillCancellationReasons, StringComparer.Ordinal);
                 }
+                ReconcilePendingConversationTurns();
+                completedConversationTurns = pendingConversationTurns.Values
+                    .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
             }
@@ -112,7 +116,7 @@ public sealed partial class PrivateWorldRuntime
                 maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
-                activeWillIds, inactiveWillReasons, cancellationToken).ConfigureAwait(false);
+                activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             var gateHeld = true;
             try
@@ -153,6 +157,13 @@ public sealed partial class PrivateWorldRuntime
                     if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
                         return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
+                // A provider assignment can change without advancing a world
+                // event or tick. Admit its completed turn only now, while
+                // the live-state gate protects the commit boundary.
+                proposed.CompleteConversationTurns(
+                    completedConversationTurns,
+                    proposed.WorldTick,
+                    IsConversationTurnProviderCurrent);
                 CommitPreparedTick(proposed);
                 if (deferHosted)
                 {
@@ -170,11 +181,27 @@ public sealed partial class PrivateWorldRuntime
                         pendingWills.Remove(item.EstateId);
                         item.Cancellation.Dispose();
                     }
+                    foreach (var item in completedConversationTurns)
+                    {
+                        pendingConversationTurns.Remove(item.Request.ConversationId);
+                        item.Cancellation.Dispose();
+                    }
+                    CancelNoLongerAwaitingConversationTurns();
                     foreach (var id in inactiveWillReasons.Keys)
                         pendingWillCancellationReasons.Remove(id);
                     if (commitPermitted is null || commitPermitted()) StartWillDecisions();
                     if (commitPermitted is null || commitPermitted()) StartHostedDecisions();
                 }
+                else
+                {
+                    foreach (var item in completedConversationTurns)
+                    {
+                        pendingConversationTurns.Remove(item.Request.ConversationId);
+                        item.Cancellation.Dispose();
+                    }
+                    CancelNoLongerAwaitingConversationTurns();
+                }
+                if (commitPermitted is null || commitPermitted()) StartConversationTurns();
                 return result with { Events = events.Where(item => item.EventId >= baselineEventId).ToArray() };
             }
             finally
@@ -230,6 +257,9 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
             foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            foreach (var id in pendingConversationTurns.Keys.ToArray())
+                CancelPendingConversationTurn(id, AgentConversationInterruption.Disconnected);
+            SuspendAllConversations(AgentConversationInterruption.Disconnected);
         }
         finally { gate.Release(); }
     }
@@ -273,6 +303,8 @@ public sealed partial class PrivateWorldRuntime
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
         boatTransport = proposed.boatTransport;
+        conversations = proposed.conversations;
+        conversationBudgets = proposed.conversationBudgets;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -298,6 +330,8 @@ public sealed partial class PrivateWorldRuntime
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                foreach (var id in pendingConversationTurns.Keys.ToArray())
+                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
             }
             finally { gate.Release(); }
@@ -322,6 +356,8 @@ public sealed partial class PrivateWorldRuntime
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                foreach (var id in pendingConversationTurns.Keys.ToArray())
+                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
             }
             finally { gate.Release(); }
@@ -333,6 +369,7 @@ public sealed partial class PrivateWorldRuntime
         bool deferHosted, IReadOnlyList<PendingHostedDecision> completed,
         IReadOnlyList<PendingWillDecision> completedWills, IReadOnlyList<string> activeWillIds,
         IReadOnlyDictionary<string, string> inactiveWillReasons,
+        IReadOnlyList<PendingConversationTurn> completedConversationTurns,
         CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -454,6 +491,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainHousing();
             MaintainParenthood();
             MaintainDependentCare();
+            UpdateConversationsForTick(targetTick);
             EnqueueDueCognition();
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)

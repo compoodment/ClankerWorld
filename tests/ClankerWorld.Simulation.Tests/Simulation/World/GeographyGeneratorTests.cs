@@ -529,11 +529,6 @@ public sealed class GeographyGeneratorTests
         Assert.Equal(saved.Map.ManifestDigest, restored.ExportState().Map.ManifestDigest);
         Assert.Equal(options, restored.ExportState().Geography);
         Assert.True(restored.ExportState().Map.WrapsEastWest);
-        using var legacyCheckpoint = PrivateWorldRuntime.Restore(saved with
-        {
-            Map = saved.Map with { WrapsEastWest = false },
-        });
-        Assert.True(legacyCheckpoint.ExportState().Map.WrapsEastWest);
         Assert.True(new OwnerWorldObservationStore(restored).GetSnapshot().WrapsEastWest);
         Assert.Equal(4, restored.Inhabitants.Count);
         Assert.True(restored.WorldSystems.Chunks.Count > 1);

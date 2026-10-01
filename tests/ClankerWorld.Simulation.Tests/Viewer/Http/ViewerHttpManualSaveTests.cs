@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
@@ -15,6 +17,73 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Theory]
+    [InlineData(false, "\"32\"")]
+    [InlineData(false, "null")]
+    [InlineData(false, "true")]
+    [InlineData(false, "[]")]
+    [InlineData(false, "{}")]
+    [InlineData(false, "32.5")]
+    [InlineData(false, "2147483648")]
+    [InlineData(true, "[]")]
+    [InlineData(true, "null")]
+    [InlineData(true, "\"checkpoint\"")]
+    [InlineData(true, "32")]
+    [InlineData(true, "true")]
+    public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
+        bool malformedEnvelope, string malformedJson)
+    {
+        var directory = Directory.CreateTempSubdirectory("malformed-save-schema-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            file.Save(runtime);
+            var activeBytes = File.ReadAllBytes(file.Path);
+            var runtimeBytes = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
+            var activeId = catalog.Capture().ActiveId;
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            var saved = saves.Create("Recoverable", runtime, []);
+            var path = Path.Combine(file.Path + ".manual", saved.Id + ".save");
+            var healthy = File.ReadAllBytes(path);
+            byte[] damaged;
+            if (malformedEnvelope)
+                damaged = Encoding.UTF8.GetBytes(malformedJson);
+            else
+            {
+                var document = JsonNode.Parse(healthy)!.AsObject();
+                document["state"]!["schemaVersion"] = JsonNode.Parse(malformedJson);
+                damaged = Encoding.UTF8.GetBytes(document.ToJsonString());
+            }
+            File.WriteAllBytes(path, damaged);
+
+            var action = new OwnerManualSaveAction("load", saved.Id);
+            using var refused = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/saves/load", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.Contains("The save is invalid", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damaged));
+            Assert.Equal(activeBytes, File.ReadAllBytes(file.Path));
+            Assert.Equal(runtimeBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(activeId, catalog.Capture().ActiveId);
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            Assert.Single(saves.List(runtime.Society.WorldId));
+
+            File.WriteAllBytes(path, healthy);
+            using var accepted = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/saves/load", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            runtime.Validate();
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(5)]
@@ -79,9 +148,15 @@ public sealed partial class ViewerHttpTests
             Assert.False(runtime.Society.IsPaused);
             Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
 
+            var createAction = options with
+            {
+                CandidateAttempt = preview.Coverage!.Attempt,
+                ExpectedManifestDigest = preview.ManifestDigest,
+                ExpectedMapLayersDigest = preview.MapLayersDigest,
+            };
             using var refusedCreation = await SendSignedAsync(host, client, key, device.DeviceId,
-                "/api/v1/owner/worlds/create", options,
-                OwnerHttpBinding.WorldCreationPayload(options));
+                "/api/v1/owner/worlds/create", createAction,
+                OwnerHttpBinding.WorldCreationPayload(createAction));
             Assert.Equal(HttpStatusCode.Conflict, refusedCreation.StatusCode);
             Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
         }
@@ -153,12 +228,19 @@ public sealed partial class ViewerHttpTests
                 Assert.True(preview.ResourceSites > 20);
                 Assert.NotNull(preview.PackedMapLayers);
                 Assert.NotNull(preview.MapLayersDigest);
+                Assert.NotNull(preview.Coverage);
                 Assert.Contains(selectionLog.Messages, message => message.Contains(
                     "world_preview outcome=generated width=256", StringComparison.Ordinal));
                 Assert.Null(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState().Geography);
                 Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
+                var createAction = create with
+                {
+                    CandidateAttempt = preview.Coverage!.Attempt,
+                    ExpectedManifestDigest = preview.ManifestDigest,
+                    ExpectedMapLayersDigest = preview.MapLayersDigest,
+                };
                 using var created = await SendSignedAsync(host, client, key, device.DeviceId,
-                    createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
+                    createPath, createAction, OwnerHttpBinding.WorldCreationPayload(createAction));
                 Assert.Equal(HttpStatusCode.OK, created.StatusCode);
                 var entry = (await created.Content.ReadFromJsonAsync<CatalogWorld>())!;
                 generatedId = entry.Id;
@@ -258,23 +340,50 @@ public sealed partial class ViewerHttpTests
                 var firstPath = Path.Combine(host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".worlds",
                     firstId + ".save");
                 var originalBytes = File.ReadAllBytes(firstPath);
-                var older = PrivateWorldRuntimeCodec.Decode(originalBytes) with { SchemaVersion = 16 };
-                File.WriteAllBytes(firstPath, PrivateWorldRuntimeCodec.Encode(older));
+                var olderDocument = JsonNode.Parse(originalBytes)!.AsObject();
+                var olderState = olderDocument["state"]!.AsObject();
+                olderState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
+                olderState.Remove("bridges");
+                olderState.Remove("bridgeTraffic");
+                olderState["map"]!.AsObject().Remove("bridgeDecks");
+                var olderBytes = Encoding.UTF8.GetBytes(olderDocument.ToJsonString());
+                File.WriteAllBytes(firstPath, olderBytes);
                 using var olderList = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/list", listAction, OwnerHttpBinding.EmptyPayload("list-worlds"));
-                Assert.Equal("compatible", (await olderList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!
-                    .Worlds.Single(world => world.Id == firstId).Compatibility);
+                var blockedSnapshot = (await olderList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!;
+                var blockedWorld = blockedSnapshot.Worlds.Single(world => world.Id == firstId);
+                Assert.Equal("incompatible", blockedWorld.Compatibility);
+                Assert.Equal("The saved checkpoint or required content cannot be restored.",
+                    blockedWorld.CompatibilityReason);
+                var activeIdBeforeRefusal = host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId;
+                var activeWorldIdBeforeRefusal = runtime.Society.WorldId;
+                var activeBytesBeforeRefusal = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+                Assert.Equal(generatedId, activeIdBeforeRefusal);
+                var blockedAction = new OwnerManualSaveAction("select-world", firstId);
+                using var olderSelect = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/select", blockedAction,
+                    OwnerHttpBinding.ManualSavePayload(blockedAction));
+                Assert.Equal(HttpStatusCode.Conflict, olderSelect.StatusCode);
+                Assert.Equal(olderBytes, File.ReadAllBytes(firstPath));
+                Assert.Equal(activeIdBeforeRefusal,
+                    host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId);
+                Assert.Equal(activeWorldIdBeforeRefusal, runtime.Society.WorldId);
+                Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+
                 File.WriteAllText(firstPath, "unsupported checkpoint");
                 using var blockedList = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/list", listAction, OwnerHttpBinding.EmptyPayload("list-worlds"));
                 Assert.Equal("incompatible", (await blockedList.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!
                     .Worlds.Single(world => world.Id == firstId).Compatibility);
-                var blockedAction = new OwnerManualSaveAction("select-world", firstId);
                 using var blocked = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/select", blockedAction,
                     OwnerHttpBinding.ManualSavePayload(blockedAction));
                 Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
                 Assert.Equal("unsupported checkpoint", File.ReadAllText(firstPath));
+                Assert.Equal(activeIdBeforeRefusal,
+                    host.Services.GetRequiredService<WorldCatalogStore>().Capture().ActiveId);
+                Assert.Equal(activeWorldIdBeforeRefusal, runtime.Society.WorldId);
+                Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
                 File.WriteAllBytes(firstPath, originalBytes);
 
                 var select = new OwnerManualSaveAction("select-world", firstId);

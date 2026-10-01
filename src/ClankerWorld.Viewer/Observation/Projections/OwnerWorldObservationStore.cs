@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.Kernel;
@@ -207,6 +208,8 @@ public sealed partial class OwnerWorldObservationStore
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
+        var inhabitantsById = state.Society.Society.Inhabitants
+            .ToDictionary(item => item.Id, StringComparer.Ordinal);
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -312,6 +315,34 @@ public sealed partial class OwnerWorldObservationStore
                     .Where(inhabitant => inhabitant.Status == SocietyInhabitantStatus.Dead && deceasedById.ContainsKey(inhabitant.Id))
                     .Select(inhabitant => ToDeceasedInhabitant(state, inhabitant, deceasedById[inhabitant.Id])))
                 .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
+                .ToArray(),
+            Conversations = (state.Conversations ?? [])
+                .OrderByDescending(conversation => conversation.LastUpdatedTick)
+                .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
+                .Take(16)
+                .Select(conversation => new ViewerConversation(
+                    conversation.Id,
+                    conversation.InitiatorId,
+                    inhabitantsById.GetValueOrDefault(conversation.InitiatorId)?.Name ?? conversation.InitiatorId,
+                    conversation.InviteeId,
+                    inhabitantsById.GetValueOrDefault(conversation.InviteeId)?.Name ?? conversation.InviteeId,
+                    ConversationStatus(conversation.Status),
+                    conversation.Interruption == AgentConversationInterruption.None
+                        ? null : ConversationInterruption(conversation.Interruption),
+                    conversation.Outcome,
+                    conversation.CreatedTick,
+                    conversation.LastUpdatedTick,
+                    conversation.Turns.TakeLast(AgentConversationRules.MaximumPublicTurns +
+                            AgentConversationRules.MaximumWrapUpTurns)
+                        .Select(turn => new ViewerConversationTurn(
+                            turn.Id,
+                            turn.SpeakerId,
+                            inhabitantsById.GetValueOrDefault(turn.SpeakerId)?.Name ?? turn.SpeakerId,
+                            turn.Text,
+                            turn.WorldTick,
+                            turn.ListenerIds.Take(AgentConversationRules.MaximumListenersPerTurn).ToArray(),
+                            turn.IsWrapUp))
+                        .ToArray()))
                 .ToArray(),
             Stockpiles = state.Society.Society.Households.Select(household =>
                 new ViewerStockpile(household.Id, (household.Id, household.Name) switch
@@ -503,6 +534,29 @@ public sealed partial class OwnerWorldObservationStore
                 .ToArray(),
         };
     }
+
+    private static string ConversationStatus(AgentConversationStatus status) => status switch
+    {
+        AgentConversationStatus.Proposed => "proposed",
+        AgentConversationStatus.Ready => "ready",
+        AgentConversationStatus.AwaitingSpeaker => "awaiting_speaker",
+        AgentConversationStatus.WrapUp => "wrap_up",
+        AgentConversationStatus.Suspended => "suspended",
+        AgentConversationStatus.Closed => "closed",
+        _ => "unknown",
+    };
+
+    private static string ConversationInterruption(AgentConversationInterruption interruption) => interruption switch
+    {
+        AgentConversationInterruption.OwnerPaused => "owner_paused",
+        AgentConversationInterruption.Disconnected => "disconnected",
+        AgentConversationInterruption.UrgentNeed => "urgent_need",
+        AgentConversationInterruption.ProviderUnavailable => "provider_unavailable",
+        AgentConversationInterruption.ProviderTimedOut => "provider_timed_out",
+        AgentConversationInterruption.ProviderRejected => "provider_rejected",
+        AgentConversationInterruption.Restored => "restored",
+        _ => "unknown",
+    };
 
     internal static ViewerPackedTerrain PackTerrain(SeededMap map)
     {
