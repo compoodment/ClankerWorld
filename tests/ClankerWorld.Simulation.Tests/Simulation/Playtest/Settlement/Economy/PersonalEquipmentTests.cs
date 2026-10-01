@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -29,6 +30,69 @@ public sealed class PersonalEquipmentTests
         var stored = InventoryFixture.Transfer(inventory, "store", "person", Alpha, "sack", 1, "store", "house");
         Assert.Equal(8, PersonalEquipmentRules.Capacity(stored, "person", equipment));
         Assert.Equal(12, PersonalEquipmentRules.CarriedQuantity(stored, "person", equipment));
+    }
+
+    [Fact]
+    public void GroundContainerFamiliesDoNotCountUntilTheWholeVesselIsPickedUpAndSaved()
+    {
+        using var seed = new PrivateWorldRuntime("ground-container-family-carry");
+        var state = seed.ExportState();
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha &&
+            person.Status == SocietyInhabitantStatus.Active).Id;
+        var personState = state.Inhabitants.Single(person => person.InhabitantId == actor);
+        var ground = new InventoryGroundPosition(personState.Position.X, personState.Position.Y);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations.Where(item => item.OwnerId != actor).ToArray(),
+            Offers = state.Society.Society.Inventory.Offers.Where(item =>
+                item.FirstPartyId != actor && item.SecondPartyId != actor).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "ground-actor-pot", InventoryContainerRules.StoragePot,
+            actor, 1, groundPosition: ground);
+        inventory = InventoryFixture.AddLot(inventory, "ground-actor-pot-food", "berries", actor,
+            InventoryContainerRules.StoragePotCapacity, containerLotId: "ground-actor-pot");
+        inventory = InventoryFixture.AddLot(inventory, "ground-actor-jug", InventoryContainerRules.WaterJug,
+            actor, 1, groundPosition: ground);
+        inventory = InventoryFixture.AddLot(inventory, "ground-actor-jug-water", InventoryContainerRules.FreshWater,
+            actor, InventoryContainerRules.WaterJugCapacity, containerLotId: "ground-actor-jug");
+        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
+        inventory = InventoryFixture.AddLot(inventory, "ground-household-jug", InventoryContainerRules.WaterJug,
+            Alpha, 1, groundPosition: ground);
+        inventory = InventoryFixture.AddLot(inventory, "ground-household-jug-water", InventoryContainerRules.FreshWater,
+            Alpha, InventoryContainerRules.WaterJugCapacity, containerLotId: "ground-household-jug");
+        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
+        inventory = InventoryFixture.AddLot(inventory, "loose-carried-wood", "wood", actor, 2);
+        Assert.Equal(2, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null } : person).ToArray(),
+        };
+
+        using var loaded = PrivateWorldRuntime.Restore(state, _ => new Choices([]));
+        var groundRoundTrip = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+        var groundInventory = groundRoundTrip.Society.Society.Inventory;
+        Assert.Equal(ground, groundInventory.GetLot("ground-actor-pot").GroundPosition);
+        Assert.Equal(ground, groundInventory.GetLot("ground-actor-jug").GroundPosition);
+        Assert.Null(groundInventory.GetLot("ground-actor-pot-food").GroundPosition);
+        Assert.Equal(2, PersonalEquipmentRules.CarriedQuantity(groundInventory, actor, null));
+        Assert.Equal(6, PersonalEquipmentRules.FreeCapacity(groundInventory, actor, null));
+
+        var pickedUp = InventoryFixture.Transfer(groundInventory, "pick-up-ground-jug", Alpha, actor,
+            "ground-household-jug", 1, "water_jug_collected");
+        using var carrying = PrivateWorldRuntime.Restore(WithInventory(groundRoundTrip, pickedUp),
+            _ => new Choices([]));
+        var carriedRoundTrip = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(carrying.ExportState()));
+        var carriedInventory = carriedRoundTrip.Society.Society.Inventory;
+        Assert.Equal(ground, carriedInventory.GetLot("ground-actor-pot").GroundPosition);
+        Assert.Equal(2, carriedInventory.GetLot("loose-carried-wood").Quantity);
+        Assert.Equal(actor, carriedInventory.GetLot("ground-household-jug").OwnerId);
+        Assert.Null(carriedInventory.GetLot("ground-household-jug").GroundPosition);
+        Assert.Equal("ground-household-jug", carriedInventory.GetLot("ground-household-jug-water").ContainerLotId);
+        Assert.Equal(7, PersonalEquipmentRules.CarriedQuantity(carriedInventory, actor, null));
+        Assert.Equal(1, PersonalEquipmentRules.FreeCapacity(carriedInventory, actor, null));
+        carrying.Validate();
     }
 
     [Fact]

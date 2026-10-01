@@ -397,18 +397,18 @@ public sealed class PotteryContentTests
 
     private static PrivateWorldRuntimeState SetActorCondition(PrivateWorldRuntimeState state, string actor,
         int hunger, GridPoint position) => state with
-    {
-        Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with
-            {
-                Position = position,
-                HungerBasisPoints = hunger,
-                Survival = person.Survival is { } survival
-                    ? survival with { WarmthBasisPoints = 10_000, NutritionBasisPoints = 10_000 }
-                    : null,
-            }
-            : person).ToArray(),
-    };
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = position,
+                    HungerBasisPoints = hunger,
+                    Survival = person.Survival is { } survival
+                        ? survival with { WarmthBasisPoints = 10_000, NutritionBasisPoints = 10_000 }
+                        : null,
+                }
+                : person).ToArray(),
+        };
 
     private static ContentPackageManifest WaterConsumerFixture()
     {

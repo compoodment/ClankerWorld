@@ -417,12 +417,12 @@ public static partial class InventoryFixture
             var members = checkpoint.Lots.Where(lot => lot.Id == source.Id || lot.ContainerLotId == source.Id).ToArray();
             EnsureNoActiveReservations(checkpoint, members.Select(lot => lot.Id));
             var moved = members.Select(lot => lot with
-                {
-                    OwnerId = recipientId,
-                    StorageBuildingId = destinationStorageBuildingId,
-                    DeliveryBuildingId = destinationDeliveryBuildingId,
-                    GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
-                })
+            {
+                OwnerId = recipientId,
+                StorageBuildingId = destinationStorageBuildingId,
+                DeliveryBuildingId = destinationDeliveryBuildingId,
+                GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
+            })
                 .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
             return Commit(
                 checkpoint,
