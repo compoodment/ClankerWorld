@@ -293,9 +293,12 @@ public sealed class SettlementProjectTests
         Assert.DoesNotContain("EnergyBasisPoints", JsonSerializer.Serialize(snapshot), StringComparison.Ordinal);
         Assert.NotEmpty(snapshot.Stockpiles);
         Assert.Contains(snapshot.Inhabitants, person => person.Project is not null);
-        Assert.Contains(snapshot.Inhabitants, person => person.SocialNotes.Count > 0);
+        Assert.Contains(snapshot.Inhabitants, person => person.SocialStanding.Any(item => item.Trust >= 2));
         Assert.Contains(snapshot.Inhabitants, person => person.SocialStanding.Count > 0);
-        Assert.NotNull(snapshot.Council?.StewardName);
+        var townCouncil = Assert.Single(snapshot.TownCouncils);
+        Assert.Equal(Assert.Single(state.Towns!).ResidentIds.Order(StringComparer.Ordinal),
+            townCouncil.MemberIds.Order(StringComparer.Ordinal));
+        Assert.Equal(townCouncil.MemberIds.Count, townCouncil.MemberNames.Count);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
