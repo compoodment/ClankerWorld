@@ -1,0 +1,235 @@
+using Godot;
+
+namespace ClankerWorld.GodotClient.UI;
+
+/// <summary>
+/// The relief pass: mountains, peaks and hills drawn as one landform from the
+/// map's elevation by <see cref="ReliefRenderer"/>, over the ground and under
+/// Roads. Relief is cached in chunks of <see cref="ReliefChunkTiles"/> square
+/// tiles for each atlas size. A chunk is rendered on a worker thread the
+/// first time it comes into view, so the frame never waits for it; until it
+/// is ready the chunk keeps today's per-tile mountain tiles and hill overlays.
+/// Heights never change after a world loads, so the cache is only rebuilt
+/// when the world changes.
+/// </summary>
+public partial class WorldTerrainLayer
+{
+    /// <summary>Width and height of one cached relief chunk, in tiles.</summary>
+    public const int ReliefChunkTiles = 16;
+
+    // Least recently drawn relief textures are dropped beyond this size.
+    private const long ReliefTextureBudgetBytes = 96L * 1024 * 1024;
+    private const int ReliefChunkLimit = 4096;
+    private static readonly int ReliefWorkers = Math.Clamp(System.Environment.ProcessorCount - 1, 1, 4);
+
+    private readonly Dictionary<(int X, int Y, int Size), ReliefChunk> reliefChunks = [];
+    private readonly List<ReliefChunk> renderingRelief = [];
+    // Textures from a previous world, kept until the next draw replaces the commands that use them.
+    private readonly List<ImageTexture> retiredRelief = [];
+    private long reliefTextureBytes;
+    private long reliefDrawSerial;
+    // The chunk the ground pass last asked about, and whether relief covers it.
+    private (int X, int Y, int Size)? lastReliefKey;
+    private bool lastReliefCovers;
+
+    private enum ReliefState { Waiting, Rendering, Ready, Failed }
+
+    private sealed class ReliefChunk((int X, int Y, int Size) key, Rect2I tiles)
+    {
+        public (int X, int Y, int Size) Key { get; } = key;
+        public Rect2I Tiles { get; } = tiles;
+        public ReliefState State { get; set; }
+        public Task<byte[]?>? Job { get; set; }
+        public ImageTexture? Texture { get; set; }
+        public long Bytes { get; set; }
+        public long LastDrawn { get; set; }
+    }
+
+    /// <summary>Relief chunks currently held as textures.</summary>
+    public int ReliefTextureCount => reliefChunks.Values.Count(chunk => chunk.Texture is not null);
+
+    /// <summary>Visible relief chunks still being rendered or waiting for a worker.</summary>
+    public int PendingReliefChunkCount =>
+        reliefChunks.Values.Count(chunk => chunk.State is ReliefState.Waiting or ReliefState.Rendering);
+
+    /// <summary>Hill tiles drawn with the per-tile hill overlay in the last detailed draw, because their relief was not ready.</summary>
+    public int HillOverlayTileCount { get; private set; }
+
+    /// <summary>Relief needs whole tiles side by side; a gapped debug grid keeps the per-tile art.</summary>
+    private bool DrawsRelief => tileGap == 0;
+
+    public override void _Ready() => SetProcess(renderingRelief.Count > 0);
+
+    /// <summary>Turns finished relief renders into textures on the main thread and redraws.</summary>
+    public override void _Process(double delta)
+    {
+        var finished = false;
+        for (var index = renderingRelief.Count - 1; index >= 0; index--)
+        {
+            var chunk = renderingRelief[index];
+            if (chunk.Job is not { IsCompleted: true } job) continue;
+            renderingRelief.RemoveAt(index);
+            chunk.Job = null;
+            // Redraw even for a chunk of a previous world: its worker is free
+            // now, and the next draw starts a chunk that was waiting for one.
+            finished = true;
+            if (!reliefChunks.TryGetValue(chunk.Key, out var current) || !ReferenceEquals(current, chunk)) continue;
+            if (!job.IsCompletedSuccessfully)
+            {
+                chunk.State = ReliefState.Failed;
+                GD.PushWarning($"relief_chunk_failed x={chunk.Tiles.Position.X} y={chunk.Tiles.Position.Y} " +
+                    $"size={chunk.Key.Size} error={job.Exception?.GetBaseException().GetType().Name}");
+                continue;
+            }
+            chunk.State = ReliefState.Ready;
+            if (job.Result is not { } pixels) continue;
+            using var image = Image.CreateFromData(chunk.Tiles.Size.X * chunk.Key.Size, chunk.Tiles.Size.Y * chunk.Key.Size,
+                false, Image.Format.Rgba8, pixels);
+            chunk.Texture = ImageTexture.CreateFromImage(image);
+            chunk.Bytes = pixels.Length;
+            reliefTextureBytes += pixels.Length;
+        }
+        if (finished) QueueRedraw();
+        if (renderingRelief.Count == 0) SetProcess(false);
+    }
+
+    /// <summary>Forgets every relief chunk; called when the world changes.</summary>
+    private void ResetRelief()
+    {
+        foreach (var chunk in reliefChunks.Values)
+            if (chunk.Texture is { } texture) retiredRelief.Add(texture);
+        reliefChunks.Clear();
+        reliefTextureBytes = 0;
+        lastReliefKey = null;
+    }
+
+    /// <summary>
+    /// Starts a draw: frees textures of a previous world, whose draw commands
+    /// were cleared before this draw, and forgets the last chunk lookup, since
+    /// chunks may have become ready since the last draw.
+    /// </summary>
+    private void BeginReliefDraw()
+    {
+        foreach (var texture in retiredRelief) texture.Dispose();
+        retiredRelief.Clear();
+        lastReliefKey = null;
+    }
+
+    /// <summary>Whether this draw shows relief over the tile, so its per-tile hill overlay is left out.</summary>
+    private bool ReliefCovers(int mapX, int y, int atlasSize)
+    {
+        if (!DrawsRelief) return false;
+        var key = (mapX / ReliefChunkTiles, y / ReliefChunkTiles, atlasSize);
+        if (lastReliefKey != key)
+        {
+            lastReliefKey = key;
+            lastReliefCovers = ShownRelief(key) is not null;
+        }
+        return lastReliefCovers;
+    }
+
+    /// <summary>
+    /// The ready relief to show for a chunk: at this atlas size, or else, just
+    /// after zooming across the 32 px step, the same landform already drawn
+    /// at the other size, scaled, until this size is ready.
+    /// </summary>
+    private ReliefChunk? ShownRelief((int X, int Y, int Size) key)
+    {
+        if (reliefChunks.GetValueOrDefault(key) is { State: ReliefState.Ready } chunk) return chunk;
+        return reliefChunks.GetValueOrDefault(key with { Size = key.Size == 32 ? 16 : 32 }) is { State: ReliefState.Ready } other
+            ? other : null;
+    }
+
+    /// <summary>
+    /// Draws the relief of every visible chunk that is ready, after the ground
+    /// and before Roads, and starts rendering chunks seen for the first time.
+    /// A chunk on a wrapping world is drawn wherever its columns show.
+    /// </summary>
+    private void DrawRelief((int Left, int Top, int Width, int Height) bounds, int stride, int atlasSize)
+    {
+        if (world is null || !DrawsRelief || bounds.Width <= 0 || bounds.Height <= 0) return;
+        reliefDrawSerial++;
+        var end = bounds.Left + bounds.Width;
+        for (var top = bounds.Top / ReliefChunkTiles * ReliefChunkTiles; top < bounds.Top + bounds.Height; top += ReliefChunkTiles)
+        {
+            var rows = Math.Min(ReliefChunkTiles, world.Height - top);
+            for (var x = bounds.Left; x < end;)
+            {
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                var left = mapX / ReliefChunkTiles * ReliefChunkTiles;
+                var columns = Math.Min(ReliefChunkTiles, world.Width - left);
+                var chunk = ReliefChunkAt(new Rect2I(left, top, columns, rows), atlasSize);
+                if (ShownRelief(chunk.Key) is { } shown)
+                {
+                    // Marked drawn, so trimming below keeps a texture this draw uses.
+                    shown.LastDrawn = reliefDrawSerial;
+                    if (shown.Texture is { } texture)
+                        DrawTextureRect(texture, new Rect2((x - (mapX - left)) * stride, top * stride, columns * stride, rows * stride), false);
+                }
+                x += left + columns - mapX;
+            }
+        }
+        TrimRelief();
+    }
+
+    private ReliefChunk ReliefChunkAt(Rect2I tiles, int atlasSize)
+    {
+        var key = (tiles.Position.X / ReliefChunkTiles, tiles.Position.Y / ReliefChunkTiles, atlasSize);
+        if (!reliefChunks.TryGetValue(key, out var chunk))
+        {
+            chunk = new ReliefChunk(key, tiles);
+            // Most of a map is lowland far from any mountain: no texture, no work.
+            if (!ReliefRenderer.HasReliefNear(world!, tiles)) chunk.State = ReliefState.Ready;
+            reliefChunks[key] = chunk;
+            lastReliefKey = null;
+        }
+        chunk.LastDrawn = reliefDrawSerial;
+        if (chunk.State == ReliefState.Waiting && renderingRelief.Count < ReliefWorkers) StartRelief(chunk);
+        return chunk;
+    }
+
+    /// <summary>
+    /// Renders one chunk on a worker thread. Everything the worker shares with
+    /// the main thread (the shoreline lookup, the map's derived styles and
+    /// hills) is built here first, so the worker reads finished data only and
+    /// touches no engine objects.
+    /// </summary>
+    private void StartRelief(ReliefChunk chunk)
+    {
+        var map = world!;
+        var size = chunk.Key.Size;
+        var tiles = chunk.Tiles;
+        ReliefRenderer.Prepare(size);
+        _ = map.StyleAt(0, 0);
+        _ = map.IsHillAt(0, 0);
+        chunk.Job = Task.Run(() => ReliefRenderer.RenderPixels(map, tiles, size));
+        chunk.State = ReliefState.Rendering;
+        renderingRelief.Add(chunk);
+        SetProcess(true);
+    }
+
+    /// <summary>
+    /// Drops the least recently drawn chunks once the cached textures pass
+    /// their budget. Chunks drawn this frame, or still rendering, stay; the
+    /// others are not used by any current draw command, so their textures can
+    /// be freed at once.
+    /// </summary>
+    private void TrimRelief()
+    {
+        if (reliefTextureBytes <= ReliefTextureBudgetBytes && reliefChunks.Count <= ReliefChunkLimit) return;
+        var stale = reliefChunks.Values
+            .Where(chunk => chunk.LastDrawn != reliefDrawSerial && chunk.State != ReliefState.Rendering)
+            .OrderBy(chunk => chunk.LastDrawn)
+            .ToList();
+        foreach (var chunk in stale)
+        {
+            if (reliefTextureBytes <= ReliefTextureBudgetBytes * 3 / 4 && reliefChunks.Count <= ReliefChunkLimit * 3 / 4) break;
+            reliefChunks.Remove(chunk.Key);
+            if (chunk.Texture is not { } texture) continue;
+            reliefTextureBytes -= chunk.Bytes;
+            chunk.Texture = null;
+            texture.Dispose();
+        }
+        lastReliefKey = null;
+    }
+}
