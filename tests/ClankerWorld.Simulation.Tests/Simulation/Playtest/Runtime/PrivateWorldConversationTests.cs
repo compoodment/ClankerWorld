@@ -46,8 +46,7 @@ public sealed partial class PrivateWorldConversationTests
             for (var attempt = 0; attempt < 40 &&
                  (!handler.InitiatorTalkStarted.Task.IsCompleted || !handler.StaleInviteeTalkStarted.Task.IsCompleted); attempt++)
             {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(3);
+                await AdvanceConfiguredConversationTickAsync(world, handler);
             }
 
             Assert.True(handler.InitiatorTalkStarted.Task.IsCompleted,
@@ -59,8 +58,7 @@ public sealed partial class PrivateWorldConversationTests
             for (var attempt = 0; attempt < 20 && world.Conversations.All(item =>
                      item.Status != AgentConversationStatus.Proposed); attempt++)
             {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(3);
+                await AdvanceConfiguredConversationTickAsync(world, handler);
             }
 
             var oldInvitation = Assert.Single(world.Conversations, item => item.Status == AgentConversationStatus.Proposed);
@@ -70,8 +68,7 @@ public sealed partial class PrivateWorldConversationTests
             for (var attempt = 0; attempt < AgentConversationRules.ProposalLifetimeTicks + 20 &&
                  world.Conversations.All(item => item.Id == oldInvitation.Id || item.Status != AgentConversationStatus.Proposed); attempt++)
             {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(3);
+                await AdvanceConfiguredConversationTickAsync(world, handler);
             }
 
             var expiredInvitation = Assert.Single(world.Conversations, item => item.Id == oldInvitation.Id);
@@ -88,8 +85,7 @@ public sealed partial class PrivateWorldConversationTests
             handler.ReleaseStaleInviteeTalk();
             for (var attempt = 0; attempt < 120 && !handler.WrapUpAcceptanceStarted.Task.IsCompleted; attempt++)
             {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(3);
+                await AdvanceConfiguredConversationTickAsync(world, handler);
             }
 
             var snapshotBeforeConsent = world.ExportState();
@@ -115,8 +111,7 @@ public sealed partial class PrivateWorldConversationTests
             for (var attempt = 0; attempt < 40 && world.Conversations.Any(item =>
                          item.Id == awaitingConsent.Id && item.Status != AgentConversationStatus.Closed); attempt++)
             {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(3);
+                await AdvanceConfiguredConversationTickAsync(world, handler);
             }
 
             var conversation = Assert.Single(world.Conversations, item => item.Id == awaitingConsent.Id);
@@ -672,6 +667,35 @@ public sealed partial class PrivateWorldConversationTests
         return world;
     }
 
+    private static async Task AdvanceConfiguredConversationTickAsync(
+        PrivateWorldRuntime world, ConversationHttpHandler handler)
+    {
+        // Only this fixture advances ticks, so pending work can be snapshotted
+        // between ticks. Await its tasks before advancing simulation deadlines;
+        // deliberately held responses wait only for their request-start barrier.
+        static object[] PendingWork(PrivateWorldRuntime runtime, string fieldName)
+        {
+            var field = typeof(PrivateWorldRuntime).GetField(fieldName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            var pending = Assert.IsAssignableFrom<System.Collections.IDictionary>(field.GetValue(runtime));
+            return pending.Values.Cast<object>().ToArray();
+        }
+
+        static Task WorkTask(object pending) =>
+            Assert.IsAssignableFrom<Task>(pending.GetType().GetProperty("Task")!.GetValue(pending));
+
+        var decisions = PendingWork(world, "pendingHosted").Select(pending =>
+        {
+            var request = Assert.IsType<CognitionDecisionRequest>(
+                pending.GetType().GetProperty("Request")!.GetValue(pending));
+            return handler.HeldDecisionStarted(request) ?? WorkTask(pending);
+        });
+        var turns = PendingWork(world, "pendingConversationTurns").Select(WorkTask);
+        await Task.WhenAll(decisions.Concat(turns)).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+    }
+
     private static OwnerProviderConfigurationAction Personal(string agentId, string model, string key) =>
         new("personal", "openai", model, key, false, agentId, Guid.NewGuid().ToString("N"), $"{agentId} test credential");
 
@@ -800,6 +824,23 @@ public sealed partial class PrivateWorldConversationTests
         public ConcurrentQueue<ConversationProviderCall> ConversationCalls { get; } = new();
         public ConcurrentQueue<string> DecisionCalls { get; } = new();
         public ConcurrentQueue<string> InviteeDecisionCalls { get; } = new();
+
+        public Task? HeldDecisionStarted(CognitionDecisionRequest request)
+        {
+            var agentId = request.Observation.InhabitantId;
+            var candidates = request.Observation.Candidates;
+            if (holdInitialChoices && agentId == InitiatorId && !releaseInitiatorTalk.Task.IsCompleted &&
+                candidates.Any(candidate => candidate.Id == $"talk:{InviteeId}"))
+                return InitiatorTalkStarted.Task;
+            if (holdInitialChoices && agentId == blockedInviteeId && !releaseStaleInviteeTalk.Task.IsCompleted &&
+                candidates.Any(candidate => candidate.Id == $"talk:{InitiatorId}") &&
+                !candidates.Any(candidate => candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)))
+                return StaleInviteeTalkStarted.Task;
+            if (agentId == blockedInviteeId && !releaseWrapUpAcceptance.Task.IsCompleted &&
+                candidates.Any(candidate => candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal)))
+                return WrapUpAcceptanceStarted.Task;
+            return null;
+        }
 
         public void ReleaseWrapUpAcceptance() => releaseWrapUpAcceptance.TrySetResult();
         public void ReleaseInitiatorTalk() => releaseInitiatorTalk.TrySetResult();

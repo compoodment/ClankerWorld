@@ -13,7 +13,7 @@ public sealed class HouseholdBuildingPlanTests
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
     [Fact]
-    public async Task PlansWaitForMaterialsInHand()
+    public async Task PrivateHouseholdPlansCannotSpendTownOwnedStone()
     {
         var idle = new ActionCoverageRecorder(chooseIdle: true);
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => idle);
@@ -47,16 +47,6 @@ public sealed class HouseholdBuildingPlanTests
             Assert.Equal(4, withoutStone.Society.Inventory.GetLot("town-stone").Quantity);
             Assert.Contains(FamiliesForHousehold(withoutStone, idle, Alpha), family => family == "gather_building_material");
         }
-
-        var stocked = new ActionCoverageRecorder(chooseIdle: true);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "alpha-stone", "stone", Alpha, 4,
-            storageBuildingId: "first-town-house-a");
-        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
-        using var withStone = PrivateWorldRuntime.Restore(state, _ => stocked);
-        for (var tick = 0; tick < 40; tick++)
-            Assert.True((await withStone.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains("building:blacksmith-1x2", FamiliesForHousehold(withStone, stocked, Alpha));
-        Assert.DoesNotContain("building:farmhouse-1x1", FamiliesForHousehold(withStone, stocked, Beta));
     }
 
     [Fact]

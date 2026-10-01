@@ -280,6 +280,9 @@ public sealed partial class PrivateWorldRuntime
             (state.FounderSetup is null ||
              !string.Equals(state.Geography.Seed, state.WorldSeed, StringComparison.Ordinal)))
             throw new InvalidDataException("Generated geography does not match the saved world setup.");
+        // New worlds can only be created at these sizes, so any other saved size is damage.
+        if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
+            throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)

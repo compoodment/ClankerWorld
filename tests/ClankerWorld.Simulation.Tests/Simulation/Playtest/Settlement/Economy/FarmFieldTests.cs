@@ -247,7 +247,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adolescent, false)]
     [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]

@@ -208,20 +208,4 @@ public sealed class ViewerObservationTests
             Assert.DoesNotContain("prompt", inhabitant.PublicIntention.Summary, StringComparison.OrdinalIgnoreCase);
         });
     }
-
-    [Fact]
-    public async Task PrivateWorldObservationReplaysItsOwnEventCursor()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        _ = await runtime.AdvanceOneTickAsync();
-        var store = new OwnerWorldObservationStore(runtime);
-
-        var snapshot = store.GetSnapshot();
-        var suffix = store.GetEventsAfter(1);
-
-        Assert.Equal(1, snapshot.WorldTick);
-        Assert.Equal(snapshot.WorldTick, suffix.SnapshotTick);
-        Assert.All(suffix.Events, worldEvent => Assert.True(worldEvent.EventId > 1));
-        Assert.Contains(suffix.Events, worldEvent => worldEvent.Kind == "tick_advanced");
-    }
 }

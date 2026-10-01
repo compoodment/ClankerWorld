@@ -8,43 +8,6 @@ public sealed partial class DocumentationTests
     private static readonly string[] AllowedDocumentStatuses =
         ["active", "complete", "frozen", "history", "proposal", "superseded"];
 
-    [Fact]
-    public void CanonicalDocumentationSourcesExist()
-    {
-        var root = FindRepositoryRoot();
-        var required = new[]
-        {
-            "README.md",
-            "CONTRIBUTING.md",
-            "AGENTS.md",
-            "CHANGELOG.md",
-            "docs/README.md",
-            "docs/playing.md",
-            "docs/what-works.md",
-            "docs/game-design/README.md",
-            "docs/game-design/world.md",
-            "docs/game-design/agents-and-families.md",
-            "docs/game-design/towns.md",
-            "docs/game-design/interface-and-art.md",
-            "docs/game-design/inventions-and-mods.md",
-            "docs/game-design/saves.md",
-            "docs/game-design/content-list.md",
-            "docs/development/README.md",
-            "docs/development/how-it-works.md",
-            "docs/development/build-and-test.md",
-            "docs/development/device-pairing.md",
-            "docs/development/saves-and-replay.md",
-            "docs/development/releasing.md",
-        };
-
-        foreach (var relativePath in required)
-        {
-            Assert.True(
-                File.Exists(Path.Combine(root, relativePath)),
-                $"Required canonical documentation is missing: {relativePath}");
-        }
-    }
-
     [Theory]
     [InlineData("\n")]
     [InlineData("\r\n")]

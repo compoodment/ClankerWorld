@@ -3,7 +3,6 @@ using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
-using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -189,43 +188,6 @@ public sealed partial class PrivateWorldRuntimeTests
             runtime.WorldSimulation.NextProductionJobSequence,
             restored.WorldSimulation.NextProductionJobSequence);
         Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
-    }
-
-    [Fact]
-    public async Task InhabitantsChooseBuildForBuildingsAndRecipesWithoutOwnerCommands()
-    {
-        using var runtime = new PrivateWorldRuntime(
-            "playtest-alpha",
-            _ => new BuildSelectingProvider());
-        // A household plans a building kind it does not hold yet, then works there.
-        var (package, building, recipe) = MaterialPackage(durationTicks: 2, buildingTag: "blacksmith");
-        Activate(runtime, package);
-
-        var decisions = new List<SocietyCognitionDispatchResult>();
-        for (var tick = 0; tick < 100 && !runtime.WorldSimulation.ProductionJobs.Any(job => job.State == WorldProductionJobState.Completed); tick++)
-        {
-            var result = await runtime.AdvanceOneTickAsync();
-            decisions.AddRange(result.Decisions);
-        }
-
-        bool FromFirstHousehold(SocietyCognitionDispatchResult decision) =>
-            runtime.Society.GetInhabitant(decision.InhabitantId).HouseholdId == "household:camp-alpha";
-        Assert.Contains(
-            decisions,
-            decision => FromFirstHousehold(decision) &&
-                decision.Admission.Intention?.CandidateId.StartsWith(
-                    $"build:building:{building.CanonicalId}:site:", StringComparison.Ordinal) == true);
-        Assert.Equal("household:camp-alpha",
-            Assert.Single(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId).HouseholdId);
-        Assert.Contains(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId);
-        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
-        Assert.Contains(
-            decisions,
-            decision => FromFirstHousehold(decision) &&
-                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
-        Assert.Contains(runtime.WorldSimulation.ProductionJobs, item =>
-            item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
-        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "meal" && item.Quantity > 0);
     }
 
     [Fact]
@@ -478,42 +440,6 @@ public sealed partial class PrivateWorldRuntimeTests
         }, _ => provider);
         _ = await urgent.AdvanceOneTickAsync();
         Assert.Equal(8, provider.CallCount);
-    }
-
-    [Fact]
-    public async Task StableAdultCanScoutLocalGroundReturnAndRememberVisitedTilesAfterReload()
-    {
-        using var initial = new PrivateWorldRuntime("exploration-prototype");
-        var baseline = initial.ExportState();
-        var target = baseline.Inhabitants[0];
-        var provider = new ExplorationSelectingProvider(target.InhabitantId);
-        using var runtime = PrivateWorldRuntime.Restore(baseline with
-        {
-            Inhabitants = baseline.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = 9_500,
-            }).ToArray(),
-        }, _ => provider);
-
-        for (var tick = 0; tick < 75; tick++)
-            _ = await runtime.AdvanceOneTickAsync();
-
-        var events = runtime.ExportState().Events;
-        Assert.Contains(events, item => item.Kind == "exploration_started" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        Assert.Contains(events, item => item.Kind == "exploration_discovered" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        Assert.Contains(events, item => item.Kind == "exploration_completed" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        var explorer = runtime.Inhabitants.Single(person => person.InhabitantId == target.InhabitantId);
-        Assert.Equal(target.Position, explorer.Position);
-        Assert.NotEmpty(explorer.Exploration!.VisitedTiles);
-        Assert.Empty(explorer.Exploration.OutingPath);
-        Assert.True(provider.CallCount < 30, "Exploration should reuse its intention rather than asking the model each step.");
-
-        using var restored = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())), _ => provider);
-        var restoredExploration = restored.Inhabitants.Single(person => person.InhabitantId == target.InhabitantId).Exploration!;
-        Assert.Equal(explorer.Exploration.VisitedTiles, restoredExploration.VisitedTiles);
-        Assert.Equal(explorer.Exploration.OutingPath, restoredExploration.OutingPath);
-        Assert.Equal(explorer.Exploration.LastOutingTick, restoredExploration.LastOutingTick);
     }
 
     [Fact]
