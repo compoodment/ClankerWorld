@@ -20,8 +20,8 @@ public static class CarryEquipmentRules
 {
     public const int BasicCapacity = 32;
 
-    public static bool IsClothing(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak";
-    public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
+    public static bool IsClothing(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak" or "leather_coat";
+    public static bool IsCarryAid(string kind) => kind is "basket" or "sack" or "leather_satchel";
 
     public static long Load(InventoryCheckpoint inventory, string actor) => inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null &&
@@ -35,7 +35,7 @@ public static class CarryEquipmentRules
             lot.OwnerId == person.InhabitantId && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
             lot.ContainerLotId is null && lot.GroundPosition is null && lot.Quantity > 0 &&
             lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0);
-        return aid?.ItemKind switch { "basket" => 48, "sack" => 64, _ => BasicCapacity };
+        return aid?.ItemKind switch { "basket" => 48, "sack" or "leather_satchel" => 64, _ => BasicCapacity };
     }
 
     public static int Room(InventoryCheckpoint inventory, PlaytestInhabitantState person) =>
@@ -47,6 +47,7 @@ public static class CarryEquipmentRules
         var protection = garment.ItemKind switch
         {
             "clothing" => 35,
+            "leather_coat" => 45,
             "padded_coat" => weather == WeatherKind.Snow ? 65 : 55,
             "rain_cloak" => weather is WeatherKind.Rain or WeatherKind.Storm ? 55 : 25,
             _ => 0,
@@ -57,7 +58,7 @@ public static class CarryEquipmentRules
 
 public sealed partial class PrivateWorldRuntime
 {
-    private static readonly string[] WearableClothingKinds = ["clothing", "padded_coat", "rain_cloak"];
+    private static readonly string[] WearableClothingKinds = ["clothing", "padded_coat", "rain_cloak", "leather_coat"];
     private int CarryingRoom(string actor) => BusinessCarryingRoom(actor);
 
     private void ValidateCarryingTransition(InventoryCheckpoint before, InventoryCheckpoint after, string? committedBusinessOfferId = null)
@@ -188,9 +189,9 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedRoute(actor, person.Position, home.Position, 0).Count > 0)
             candidates.Add(new("store_carried_goods", "Deliver carried supplies to the household House to make room.", 16, home.InstanceId));
         var capacity = CarryEquipmentRules.Capacity(society.Checkpoint.Inventory, person);
-        foreach (var kind in new[] { "sack", "basket" })
+        foreach (var kind in new[] { "leather_satchel", "sack", "basket" })
         {
-            var targetCapacity = kind == "sack" ? 64 : 48;
+            var targetCapacity = kind is "sack" or "leather_satchel" ? 64 : 48;
             if (targetCapacity <= capacity) continue;
             var aid = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == actor &&
                 lot.ItemKind == kind && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
@@ -245,7 +246,7 @@ public sealed partial class PrivateWorldRuntime
         if (item is not null) _ = EquipItemCore(actor, item.Id);
     }
 
-    private static string RepairMaterial(string kind) => kind == "basket" ? "fiber" : "cloth";
+    private static string RepairMaterial(string kind) => kind switch { "basket" => "fiber", "leather_coat" or "leather_satchel" => "leather", _ => "cloth" };
 
     private PlacedBuilding? RepairSite(string actor, string lotId)
     {
@@ -303,7 +304,8 @@ public sealed partial class PrivateWorldRuntime
         if (ids.Count == 0) return;
         ApplyInventoryTransition(inventory => inventory with
         {
-            Lots = inventory.Lots.Select(lot => ids.Contains(lot.Id) && lot.ConditionBasisPoints > 0
+            Lots = inventory.Lots.Select(lot => ids.Contains(lot.Id) && lot.ConditionBasisPoints > 0 &&
+                (lot.ItemKind is not ("leather_coat" or "leather_satchel") || WorldTick % 2 == 0)
                 ? lot with { ConditionBasisPoints = lot.ConditionBasisPoints - 1 } : lot).ToArray(),
         });
     }

@@ -93,7 +93,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BridgeTrafficState? BridgeTraffic = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BusinessTradeState? BusinessTrade = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BoatTransportState? BoatTransport = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TownCouncilState>? TownCouncils = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TownCouncilState>? TownCouncils = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdAnimal>? Livestock = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

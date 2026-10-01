@@ -34,6 +34,13 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly Dictionary<Vector2I, OwnerWorldField> fields = [];
+    private IReadOnlyList<OwnerWorldAnimal> livestock = [];
+
+    public void SetLivestock(IReadOnlyList<OwnerWorldAnimal> animals)
+    {
+        livestock = animals;
+        QueueRedraw();
+    }
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
@@ -477,6 +484,7 @@ public partial class WorldTerrainLayer : Control
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
         DrawCarts(bounds, stride);
+        DrawLivestock(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
@@ -525,6 +533,26 @@ public partial class WorldTerrainLayer : Control
                 DrawRect(new Rect2(new Vector2(x * stride + 1, building.Position.Y * stride + 1),
                     new Vector2(building.Size.X * stride - tileGap - 2, building.Size.Y * stride - tileGap - 2)),
                     new Color("FFD166"), filled: false, width: tileSize >= 12 ? 3 : 2);
+            }
+        }
+    }
+
+    private void DrawLivestock((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null) return;
+        foreach (var animal in livestock)
+        {
+            var color = animal.Deceased ? new Color("777777") : animal.CaredFor ? new Color("E9D2A0") : new Color("D79060");
+            if (animal.Position.Y < bounds.Top || animal.Position.Y >= bounds.Top + bounds.Height) continue;
+            var firstX = animal.Position.X;
+            if (wrapsEastWest) firstX += (int)Math.Ceiling((bounds.Left - firstX) / (double)world.Width) * world.Width;
+            for (var x = firstX; x < bounds.Left + bounds.Width; x += world.Width)
+            {
+                if (x < bounds.Left) break;
+                var center = new Vector2((x + 0.5f) * stride, (animal.Position.Y + 0.5f) * stride);
+                DrawCircle(center, Math.Max(2, tileSize * (animal.Kind == "chicken" ? 0.15f : 0.25f)), color);
+                if (animal.ProductQuantity > 0) DrawCircle(center + new Vector2(tileSize * 0.25f, 0), Math.Max(1, tileSize * 0.08f), new Color("91D483"));
+                if (animal.RiderId is not null) DrawArc(center, Math.Max(3, tileSize * 0.32f), 0, Mathf.Tau, 12, new Color("D5F6FF"));
             }
         }
     }

@@ -372,3 +372,16 @@ Reading or trading teaches only the receiving agent. Storage and inheritance
 preserve the item identity without broadcasting its contents. Existing alpha
 saves containing older free maps or records are refused before advancement,
 and the files are kept; no paper-writing history is invented for them.
+
+## Household animals and cargo
+
+Current animal checkpoints retain each animal's identity, household, acquisition
+reference, physical position, three care clocks, waiting product, rider and
+named permissions. Missed care pauses production and riding. Natural death is
+an explicit authority transition; the husbandry loop does not invent a death
+schedule. Breeding and acquisition policy are separate from this saved state.
+Horse cargo is actual inventory with an animal reference and ground position;
+whole vessels and their contents keep that location and their original owner.
+Decode rejects missing animals, displaced cargo, overloaded horses, invalid
+riders and mixed milk/water jugs. Milk is consumed or cooked from its jug; moving
+the liquid itself requires a whole-vessel operation.

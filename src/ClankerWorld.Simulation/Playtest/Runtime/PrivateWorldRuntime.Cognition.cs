@@ -310,6 +310,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyCartCandidate(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith("animal_", StringComparison.Ordinal) || candidateId.StartsWith("horse_", StringComparison.Ordinal))
+        {
+            ApplyLivestockCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
         {
             ApplyMedicalCandidate(inhabitantId, state, candidateId);
@@ -791,6 +796,7 @@ public sealed partial class PrivateWorldRuntime
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
             AddFieldCandidates(candidates, inhabitantId, state);
+            AddLivestockCandidates(candidates, inhabitantId);
             AddFarmGrainCandidate(candidates, inhabitantId, state);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);

@@ -16,8 +16,9 @@ public sealed partial class PrivateWorldRuntime
         HouseContent.PackageId, PotteryContent.Create, "pottery_content_staged");
 
     private InventoryLot? PersonalJug(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "water_jug" && lot.StorageBuildingId is null &&
-            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0)
+        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "water_jug" && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
+            society.Checkpoint.Inventory.Lots.Where(item => item.ContainerLotId == lot.Id).All(item => item.ItemKind == "water"))
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private int HouseholdVesselQuantity(string ownerId, string kind) => society.Checkpoint.Inventory.Lots
@@ -192,8 +193,10 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var jug = inventory.Lots.FirstOrDefault(lot => lot.Id == jugLotId && lot.OwnerId == actor &&
             lot.ItemKind == "water_jug" && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-            AvailableLotQuantity(lot) > 0);
+            lot.GroundPosition is null && AvailableLotQuantity(lot) > 0);
         if (jug is null) return new(false, false, "Carry a usable water jug first.");
+        if (inventory.Lots.Any(lot => lot.ContainerLotId == jug.Id && lot.ItemKind != "water"))
+            return new(false, false, "Empty the milk jug before collecting fresh water.");
         if (!IsFreshWaterShore(shore)) return new(false, false, "Collect fresh water beside a river or lake.");
         if (person.Position != shore) return new(false, false, "Bring the jug to the water's edge first.");
         var room = Math.Min(CarryingRoom(actor), InventoryFixture.ContainerRoom(inventory, jug.Id));
@@ -287,15 +290,18 @@ public sealed partial class PrivateWorldRuntime
         {
             if (lot.ContainerCapacity != VesselRules.Capacity(lot.ItemKind))
                 throw new InvalidDataException("A saved vessel has an invalid capacity.");
-            if (lot.ItemKind == "water" && lot.ContainerLotId is null)
-                throw new InvalidDataException("Saved water must be inside a water jug.");
+            if (lot.ItemKind is "water" or "milk" && lot.ContainerLotId is null)
+                throw new InvalidDataException("Saved water and milk must be inside a jug.");
             if (lot.ContainerLotId is { } id)
             {
                 var vessel = lots.Single(item => item.Id == id);
-                if (vessel.ItemKind == "water_jug" ? lot.ItemKind != "water" : !VesselRules.IsPotFood(lot.ItemKind))
+                if (vessel.ItemKind == "water_jug" ? lot.ItemKind is not ("water" or "milk") : !VesselRules.IsPotFood(lot.ItemKind))
                     throw new InvalidDataException("The vessel contains an unsuitable item.");
             }
         }
+        if (lots.Where(lot => lot.ContainerLotId is not null && lot.ItemKind is "water" or "milk")
+            .GroupBy(lot => lot.ContainerLotId).Any(group => group.Select(lot => lot.ItemKind).Distinct(StringComparer.Ordinal).Count() > 1))
+            throw new InvalidDataException("Keep milk and fresh water in separate jugs.");
         foreach (var person in state.Inhabitants)
             if (person.WaterWork is { } work && (work.LastWorkedTick < 0 || work.LastWorkedTick > state.Society.Society.WorldTick ||
                 work.WorkDone is < 1 or >= VesselRules.FillingWorkTicks || !IsFreshWaterShore(state.Map, work.Shore) ||

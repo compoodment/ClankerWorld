@@ -13,7 +13,7 @@ public static class RestaurantContent
     {
         var version = ContentVersion.Parse("1.0.0");
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.0:named-meals-wood16-stone4")));
+            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.0:named-meals-eggs-milk-wood16-stone4")));
         var restaurant = new BuildingDefinition(digest, "restaurant-2x2", version, "Restaurant", 2, 2, 2,
             [new("wood", 16), new("stone", 4)], ["restaurant", "business", "cooking", "storage"]);
         RecipeDefinition[] recipes =

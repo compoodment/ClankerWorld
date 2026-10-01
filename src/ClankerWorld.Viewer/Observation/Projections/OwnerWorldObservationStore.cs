@@ -276,11 +276,19 @@ public sealed class OwnerWorldObservationStore
             PackedTerrain = packedTerrain,
             PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map),
             MapLayersDigest = mapLayersDigest,
+            Livestock = (state.Livestock ?? []).Select(animal => new ViewerAnimal(animal.Id,
+                animal.Kind.ToString().ToLowerInvariant(), animal.HouseholdId, ToPosition(animal.Position),
+                LivestockRules.HasCare(animal, state.Society.Society.WorldTick), animal.RiderId,
+                animal.NaturalDeathTick is not null ? !animal.HideCollected && animal.Kind != LivestockKind.Chicken ? "hide" : null : LivestockRules.Product(animal.Kind),
+                animal.NaturalDeathTick is not null ? animal.HideCollected || animal.Kind == LivestockKind.Chicken ? 0 : 1 : animal.PendingProductQuantity,
+                animal.NaturalDeathTick is not null, state.Society.Society.Inventory.Lots.Where(lot => lot.AnimalId == animal.Id)
+                    .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
             Fields = (state.WorldSimulation?.Fields ?? []).Select(field => new ViewerField(
                 ToPosition(field.Position), field.HouseholdId, field.Stage.ToString().ToLowerInvariant(),
                 state.WorldContent?.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == field.RecipeId)?.DisplayName,
                 field.WorkDone, field.Stage == FarmFieldStage.Ready ? 4 : 8,
-                state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is { } ground &&
+                state.Society.Society.Inventory.Lots.Where(lot => lot.AnimalId is null && lot.GroundPosition is { } ground &&
                         ground.X == field.Position.X && ground.Y == field.Position.Y)
                     .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
                     .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),

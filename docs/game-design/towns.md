@@ -142,9 +142,11 @@ everything that is available in the current build. See [what works today](../wha
   and when an animal could die from neglect is still to decide. Breeding is
   autonomous but must have a population cap, not a player-triggered breeding
   action. The cap, resource needs, product intervals, pregnancy duration and
-  mount speed need later design and playtesting. Animal husbandry remains a
-  **late-development phase**, not a current playable system. Slaughter,
-  hunting and a leather-production chain are not assumed.
+  mount speed need later design and playtesting. The all-content implementation
+  now covers local care and products for acquired animals. Acquisition is still
+  undecided, so generated worlds receive no starter herd yet. Breeding and
+  mortality schedules are also unfinished. Slaughter and hunting remain outside
+  the plan; the accepted leather path uses naturally deceased livestock only.
 
 ### Agreed content and building sizes
 
@@ -574,6 +576,33 @@ caregiver; existing accepted caregiver relationships permit dependent care.
 Revoking permission or the caregiver dying stops the remaining effect and
 never restores the consumed dose. Bought care goods belong to the patient;
 a care permission never opens another household's stock.
+
+The husbandry trial uses one grain or one wild/cultivated greens as feed and
+one unit of actual jug water. Feeding, watering and hands-on care each cover
+ninety-six steps; agents renew them before that runs out. Forty-eight cared-for
+steps produce one egg, two milk or two wool. One batch waits at the animal;
+it does not enter House stock or grow without limit. Eggs and milk spoil while
+waiting and retain that age when collected. Milk uses an empty or milk-filled
+jug, travels as a whole vessel, and leaves its jug behind when drunk or cooked.
+Two eggs and one wood make two simple meals at a House or Restaurant. One
+grain, one milk and one wood make two porridge. These values are provisional.
+
+Shearing uses a carried knife and the shared tool-wear rules. Two wool make
+one cloth at the Tailor Shop. An authoritative natural-death
+event can leave one hide on a cow, sheep or horse; the care system never creates
+such a death from missed care. One hide and one wood make two leather. Two
+leather make a leather coat; two leather and one rope make a carrying satchel.
+Leather gear wears at half the cloth gear rate, a trial balance value, and uses
+leather for repair. The coat gives forty-five percent exposure protection;
+the satchel holds sixty-four item units including vessel contents.
+
+A horse accepts one permitted adult rider and sixty-four units of physical
+cargo, including jug contents. Household adults can grant and revoke named
+outside riders. Cargo keeps its owner and the horse's location, and revoking
+riding permission never confiscates that cargo. Horse travel currently uses
+ordinary walking routes and timing. Acquisition, breeding caps and autonomous
+natural-death rules remain open; this implementation adds no population or
+mortality assumption to those decisions.
 
 Bandages treat injuries; medicine supports illness recovery. Neither instantly
 restores full health. Medicinal herbs, paper, hides and ornaments are approved

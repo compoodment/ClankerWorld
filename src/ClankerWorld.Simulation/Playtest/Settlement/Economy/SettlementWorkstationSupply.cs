@@ -51,9 +51,9 @@ public sealed partial class PrivateWorldRuntime
                 var missing = target - stocked - incoming;
                 if (missing <= 0)
                     continue;
-                if (input.Key == "water")
+                if (input.Key is "water" or "milk")
                 {
-                    if (WaterJugForWorkstation(actor, building) is not null)
+                    if (WaterJugForWorkstation(actor, building, input.Key) is not null)
                         yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, null, null, null);
                     continue;
                 }
@@ -101,9 +101,9 @@ public sealed partial class PrivateWorldRuntime
             WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind) is not { } need)
             return;
         var building = need.Building;
-        if (itemKind == "water")
+        if (itemKind is "water" or "milk")
         {
-            SupplyWorkstationWater(actor, state, building);
+            SupplyWorkstationWater(actor, state, building, itemKind);
             return;
         }
         if (need.Carried is { } carried)

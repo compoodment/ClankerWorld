@@ -284,6 +284,14 @@ public partial class Main
             if (field.GroundItems.Count > 0)
                 lines.Add("Harvest waiting here: " + string.Join(", ", field.GroundItems.Select(item => $"{item.Quantity} {Pretty(item.Kind)}")));
         }
+        foreach (var animal in snapshot.Livestock.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
+        {
+            lines.Add($"{Pretty(animal.Kind)}: {(animal.Deceased ? "Naturally deceased" : animal.CaredFor ? "Cared for" : "Needs feed, water or care")}");
+            lines.Add("Animal household: " + (snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == animal.HouseholdId)?.Name ?? animal.HouseholdId));
+            if (animal.ProductQuantity > 0) lines.Add($"Waiting here: {animal.ProductQuantity} {Pretty(animal.Product ?? "product")}");
+            if (animal.RiderId is { } rider) lines.Add("Rider: " + (snapshot.Inhabitants.FirstOrDefault(item => item.Id == rider)?.DisplayName ?? rider));
+            if (animal.Cargo.Count > 0) lines.Add("Cargo: " + string.Join(", ", animal.Cargo.Select(item => $"{item.Quantity} {Pretty(item.Kind)}")));
+        }
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
         if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");

@@ -403,6 +403,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
             MaintainFields(targetTick);
+            AdvanceLivestock(targetTick);
 
             WearClothing();
             AdvanceSettlementSurvival();
@@ -477,6 +478,8 @@ public sealed partial class PrivateWorldRuntime
             ApplyContinuingIntentions(decisions.Select(item => item.InhabitantId).Concat(waiting));
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
             AdvanceBridgeTraffic();
+            foreach (var rider in livestock.Where(item => item.RiderId is not null).Select(item => item.RiderId!).ToArray())
+                MoveRiddenHorse(rider);
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

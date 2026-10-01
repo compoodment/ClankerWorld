@@ -57,7 +57,7 @@ public static partial class InventoryFixture
         if (source.ContainerCapacity != 0 || source.Id == vessel.Id || source.ContainerLotId == vessel.Id ||
             vessel.ContainerCapacity <= 0 || ContainerRoom(checkpoint, vessel.Id) < quantity ||
             source.StorageBuildingId != vessel.StorageBuildingId ||
-            source.DeliveryBuildingId != vessel.DeliveryBuildingId || source.GroundPosition != vessel.GroundPosition || source.CartId != vessel.CartId)
+            source.DeliveryBuildingId != vessel.DeliveryBuildingId || source.GroundPosition != vessel.GroundPosition || source.CartId != vessel.CartId || source.AnimalId != vessel.AnimalId)
             throw new InvalidOperationException("The vessel needs room and the goods must be here with it.");
         var newId = source.Id + "#container:" + operationId;
         if (checkpoint.Lots.Any(lot => lot.Id == newId))
@@ -95,7 +95,7 @@ public static partial class InventoryFixture
             if (!byId.TryGetValue(containerId, out var vessel) || vessel.ContainerCapacity <= 0 ||
                 lot.Id == containerId || lot.OwnerId != vessel.OwnerId ||
                 lot.StorageBuildingId != vessel.StorageBuildingId ||
-                lot.DeliveryBuildingId != vessel.DeliveryBuildingId || lot.GroundPosition != vessel.GroundPosition || lot.CartId != vessel.CartId)
+                lot.DeliveryBuildingId != vessel.DeliveryBuildingId || lot.GroundPosition != vessel.GroundPosition || lot.CartId != vessel.CartId || lot.AnimalId != vessel.AnimalId)
                 throw new InvalidDataException("Contained goods must have their vessel's owner and location.");
         }
         foreach (var group in lots.Where(lot => lot.ContainerLotId is not null).GroupBy(lot => lot.ContainerLotId!))
@@ -112,14 +112,17 @@ public static partial class InventoryFixture
                 DeliveryBuildingId = deliveryId,
                 GroundPosition = null,
                 CartId = null,
+                AnimalId = null,
             } : lot).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
 
     private static void EnsurePortableTransfer(InventoryCheckpoint checkpoint, InventoryLot lot)
     {
         if (lot.CartId is not null) throw new InvalidOperationException("Unload the actual cart cargo before transferring it.");
+        if (lot.AnimalId is not null)
+            throw new InvalidOperationException("Unload cargo from its actual horse first.");
         // Water is carried in its jug; pouring between co-located vessels has its own transition.
-        if (lot.ContainerLotId is not null && lot.ItemKind == "water")
-            throw new InvalidOperationException("Carry the water jug or pour into another vessel.");
+        if (lot.ContainerLotId is not null && lot.ItemKind is "water" or "milk")
+            throw new InvalidOperationException("Carry the liquid jug or pour into another vessel.");
         foreach (var contained in checkpoint.Lots.Where(item => item.ContainerLotId == lot.Id))
             EnsureUnreservedQuantity(checkpoint, contained, contained.Quantity);
     }

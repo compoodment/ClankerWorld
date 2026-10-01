@@ -37,5 +37,5 @@ public static class VesselRules
     public static bool IsVessel(string kind) => Capacity(kind) > 0;
     public static bool IsPotFood(string kind) => kind is "food" or "fruit" or "berries" or "wild_greens" or
         "cultivated_greens" or "potatoes" or "grain" or "flour" or "simple_meal" or "porridge" or "bread" or
-        "vegetable_stew" or "restaurant_meal" or "eggs" or "milk";
+        "vegetable_stew" or "restaurant_meal" or "eggs";
 }

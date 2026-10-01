@@ -31,6 +31,14 @@ public static class TailorContent
         [
             new(digest, "weave-cloth", version, "Weave cloth",
                 [new("fiber", 3)], [new("cloth", 1)], 20, shop.CanonicalId, ["cloth"]),
+            new(digest, "spin-wool", version, "Spin wool cloth",
+                [new("wool", 2)], [new("cloth", 1)], 20, shop.CanonicalId, ["cloth"]),
+            new(digest, "tan-leather", version, "Make leather from a naturally deceased animal's hide",
+                [new("hide", 1), new("wood", 1)], [new("leather", 2)], 24, shop.CanonicalId, ["leather"]),
+            new(digest, "sew-leather-coat", version, "Sew a leather coat",
+                [new("leather", 2)], [new("leather_coat", 1)], 30, shop.CanonicalId, ["clothing"]),
+            new(digest, "sew-leather-satchel", version, "Sew a leather carrying satchel",
+                [new("leather", 2), new("rope", 1)], [new("leather_satchel", 1)], 24, shop.CanonicalId, ["carry-aid"]),
             new(digest, "sew-clothing", version, "Sew clothing",
                 [new("cloth", 2)], [new("clothing", 1)], 24, shop.CanonicalId, ["clothing"]),
             new(digest, "sew-padded-coat", version, "Sew a padded coat",
@@ -46,5 +54,5 @@ public static class TailorContent
     }
 
     private static string PackageDigest() => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes("clankerworld-tailor-v1:1.0.0:tailor-shop-cloth-clothing-coat-cloak-sack")));
+        Encoding.UTF8.GetBytes("clankerworld-tailor-v1:1.0.0:tailor-shop-cloth-clothing-coat-cloak-sack-wool-leather")));
 }

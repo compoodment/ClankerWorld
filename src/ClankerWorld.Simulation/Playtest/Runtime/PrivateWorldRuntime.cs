@@ -262,6 +262,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic ?? BridgeTrafficState.Empty;
         runtime.boatTransport = state.BoatTransport ?? BoatTransportState.Empty();
+        runtime.livestock = (state.Livestock ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
@@ -398,7 +399,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, businessTrade,
-        boatTransport.Boats.Count == 0 && boatTransport.GuestPermissions.Count == 0 ? null : boatTransport, TownCouncils);
+        boatTransport.Boats.Count == 0 && boatTransport.GuestPermissions.Count == 0 ? null : boatTransport, TownCouncils, livestock.Count == 0 ? null : livestock.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray());
 
     private void AppendEvent(string kind, string detail)
     {

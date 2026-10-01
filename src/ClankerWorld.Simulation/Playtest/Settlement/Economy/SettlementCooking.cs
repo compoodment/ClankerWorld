@@ -64,16 +64,16 @@ public sealed partial class PrivateWorldRuntime
         recipe.PackageDigest == LegacyCookingPackageDigest && recipe.LocalId == "meal";
 
     /// <summary>Only filled, unreserved whole jugs are moved; water contents never leave their vessel.</summary>
-    private InventoryLot? WaterJugForWorkstation(string actor, PlacedBuilding building)
+    private InventoryLot? WaterJugForWorkstation(string actor, PlacedBuilding building, string liquid = "water")
     {
         var householdId = HouseholdFor(actor);
         var inventory = society.Checkpoint.Inventory;
         var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
         return inventory.Lots.Where(jug => jug.ItemKind == "water_jug" && jug.ContainerLotId is null &&
-                jug.StorageBuildingId != building.InstanceId && AvailableLotQuantity(jug) == 1 &&
+                jug.StorageBuildingId != building.InstanceId && jug.GroundPosition is null && AvailableLotQuantity(jug) == 1 &&
                 (jug.OwnerId == actor && jug.StorageBuildingId is null && jug.DeliveryBuildingId is null ||
                  jug.OwnerId == householdId && CanReachSharedItem(actor, jug)) &&
-                inventory.Lots.Any(water => water.ContainerLotId == jug.Id && water.ItemKind == "water" && AvailableLotQuantity(water) > 0) &&
+                inventory.Lots.Any(water => water.ContainerLotId == jug.Id && water.ItemKind == liquid && AvailableLotQuantity(water) > 0) &&
                 !inventory.Reservations.Any(reservation => (reservation.State is InventoryReservationState.Reserved or
                     InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed) &&
                     (reservation.LotId == jug.Id || inventory.Lots.Any(contents => contents.Id == reservation.LotId && contents.ContainerLotId == jug.Id))) &&
@@ -83,9 +83,9 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Shared cooking/care hook: physically collect and deliver one whole owned filled jug.</summary>
-    private void SupplyWorkstationWater(string actor, PlaytestInhabitantState person, PlacedBuilding building)
+    private void SupplyWorkstationWater(string actor, PlaytestInhabitantState person, PlacedBuilding building, string liquid = "water")
     {
-        if (!AdultResident(actor) || building.HouseholdId != HouseholdFor(actor) || WaterJugForWorkstation(actor, building) is not { } jug)
+        if (!AdultResident(actor) || building.HouseholdId != HouseholdFor(actor) || WaterJugForWorkstation(actor, building, liquid) is not { } jug)
             return;
         if (jug.OwnerId == actor)
         {

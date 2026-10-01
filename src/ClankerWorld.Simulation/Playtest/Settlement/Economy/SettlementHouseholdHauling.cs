@@ -50,7 +50,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private InventoryLot? PersonalSpareFood(string actor) => PreferredFood(actor, actor)
-        .FirstOrDefault(lot => lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 1);
+        .FirstOrDefault(lot => lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 1);
 
     private void StoreHouseholdFood(string actor, PlaytestInhabitantState state)
     {

@@ -13,7 +13,7 @@ public static class HouseCookingContent
     {
         var version = ContentVersion.Parse("1.0.0");
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("clankerworld-house-cooking-v1:1.0.0:named-meals-water-fuel")));
+            Encoding.UTF8.GetBytes("clankerworld-house-cooking-v1:1.0.0:named-meals-water-fuel-eggs-milk")));
         var house = HouseContent.House1x1();
         RecipeDefinition[] recipes =
         [
@@ -37,6 +37,10 @@ public static class HouseCookingContent
 
     internal static RecipeDefinition[] SharedRecipes(string digest, ContentVersion version, string workstation, string tag) =>
     [
+        new(digest, "egg-meal", version, "Cook an egg meal",
+            [new("eggs", 2), new("wood", 1)], [new("simple_meal", 2)], 12, workstation, ["meal", tag]),
+        new(digest, "milk-porridge", version, "Cook milk porridge",
+            [new("grain", 1), new("milk", 1), new("wood", 1)], [new("porridge", 2)], 16, workstation, ["meal", tag]),
         new(digest, "porridge", version, "Cook porridge",
             [new("grain", 1), new("water", 1), new("wood", 1)], [new("porridge", 2)], 16,
             workstation, ["meal", tag]),

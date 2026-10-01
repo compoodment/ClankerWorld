@@ -20,6 +20,9 @@ public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding,
 public sealed record ViewerPackedMapLayers(int Width, int Height, string Encoding,
     string Climate, string Elevation, string Hydrology, string Surface, string Vegetation,
     string? Fertility = null);
+public sealed record ViewerAnimal(string Id, string Kind, string HouseholdId, ViewerPosition Position,
+    bool CaredFor, string? RiderId, string? Product, int ProductQuantity, bool Deceased, IReadOnlyList<ViewerInventoryEntry> Cargo);
+
 public sealed record ViewerField(ViewerPosition Position, string HouseholdId, string State, string? Crop,
     int WorkDone, int WorkRequired, IReadOnlyList<ViewerInventoryEntry> GroundItems);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
@@ -339,6 +342,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerCart> Carts { get; init; } = [];
     public IReadOnlyList<ViewerField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
+    public IReadOnlyList<ViewerAnimal> Livestock { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
     /// <summary>

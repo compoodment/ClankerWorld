@@ -50,7 +50,8 @@ public sealed record InventoryLot(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int ContainerCapacity = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CartId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CartId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AnimalId = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -159,7 +160,8 @@ public static partial class InventoryFixture
         string? storageBuildingId = null,
         string? containerLotId = null,
         int containerCapacity = 0,
-        InventoryGroundPosition? groundPosition = null)
+        InventoryGroundPosition? groundPosition = null,
+        string? animalId = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
@@ -186,7 +188,7 @@ public static partial class InventoryFixture
             freshnessBasisPoints,
             nextTick,
             StorageBuildingId: storageBuildingId, GroundPosition: groundPosition,
-            ContainerLotId: containerLotId, ContainerCapacity: containerCapacity);
+            ContainerLotId: containerLotId, ContainerCapacity: containerCapacity, AnimalId: animalId);
         var lots = checkpoint.Lots
             .Append(lot)
             .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
@@ -708,6 +710,10 @@ public static partial class InventoryFixture
             }
             if (lot.CartId is { } cartId && (string.IsNullOrWhiteSpace(cartId) || cartId != cartId.Trim() || lot.GroundPosition is null))
                 throw new InvalidDataException("Cart cargo needs an identified cart and a physical ground position.");
+            if (lot.AnimalId is { } animalId && (string.IsNullOrWhiteSpace(animalId) || animalId != animalId.Trim() || lot.GroundPosition is null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid animal cargo location.");
+            if (lot.CartId is not null && lot.AnimalId is not null)
+                throw new InvalidDataException("Cargo cannot be on a cart and a horse together.");
             if (lot.GroundPosition is { } ground && (ground.X < 0 || ground.Y < 0 ||
                 lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has incompatible ground and storage locations.");

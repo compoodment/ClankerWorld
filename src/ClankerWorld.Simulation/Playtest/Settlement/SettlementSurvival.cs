@@ -383,7 +383,7 @@ public sealed partial class PrivateWorldRuntime
     private string FoodSource(InventoryLot lot)
     {
         if (IsPreparedMeal(lot.ItemKind)) return IsEnrichedPorridge(lot) ? "fruit_porridge" : lot.ItemKind;
-        if (lot.ItemKind is "berries" or "wild_greens" or "cultivated_greens") return lot.ItemKind;
+        if (lot.ItemKind is "berries" or "wild_greens" or "cultivated_greens" or "milk" or "eggs") return lot.ItemKind;
         var inventory = society.Checkpoint.Inventory;
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var originId = lot.Id;
@@ -411,8 +411,9 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PreferredFood(string owner, string? actor = null)
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
-        return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                lot.GroundPosition is null && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
+        return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner && lot.GroundPosition is null &&
+                IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
+                (lot.ItemKind != "milk" || lot.ContainerLotId is null || MilkJugIsUnreserved(lot.ContainerLotId)))
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);
     }
@@ -446,7 +447,7 @@ public sealed partial class PrivateWorldRuntime
             if (person.Survival is { } condition && (state.SchemaVersion < 6 || state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
                 condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard" or
-                    "berries" or "wild_greens" or "cultivated_greens" or "simple_meal" or "porridge" or "fruit_porridge" or "bread" or "vegetable_stew" or "restaurant_meal")))
+                    "berries" or "wild_greens" or "cultivated_greens" or "simple_meal" or "porridge" or "fruit_porridge" or "bread" or "vegetable_stew" or "restaurant_meal" or "eggs" or "milk")))
             {
                 throw new InvalidDataException("The saved inhabitant survival condition is invalid.");
             }

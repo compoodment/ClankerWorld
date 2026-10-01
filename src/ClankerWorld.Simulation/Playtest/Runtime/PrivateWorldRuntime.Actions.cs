@@ -54,6 +54,7 @@ public sealed partial class PrivateWorldRuntime
                 CartTravelDelay(inhabitantId, state.Position, next),
         };
         MovePulledCart(inhabitantId, next);
+        MoveRiddenHorse(inhabitantId);
         WearCarryAid(inhabitantId);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
@@ -253,6 +254,8 @@ public sealed partial class PrivateWorldRuntime
         ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
             (lot.StorageBuildingId is null ||
              society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
+            (lot.ItemKind != "milk" || lot.ContainerLotId is null ||
+             InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, lot.ContainerLotId, 1) <= CarryingRoom(actor)) &&
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                 HouseholdStockInteractionRange(lot)).Count > 0)
         : null;
@@ -270,6 +273,14 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (CarryingRoom(inhabitantId) == 0) return;
+        if (lot.ItemKind == "milk" && lot.ContainerLotId is { } vesselId)
+        {
+            if (InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, vesselId, 1) > CarryingRoom(inhabitantId)) return;
+            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
+                $"milk-jug-pickup:{WorldTick}:{inhabitantId}", lot.OwnerId, inhabitantId, vesselId, 1, "household_milk_collected"));
+            AppendEvent("household_milk_collected", $"{inhabitantId}:{vesselId}");
+            return;
+        }
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(
             inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdFor(inhabitantId), inhabitantId,
             lot.Id, 1, "household_food_share"));

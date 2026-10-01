@@ -119,6 +119,7 @@ public partial class Main
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
         terrainLayer.SetFields(snapshot.Fields);
         terrainLayer.SetCarts(snapshot.Carts);
+        terrainLayer.SetLivestock(snapshot.Livestock);
         worldOverview.SetFields(snapshot.Fields);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
