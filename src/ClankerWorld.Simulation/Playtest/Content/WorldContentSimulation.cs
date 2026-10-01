@@ -188,7 +188,8 @@ public static class WorldContentSimulationRules
             ContentPackageRules.ValidateLocalId(job.JobId);
             if (!jobIds.Add(job.JobId) || !recipeDefinitions.TryGetValue(job.RecipeId, out var recipe) ||
                 (!buildingIds.Contains(job.BuildingInstanceId) &&
-                    !IsValidFertileLandJobSite(recipe, job.BuildingInstanceId, map)))
+                    !IsValidFertileLandJobSite(recipe, job.BuildingInstanceId, map) &&
+                    job.State == WorldProductionJobState.Running))
             {
                 throw new InvalidDataException("Production jobs must have unique IDs and registered references.");
             }

@@ -561,6 +561,18 @@ public sealed record OwnerBuildingPlacementAction(
     int X,
     int Y);
 
+public sealed record OwnerBuildingRemovalAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId);
+
+public sealed record OwnerBuildingReassignmentAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string? TargetTownId,
+    string? TargetHouseholdId);
+
 public sealed record OwnerProductionStartAction(
     string RecipeId,
     string BuildingInstanceId,
@@ -572,6 +584,13 @@ public sealed record OwnerBuildingPlacementResult(
     string DefinitionId,
     OwnerWorldPosition Position,
     string? Failure);
+
+public sealed record OwnerBuildingManagementResult(
+    bool Applied,
+    string InstanceId,
+    string? Failure,
+    string? TownId = null,
+    string? HouseholdId = null);
 
 public sealed record OwnerProductionStartResult(
     bool Applied,
