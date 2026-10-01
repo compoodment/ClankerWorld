@@ -384,6 +384,7 @@ public sealed partial class PrivateWorldRuntime
             StageFarmContent();
             StageBlacksmithContent();
             StageHouseCookingContent();
+            StageRestaurantContent();
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();

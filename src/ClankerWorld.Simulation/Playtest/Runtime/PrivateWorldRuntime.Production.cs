@@ -165,6 +165,10 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
+    private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
+        recipe.Inputs.Any(input => input.ResourceId == "food") &&
+        recipe.Outputs.Any(output => output.ResourceId == "food");
+
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
         var inventory = society.Checkpoint.Inventory;

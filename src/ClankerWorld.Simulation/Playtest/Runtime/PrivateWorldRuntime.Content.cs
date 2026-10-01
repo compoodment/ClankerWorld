@@ -99,7 +99,7 @@ public sealed partial class PrivateWorldRuntime
             [
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
-                HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
+                HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(), RestaurantContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -322,6 +322,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
             }
+            if (IsGenericFoodRecipe(recipe))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Cook named ingredients at your household House or Restaurant.");
             if (recipe.Outputs.Any(output => output.ResourceId == "bedding"))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Bedding production was retired with sleep.");
             if (recipe.IsCrop)

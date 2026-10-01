@@ -190,6 +190,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("house_cooking_content_staged", manifest.PackageId);
     }
 
+    private void StageRestaurantContent() =>
+        StageBuiltInContent(RestaurantContent.PackageId, HouseContent.PackageId, RestaurantContent.Create,
+            "restaurant_content_staged");
+
     private void StagePotteryContent() =>
         StageBuiltInContent(PotteryContent.PackageId, HouseContent.PackageId, PotteryContent.Create,
             "pottery_content_staged");

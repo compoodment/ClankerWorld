@@ -38,7 +38,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Contains("pottery", StringComparer.Ordinal)))
+                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "named-meal")))
                 .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
@@ -115,7 +115,7 @@ public sealed partial class PrivateWorldRuntime
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
-                        definition.Tags.Any(tag => tag is "house" or "silo")))))
+                        definition.Tags.Any(tag => tag is "house" or "silo" or "farmhouse" or "restaurant")))))
             .Where(lot => WorkstationPickupQuantity(actor, inventory, lot, destination.InstanceId,
                 int.MaxValue) > 0)
             .DistinctBy(lot => lot.Id)

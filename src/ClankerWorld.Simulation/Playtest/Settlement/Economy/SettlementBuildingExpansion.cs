@@ -31,7 +31,7 @@ public static class BuildingStorageRules
             width, height, definition.Capacity, definition.BuildCosts, definition.Tags);
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
-        definition.Tags.Any(tag => tag is "house" or "warehouse")
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "restaurant")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 

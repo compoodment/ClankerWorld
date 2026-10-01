@@ -833,7 +833,7 @@ public sealed partial class PrivateWorldRuntime
         // household holds or a communal one (see TryFindRecipeSite).
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     !item.IsCrop))
+                     !item.IsCrop && !IsGenericFoodRecipe(item)))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)))
             {
