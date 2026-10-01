@@ -1,0 +1,1 @@
+- Each Town has its own council, proposals and representative elections. Agents personally agree to stand, learn from real notices or nearby relays, vote through their ordinary choices and keep their civic records across saves. The Town panel shows the current council, election and proposal results. Admission approval remains separate from joining a Town or household.

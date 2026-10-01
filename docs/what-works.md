@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # What works today
@@ -143,7 +143,7 @@ summaries remain unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but founding or joining another Town, broader law, currencies and land disputes remain unfinished. |
+| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but founding or joining another Town, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -153,6 +153,30 @@ On death, a bounded final model choice can leave the estate to the household or
 name one living recipient for the whole estate. Interrupted or invalid choices
 use the household path. Per-item bequests, debts, minors and inheritance law
 remain unfinished. Memories do not automatically pass to children.
+
+Each founded Town has its own council. Its recorded living adult residents
+include travelers and adults without a home; visitors gain no vote. All adults
+govern initially. At eight adults the Town opens elections for three willing
+representatives, with ten-day terms, vacancy contests and one cutoff runoff
+followed by a saved draw when needed. A Town with an elected council keeps
+representation at seven adults and returns to all adults at three or fewer.
+
+Agents personally register willingness, visit the public notice place near the
+Town's founding site, read actual notices and relay learned information nearby.
+They submit ordinary social-law or admission proposals and cast votes in their
+usual personal-model turns. No extra paid calls poll for civic votes. Ordinary
+proposals need a strict council majority, with two yes votes required while
+representative seats are vacant. Proposal votes are final; election ballots
+may change before the one-day window closes. Council changes cancel unfinished
+proposals. The Towns page shows current councillors, candidates, election totals
+and pending, passed, rejected or cancelled proposals.
+
+A passed law proposal records approval; broader law powers, jurisdiction and
+enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).
+Admission approval is recorded for the separate Town-membership work
+([#602](https://github.com/compoodment/ClankerWorld/issues/602)); it grants neither
+membership, household admission nor goods access today. Windows civic pacing
+and visual checks remain pending.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a

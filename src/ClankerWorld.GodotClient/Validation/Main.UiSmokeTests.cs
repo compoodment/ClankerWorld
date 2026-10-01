@@ -1256,6 +1256,39 @@ public partial class Main
             {
                 displayPreferences = installedClockPreferences;
             }
+            var civicTown = sample.Towns[0] with
+            {
+                FoundingState = "founded",
+                Governance = new OwnerTownGovernance("representative", "none", ["Mira Vale", "Sol Reed", "Ash Rowan"],
+                    7_200, 0, ["Mira Vale (full term)"],
+                    [new("proposal-1", "law", "Keep public harvest records.", "pending", 1, 0, 2, 3_960),
+                     new("proposal-2", "admission", "Admit Nia Moss.", "passed", 2, 0, 2, 3_600),
+                     new("proposal-3", "law", "Close the public path.", "rejected", 0, 2, 2, 3_600),
+                     new("proposal-4", "law", "Reserve storm fuel.", "cancelled", 1, 0, 2, 3_600)],
+                    new("election-1", "regular", "runoff", 1, 3_960,
+                        [new("candidate-1", "Nia Moss", 2), new("candidate-2", "Sol Reed", 1)], ["Mira Vale", "Ash Rowan"])),
+            };
+            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40), Towns = [civicTown] }, []);
+            var civicLabels = TownListText();
+            foreach (var phrase in new[] { "Council: elected representatives", "Mira Vale, Sol Reed, Ash Rowan", "Term ends ",
+                         "Regular election", "Runoff", "Nia Moss: 2 votes", "1 yes / 0 no", "Pending law proposal", "Passed admission proposal",
+                         "Rejected law proposal", "Cancelled law proposal" })
+                if (!civicLabels.Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The Town council rows must show readable names, current ballots and honest proposal states: " + phrase);
+            if (civicLabels.Contains("tick", StringComparison.OrdinalIgnoreCase) || civicLabels.Contains("candidate-", StringComparison.Ordinal) ||
+                civicLabels.Contains("representative", StringComparison.Ordinal) && !civicLabels.Contains("elected representatives", StringComparison.Ordinal))
+                throw new InvalidOperationException("Normal Town council rows must use world clocks and names rather than internal counters or IDs.");
+            var revisedCivicTown = civicTown with
+            {
+                Governance = civicTown.Governance! with
+                {
+                    Proposals = civicTown.Governance!.Proposals.Select(p => p.Id == "proposal-1" ? p with { Status = "passed", Yes = 2 } : p).ToArray(),
+                }
+            };
+            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40), Towns = [revisedCivicTown] }, []);
+            if (!TownListText().Contains("Passed law proposal: Keep public harvest records.", StringComparison.Ordinal))
+                throw new InvalidOperationException("A civic result must refresh its Town row even when Town membership is unchanged.");
+            Render(sample, []);
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();

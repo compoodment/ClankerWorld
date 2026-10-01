@@ -350,7 +350,7 @@ public sealed record CognitionDecisionResponse(
             throw new ArgumentOutOfRangeException(nameof(ChosenPersonality));
 
         if (CivicProposal is not null && NormalizeIdentityText(CivicProposal) != CivicProposal ||
-            CivicBallot is { Count: > 3 } || CivicBallot?.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 128) == true)
+            CivicBallot is { Count: > 3 } || CivicBallot?.Any(id => string.IsNullOrWhiteSpace(id) || id.Any(char.IsControl)) == true)
             throw new ArgumentOutOfRangeException(nameof(CivicProposal));
 
         if (MemoryCompactionScores is { Count: > 12 })

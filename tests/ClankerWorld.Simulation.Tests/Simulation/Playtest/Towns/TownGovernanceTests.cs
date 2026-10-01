@@ -225,6 +225,79 @@ public sealed class TownGovernanceTests
     }
 
     [Fact]
+    public void AgreedReplacementServesOnlyTheRemainderAndKeepsExistingTermEnd()
+    {
+        var state = Elected();
+        state = TownGovernanceRules.Register(state, "d", false, state.TermEndTick, Adults, 10);
+        var adults = Adults.Where(id => id != "c").ToArray();
+        state = Advance(state, 11, adults);
+        state = TownGovernanceRules.VoteElection(state, state.Election!.Id, "a", ["d"], 12);
+        state = Advance(state, 21, adults);
+        Assert.Equal(["a", "b", "d"], state.Members);
+        Assert.Equal(110, state.TermEndTick);
+        Assert.Null(state.Election);
+        Assert.Equal("completed", state.ElectionHistory[^1].Stage);
+        state = Advance(state, 100, adults);
+        Assert.Equal("regular", state.Election!.Kind);
+        Assert.DoesNotContain("d", state.Election.Candidates);
+    }
+
+    [Fact]
+    public void CandidateFallbackCanRecoverBelowEightWhileDemographicFallbackCannot()
+    {
+        var adults = Adults.Where(id => id != "c").ToArray();
+        var state = Advance(Advance(Elected(), 11, adults), 21, adults);
+        Assert.Equal("candidates", state.Fallback);
+        state = TownGovernanceRules.Register(state, "d", true, null, adults, 22);
+        state = Advance(state, 22, adults);
+        Assert.Equal("initial", state.Election!.Kind);
+        state = TownGovernanceRules.VoteElection(state, state.Election.Id, "a", ["a", "b", "d"], 23);
+        state = Advance(state, 32, adults);
+        Assert.Equal("representative", state.Form);
+        Assert.Equal(["a", "b", "d"], state.Members);
+    }
+
+    [Fact]
+    public void IncumbentsContinueThroughUnresolvedRegularRunoffAfterTermEnd()
+    {
+        var state = TownGovernanceRules.Register(Elected(), "d", true, null, Adults, 90);
+        state = Advance(state, 100);
+        var id = state.Election!.Id;
+        state = TownGovernanceRules.VoteElection(state, id, "a", ["a", "b", "c"], 101);
+        state = TownGovernanceRules.VoteElection(state, id, "b", ["a", "d"], 102);
+        state = Advance(state, 110);
+        Assert.Equal("runoff", state.Election!.Stage);
+        state = Advance(state, 115);
+        Assert.Equal(["a", "b", "c"], state.Members);
+        Assert.Equal("representative", state.Form);
+        state = Advance(state, 120);
+        Assert.Equal(220, state.TermEndTick);
+        Assert.Equal(3, state.Members.Count);
+    }
+
+    [Fact]
+    public void RegularVotingKeepsAlreadySettledVacancySeatAndCancelsOnlyUnresolvedRound()
+    {
+        var state = Elected();
+        foreach (var actor in new[] { "d", "e", "f" })
+            state = TownGovernanceRules.Register(state, actor, true, null, Adults, 80);
+        var adults = Adults.Where(id => id is not ("b" or "c")).ToArray();
+        state = Advance(state, 85, adults);
+        var id = state.Election!.Id;
+        state = TownGovernanceRules.VoteElection(state, id, "a", ["d", "e"], 86);
+        state = TownGovernanceRules.VoteElection(state, id, "d", ["d", "f"], 87);
+        state = Advance(state, 95, adults);
+        Assert.Equal("runoff", state.Election!.Stage);
+        Assert.Equal(["a", "d"], state.Members);
+        state = Advance(state, 100, adults);
+        Assert.Equal("regular", state.Election!.Kind);
+        Assert.Equal(["a", "d"], state.Members);
+        Assert.Empty(state.Election.Ballots);
+        Assert.Equal(["d"], state.ElectionHistory[^1].SettledSeats);
+        Assert.Equal("cancelled", state.ElectionHistory[^1].Stage);
+    }
+
+    [Fact]
     public void ReadyRegularCouncilLosingAWinnerFailsWithoutShorteningIncumbentTerm()
     {
         var state = Advance(Elected(), 100);
@@ -269,6 +342,19 @@ public sealed class TownGovernanceTests
         Assert.DoesNotContain("d", state.Election.Candidates);
         Assert.Equal("cancelled", state.ElectionHistory[^1].Stage);
         Assert.Equal(["a", "b"], state.Members);
+    }
+
+    [Fact]
+    public void AnotherPersonsNominationSuppliesNoCandidateConsentUntilTheNomineePersonallyAgrees()
+    {
+        var state = TownGovernanceRules.Nominate(TownGovernanceState.Create(Adults), "a", "b", Adults, 0);
+        Assert.Empty(state.Candidates);
+        Assert.Equal("nomination", Assert.Single(state.Notices).Kind);
+        state = Advance(state, 0);
+        Assert.DoesNotContain("b", state.Election!.Candidates);
+        state = TownGovernanceRules.Register(state, "b", true, null, Adults, 1);
+        Assert.DoesNotContain("b", state.Election!.Candidates); // Acceptance during voting applies to a later contest.
+        Assert.True(Assert.Single(state.Candidates).FullTerm);
     }
 
     [Fact]

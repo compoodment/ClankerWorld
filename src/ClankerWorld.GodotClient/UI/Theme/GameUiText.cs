@@ -290,8 +290,11 @@ public static class GameUiText
         if (normalized.StartsWith("civic|", StringComparison.Ordinal))
             return normalized.Split('|').ElementAtOrDefault(2) switch
             {
+                "visit" => "visit the Town notice place",
                 "read" => "read Town notices",
                 "relay" => "relay Town notices",
+                "nominate" => "nominate a council candidate",
+                "request_admission" => "propose a newcomer's admission",
                 "register" or "remainder" => "agree to stand for council",
                 "withdraw_candidate" => "withdraw a candidacy",
                 "propose" => "propose a Town rule",

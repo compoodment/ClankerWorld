@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 # How the game works
@@ -486,6 +486,48 @@ site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
 not change it. Children inherit the resident parent's Town; death removes the
 resident. Owned-building placement establishes household membership.
+
+Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRules`
+implements all-adult and representative councils from recorded living adult
+residents, independently of geometry and household affiliation. A separate
+`SettlementCouncil` remains the household-food steward prototype.
+
+The civic engine keeps final proposal votes, continuing candidate agreements,
+opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
+seats, fair draw order, ten-day terms and retry snapshots. A failed election may
+retry after one world day, or sooner when adult/candidate availability improves;
+withdrawals and departures do not themselves reset that wait. Council revisions
+cancel pending proposals without altering settled decisions. Admission requests
+merge by subject identity; ordinary text requests merge after case/whitespace
+normalization. Roster changes or independently supplied material circumstances
+allow earlier proposal reconsideration.
+
+`PrivateWorldRuntime.Governance` advances each Town on the normal tick path and
+rechecks authority when applying choices. `civic|...` actions let actors visit
+the public notice place, read posted notices, relay them within interaction
+range, nominate another resident, register their own consent and choose proposals
+or ballots. A nomination posts a notice; only the named agent's personal response
+can add agreement. Adults may request their own admission near the notice place,
+and residents may request admission of an unaffiliated adult nearby. The optional
+`civic_proposal` and `civic_ballot` structured response fields are carried only
+through admitted choices. Missing, stale or malformed responses cannot supply
+votes. A generic private thought or another actor naming a candidate supplies
+neither agreement nor approval. No polling provider calls are added, and Jev is
+optional.
+
+Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
+tokens. The runtime resolves these against current inhabitants before checking a
+ballot; saved candidates and choices retain the actual IDs.
+
+Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
+with read/relay provenance and readable names/world days. An actor receives no
+unseen civic dump. Owner observations project each council and its honest
+proposal/election state onto the normal Godot Towns page. A passed ordinary law
+proposal records approval without creating new physical/legal powers. The
+`AdmissionApproval` result is available for #602; the engine does not perform
+membership, household, care-group or inventory transfers. Bounded civic lifecycle
+telemetry records Town identity and council/vote/status counts without proposal
+text, notices, names or per-read polling noise.
 
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most

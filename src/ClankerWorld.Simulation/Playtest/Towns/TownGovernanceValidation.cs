@@ -6,7 +6,11 @@ public static partial class TownGovernanceValidation
 {
     public static void Validate(TownRuntimeState town, SocietyCheckpoint society, int day)
     {
-        if (town.Governance is not { } state) return; // Town setup has no open civic process yet.
+        if (town.Governance is not { } state)
+        {
+            if (town.FoundingState == "founded") throw new InvalidDataException("A founded Town is missing its saved governance.");
+            return;
+        }
         var tick = society.WorldTick;
         var known = society.Inhabitants.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
         var adults = town.ResidentIds.Where(id => society.Inhabitants.Any(p => p.Id == id &&
@@ -45,7 +49,8 @@ public static partial class TownGovernanceValidation
                     proposal.RequiredYes != (state.Form == "representative" ? 2 : state.Members.Count / 2 + 1) ||
                     proposal.Votes.Count(v => v.Yes) >= proposal.RequiredYes) ||
                 proposal.Status != "pending" && (proposal.SettledTick is null || proposal.SettledTick < proposal.OpenedTick || proposal.SettledTick > tick) ||
-                proposal.Status == "passed" && proposal.Votes.Count(v => v.Yes) < proposal.RequiredYes)
+                proposal.Status == "passed" && proposal.Votes.Count(v => v.Yes) < proposal.RequiredYes ||
+                proposal.Status == "rejected" && proposal.Votes.Count(v => v.Yes) >= proposal.RequiredYes)
                 throw new InvalidDataException("A Town's saved proposal or final votes are invalid.");
         }
         if (state.Proposals.Where(p => p.Status == "pending").GroupBy(p => p.RequestKey, StringComparer.Ordinal).Any(g => g.Count() > 1))
@@ -68,12 +73,14 @@ public static partial class TownGovernanceValidation
                 election.SettledSeats.Any(id => !election.Supported.Contains(id, StringComparer.Ordinal)) ||
                 election.DrawOrder.Any(id => !election.Supported.Contains(id, StringComparer.Ordinal)) ||
                 active && (election.Voters.Concat(election.Candidates).Concat(election.SettledSeats).Any(id => !adults.Contains(id)) ||
-                    election.Stage == "ready" && election.SettledSeats.Count != TownGovernanceRules.Seats))
+                    election.Stage == "ready" && election.SettledSeats.Count != TownGovernanceRules.Seats ||
+                    election.Candidates.Concat(election.SettledSeats).Any(id => !state.Candidates.Any(c => c.AgentId == id &&
+                        (c.FullTerm || election.Kind == "replacement" && c.RemainderTermEndTick == election.TermEndTick)))))
                 throw new InvalidDataException("A Town's saved election, consent, ballots or recorded draw is invalid.");
         }
         foreach (var notice in state.Notices)
             if (string.IsNullOrWhiteSpace(notice.Id) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
-                notice.Kind is not ("council" or "candidate" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
+                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         foreach (var receipt in state.Knowledge)

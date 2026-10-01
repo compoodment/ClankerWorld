@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Playing the current game
@@ -115,7 +115,8 @@ lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
-**Event Log** shows important events. Clicking an event with a known location
+its Towns page also shows each Town's council, current election and proposal
+results. **Event Log** shows important events. Clicking an event with a known location
 moves the camera there. Opening the log marks its new entries read.
 
 **Add Agent** configures and places another adult after starting. Placement
@@ -126,6 +127,21 @@ starts an independent household. If household owners or Town borders overlap,
 choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
+
+Town residents make civic choices through their normal personal-model turns.
+Adults can agree to stand for election, visit their Town's public notice place
+near its founding site, read notices, relay what they learned to someone nearby,
+submit a proposal and vote. A traveler can miss notices; being a resident does
+not automatically teach them every proposal or candidate. You inspect the
+process in World Info rather than voting for the agents.
+
+An ordinary proposal stays open for one unpaused world day unless its result
+is settled earlier. A four-person council needs three yes votes, and an elected
+three-seat council needs two. Silence supplies no approval. Election ballots
+may change until closing, while cast proposal votes are final. Pausing stops
+these windows and council terms. Passed admission requests are recorded, but
+the separate process for joining a Town has not been connected yet; approval
+alone gives no household place or access to stored goods.
 
 ## Pause, settings and controls
 

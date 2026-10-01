@@ -1,0 +1,11 @@
+# Town councils and elections
+
+Checks for [#618](https://github.com/compoodment/ClankerWorld/issues/618), from
+[#699](https://github.com/compoodment/ClankerWorld/pull/699). These still need a
+Windows playtest after merge.
+
+- On the paired world: open World Info and its Towns page. Each founded Town shows its own councillors, willing candidates, current election and proposal results. Names and world dates should fit the panel, including when several proposals are listed. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
+- On the paired world: let adults visit their Town's notice place near its founding site. They can read notices and relay what they learned to someone nearby. A resident traveling away should not suddenly know an unseen proposal or election. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
+- On the paired world: let a personal model submit an ordinary proposal and watch its council votes. A four-adult council needs three yes votes; silence never passes it. Passed, rejected and cancelled proposals should remain visible as different results. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
+- On the paired world: reach eight recorded adult residents. Agents who agreed to stand before voting opened can receive ballots; each voter may choose up to three different candidates, including themselves. A cutoff tie should show one runoff and then a settled result. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
+- On the paired world: pause during a proposal or election, save, load and resume. Its original window, votes, willing candidates and any settled draw should remain, and paused time should not consume the window. An approved newcomer request should still grant no Town membership, household admission or stored goods until the separate membership work is added. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))

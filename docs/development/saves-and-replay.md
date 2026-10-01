@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Saves and replay
@@ -63,6 +63,25 @@ reassigned, and a household's last Farmhouse stays assigned until its field
 work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
+
+Private-world schema 39 adds independent saved Town governance. It records the
+current council and fallback cause, term/retry schedules, personal full-term or
+remainder-term candidacy agreements, proposal identity/windows/final votes,
+current election and settled history, ballot revisions, runoff eligibility,
+recorded fair draw order, posted notices and actor-owned read/relay receipts.
+A founded Town missing its governance, duplicate votes, unsupported winners,
+invalid civic references or inconsistent proposal thresholds are refused as
+bad checkpoint data. Founder setup may have no civic state until Start World.
+
+Current-format roundtrips preserve windows and accepted choices, including
+paused proposals, independent two-Town decisions and election ballots. Prepared
+ticks rejected before commit leave no civic change. Delayed replies revalidate
+the exact current contest/proposal and actor authority; cancelled votes cannot
+revive after owner membership changes. Draws use a named world-local PCG stream
+with unbiased selection and save the actual order, so loading does not reroll
+an accepted outcome. Older alpha saves are visibly refused and preserved; no
+migration is provided. Admission approval remains a saved decision for #602 to
+consume separately, with no stock or household-access effect.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.

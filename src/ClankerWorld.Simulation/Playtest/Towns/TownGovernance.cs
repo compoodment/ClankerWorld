@@ -125,13 +125,27 @@ public static class TownGovernanceRules
             return state with { Fallback = fallback, TermEndTick = termEnd };
         state = state with
         {
-            Form = form, Fallback = fallback, Members = ordered, TermEndTick = termEnd, Revision = state.Revision + 1,
+            Form = form,
+            Fallback = fallback,
+            Members = ordered,
+            TermEndTick = termEnd,
+            Revision = state.Revision + 1,
             Proposals = state.Proposals.Select(p => p.Status == "pending"
                 ? p with { Status = "cancelled", SettledTick = tick } : p).ToArray(),
         };
         return Notice(state, "council", "council:" + state.Revision,
             form == "all_adult" ? "Every recorded living adult resident now sits on the Town council."
                 : "The Town's current representatives are: " + string.Join(", ", ordered), tick);
+    }
+
+    public static TownGovernanceState Nominate(TownGovernanceState state, string actor, string nominee,
+        IEnumerable<string> adults, long tick)
+    {
+        if (actor == nominee || !Has(adults, actor) || !Has(adults, nominee))
+            throw new InvalidOperationException("Only adult residents may nominate another eligible adult resident.");
+        // Naming someone records a request for their agreement, never agreement on their behalf.
+        return Notice(state, "nomination", "nomination:" + actor + "->" + nominee,
+            $"{actor} nominated {nominee} for full council terms. The nominee must personally agree before entering the willing-candidate register.", tick);
     }
 
     public static TownGovernanceState Register(TownGovernanceState state, string actor, bool fullTerm,
@@ -151,12 +165,15 @@ public static class TownGovernanceRules
     {
         state = state with { Candidates = state.Candidates.Where(c => c.AgentId != actor).ToArray() };
         if (state.Election is { } election)
-            state = state with { Election = election with
+            state = state with
             {
-                Candidates = election.Candidates.Where(id => id != actor).ToArray(),
-                Supported = election.Supported.Where(id => id != actor).ToArray(),
-                Ballots = election.Ballots.Select(b => b with { Choices = b.Choices.Where(id => id != actor).ToArray() }).ToArray(),
-            } };
+                Election = election with
+                {
+                    Candidates = election.Candidates.Where(id => id != actor).ToArray(),
+                    Supported = election.Supported.Where(id => id != actor).ToArray(),
+                    Ballots = election.Ballots.Select(b => b with { Choices = b.Choices.Where(id => id != actor).ToArray() }).ToArray(),
+                }
+            };
         return Notice(state, "candidate", actor, $"{actor} withdrew their candidacy; other ballot choices remain.", tick);
     }
 
@@ -170,8 +187,11 @@ public static class TownGovernanceRules
         var candidates = adults.Where(id => Agreed(state, id, kind, termEnd) &&
             (kind != "replacement" || !Has(state.Members, id))).ToArray();
         var id = townId + ":election:" + (state.Sequence + 1);
-        state = state with { Sequence = state.Sequence + 1,
-            Election = new(id, kind, "main", tick, tick + day, termEnd, seats, adults, candidates, [], [], [], []) };
+        state = state with
+        {
+            Sequence = state.Sequence + 1,
+            Election = new(id, kind, "main", tick, tick + day, termEnd, seats, adults, candidates, [], [], [], [])
+        };
         return Notice(state, "election", id, $"{kind} council election: choose up to {seats} distinct willing candidates " +
             $"({string.Join(", ", candidates)}). Voting closes at tick {tick + day}; ballots may change.", tick);
     }
@@ -183,10 +203,13 @@ public static class TownGovernanceRules
             tick >= election.DeadlineTick || !Has(election.Voters, actor) || choices.Count > election.Seats ||
             choices.Distinct(StringComparer.Ordinal).Count() != choices.Count || choices.Any(id => !Has(election.Candidates, id)))
             throw new InvalidOperationException("This ballot is stale or contains ineligible choices.");
-        return state with { Election = election with
+        return state with
         {
-            Ballots = election.Ballots.Where(b => b.AgentId != actor).Append(new(actor, Ordered(choices))).OrderBy(b => b.AgentId, StringComparer.Ordinal).ToArray(),
-        } };
+            Election = election with
+            {
+                Ballots = election.Ballots.Where(b => b.AgentId != actor).Append(new(actor, Ordered(choices))).OrderBy(b => b.AgentId, StringComparer.Ordinal).ToArray(),
+            }
+        };
     }
 
     private static TownGovernanceState CloseRound(TownGovernanceState state, string townId, string seed,
@@ -211,9 +234,17 @@ public static class TownGovernanceRules
         {
             if (election.Kind == "replacement" && definite.Length > 0)
                 state = ChangeCouncil(state, state.Members.Concat(definite).ToArray(), "representative", "none", state.TermEndTick, tick);
-            election = election with { Stage = "runoff", OpenedTick = tick, DeadlineTick = tick + day,
-                Seats = unresolved, Voters = adults, Candidates = tied, Ballots = [],
-                SettledSeats = election.SettledSeats.Concat(definite).ToArray() };
+            election = election with
+            {
+                Stage = "runoff",
+                OpenedTick = tick,
+                DeadlineTick = tick + day,
+                Seats = unresolved,
+                Voters = adults,
+                Candidates = tied,
+                Ballots = [],
+                SettledSeats = election.SettledSeats.Concat(definite).ToArray()
+            };
             state = state with { Election = election };
             return Notice(state, "runoff", election.Id, $"Cutoff runoff: choose up to {unresolved} of {string.Join(", ", tied)}. " +
                 $"Closes at tick {tick + day}; unresolved ties then use a recorded fair draw.", tick);
