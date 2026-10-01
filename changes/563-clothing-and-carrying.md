@@ -1,1 +1,1 @@
-- Agents make and equip padded coats, rain cloaks, baskets and sacks, with weather protection, carrying limits, wear and private household repairs. Broken or replaced gear keeps its goods, and the agent card shows equipment, cargo and repair progress.
+- Agents make and equip padded coats, rain cloaks, baskets and sacks, with weather protection, carrying limits, wear and private household repairs. Broken or replaced gear keeps its goods, hungry agents set down spare supplies to make room for food, and the agent card shows equipment, cargo and repair progress.

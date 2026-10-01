@@ -45,6 +45,13 @@ public partial class WorldTerrainLayer : Control
 
     public int VisibleTileCount { get; private set; }
 
+    /// <summary>Opt-in developer measurement of CPU draw-command submission, excluding GPU rendering.</summary>
+    public bool MeasureDrawCost { get; set; }
+
+    public double LastDrawMilliseconds { get; private set; }
+
+    public long DrawSampleCount { get; private set; }
+
     /// <summary>Tiles inside the Town borders currently drawn; zero when borders are hidden.</summary>
     public int TownBorderTileCount => townBorderTiles.Count;
 
@@ -468,6 +475,22 @@ public partial class WorldTerrainLayer : Control
     }
 
     public override void _Draw()
+    {
+        if (!MeasureDrawCost)
+        {
+            DrawMapContents();
+            return;
+        }
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        try { DrawMapContents(); }
+        finally
+        {
+            LastDrawMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            DrawSampleCount++;
+        }
+    }
+
+    private void DrawMapContents()
     {
         if (world is null) return;
         var bounds = VisibleBounds();

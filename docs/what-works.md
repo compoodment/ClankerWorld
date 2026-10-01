@@ -30,6 +30,7 @@ test alone does not make it available in the game.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
+| Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
@@ -199,7 +200,10 @@ with an equipped sack. Other carried goods and delivery loads count toward
 that limit; stored and ground goods do not. Wear can break an aid and reduce
 its capacity, but existing cargo and replaced gear remain owned and intact.
 Full carriers decline pickups that would add excess cargo. Food harvests need
-room for the whole yield, including orchard seeds. Exploring still teaches
+room for the whole yield, including orchard seeds. A hungry adult without that
+room first sets down spare supplies for their household, in the House if it
+has room or on the camp pile otherwise. Tools go last; maps, field records,
+worn gear and reserved goods stay carried. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
 Before the first House, builders and helpers deliver construction materials in loads
 to their household's pile at camp. Household adults
