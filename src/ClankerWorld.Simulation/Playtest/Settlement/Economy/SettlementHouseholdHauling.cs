@@ -32,7 +32,7 @@ public sealed partial class PrivateWorldRuntime
         return Math.Max(0, StorageRoom(buildingId) - otherInbound);
     }
 
-    private int HouseDeliveryPhysicalQuantity(InventoryCheckpoint inventory, InventoryLot carried) =>
+    private static int HouseDeliveryPhysicalQuantity(InventoryCheckpoint inventory, InventoryLot carried) =>
         InventoryContainerRules.IsContainer(carried.ItemKind)
             ? ContainerFamilyQuantity(inventory, carried.Id)
             : carried.Quantity;

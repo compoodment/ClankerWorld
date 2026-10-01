@@ -124,7 +124,8 @@ public sealed class FarmContentTests
     [Fact]
     public async Task FarmhouseHaulMovesAFittingGrainPotAsOnePhysicalFamily()
     {
-        using var setup = await PreparedFarmhouseWithPottedGrainAsync("farmhouse-pot-family", 2);
+        var setup = await PreparedFarmhouseWithPottedGrainAsync("farmhouse-pot-family", 2);
+        using var setupWorld = setup.World;
         await AdvanceUntilAsync(setup.World, "farm_grain_picked_up", setup.Actor);
 
         var carried = setup.World.Society.Inventory;
@@ -150,7 +151,8 @@ public sealed class FarmContentTests
     [Fact]
     public async Task FarmhouseHaulTakesOnlyTheAllowedGrainFromAnOversizedPotFamily()
     {
-        using var setup = await PreparedFarmhouseWithPottedGrainAsync("farmhouse-pot-partial", 6);
+        var setup = await PreparedFarmhouseWithPottedGrainAsync("farmhouse-pot-partial", 6);
+        using var setupWorld = setup.World;
         await AdvanceUntilAsync(setup.World, "farm_grain_picked_up", setup.Actor);
 
         var carried = setup.World.Society.Inventory;
