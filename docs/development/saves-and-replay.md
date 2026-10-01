@@ -64,7 +64,7 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
-Private-world schema 39 adds independent saved Town governance. It records the
+Private-world schema 40 adds independent saved Town governance. It records the
 current council and fallback cause, term/retry schedules, personal full-term or
 remainder-term candidacy agreements, proposal identity/windows/final votes,
 current election and settled history, ballot revisions, runoff eligibility,
@@ -256,7 +256,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 40. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
