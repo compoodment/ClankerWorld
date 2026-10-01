@@ -293,11 +293,19 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
   for (const number of linked) {
     const issue = await openIssue(github, repo, number);
     if (!issue) continue;
+    const issueLabels = labelNames(issue.labels);
     await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [HasPr] });
-    await removeLabel(github, repo, number, Ready);
+    // A released draft keeps its queue entry until someone claims the issue
+    // or a closing PR becomes ready. Edits and synchronize events alone must
+    // not hide unclaimed work again.
+    const liveIssue = await openIssue(github, repo, number);
+    const liveNames = labelNames(liveIssue?.labels);
+    const abandoned = pr.draft && issueLabels.includes(HasPr) && liveNames.includes(Ready) && !liveNames.includes(InProgress);
+    const open = abandoned ? await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 }) : [];
+    const readyClosing = open.some(other => !other.draft && closingIssueNumbers(other.body, repoName).has(number));
+    if (!abandoned || readyClosing) await removeLabel(github, repo, number, Ready);
     if (!pr.draft) await removeLabel(github, repo, number, InProgress);
     core.info(`Marked #${number} as ${HasPr}${pr.draft ? '' : ` and cleared ${InProgress}`}.`);
-    const issueLabels = labelNames(issue.labels);
     for (const name of Priorities) {
       if (issueLabels.includes(name)) priority = higherPriority(priority, name);
     }
