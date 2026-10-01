@@ -3,7 +3,10 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
+<<<<<<< HEAD
 using System.Collections.Concurrent;
+=======
+>>>>>>> origin/main
 using System.Diagnostics;
 using System.Security.Cryptography;
 
@@ -21,8 +24,12 @@ public sealed class WorldSelectionCoordinator(
     Func<string, IDecisionProvider> providerFactory)
 {
     private readonly object gate = providers.WorldMutationGate;
+<<<<<<< HEAD
     // Concurrent because WarmUp adds results without the world-mutation gate.
     private readonly ConcurrentDictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
+=======
+    private readonly Dictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
+>>>>>>> origin/main
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
         string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
@@ -39,7 +46,11 @@ public sealed class WorldSelectionCoordinator(
                 var snapshot = catalog.Capture();
                 var currentIds = snapshot.Worlds.Select(world => world.Id).ToHashSet(StringComparer.Ordinal);
                 foreach (var id in checkedCheckpoints.Keys.Where(id => !currentIds.Contains(id)).ToArray())
+<<<<<<< HEAD
                     checkedCheckpoints.TryRemove(id, out _);
+=======
+                    checkedCheckpoints.Remove(id);
+>>>>>>> origin/main
                 var worlds = new CatalogWorld[snapshot.Worlds.Count];
                 worldCount = worlds.Length;
                 for (var index = 0; index < worlds.Length; index++)
@@ -143,7 +154,11 @@ public sealed class WorldSelectionCoordinator(
         try
         {
             var bytes = catalog.ReadSnapshotBytes(world.Id);
+<<<<<<< HEAD
             var digest = Digest(bytes);
+=======
+            var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+>>>>>>> origin/main
             if (!checkedCheckpoints.TryGetValue(world.Id, out var checkedCheckpoint) ||
                 checkedCheckpoint.WorldId != world.WorldId || checkedCheckpoint.Seed != world.Seed ||
                 checkedCheckpoint.Digest != digest)
