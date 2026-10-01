@@ -68,6 +68,31 @@ internal static partial class OwnerEndpoints
             }
         });
 
+        // A setup check is an explicit paid call through the game's actual
+        // personal-model adapter. It never stores the supplied key or changes
+        // provider configuration, and never retries with different options.
+        app.MapPost("/api/v1/owner/providers/setup-check", async (
+            OwnerSignedHttpRequest<OwnerProviderSetupCheckAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderSetupCheckService setupCheck,
+            CancellationToken cancellationToken) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A provider setup-check action is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.ProviderSetupCheckPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/providers/setup-check", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            return Results.Ok(await setupCheck.CheckAsync(request.Action, cancellationToken).ConfigureAwait(false));
+        });
+
         app.MapPost("/api/v1/owner/usage/status", (
             OwnerSignedHttpRequest<OwnerUsageStatusAction> request,
             OwnerRequestAuthorizer authorizer,

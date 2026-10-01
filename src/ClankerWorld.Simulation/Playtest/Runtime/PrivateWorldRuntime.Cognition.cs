@@ -413,6 +413,21 @@ public sealed partial class PrivateWorldRuntime
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(ExpandBuildingPrefix, StringComparison.Ordinal))
+        {
+            ApplyBuildingExpansionCandidate(inhabitantId, state, candidateId[ExpandBuildingPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal) ||
+            candidateId.StartsWith(RevokeHouseGuestPrefix, StringComparison.Ordinal))
+        {
+            var invited = candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal);
+            var household = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId;
+            if (household is not null && HouseForHousehold(household) is { } house)
+                SetHouseGuestInvitationCore(inhabitantId, house.InstanceId,
+                    candidateId[(invited ? InviteHouseGuestPrefix.Length : RevokeHouseGuestPrefix.Length)..], invited);
+            return;
+        }
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
             BeginProject(inhabitantId, state, candidateId);
@@ -534,7 +549,7 @@ public sealed partial class PrivateWorldRuntime
                 "build_completed",
                 TownForResident(inhabitantId),
                 houseOwner,
-                society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : null);
+                BuildingConstructionOwner(inhabitantId, definition));
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
@@ -660,6 +675,8 @@ public sealed partial class PrivateWorldRuntime
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
+            AddBuildingExpansionCandidates(candidates, inhabitantId);
+            AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
             AddFarmGrainCandidate(candidates, inhabitantId, state);

@@ -240,7 +240,13 @@ public sealed record OwnerWorldPlacedBuilding(
     string? TownId = null,
     string? HouseholdId = null,
     IReadOnlyList<OwnerWorldInventoryEntry>? StoredItems = null,
-    OwnerWorldPosition? Entrance = null);
+    OwnerWorldPosition? Entrance = null,
+    int? StorageCapacity = null,
+    int StoredQuantity = 0,
+    int FootprintRevision = 0,
+    IReadOnlyList<string>? InvitedGuests = null,
+    string? ExpansionState = null,
+    string? ExpansionFailure = null);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -410,6 +416,11 @@ public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, 
 /// </summary>
 public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
+
+public sealed record OwnerProviderSetupCheckAction(
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+
+public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
 
 /// <summary>One listed model, and whether the checked key can use it.</summary>
 public sealed record OwnerProviderModelChoice(string Model, bool Available);

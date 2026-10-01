@@ -41,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 AssignedBuildingIds = placed.Select(building => building.InstanceId).Order(StringComparer.Ordinal).ToArray(),
                 BorderTiles = TownBorderRules.Expand(map, town, placed
-                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position))
+                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
                     .Concat(plan.RoadTiles)),
             };
             var starterInventory = PrepareFirstTownStock(society.Checkpoint.Inventory);

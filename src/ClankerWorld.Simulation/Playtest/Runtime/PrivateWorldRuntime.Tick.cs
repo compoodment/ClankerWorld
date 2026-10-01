@@ -104,7 +104,7 @@ public sealed partial class PrivateWorldRuntime
             // gate. Clone its mutable systems without regenerating or
             // revalidating millions of immutable terrain tiles each tick.
             using var proposed = RestoreCore(baseline, providerFactory,
-                maxCognitionDispatchPerCycle, minimumCognitionConfidence,
+                maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
@@ -184,27 +184,20 @@ public sealed partial class PrivateWorldRuntime
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
             {
-                for (var attempt = 0; attempt < 2; attempt++)
+                try
                 {
-                    try
-                    {
-                        cancellation.Token.ThrowIfCancellationRequested();
-                        return new HostedDecisionOutcome(
-                            await preview.DecideAsync(cancellation.Token).ConfigureAwait(false), null);
-                    }
-                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-                    {
-                        return new HostedDecisionOutcome(null, "provider_cancelled");
-                    }
-                    catch (Exception exception) when (exception is not OutOfMemoryException)
-                    {
-                        if (attempt == 1)
-                            return new HostedDecisionOutcome(null, $"provider_failure:{exception.GetType().Name}");
-                    }
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    return new HostedDecisionOutcome(
+                        await preview.DecideAsync(cancellation.Token).ConfigureAwait(false), null);
                 }
-                return new HostedDecisionOutcome(null, "provider_failure:retry_exhausted");
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    return new HostedDecisionOutcome(null,
+                        CognitionProviderFailures.FromException(exception, cancellation.Token));
+                }
             });
             pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation));
+            RecordModelAttempt(preview.InhabitantId, "waiting");
             AppendEvent("hosted_decision_started", preview.InhabitantId);
         }
     }
@@ -212,6 +205,7 @@ public sealed partial class PrivateWorldRuntime
     private void CancelPendingHosted(string inhabitantId)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
+        RecordModelAttempt(inhabitantId, "canceled");
         pending.Cancellation.Cancel();
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
@@ -284,7 +278,7 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before loading a checkpoint.");
                 using var restored = Restore(checkpoint, providerFactory,
-                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    maxCognitionDispatchPerCycle);
                 // Loading never resumes a world implicitly, even if the saved
                 // checkpoint was taken while it was running.
                 restored.Pause();
@@ -312,7 +306,7 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before selecting another world.");
                 using var restored = Restore(checkpoint, providerFactory,
-                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    maxCognitionDispatchPerCycle);
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
@@ -419,6 +413,7 @@ public sealed partial class PrivateWorldRuntime
                     package.Lifecycle == ContentPackageLifecycle.Active && package.ActivationTick == 0))
                 AddSettlementResources();
             CancelUnavailableWorkers();
+            ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 
@@ -449,6 +444,7 @@ public sealed partial class PrivateWorldRuntime
                         outcome.Failure, legal);
                     if (decision is not null)
                     {
+                        RecordModelCompletion(id, decision.Admission, outcome.Failure);
                         ApplyPersonalIdentityChoice(id, item.Request, outcome.Response, decision.Admission);
                         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
                             outcome.Response is
@@ -471,7 +467,11 @@ public sealed partial class PrivateWorldRuntime
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
-                    else AppendEvent("hosted_decision_discarded", id);
+                    else
+                    {
+                        RecordModelAttempt(id, "canceled");
+                        AppendEvent("hosted_decision_discarded", id);
+                    }
                 }
             }
             var dispatch = deferHosted

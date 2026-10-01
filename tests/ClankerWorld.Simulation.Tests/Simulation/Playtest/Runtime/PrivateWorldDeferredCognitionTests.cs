@@ -91,17 +91,18 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
-    public async Task UniqueNameSurvivesLowConfidenceActionFallback()
+    public async Task UniqueNameSurvivesLowConfidenceLegalChoice()
     {
         var provider = new SequencedHostedProvider(new NameReply("Aster Vale", 0.2));
-        using var world = CreateNameTestWorld("name-with-fallback", provider, minimumConfidence: 0.8);
+        using var world = CreateNameTestWorld("name-with-low-confidence", provider);
         var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
         world.StartWorld();
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         var result = await AdvanceUntilAcceptedAsync(world, NameTargetId);
         var decision = Assert.Single(result.Decisions, item => item.InhabitantId == NameTargetId);
-        Assert.True(decision.Admission.FellBack);
+        Assert.False(decision.Admission.FellBack);
+        Assert.Equal(0.2, decision.Admission.Intention!.Confidence);
         Assert.Equal("Aster Vale", world.Society.GetInhabitant(NameTargetId).Name);
         Assert.NotEqual(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
@@ -462,13 +463,11 @@ public sealed class PrivateWorldDeferredCognitionTests
 
     private static PrivateWorldRuntime CreateNameTestWorld(
         string seed,
-        IDecisionProvider provider,
-        double minimumConfidence = 0.5)
+        IDecisionProvider provider)
     {
         var world = new PrivateWorldRuntime(seed, id => id == NameTargetId
                 ? provider
                 : new DeterministicDecisionProvider(),
-            minimumCognitionConfidence: minimumConfidence,
             startPace: WorldStartPace.FounderSetup);
         world.PlaceFounder(NameTargetId, new GridPoint(0, 0));
         world.PlaceFounder(NameOwnerId, new GridPoint(1, 2));

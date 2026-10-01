@@ -33,8 +33,7 @@ public sealed class SocietyWorldRuntime : IDisposable
         SocietyCheckpoint checkpoint,
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
-        int maxCognitionDispatchPerCycle = 8,
-        double minimumCognitionConfidence = 0.5)
+        int maxCognitionDispatchPerCycle = 8)
     {
         SocietyFixture.Validate(checkpoint);
         society = checkpoint;
@@ -42,8 +41,7 @@ public sealed class SocietyWorldRuntime : IDisposable
             checkpoint.Inhabitants,
             providerFactory,
             maxCognitionQueueLength,
-            maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            maxCognitionDispatchPerCycle);
     }
 
     public SocietyCheckpoint Checkpoint => society;
@@ -69,8 +67,7 @@ public sealed class SocietyWorldRuntime : IDisposable
 
     public static SocietyWorldRuntime Restore(
         SocietyWorldRuntimeState state,
-        Func<string, IDecisionProvider>? providerFactory = null,
-        double minimumCognitionConfidence = 0.5)
+        Func<string, IDecisionProvider>? providerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -81,16 +78,14 @@ public sealed class SocietyWorldRuntime : IDisposable
         SocietyFixture.Validate(state.Society);
         var scheduler = SocietyCognitionScheduler.Restore(
             state.Cognition,
-            providerFactory,
-            minimumCognitionConfidence);
+            providerFactory);
         scheduler.SyncInhabitants(state.Society.Inhabitants,
             state.Society.Births.Select(birth => birth.ChildId).ToHashSet(StringComparer.Ordinal));
         var runtime = new SocietyWorldRuntime(
             state.Society,
             providerFactory,
             state.Cognition.MaxQueueLength,
-            state.Cognition.MaxDispatchPerCycle,
-            minimumCognitionConfidence)
+            state.Cognition.MaxDispatchPerCycle)
         {
             cognition = scheduler,
         };

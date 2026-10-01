@@ -9,6 +9,18 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    public static string ModelStatus(string? status) => status switch
+    {
+        "waiting" => "Waiting for the model",
+        "canceled" => "Canceled by pause or disconnect",
+        "missing_key" => "Missing key",
+        "usage_limit" => "Usage limit reached",
+        "unusable_reply" => "Unusable reply",
+        "timed_out" => "Timed out",
+        "model_unavailable" => "Model unavailable",
+        _ => "Ready",
+    };
+
     public static string ActorMapLabel(string displayName)
     {
         var words = displayName.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
@@ -151,6 +163,7 @@ public static class GameUiText
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+            "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or

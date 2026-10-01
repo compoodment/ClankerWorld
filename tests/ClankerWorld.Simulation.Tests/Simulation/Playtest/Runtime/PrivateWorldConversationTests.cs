@@ -41,7 +41,7 @@ public sealed class PrivateWorldConversationTests
         Assert.Empty(provider.TurnRequests[0].PublicHistory);
 
         var saved = world.ExportState();
-        Assert.Equal(29, saved.SchemaVersion);
+        Assert.Equal(30, saved.SchemaVersion);
         Assert.Single(saved.Conversations!.Single().Turns);
         Assert.Contains(saved.Society.Society.Beliefs!, item =>
             item.OwnerId == ListenerId && item.SourceTurnId == turn.Id &&
@@ -56,8 +56,9 @@ public sealed class PrivateWorldConversationTests
         var encoded = PrivateWorldRuntimeCodec.Encode(paused);
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(encoded), _ => provider);
-        Assert.Equal(AgentConversationStatus.Suspended, restored.Conversations.Single().Status);
-        Assert.Single(Assert.Single(restored.Conversations).Turns);
+        var restoredConversation = Assert.Single(restored.Conversations!);
+        Assert.Equal(AgentConversationStatus.Suspended, restoredConversation.Status);
+        Assert.Single(restoredConversation.Turns);
         Assert.Equal(requestedBeforeSave, provider.TurnRequests.Count);
     }
 

@@ -9,10 +9,12 @@
 //   at least a third of the first one's count.
 // - One type label: the first ticked "Type of change" box in the PR template,
 //   or type:docs when no box is ticked and every changed file is documentation.
-// - status:needs-review while a PR is open and not a draft.
+// - status:needs-review while a PR is open and not a draft. A reviewer's
+//   status:reviewing claim is removed when the PR closes or goes back to draft.
 // - The highest priority label (priority:p0 to priority:p3) of the open issues
 //   the PR closes, and at least priority:p1 when it changes how everyone works
-//   on the repository (.github/, .claude/, CONTRIBUTING.md or AGENTS.md).
+//   on the repository (.github/, .claude/, CONTRIBUTING.md, AGENTS.md or
+//   CLAUDE.md).
 // - status:has-pr on open issues the PR closes as described in CONTRIBUTING
 //   ("Closes #N", "Fixes #N" or "Resolves #N", one keyword per issue, or any #N
 //   on the template's Closes line), replacing status:needs-pr. "Refs #N" only
@@ -26,13 +28,14 @@
 //   change nothing.
 
 const NeedsReview = 'status:needs-review';
+const Reviewing = 'status:reviewing';
 const HasPr = 'status:has-pr';
 const Ready = 'status:needs-pr';
 const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const InProgress = 'status:in-progress';
 // Changes to CI, labels, templates or the contribution rules affect every
 // agent, so they are at least P1.
-const WorkflowPaths = ['.github/', '.claude/', 'CONTRIBUTING.md', 'AGENTS.md'];
+const WorkflowPaths = ['.github/', '.claude/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
 const WorkflowPriority = 'priority:p1';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
@@ -238,6 +241,7 @@ async function labelPullRequest({ github, context, core }) {
 
   if (action === 'closed') {
     await removeLabel(github, repo, pr.number, NeedsReview);
+    await removeLabel(github, repo, pr.number, Reviewing);
     for (const number of linked) {
       await releaseIssue({ github, core, repo, number, prNumber: pr.number, merged: pr.merged });
     }
@@ -267,7 +271,10 @@ async function labelPullRequest({ github, context, core }) {
     await github.rest.issues.addLabels({ ...repo, issue_number: pr.number, labels: prLabels });
     core.info(`Added ${prLabels.join(', ')} to this pull request.`);
   }
-  if (pr.draft) await removeLabel(github, repo, pr.number, NeedsReview);
+  if (pr.draft) {
+    await removeLabel(github, repo, pr.number, NeedsReview);
+    await removeLabel(github, repo, pr.number, Reviewing);
+  }
 
   let priority = files.some(file => WorkflowPaths.some(path => file.startsWith(path))) ? WorkflowPriority : null;
   for (const number of linked) {

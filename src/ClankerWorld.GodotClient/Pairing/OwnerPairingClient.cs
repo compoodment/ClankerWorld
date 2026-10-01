@@ -62,6 +62,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerCredentialSlotDelete = "/api/v1/owner/providers/slots/delete";
     public const string OwnerCredentialSlotCreate = "/api/v1/owner/providers/slots/create";
     public const string OwnerProviderModels = "/api/v1/owner/providers/models";
+    public const string OwnerProviderSetupCheck = "/api/v1/owner/providers/setup-check";
 }
 
 /// <summary>
