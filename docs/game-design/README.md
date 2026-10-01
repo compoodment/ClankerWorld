@@ -56,8 +56,11 @@ against the owner's actual decision. The October 1 approval of complete
 those sources, work sites, uses and physical stock/trade rules; balance remains
 provisional.
 
-Still-open topics include the player's normal role and intervention limits,
-knowledge across generations, government and the economy, medicine and
+The player's [role and intervention controls](interface-and-art.md#player-guidance-and-orders)
+are agreed: the observer can send suggestions and orders through the game's
+normal rules. These controls do not mean every intended action is built yet.
+
+Still-open topics include knowledge across generations, government and the economy, medicine and
 injuries, art references and invention assets, save branches and mod
 compatibility. Work out the intended experience before narrowing these choices
 to what the current prototype can already do.

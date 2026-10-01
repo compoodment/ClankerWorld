@@ -14,7 +14,8 @@ public partial class Main
     private readonly LineEdit manualSaveName = new();
     private readonly Button manualSaveCreateButton = new();
     private readonly Button manualSaveBackButton = new();
-    private readonly ItemList manualSaveList = new();
+    private readonly SlotList manualSaveList = new();
+    private readonly PanelContainer manualSaveNewBox = new();
     private readonly Button manualSaveLoadButton = new();
     private readonly Button manualSaveOverwriteButton = new();
     private readonly ConfirmationDialog manualSaveLoadConfirmation = new();
@@ -180,35 +181,56 @@ public partial class Main
         body.AddChild(headingRow);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);
+        // A new save opens already named after the world's date, so one click saves.
+        var newSave = new HBoxContainer();
+        newSave.AddThemeConstantOverride("separation", 8);
         manualSaveName.PlaceholderText = "Name this save";
         manualSaveName.MaxLength = 80;
-        body.AddChild(manualSaveName);
-        manualSaveCreateButton.Text = "Create New Save";
+        manualSaveName.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        manualSaveName.TextSubmitted += name => _ = CreateManualSaveAsync();
+        newSave.AddChild(manualSaveName);
+        manualSaveCreateButton.Text = "Save";
         StyleButton(manualSaveCreateButton, primary: true);
+        manualSaveCreateButton.CustomMinimumSize = new Vector2(110, 34);
         manualSaveCreateButton.Pressed += () => _ = CreateManualSaveAsync();
-        body.AddChild(manualSaveCreateButton);
+        newSave.AddChild(manualSaveCreateButton);
+        AddPanelContents(manualSaveNewBox, "New save", newSave);
+        manualSaveNewBox.ThemeTypeVariation = "InsetPanel";
+        body.AddChild(manualSaveNewBox);
+        body.AddChild(new Label { Text = "SAVES", ThemeTypeVariation = "SectionLabel" });
         manualSaveList.CustomMinimumSize = new Vector2(0, 250);
         manualSaveList.ItemSelected += _ => RefreshManualSaveAvailability();
+        manualSaveList.ItemActivated += _ =>
+        {
+            if (manualSaveLoadMode) ConfirmManualSaveLoad();
+        };
         body.AddChild(manualSaveList);
-        manualSaveLoadButton.Text = "Load selected save";
-        StyleButton(manualSaveLoadButton, primary: true);
-        manualSaveLoadButton.Pressed += ConfirmManualSaveLoad;
-        body.AddChild(manualSaveLoadButton);
-        manualSaveOverwriteButton.Text = "Overwrite selected save";
-        StyleButton(manualSaveOverwriteButton);
-        manualSaveOverwriteButton.Pressed += ConfirmManualSaveOverwrite;
-        body.AddChild(manualSaveOverwriteButton);
-        manualSaveDeleteButton.Text = "Delete selected save";
+        // Deleting sits apart on the left, away from the main action on the right.
+        var actions = new HBoxContainer();
+        actions.AddThemeConstantOverride("separation", 8);
+        manualSaveDeleteButton.Text = "Delete";
         StyleButton(manualSaveDeleteButton);
         manualSaveDeleteButton.Pressed += ConfirmSaveDeletion;
-        body.AddChild(manualSaveDeleteButton);
+        actions.AddChild(manualSaveDeleteButton);
+        actions.AddChild(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        manualSaveOverwriteButton.Text = "Overwrite";
+        manualSaveOverwriteButton.TooltipText = "Replace the chosen save with the world as it is now. The old version is kept as a recovery copy.";
+        StyleButton(manualSaveOverwriteButton);
+        manualSaveOverwriteButton.Pressed += ConfirmManualSaveOverwrite;
+        actions.AddChild(manualSaveOverwriteButton);
+        manualSaveLoadButton.Text = "Load";
+        StyleButton(manualSaveLoadButton, primary: true);
+        manualSaveLoadButton.CustomMinimumSize = new Vector2(110, 34);
+        manualSaveLoadButton.Pressed += ConfirmManualSaveLoad;
+        actions.AddChild(manualSaveLoadButton);
+        body.AddChild(actions);
         StyleConfirmation(deletionConfirmation, "Permanently delete?", "Delete permanently");
         deletionConfirmation.GetOkButton().ThemeTypeVariation = "DangerButton";
         deletionConfirmation.Confirmed += () => _ = DeleteConfirmedAsync();
         deletionConfirmation.Canceled += () => pendingDeletion = null;
         AddChild(deletionConfirmation);
         AddPanelContents(manualSaveCard, body);
-        manualSaveCard.CustomMinimumSize = new Vector2(470, 0);
+        manualSaveCard.CustomMinimumSize = new Vector2(520, 0);
         StyleConfirmation(manualSaveLoadConfirmation, "Load this save?", "Load Save");
         manualSaveLoadConfirmation.Confirmed += () => _ = LoadSelectedManualSaveAsync();
         AddChild(manualSaveLoadConfirmation);
@@ -250,23 +272,7 @@ public partial class Main
         var readRegistration = registration;
         pendingDeletion = null;
         listedSaveWorldId = readWorldId;
-        listedManualSaves = [];
-        manualSaveList.Clear();
-        manualSaveDeleteButton.Disabled = true;
-        manualSaveLoadMode = loadMode;
-        manualSaveHeading.Text = loadMode ? "Load Save" : "Save World";
-        manualSaveStatus.Text = loadMode
-            ? "Choose a save to load. Your current world is saved first."
-            : "Make a new save, or pick one to overwrite. The old version is kept as a recovery copy.";
-        manualSaveName.Visible = !loadMode;
-        manualSaveCreateButton.Visible = !loadMode;
-        manualSaveList.Visible = true;
-        manualSaveLoadButton.Visible = loadMode;
-        manualSaveOverwriteButton.Visible = !loadMode;
-        manualSaveLoadButton.Disabled = true;
-        manualSaveOverwriteButton.Disabled = true;
-        manualSaveOverlay.Show();
-        RefreshManualSaveAvailability();
+        ShowManualSavePanel(loadMode);
         bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
             manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
             readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
@@ -276,24 +282,64 @@ public partial class Main
                 deviceId, signer, read.Token));
             if (!IsCurrentRead()) return;
             listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
-            manualSaveList.Clear();
-            foreach (var save in listedManualSaves)
-                manualSaveList.AddItem($"{(save.IsAutosave ? "Autosave" : save.Name)} · world {DisplayWorldClock(save.WorldTick)} · saved {save.CreatedUtc.ToLocalTime():g}");
+            RenderManualSaveList();
             if (listedManualSaves.Length == 0)
                 manualSaveStatus.Text = loadMode
                     ? "No saves yet. Continue the world and use Pause Menu → Save World."
-                    : "No named saves yet. Create New Save to make the first one.";
+                    : "No named saves yet. Name one above and choose Save.";
             RefreshManualSaveAvailability();
         }
         catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+            if (IsCurrentRead())
+            {
+                manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+                manualSaveList.Placeholder = "No saves to show.";
+            }
         }
         finally
         {
             if (ReferenceEquals(manualSaveListCancellation, read)) manualSaveListCancellation = null;
         }
+    }
+
+    /// <summary>Opens Save World or Load Save with an empty list while the saves are read.</summary>
+    private void ShowManualSavePanel(bool loadMode)
+    {
+        listedManualSaves = [];
+        manualSaveList.Clear();
+        manualSaveDeleteButton.Disabled = true;
+        manualSaveLoadMode = loadMode;
+        manualSaveHeading.Text = loadMode ? "Load Save" : "Save World";
+        manualSaveStatus.Text = loadMode
+            ? "Choose a save to load. Your current world is saved first."
+            : "Save the world as it is now, or choose a save to replace.";
+        manualSaveNewBox.Visible = !loadMode;
+        if (!loadMode && observationSession.Current?.Baseline.Snapshot is { } current)
+            manualSaveName.Text = DisplayWorldClock(current.WorldTick);
+        manualSaveName.Visible = !loadMode;
+        manualSaveCreateButton.Visible = !loadMode;
+        manualSaveList.Placeholder = "Checking saves…";
+        manualSaveList.Visible = true;
+        manualSaveLoadButton.Visible = loadMode;
+        manualSaveOverwriteButton.Visible = !loadMode;
+        manualSaveLoadButton.Disabled = true;
+        manualSaveOverwriteButton.Disabled = true;
+        manualSaveOverlay.Show();
+        RefreshManualSaveAvailability();
+    }
+
+    /// <summary>Each save is a card with its name, the world's date when it was made and how long ago that was.</summary>
+    private void RenderManualSaveList()
+    {
+        manualSaveList.Clear();
+        var icon = SlotIcon(PixelGlyph.Book);
+        foreach (var save in listedManualSaves)
+            manualSaveList.AddItem(save.IsAutosave ? "Autosave" : save.Name,
+                $"{DisplayWorldClock(save.WorldTick)} · Saved {GameUiText.SavedAgo(save.CreatedUtc, DateTimeOffset.Now)}",
+                icon, save.IsAutosave ? [new SlotTag("Automatic", Note: true)] : null);
+        manualSaveList.Placeholder = manualSaveLoadMode ? "No saves yet." : "No named saves yet.";
     }
 
     private async Task CreateManualSaveAsync()

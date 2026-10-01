@@ -15,6 +15,12 @@ public sealed partial class SettlementParenthoodTests
         var state = await PreparedState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == first || person.InhabitantId == second
+                ? person with { Skills = [new(SettlementSkillKind.Building, state.Society.Society.WorldTick)] }
+                : person).ToArray(),
+        };
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         await world.AdvanceOneTickAsync();
         Assert.Equal("requested", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
@@ -36,6 +42,7 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(5, restored.Inhabitants.Count);
         Assert.Equal("Ari 1", restored.Society.GetInhabitant(birth.ChildId).Name);
         Assert.Equal(SocietyAgeBand.Infant, restored.Society.GetInhabitant(birth.ChildId).AgeBand);
+        Assert.Empty(restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId).Skills ?? []);
         Assert.Equal("completed", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
         var completedState = restored.ExportState();
         var forgedPending = completedState with

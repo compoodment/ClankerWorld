@@ -75,7 +75,7 @@ public sealed partial class PrivateWorldRuntime
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -329,7 +329,7 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -350,7 +350,8 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateDeceasedArchive(
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
-        SeededMap map)
+        SeededMap map,
+        int schemaVersion)
     {
         var archived = archive.ToArray();
         if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
@@ -367,6 +368,8 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
+            ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
+                society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
         }
     }

@@ -69,24 +69,19 @@ public partial class Main
         var originalRenderSize = displayWindow.ContentScaleSize;
         var originalScaleMode = displayWindow.ContentScaleMode;
         var originalScaleAspect = displayWindow.ContentScaleAspect;
-        var originalPreferences = displayPreferences;
         OpenMainMenuSettings();
         try
         {
-            displayPreferences = originalPreferences with
-            {
-                UiScalePercent = 100,
-                RenderWidth = 2560,
-                RenderHeight = 1440,
-                AutoRenderResolution = false,
-            };
-            ApplyUiScale(100);
             displayWindow.ContentScaleMode = Window.ContentScaleModeEnum.Viewport;
             displayWindow.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
             displayWindow.Size = new Vector2I(2560, 1440);
             displayWindow.ContentScaleSize = new Vector2I(2560, 1440);
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            // The interface follows the screen: 1440p picks 200% with no setting to change.
+            if (uiLayer.Factor != 2 || menuLayer.Factor != 2)
+                throw new InvalidOperationException($"A 1440p screen must show the interface at 200%: {uiLayer.Factor}.");
+            SetUiFactor(1);
 
             var smokeMap = new OwnerWorldSnapshot("ui-scale-smoke", 0, "ui-scale-map",
                 Enumerable.Range(0, 16).Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(),
@@ -99,65 +94,52 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            VerifyPixelText("at 100% UI Scale");
+            VerifyPixelText("at 100%");
             var nativeRenderSize = displayWindow.ContentScaleSize;
             var baseClockHeight = clockLabel.GetGlobalRect().Size.Y;
-            var baseScaleChoiceHeight = uiScaleChoice.GetGlobalRect().Size.Y;
+            var baseChoiceHeight = themeChoice.GetGlobalRect().Size.Y;
             var baseSettingsWidth = gameMenuPanel.GetGlobalRect().Size.X;
             var mapStageScale = mapStage.Scale;
-            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseScaleChoiceHeight < 1 || baseSettingsWidth < 1)
-                throw new InvalidOperationException("UI Scale smoke check could not read the interface at 100%.");
+            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseChoiceHeight < 1 || baseSettingsWidth < 1)
+                throw new InvalidOperationException("The interface size smoke check could not read the interface at 100%.");
             if (TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
-                throw new InvalidOperationException("1440p UI Scale map input smoke check could not resolve its reference tile.");
+                throw new InvalidOperationException("1440p interface size map input smoke check could not resolve its reference tile.");
 
-            var scaleIndex = 1;
-            foreach (var percent in DisplayUiScalePolicy.SupportedPercentages.Skip(1))
-            {
-                uiScaleChoice.Select(scaleIndex);
-                SetUiScale(scaleIndex);
-                RenderMap(smokeMap);
-                for (var frame = 0; frame < 2; frame++)
-                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            ApplyUiScale();
+            RenderMap(smokeMap);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            const int factor = 2;
+            VerifyPixelText("at 200%");
+            // Text, controls and panels grow together instead of text alone.
+            if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
+                !Mathf.IsEqualApprox(themeChoice.GetGlobalRect().Size.Y, baseChoiceHeight * factor) ||
+                !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
+                throw new InvalidOperationException("200% must enlarge text, controls and panels by the same 2×.");
+            // Dialogs are separate windows: their contents, frame and title scale on their own.
+            var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
+            if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
+                !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
+                DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
+                quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
+                !Mathf.IsEqualApprox(themeChoice.GetPopup().ContentScaleFactor, factor) ||
+                UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor ||
+                AgentMarker.TextScale != factor)
+                throw new InvalidOperationException($"Dialogs, drop-down lists, tooltips and map names must grow with the interface: title {titleSize}.");
+            if (displayWindow.Size != new Vector2I(2560, 1440) ||
+                displayWindow.ContentScaleSize != nativeRenderSize)
+                throw new InvalidOperationException("The interface size changed the 1440p window or native render size.");
+            if (mapStage.Scale != mapStageScale ||
+                TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
+                throw new InvalidOperationException("The interface size changed the terrain transform or map interaction coordinates.");
+            var settingsViewport = settingsScroll.GetGlobalRect();
+            var choiceBounds = themeChoice.GetGlobalRect();
+            if (!mainMenuOverlay.GetGlobalRect().Encloses(gameMenuPanel.GetGlobalRect()) ||
+                choiceBounds.Position.X < settingsViewport.Position.X - 1 ||
+                choiceBounds.End.X > settingsViewport.End.X + 1)
+                throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
 
-                // 1440p leaves room for 200%; bigger steps would squeeze the menus below their minimum area.
-                var factor = DisplayUiScalePolicy.FittingFactor(percent, 2560, 1440);
-                if (uiLayer.Factor != factor || menuLayer.Factor != factor ||
-                    uiScaleChoice.IsItemDisabled(scaleIndex) != (factor * 100 != percent))
-                    throw new InvalidOperationException($"UI Scale {percent}% at 1440p must magnify the interface by {factor} and mark steps that do not fit.");
-                VerifyPixelText($"at {percent}% UI Scale");
-                // Text, controls and panels grow together instead of text alone.
-                if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
-                    !Mathf.IsEqualApprox(uiScaleChoice.GetGlobalRect().Size.Y, baseScaleChoiceHeight * factor) ||
-                    !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
-                    throw new InvalidOperationException($"UI Scale {percent}% must enlarge text, controls and panels by the same {factor}×.");
-                // Dialogs are separate windows: their contents, frame and title scale on their own.
-                var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
-                if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
-                    !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
-                    deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
-                    DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
-                    quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
-                    !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
-                    UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor)
-                    throw new InvalidOperationException($"Dialogs, drop-down lists and tooltips must grow with UI Scale {percent}%: title {titleSize}.");
-                if (displayWindow.Size != new Vector2I(2560, 1440) ||
-                    displayWindow.ContentScaleSize != nativeRenderSize)
-                    throw new InvalidOperationException($"UI Scale {percent}% changed the 1440p window or native render size.");
-                if (mapStage.Scale != mapStageScale ||
-                    TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
-                    throw new InvalidOperationException($"UI Scale {percent}% changed the terrain transform or map interaction coordinates.");
-
-                var settingsViewport = settingsScroll.GetGlobalRect();
-                var scaleChoiceBounds = uiScaleChoice.GetGlobalRect();
-                if (!mainMenuOverlay.GetGlobalRect().Encloses(gameMenuPanel.GetGlobalRect()) ||
-                    scaleChoiceBounds.Position.X < settingsViewport.Position.X - 1 ||
-                    scaleChoiceBounds.End.X > settingsViewport.End.X + 1)
-                    throw new InvalidOperationException($"Game Settings escaped its usable bounds at 1440p and {percent}% UI Scale.");
-                scaleIndex++;
-            }
-
-            uiScaleChoice.Select(0);
-            SetUiScale(0);
             var generatedMap = smokeMap with
             {
                 WorldId = "zoom-bounds-smoke",
@@ -175,6 +157,8 @@ public partial class Main
             displayWindow.ContentScaleSize = new Vector2I(1280, 720);
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (uiLayer.Factor != 1)
+                throw new InvalidOperationException($"A 720p window must show the interface at 100%: {uiLayer.Factor}.");
             cameraZoom = maximumCameraZoom;
             RenderMap(generatedMap);
             var lowResolutionVisibleRows = mapCanvas.Size.Y / currentTileSize;
@@ -187,9 +171,7 @@ public partial class Main
             displayWindow.ContentScaleMode = originalScaleMode;
             displayWindow.ContentScaleAspect = originalScaleAspect;
             displayWindow.ContentScaleSize = originalRenderSize;
-            SaveDisplayPreferences(originalPreferences);
-            ApplyUiScale(originalPreferences.UiScalePercent);
-            RefreshRenderResolutionOptions();
+            ApplyUiScale();
         }
     }
 
@@ -410,6 +392,7 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            worldSelectionList.Placeholder != "Checking saved worlds…" ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
@@ -420,8 +403,15 @@ public partial class Main
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        // Each world is a card, current world first; the arrow keys move between them.
+        if (worldSelectionList.GetItemTitle(0) != "World 0" || worldSelectionList.GetItemTitle(6) != "World 6")
+            throw new InvalidOperationException("World cards must show each world's name, the current world first.");
+        worldSelectionList.Select(0);
+        worldSelectionList._GuiInput(new InputEventAction { Action = "ui_down", Pressed = true });
+        if (worldSelectionList.GetSelectedItems() is not [1])
+            throw new InvalidOperationException("The down arrow must choose the next world card.");
         worldSelectionList.Select(6);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
         worldMenuOverlay.Hide();
@@ -511,7 +501,7 @@ public partial class Main
                     !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
                     throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
                 worldAdvancedToggle.ButtonPressed = true;
-                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
@@ -567,9 +557,8 @@ public partial class Main
                 throw new InvalidOperationException("World Settings cannot be opened from the Main Menu.");
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - uiScaleChoice.GetGlobalRect().Position.X) > 1 ||
-                Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1 ||
-                Math.Abs(renderResolutionChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
+            if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - themeChoice.GetGlobalRect().Position.X) > 1 ||
+                Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
                 throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
             // Both themes keep text readable on every surface it sits on.
             foreach (var palette in new[] { UiTheme.Light, UiTheme.Dark })
@@ -655,8 +644,6 @@ public partial class Main
             var originalScaleMode = displayWindow.ContentScaleMode;
             var originalDisplayPreferences = displayPreferences;
             var originalWindowChoice = windowSizeChoice.Selected;
-            var originalRenderChoice = renderResolutionChoice.Selected;
-            var originalUiScaleChoice = uiScaleChoice.Selected;
             try
             {
                 await VerifyFirstWorldListAsync();
@@ -670,25 +657,13 @@ public partial class Main
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (displayWindow.Size != DisplaySizePresets[1])
                     throw new InvalidOperationException("Window Size must change the physical window size.");
-                if (renderSizeOptions.Count == 0)
-                    throw new InvalidOperationException("At least one fixed render choice must be available.");
-                var fixedChoice = renderSizeOptions.Count;
-                var fixedRenderSize = renderSizeOptions[^1];
-                renderResolutionChoice.Select(fixedChoice);
-                SetRenderResolution(fixedChoice);
-                if (displayWindow.Size != DisplaySizePresets[1] ||
-                    displayWindow.ContentScaleSize != fixedRenderSize)
-                    throw new InvalidOperationException($"A fixed render choice must leave the window size alone: window={displayWindow.Size}, expected={DisplaySizePresets[1]}, render={displayWindow.ContentScaleSize}, expected render={fixedRenderSize}.");
+                // The game draws at the window's own resolution whatever its size.
                 windowSizeChoice.Select(0);
                 SetWindowSize(0);
                 if (displayWindow.Size != DisplaySizePresets[0] ||
-                    displayWindow.ContentScaleSize != fixedRenderSize ||
+                    displayWindow.ContentScaleSize != AutomaticRenderSize() ||
                     displayWindow.ContentScaleMode != Window.ContentScaleModeEnum.Viewport)
-                    throw new InvalidOperationException("Window Size must not change a fixed render resolution.");
-                renderResolutionChoice.Select(0);
-                SetRenderResolution(0);
-                if (displayWindow.ContentScaleSize != AutomaticRenderSize())
-                    throw new InvalidOperationException("Automatic render resolution must follow the current display or window.");
+                    throw new InvalidOperationException($"The picture must follow the window's own resolution: render={displayWindow.ContentScaleSize}, expected={AutomaticRenderSize()}.");
             }
             finally
             {
@@ -696,11 +671,8 @@ public partial class Main
                 displayWindow.ContentScaleSize = originalRenderSize;
                 displayWindow.ContentScaleMode = originalScaleMode;
                 windowSizeChoice.Select(originalWindowChoice);
-                uiScaleChoice.Select(originalUiScaleChoice);
                 SaveDisplayPreferences(originalDisplayPreferences);
-                ApplyUiScale(originalDisplayPreferences.UiScalePercent);
-                RefreshRenderResolutionOptions();
-                renderResolutionChoice.Select(originalRenderChoice);
+                ApplyUiScale();
             }
             mainMenuOverlay.Hide();
             isInWorld = true;
@@ -741,6 +713,15 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
+            // Game and World share one width, and the call limit has its own box on the World page.
+            var gamePageWidth = gameMenuPanel.Size.X;
+            settingsScroll.ScrollVertical = 200;
+            worldSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!worldSettingsContent.Visible || !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth) ||
+                settingsScroll.ScrollVertical != 0 || usageLimitPanel.GetParent() != worldSettingsContent ||
+                cognitionSettingsPanel.GetIndex() + 1 != usageLimitPanel.GetIndex())
+                throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width and show Model calls after Agent model: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -1749,6 +1730,8 @@ public partial class Main
                 {
                     Survival = null,
                     PublicIntention = new OwnerWorldPublicIntention("safe_idle", "keeping a safe routine", "deterministic", 1),
+                    Lesson = new("Mira", "farming", "training", 3, 20),
+                    Skills = [new("building", 0, "teacher-id", "Mira"), new("crafting", 0, null, null)],
                     Relationships = [new OwnerWorldInhabitantRelationship("home:test", "household:one",
                         "household_membership", "accepted", "household", 1)],
                 }],
@@ -1758,6 +1741,10 @@ public partial class Main
                 !inhabitantSocialDetails.Text.Contains("Member of Founder's household", StringComparison.Ordinal) ||
                 inhabitantSocialDetails.Text.Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
                 inhabitantDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Building skill · taught by Mira", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Crafting skill · learned by doing", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Learning Farming with Mira", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("teacher-id", StringComparison.Ordinal) ||
                 !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal))
                 throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {inhabitantSocialDetails.Text}");
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
