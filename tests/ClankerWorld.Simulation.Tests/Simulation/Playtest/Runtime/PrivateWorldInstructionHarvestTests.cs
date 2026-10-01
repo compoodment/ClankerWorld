@@ -60,6 +60,53 @@ public sealed partial class PrivateWorldRuntimeTests
         _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Theory]
+    [InlineData("gather wood")]
+    [InlineData("gather wood at berry-patch")]
+    [InlineData("go to the Blacksmith")]
+    [InlineData("gather berries and build a House")]
+    [InlineData("gather berries from berry-patch-unknown")]
+    [InlineData("gather -3 berries")]
+    public async Task UnsupportedInstructionsDoNotSubstituteARealFoodAction(string text)
+    {
+        using var world = CreateHarvestInstructionWorld(orchard: false,
+            new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        var before = world.ExportState();
+        var actorBefore = before.Inhabitants.Single(person => person.InhabitantId == HarvestInstructionActor);
+        var foodBefore = before.Society.Society.Inventory.Lots
+            .Where(lot => lot.OwnerId == HarvestInstructionActor &&
+                (lot.ItemKind is "berries" or "fruit" or "wild_greens"))
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+            .Select(lot => (lot.Id, lot.ItemKind, lot.Quantity)).ToArray();
+        var eventIdsBefore = before.Events.Select(item => item.EventId).ToHashSet();
+
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("unsupported", "owner:test",
+            HarvestInstructionActor, OwnerInstructionKind.MustDo, text));
+        var submitted = world.ExportState();
+        Assert.Equal("not_understood", Assert.Single(submitted.Instructions!,
+            item => item.InstructionId == order.InstructionId).Order!.Status);
+        Assert.Contains(order.InstructionId, submitted.CompletedInstructionIds ?? []);
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var after = world.ExportState();
+        var foodAfter = after.Society.Society.Inventory.Lots
+            .Where(lot => lot.OwnerId == HarvestInstructionActor &&
+                (lot.ItemKind is "berries" or "fruit" or "wild_greens"))
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+            .Select(lot => (lot.Id, lot.ItemKind, lot.Quantity)).ToArray();
+        Assert.Equal(foodBefore, foodAfter);
+        Assert.Equal(actorBefore.Position,
+            after.Inhabitants.Single(person => person.InhabitantId == HarvestInstructionActor).Position);
+        var newEvents = after.Events.Where(item => !eventIdsBefore.Contains(item.EventId)).ToArray();
+        Assert.DoesNotContain(newEvents, item => item.Kind is "food_harvested" or "food_consumed");
+        Assert.DoesNotContain(newEvents, item => item.Kind == "instruction_applied" &&
+            item.Detail.StartsWith(order.InstructionId + ":", StringComparison.Ordinal));
+        Assert.Contains(newEvents, item => item.Kind == "instruction_not_understood" &&
+            item.Detail == HarvestInstructionActor + ":" + order.InstructionId);
+        world.Validate();
+    }
+
     [Fact]
     public async Task DepletedOrchardDoesNotCompleteMustDoHarvestAcrossReload()
     {

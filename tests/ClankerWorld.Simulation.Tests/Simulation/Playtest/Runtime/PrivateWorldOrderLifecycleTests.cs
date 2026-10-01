@@ -82,6 +82,8 @@ public sealed partial class PrivateWorldRuntimeTests
         var unbounded = world.SubmitInstruction(new OwnerInstructionRequest(
             "unbounded-berries", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo,
             "gather 1000000000 berries"));
+        var negative = world.SubmitInstruction(new OwnerInstructionRequest(
+            "negative-berries", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo, "gather -3 berries"));
 
         var state = world.ExportState();
         var quantityOrder = Assert.Single(state.Instructions!, item => item.InstructionId == quantity.InstructionId).Order!;
@@ -115,6 +117,8 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Contains(oversized.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.Equal("not_understood", Assert.Single(state.Instructions!, item => item.InstructionId == unbounded.InstructionId).Order!.Status);
         Assert.Contains(unbounded.InstructionId, state.CompletedInstructionIds ?? []);
+        Assert.Equal("not_understood", Assert.Single(state.Instructions!, item => item.InstructionId == negative.InstructionId).Order!.Status);
+        Assert.Contains(negative.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.Equal("not_understood", Assert.Single(state.Instructions!, item => item.InstructionId == unknownTarget.InstructionId).Order!.Status);
         Assert.Contains(unknownTarget.InstructionId, state.CompletedInstructionIds ?? []);
         world.Validate();

@@ -318,29 +318,96 @@ public sealed partial class PrivateWorldRuntime
         new(StringComparer.Ordinal) { "eat", "eats", "eating", "food", "hungry" };
     private static readonly HashSet<string> TravelInstructionWords =
         new(StringComparer.Ordinal) { "go", "goes", "going", "travel", "travels", "traveling", "travelling", "move", "moves", "moving" };
+    private static readonly HashSet<string> CompoundInstructionWords =
+        new(StringComparer.Ordinal) { "and", "or", "then" };
+    private static readonly HashSet<string> HarvestModifierInstructionWords = new(StringComparer.Ordinal)
+    {
+        "the", "a", "an", "some", "one", "two", "three", "four", "five", "six", "seven", "eight",
+        "nine", "ten", "fresh", "ripe", "wild", "local", "nearby", "available", "few", "several", "many",
+        "from", "at", "near", "by", "to", "tile",
+    };
+    private static readonly HashSet<string> UnsupportedInstructionOperationWords = new(StringComparer.Ordinal)
+    {
+        "build", "builds", "built", "construct", "constructs", "craft", "crafts", "make", "makes",
+        "repair", "repairs", "fix", "fixes", "farm", "farms", "plant", "plants", "sow", "sows", "till",
+        "mine", "mines", "dig", "digs", "cut", "cuts", "chop", "chops", "deliver", "delivers", "carry",
+        "carries", "store", "stores", "place", "places", "cook", "cooks", "buy", "sell", "trade",
+    };
+    private static readonly HashSet<string> GenericFoodTargetInstructionWords = new(StringComparer.Ordinal)
+    {
+        "food", "berry", "berries", "fruit", "wild", "greens", "source", "site", "patch", "orchard",
+        "nearby", "nearest", "closest", "known", "available",
+    };
+    private static readonly HashSet<string> SupportedFoodObjectInstructionWords = new(StringComparer.Ordinal)
+    {
+        "food", "berry", "berries", "fruit", "wild", "greens", "item", "items", "piece", "pieces",
+        "serving", "servings",
+    };
 
-    private static string? InstructionCandidate(string text)
+    private string? InstructionCandidate(string text)
     {
         // Whole words only, so "heat" is not "eat" and "good" is not "go".
         var words = InstructionWords(text);
+        if (words.Overlaps(UnsupportedInstructionOperationWords) ||
+            words.Overlaps(CompoundInstructionWords))
+            return null;
+
+        var namesFoodTarget = words.Contains("food") || words.Overlaps(BerryInstructionWords) ||
+            words.Overlaps(FruitInstructionWords) || WildGreenInstructionWords.All(words.Contains) ||
+            map.Resources.Any(resource => (resource.Kind is "food" or "fruit") &&
+                ContainsWholeResourceId(text, resource.Id));
         if (words.Overlaps(HarvestInstructionWords))
         {
-            return "harvest_food";
+            return namesFoodTarget && !HasUnsupportedHarvestObject(text) ? "harvest_food" : null;
         }
 
         if (words.Overlaps(EatInstructionWords))
         {
-            return "consume_food";
+            return HasUnsupportedEatObject(text) ? null : "consume_food";
         }
 
-        if (words.Overlaps(TravelInstructionWords) || words.Overlaps(BerryInstructionWords) ||
-            words.Overlaps(FruitInstructionWords) ||
-            WildGreenInstructionWords.All(words.Contains))
+        if (words.Overlaps(TravelInstructionWords))
         {
-            return "seek_food";
+            return namesFoodTarget ? "seek_food" : null;
         }
 
         return null;
+    }
+
+    private bool HasUnsupportedHarvestObject(string text)
+    {
+        var verb = Regex.Match(text, @"\b(?:harvest|harvests|harvesting|gather|gathers|gathering)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!verb.Success) return false;
+
+        var tail = text[(verb.Index + verb.Length)..];
+        var tokens = Regex.Matches(tail, @"[\p{L}\p{N}_-]+")
+            .Select(match => match.Value.ToLowerInvariant()).ToArray();
+        for (var index = 0; index < tokens.Length; index++)
+        {
+            var token = tokens[index];
+            if (HarvestModifierInstructionWords.Contains(token) ||
+                int.TryParse(token, System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out _))
+                continue;
+            if (token is "food" or "berry" or "berries" or "fruit") return false;
+            if (token == "greens")
+                return !tokens.Take(index).Contains("wild", StringComparer.Ordinal);
+            if (map.Resources.Any(resource => (resource.Kind is "food" or "fruit") &&
+                    resource.Id.Equals(token, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasUnsupportedEatObject(string text)
+    {
+        var match = Regex.Match(text,
+            @"\b(?:eat|eats|eating)\s+(?:(?:the|a|an|some|one|two|three|four|five|six|seven|eight|nine|ten|all|any)\s+)*(?<object>[\p{L}]+)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return match.Success && !SupportedFoodObjectInstructionWords.Contains(match.Groups["object"].Value.ToLowerInvariant());
     }
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
@@ -358,13 +425,16 @@ public sealed partial class PrivateWorldRuntime
             : words.Contains("wild") && words.Contains("greens") ? "wild_greens"
             : null;
         var targetResourceId = map.Resources
-            .Where(resource => ContainsWholeResourceId(text, resource.Id))
+            .Where(resource => (resource.Kind is "food" or "fruit") && ContainsWholeResourceId(text, resource.Id))
             .OrderByDescending(resource => resource.Id.Length)
             .Select(resource => resource.Id)
             .FirstOrDefault();
-        if (targetResourceId is null && ContainsUnresolvedResourceIdentifier(text)) return null;
+        if (ContainsUnrecognizedExplicitFoodTarget(text, targetResourceId)) return null;
         var targetPosition = ParseOrderTargetPosition(text);
         if (targetResourceId is not null) targetPosition = null;
+        if (targetResourceId is { } exactResourceId && targetKind is { } requestedKind &&
+            map.Resources.Single(resource => resource.Id == exactResourceId) is { } exactResource &&
+            FoodKnowledgeKind(exactResource) != requestedKind) return null;
         return new OwnerInstructionOrder(action, "queued", requestedUnits, 0,
             action switch
             {
@@ -379,15 +449,31 @@ public sealed partial class PrivateWorldRuntime
             $@"(?<![\p{{L}}\p{{N}}_-]){Regex.Escape(resourceId)}(?![\p{{L}}\p{{N}}_-])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    private static bool ContainsUnresolvedResourceIdentifier(string text) =>
-        Regex.IsMatch(text,
-            @"\b(?:at|near|by|from)\s+(?:(?:the|a|an)\s+)?[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)+\b",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private bool ContainsUnrecognizedExplicitFoodTarget(string text, string? targetResourceId)
+    {
+        foreach (Match match in Regex.Matches(text,
+                     @"\b(?:at|near|by|from|to|in)\s+(?:(?:the|a|an)\s+)?(?<target>[\p{L}\p{N}_-]+)",
+                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            var target = match.Groups["target"].Value;
+            if (int.TryParse(target, System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out _) ||
+                target.Equals("tile", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (targetResourceId is not null && ContainsWholeResourceId(target, targetResourceId)) continue;
+            if (map.Resources.Any(resource => (resource.Kind is "food" or "fruit") &&
+                    ContainsWholeResourceId(target, resource.Id)))
+                continue;
+            if (InstructionWords(target).All(GenericFoodTargetInstructionWords.Contains)) continue;
+            return true;
+        }
+        return false;
+    }
 
     private static GridPoint? ParseOrderTargetPosition(string text)
     {
         var match = Regex.Match(text,
-            @"\b(?:at|near|by|from)\s*(?:tile\s*)?(?<x>-?\d{1,7})\s*[,/]\s*(?<y>-?\d{1,7})\b",
+            @"\b(?:at|near|by|from|in)\s*(?:tile\s*)?(?<x>-?\d{1,7})\s*[,/]\s*(?<y>-?\d{1,7})\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return match.Success && int.TryParse(match.Groups["x"].Value,
                    System.Globalization.NumberStyles.AllowLeadingSign,
@@ -402,8 +488,12 @@ public sealed partial class PrivateWorldRuntime
     private static bool TryParseRequestedUnits(string text, out int? requestedUnits)
     {
         requestedUnits = null;
+        if (Regex.IsMatch(text,
+                @"(?<![\p{L}\p{N}])[-+]\s*\d+\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            return false;
         var match = Regex.Match(text,
-            @"(?<![\p{L}\p{N},])\b(?<amount>\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
+            @"(?<![\p{L}\p{N},+-])\b(?<amount>\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (!match.Success) return true;
 
