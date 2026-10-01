@@ -155,6 +155,16 @@ public sealed class WorldCatalogStore
         }
     }
 
+    internal byte[] ReadSnapshotBytes(string id)
+    {
+        lock (gate)
+        {
+            if (!index.Worlds.Any(world => world.Id == id))
+                throw new FileNotFoundException("The selected world does not exist.");
+            return File.ReadAllBytes(SnapshotPath(id));
+        }
+    }
+
     public void Select(string id)
     {
         lock (gate)

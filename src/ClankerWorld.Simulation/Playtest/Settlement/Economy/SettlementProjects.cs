@@ -38,7 +38,10 @@ public sealed partial class PrivateWorldRuntime
             ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(savedGeography,
                 state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"))
             : generated;
-        if (baseline.ManifestDigest == state.Map.ManifestDigest)
+        // Most current worlds only add permitted staged or planted resources.
+        // Check their generated baseline before constructing the older map
+        // lineages, whose full-map digests are expensive on large worlds.
+        if (SavedMapMatchesBaseline(state, baseline))
             return true;
         var withoutNaturalDetails = baseline with
         {
@@ -49,6 +52,7 @@ public sealed partial class PrivateWorldRuntime
         {
             ManifestDigest = MapManifestCodec.Digest(withoutNaturalDetails),
         };
+        if (SavedMapMatchesBaseline(state, withoutNaturalDetails)) return true;
         var withoutGeology = baseline with
         {
             Resources = baseline.Resources.Where(resource =>
@@ -56,6 +60,7 @@ public sealed partial class PrivateWorldRuntime
             ManifestDigest = string.Empty,
         };
         withoutGeology = withoutGeology with { ManifestDigest = MapManifestCodec.Digest(withoutGeology) };
+        if (SavedMapMatchesBaseline(state, withoutGeology)) return true;
         var legacyNaturalDetails = withoutGeology with
         {
             Resources = withoutGeology.Resources.Select(resource => resource with { NaturalObjectKind = null }).ToArray(),
@@ -65,6 +70,7 @@ public sealed partial class PrivateWorldRuntime
         {
             ManifestDigest = MapManifestCodec.Digest(legacyNaturalDetails),
         };
+        if (SavedMapMatchesBaseline(state, legacyNaturalDetails)) return true;
         var previousTrees = legacyNaturalDetails with
         {
             Resources = legacyNaturalDetails.Resources.Where(resource =>
@@ -72,6 +78,7 @@ public sealed partial class PrivateWorldRuntime
             ManifestDigest = string.Empty,
         };
         previousTrees = previousTrees with { ManifestDigest = MapManifestCodec.Digest(previousTrees) };
+        if (SavedMapMatchesBaseline(state, previousTrees)) return true;
         var previousVegetation = previousTrees with
         {
             Resources = previousTrees.Resources.Where(resource => !resource.Id.StartsWith("tree-", StringComparison.Ordinal))
@@ -82,11 +89,7 @@ public sealed partial class PrivateWorldRuntime
         {
             ManifestDigest = MapManifestCodec.Digest(previousVegetation),
         };
-        foreach (var candidateBaseline in new[]
-                 { baseline, withoutNaturalDetails, withoutGeology, legacyNaturalDetails, previousTrees, previousVegetation })
-        {
-            if (SavedMapMatchesBaseline(state, candidateBaseline)) return true;
-        }
+        if (SavedMapMatchesBaseline(state, previousVegetation)) return true;
         // Before independent map layers, resource placement and clearing
         // selection used the flattened TerrainKind. Validate that historical
         // generator as a separate immutable lineage, including worlds that
