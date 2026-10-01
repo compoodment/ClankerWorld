@@ -472,15 +472,12 @@ public sealed class HouseholdJoinRequestTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
             System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
 
-        // Main's housing checkpoint predates the per-Town physical council ledger.
-        // Keep this version check about its actual request, without newer state.
-        var housingCheckpoint = state with { TownCouncils = [] };
-        var old = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(housingCheckpoint with { SchemaVersion = 31 }));
-        Assert.Contains("Housing", old.Message, StringComparison.Ordinal);
-        // Housing keeps main's schema 32 even after physical content reserves 33.
-        // The real pending request must still restore without granting membership.
+        var old = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 31 }));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}", old.Message,
+            StringComparison.Ordinal);
+        // Current alpha checkpoints retain the actual pending request without granting membership.
         using var housingVersion = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(housingCheckpoint with { SchemaVersion = 32 })));
+            PrivateWorldRuntimeCodec.Encode(state)));
         var housingRequest = Housing(housingVersion, agent)!.Request!;
         Assert.Equal(request.HouseholdId, housingRequest.HouseholdId);
         Assert.Equal(request.RequestedTick, housingRequest.RequestedTick);

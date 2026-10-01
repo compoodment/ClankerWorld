@@ -139,6 +139,7 @@ public partial class Main
                 choiceBounds.Position.X < settingsViewport.Position.X - 1 ||
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
+            await VerifyAgentConversationReaderAt200PercentAsync();
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -205,6 +206,125 @@ public partial class Main
             displayWindow.ContentScaleAspect = originalScaleAspect;
             displayWindow.ContentScaleSize = originalRenderSize;
             ApplyUiScale();
+        }
+    }
+
+    private async Task VerifyAgentConversationReaderAt200PercentAsync()
+    {
+        if (uiLayer.Factor != 2)
+            throw new InvalidOperationException("Conversation history smoke must run at 200% UI Scale.");
+
+        var menuVisible = mainMenuOverlay.Visible;
+        var gameMenuVisible = gameMenuPanel.Visible;
+        var menuShadeVisible = menuShade.Visible;
+        var oldSelection = selectedInhabitantId;
+        var oldProfileRequested = agentProfileRequested;
+        var oldProfileVisible = agentProfilePanel.Visible;
+        var oldQuickCardVisible = selectedInhabitantCard.Visible;
+        var wasInWorld = isInWorld;
+        isInWorld = true;
+        mainMenuOverlay.Hide();
+        gameMenuPanel.Hide();
+        menuShade.Hide();
+        try
+        {
+            const string firstAgentId = "conversation-ui-a";
+            const string secondAgentId = "conversation-ui-b";
+            const string thirdAgentId = "conversation-ui-c";
+            const string fourthAgentId = "conversation-ui-d";
+            var firstPosition = new OwnerWorldPosition(1, 1);
+            var secondPosition = new OwnerWorldPosition(2, 1);
+            var thirdPosition = new OwnerWorldPosition(1, 3);
+            var fourthPosition = new OwnerWorldPosition(2, 3);
+            OwnerWorldInhabitant Agent(string id, string name, OwnerWorldPosition position) => new(
+                id, name, "active", position, 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(position, [position], [position]), false);
+            var publicText = string.Join(' ', Enumerable.Repeat("A public sentence with enough words to wrap comfortably on a large screen.", 6));
+            var closedTurns = Enumerable.Range(0, 7).Select(index =>
+            {
+                var speaker = index == 6 || index % 2 == 0 ? firstAgentId : secondAgentId;
+                var listener = speaker == firstAgentId ? secondAgentId : firstAgentId;
+                return new OwnerWorldConversationTurn(
+                    $"conversation:ui-closed:turn:{index + 1}", speaker,
+                    speaker == firstAgentId ? "Aster" : "Rowan", publicText, index + 1, [listener], index == 6);
+            }).ToArray();
+            var conversations = new OwnerWorldConversation[]
+            {
+                new("conversation:ui-closed", firstAgentId, "Aster", secondAgentId, "Rowan",
+                    "closed", null, "agreed", 0, 8, closedTurns),
+                new("conversation:ui-interrupted", thirdAgentId, "Mira", fourthAgentId, "Ilya",
+                    "suspended", "owner_paused", null, 0, 7,
+                    [new("conversation:ui-interrupted:turn:1", thirdAgentId, "Mira", publicText, 5,
+                        [fourthAgentId], false)]),
+            };
+            var conversationMap = new OwnerWorldSnapshot("conversation-ui-smoke", 8, "conversation-ui-map",
+                Enumerable.Range(0, 36).Select(index => new OwnerWorldTile(index % 6, index / 6, "meadow")).ToArray(),
+                [], [], null, 0)
+            {
+                PackedTerrain = new OwnerWorldPackedTerrain(6, 6, "terrain-kind-v1",
+                    Convert.ToBase64String(new byte[36])),
+                Inhabitants = [
+                    Agent(firstAgentId, "Aster", firstPosition), Agent(secondAgentId, "Rowan", secondPosition),
+                    Agent(thirdAgentId, "Mira", thirdPosition), Agent(fourthAgentId, "Ilya", fourthPosition)],
+                Conversations = conversations,
+            };
+            RenderMap(conversationMap);
+            selectedInhabitantId = secondAgentId;
+            RenderSelectedInhabitantCard(conversationMap);
+            OpenAgentProfile(speak: false);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            var marker = inhabitantVisuals[firstAgentId];
+            if (!marker.ConversationBadgeVisible || !marker.ConversationUnread || marker.TooltipText.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("A nearby public conversation must show a bounded unread bubble preview without placing its full history in the tooltip.");
+            marker._GuiInput(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = true,
+                Position = marker.ConversationBadgeBounds.GetCenter(),
+            });
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationPanel.Visible || !conversationReaderStatus.Text.StartsWith("Closed ·", StringComparison.Ordinal) ||
+                marker.ConversationUnread || selectedInhabitantId != secondAgentId || !agentProfilePanel.Visible ||
+                conversationReaderSummary.Text.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("Clicking the conversation bubble must open its closed-session summary, mark it read locally, and leave agent selection alone.");
+
+            conversationHistoryButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationHistoryText.Visible || !conversationHistoryText.ScrollActive ||
+                !conversationHistoryText.Text.Contains(publicText, StringComparison.Ordinal) ||
+                conversationHistoryText.GetContentHeight() <= conversationHistoryText.Size.Y ||
+                conversationPanel.Position.X < 0 || conversationPanel.Position.Y < HudTop - 1 ||
+                conversationPanel.Position.X + conversationPanel.Size.X > UiSize.X + 1 ||
+                conversationPanel.Position.Y + conversationPanel.Size.Y > UiSize.Y + 1)
+                throw new InvalidOperationException("Expanded long conversation history must scroll inside the 200% layout bounds.");
+
+            GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (conversationPanel.Visible || selectedInhabitantId != secondAgentId ||
+                !agentProfilePanel.Visible || gameMenuPanel.Visible)
+                throw new InvalidOperationException("Escape must close expanded conversation history before the selected agent's Profile, without clearing selection or opening the Pause Menu.");
+
+            OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
+            if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
+                throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+        }
+        finally
+        {
+            conversationPanel.Hide();
+            openConversationId = null;
+            openConversationAgentId = null;
+            selectedInhabitantId = oldSelection;
+            agentProfileRequested = oldProfileRequested;
+            agentProfilePanel.Visible = oldProfileVisible;
+            selectedInhabitantCard.Visible = oldQuickCardVisible;
+            isInWorld = wasInWorld;
+            mainMenuOverlay.Visible = menuVisible;
+            gameMenuPanel.Visible = gameMenuVisible;
+            menuShade.Visible = menuShadeVisible;
         }
     }
 
@@ -718,6 +838,51 @@ public partial class Main
                 worldAdvancedToggle.ButtonPressed = true;
                 if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
+                var missedCoverage = new OwnerWorldCandidateReport(2, 100, 15, 10, 15, 10,
+                    2, 10, 1, 10, true, true, false, true);
+                previewedWorldOptions = CurrentWorldOptions();
+                previewedWorldResult = new OwnerWorldPreview(new OwnerWorldPackedTerrain(1, 1, "terrain-v1", "AA=="),
+                    new OwnerWorldPosition(0, 0), "preview-manifest")
+                {
+                    MapLayersDigest = "preview-layers",
+                    Coverage = missedCoverage,
+                    Candidates = [missedCoverage],
+                };
+                worldAcceptUnmetTargets.Show();
+                if (CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("A preview that misses a default Balanced target must require explicit acceptance.");
+                worldAcceptUnmetTargets.ButtonPressed = true;
+                if (!CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("Explicitly accepting displayed coverage misses must enable creation of that preview.");
+                worldAcceptUnmetTargets.ButtonPressed = false;
+                var mountainOnly = missedCoverage with { ForestTargetApplicable = false, ForestTargetMet = false };
+                var mountainOnlyPreview = previewedWorldResult with
+                {
+                    Coverage = mountainOnly,
+                    Candidates = [mountainOnly],
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview);
+                if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                var forestOnly = missedCoverage with
+                {
+                    ForestTargetApplicable = true,
+                    ForestTargetMet = false,
+                    MountainTargetApplicable = false,
+                    MountainTargetMet = false,
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = forestOnly, Candidates = [forestOnly] });
+                if (!worldPreviewStatus.Text.Contains("Missed: Forest 15.0%", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("Candidate results:", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name a missed Normal target and candidate results when only forest is targeted.");
+                var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
+                if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("15.0% forest and 10.0% mountains", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
+                InvalidateWorldPreview(refresh: false);
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))

@@ -12,7 +12,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateBoatTransport(PrivateWorldRuntimeState state)
     {
         if (state.BoatTransport is not { } transport) return;
-        if (state.SchemaVersion < 35 || transport.SchemaVersion != 1 || transport.Boats is null || transport.GuestPermissions is null ||
+        if (state.SchemaVersion < 36 || transport.SchemaVersion != 1 || transport.Boats is null || transport.GuestPermissions is null ||
             transport.Boats.Any(boat => boat is null) || transport.GuestPermissions.Any(permission => permission is null) ||
             transport.Boats.Select(boat => boat.Id).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||
             transport.Boats.Select(boat => boat.BuildJobId).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||

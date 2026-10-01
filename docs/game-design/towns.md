@@ -690,27 +690,69 @@ actual Town Hall to propose or vote; the Hall belongs to the Town and does not
 give visitors access to private household goods. The 3×4 Hall costs **24 wood
 and 12 stone provisionally**, funded through normal physical construction.
 
-The first version holds an election and each rule ballot open for one game
-day. Each adult may name up to three current adult residents once per election.
-The three with most votes win; tied counts retain existing representatives
-before comparing stable agent identities. Representatives serve until the next
-annual election finishes. A vacant seat starts a new election, and a smaller
-Town returns to its all-adult council. These election details are provisional.
-Departed or deceased residents lose eligibility. Proposals to change or repeal
-a social rule use the same majority vote. Shared-food policy can restrict
-existing collection access, but cannot seize or reassign private stock.
-Model-backed councillors can propose a named social rule only when physically
-at their Town's Hall and no vote is pending. Proposals contain bounded plain
-text; the model cannot attach one to another action, change fixed world rules
-or assign somebody else's property. Agents learn the text of existing rules
-when they read or discuss them at the Hall.
+The initial law-proposal window is one unpaused game day, with earlier
+resolution when the result is settled. The three-seat election uses distinct
+willing candidates; the detailed election and roster procedures still need the
+follow-up choices below. The one-year term is agreed. Below eight adult
+residents the Town uses its all-adult council again. Departed or deceased
+residents lose eligibility. Shared-food policy can restrict existing collection
+access, but cannot seize or reassign private stock.
+Any adult Town resident may bring a named social-rule proposal at their Town's
+Hall, including after representatives are elected. Model proposals contain
+bounded plain text; the model cannot attach one to another action, change fixed
+world rules or assign somebody else's property. Agents learn the text of
+existing rules when they read or discuss them at the Hall. Proposal delivery,
+repeal details and overlapping votes follow the still-open procedure work in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601), rather than
+silently acquiring a permanent rule from trial implementation details.
+
+### Council proposals and election ballots
+
+**Agreed with the owner on October 1, answers 24A–28A:**
+
+- **Any adult Town resident may bring a proposal to the council**, including
+  after representatives are elected. An ordinary newcomer may submit their
+  own admission request but cannot vote on it. Proposing is not approval or
+  authority to change membership, ownership or fixed world facts.
+- **An ordinary law or admission proposal needs yes votes from more than
+  half the council.** Silence and abstention supply no approval. A four-person
+  council needs three yes votes; a three-person council needs two. This is a
+  strict majority of the council, not merely more yes than no among replies.
+  Procedures for changing the governing arrangement, land adjudication and
+  inheritance are separate choices; this does not settle them automatically.
+- **The initial proposal window is one unpaused world day.** Resolve sooner
+  when the result is settled; otherwise close at the deadline. Without sufficient
+  approval then, the proposal does not pass. Paused time does not consume the
+  window. Agents vote through their ordinary personal-model turns; make no extra
+  paid calls merely to poll for votes. How proposals reach eligible agents and
+  how changes in the voter roster affect an open vote still need decisions.
+- **The first elected council has three seats.** Use the already agreed
+  eight-adult trial threshold to begin representation. A Town may later change
+  its governing arrangement through the agreed in-world process; three seats
+  are its starting design, not an immutable world constraint.
+- **Each adult resident may support up to one different willing candidate
+  per available seat.** In a three-seat election a voter may choose up to three
+  distinct willing candidates, or fewer. No repeated vote for one candidate on
+  the same ballot. Candidates with the highest totals win the available seats.
+  Ties, too few candidates, turnout, candidate eligibility, self-voting and
+  ballot revision remain in the follow-up interview; do not choose them in code.
+
+Use recorded Town adult residents for civic eligibility, including homeless
+residents and travelers, under the agreed membership work in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
+These proposal, voting-window, seat-count and ballot choices are settled.
+Remaining election/roster and governing procedures are tracked in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
 
 ### Still to decide
 
 Town residency and newcomer approval are agreed in [Town membership](#town-membership).
-The first elected council size, one-year term and majority proposal/repeal
-procedure are agreed above. Still open: how governments may change; which
-other laws apply to whom and where; how a
+The first elected council size, one-year term and strict-majority proposal
+procedure are agreed above. Still open: election timing and term transitions,
+ties, vacancies, population changes, turnout, candidate eligibility and
+self-voting, ballot revision, proposal delivery and changes to voter eligibility
+during an open vote; repeal details; how governments may change; which other
+laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents

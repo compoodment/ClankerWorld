@@ -43,10 +43,10 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
-    private static void ValidateProficiency(PlaytestInhabitantState person, int schema)
+    private static void ValidateProficiency(PlaytestInhabitantState person)
     {
-        if (person.Proficiency is { } practice && (schema < 11 ||
-            practice.Building is < 0 or > 30 || practice.Farming is < 0 or > 30 || practice.Crafting is < 0 or > 30))
-            throw new InvalidDataException("Work proficiency requires schema 11 and bounded experience.");
+        if (person.Proficiency is { } practice &&
+            (practice.Building is < 0 or > 30 || practice.Farming is < 0 or > 30 || practice.Crafting is < 0 or > 30))
+            throw new InvalidDataException("Work proficiency exceeds its experience bounds.");
     }
 }

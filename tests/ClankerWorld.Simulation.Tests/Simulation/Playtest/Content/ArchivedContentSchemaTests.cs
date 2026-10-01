@@ -48,7 +48,7 @@ public sealed class ArchivedContentSchemaTests
     [InlineData(32)]
     [InlineData(33)]
     [InlineData(34)]
-    public async Task ActualCareConsentRetainedOnlyInADeceasedProfileCannotBypassThePhysicalContentVersion(int olderSchema)
+    public async Task ActualArchivedCareConsentRoundTripsWhileOlderAlphaFormatsAreRefused(int olderSchema)
     {
         using var prepared = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(true));
         var actor = prepared.Inhabitants[0].InhabitantId;
@@ -69,7 +69,7 @@ public sealed class ArchivedContentSchemaTests
     }
 
     [Fact]
-    public async Task ActualArchivedHousingKeepsMainsVersionWithoutRequiringLaterPhysicalContent()
+    public async Task CurrentAlphaKeepsActualArchivedHousingAndRefusesOlderHousingSaves()
     {
         using var prepared = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(true));
         var actor = "agent:" + 880.ToString("x32", System.Globalization.CultureInfo.InvariantCulture);
@@ -87,11 +87,12 @@ public sealed class ArchivedContentSchemaTests
         var deceased = Assert.Single(saved.DeceasedInhabitants!, person => person.InhabitantId == actor);
         Assert.Equal(HousingBlockers.NoHousehold, deceased.LastPhysical.Housing!.Blocker);
         Assert.All(saved.Inhabitants, person => Assert.Null(person.Housing));
-        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 32 })));
+        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
         Assert.Equal(deceased.LastPhysical.Housing, Assert.Single(loaded.ExportState().DeceasedInhabitants!, person => person.InhabitantId == actor)
             .LastPhysical.Housing);
         loaded.Validate();
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 31 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 32 }));
     }
 
     private static PrivateWorldRuntimeState DiesNextTick(PrivateWorldRuntimeState state, string actor)

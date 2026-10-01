@@ -50,25 +50,16 @@ internal static class AgentKnowledgeRules
     public const int MaximumResourceKindsPerFact = 4;
 
     public static void Validate(
-        PrivateWorldKnowledgeState? knowledge,
+        PrivateWorldKnowledgeState knowledge,
         SeededMap map,
         SocietyCheckpoint society,
-        long worldTick,
-        int schemaVersion)
+        long worldTick, int schemaVersion = PrivateWorldRuntime.StateSchemaVersion)
     {
-        if (knowledge is null)
-        {
-            if (schemaVersion >= 23)
-                throw new InvalidDataException("The current private-world schema requires agent map knowledge state.");
-            knowledge = PrivateWorldKnowledgeState.Empty;
-        }
         if (knowledge.Facts is null || knowledge.Artifacts is null)
             throw new InvalidDataException("The agent map-knowledge collections are missing.");
         if (knowledge.Facts.Any(item => item is null) || knowledge.Artifacts.Any(item => item is null) ||
             knowledge.Artifacts.Any(item => item.Facts is null || item.Facts.Any(fact => fact is null)))
             throw new InvalidDataException("The agent map-knowledge collections contain missing records.");
-        if (schemaVersion < 23 && (knowledge.Facts.Count != 0 || knowledge.Artifacts.Count != 0))
-            throw new InvalidDataException("Agent map knowledge requires private-world schema 23.");
 
         var knownAgents = society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         if (knowledge.Facts.Count > checked(knownAgents.Count * MaximumFactsPerAgent) ||
@@ -110,9 +101,9 @@ internal static class AgentKnowledgeRules
         var inventoryLots = society.Inventory.Lots.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var artifact in knowledge.Artifacts)
         {
-            if (schemaVersion < 35 && (artifact.Kind == "book" || artifact.WritingBuildingId is not null ||
+            if (schemaVersion < 36 && (artifact.Kind == "book" || artifact.WritingBuildingId is not null ||
                 artifact.InputReservationIds is not null || artifact.CopiedFromArtifactId is not null))
-                throw new InvalidDataException("Physical paper writing and books require private-world schema 35.");
+                throw new InvalidDataException("Physical paper writing and books require private-world schema 36.");
             if (artifact is null || string.IsNullOrWhiteSpace(artifact.Id) || artifact.Id.Length > 128 ||
                 !knownAgents.Contains(artifact.CreatorId) || string.IsNullOrWhiteSpace(artifact.LotId) ||
                 artifact.Kind is not ("field_map" or "field_record" or "book") || string.IsNullOrWhiteSpace(artifact.Title) ||

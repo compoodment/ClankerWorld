@@ -198,6 +198,47 @@ A separate belief record retains firsthand/hearsay/inference evidence and
 superseded corrections. Inspection never broadcasts these records or turns
 them into public events.
 
+Ordinary conversation is a host-controlled activity, not free-form world
+commands. The normal provider router requires an explicit personal planning
+assignment for the current speaker and sends only that speaker's identity and
+the accepted public history. A proposal and acceptance each use that agent's
+saved daily allowance. The host admits at most two pending conversation calls
+per world tick and six alternating public turns per conversation, followed by
+one wrap-up. Responses must match the saved conversation revision, run epoch,
+request and speaker; stale or malformed replies are not admitted. Public turns
+carry a bounded list of agents who were actually close enough to hear. A
+separate memory extraction gives those listeners hearsay claims tied to the
+turn ID, with duplicate and owner checks. Private thoughts, provider payloads
+and unaccepted replies never enter that history. Prose has no world effect; the
+only ordinary-dialogue effect is mutual trust, offered during wrap-up and
+applied only after both participants accept the same proposal.
+
+The saved revision, status and next-speaker fields are the conversation cursor.
+The checkpoint keeps the complete admitted history (up to six public turns and
+one accepted wrap-up), and each later provider request receives the committed
+public history so far. The wrap-up request receives the six public turns; a
+pending answer is never included or saved.
+
+Saving by itself keeps an unaccepted invitation pending, with its original
+deadline and the inviter's saved daily allowance. It has no current speaker;
+only acceptance assigns the first turn. When the 64-session save limit is
+reached, the oldest closed session is removed before a new one starts. A
+listener's private hearsay claim, its correction links and any memory-compaction
+reference remain saved. Only the link from that private claim to the removed
+public turn is cleared; its statement and speaker attribution stay private to
+its owner, while the old turn text leaves the shared conversation history.
+
+Pausing, disconnect, a provider failure, urgent need, separation or an
+unavailable participant interrupts or closes the activity according to its
+state. A save contains accepted bounded turns and daily allowances, not a live
+provider task. Restore leaves accepted active conversations suspended and clears
+any earlier resume choice; no model request starts until both participants choose
+to resume again. A pending invitation retains its original deadline and still
+requires normal acceptance and the invitee's daily allowance. Both agents receive
+the same public wrap-up and proposed effect before accepting. Lessons wait while
+either participant is talking. Conversation logs record only purpose, bounded
+turn count, latency and usage totals, including reported usage for rejected speech.
+
 Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
 previously unassessed records; only linked salience/confidence values are saved.
@@ -830,17 +871,38 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
 controls forest cover, mountain relief and river abundance independently;
-Normal is zero and omitted from saved JSON, preserving historical default
-settings. Low/High adjust the forest rainfall threshold (175/125), upper
-elevation relief, and river catchment threshold (288/72). Normal keeps
-150 and 144 respectively. These are relative presets, not promises of exact
-forest or mountain percentages. Resource abundance retains its existing
-Sparse/Normal/Abundant saved values; the UI labels them Low/Normal/High.
+Normal is zero and omitted from saved JSON. Low/High use forest rainfall
+thresholds 175/125 and river catchment thresholds 288/72. Low mountain relief
+subtracts half the elevation above 130; High adds that full amount for Balanced
+Small/Medium worlds and half elsewhere. Outside the visibility trial, Normal
+keeps a 150 rainfall threshold, zero relief shift and river threshold 144.
+Resource abundance retains its existing Sparse/Normal/Abundant saved values;
+the UI labels them Low/Normal/High.
 
-Owner world-creation signing uses payload v2 to bind all settings. Preview and
-Create use the same validated options and digest; old clients need an update.
-Small and Medium remain the only playable sizes; no continent-count control
-is exposed for them. Existing saved water settings are not rewritten.
+For Balanced Small/Medium worlds, each feature's target applies only while its
+own control is Normal. The versioned Normal trial uses a 135 rainfall threshold
+and adds one third of upper elevation as mountain relief. Low and High remain
+separate controls. `GeographyCandidateSelector` tries at most three candidates
+derived from the requested seed. It selects by unmet target count, normalized
+distance from the 20–40% forest and 5–12% mountain dry-land bands, then largest
+connected-region share as a tie-break; attempt number is the final stable
+tie-break. Connected regions use diagonal neighbors, east/west wrapping when
+enabled, and no north/south wrapping. The tie-break has no minimum region-size
+threshold. Incompatible climate modes have no trial target and use one
+candidate. Coverage is measured and returned for all settings.
+
+Owner world-creation signing uses payload v3 to bind all settings and, for
+Create, the candidate attempt, terrain and map-layer digests, and explicit
+acceptance of unmet trial targets. Preview reports the selected candidate and
+coverage for each attempt. Create reruns the bounded selector, checks those
+signed identities, and builds the world from its selected map. It refuses a
+changed preview or an unaccepted miss. The selected attempt is saved in
+`GeographyOptions` with the visibility algorithm version and in the map
+manifest; restore regenerates that attempt without searching again. Unsupported
+Balanced Small/Medium visibility versions are refused rather than replayed with
+different terrain rules. Small and Medium remain the only playable sizes; no
+continent-count control is exposed for them. Existing saved water settings are
+not rewritten.
 
 ## Skills and practical lessons
 
