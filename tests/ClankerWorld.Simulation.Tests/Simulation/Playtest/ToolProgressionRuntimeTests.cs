@@ -176,7 +176,7 @@ public sealed class ToolProgressionRuntimeTests
                 } : person).ToArray(),
         };
         var total = inventory.Lots.Sum(lot => lot.Quantity);
-        var candidateId = "collect_tool:" + kind;
+        var candidateId = kind == "wooden_hoe" ? "collect_wooden_hoe" : "collect_tool:" + kind;
         var chooser = new CandidateProvider(candidateId);
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
@@ -267,7 +267,7 @@ public sealed class ToolProgressionRuntimeTests
                 ? person with { Position = warehouse.Position, HungerBasisPoints = 10_000, LastDecisionContext = null }
                 : person).ToArray(),
         };
-        var candidateId = itemKind == "wooden_axe" ? "collect_wooden_axe" : "collect_tool:" + itemKind;
+        var candidateId = itemKind == "wooden_axe" ? "collect_wooden_axe" : "collect_wooden_hoe";
         var chooser = new CandidateProvider(candidateId);
         using var collecting = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),

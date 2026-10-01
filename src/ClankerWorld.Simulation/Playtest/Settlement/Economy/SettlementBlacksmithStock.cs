@@ -36,6 +36,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 "wooden_axe" => "collect_wooden_axe",
                 "wooden_pickaxe" => "collect_wooden_pickaxe",
+                "wooden_hoe" => "collect_wooden_hoe",
                 _ => CollectToolPrefix + bestShared.ItemKind,
             };
             candidates.Add(new CognitionCandidate(candidateId,
