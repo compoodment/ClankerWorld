@@ -119,7 +119,7 @@ public static class GameUiText
     /// date falls back to DD-MM-YYYY.
     /// </summary>
     public static bool ShowsSeasonDates(OwnerWorldCalendarPace? calendarPace, string dateFormat) =>
-        dateFormat is not ("dmy" or "mdy" or "ymd") && calendarPace is { } pace && SeasonLengths(pace) is not null;
+        SeasonDateLengths(calendarPace, dateFormat) is not null;
 
     /// <summary>
     /// The one place a world tick becomes the date and time the player reads:
@@ -134,8 +134,8 @@ public static class GameUiText
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
         var dayIndex = worldTick / ticksPerDay;
-        var date = ShowsSeasonDates(calendarPace, dateFormat)
-            ? FormatSeasonDate(dayIndex, daysPerYear, SeasonLengths(calendarPace!)!)
+        var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
+            ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
             : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
         var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
@@ -146,9 +146,14 @@ public static class GameUiText
         return $"{date} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
     }
 
-    /// <summary>Spring, Summer, Autumn and Winter lengths in days, or null unless they fill the year exactly.</summary>
-    private static int[]? SeasonLengths(OwnerWorldCalendarPace pace)
+    /// <summary>
+    /// Spring, Summer, Autumn and Winter lengths in days when dates in this
+    /// style name the season; null for a numeric style, or unless the
+    /// calendar's season lengths fill its year exactly.
+    /// </summary>
+    private static int[]? SeasonDateLengths(OwnerWorldCalendarPace? pace, string dateFormat)
     {
+        if (pace is null || dateFormat is "dmy" or "mdy" or "ymd") return null;
         int[] lengths = [pace.SpringDays, pace.SummerDays, pace.AutumnDays, pace.WinterDays];
         return lengths.All(days => days > 0) && lengths.Sum(days => (long)days) == pace.DaysPerYear ? lengths : null;
     }
