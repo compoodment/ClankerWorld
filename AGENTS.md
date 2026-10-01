@@ -34,6 +34,22 @@ is:open label:"status:needs-decision"
 is:issue is:open label:owner-task
 ```
 
+## Sign your comments
+
+Many sessions share one GitHub account, so sign every claim, review claim and
+hand-off comment with your tool and a session ID, for example: "Claude Code
+session d1496bec is working on this on branch `claude/123-fix`." Other
+sessions can then tell your claim apart from their own.
+
+- Use the ID your tool gives this session if you can find one; Claude Code
+  sets `CLAUDE_CODE_SESSION_ID`, so use its first 8 characters. Otherwise make
+  one up once, for example with `openssl rand -hex 4`, and use it for the
+  rest of the session. If you lose track of it, the branch you are on tells
+  you which claim is yours.
+- A comment with your ID is yours, even after a pause or a context reset. A
+  different ID, or just "Codex" or "Claude", is another session: don't take
+  over its claim while it is still active.
+
 ## Know your job
 
 Several agents usually work at once, each given one job. Every job follows

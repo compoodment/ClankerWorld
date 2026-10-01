@@ -118,8 +118,10 @@ branch rather than starting again.
 ### Claim an issue
 
 Before you start, replace `status:needs-pr` with `status:in-progress` and
-comment with who is working on it and the branch name; assignment alone does
-not show which agent took it.
+comment with who is working on it and the branch name in backticks, such as
+`codex/123-fix`. Assignment alone does not show which agent took it, and the
+cleanup below finds your pushes through that branch name. Agents sign the
+comment with a session ID ([how](AGENTS.md#sign-your-comments)).
 
 - **Show your work.** Push your branch and open a draft pull request within the
   first hour, then push at least every 2 hours while you work. Pushed commits
