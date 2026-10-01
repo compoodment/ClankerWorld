@@ -1,21 +1,39 @@
 // Releases claims that have gone quiet, so status:in-progress and
-// status:reviewing always mean someone has worked recently.
+// status:reviewing always mean someone has pushed work recently.
 // Run every 30 minutes by .github/workflows/stale-claims.yml through actions/github-script.
 // It reads only GitHub data; it never checks out or runs pull request code.
 //
+// A claim lasts while its label is on. Only the claimant, this script or an
+// owner request ends it; nobody else decides on their own clock that it lapsed.
+// Each claim's clock starts when its label was last added, so claiming again
+// after a release, a stop or a hand-back starts a fresh claim.
+//
 // - An issue's status:in-progress claim is released after 1.5 hours without
-//   pushed work. Only these count: the claim itself, opening a draft pull
-//   request that closes or refers to the issue, a push to such a draft's
-//   branch, or a push to a branch named in the issue's comments.
+//   pushed work. Only these count: adding the claim label, opening the
+//   claimant's draft pull request, a push to that draft's branch, or a push
+//   to a branch named in the issue's comments. A draft that closes the issue
+//   is always the claimant's. One that only refers to it (Refs) is the
+//   claimant's only if its branch is named in the issue's comments or starts
+//   with the issue number, such as codex/123-fix or claude/issue-123-fix;
+//   other agents' drafts that mention the issue keep nothing.
 //   Comments and edits do not count, because they show no work anyone can
-//   check. The issue goes back to status:needs-pr, unless it is blocked or is
-//   not pull request work, and a comment names the draft pull request or
-//   branch to continue from.
+//   check, and pushes to ready pull requests belong to their reviewers.
+//   A slashed name in a comment is a branch only if it has a commit or a
+//   push, so file paths cannot crowd out the real branch: of the newest 20
+//   names that are not a linked pull request's branch, the first 5 real
+//   branches are checked.
+//   The issue goes back to status:needs-pr, unless it is blocked or is not
+//   pull request work. The release comment names the claimant's draft or
+//   the newest real branch to continue from, and any ready pull request that
+//   refers to the issue, so the next agent reads it and leaves its branch alone.
+//   A claim waiting on the owner (status:needs-decision on the issue or on
+//   the claimant's draft) is kept.
 // - A pull request's status:reviewing claim is released after 1.5 hours without
-//   the claim or a push to the pull request's branch. Comments do not count
-//   here either, so a claim cannot hold a place in the review queue.
-// - Anything waiting on the owner (status:needs-decision on the issue or its
-//   pull request) keeps its claim.
+//   adding the claim label or a push to the pull request's branch. Comments do
+//   not count here either, so a claim cannot hold a place in the review queue.
+//   status:needs-decision does not keep it: a reviewer who needs the owner
+//   hands the pull request back to draft, which removes status:reviewing.
+//   The release comment names the head the claim left.
 // Push times come from the repository's activity log, so commits made earlier
 // and pushed later count from the push. Comments this script writes carry a
 // marker, so the branches they name are never read as someone's work.
@@ -30,6 +48,8 @@ const Blocked = 'status:blocked';
 const IssueHours = 1.5;
 const ReviewHours = 1.5;
 const Hour = 60 * 60 * 1000;
+const MaxBranches = 5;
+const MaxBranchCandidates = 20; // bounds API calls when comments name many paths
 const Marker = '<!-- claim-check -->';
 const PushActivities = new Set(['push', 'force_push', 'branch_creation']);
 
@@ -60,14 +80,23 @@ function referencedIssueNumbers(body, repoName) {
   return numbers;
 }
 
-function branchNames(comments) {
+// Names that may be branches, newest first. Some are file paths or other
+// slashed words; issueSnapshot keeps only those with a commit or a push.
+function branchNames(comments, limit = MaxBranchCandidates) {
   const names = new Set();
   for (const comment of [...comments].reverse()) {
     for (const pattern of BranchPatterns) {
       for (const [, name] of [...(comment.body ?? '').matchAll(pattern)].reverse()) names.add(name.replace(/[.,;:]+$/, ''));
     }
   }
-  return [...names].slice(0, 5);
+  return [...names].slice(0, limit);
+}
+
+// A draft that only refers to the issue (Refs) is the claimant's own work when
+// its branch is named in the issue's comments or starts with the issue number,
+// such as codex/123-fix, claude/issue-123-fix or 123-fix.
+function ownRefsBranch(ref, number, named) {
+  return named.has(ref) || new RegExp(`^(?:[\\w.-]+/)?(?:issue-)?${number}(?:-|$)`).test(ref);
 }
 
 function newest(times) {
@@ -142,19 +171,27 @@ async function issueSnapshot(github, repo, repoName, number) {
   const open = await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 });
   const closing = open.filter(pr => closingIssueNumbers(pr.body, repoName).has(number));
   const linked = [...closing, ...open.filter(pr => !closing.includes(pr) && referencedIssueNumbers(pr.body, repoName).has(number))];
-  const keep = labels.includes(NeedsDecision) || linked.some(pr => labelNames(pr.labels).includes(NeedsDecision));
   const comments = await commentsFor(github, repo, number);
+  const names = branchNames(comments, Infinity);
+  const named = new Set(names);
+  // Only the claimant's drafts are their work: a ready pull request belongs to
+  // its reviewer, a ready one that closes the issue ends the claim anyway, and
+  // another agent's draft that only mentions the issue is not this claim's.
+  const own = linked.filter(pr => pr.draft && (closing.includes(pr) || ownRefsBranch(pr.head.ref, number, named)));
+  const keep = labels.includes(NeedsDecision) || own.some(pr => labelNames(pr.labels).includes(NeedsDecision));
   const claim = await lastLabeled(github, repo, number, InProgress);
-  // Only drafts are the claimant's work: a ready pull request belongs to its
-  // reviewer, and a ready one that closes the issue ends the claim anyway.
   const activities = [];
-  for (const pr of linked.filter(pr => pr.draft)) activities.push(await prActivity(github, repo, pr));
+  for (const pr of own) activities.push(await prActivity(github, repo, pr));
   const prBranches = new Set(linked.map(pr => pr.head.ref));
   const branches = [];
-  for (const name of branchNames(comments).filter(name => !prBranches.has(name))) {
-    branches.push([name, await pushActivity(github, repo, name)]);
+  for (const name of names.filter(name => !prBranches.has(name)).slice(0, MaxBranchCandidates)) {
+    if (branches.length >= MaxBranches) break;
+    const activity = await pushActivity(github, repo, name);
+    // A file path or other slashed word in backticks has no commit and no pushes.
+    if (activity.sha || activity.pushed) branches.push([name, activity]);
   }
-  return { labels, keep, closing, linked, comments,
+  return { labels, keep, closing, linked, own,
+    namedBranches: branches.map(([name]) => name),
     ready: closing.some(pr => !pr.draft),
     last: Math.max(claim, ...activities.map(activity => activity.pushed), ...branches.map(([, activity]) => activity.pushed)),
     signature: JSON.stringify([claim, activities.map(activity => activity.signature), branches]),
@@ -205,11 +242,21 @@ async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun })
     const checked = await issueSnapshot(github, repo, repoName, issue.number);
     if (!checked || !checked.labels.includes(InProgress) || checked.keep || checked.ready || changedOrRecent(before, checked, IssueHours, now)) continue;
 
-    const draft = checked.closing.find(pr => pr.draft) ?? checked.linked.find(pr => pr.draft);
-    const branch = branchNames(checked.comments)[0];
-    const resume = draft
-      ? `Continue draft #${draft.number} (\`${draft.head.ref}\`) rather than starting again.`
-      : branch ? `Check \`${branch}\` for earlier work before starting again.` : 'No pushed work was found.';
+    const draft = checked.own[0]; // drafts that close the issue come first
+    const branch = checked.namedBranches[0];
+    // A ready pull request that refers to the issue is with its reviewer: name
+    // it so the next agent reads what it leaves and does not push to it.
+    const ready = checked.linked.filter(pr => !pr.draft);
+    const list = ready.map(pr => `#${pr.number}`).join(', ');
+    const underReview = ready.length === 0 ? null : ready.length === 1
+      ? `Ready pull request ${list} refers to this issue and is with its reviewer: read what it leaves before starting, and don't push to its branch.`
+      : `Ready pull requests ${list} refer to this issue and are with their reviewers: read what they leave before starting, and don't push to their branches.`;
+    const resume = [
+      draft ? `Continue draft #${draft.number} (\`${draft.head.ref}\`) rather than starting again.`
+        : branch ? `Check \`${branch}\` for earlier work before starting again.`
+          : underReview ? null : 'No pushed work was found.',
+      underReview,
+    ].filter(Boolean).join(' ');
     core.info(`Releasing #${issue.number}: nothing pushed for ${age(now, checked.last)}.${dryRun ? ' (dry run)' : ''}`);
     if (dryRun) continue;
 
@@ -240,14 +287,16 @@ async function reviewSnapshot(github, repo, number) {
   const labels = labelNames(pr.labels);
   const claim = await lastLabeled(github, repo, number, Reviewing);
   const activity = await prActivity(github, repo, pr);
-  return { pr, labels, keep: labels.includes(NeedsDecision), last: Math.max(claim, activity.pushed),
+  // status:needs-decision keeps no review claim: a reviewer who needs the
+  // owner hands the pull request back to draft instead.
+  return { pr, labels, last: Math.max(claim, activity.pushed),
     signature: JSON.stringify([claim, activity.signature]) };
 }
 
 async function restoreActiveReview(github, repo, number, before, now) {
   const live = await reviewSnapshot(github, repo, number);
   if (live.pr.state !== 'open' || live.pr.draft) return true;
-  if (!live.keep && !live.labels.includes(Reviewing) && !changedOrRecent(before, live, ReviewHours, now)) return false;
+  if (!live.labels.includes(Reviewing) && !changedOrRecent(before, live, ReviewHours, now)) return false;
   if (!live.labels.includes(Reviewing)) await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [Reviewing] });
   return true;
 }
@@ -256,16 +305,16 @@ async function releaseReviewClaims({ github, core, repo, now, dryRun }) {
   const openPrs = await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 });
   for (const pr of openPrs.filter(pr => labelNames(pr.labels).includes(Reviewing))) {
     const before = await reviewSnapshot(github, repo, pr.number);
-    if (before.pr.state !== 'open' || before.pr.draft || !before.labels.includes(Reviewing) || before.keep || now - before.last < ReviewHours * Hour) continue;
+    if (before.pr.state !== 'open' || before.pr.draft || !before.labels.includes(Reviewing) || now - before.last < ReviewHours * Hour) continue;
     const checked = await reviewSnapshot(github, repo, pr.number);
-    if (checked.pr.state !== 'open' || checked.pr.draft || !checked.labels.includes(Reviewing) || checked.keep || changedOrRecent(before, checked, ReviewHours, now)) continue;
+    if (checked.pr.state !== 'open' || checked.pr.draft || !checked.labels.includes(Reviewing) || changedOrRecent(before, checked, ReviewHours, now)) continue;
     core.info(`Releasing the review claim on #${pr.number}: nothing pushed for ${age(now, checked.last)}.${dryRun ? ' (dry run)' : ''}`);
     if (dryRun) continue;
     if (!await removeLabel(github, repo, pr.number, Reviewing)) continue;
     if (await restoreActiveReview(github, repo, pr.number, checked, now)) continue;
     await github.rest.issues.createComment({
       ...repo, issue_number: pr.number,
-      body: `${Marker}\nReview claim released: nothing was pushed for ${ReviewHours} hours. Another reviewer may claim it when they start reviewing.`,
+      body: `${Marker}\nReview claim released: nothing was pushed for ${ReviewHours} hours (head ${checked.pr.head.sha.slice(0, 8)}). Another reviewer may claim it when they start reviewing.`,
     });
     await restoreActiveReview(github, repo, pr.number, checked, now);
   }
