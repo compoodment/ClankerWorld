@@ -219,7 +219,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -234,8 +234,8 @@ The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
-for fields and ground lots, schema 35 for conversations, schema 36 for personal
-equipment, and schema 37 for reusable containers, record when those fields were
+for fields and ground lots, schema 35 for conversations, schema 37 for personal
+equipment, and schema 38 for reusable containers, record when those fields were
 introduced; they do not allow an earlier checkpoint schema past the current
 alpha cutoff.
 
@@ -261,6 +261,7 @@ alpha cutoff.
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 38 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

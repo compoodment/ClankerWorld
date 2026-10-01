@@ -213,9 +213,9 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is null)
             return;
-        var missing = FoodRoomMissing(actor, state);
-        if (missing == 0 || SpareCargo(actor).Sum(lot => lot.Quantity) < missing ||
-            SpareCargoDestination(actor, state, missing) is not { } destination)
+        var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        if (cargo.Count == 0 ||
+            SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
             return;
         candidates.Add(new("make_room_for_food",
             "Set down spare supplies with your household so gathered food fits in your load.", priority,
@@ -229,16 +229,33 @@ public sealed partial class PrivateWorldRuntime
         return Math.Max(0, required - FreeCarryCapacity(actor));
     }
 
-    private IEnumerable<InventoryLot> SpareCargo(string actor)
+    private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity);
+
+    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing)
     {
+        if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
-        return society.Checkpoint.Inventory.Lots
-            .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+        var inventory = society.Checkpoint.Inventory;
+        var spare = inventory.Lots
+            .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+                lot.DeliveryBuildingId is null &&
                 lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
-                lot.ItemKind is not ("field_map" or "field_record") && AvailableLotQuantity(lot) == lot.Quantity)
+                lot.ItemKind is not ("field_map" or "field_record") && AvailableLotQuantity(lot) == lot.Quantity &&
+                (!InventoryContainerRules.IsContainer(lot.ItemKind) || !HasActiveContainerReservation(inventory, lot.Id)))
             // Tools speed up later gathering, so they are set down last.
             .OrderBy(lot => lot.ItemKind is "tool" or "wooden_axe" or "wooden_pickaxe" ? 1 : 0)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal);
+        var moves = new List<SpareCargoMove>();
+        foreach (var lot in spare)
+        {
+            var vessel = InventoryContainerRules.IsContainer(lot.ItemKind);
+            var quantity = vessel ? 1 : Math.Min(missing, lot.Quantity);
+            var physicalQuantity = vessel ? ContainerFamilyQuantity(inventory, lot.Id) : quantity;
+            moves.Add(new(lot, quantity, physicalQuantity));
+            missing -= physicalQuantity;
+            if (missing <= 0) return moves;
+        }
+        return [];
     }
 
     /// <summary>The household House when it has room, otherwise the household's pile at camp.</summary>
@@ -259,25 +276,25 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return;
-        var missing = FoodRoomMissing(actor, state);
-        if (missing == 0 || SpareCargoDestination(actor, state, missing) is not { } destination)
+        var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        if (cargo.Count == 0 ||
+            SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
             return;
         if (!IsWithinInteractionRange(state.Position, destination.Position, destination.Range))
         {
             MoveToward(actor, state, destination.Position, "make_room", destination.Range);
             return;
         }
-        foreach (var lot in SpareCargo(actor).ToArray())
+        foreach (var move in cargo)
         {
-            if (missing == 0) break;
-            var quantity = Math.Min(missing, lot.Quantity);
+            var lot = move.Lot;
+            var quantity = move.TransferQuantity;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
                 "spare_cargo_stored", destination.StorageBuildingId,
                 destinationGroundPosition: destination.StorageBuildingId is null
                     ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
             AppendEvent("spare_cargo_stored", $"{actor}:{lot.ItemKind}:{quantity}:{destination.StorageBuildingId ?? "camp"}");
-            missing -= quantity;
         }
     }
 }

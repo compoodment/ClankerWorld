@@ -421,6 +421,77 @@ public sealed class PersonalEquipmentTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HungryCarriersMoveWholeJugFamiliesAndLeaveReservedContentsInPlace(bool reserved)
+    {
+        using var initial = NormalPathWorld.CreateGenerated("food-capacity-boundary", _ => new Choices([]));
+        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        var house = initial.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var inventory = state.Society.Society.Inventory;
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => lot.OwnerId != actor &&
+                !(lot.OwnerId == Alpha && InventoryContainerRules.IsFood(lot.ItemKind))).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "z-spare-jug", InventoryContainerRules.WaterJug, actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "a-contained-water", InventoryContainerRules.FreshWater,
+            actor, 4, containerLotId: "z-spare-jug");
+        if (reserved)
+            inventory = InventoryFixture.Reserve(inventory, "water-reserved", actor, "a-contained-water", 1,
+                "keep water for a job", inventory.WorldTick + 100);
+        else
+            inventory = InventoryFixture.AddLot(inventory, "protected-map", "field_map", actor, 3);
+        // Four units of free House storage cannot fit a jug plus its four water units.
+        var stored = inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        inventory = InventoryFixture.AddLot(inventory, "house-filler", "wood", Alpha,
+            BuildingStorageRules.UnitsPerTile - 4 - stored, storageBuildingId: house.InstanceId);
+        var camp = initial.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-warehouse").Position;
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = camp, HungerBasisPoints = 6_000, LastDecisionContext = null, Equipment = null }
+                : person).ToArray(),
+        };
+        var provider = new Choices(["make_room_for_food"]);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new Choices([]));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var reloaded = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var lots = reloaded.Society.Society.Inventory;
+        var jug = lots.GetLot("z-spare-jug");
+        var water = lots.GetLot("a-contained-water");
+        Assert.Equal(1, jug.Quantity);
+        Assert.Equal(4, water.Quantity);
+        Assert.Equal(jug.Id, water.ContainerLotId);
+        Assert.Equal(jug.OwnerId, water.OwnerId);
+        Assert.Null(jug.StorageBuildingId);
+        Assert.Null(water.StorageBuildingId);
+        if (reserved)
+        {
+            Assert.All(provider.Offers, offer => Assert.DoesNotContain("make_room_for_food", offer.Split(',')));
+            Assert.Equal(actor, jug.OwnerId);
+            Assert.Null(jug.GroundPosition);
+            Assert.Equal(InventoryReservationState.Reserved, lots.GetReservation("water-reserved").State);
+            Assert.Equal(5, PersonalEquipmentRules.CarriedQuantity(lots, actor, null));
+        }
+        else
+        {
+            Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("make_room_for_food", StringComparer.Ordinal));
+            Assert.Equal(Alpha, jug.OwnerId);
+            Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), jug.GroundPosition);
+            Assert.Null(water.GroundPosition);
+            Assert.Equal(3, PersonalEquipmentRules.CarriedQuantity(lots, actor, null));
+            Assert.Equal(actor, lots.GetLot("protected-map").OwnerId);
+            Assert.Single(reloaded.Events, item => item.Kind == "spare_cargo_stored" &&
+                item.Detail.StartsWith(actor + ":water_jug:1:", StringComparison.Ordinal));
+        }
+        world.Validate();
+    }
+
+    [Theory]
     [InlineData(5, false)]
     [InlineData(4, true)]
     public async Task FoodHarvestIsOfferedOnlyWhenTheWholeOutputFits(int cargo, bool fits)

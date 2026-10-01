@@ -1,1 +1,2 @@
 - Households can make storage pots and water jugs from clay, store food in pots to slow spoilage, and carry fresh water in reusable jugs.
+- Hungry adults can set down a spare filled vessel with all its contents to make room for food. Reserved contents stay in place, and the entire vessel load must fit the destination.
