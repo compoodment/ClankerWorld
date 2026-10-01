@@ -59,7 +59,7 @@ public partial class Main
                     MeasuredDraws = samples.Count,
                     MedianCpuSubmissionMs = samples.Order().ElementAt(samples.Count / 2),
                     MaximumCpuSubmissionMs = samples.Max(),
-                    Renderer = RenderingServer.GetRenderingDevice() is null ? "headless" : "graphics-device",
+                    DisplayServer = Godot.DisplayServer.GetName(),
                 }));
             }
             layer.QueueFree();
