@@ -1,0 +1,1 @@
+Restaurant cooking now uses a carried knife to reduce preparation time and wears it through use, following the same provisional tool balance as House cooking. Recipes still consume their exact ingredients and produce the same servings.
