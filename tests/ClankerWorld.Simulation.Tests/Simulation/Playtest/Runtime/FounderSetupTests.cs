@@ -152,11 +152,17 @@ public sealed class FounderSetupTests
                 },
             },
         };
-        using var stocked = PrivateWorldRuntime.Restore(state);
+        // Keep the adult without a household while exercising personal production.
+        // Household admission is a separate autonomous choice.
+        using var stocked = PrivateWorldRuntime.Restore(state, _ => new CandidateCaptureProvider());
+        Assert.Null(stocked.Society.GetInhabitant(agentId).HouseholdId);
         var started = stocked.StartProduction(tools.CanonicalId, "town-workshop", agentId);
         Assert.True(started.Applied, started.Failure);
         for (var tick = 0; tick < tools.DurationTicks; tick++)
+        {
             Assert.True((await stocked.AdvanceOneTickAsync()).Advanced);
+            Assert.Null(stocked.Society.GetInhabitant(agentId).HouseholdId);
+        }
         var output = stocked.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00");
         Assert.Equal(agentId, output.OwnerId);
     }
