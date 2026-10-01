@@ -86,10 +86,9 @@ public sealed class HouseholdBuildingUseCoverageTests
             Assert.Equal(world.Society.GetInhabitant(offer.AgentId).HouseholdId, building.HouseholdId);
         });
 
-        // Each household is offered the productive building it lacks, never a
-        // second House and never a building the Town shares.
-        Assert.Contains("building:blacksmith-1x2", farmFamilies);
-        Assert.Contains("building:farmhouse-1x1", smithFamilies);
+        // Building offers need materials in hand; HouseholdBuildingPlanTests
+        // checks the positive offers with that prerequisite supplied. This
+        // free-running world must never plan a second House or Town buildings.
         foreach (var families in new[] { farmFamilies, smithFamilies })
         {
             Assert.DoesNotContain("building:house-1x1", families);
