@@ -100,6 +100,45 @@ public sealed class TownBuildingManagementTests
     }
 
     [Fact]
+    public void ActiveEquipmentRepairPreventsRemovingOrReassigningItsWorkSite()
+    {
+        var (state, tailorId) = TailorTestWorld.Create("town-building-repair-work", 0);
+        var tick = state.Society.Society.WorldTick;
+        var tailor = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == tailorId);
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == "household:camp-alpha").Id;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "repair-site-coat", "padded_coat", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, "repair-site-coat", 8_000);
+        inventory = InventoryFixture.AddLot(inventory, "repair-site-cloth", "cloth", actor, 1);
+        const string reservationId = "repair-site-material";
+        inventory = InventoryFixture.Reserve(inventory, reservationId, actor, "repair-site-cloth", 1,
+            "equipment_repair", tick + 120);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = tailor.Position,
+                    HungerBasisPoints = 9_000,
+                    Equipment = new(Repair: new EquipmentRepairWork("repair-site-coat", tailorId, tick, 0, [reservationId])),
+                }
+                : person).ToArray(),
+        };
+
+        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var reassignment = world.ReassignBuilding(tailor.InstanceId, tailor.TownId, tailor.HouseholdId,
+            targetTownId: null, targetHouseholdId: "household:camp-beta");
+        Assert.False(reassignment.Applied);
+        Assert.Contains("active equipment repair", reassignment.Failure, StringComparison.OrdinalIgnoreCase);
+        var removal = world.RemoveBuilding(tailor.InstanceId, tailor.TownId, tailor.HouseholdId);
+        Assert.False(removal.Applied);
+        Assert.Contains("active equipment repair", removal.Failure, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Validate();
+    }
+
+    [Fact]
     public async Task EmptyTownWarehouseCanBeReassignedOffBorderAndItsStockIsSalvagedAfterReload()
     {
         var state = StartedState("town-empty-warehouse-salvage");

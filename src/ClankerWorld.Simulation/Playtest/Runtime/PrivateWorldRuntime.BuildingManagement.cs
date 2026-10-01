@@ -140,6 +140,8 @@ public sealed partial class PrivateWorldRuntime
             (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running))
             return "Wait for the active work at this building to finish before changing its owner or removing it.";
+        if (inhabitants.Values.Any(person => person.Equipment?.Repair?.BuildingId == id))
+            return "Finish or cancel the active equipment repair before changing this building's owner or removing it.";
         return null;
     }
 
