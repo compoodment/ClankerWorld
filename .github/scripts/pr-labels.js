@@ -12,7 +12,7 @@
 // - status:needs-review while a PR is open and not a draft. A reviewer's
 //   status:reviewing claim is removed when the PR closes or goes back to draft.
 // - The highest priority label (priority:p0 to priority:p3) of the open issues
-//   the PR closes, and at least priority:p1 when it changes how everyone works
+//   the PR closes, and priority:p0 when it changes how everyone works
 //   on the repository (.github/, .claude/, CONTRIBUTING.md, AGENTS.md or
 //   CLAUDE.md).
 // - status:has-pr on open issues the PR closes as described in CONTRIBUTING
@@ -34,9 +34,9 @@ const Ready = 'status:needs-pr';
 const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const InProgress = 'status:in-progress';
 // Changes to CI, labels, templates or the contribution rules affect every
-// agent, so they are at least P1.
+// agent, so they are P0.
 const WorkflowPaths = ['.github/', '.claude/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
-const WorkflowPriority = 'priority:p1';
+const WorkflowPriority = 'priority:p0';
 
 // Mirrors .github/workflows/close-fixed-issues.yml: one keyword per issue,
 // ignoring HTML comments and code.

@@ -135,7 +135,7 @@ public static class InventoryContainerRules
 /// before it creates replacement records, so a rejection leaves its supplied
 /// checkpoint untouched.
 /// </summary>
-public static class InventoryFixture
+public static partial class InventoryFixture
 {
     public static InventoryCheckpoint CreateGenesis(IEnumerable<InventoryLot> lots)
     {
@@ -397,6 +397,8 @@ public static class InventoryFixture
         }
 
         var source = checkpoint.GetLot(lotId);
+        // Physical transfers preserve condition and freshness. Usability is
+        // checked by consumption and barter, not by moving owned stock.
         EnsureOwnerAndAvailablePhysicalQuantity(checkpoint, source, senderId, quantity);
         if (source.ContainerLotId is not null)
             throw new InvalidOperationException("Container contents require an explicit physical take before they can move.");
@@ -421,7 +423,6 @@ public static class InventoryFixture
                 eventKind: "container_transferred",
                 detail: $"{transferId}:{senderId}:{recipientId}:{source.Id}:{purpose}");
         }
-
         var lots = quantity == source.Quantity
             ? checkpoint.Lots.Select(lot => lot.Id == source.Id
                     ? lot with

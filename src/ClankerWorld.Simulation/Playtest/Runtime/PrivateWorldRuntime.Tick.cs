@@ -18,15 +18,24 @@ public sealed partial class PrivateWorldRuntime
 
     public async ValueTask<PrivateWorldStepResult> AdvanceOneTickAsync(
         Func<bool>? commitPermitted, CancellationToken cancellationToken = default) =>
-        await AdvanceOneTickCoreAsync(false, commitPermitted, cancellationToken).ConfigureAwait(false);
+        await AdvanceOneTickCoreAsync(false, commitPermitted, null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Playable-host path: hosted decisions run between ticks, never inside a tick transaction.</summary>
     public ValueTask<PrivateWorldStepResult> AdvanceOneTickNonBlockingAsync(
         Func<bool>? commitPermitted = null, CancellationToken cancellationToken = default) =>
-        AdvanceOneTickCoreAsync(true, commitPermitted, cancellationToken);
+        AdvanceOneTickCoreAsync(true, commitPermitted, null, cancellationToken);
+
+    /// <summary>Playable-host path that binds birth choices into the admitted tick transaction.</summary>
+    public ValueTask<PrivateWorldStepResult> AdvanceOneTickNonBlockingAsync(
+        Func<bool>? commitPermitted,
+        Func<PrivateWorldRuntime, IReadOnlyList<PlaytestWorldEvent>, IReadOnlyList<PreparedChildModelSelection>> prepareChildModelSelections,
+        CancellationToken cancellationToken = default) =>
+        AdvanceOneTickCoreAsync(true, commitPermitted, prepareChildModelSelections, cancellationToken);
 
     private async ValueTask<PrivateWorldStepResult> AdvanceOneTickCoreAsync(
-        bool deferHosted, Func<bool>? commitPermitted, CancellationToken cancellationToken)
+        bool deferHosted, Func<bool>? commitPermitted,
+        Func<PrivateWorldRuntime, IReadOnlyList<PlaytestWorldEvent>, IReadOnlyList<PreparedChildModelSelection>>? prepareChildModelSelections,
+        CancellationToken cancellationToken)
     {
         await tickGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -105,6 +114,7 @@ public sealed partial class PrivateWorldRuntime
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
                 activeWillIds, inactiveWillReasons, cancellationToken).ConfigureAwait(false);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var gateHeld = true;
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -119,6 +129,29 @@ public sealed partial class PrivateWorldRuntime
                 if (!result.Advanced)
                 {
                     return result;
+                }
+                if (prepareChildModelSelections is not null)
+                {
+                    // Provider preparation can read another store whose owner
+                    // transactions may call back into this runtime. Do it outside
+                    // the runtime gate, then revalidate before committing.
+                    gate.Release();
+                    gateHeld = false;
+                    var births = result.Events.Where(item => item.Kind == "child_born")
+                        .Select(item => item.Detail).ToHashSet(StringComparer.Ordinal);
+                    foreach (var prepared in prepareChildModelSelections(proposed, result.Events))
+                    {
+                        if (!births.Contains(prepared.ChildId))
+                            throw new InvalidOperationException("A child model selection must belong to a child born in the committed tick.");
+                        proposed.ApplyChildModelSelection(prepared.ChildId, prepared.Selection);
+                    }
+                    await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    gateHeld = true;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (commitPermitted is not null && !commitPermitted())
+                        return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
+                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                        return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
                 CommitPreparedTick(proposed);
                 if (deferHosted)
@@ -146,7 +179,7 @@ public sealed partial class PrivateWorldRuntime
             }
             finally
             {
-                gate.Release();
+                if (gateHeld) gate.Release();
             }
         }
         finally
@@ -388,6 +421,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 
+            WearEquippedClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
             DrainNeeds();

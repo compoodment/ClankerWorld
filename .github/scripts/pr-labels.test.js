@@ -107,7 +107,7 @@ test('area, type and priority use current files and body; stale edits cannot rel
   });
   await state.run();
   assert.deepEqual(new Set(state.pr.labels), new Set([
-    'area:tooling', 'type:bug', 'priority:p1', 'status:reviewing', 'status:needs-review',
+    'area:tooling', 'type:bug', 'priority:p0', 'status:reviewing', 'status:needs-review',
   ]));
   assert.ok(state.issue.labels.includes('status:has-pr'));
 });
