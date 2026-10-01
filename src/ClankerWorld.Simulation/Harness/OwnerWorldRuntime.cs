@@ -400,7 +400,6 @@ public sealed class OwnerWorldRuntime
     private readonly object sync = new();
     private readonly IOwnerApprovedAssetReferencePolicy approvedAssetReferencePolicy;
     private readonly IDecisionProvider decisionProvider;
-    private readonly double minimumCognitionConfidence;
     private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
@@ -432,24 +431,15 @@ public sealed class OwnerWorldRuntime
     public OwnerWorldRuntime(
         string worldSeed,
         IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
-        IDecisionProvider? decisionProvider = null,
-        double minimumCognitionConfidence = 0.5)
+        IDecisionProvider? decisionProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
             DenyAllApprovedAssetReferencePolicy.Instance;
         this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
-        if (double.IsNaN(minimumCognitionConfidence) ||
-            double.IsInfinity(minimumCognitionConfidence) ||
-            minimumCognitionConfidence is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minimumCognitionConfidence));
-        }
-
-        this.minimumCognitionConfidence = minimumCognitionConfidence;
         world = ScriptedHarness.CreateGenesis(worldSeed);
         currentMap = CloneMap(world.Map);
-        cognition = new CognitionRuntime(world.Actor.Id, this.decisionProvider, minimumCognitionConfidence);
+        cognition = new CognitionRuntime(world.Actor.Id, this.decisionProvider);
     }
 
     /// <summary>
@@ -506,8 +496,7 @@ public sealed class OwnerWorldRuntime
         OwnerWorldRuntimeState state,
         string? expectedWorldSeed = null,
         IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
-        IDecisionProvider? decisionProvider = null,
-        double minimumCognitionConfidence = 0.5)
+        IDecisionProvider? decisionProvider = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -530,8 +519,7 @@ public sealed class OwnerWorldRuntime
         var runtime = new OwnerWorldRuntime(
             state.World.Identity.WorldSeed,
             approvedAssetReferencePolicy,
-            decisionProvider,
-            minimumCognitionConfidence);
+            decisionProvider);
         runtime.ImportState(state);
         return runtime;
     }
@@ -897,8 +885,8 @@ public sealed class OwnerWorldRuntime
         }
 
         var restoredCognition = state.Cognition is null
-            ? new CognitionRuntime(restoredWorld.Actor.Id, decisionProvider, minimumCognitionConfidence)
-            : CognitionRuntime.Restore(state.Cognition, decisionProvider, minimumCognitionConfidence);
+            ? new CognitionRuntime(restoredWorld.Actor.Id, decisionProvider)
+            : CognitionRuntime.Restore(state.Cognition, decisionProvider);
         if (state.Cognition is null && state.IsPaused)
         {
             _ = restoredCognition.Pause(restoredWorld.Identity.WorldTick);

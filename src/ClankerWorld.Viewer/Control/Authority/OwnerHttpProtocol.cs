@@ -84,6 +84,17 @@ public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, 
 public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
+/// <summary>
+/// Explicitly tests one hosted model with either a saved provider key, a named
+/// key slot, or a key pasted for this request only. This action does not change
+/// provider configuration and always represents one metered model call.
+/// </summary>
+public sealed record OwnerProviderSetupCheckAction(
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+
+/// <summary>A bounded result for an owner-triggered, metered model setup check.</summary>
+public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
+
 /// <summary>One listed model, and whether the checked key can use it.</summary>
 public sealed record OwnerProviderModelChoice(string Model, bool Available);
 
@@ -122,9 +133,10 @@ public sealed record OwnerFirstTownLayoutAction(int X, int Y);
 public sealed record OwnerFirstTownLayoutReceipt(int X, int Y, int Buildings, int RoadTiles);
 
 public sealed record OwnerAgentPlacementAction(
-    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition,
+    string? ExpectedHouseholdId, string? ExpectedTownId);
 
-public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId);
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId, string? TownId = null);
 
 public sealed record OwnerAgentRenameAction(string AgentId, string Name);
 
@@ -231,6 +243,7 @@ public static class OwnerHttpBinding
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -320,6 +333,31 @@ public static class OwnerHttpBinding
             $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
     }
 
+    public static string ProviderSetupCheckPayload(OwnerProviderSetupCheckAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var provider = PlayerDecisionProviders.Normalize(action.Provider);
+        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
+        if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
+            throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
+        if (action.ApiKey?.Length > 4096)
+            throw new ArgumentException("API keys must be 4096 characters or fewer.", nameof(action));
+        if (action.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _))
+            throw new ArgumentException("Choose a valid saved key.", nameof(action));
+        if (action.ApiKey is not null && action.CredentialSlotId is not null)
+            throw new ArgumentException("Choose a pasted key or a saved key, not both.", nameof(action));
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+            $"provider={EncodeRequired(provider, nameof(action.Provider))}",
+            $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}");
+    }
+
     public static string ProviderConfigurationPayload(OwnerProviderConfigurationAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -384,10 +422,12 @@ public static class OwnerHttpBinding
         var cognition = ProviderConfigurationPayload(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 

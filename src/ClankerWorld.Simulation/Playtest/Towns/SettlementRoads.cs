@@ -11,7 +11,7 @@ public sealed partial class PrivateWorldRuntime
         var occupied = worldSimulation.Buildings.SelectMany(building =>
         {
             var design = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-            return WorldContentSimulationRules.Footprint(design, building.Position);
+            return WorldContentSimulationRules.Footprint(design, building);
         }).ToHashSet();
         var removed = roadTiles.RemoveWhere(occupied.Contains);
         if (removed > 0) AppendEvent("saved_road_footprints_repaired", $"removed:{removed}");
@@ -44,8 +44,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var laid = new List<GridPoint>();
         if (building.TownId is null) return laid;
-        var buildingDesign = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        var footprint = WorldContentSimulationRules.Footprint(buildingDesign, building.Position).ToHashSet();
+        var buildingDesign = BuildingStorageRules.EffectiveDefinition(
+            worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building);
+        var footprint = WorldContentSimulationRules.Footprint(buildingDesign, building).ToHashSet();
         var occupied = RoadBlockedTiles();
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
                 .Where(next => !map.IsDiagonalFootStep(point, next)))
