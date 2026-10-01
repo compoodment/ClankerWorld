@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
+using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -19,7 +20,7 @@ public sealed record AgentKnowledgeFact(
     string? SourceAgentId = null,
     string? SourceArtifactId = null);
 
-/// <summary>A bounded, physical map or field record made from firsthand finds.</summary>
+/// <summary>A bounded, physical map, field record or book made from actually learned sites.</summary>
 public sealed record AgentKnowledgeArtifact(
     string Id,
     string CreatorId,
@@ -27,7 +28,10 @@ public sealed record AgentKnowledgeArtifact(
     string Kind,
     string Title,
     long CreatedTick,
-    IReadOnlyList<AgentKnowledgeFact> Facts);
+    IReadOnlyList<AgentKnowledgeFact> Facts,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? WritingBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? InputReservationIds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CopiedFromArtifactId = null);
 
 /// <summary>Saved personal knowledge and the bounded artifacts carrying it.</summary>
 public sealed record PrivateWorldKnowledgeState(
@@ -106,15 +110,19 @@ internal static class AgentKnowledgeRules
         var inventoryLots = society.Inventory.Lots.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var artifact in knowledge.Artifacts)
         {
+            if (schemaVersion < 31 && (artifact.Kind == "book" || artifact.WritingBuildingId is not null ||
+                artifact.InputReservationIds is not null || artifact.CopiedFromArtifactId is not null))
+                throw new InvalidDataException("Physical paper writing and books require private-world schema 31.");
             if (artifact is null || string.IsNullOrWhiteSpace(artifact.Id) || artifact.Id.Length > 128 ||
                 !knownAgents.Contains(artifact.CreatorId) || string.IsNullOrWhiteSpace(artifact.LotId) ||
-                artifact.Kind is not ("field_map" or "field_record") || string.IsNullOrWhiteSpace(artifact.Title) ||
+                artifact.Kind is not ("field_map" or "field_record" or "book") || string.IsNullOrWhiteSpace(artifact.Title) ||
                 artifact.Title.Length > 64 || artifact.Title.Any(char.IsControl) ||
                 artifact.CreatedTick < 0 || artifact.CreatedTick > worldTick ||
                 artifact.Facts is null || artifact.Facts.Count is < 1 or > MaximumFactsPerArtifact ||
+                artifact.Kind == "field_record" && artifact.Facts.Count != 1 ||
                 artifact.Facts.Select(item => item.Position).Distinct().Count() != artifact.Facts.Count ||
                 !inventoryLots.TryGetValue(artifact.LotId, out var lot) || lot.ItemKind != artifact.Kind || lot.Quantity != 1 ||
-                artifact.Facts.Any(fact => !IsValidArtifactFact(fact, artifact.CreatorId, artifact.CreatedTick, knownAgents, map)))
+                artifact.Facts.Any(fact => !IsValidArtifactFact(fact, artifact.CreatorId, artifact.CreatedTick, knownAgents, map, knowledge, artifact.CopiedFromArtifactId)))
                 throw new InvalidDataException("An agent knowledge artifact is invalid or has no matching physical inventory lot.");
         }
     }
@@ -124,17 +132,28 @@ internal static class AgentKnowledgeRules
         string creatorId,
         long createdTick,
         HashSet<string> knownAgents,
-        SeededMap map) =>
+        SeededMap map,
+        PrivateWorldKnowledgeState knowledge,
+        string? copiedFromArtifactId) =>
         fact is not null && !string.IsNullOrWhiteSpace(fact.Id) && fact.Id.Length <= 160 &&
-        fact.OwnerId == creatorId && fact.DiscovererId == creatorId &&
+        fact.OwnerId == creatorId &&
         knownAgents.Contains(fact.OwnerId) && knownAgents.Contains(fact.DiscovererId) &&
         map.Contains(fact.Position) && map.IsPassable(fact.Position) &&
         Enum.TryParse<TerrainKind>(fact.Terrain, ignoreCase: false, out _) &&
         fact.ResourceKinds is not null && fact.ResourceKinds.Count <= MaximumResourceKindsPerFact &&
         fact.ResourceKinds.All(kind => IsSafeToken(kind, 48)) &&
         fact.ResourceKinds.Distinct(StringComparer.Ordinal).Count() == fact.ResourceKinds.Count &&
-        fact.LearnedTick >= 0 && fact.LearnedTick <= createdTick && fact.Acquisition == "firsthand" &&
-        fact.SourceAgentId is null && fact.SourceArtifactId is null;
+        fact.LearnedTick >= 0 && fact.LearnedTick <= createdTick &&
+        (copiedFromArtifactId is null ? knowledge.Facts.Any(learned => learned.OwnerId == creatorId && learned.Position == fact.Position &&
+            learned.DiscovererId == fact.DiscovererId && learned.Terrain == fact.Terrain &&
+            learned.ResourceKinds.SequenceEqual(fact.ResourceKinds, StringComparer.Ordinal) && learned.LearnedTick <= createdTick &&
+            learned.Id == fact.Id && learned.LearnedTick == fact.LearnedTick && learned.Acquisition == fact.Acquisition &&
+            learned.SourceAgentId == fact.SourceAgentId && learned.SourceArtifactId == fact.SourceArtifactId)
+            : fact.Acquisition == "read" && fact.SourceArtifactId == copiedFromArtifactId &&
+                knowledge.Facts.Any(learned => learned.OwnerId == creatorId && learned.Position == fact.Position && learned.LearnedTick <= createdTick) &&
+                knowledge.Artifacts.Any(source => source.Id == copiedFromArtifactId && source.CreatorId == fact.SourceAgentId &&
+                    source.Facts.Any(original => original.Position == fact.Position && original.DiscovererId == fact.DiscovererId &&
+                        original.Terrain == fact.Terrain && original.ResourceKinds.SequenceEqual(fact.ResourceKinds, StringComparer.Ordinal))));
 
     private static bool IsSafeToken(string? value, int maximumLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength &&

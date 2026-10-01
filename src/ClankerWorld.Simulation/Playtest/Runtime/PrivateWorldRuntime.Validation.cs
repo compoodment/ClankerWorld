@@ -16,6 +16,7 @@ public sealed partial class PrivateWorldRuntime
     public void Validate()
     {
         ValidateBoatTransport(CaptureState());
+        ValidatePhysicalKnowledgeWriting(CaptureState());
         SocietyFixture.Validate(society.Checkpoint);
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
@@ -243,6 +244,7 @@ public sealed partial class PrivateWorldRuntime
 
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
+        ValidatePhysicalKnowledgeWriting(state);
         ArgumentNullException.ThrowIfNull(state);
         ValidateBoatTransport(state);
         ValidateVessels(state);

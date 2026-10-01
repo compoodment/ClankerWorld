@@ -489,6 +489,21 @@ public sealed partial class PrivateWorldRuntime
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith(KnowledgeReadPrefix, StringComparison.Ordinal))
+        {
+            ReadKnowledgeCandidate(inhabitantId, state, candidateId[KnowledgeReadPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(KnowledgeWritePrefix, StringComparison.Ordinal) || candidateId.StartsWith(KnowledgeCopyPrefix, StringComparison.Ordinal))
+        {
+            WriteOrCopyKnowledgeCandidate(inhabitantId, state, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith(KnowledgeSupplyPrefix, StringComparison.Ordinal))
+        {
+            SupplyKnowledgeWriting(inhabitantId, state, candidateId[KnowledgeSupplyPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
         {
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);

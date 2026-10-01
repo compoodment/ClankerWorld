@@ -325,6 +325,7 @@ public sealed partial class PrivateWorldRuntime
             StageBuiltInContent(CartContent.PackageId, BlacksmithContent.PackageId, CartContent.Create, "cart_content_staged");
             StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");
             StageRestaurantContent();
+            StageBuiltInContent(KnowledgeGoodsContent.PackageId, PotteryContent.PackageId, KnowledgeGoodsContent.Create, "knowledge_goods_content_staged");
             StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
             StageBuiltInContent(CombatGearContent.PackageId, BlacksmithContent.PackageId, CombatGearContent.Create, "combat_gear_content_staged");
             if (contentRegistry.ExportState().Packages.Any(package => package.Manifest.PackageId == HouseCraftingContent.PackageId &&

@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var state = inhabitants[actor];
         var kind = item.ItemKind;
-        if (kind is "field_map" or "field_record")
+        if (kind is "field_map" or "field_record" or "book")
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
@@ -29,6 +29,10 @@ public sealed partial class PrivateWorldRuntime
             return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
         }
 
+        if (kind == "paper")
+            return knowledge.Facts.Any(fact => fact.OwnerId == actor) && society.Checkpoint.Inventory.Lots
+                .Where(lot => lot.ItemKind == "paper" && (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)))
+                .Sum(AvailableLotQuantity) < 4;
         var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
             .Sum(AvailableLotQuantity);
         if (FoodItems.IsEdible(kind))
@@ -209,7 +213,7 @@ public sealed partial class PrivateWorldRuntime
         lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null && lot.GroundPosition is null &&
         (!inhabitants.ContainsKey(lot.OwnerId) || !IsEquippedLot(lot.OwnerId, lot.Id)) &&
-        AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ||
+        AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" or "book" ||
             OrnamentContent.IsOrnament(lot.ItemKind) || CombatGearContent.IsGear(lot.ItemKind) ? 1 : 2);
 
     private void MaintainSettlementTrades()

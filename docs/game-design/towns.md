@@ -472,11 +472,12 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Stone | Extract from a finite outcrop with a wooden pickaxe and carry it. | Stone tools, building foundations and expansion. |
 | Iron | Extract iron ore with a stone pickaxe; at the Blacksmith, a trial 2 ore + 1 wood makes 1 refined iron. | Iron tools, fittings, carts, weapons and armor. Ore and refined iron remain separate items. |
 | Plant fiber | Gather fiber plants or reeds; the plants regrow. | Cloth, rope and baskets. |
-| Cloth | Tailor Shop; trial 3 fiber → 1 cloth. | Clothing, sacks, bandages and later book covers. |
+| Cloth | Tailor Shop; trial 3 fiber → 1 cloth. | Clothing, sacks, bandages and book covers. |
 | Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
-| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making, paper-making and animal care. |
+| Paper | House crafting; trial 2 fiber + 1 fresh water → 2 paper. | Maps, written records, books and copies of real learned knowledge. |
 | Gold | Extract from a gold-bearing outcrop with an iron pickaxe and carry to the Blacksmith. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
@@ -550,6 +551,17 @@ for a basket. These amounts and rates are provisional.
 | Spear and sword | Wood and iron at the Blacksmith → equip → combat use → repair or replace. |
 | Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
 | Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
+
+The first knowledge-goods trial makes two paper from two fiber and one unit
+of fresh water at a House over 16 periods of work. Writing a map or one-site
+record consumes one paper. Binding a book consumes two paper and one cloth.
+An adult writes at their household's House with its on-site supplies, and
+carries the finished item. Maps and books contain at most nine actual learned
+sites; a record contains one. Reading and copying need the real source item.
+A household source at another building must be physically collected before
+copying it at the House. Copies preserve the original discoveries and their
+source; ownership of a copy does not grant other agents its contents. These
+quantities and bounded sizes are provisional.
 
 The first care trial uses a **1x2 Clinic**, built with ten wood and four stone.
 One cloth makes two bandages at a House or Tailor Shop. Two medicinal herbs,

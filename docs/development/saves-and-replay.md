@@ -219,7 +219,7 @@ to the household default on the next active tick. Failure/deadline does likewise
 Estate settlement waits for the pending will and commits once. Per-lot bequests,
 debts, minors and inheritance-law policy remain open.
 
-A quantity-one physical map or field record retains its lot ID when inherited.
+A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
@@ -357,3 +357,18 @@ and crafting reservations, equipping, gifts and consented ornament barter
 across reload. Giving a worn ornament clears the donor's reference before a
 checkpoint is published. No combat injury state is added. Older alpha worlds
 may be refused when content identity differs; their files remain preserved.
+
+## Physical paper and knowledge goods
+
+Current knowledge items retain their writing House and completed input
+reservations. A map or record consumes one paper; a book consumes two paper
+and one cloth. The decoder refuses missing, reused or unconsumed supply proof,
+or contents the author never learned. Fully consumed input lots can disappear;
+their completed reservations remain the proof. Paper production consumes
+contained water while preserving its jug.
+
+Copies retain the exact earlier source item, its sites and original discoverers.
+Reading or trading teaches only the receiving agent. Storage and inheritance
+preserve the item identity without broadcasting its contents. Existing alpha
+saves containing older free maps or records are refused before advancement,
+and the files are kept; no paper-writing history is invented for them.

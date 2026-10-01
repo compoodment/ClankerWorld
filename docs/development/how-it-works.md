@@ -204,7 +204,10 @@ previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 
-Exploration can create a one-site field record or a map of up to nine sites.
+Exploration records personal sites. Writing at an owned House with actual
+paper can create a one-site field record or a map of up to nine sites; a book
+uses two paper and a cloth cover and carries up to nine learned sites. Copies
+consume their own supplies and preserve the source item and original discoverer.
 Sharing nearby or bartering teaches only those sites to the recipient, retaining
 the discoverer and source agent. It does not grant access to unrelated knowledge.
 

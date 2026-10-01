@@ -377,7 +377,10 @@ call for each weather change.
   Towns, with occasional curiosity also possible. Agents may travel as far as
   they choose. Knowledge of what they discover can become maps, records and
   books that agents can trade; individual agents do not automatically know
-  the player's fully visible map.
+  the player's fully visible map. Learning a site does not create free paper
+  goods. Writing uses the House's actual paper, books also use cloth, and a
+  copy keeps the source item's actual sites and original discoverers. See the
+  [knowledge-goods trial](towns.md#item-and-resource-pipelines).
 
 ### Starting survival balance for playtesting
 

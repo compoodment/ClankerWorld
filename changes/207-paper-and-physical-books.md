@@ -1,0 +1,1 @@
+- Houses make paper from fiber and fresh water carried in reusable jugs. Adults write maps, records and books with actual learned sites and House supplies, then carry, read, copy, share or trade those items. Copies preserve the source's discoveries and original discoverers. Costs are provisional; older alpha saves with free maps or records are refused and kept.

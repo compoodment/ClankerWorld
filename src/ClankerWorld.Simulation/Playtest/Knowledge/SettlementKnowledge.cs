@@ -39,37 +39,10 @@ public sealed partial class PrivateWorldRuntime
 
     private void CreateKnowledgeArtifact(string actor, IReadOnlyList<GridPoint> positions)
     {
-        var facts = positions.Distinct()
-            .Select(position => knowledge.Facts.FirstOrDefault(fact => fact.OwnerId == actor && fact.Position == position))
-            .Where(fact => fact is not null)
-            .Cast<AgentKnowledgeFact>()
-            .Take(AgentKnowledgeRules.MaximumFactsPerArtifact).ToArray();
-        if (facts.Length == 0)
-            return;
-
-        var createdByActor = knowledge.Artifacts.Count(item => item.CreatorId == actor);
-        if (createdByActor >= AgentKnowledgeRules.MaximumArtifactsPerCreator ||
-            knowledge.Artifacts.Count >= AgentKnowledgeRules.MaximumArtifactsInWorld)
-        {
-            AppendEvent("agent_knowledge_artifact_limited", $"{actor}|artifact_cap|{facts.Length}");
-            return;
-        }
-
-        if (CarryingRoom(actor) == 0) return;
-        var sequence = knowledge.Artifacts.Count + 1;
-        var kind = facts.Length == 1 ? "field_record" : "field_map";
-        var artifactId = $"knowledge-artifact-{sequence:D6}";
-        var lotId = $"knowledge-lot-{sequence:D6}";
-        var title = facts.Length == 1 ? "Field record · 1 site" : $"Field map · {facts.Length} sites";
-        ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
-            inventory, lotId, kind, actor, 1, WorldTick));
-        knowledge = knowledge with
-        {
-            Artifacts = knowledge.Artifacts.Append(new AgentKnowledgeArtifact(
-                artifactId, actor, lotId, kind, title, WorldTick, facts)).ToArray(),
-        };
-        checkpointSchemaVersion = StateSchemaVersion;
-        AppendEvent("agent_knowledge_artifact_created", $"{actor}|{artifactId}|{kind}|{facts.Length}");
+        // Exploration records facts immediately. A physical copy is made only
+        // after returning to an owned House with actual paper in its stock.
+        var bounded = positions.Distinct().Take(AgentKnowledgeRules.MaximumFactsPerArtifact).ToArray();
+        WriteKnowledgeArtifactCore(actor, bounded.Length == 1 ? "field_record" : "field_map", bounded);
     }
 
     private void AddKnowledgeCandidates(
@@ -79,6 +52,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (NeedsUrgentWarmth(person))
             return;
+        AddPhysicalKnowledgeCandidates(candidates, actor, person);
 
         foreach (var artifact in HeldKnowledgeArtifacts(actor))
         {
@@ -93,7 +67,7 @@ public sealed partial class PrivateWorldRuntime
                 var targetName = society.Checkpoint.GetInhabitant(target.InhabitantId).Name;
                 candidates.Add(new CognitionCandidate(
                     KnowledgeSharePrefix + artifact.Id + "|" + target.InhabitantId,
-                    $"Share {artifact.Title} with {targetName}; they can copy sites they do not already know, and you keep your copy.",
+                    $"Share the sites in {artifact.Title} with {targetName}; they learn those sites, and you keep the item.",
                     52));
             }
         }
@@ -188,7 +162,9 @@ public sealed partial class PrivateWorldRuntime
     private AgentKnowledgeArtifact[] HeldKnowledgeArtifacts(string ownerId)
     {
         var heldLotIds = society.Checkpoint.Inventory.Lots
-            .Where(item => item.OwnerId == ownerId && item.ItemKind is ("field_map" or "field_record"))
+            .Where(item => item.OwnerId == ownerId && item.ItemKind is ("field_map" or "field_record" or "book") &&
+                item.StorageBuildingId is null && item.DeliveryBuildingId is null && item.ContainerLotId is null &&
+                item.GroundPosition is null && AvailableLotQuantity(item) == 1)
             .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         return knowledge.Artifacts.Where(item => heldLotIds.Contains(item.LotId))
             .OrderBy(item => item.CreatedTick).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
