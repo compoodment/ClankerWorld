@@ -951,16 +951,22 @@ new save remains available while listing is slow.
 Load World keeps a visible checking state until its signed catalog request
 finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the
-first opening can display them. Compatibility still comes from the host's
-checkpoint/history/configuration assessment; no compatibility cache or unchecked
-"compatible" shortcut was added. Open captures the chosen world's ID before
+first opening can display them. The host checks inactive checkpoints once per
+unchanged file in each process, then reuses only that structural result. It
+hashes the file bytes to notice replacements and still checks required history
+and model configuration every time; selecting a world performs a fresh restore.
+When a private host starts, a background task makes those checks for every
+inactive world, so the first list can reuse them. It holds the world-mutation
+lock only to read the catalog and each file, never while decoding or restoring,
+and a world it cannot check is left for the list to report as usual.
+Open captures the chosen world's ID before
 pausing, so a later catalog refresh cannot change its target. Open, Create and
 Delete share the owner-action gate; selecting a different row cannot re-enable
 Open or Delete until the current action finishes. Cleanup checks the current
 selection rather than a row retained across an await.
 
-Client cancellation does not interrupt a host
-assessment that already holds its mutation lock.
+Client cancellation stops the host between world assessments. It does not
+interrupt one restore already holding the mutation lock.
 
 World Settings reads autosaves for its current opening, paired device and
 observed world. Closing Settings, choosing Game Settings or changing worlds

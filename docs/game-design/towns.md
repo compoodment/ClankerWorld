@@ -555,9 +555,11 @@ The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
 The Town border alone does not silently take over another claim or transfer a
 building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. A later mayor, once that role exists,
-reviews land rights; how that office is created and what changes it may make
-remain open. The first Town begins with a council, not an assumed mayor.
+model text cannot rewrite these records. The first Town begins with a council,
+not an assumed mayor. Residents can later approve creating an elected mayor
+through the protected government-change process. Its creation, term and
+elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+specific adjudication procedures remain open.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -565,8 +567,16 @@ are not seized and ordinary physical movement is not stopped by the dispute
 record. Resolution needs an adjudicator authorized by Town law, with the
 authority, evidence and exact change recorded. With no such law or adjudicator,
 the dispute remains pending; there is no automatic first-claimer winner.
-Plot boundaries, ordinary shared-use grants, expiry and transfer procedures,
-and the future mayor's precise powers still need decisions.
+Later October 1 owner answers on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5924016895)
+settle the following land rules: a plot is a connected group of tiles and may
+include empty land; ordinary household permission continues unless disputed,
+with an optional agreed end date; households may transfer permission by
+agreement without mayor approval for every transfer. The elected mayor makes
+the final decision on disputes and what happens when an agreed period ends.
+These rules do not imply automatic confiscation or unilateral household
+transfers. Evidence, hearings, specific adjudication outcomes and handling
+conflicts of interest remain their own decision topic.
 
 ### How Roads and bridges appear
 
@@ -637,8 +647,8 @@ Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, access to other non-residential
 buildings, reservations and queues;
-claim boundaries, shared-use grants and mayoral powers; Town borders and
-governance; currency/land pricing;
+land adjudication and changes to claim boundaries; Town borders and
+cross-Town jurisdiction; currency/land pricing;
 transport progression; other terrain eligibility,
 travel effects; advanced resource/tool tiers,
 farming workflow and farm-cap formula, private versus public stock, business
@@ -687,14 +697,18 @@ adult residents should retain a vote in those elections.
   half the council.** Silence and abstention supply no approval. A four-person
   council needs three yes votes; a three-person council needs two. This is a
   strict majority of the council, not merely more yes than no among replies.
-  Procedures for changing the governing arrangement, land adjudication and
-  inheritance are separate choices; this does not settle them automatically.
+  Changing the governing arrangement uses the separate
+  [resident approval rule](#town-law-scope-and-changes). Land adjudication and
+  inheritance procedures are separate choices; an ordinary council vote does
+  not settle them automatically.
 - **The initial proposal window is one unpaused world day.** Resolve sooner
   when the result is settled; otherwise close at the deadline. Without sufficient
   approval then, the proposal does not pass. Paused time does not consume the
   window. Agents vote through their ordinary personal-model turns; make no extra
-  paid calls merely to poll for votes. How proposals reach eligible agents and
-  how changes in the voter roster affect an open vote still need decisions.
+  paid calls merely to poll for votes. Proposal delivery follows the agreed
+  [notice rules](#election-eligibility-ballots-and-notices). Changes to the
+  council roster follow the agreed
+  [proposal and scheduling rules](#council-changes-and-election-scheduling).
 - **The first elected council has three seats.** Use the already agreed
   eight-adult trial threshold to begin representation. A Town may later change
   its governing arrangement through the agreed in-world process; three seats
@@ -703,27 +717,340 @@ adult residents should retain a vote in those elections.
   per available seat.** In a three-seat election a voter may choose up to three
   distinct willing candidates, or fewer. No repeated vote for one candidate on
   the same ballot. Candidates with the highest totals win the available seats.
-  Ties, too few candidates, turnout, candidate eligibility, self-voting and
-  ballot revision remain in the follow-up interview; do not choose them in code.
+  Ties and too few candidates follow the agreed
+  [council continuity rules](#election-terms-and-council-continuity).
+  Turnout, candidate eligibility, self-voting and ballot revision follow the
+  agreed [ballot rules](#election-eligibility-ballots-and-notices).
 
 Use recorded Town adult residents for civic eligibility, including homeless
 residents and travelers, under the agreed membership work in
 [#602](https://github.com/compoodment/ClankerWorld/issues/602).
 These proposal, voting-window, seat-count and ballot choices are settled.
-Remaining election/roster and governing procedures are tracked in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+The remaining ordinary council-process rules are agreed in
+[Council changes and election scheduling](#council-changes-and-election-scheduling).
+The completed voting and election decision is tracked in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601). The authority and procedure
+for broader changes to the governing arrangement are agreed in
+[Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
+
+### Election terms and council continuity
+
+**Agreed with the owner on October 1, answers 29A–33A:**
+
+- **An elected council's initial term is ten unpaused world days**, one
+  season. Open voting before the scheduled term ends so residents can choose
+  the next council. For example, a council seated on day 12 has its next term
+  due on day 22. Paused time does not advance the term.
+- **A tie for an unresolved seat gets one runoff lasting one unpaused world
+  day, then a fair draw if the tie remains.** Only the tied candidates and
+  unresolved seats enter the runoff; already settled seats stay settled.
+  Record the draw so saving and reloading cannot reroll the outcome.
+- **A vacant seat needs a replacement election for the remainder of the
+  existing term.** Do not automatically promote a runner-up from an earlier
+  election or restart the term. If three willing representatives cannot be
+  formed, temporarily return to the all-adult council. Proposal majorities
+  during vacancies and election retries follow the agreed
+  [scheduling rules](#council-changes-and-election-scheduling).
+- **Falling below eight adults does not immediately end representation.**
+  Keep the elected arrangement until only three or fewer adult Town residents
+  remain. Then use the all-adult council until the Town reaches eight adults
+  again. A fall from eight adults to seven therefore keeps representation.
+  Count recorded residents, including travelers and homeless adults, rather
+  than adults currently standing inside the border.
+- **The initial election window is one unpaused world day.** The existing
+  council governs until a valid replacement is ready. During the first
+  election, the all-adult council continues governing. The vacancy and small
+  population rules above supply the all-adult fallback when needed. Election
+  windows and terms are initial values to try, not immutable world laws.
+
+Candidate and voter eligibility, turnout and ballot handling follow the
+[agreed rules below](#election-eligibility-ballots-and-notices). Vacancy proposal
+majorities, election retries and pending proposals follow
+[Council changes and election scheduling](#council-changes-and-election-scheduling).
+
+### Election eligibility, ballots and notices
+
+**Agreed with the owner on October 1, answers 34A–39A:**
+
+- **Any willing adult Town resident may stand for election and vote for
+  themselves.** Homeless residents and travelers qualify through recorded
+  membership. Standing requires the candidate's recorded agreement; another
+  agent cannot make them a willing candidate by merely naming them. Use the
+  [continuing candidate register](#council-changes-and-election-scheduling)
+  rather than a separate nomination period.
+- **There is no minimum election turnout, including for a runoff.** Each
+  winner must have received at least one vote in the main election. If a full
+  council of three eligible, willing, supported representatives cannot be
+  formed, use the all-adult fallback. One voter can therefore elect three
+  willing candidates, but a zero-vote candidate cannot gain a seat through
+  a draw. A runoff with no new ballots can still end with the agreed fair draw
+  among the previously supported, tied candidates.
+- **Fix the eligible voter and candidate lists when voting opens.** Later
+  arrivals, newly grown adults and late volunteers wait for a later election.
+  If an agent dies or leaves recorded Town membership before that window
+  closes, remove their eligibility, their ballot and any candidacy. Travel alone
+  does not remove eligibility. A runoff starts with a fresh eligible voter
+  list, but its candidates remain limited to the original, still-eligible tied
+  candidates; it is not a new opportunity to nominate someone else.
+- **Election ballots may change until the deadline; a council proposal vote
+  is final once cast.** Count only the latest election ballot from each voter.
+  Final proposal votes preserve early resolution once a result is settled;
+  election ballots do not become final merely because a candidate leads
+  before closing.
+- **Agents learn about proposals and candidates through actual Town notices
+  or another agent relaying information.** What they read or hear enters their
+  ordinary personal-model context. Do not automatically inject unseen civic
+  information into every resident's knowledge or invent candidate positions.
+  A traveler can miss an election. Relayed claims remain what was communicated,
+  rather than automatically becoming verified world facts.
+- **When a selected candidate withdraws, remove that choice and keep the
+  ballot's other choices.** The voter may revise the ballot during the
+  remaining window. Withdrawal does not reset the deadline or require every
+  affected voter to submit again. A ballot for Mira, Sol and Ash becomes a
+  ballot for Sol and Ash if Mira withdraws.
+
+These eligibility, ballot and delivery rules are settled. The remaining
+ordinary process choices are agreed below; this completes
+[#601](https://github.com/compoodment/ClankerWorld/issues/601)'s voting and
+election interview.
+
+### Council changes and election scheduling
+
+**Agreed with the owner on October 1, answers 40A–42A, 43B and 44A–45A:**
+
+- **A representative council still needs two yes votes while seats are
+  vacant.** One remaining representative cannot approve an ordinary proposal
+  alone. When the all-adult fallback governs, use a strict majority of its
+  own adult membership instead of the representative council's threshold.
+- **Close unfinished ordinary council proposals without passage when the
+  council changes.**
+  This applies to changes in eligible council membership, representatives or
+  governing form. An agent may submit the proposal afresh to the current
+  council, with fresh votes and a new one-unpaused-day window. Previously
+  settled decisions stay settled. For example, an admission into an all-adult
+  council changes its membership and closes other unfinished proposals.
+- **Merge equivalent pending requests without resetting the deadline.**
+  After failure or withdrawal, wait one unpaused world day before retrying the
+  same request. Material new information or changed circumstances, including
+  a changed council, allow earlier reconsideration. Merely rewording the same
+  admission request does not restart its window.
+- **Keep a continuing register of willing candidates; there is no separate
+  nomination period.** Agents may nominate themselves or explicitly accept
+  another agent's nomination through ordinary personal-model turns and actual
+  notices. Regular voting opens one unpaused world day before the scheduled
+  term ends. Initial or replacement voting can open immediately using the
+  eligible registered candidates, subject to the one-contest rule below.
+  Candidate and voter lists still become fixed when each voting window opens.
+  Registration during that window is for a later contest. A cutoff runoff
+  remains limited to its original eligible tied candidates.
+- **Retry an unsuccessful election after one unpaused world day; materially
+  improved circumstances allow an earlier attempt.** Use the continuing
+  register for the new attempt, with no added nomination phase. A failed
+  regular election does not shorten the incumbents' remaining term; after
+  that term ends, use the all-adult fallback while retrying. An unfinished
+  runoff retains the existing council under the agreed continuity rule.
+  Candidate-related fallback may retry below eight residents while more than
+  three adults remain. If representation ended because the population fell
+  to three or fewer, elections still wait until eight adults again.
+- **Keep one active election process per Town; the scheduled full election
+  takes priority when its voting opens.** Stop unresolved replacement voting
+  and use fresh ballots for the full election. Already decided replacement
+  seats remain valid for the old term's remainder; do not undo them while
+  cancelling an unresolved round for another seat. A vacancy arising during
+  the full election is handled by that contest. Agreement to fill a short
+  vacancy does not automatically mean agreement to stand for the next full
+  term. With the continuing register, priority starts at regular voting, not
+  at an invented nomination phase.
+
+These rules complete the initial ordinary proposal and election process.
+Law scope and the protected government-change process are agreed below.
+The mayor's office is also agreed below; enforcement and other topics stay separate.
+Implementation is tracked in
+[#618](https://github.com/compoodment/ClankerWorld/issues/618), followed by
+Town membership and admission integration in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
+
+### Town law scope and changes
+
+**Agreed with the owner on October 1, answers 46A–51A:**
+
+- **Agents may propose open-ended social laws with a clear subject and
+  scope.** Laws can concern shared work, resource use, businesses or public
+  conduct, rather than being restricted to a prepared catalogue. Passing
+  “do not cut trees in this grove” records a social rule; it does not make
+  cutting physically impossible or introduce a new world power.
+- **Local conduct laws apply to visitors within the Town's jurisdiction.**
+  A visiting lumberjack is subject to the protected-grove rule without
+  becoming a resident. Whether ignorance of a law affects consequences
+  remains part of the enforcement interview.
+- **Territorial laws apply on the Town's formally claimed land, or a
+  specified site within it.** A drawn border alone cannot extend authority
+  over another claim. Household use plots can fall under Town law without
+  making the household's tools or buildings Town property. Duties attached
+  to residency must say so explicitly; territorial rules do not follow
+  travelers everywhere. This does not decide land grant, transfer or
+  adjudication powers beyond the already agreed ownership/use-right rules.
+- **Amend or repeal a law through the ordinary council proposal and voting
+  process.** Identify the affected law, record its replacement or repeal,
+  and preserve its history. For the initial three-person council, two yes
+  votes can repeal grove protection through an ordinary proposal. Changing
+  the governing arrangement instead uses the resident approval rule below.
+- **A change to the governing arrangement needs yes votes from more than
+  half of all adult Town residents.** Representatives cannot replace
+  elections with a permanent ruler using an ordinary council vote. An
+  eight-adult Town needs five yes votes to establish a mayor or change its
+  electoral arrangement. Silence supplies no approval. The voting roster,
+  procedure and handover safeguards are agreed in
+  [Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
+- **A new law applies from its recorded adoption onward.** Assess earlier
+  conduct under the laws that existed then; do not create a new violation by
+  applying a later law retrospectively. Protecting the grove today does not
+  turn yesterday's tree-cutting into a new violation. Preserve law history so
+  the applicable version remains identifiable.
+
+These law-scope, visitor, amendment and prospective-application rules are
+settled. A law remains separate from fixed physics, ownership and validated
+action authority.
+
+### Government-change procedure and safeguards
+
+**Agreed with the owner on October 1, answers 52A–57A:**
+
+- **Any adult Town resident may initiate a valid government-change proposal.**
+  It does not need permission from the current council or leader. Officeholders
+  cannot veto the resident vote merely to keep their positions. Homeless
+  residents have the same eligibility as housed residents.
+- **Voting lasts one unpaused world day and uses the adult resident list at
+  opening.** Later arrivals and agents who become adults wait for the next
+  vote. Death or departure from Town membership removes that resident's vote
+  and reduces the electorate; travel alone changes neither. Approval requires
+  yes votes from more than half of the remaining eligible opening list. Eight
+  voters need five yes votes; if two leave the Town before resolution, the
+  remaining six need four. Votes are final once cast, silence is not approval,
+  and the vote can resolve early once its result is settled. Actual notices
+  and communication supply awareness through agents' normal model turns.
+- **Only one government-change process runs per Town, including its handover.**
+  Merge equivalent proposals without resetting the clock; queue different
+  proposals. Each subsequent process opens with a fresh electorate and fresh
+  votes. A failed or withdrawn proposal has the ordinary one-day retry
+  cooldown, unless a material change justifies an earlier retry.
+- **The initial supported forms are an all-adult council, an elected council,
+  and one elected leader.** A proposal must spell out who makes ordinary
+  decisions, how officeholders are selected, their tenure and what happens
+  when an office becomes vacant. More custom forms need their own design;
+  ordinary law text cannot create them. Creating a role does not itself grant
+  new land powers or authority to confiscate household property. The mayor's
+  already agreed land-dispute role and election method remain applicable;
+  its office rules are agreed below.
+- **Approval starts a handover lasting at most three unpaused world days.**
+  This is an initial trial duration. The existing government continues until
+  a valid replacement is ready; the new form takes effect at that recorded
+  handover, rather than immediately when the approval vote passes. Elective
+  offices need willing, eligible officeholders selected through the agreed
+  voting rules. If a mayoral vote ties, another vote between the tied highest
+  candidates is required; do not use the council's random tie-break. If no
+  valid replacement is ready by the handover deadline, cancel the attempted
+  transition. An all-adult council consists automatically of eligible adults
+  and does not require each resident to consent to taking a seat.
+- **The resident government-change procedure stays protected under every
+  supported form.** A new governing arrangement cannot abolish or change this
+  route or its required resident majority. If no government can validly
+  continue under the agreed continuity rules and no valid successor is ready,
+  restore the all-adult council. Existing laws, Town membership
+  and property records survive a government change or restoration. This does
+  not revive a Town with no living residents or bring abandoned-Town work
+  forward from its parked stage.
+
+The initiative, vote, serialization, supported forms, handover and restoration
+rules are settled. Law and government decisions are recorded through
+[#619](https://github.com/compoodment/ClankerWorld/issues/619); land implementation
+remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
+
+### The mayor's office and elections
+
+**Agreed with the owner on October 1, answers 58A, 59A, 60B and 61A–63A:**
+
+- **Start the first mayoral election promptly after residents approve creating
+  the office through the protected government-change vote.** There is no
+  minimum population. A four-adult Town can approve the office without waiting
+  to reach eight adults. Authority begins only at a valid recorded handover;
+  approval alone does not appoint a mayor.
+- **Initially the mayor works alongside the council.** The mayor handles the
+  already agreed land disputes and permission expiries; the council retains
+  ordinary laws and admissions. Giving one elected leader those broader
+  government powers requires an explicit protected government change. Land
+  adjudication and ordinary governing authority are distinct mandates even
+  when one person holds both; neither role silently grants the other, an extra
+  council vote, or ownership of the disputed property.
+- **A mayoral term initially lasts twenty unpaused world days.** Open renewal
+  voting one day before expiry. Incumbents may stand again; early removal or
+  replacement uses the protected resident process. A mayor seated on day 12
+  serves until day 32, with renewal voting opening on day 31. The council's
+  separate ten-day terms are unchanged.
+- **The mayoral office becomes vacant on death, resignation, Town departure,
+  or term expiry without a valid successor.** Travel alone does not remove
+  Town membership or the office. Land decisions wait for a valid mayor; an
+  eligible outgoing mayor does not continue beyond the term as a caretaker.
+  Hold an election promptly and give its winner a fresh full twenty-day term,
+  rather than the council's remainder-term replacement. The existing council
+  continues ordinary government. If the ordinary governing leader's mandate
+  is also vacant, use the protected all-adult fallback for ordinary decisions;
+  ending a separate land-mayor mandate does not remove an independently valid
+  governing leader. Lawful succession resumes the already approved arrangement
+  without another government-change vote. Nobody inherits the office or
+  becomes mayor automatically as runner-up.
+- **Reuse council ballot handling with explicit mayoral rules.** Only adult
+  Town residents vote or stand; homeless residents and travelers remain
+  eligible. Use one-day rounds, the continuing candidate-register mechanics,
+  fixed opening voter/candidate eligibility, departure/death removals, actual
+  notices, withdrawal handling, self-voting and revisable election ballots.
+  Willingness must specifically cover seeking the mayoral office; a council
+  candidacy is not mayoral consent. Each voter chooses one candidate. There
+  is no turnout minimum, but a winner needs at least one actual vote in the
+  deciding round. Most votes wins; tied highest candidates face another vote,
+  repeatedly if necessary, with fresh eligible voters and only the tied,
+  still-eligible candidates. Never use the council's draw. Failed attempts
+  retry after one unpaused day, or earlier following a material change.
+- **Keep one active election process per Town, with scheduled full council
+  elections taking priority.** Queue mayoral voting while that election runs.
+  An interrupted mayoral round closes without a result and its unfinished
+  ballots are discarded; resume with a fresh voting round and fresh eligible
+  voters. Preserve any previously recorded mayoral top tie and its remaining
+  eligible candidate field. The government-change handover's three-day clock
+  keeps running through scheduling delays. If that transition expires and
+  is cancelled, cancel its dependent mayoral contest too; do not later seat
+  an office that was never validly established.
+
+These choices settle creation, ordinary-government boundaries, tenure,
+vacancies, ballot handling and scheduling. Land evidence, hearings, specific
+outcomes, conflicts of interest and review of decisions remain separate from
+this office design. Law, government-change and office implementation is tracked
+in [#631](https://github.com/compoodment/ClankerWorld/issues/631), after the
+ordinary council and formal land-record foundations.
 
 ### Still to decide
 
 Town residency and newcomer approval are agreed in [Town membership](#town-membership).
-Still open: election timing/terms, ties, vacancies, population changes,
-turnout, candidate eligibility and self-voting, ballot revision, proposal
-delivery and changes to voter eligibility during an open vote; repeal details;
-how governments may change; which laws apply to whom and where; how a
-violation is witnessed, investigated, enforced, or punished; specific land
-rights grant and adjudication procedures;
+Election terms, ties, replacements and population transitions are agreed in
+[Election terms and council continuity](#election-terms-and-council-continuity).
+Eligibility, ballots, election roster changes and delivery are agreed in
+[Election eligibility, ballots and notices](#election-eligibility-ballots-and-notices).
+Ordinary proposal changes, candidate registration, retries and election overlap
+are agreed in [Council changes and election scheduling](#council-changes-and-election-scheduling).
+Law scope, visitor obligations, repeal and prospective application are agreed
+in [Town law scope and changes](#town-law-scope-and-changes).
+The protected resident vote and handover are agreed in
+[Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
+Mayor creation, terms, vacancies and elections are agreed in
+[The mayor's office and elections](#the-mayors-office-and-elections).
+Still open: how a violation is witnessed, investigated, enforced, or punished;
+specific land adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
+Law and government choices in
+[#619](https://github.com/compoodment/ClankerWorld/issues/619) are settled;
+land case procedures are the next decision topic in
+[#630](https://github.com/compoodment/ClankerWorld/issues/630).
 
 ## Item and resource pipelines
 

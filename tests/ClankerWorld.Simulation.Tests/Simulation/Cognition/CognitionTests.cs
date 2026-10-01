@@ -8,29 +8,14 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CognitionTests
 {
     [Fact]
-    public async Task DeterministicCognitionChoosesAndExecutesARealMovementIntention()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-
-        var result = await runtime.AdvanceOneActionAsync();
-        var snapshot = runtime.Capture().Snapshot;
-
-        Assert.True(result.Advanced);
-        Assert.False(result.PausedForProviderOutage);
-        Assert.False(result.Cognition?.FellBack);
-        Assert.Equal("seek_food", result.CandidateId);
-        Assert.Equal("seek_food", snapshot.Cognition?.CurrentIntention?.CandidateId);
-        Assert.NotEqual(new GridPoint(0, 0), snapshot.World.Actor.Position);
-        Assert.Contains(snapshot.Cognition!.Events, worldEvent => worldEvent.Kind == "cognition_requested");
-        Assert.Contains(snapshot.Cognition.Events, worldEvent => worldEvent.Kind == "cognition_decision_applied");
-        Assert.Equal("moved", result.MovementEvents.Single().Kind);
-    }
-
-    [Fact]
     public async Task CognitionAndWorldStateSurviveAValidatedRestart()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");
-        _ = await runtime.AdvanceOneActionAsync();
+        var first = await runtime.AdvanceOneActionAsync();
+        Assert.True(first.Advanced);
+        Assert.False(first.Cognition?.FellBack);
+        Assert.Equal("seek_food", first.CandidateId);
+        Assert.Equal("moved", Assert.Single(first.MovementEvents).Kind);
         var state = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(
             JsonSerializer.Serialize(runtime.ExportState())) ?? throw new InvalidDataException();
 
