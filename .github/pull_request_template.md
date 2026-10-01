@@ -17,7 +17,7 @@ before each number. "Implements" does not close anything, and "Fixes" followed
 by two numbers closes only the first. See
 https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#link-issues-from-the-pull-request -->
 
-- Author (tool and session ID, such as `Claude Code session 1a2b3c4d`, of each session that pushed before it was marked ready, or your name):
+- Author (tool and session ID, such as `Claude Code session 1a2b3c4d`, of each session that pushed while it was a draft, or your name):
 - Closes #  <!-- one keyword directly before each issue number: "Closes #<number>, closes #<number>" -->
 - Refs #  (and what remains)
 - Reason no issue is needed, if none:

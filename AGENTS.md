@@ -19,12 +19,13 @@ any change to a shared rule in CONTRIBUTING only.
 - Before changing files, look at the current branch, working tree and open pull
   requests. Keep unrelated and uncommitted work, and refresh the repository
   state instead of trusting old notes.
-- The rules change often, and you read them only when your session starts.
-  Note the commit you read them at (`git rev-parse --short origin/main`).
-  Before each new issue or review claim, run `git fetch origin` and
-  `git diff <that commit> origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md`.
-  If anything changed, follow the new rules from then on and note the new
-  commit.
+- The rules change often, and you read them only when your session starts,
+  from your checkout. At the start, run `git fetch origin` and
+  `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md`; if it
+  shows changes, read main's versions (`git show origin/main:CONTRIBUTING.md`).
+  Note `git rev-parse --short origin/main`, and before each new issue or review
+  claim fetch again and diff from that commit. If anything changed, follow the
+  new rules from then on and note the new commit.
 - Never skip required review to meet a deadline.
 
 ## Ask the owner in chat
@@ -36,7 +37,8 @@ solve. Give the options and your recommendation, highest priority first. Then
 record the answer yourself: a design choice in its game-design chapter, and a
 short comment on the issue saying it was the owner's answer. In the same step,
 remove `status:needs-decision` from the issue and from any pull request that
-waited on it.
+waited on it. If nobody holds the issue (no `status:in-progress`) and it is not
+a decision or owner task, add `status:needs-pr` too.
 
 An instruction the owner gives you in chat applies to your session at once,
 even where it differs from these files; say in your comments that it was the
@@ -74,7 +76,9 @@ line.
   change while you run.
 - Subagents and parallel workers belong to the session that started them. They
   sign with its ID and a role, such as `1a2b3c4d/fix-2`, work under its claims,
-  and never count as independent of it for review.
+  and never count as a different session for the pull request's review. The
+  one exception is the fresh-subagent check of a reviewer's own fix that
+  CONTRIBUTING's Review and merge asks for.
 - A comment with your ID is yours, even after a pause or a context reset. Your
   claim is still yours only while its label is on and no newer claim or
   "Claim released" comment follows yours. Check both when you resume, before
@@ -82,7 +86,7 @@ line.
   with anything useful and leave it to them. If nobody has, claim it again,
   provided you hold no other claim. The branch alone doesn't prove the claim is
   yours, because whoever continues a released draft uses the same branch.
-- Another session's claim stands while its label is on. Take it over only when
+- Another session's issue or review claim stands while its label is on. Take it over only when
   the owner asks ([how](#take-over-work-only-when-the-owner-asks)).
 
 ## Take over work only when the owner asks

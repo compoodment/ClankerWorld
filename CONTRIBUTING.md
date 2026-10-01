@@ -77,8 +77,8 @@ on the owner.
   marked ready. If the pull request goes back to draft and nobody holds the
   issue, it gets `status:needs-pr` back next to `status:has-pr`. When the last
   such pull request closes, `status:has-pr` comes off; if none merged, the
-  issue goes back to `status:needs-pr`, unless it has another status or is a
-  decision or owner task. `Refs` changes no issue labels. Quiet claims are
+  issue goes back to `status:needs-pr`, unless it is claimed, blocked, waiting
+  on the owner or parked, or is a decision or owner task. `Refs` changes no issue labels. Quiet claims are
   [released automatically](#claim-an-issue).
 - **Automatic on pull requests:** a priority (the highest of the open issues it
   closes; if none has one, of the open issues it refers to; otherwise P2; P0 if
@@ -169,8 +169,8 @@ and merge their work in before you continue.
 ### Claim an issue
 
 Before you start, replace `status:needs-pr` with `status:in-progress` and
-comment with who is working on it and your branch name in backticks, such as
-`codex/123-fix`. The cleanup below finds your pushes through that name. Agents
+comment with who is working on it and your branch name in backticks, with a
+prefix such as `codex/123-fix` (the cleanup finds only names with a slash). The cleanup below finds your pushes through that name. Agents
 sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
 
 - **One claim at a time.** Claim an issue when you start on it, not to line up
@@ -202,18 +202,21 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   when GitHub starts a scheduled run late.
 - **A claim lasts while its label is on.** `status:in-progress` means someone
   holds the issue, however long ago they last pushed. Only the claimant, the
-  release workflow or an owner request ends a claim, so don't decide on your
-  own clock that one has lapsed. Don't remove and re-add the label to restart
+  release workflow or an owner request ends a claim (or a reviewer clearing a
+  forgotten `Refs` claim after merging, under Review and merge), so don't
+  decide on your own clock that one has lapsed. Don't remove and re-add the label to restart
   the clock; add it again only when you claim the issue afresh. Another
   session's claim is taken over only when the owner asks
   ([how](AGENTS.md#take-over-work-only-when-the-owner-asks)).
 - **Waiting on the owner:** add `status:needs-decision` to the issue, or to
-  your own draft, and ask in chat. That keeps the claim.
+  your own draft, and ask in chat. That keeps the claim, and the 1.5 hours
+  start again when the label comes off.
 - **Waiting on anything else:** if you can keep working, keep pushing.
   Otherwise add `status:blocked`, name each blocker in the issue description
   as `Blocked by #123` or describe the outside event, push what you have and
   remove `status:in-progress`. A blocked issue stays out of the queue until
-  whoever finishes the blocker unblocks it.
+  whoever finishes the blocker, or learns that the outside event has happened,
+  removes `status:blocked` and adds `status:needs-pr` if nobody holds it.
 - **Stopping:** push your branch, put `status:needs-pr` back in place of
   `status:in-progress` (or `status:blocked`, as above), and comment with what
   you learned and the branch name.
@@ -240,7 +243,8 @@ closing keyword, and only exact wording works.
   before each number: `Closes #12, closes #13`. `Fixes` and `Resolves` work the
   same way. A draft closes nothing, so write `Closes` from the start rather
   than `Refs` as a placeholder.
-- `Refs #123` for an issue it relates to or only partly completes.
+- `Refs #123` for an issue it relates to or only partly completes; list
+  several as `Refs #12, #13`.
 - Other words close nothing: `Implements #123`, `Addresses #123` and
   `Part of #123` only mention the issue. `Fixes #12 and #13` closes only #12,
   and a bare number on the template's Closes line closes nothing.
@@ -288,8 +292,10 @@ remains on the issue and pull request, not in a second tracker.
    base to that branch and fill in the template's **Stacked on** line. While
    stacked, bring in newer main only by merging your base branch. When #A
    merges, GitHub moves your pull request to main, and main then needs merging
-   in. If your pull request needs another one's code but is not stacked on it,
-   write `Merge after #A` on the overlap line.
+   in. If #A closes without merging, change your base to main and drop the
+   parts of #A you don't need; if yours is already ready, its reviewer does
+   this. If your pull request needs another one's code but is not stacked on
+   it, write `Waits on #A` on the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
    someone who has not read the conversation, including the **Author** line.
@@ -360,14 +366,20 @@ completes, and nothing left to ask the owner.
   has claimed it (no `status:reviewing`), the author may convert it back to
   draft to fix a mistake in their own change, if they hold no other claim. Read
   the comments right after converting: if a review claim landed, mark it ready
-  again without pushing and comment instead. Otherwise put `status:in-progress`
-  back on its issues, with a signed comment naming the branch, before you push.
+  again without pushing, add `status:reviewing` back for that reviewer and
+  comment instead. Otherwise replace the `status:needs-pr` that converting added
+  to its issues with `status:in-progress`, with a signed comment naming the
+  branch, before you push.
   Once it is claimed, comment instead, and the reviewer includes the change or
   hands the pull request back.
 - **Only a hand-back sends a claimed pull request to draft.** A reviewer who
   needs something they can't do, such as an owner decision or a redesign,
-  converts it to draft and comments with what is needed. Its issues go back to
-  the queue, and the author, or any fixing agent, picks it up again.
+  converts it to draft and comments with what is needed. The issues it closes
+  go back to the queue automatically, and the author, or any fixing agent,
+  picks it up again. If it closes none, the reviewer also replaces
+  `status:blocked` on its `Refs` issues with `status:needs-pr`, naming the draft
+  to continue, or, for a direct owner request, tells the owner in chat what is
+  needed.
 
 Once the work is finished, waiting for review or for a prerequisite pull
 request to merge is not a reason to stay in draft. If it must wait for a pull
@@ -387,11 +399,12 @@ Release gates stay separate.
 ### Review and merge
 
 Here a **session** is one top-level Claude Code or Codex conversation together
-with every subagent or worker it starts. A pull request's **author** is the
-session that wrote it and marked it ready. The **reviewer** is a different
-session and normally merges. An author merges only when the owner explicitly
-asks and a different session has already reviewed the current head, or to
-revert a commit that broke main (below).
+with every subagent or worker it starts. A pull request's **authors** are the
+sessions that pushed to it while it was a draft; a reviewer's commits under a
+review claim do not make it an author. The **reviewer** is a session that is
+not an author, and normally merges. An author merges only when the owner
+explicitly asks and a session that is not an author has already reviewed the
+current head, or to revert a commit that broke main (below).
 
 Several reviewers may be merging at the same time, so:
 
@@ -445,8 +458,8 @@ Several reviewers may be merging at the same time, so:
   label, keep reviewing and wait. Otherwise add `status:merging` to yours,
   comment, and search again; if another pull request got the label first,
   remove yours and wait. Remove the label when you merge, when CI fails or when
-  you stop. A turn taken more than 30 minutes ago has lapsed, and anyone may
-  remove the label with a comment.
+  you stop. A merging turn is not a claim: one taken more than 30 minutes ago
+  has lapsed, and anyone may remove the label with a comment.
 - **Version numbers go to whoever merges first.** A save-format, schema or
   other version number in an unmerged pull request is provisional, and nobody
   reserves one, in a comment or anywhere else. Git merges two identical number
@@ -457,17 +470,15 @@ Several reviewers may be merging at the same time, so:
 
 Before merging, check that:
 
-1. The pull request is ready for review, not a draft. Since it was last marked
-   ready, only reviewers who claimed it have pushed: you, or an earlier
-   reviewer whose claim has ended. Review their commits as part of the head. If
-   the author pushed after marking it ready, review those commits too and say
-   so in your review.
+1. The pull request is ready for review, not a draft. Review every commit
+   pushed since it was last marked ready as part of the head, and say in your
+   review who pushed them if it was not you or an earlier reviewer whose claim
+   has ended.
 2. CI is green on the current head, and that head includes the latest main. If
    main was merged in or the branch changed after review, review and check the
    new head.
-3. A different session from the author reviewed that exact head. The author's
-   own subagents may check the work, but they are not this review, and commits
-   a reviewer adds do not make the reviewer an author.
+3. A session that is not one of its authors reviewed that exact head. The
+   authors' own subagents may check the work, but they are not this review.
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. If the description says this pull request must follow another, that one has
@@ -477,7 +488,7 @@ Before merging, check that:
 Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
 yourself, never GitHub's list of branch commit messages: what changed and why;
 the pull request's own `Closes` and `Refs` lines, or "Direct owner request; no
-issue"; `Author: <tool> session <id>`; `Review: <tool> session <id> reviewed
+issue"; `Author: <tool> session <id>` for each author; `Review: <tool> session <id> reviewed
 <sha>; checked <what>`; and each reviewer fix, or "none". Use no other closing
 keywords. GitHub then deletes the branch and moves pull requests stacked on it
 to main. Never delete a branch by hand while open pull requests target it:
@@ -498,16 +509,19 @@ After merging:
     even if others have merged since. Comment on that pull request, then open
     a pull request that reverts its squash commit, or a fix if that is quicker,
     with `priority:p0` and the failing run's link. A pure revert may be merged
-    by its author once its CI passes. Until main is green, nobody merges main
+    by its author once its CI passes. When a revert merges, reopen each issue
+    the reverted pull request closed, with `status:needs-pr` and a comment
+    naming the revert, the failing run and the branch to continue from. Until main is green, nobody merges main
     into other pull requests or copies the pending fix: wait for it to merge.
 - Check every `Closes` issue closed. The
   [Close fixed issues](.github/workflows/close-fixed-issues.yml) workflow closes
   any GitHub missed; if one is still open, close it with a comment naming the
   pull request and commit.
-- For each `Refs` issue, check a comment says what remains. If it still has
-  its author's `status:in-progress`, or is `status:blocked` waiting on this
-  pull request, replace that with `status:needs-pr`, or close it if nothing
-  remains.
+- For each `Refs` issue, check a comment says what remains. If its newest
+  claim is the author's claim from before this pull request was marked ready
+  (a forgotten claim), or it is `status:blocked` waiting on this pull request,
+  replace that label with `status:needs-pr` and comment, or close the issue if
+  nothing remains. Leave any newer claim alone.
 - Unblock what waited on this work. Search
   `is:open label:"status:blocked" <number>` for this pull request and each
   issue it closed. Remove `status:blocked` from pull requests that waited only
