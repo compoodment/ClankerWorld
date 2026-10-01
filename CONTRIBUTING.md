@@ -11,7 +11,10 @@ and coding agents; [AGENTS.md](AGENTS.md) adds what each agent job does. The
 
 [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues) is the only
 place for bugs, work, experiments and open decisions; there is no bug list in
-the repository. Search before opening one, and use the matching template:
+the repository. Search open and closed issues before opening one. If a closed
+issue's fix did not work, reopen it with the new evidence instead of opening a
+duplicate, and if an older open issue covers the same work, update it.
+Otherwise use the matching template:
 
 | Template | Use it when |
 | --- | --- |
@@ -30,7 +33,8 @@ the repository. Search before opening one, and use the matching template:
   ([how](AGENTS.md#ask-the-owner-in-chat)).
 - A routine fix follows the agreed design and existing behavior. A change that
   would settle an open game choice needs a Decision issue or an explicit owner
-  decision; a draft pull request does not make a suggestion agreed.
+  decision. An open pull request, draft or not, does not make a suggestion
+  agreed or a feature available.
 - Never include keys, pairing codes, private saves or raw model-service payloads.
 
 ### Labels
@@ -77,8 +81,9 @@ one, and a workflow updates the repository.
   used to work, goes one level higher.
 - **Features, experiments and decisions** start at P2, and move to P1 when the
   next playtest needs them.
-- **How we work:** changes to CI, labels, templates, CONTRIBUTING or AGENTS
-  affect every agent, so they are at least P1.
+- **How we work:** changes to CI, labels, templates, Claude Code settings
+  (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
+  are at least P1.
 - **At most 5 open P0 and 10 open P1 issues.** When a level is full, the least
   urgent issue there, counting the new one, goes down a level; between equals,
   the newest goes down.
@@ -157,8 +162,9 @@ was not checked.
 
 ## Organize the work
 
-For work with several steps, keep a short plan and work through it in order.
-Keep related code, docs and checks together. Do not mix unrelated changes,
+For work with several steps, keep a short plan and update it as you learn
+more. If you cannot finish, push your branch and say what remains where the
+next person will look. Keep related code, docs and checks together. Do not mix unrelated changes,
 start a competing fix (see [Claim an issue](#claim-an-issue)) or leave scratch
 files in the repository. Record progress, decisions and what remains on the
 issue and pull request, not in a second tracker.
@@ -219,7 +225,9 @@ Release gates stay separate.
 Update the affected docs in the same change, keeping one home per subject and
 linking to it. Only call a feature available once it works on the normal
 private-world and Godot play path; a test or data type alone does not make it
-playable.
+playable. Put detailed unresolved findings in Issues, and link them from a page
+only when that helps a reader understand a limitation. If a page moves, update
+the links to it and the documentation checks that list it.
 
 Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
@@ -250,9 +258,10 @@ reviewed the current head. Before merging, check that:
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. Any integration order named by this or another pull request is respected.
 
-The reviewer may fix what they find on the pull request's branch, small or
-large: merge main in, resolve conflicts, repair tests or change code. List each
-fix in the squash commit body, and check CI again on the new head.
+The reviewer fixes what they find on the pull request's branch rather than
+handing it back, small or large: merge main in, resolve conflicts, repair tests
+or change code. List each fix in the squash commit body, and check CI again on
+the new head.
 
 Squash-merge with the PR title as the commit subject, delete the branch, then:
 
@@ -278,6 +287,8 @@ These rules cover docs, issues, PR descriptions and game text.
   unfamiliar term when it is needed.
 - Keep agreed design, suggestions and current behavior clearly apart. Do not
   turn a preference into a promise, or a test result into a playtest claim.
+  When you reorganize design notes, keep their agreement labels and open
+  questions.
 - Keep exact technical detail in the developer pages, and explain its purpose
   first. Link to deeper explanations rather than repeating them.
 

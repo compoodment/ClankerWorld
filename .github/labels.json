@@ -19,7 +19,7 @@
     { "name": "status:blocked", "color": "6e7781", "description": "Waiting on another issue or pull request.", "aliases": [] },
     { "name": "status:needs-pr", "color": "2cbe4e", "description": "Agreed and unblocked; needs someone to pick it up and open a pull request.", "aliases": ["status:ready"] },
     { "name": "status:in-progress", "color": "fbca04", "description": "Claimed by someone working on an issue or pull request.", "aliases": [] },
-    { "name": "status:has-pr", "color": "0052cc", "description": "A pull request links this issue with Closes or Refs. Added automatically.", "aliases": [] },
+    { "name": "status:has-pr", "color": "0052cc", "description": "An open pull request closes this issue (Closes, Fixes or Resolves). Added automatically.", "aliases": [] },
     { "name": "status:needs-review", "color": "e4b429", "description": "Pull request is ready and waiting for review. Added automatically.", "aliases": [] },
     { "name": "status:parked", "color": "cfd3d7", "description": "Closed for now; agreed work for a later stage. Search closed issues to find it again.", "aliases": [] },
     { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a hands-on Windows playtest.", "aliases": [] },
