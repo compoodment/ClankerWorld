@@ -24,7 +24,9 @@ skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
 references and times, and rejects null entries in living or deceased skill
 lists as damaged checkpoint data. Current lesson progress and skills survive pause,
-save/load and replay. Old alpha lesson records need not load; no migration is
+save/load and replay. Schema 32 adds saved household requests and recent refusals
+for adults without an authorized home. These states are validated and survive
+save/load and replay. Older alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
 Private-world schema 34 adds household field tiles and their crop/work state.
@@ -110,9 +112,8 @@ that recorded events reproduce its expected results and digests.
   old-save handling is written only to keep one working. The rule above still
   applies: a save that cannot load is refused with a reason and kept. Finished
   releases promise forward migration later, as described in
-  [Saves](../game-design/saves.md). Old-save code already in the repository
-  stays until it is removed; [issue #487](https://github.com/compoodment/ClankerWorld/issues/487)
-  audits it.
+  [Saves](../game-design/saves.md). The cutoff and removal audit are recorded in
+  [issue #487](https://github.com/compoodment/ClankerWorld/issues/487).
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
@@ -165,10 +166,10 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
-Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON
-remains readable and migrates atomically on load. Historical generators and
-known package digests validate older generated maps without replacing their
-resource layout. Damaged chunks are rejected without replacing the save. Restore also removes
+Private checkpoint v2 stores verified 64×64 terrain-byte chunks. The old v1
+per-tile format is refused, and generated maps must match the current generator
+and package checks; there is no historical generator or package fallback.
+Damaged chunks are rejected without replacing the save. Restore also removes
 Road tiles inside validated saved building footprints, leaving other Roads and
 state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
@@ -183,6 +184,23 @@ not both Road tiles. It does not need the Town or building that caused the
 bridge. Traffic evidence must be recent, within its per-agent bound, for real
 unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
+
+The alpha accepts only the current private-world checkpoint schema, currently
+`PrivateWorldRuntime.StateSchemaVersion` 34. The minimum supported schema is
+the same value, so older alpha checkpoints are refused with a reason and left
+unchanged; no private-world migration runs. The current schema also includes
+bounded model-attempt status and last accepted model choice per agent, plus
+building footprint revisions, reserved expansion jobs, House guest invitations,
+learned skills and skill-based lessons, birth-model choices, and household fields
+with ground harvest lots. These fields retain their current validation and
+roundtrip behavior.
+
+The table records earlier schema changes. Its older-save behavior is historical;
+the current loader accepts only the current schema and does not run those
+migrations or backfills.
+Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
+for fields and ground lots, record when those fields were introduced; they do
+not allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |

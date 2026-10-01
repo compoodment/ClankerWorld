@@ -88,10 +88,12 @@ public sealed class FarmFieldTests
     }
 
     [Fact]
-    public void FieldsAndGroundHarvestLotsRequireTheirOwnSchema()
+    public void CurrentAlphaCutoffPreservesCurrentFieldsAndGroundHarvestLots()
     {
         var (state, _, household, point) = PreparedFarmer("field-schema");
-        using var preceding = Restore(state with { SchemaVersion = 33, Fields = null });
+        var preceding = Assert.Throws<InvalidDataException>(() => Restore(state with { SchemaVersion = 33, Fields = null }));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}", preceding.Message,
+            StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => Restore(state with { Fields = null }));
         var fieldState = state with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
         Assert.Throws<InvalidDataException>(() => Restore(fieldState with { SchemaVersion = 33 }));
