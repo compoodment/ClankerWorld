@@ -1029,6 +1029,9 @@ public sealed partial class ConfigurableDecisionProvider(
         ArgumentNullException.ThrowIfNull(request);
         request.Validate();
         var selected = configuration.CaptureRuntimeConfiguration();
+        if (request.ExpectedProviderEpoch != selected.Revision)
+            throw new ProviderConversationUnavailableException(
+                "The personal conversation provider changed after this request was issued.");
         var route = ConversationRouteFor(selected, request.SpeakerId);
         if (route.Provider == PlayerDecisionProviders.Deterministic)
         {
@@ -1100,6 +1103,8 @@ public sealed partial class ConfigurableDecisionProvider(
         var role = "conversation";
         var usageTicket = usageStore?.Begin(route.Provider, route.Credential.Model, role);
         var timer = Stopwatch.StartNew();
+        var inputTokens = 0;
+        var outputTokens = 0;
         try
         {
             using var response = await httpClientFactory.CreateClient("model").SendAsync(
@@ -1110,13 +1115,13 @@ public sealed partial class ConfigurableDecisionProvider(
                 throw new HttpRequestException("The assigned conversation model did not complete the request.");
 
             var body = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
-            var turn = ParseConversationResponse(request, body, route.Credential.Model);
+            var turn = ParseConversationResponse(request, body, route.Credential.Model, out inputTokens, out outputTokens);
             timer.Stop();
             if (usageTicket is not null)
                 usageStore!.Finish(usageTicket, "completed", turn.InputTokens, turn.OutputTokens);
             if (logger is not null)
                 LogConversationCall(logger, "completed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
-                    request.PublicHistory.Count + 1 + (request.Purpose == AgentConversationPurpose.WrapUp ? 1 : 0),
+                    request.PublicHistory.Count + 1,
                     timer.ElapsedMilliseconds, turn.InputTokens, turn.OutputTokens);
             return turn;
         }
@@ -1132,10 +1137,10 @@ public sealed partial class ConfigurableDecisionProvider(
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             timer.Stop();
-            if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed");
+            if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed", inputTokens, outputTokens);
             if (logger is not null)
                 LogConversationCall(logger, "failed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
-                    request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, 0, 0);
+                    request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, inputTokens, outputTokens);
             throw;
         }
     }
@@ -1185,15 +1190,26 @@ public sealed partial class ConfigurableDecisionProvider(
     private static AgentConversationTurnResponse ParseConversationResponse(
         AgentConversationTurnRequest request,
         string body,
-        string model)
+        string model,
+        out int inputTokens,
+        out int outputTokens)
     {
+        inputTokens = 0;
+        outputTokens = 0;
         try
         {
             using var envelope = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 12 });
             var root = envelope.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("The conversation provider response envelope is invalid.");
+            // A charged response can report valid usage even when its dialogue
+            // is rejected. Keep those bounded counts for failure accounting.
+            inputTokens = ReadUsage(root, "prompt_tokens");
+            outputTokens = ReadUsage(root, "completion_tokens");
             if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array ||
                 choices.GetArrayLength() != 1 || choices[0].ValueKind != JsonValueKind.Object ||
                 !choices[0].TryGetProperty("message", out var message) ||
+                message.ValueKind != JsonValueKind.Object ||
                 !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException("The conversation provider response envelope is invalid.");
             using var reply = JsonDocument.Parse(content.GetString()!, new JsonDocumentOptions { MaxDepth = 8 });
@@ -1232,8 +1248,6 @@ public sealed partial class ConfigurableDecisionProvider(
             if (outcome == AgentConversationDisposition.Withdraw && proposedEffect != AgentConversationEffect.None)
                 throw new InvalidDataException("A conversation withdrawal cannot carry an effect.");
 
-            var inputTokens = ReadUsage(root, "prompt_tokens");
-            var outputTokens = ReadUsage(root, "completion_tokens");
             var response = new AgentConversationTurnResponse(
                 request.RequestId,
                 request.ConversationId,

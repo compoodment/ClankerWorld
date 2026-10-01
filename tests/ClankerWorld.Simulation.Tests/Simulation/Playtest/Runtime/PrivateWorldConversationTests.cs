@@ -13,7 +13,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PrivateWorldConversationTests
+public sealed partial class PrivateWorldConversationTests
 {
     private const string InitiatorId = "founder:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private const string InviteeId = "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -329,12 +329,13 @@ public sealed class PrivateWorldConversationTests
         Assert.Equal(turn, Assert.Single(provider.TurnRequests[1].PublicHistory));
 
         var saved = world.ExportState();
-        Assert.Equal(33, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.ConversationSchemaVersion, saved.SchemaVersion);
         Assert.Equal(2, saved.Conversations!.Single().Turns.Count);
         var budgets = saved.ConversationBudgets!;
         Assert.Equal(1, budgets.Single(item => item.AgentId == InitiatorId).Count);
         Assert.Equal(1, budgets.Single(item => item.AgentId == InviteeId).Count);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 32 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with
+        { SchemaVersion = PrivateWorldRuntime.ConversationSchemaVersion - 1 }));
         foreach (var heardTurn in conversation.Turns.Take(2))
         {
             foreach (var ownerId in heardTurn.ListenerIds.Where(ownerId => ownerId != heardTurn.SpeakerId))
@@ -519,10 +520,23 @@ public sealed class PrivateWorldConversationTests
                         item.OwnerId == listenerId && item.SourceTurnId == turn.Id && item.Statement == turn.Text);
 
             reloaded.Pause();
-            var roundTripBytes = PrivateWorldRuntimeCodec.Encode(reloaded.ExportState());
+            var roundTripState = reloaded.ExportState();
+            var roundTripBytes = PrivateWorldRuntimeCodec.Encode(roundTripState);
             using var finalRestore = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(roundTripBytes),
                 id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
-            Assert.Equal(roundTripBytes, PrivateWorldRuntimeCodec.Encode(finalRestore.ExportState()));
+            var expectedAfterRestore = roundTripState with
+            {
+                Conversations = roundTripState.Conversations!.Select(item => item.Id == newConversation.Id
+                    ? item with
+                    {
+                        ResumeAcceptedBy = [],
+                        Interruption = AgentConversationInterruption.Restored,
+                        Revision = item.Revision + 1,
+                        LastUpdatedTick = reloaded.WorldTick,
+                    } : item).ToArray(),
+            };
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(expectedAfterRestore),
+                PrivateWorldRuntimeCodec.Encode(finalRestore.ExportState()));
             var finalSociety = finalRestore.ExportState().Society.Society;
             Assert.Contains(finalSociety.Beliefs!, item => item.Id == correctionId && item.SourceTurnId is null &&
                 item.SupersededByBeliefId is null);
@@ -562,7 +576,7 @@ public sealed class PrivateWorldConversationTests
         Assert.Single(provider.TurnRequests);
         var saved = world.ExportState();
         Assert.DoesNotContain(saved.Events, item => item.Detail.Contains("secret provider payload", StringComparison.Ordinal));
-        Assert.Equal(33, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.ConversationSchemaVersion, saved.SchemaVersion);
     }
 
     [Fact]
@@ -672,6 +686,11 @@ public sealed class PrivateWorldConversationTests
         public long ProviderEpoch => CurrentProviderEpoch;
         long IAgentConversationProvider.ProviderEpoch => CurrentProviderEpoch;
         public List<AgentConversationTurnRequest> TurnRequests { get; } = [];
+        public ConcurrentQueue<CognitionDecisionRequest> PlanningRequests { get; } = new();
+        public string? OnlyResumingAgentId { get; init; }
+        public AgentConversationEffect SuggestedWrapUpEffect { get; init; }
+        public bool HoldWrapUpChoices { get; init; }
+        public bool EndSuspendedConversations { get; set; }
         public Exception? ConversationFailure { get; init; }
         public bool BlockConversationUntilCanceled { get; init; }
         public TaskCompletionSource CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -685,10 +704,17 @@ public sealed class PrivateWorldConversationTests
             request.Validate();
             cancellationToken.ThrowIfCancellationRequested();
             var observation = request.Observation;
+            PlanningRequests.Enqueue(request);
+            if (HoldWrapUpChoices && observation.Candidates.Any(candidate =>
+                    candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal)))
+                return new ValueTask<CognitionDecisionResponse>(WaitForPlanningCancellationAsync(cancellationToken));
             var selected = observation.Candidates.FirstOrDefault(candidate =>
                 observation.InhabitantId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
+                observation.Candidates.FirstOrDefault(candidate => EndSuspendedConversations &&
+                    candidate.Id.StartsWith("conversation_end:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate =>
-                    candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal)) ??
+                    candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal) &&
+                    (OnlyResumingAgentId is null || observation.InhabitantId == OnlyResumingAgentId)) ??
                 observation.Candidates.FirstOrDefault(candidate =>
                     observation.InhabitantId == InviteeId && candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate => candidate.Id == "safe_idle") ??
@@ -709,6 +735,12 @@ public sealed class PrivateWorldConversationTests
                 ChosenAspiration: observation.NeedsAspiration ? "learn the valley" : null));
         }
 
+        private static async Task<CognitionDecisionResponse> WaitForPlanningCancellationAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The cancellation wait unexpectedly completed.");
+        }
+
         public ValueTask<AgentConversationTurnResponse> SpeakAsync(
             AgentConversationTurnRequest request,
             CancellationToken cancellationToken = default)
@@ -726,7 +758,8 @@ public sealed class PrivateWorldConversationTests
                 request.RunEpoch,
                 request.SpeakerId,
                 "A public turn with no world command.",
-                AgentConversationDisposition.Continue));
+                AgentConversationDisposition.Continue,
+                request.Purpose == AgentConversationPurpose.WrapUp ? SuggestedWrapUpEffect : AgentConversationEffect.None));
         }
 
         private async Task<AgentConversationTurnResponse> WaitForCancellationAsync(CancellationToken cancellationToken)

@@ -106,11 +106,14 @@ history: up to six accepted public turns and one accepted wrap-up, including
 the actual listener IDs for each. Each later speaker receives the committed
 public history so far, not an unaccepted reply; the wrap-up request receives
 the six public turns. Each participant's current-day allowance is saved too.
-A live provider request is never saved. On restore, any unfinished conversation
-becomes suspended and cannot spend again until both participants choose to
-resume. Conversation records use private-world schema 33, following schema
-32's housing-request state. No migration for older alpha saves is added solely to
-preserve compatibility.
+A live provider request is never saved. On restore, an accepted unfinished
+conversation becomes suspended and cannot spend again until both participants
+make fresh resume choices, including when a saved suspension contained one
+person's earlier choice. A pending invitation keeps its original deadline and
+requires normal acceptance, which counts against the invitee's daily allowance.
+Conversation records use private-world schema 34, following schema 33's birth
+model choices. No migration for older alpha saves is added solely to preserve
+compatibility.
 
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory

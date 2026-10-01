@@ -105,11 +105,14 @@ public sealed record AgentConversationTurnRequest(
     IReadOnlyList<AgentConversationTurn> PublicHistory,
     IReadOnlyList<AgentConversationEffect> AllowedEffects)
 {
+    /// <summary>The personal provider revision captured before dispatching this turn.</summary>
+    public long? ExpectedProviderEpoch { get; init; }
+
     public void Validate()
     {
         ValidateText(RequestId, 128, nameof(RequestId));
         ValidateText(ConversationId, 512, nameof(ConversationId));
-        if (Revision < 1 || RunEpoch < 0 || WorldTick < 0 ||
+        if (Revision < 1 || RunEpoch < 0 || WorldTick < 0 || ExpectedProviderEpoch is < 0 ||
             !Enum.IsDefined(Purpose) ||
             string.Equals(SpeakerId, OtherParticipantId, StringComparison.Ordinal))
             throw new ArgumentException("The conversation request identity is invalid.");

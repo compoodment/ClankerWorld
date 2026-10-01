@@ -6,7 +6,7 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class AgentConversationProviderTests
+public sealed partial class AgentConversationProviderTests
 {
     [Fact]
     public async Task NormalProviderUsesEachSpeakersExplicitPersonalRouteAndMetersConversationRole()
@@ -25,12 +25,14 @@ public sealed class AgentConversationProviderTests
             var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler),
                 logger, usageStore: usage);
             Assert.IsAssignableFrom<IAgentConversationProvider>(router);
+            IAgentConversationProvider conversationProvider = router;
 
             Assert.True(router.CanSpeakAs("agent-a"));
             Assert.True(router.CanSpeakAs("agent-b"));
             Assert.False(router.CanSpeakAs("agent-c"));
 
-            var first = await ((IAgentConversationProvider)router).SpeakAsync(Request("agent-a", "agent-b"));
+            var first = await conversationProvider.SpeakAsync(Request("agent-a", "agent-b") with
+            { ExpectedProviderEpoch = conversationProvider.ProviderEpoch });
             Assert.Equal("A bounded public reply.", first.Text);
             Assert.Equal("agent-a-model", handler.Models[0]);
             Assert.Equal("Bearer agent-a-key", handler.Authorizations[0]);
@@ -45,7 +47,8 @@ public sealed class AgentConversationProviderTests
                 Assert.DoesNotContain("private reasoning must not be sent", prompt, StringComparison.Ordinal);
             }
 
-            _ = await ((IAgentConversationProvider)router).SpeakAsync(Request("agent-b", "agent-a"));
+            _ = await conversationProvider.SpeakAsync(Request("agent-b", "agent-a") with
+            { ExpectedProviderEpoch = conversationProvider.ProviderEpoch });
             Assert.Equal("agent-b-model", handler.Models[1]);
             Assert.Equal("Bearer agent-b-key", handler.Authorizations[1]);
             Assert.Equal(2, handler.RequestCount);
@@ -54,7 +57,7 @@ public sealed class AgentConversationProviderTests
             Assert.Equal(14, usage.Capture().InputTokens);
             Assert.Equal(6, usage.Capture().OutputTokens);
 
-            var missingRoute = Request("agent-c", "agent-a");
+            var missingRoute = Request("agent-c", "agent-a") with { ExpectedProviderEpoch = conversationProvider.ProviderEpoch };
             await Assert.ThrowsAsync<ProviderConversationUnavailableException>(async () =>
                 await ((IAgentConversationProvider)router).SpeakAsync(missingRoute));
             Assert.Equal(2, handler.RequestCount);
@@ -84,15 +87,21 @@ public sealed class AgentConversationProviderTests
             var router = new ConfigurableDecisionProvider(store,
                 new FixedHttpClientFactory(new ConversationResponseHandler(privateReply, "settlement_transfer")),
                 logger, usageStore: usage);
+            IAgentConversationProvider conversationProvider = router;
 
             await Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await ((IAgentConversationProvider)router).SpeakAsync(Request("agent-a", "agent-b")));
+                await conversationProvider.SpeakAsync(Request("agent-a", "agent-b") with
+                { ExpectedProviderEpoch = conversationProvider.ProviderEpoch }));
 
             Assert.Equal(1, usage.Capture().Attempts);
             Assert.Equal(1, usage.Capture().Failed);
+            Assert.Equal(7, usage.Capture().InputTokens);
+            Assert.Equal(3, usage.Capture().OutputTokens);
             Assert.Contains(logger.Messages, message =>
                 message.Contains("conversation_call status=failed", StringComparison.Ordinal) &&
-                message.Contains("purpose=public_turn", StringComparison.Ordinal));
+                message.Contains("purpose=public_turn", StringComparison.Ordinal) &&
+                message.Contains("input_tokens=7", StringComparison.Ordinal) &&
+                message.Contains("output_tokens=3", StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message =>
                 message.Contains("conversation-provider-secret", StringComparison.Ordinal) ||
                 message.Contains(privateReply, StringComparison.Ordinal) ||

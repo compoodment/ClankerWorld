@@ -35,7 +35,15 @@ public sealed partial class PrivateWorldRuntime
                 ? AgentConversationRules.CloseUnavailable(current, WorldTick)
                 : current.Status == AgentConversationStatus.Proposed
                     ? current
-                    : AgentConversationRules.Suspend(current, AgentConversationInterruption.Restored, WorldTick);
+                    : current.Status == AgentConversationStatus.Suspended
+                        ? current with
+                        {
+                            ResumeAcceptedBy = [],
+                            Interruption = AgentConversationInterruption.Restored,
+                            Revision = checked(current.Revision + 1),
+                            LastUpdatedTick = WorldTick,
+                        }
+                        : AgentConversationRules.Suspend(current, AgentConversationInterruption.Restored, WorldTick);
             if (next == current) continue;
             conversations[index] = next;
             changed = true;
@@ -120,12 +128,16 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!current.WrapUpAcceptedBy.Contains(agentId, StringComparer.Ordinal))
                 {
+                    var wrapUp = current.Turns.Single(turn => turn.IsWrapUp);
+                    var effect = current.WrapUpEffect == AgentConversationEffect.MutualTrust
+                        ? "mutual trust: both people trust each other more"
+                        : "none: no world change";
                     result.Add(new CognitionCandidate(
                         $"conversation_wrapup_accept:{current.Id}",
-                        "Accept the same structured conversation wrap-up.", 45));
+                        $"Accept this public wrap-up: \"{wrapUp.Text}\". Proposed effect: {effect}.", 45));
                     result.Add(new CognitionCandidate(
                         $"conversation_wrapup_decline:{current.Id}",
-                        "Disagree with the conversation wrap-up.", 75));
+                        $"Decline this public wrap-up: \"{wrapUp.Text}\". Proposed effect: {effect}.", 75));
                 }
             }
             return result;
@@ -203,6 +215,10 @@ public sealed partial class PrivateWorldRuntime
         var index = conversations.FindIndex(item => item.Id == conversationId);
         if (index < 0) return false;
         var current = conversations[index];
+        // The current planning choice authorizes this still-open invitation
+        // after a pause or restore. Its original deadline and budget remain.
+        if (current.Status == AgentConversationStatus.Proposed)
+            current = current with { RunEpoch = society.Checkpoint.RunEpoch };
         if (!CanContinueConversation(current) || !HasConversationAllowance(participantId) ||
             !HasExplicitConversationProvider(current.InitiatorId) || !HasExplicitConversationProvider(current.InviteeId) ||
             !AgentConversationRules.TryAcceptProposal(current, participantId, WorldTick,
@@ -559,7 +575,7 @@ public sealed partial class PrivateWorldRuntime
             AgentConversationTurnRequest request;
             try
             {
-                request = CreateConversationRequest(started, speakerId);
+                request = CreateConversationRequest(started, speakerId) with { ExpectedProviderEpoch = providerEpoch };
                 request.Validate();
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)

@@ -303,7 +303,7 @@ public partial class Main
             placingAddedAgent = false;
             return true;
         }
-        foreach (var panel in new Control[] { familyTreePanel, memoriesPanel, thoughtsPanel })
+        foreach (var panel in new Control[] { conversationPanel, familyTreePanel, memoriesPanel, thoughtsPanel })
         {
             if (!panel.Visible) continue;
             panel.Hide();

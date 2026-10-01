@@ -1,6 +1,2 @@
-- Agents can hold bounded public conversations using their own assigned models, then resume interrupted talks only when both people agree.
-
-The owner clarified on 1 October: “Keep recent conversation history.” The
-checkpoint therefore retains the bounded admitted public history (up to six
-turns and one wrap-up) so participants can resume with the shared context. It
-still excludes in-flight replies and private prose.
+- Nearby agents can hold public conversations using their own assigned models. Speech bubbles and each agent's history open a reader showing who spoke and who heard each line. Escape closes the reader while keeping the selected profile open.
+- Conversations keep up to six public turns and one wrap-up. Both people see the same wrap-up and proposed effect before accepting it; interrupted talks require fresh agreement from both after reloading. Ordinary lessons wait while either participant is talking.

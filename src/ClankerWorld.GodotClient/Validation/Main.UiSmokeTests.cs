@@ -185,6 +185,11 @@ public partial class Main
         var gameMenuVisible = gameMenuPanel.Visible;
         var menuShadeVisible = menuShade.Visible;
         var oldSelection = selectedInhabitantId;
+        var oldProfileRequested = agentProfileRequested;
+        var oldProfileVisible = agentProfilePanel.Visible;
+        var oldQuickCardVisible = selectedInhabitantCard.Visible;
+        var wasInWorld = isInWorld;
+        isInWorld = true;
         mainMenuOverlay.Hide();
         gameMenuPanel.Hide();
         menuShade.Hide();
@@ -231,6 +236,9 @@ public partial class Main
                 Conversations = conversations,
             };
             RenderMap(conversationMap);
+            selectedInhabitantId = secondAgentId;
+            RenderSelectedInhabitantCard(conversationMap);
+            OpenAgentProfile(speak: false);
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
@@ -246,7 +254,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!conversationPanel.Visible || !conversationReaderStatus.Text.StartsWith("Closed ·", StringComparison.Ordinal) ||
-                marker.ConversationUnread || selectedInhabitantId != oldSelection ||
+                marker.ConversationUnread || selectedInhabitantId != secondAgentId || !agentProfilePanel.Visible ||
                 conversationReaderSummary.Text.Contains(publicText, StringComparison.Ordinal))
                 throw new InvalidOperationException("Clicking the conversation bubble must open its closed-session summary, mark it read locally, and leave agent selection alone.");
 
@@ -261,6 +269,12 @@ public partial class Main
                 conversationPanel.Position.Y + conversationPanel.Size.Y > UiSize.Y + 1)
                 throw new InvalidOperationException("Expanded long conversation history must scroll inside the 200% layout bounds.");
 
+            GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (conversationPanel.Visible || selectedInhabitantId != secondAgentId ||
+                !agentProfilePanel.Visible || gameMenuPanel.Visible)
+                throw new InvalidOperationException("Escape must close expanded conversation history before the selected agent's Profile, without clearing selection or opening the Pause Menu.");
+
             OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
             if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
                 throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
@@ -270,6 +284,11 @@ public partial class Main
             conversationPanel.Hide();
             openConversationId = null;
             openConversationAgentId = null;
+            selectedInhabitantId = oldSelection;
+            agentProfileRequested = oldProfileRequested;
+            agentProfilePanel.Visible = oldProfileVisible;
+            selectedInhabitantCard.Visible = oldQuickCardVisible;
+            isInWorld = wasInWorld;
             mainMenuOverlay.Visible = menuVisible;
             gameMenuPanel.Visible = gameMenuVisible;
             menuShade.Visible = menuShadeVisible;

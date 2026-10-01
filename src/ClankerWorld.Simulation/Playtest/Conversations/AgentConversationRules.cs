@@ -333,6 +333,9 @@ public static class AgentConversationRules
         next = conversation;
         resumed = false;
         if (conversation.Status != AgentConversationStatus.Suspended ||
+            conversation.AcceptedParticipantIds.Count != 2 ||
+            !conversation.AcceptedParticipantIds.Contains(conversation.InitiatorId, StringComparer.Ordinal) ||
+            !conversation.AcceptedParticipantIds.Contains(conversation.InviteeId, StringComparer.Ordinal) ||
             worldTick < conversation.LastUpdatedTick ||
             !IsParticipant(conversation, participantId) ||
             conversation.ResumeAcceptedBy.Contains(participantId, StringComparer.Ordinal))
@@ -349,7 +352,6 @@ public static class AgentConversationRules
                     : AgentConversationStatus.Ready
                 : AgentConversationStatus.Suspended,
             ResumeAcceptedBy = accepted,
-            AcceptedParticipantIds = resumed ? Participants(conversation) : conversation.AcceptedParticipantIds,
             CurrentSpeakerId = resumed
                 ? conversation.Turns.Count(turn => !turn.IsWrapUp) >= MaximumPublicTurns || conversation.Turns.Any(turn => turn.IsWrapUp)
                     ? conversation.Turns.Any(turn => turn.IsWrapUp) ? null : conversation.InitiatorId
@@ -374,6 +376,14 @@ public static class AgentConversationRules
         ArgumentOutOfRangeException.ThrowIfLessThan(worldTick, conversation.LastUpdatedTick);
         if (interruption == AgentConversationInterruption.None || !Enum.IsDefined(interruption))
             throw new ArgumentOutOfRangeException(nameof(interruption));
+        if (conversation.Status == AgentConversationStatus.Proposed)
+        {
+            // An invitation has no shared session to resume. A pause keeps the
+            // original proposal and deadline; unsafe separation withdraws it.
+            return interruption is AgentConversationInterruption.OwnerPaused or AgentConversationInterruption.Restored
+                ? conversation
+                : Close(conversation, "withdrawn", worldTick);
+        }
         return conversation with
         {
             Status = AgentConversationStatus.Suspended,
@@ -521,9 +531,10 @@ public static class AgentConversationRules
              wrapUps.Length == 1 && conversation.WrapUpAcceptedBy.Count >= 2))
             throw new InvalidDataException("The saved conversation wrap-up is invalid.");
         if (conversation.Status == AgentConversationStatus.Suspended &&
-            (conversation.CurrentSpeakerId is not null || conversation.AwaitingWrapUp ||
+            (conversation.AcceptedParticipantIds.Count != 2 ||
+             conversation.CurrentSpeakerId is not null || conversation.AwaitingWrapUp ||
              conversation.ResumeAcceptedBy.Count > 1 || conversation.WrapUpAcceptedBy.Count != 0))
-            throw new InvalidDataException("A suspended conversation cannot retain an in-flight turn or final consent.");
+            throw new InvalidDataException("A suspended conversation requires original mutual consent and cannot retain an in-flight turn or final consent.");
         if (conversation.Status == AgentConversationStatus.Closed && conversation.Outcome is null)
             throw new InvalidDataException("A closed conversation requires an outcome.");
         if (conversation.Status == AgentConversationStatus.Closed &&

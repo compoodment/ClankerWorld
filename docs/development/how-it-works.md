@@ -231,9 +231,13 @@ its owner, while the old turn text leaves the shared conversation history.
 Pausing, disconnect, a provider failure, urgent need, separation or an
 unavailable participant interrupts or closes the activity according to its
 state. A save contains accepted bounded turns and daily allowances, not a live
-provider task. Restore leaves active conversations suspended; no model request
-starts until both participants choose to resume. Conversation logs record only
-purpose, bounded turn count, latency and usage totals.
+provider task. Restore leaves accepted active conversations suspended and clears
+any earlier resume choice; no model request starts until both participants choose
+to resume again. A pending invitation retains its original deadline and still
+requires normal acceptance and the invitee's daily allowance. Both agents receive
+the same public wrap-up and proposed effect before accepting. Lessons wait while
+either participant is talking. Conversation logs record only purpose, bounded
+turn count, latency and usage totals, including reported usage for rejected speech.
 
 Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
