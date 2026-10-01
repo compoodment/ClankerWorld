@@ -46,6 +46,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' has a missing inventory reservation.");
             }
+            if (job.ToolLotId is not null && ToolProgressionRules.PlanWorkForLot(society.Checkpoint.Inventory,
+                    job.WorkerId, ToolFamily.Knife, job.ToolLotId) is null)
+                throw new InvalidDataException($"Production job '{job.JobId}' has no usable carried preparation tool.");
         }
         WorldSystemsRules.Validate(worldSystems);
         if (worldSystems.WorldTick != WorldTick ||
@@ -243,6 +246,11 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Household fields and ground harvest lots require private-world schema 34.");
         if (state.SchemaVersion >= 34 && state.Fields is null)
             throw new InvalidDataException("Private-world schema 34 requires authoritative household field state.");
+        if (state.SchemaVersion < 35 && state.Fields?.Any(field => field?.Work is { } work &&
+                (work.HoeLotId is not null || work.SickleLotId is not null)) == true)
+            throw new InvalidDataException("Saved field-tool work requires private-world schema 35.");
+        if (state.SchemaVersion < 35 && state.WorldSimulation?.ProductionJobs.Any(job => job.ToolLotId is not null) == true)
+            throw new InvalidDataException("Saved preparation-tool work requires private-world schema 35.");
         if (state.SchemaVersion < 20 && state.Society.Society.Beliefs is { Count: > 0 })
             throw new InvalidDataException("Agent belief history requires private-world schema 20.");
         if (state.SchemaVersion < 22 && state.Society.Society.MemoryCompactions is { Count: > 0 })

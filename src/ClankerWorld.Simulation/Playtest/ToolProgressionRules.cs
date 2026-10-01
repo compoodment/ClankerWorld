@@ -86,6 +86,38 @@ public static class ToolProgressionRules
             definition.WorkUnits, definition.WearLossBasisPoints);
     }
 
+    public static ToolWorkPlan? PlanWorkForLot(InventoryCheckpoint inventory, string actorId,
+        ToolFamily family, string? toolLotId)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+        if (!Enum.IsDefined(family))
+            throw new ArgumentOutOfRangeException(nameof(family));
+        if (string.IsNullOrWhiteSpace(toolLotId)) return null;
+
+        var lot = inventory.Lots.FirstOrDefault(item => item.Id == toolLotId && item.OwnerId == actorId &&
+            item.StorageBuildingId is null && item.DeliveryBuildingId is null && item.GroundPosition is null &&
+            item.ConditionBasisPoints > 0 && item.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, item) > 0);
+        var definition = lot is null ? null : Find(lot.ItemKind);
+        return definition is null || definition.Family != family
+            ? null
+            : new ToolWorkPlan(lot!.Id, definition.WorkUnits, definition.WearLossBasisPoints);
+    }
+
+    public static bool UsesKnife(RecipeDefinition recipe)
+    {
+        ArgumentNullException.ThrowIfNull(recipe);
+        return recipe.Tags.Contains("food", StringComparer.Ordinal) ||
+            recipe.Tags.Contains("preparation", StringComparer.Ordinal);
+    }
+
+    public static int WorkDuration(int normalTicks, int workUnits)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(normalTicks);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workUnits);
+        return Math.Max(1, checked((normalTicks + workUnits - 1) / workUnits));
+    }
+
     /// <summary>
     /// Calculates one real resource action without changing the world or inventory.
     /// The caller uses this same quantity and seed count for its carrying-capacity precheck.

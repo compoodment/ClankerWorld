@@ -17,18 +17,13 @@ public sealed partial class PrivateWorldRuntime
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
             state.Project is { Stage: not ("completed" or "cancelled") }) return;
-        if (!HasCarriedItem(actor, FarmFieldRules.Hoe))
-        {
-            if (SharedItem(FarmFieldRules.Hoe, actor) is not null)
-                candidates.Add(new("collect_wooden_hoe", "Collect a hoe to prepare and tend the household fields.", 16));
-            return;
-        }
+        var hasHoe = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is not null;
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
             if (!CanReachField(actor, state.Position, field.Position)) continue;
             if (field.Stage == FarmFieldStage.Ready)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
-            else if (field.Stage == FarmFieldStage.Growing && !field.Tended)
+            else if (hasHoe && field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
             else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
             {
@@ -42,7 +37,7 @@ public sealed partial class PrivateWorldRuntime
             person.Status == SocietyInhabitantStatus.Active);
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
         var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
-        if (!FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        if (!hasHoe || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(FarmableFreeTile)
             .OrderByDescending(point => fields.Any(field => field.HouseholdId == householdId && map.FootDistance(field.Position, point) == 1))

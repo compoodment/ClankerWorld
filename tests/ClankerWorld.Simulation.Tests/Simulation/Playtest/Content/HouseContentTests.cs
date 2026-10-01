@@ -148,6 +148,17 @@ public sealed class HouseContentTests
                 },
             },
         };
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+                        "beta-iron-knife", "iron_knife", beta, 1),
+                },
+            },
+        };
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var alphaFood = HouseholdQuantity(world, "household:camp-alpha", "food");
         var betaFood = HouseholdQuantity(world, "household:camp-beta", "food");
@@ -157,17 +168,28 @@ public sealed class HouseContentTests
         Assert.Contains("Only a member", rejected.Failure, StringComparison.Ordinal);
         var started = world.StartProduction(recipe.CanonicalId, "meal-home-beta", beta);
         Assert.True(started.Applied, started.Failure);
-        Assert.All(world.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId)
-            .InputReservationIds, reservationId =>
+        var activeJob = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.JobId == started.JobId);
+        Assert.Equal("beta-iron-knife", activeJob.ToolLotId);
+        Assert.Equal(recipe.DurationTicks / 2, activeJob.CompletionTick - activeJob.StartedTick);
+        Assert.All(activeJob.InputReservationIds, reservationId =>
                 Assert.Equal("household:camp-beta", world.Society.Inventory.GetReservation(reservationId).OwnerId));
 
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var activeWithKnife = world.ExportState();
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(
+            activeWithKnife with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }, _ => new IdleProvider()));
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(activeWithKnife));
         using var resumed = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
-        for (var tick = 0; tick < recipe.DurationTicks; tick++)
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
+        for (var tick = 0; tick < recipe.DurationTicks / 2 - 1; tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(WorldProductionJobState.Running,
+            resumed.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
+        Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(alphaFood, HouseholdQuantity(resumed, "household:camp-alpha", "food"));
         Assert.Equal(betaFood + 2, HouseholdQuantity(resumed, "household:camp-beta", "food"));
         Assert.Equal(betaWood - 1, HouseholdQuantity(resumed, "household:camp-beta", "wood"));
+        Assert.Equal(9_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
         Assert.Equal(WorldProductionJobState.Completed,
             resumed.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
         var cookedLotId = $"{started.JobId}:output:00";

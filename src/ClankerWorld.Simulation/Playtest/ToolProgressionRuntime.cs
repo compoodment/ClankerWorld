@@ -86,20 +86,31 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
-    private void ApplyToolWork(string actor, ToolWorkPlan plan)
+    private void ApplyToolWork(string actor, params ToolWorkPlan[] plans)
     {
-        ApplyInventoryTransition(inventory =>
+        ApplyInventoryTransition(inventory => ApplyToolWorkToInventory(inventory, actor, WorldTick, plans));
+    }
+
+    private static InventoryCheckpoint ApplyToolWorkToInventory(InventoryCheckpoint inventory, string actor,
+        long tick, IReadOnlyList<ToolWorkPlan> plans)
+    {
+        var updated = inventory;
+        foreach (var plan in plans)
         {
-            var lot = inventory.GetLot(plan.ToolLotId);
+            var lot = updated.GetLot(plan.ToolLotId);
+            var definition = ToolProgressionRules.Find(lot.ItemKind);
+            if (definition is null || ToolProgressionRules.PlanWorkForLot(updated, actor,
+                    definition.Family, lot.Id) is null)
+                throw new InvalidOperationException("The selected tool must remain usable and physically carried by its owner.");
             var usedLotId = lot.Id;
-            var updated = inventory;
             if (lot.Quantity > 1)
             {
-                usedLotId = $"{lot.Id}:use:{WorldTick}:{actor}";
+                usedLotId = $"{lot.Id}:use:{tick}:{actor}";
                 updated = InventoryFixture.SplitLot(updated, lot.Id, 1, usedLotId);
             }
-            return InventoryFixture.WearSingleUnit(updated, usedLotId, plan.WearLossBasisPoints);
-        });
+            updated = InventoryFixture.WearSingleUnit(updated, usedLotId, plan.WearLossBasisPoints);
+        }
+        return updated;
     }
 
     private void AddToolRepairCandidates(List<CognitionCandidate> candidates, string actor)
