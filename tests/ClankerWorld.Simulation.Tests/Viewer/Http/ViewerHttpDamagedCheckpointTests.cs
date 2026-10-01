@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,77 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NullSkillEntriesDoNotHideHealthyWorldsOrReplaceActiveWorld(bool deceased)
+    {
+        var directory = Directory.CreateTempSubdirectory("damaged-world-skills-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            file.Save(runtime);
+            var activeBytes = File.ReadAllBytes(file.Path);
+            var runtimeBytes = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
+            using var other = new PrivateWorldRuntime("damaged-skills-other");
+            other.Pause();
+            var state = other.ExportState();
+            if (deceased)
+            {
+                var person = state.Inhabitants[0];
+                var society = SocietyFixture.Kill(state.Society.Society, person.InhabitantId,
+                    SocietyDeathCause.Accident).Checkpoint;
+                state = state with
+                {
+                    Society = state.Society with { Society = society },
+                    Inhabitants = state.Inhabitants.Where(item => item.InhabitantId != person.InhabitantId).ToArray(),
+                    DeceasedInhabitants = [new(person.InhabitantId, 0,
+                        society.AgeAt(society.GetInhabitant(person.InhabitantId), 0), person)],
+                };
+            }
+            var entry = catalog.Add("Recoverable", state);
+            var path = Path.Combine(file.Path + ".worlds", entry.Id + ".save");
+            var healthy = File.ReadAllBytes(path);
+            var document = JsonNode.Parse(healthy)!.AsObject();
+            var checkpoint = document["state"]!.AsObject();
+            var physical = deceased
+                ? checkpoint["deceasedInhabitants"]![0]!["lastPhysical"]!.AsObject()
+                : checkpoint["inhabitants"]![0]!.AsObject();
+            physical["skills"] = new JsonArray((JsonNode?)null);
+            var damaged = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+            File.WriteAllBytes(path, damaged);
+            using var listed = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/worlds/list", new OwnerControlAction("list-worlds"), OwnerHttpBinding.EmptyPayload("list-worlds"));
+            Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+            var snapshot = (await listed.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!;
+            Assert.Equal("compatible", snapshot.Worlds.Single(world => world.Id == snapshot.ActiveId).Compatibility);
+            Assert.Equal("incompatible", snapshot.Worlds.Single(world => world.Id == entry.Id).Compatibility);
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damaged));
+            var select = new OwnerManualSaveAction("select-world", entry.Id);
+            using var rejected = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/worlds/select", select, OwnerHttpBinding.ManualSavePayload(select));
+            Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+            Assert.Equal(activeBytes, File.ReadAllBytes(file.Path));
+            Assert.Equal(runtimeBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            Assert.Equal(snapshot.ActiveId, catalog.Capture().ActiveId);
+            File.WriteAllBytes(path, healthy);
+            using var accepted = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/worlds/select", select, OwnerHttpBinding.ManualSavePayload(select));
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            Assert.Equal(entry.WorldId, runtime.Society.WorldId);
+            runtime.Validate();
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Theory]
     [InlineData("society", false)]
     [InlineData("society", true)]
