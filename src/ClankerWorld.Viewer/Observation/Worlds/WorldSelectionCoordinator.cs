@@ -3,6 +3,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 
@@ -20,7 +21,8 @@ public sealed class WorldSelectionCoordinator(
     Func<string, IDecisionProvider> providerFactory)
 {
     private readonly object gate = providers.WorldMutationGate;
-    private readonly Dictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
+    // Concurrent because WarmUp adds results without the world-mutation gate.
+    private readonly ConcurrentDictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
         string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
@@ -37,7 +39,7 @@ public sealed class WorldSelectionCoordinator(
                 var snapshot = catalog.Capture();
                 var currentIds = snapshot.Worlds.Select(world => world.Id).ToHashSet(StringComparer.Ordinal);
                 foreach (var id in checkedCheckpoints.Keys.Where(id => !currentIds.Contains(id)).ToArray())
-                    checkedCheckpoints.Remove(id);
+                    checkedCheckpoints.TryRemove(id, out _);
                 var worlds = new CatalogWorld[snapshot.Worlds.Count];
                 worldCount = worlds.Length;
                 for (var index = 0; index < worlds.Length; index++)
@@ -70,6 +72,51 @@ public sealed class WorldSelectionCoordinator(
     }
 
     /// <summary>
+    /// Checks each inactive checkpoint once after the host starts, so the first
+    /// Load World list can reuse the results. The world-mutation gate is held
+    /// only while the catalog reads its index and each checkpoint file, never
+    /// while decoding or restoring, so ticks, saves and owner actions do not wait
+    /// for the checks. A result belongs to the exact checkpoint bytes it was made
+    /// from, and List checks a checkpoint again if its bytes have changed since.
+    /// </summary>
+    public void WarmUp(CancellationToken cancellationToken)
+    {
+        var elapsed = Stopwatch.StartNew();
+        var (checks, skipped, failed) = (0, 0, 0);
+        var snapshot = catalog.Capture();
+        foreach (var world in snapshot.Worlds.Where(world => world.Id != snapshot.ActiveId))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                WorldSelectionTelemetry.WarmUpCanceled(logger, checks, skipped, failed, elapsed.ElapsedMilliseconds);
+                return;
+            }
+            // A list that ran first already holds a result at least as recent.
+            if (checkedCheckpoints.ContainsKey(world.Id))
+            {
+                skipped++;
+                continue;
+            }
+            try
+            {
+                var bytes = catalog.ReadSnapshotBytes(world.Id);
+                if (checkedCheckpoints.TryAdd(world.Id, CheckCheckpoint(world, bytes, Digest(bytes)))) checks++;
+                else skipped++;
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // Never stop the host over one save. Load World checks this world
+                // itself and reports it as it would without the warm-up.
+                failed++;
+                WorldSelectionTelemetry.WarmUpFailed(logger, world.Id, exception.GetType().Name);
+            }
+        }
+        WorldSelectionTelemetry.WarmedUp(logger, checks, skipped, failed, elapsed.ElapsedMilliseconds);
+    }
+
+    private static string Digest(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+    /// <summary>
     /// Worlds catalogued before thumbnails existed get one the first time they
     /// are listed, from the map already at hand, and the catalog keeps it.
     /// </summary>
@@ -96,7 +143,7 @@ public sealed class WorldSelectionCoordinator(
         try
         {
             var bytes = catalog.ReadSnapshotBytes(world.Id);
-            var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            var digest = Digest(bytes);
             if (!checkedCheckpoints.TryGetValue(world.Id, out var checkedCheckpoint) ||
                 checkedCheckpoint.WorldId != world.WorldId || checkedCheckpoint.Seed != world.Seed ||
                 checkedCheckpoint.Digest != digest)
