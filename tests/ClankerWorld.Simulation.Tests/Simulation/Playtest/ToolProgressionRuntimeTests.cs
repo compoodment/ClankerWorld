@@ -10,12 +10,13 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ToolProgressionRuntimeTests
 {
     [Theory]
-    [InlineData("wood", false)]
-    [InlineData("wood", true)]
-    [InlineData("iron_ore", false)]
-    [InlineData("iron_ore", true)]
+    [InlineData("wood", false, false)]
+    [InlineData("wood", true, false)]
+    [InlineData("iron_ore", false, false)]
+    [InlineData("iron_ore", true, false)]
+    [InlineData("wood", false, true)]
     public async Task BlacksmithMakesRoomForAWholeHarvestWithoutRecollectingItsSpareToolAcrossReload(
-        string itemKind, bool reservedPick)
+        string itemKind, bool reservedPick, bool largerAxeAvailable)
     {
         using var setup = NormalPathWorld.CreateGenerated("smith-whole-load", _ => new CandidateProvider("safe_idle"));
         Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
@@ -33,22 +34,27 @@ public sealed class ToolProgressionRuntimeTests
         var inventory = state.Society.Society.Inventory with { Lots = [], Reservations = [] };
         inventory = InventoryFixture.AddLot(inventory, "working-axe", itemKind == "wood" ? "wooden_axe" : "stone_pickaxe", actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "spare-pick", itemKind == "wood" ? "wooden_pickaxe" : "wooden_axe", actor, 1);
-        foreach (var group in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == smith.DefinitionId)
-                     .SelectMany(recipe => recipe.Inputs).Where(input => input.ResourceId != itemKind)
-                     .GroupBy(input => input.ResourceId))
-            inventory = InventoryFixture.AddLot(inventory, "smith-input-" + group.Key, group.Key, household,
-                group.Max(input => input.Amount) * 2, storageBuildingId: smith.InstanceId);
+        // Other workshop recipes have no on-site inputs. Ore work has its wood
+        // waiting at the House, so gathering the missing ore is the first choice.
+        if (itemKind == "iron_ore")
+        {
+            inventory = InventoryFixture.AddLot(inventory, "waiting-smith-wood", "wood", household, 6,
+                storageBuildingId: house.InstanceId);
+            inventory = InventoryFixture.Reserve(inventory, "held-smith-wood", household, "waiting-smith-wood", 6,
+                "pending_trade", state.Society.Society.WorldTick + 1_000);
+        }
+        if (largerAxeAvailable)
+            inventory = InventoryFixture.AddLot(inventory, "larger-axe", "stone_axe", household, 1,
+                storageBuildingId: house.InstanceId);
         if (reservedPick)
             inventory = InventoryFixture.Reserve(inventory, "held-spare-pick", actor, "spare-pick", 1,
-                "pending_trade", state.Society.Society.WorldTick + 240);
+                "pending_trade", state.Society.Society.WorldTick + 1_000);
         var ecology = state.WorldSystems!.Ecology;
         ecology = ecology with
         {
             Resources = ecology.Resources.Select(resource => resource.Id == tree.Id
                 ? resource with { Quantity = 1, State = EcologyResourceState.Available }
-                : resource.Kind == itemKind || itemKind == "wood" && resource.Kind == "construction"
-                    ? resource with { Quantity = 0, State = EcologyResourceState.Depleted }
-                    : resource).ToArray(),
+                : resource with { Quantity = 0, State = EcologyResourceState.Depleted }).ToArray(),
         };
         state = state with
         {
@@ -68,7 +74,7 @@ public sealed class ToolProgressionRuntimeTests
                     LastDecisionContext = null
                 } : person).ToArray(),
         };
-        var chooser = new DeterministicDecisionProvider();
+        var chooser = new WorkChoiceRecorder();
         using var preparing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
         for (var tick = 0; tick < 12 && preparing.Society.Inventory.GetLot("spare-pick").OwnerId == actor; tick++)
@@ -84,6 +90,10 @@ public sealed class ToolProgressionRuntimeTests
             preparing.Validate();
             return;
         }
+        Assert.True(preparing.Society.Inventory.GetLot("spare-pick").OwnerId == household,
+            string.Join(" | ", chooser.Choices) + "; events: " + string.Join(" | ", preparing.ExportState().Events
+                .Where(item => item.Detail.Contains(actor, StringComparison.Ordinal)).TakeLast(12)
+                .Select(item => item.Kind + ":" + item.Detail)));
         Assert.Equal((household, house.InstanceId), (preparing.Society.Inventory.GetLot("spare-pick").OwnerId,
             preparing.Society.Inventory.GetLot("spare-pick").StorageBuildingId));
         Assert.Equal(actor, preparing.Society.Inventory.GetLot("working-axe").OwnerId);
@@ -93,20 +103,49 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         var deliveryEvent = itemKind == "wood" ? "smith_input_delivered" : "smith_ore_delivered";
         var gatheredQuantity = itemKind == "wood" ? 6 : 7;
-        for (var tick = 0; tick < 120 && !resumed.ExportState().Events.Any(item => item.Kind == deliveryEvent &&
+        for (var tick = 0; tick < 240 && !resumed.ExportState().Events.Any(item => item.Kind == "material_gathered" &&
+                 item.Detail == actor + ":" + itemKind + ":" + gatheredQuantity); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        // Check the harvest before ordinary work can repair the newly worn axe.
+        Assert.Equal(itemKind == "wood" ? 8_000 : 8_750,
+            resumed.Society.Inventory.GetLot("working-axe").ConditionBasisPoints);
+        Assert.Equal(gatheredQuantity,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
+        Assert.Equal(household, resumed.Society.Inventory.GetLot("spare-pick").OwnerId);
+        if (largerAxeAvailable)
+        {
+            Assert.Equal((household, house.InstanceId, 10_000),
+                (resumed.Society.Inventory.GetLot("larger-axe").OwnerId,
+                    resumed.Society.Inventory.GetLot("larger-axe").StorageBuildingId,
+                    resumed.Society.Inventory.GetLot("larger-axe").ConditionBasisPoints));
+            Assert.DoesNotContain(resumed.ExportState().Events,
+                item => item.Kind == "equipment_collected" && item.Detail == actor + ":stone_axe");
+        }
+        resumed.Validate();
+        for (var tick = 0; tick < 240 && !resumed.ExportState().Events.Any(item => item.Kind == deliveryEvent &&
                  item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(resumed.ExportState().Events, item => item.Kind == "material_gathered" &&
             item.Detail == actor + ":" + itemKind + ":" + gatheredQuantity);
         if (itemKind == "wood")
             Assert.Contains(resumed.ExportState().Events, item => item.Kind == "tree_seed_collected" && item.Detail == actor + ":" + tree.Id + ":1");
-        Assert.Contains(resumed.ExportState().Events, item => item.Kind == deliveryEvent &&
-            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
-        Assert.Equal((0, EcologyResourceState.Depleted), (resumed.WorldSystems.Ecology.GetResource(tree.Id).Quantity,
+        Assert.True(resumed.ExportState().Events.Any(item => item.Kind == deliveryEvent &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)), string.Join(" | ", chooser.Choices.TakeLast(5)) +
+            "; events: " + string.Join(" | ", resumed.ExportState().Events
+                .Where(item => item.Detail.Contains(actor, StringComparison.Ordinal)).TakeLast(20)
+                .Select(item => item.Kind + ":" + item.Detail)));
+        Assert.Equal((0, tree.IsRenewable ? EcologyResourceState.Regenerating : EcologyResourceState.Depleted),
+            (resumed.WorldSystems.Ecology.GetResource(tree.Id).Quantity,
             resumed.WorldSystems.Ecology.GetResource(tree.Id).State));
-        Assert.Equal(itemKind == "wood" ? 8_000 : 8_750, resumed.Society.Inventory.GetLot("working-axe").ConditionBasisPoints);
-        Assert.Equal(household, resumed.Society.Inventory.GetLot("spare-pick").OwnerId);
-        Assert.Equal(gatheredQuantity, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
+        var repairs = resumed.ExportState().Events.Count(item => item.Kind == "tool_repaired" &&
+            item.Detail == actor + ":working-axe:" + smith.InstanceId);
+        Assert.InRange(repairs, 0, itemKind == "wood" ? 1 : 0);
+        Assert.Equal(repairs == 0 ? itemKind == "wood" ? 8_000 : 8_750 : 10_000,
+            resumed.Society.Inventory.GetLot("working-axe").ConditionBasisPoints);
+        Assert.Equal(1, resumed.Society.Inventory.Lots.Where(lot =>
+            lot.ItemKind == (itemKind == "wood" ? "wooden_pickaxe" : "wooden_axe")).Sum(lot => lot.Quantity));
+        Assert.Equal(gatheredQuantity - repairs,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
         Assert.Equal(itemKind == "wood" ? 1 : 0, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed").Sum(lot => lot.Quantity));
         Assert.Contains(resumed.Society.Inventory.Lots, lot => lot.ItemKind == itemKind && lot.OwnerId == household &&
             lot.StorageBuildingId == smith.InstanceId && lot.Quantity > 0);
@@ -412,6 +451,23 @@ public sealed class ToolProgressionRuntimeTests
         reloaded.Validate();
         Assert.Equal(tool with { LastProcessedTick = reloaded.Society.WorldTick },
             reloaded.Society.Inventory.GetLot("warehouse-work-tool"));
+    }
+
+    private sealed class WorkChoiceRecorder : IDecisionProvider
+    {
+        private readonly DeterministicDecisionProvider chooser = new();
+        public List<string> Choices { get; } = [];
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var response = await chooser.DecideAsync(request, cancellationToken);
+            Choices.Add(response.SelectedCandidateId + " [" + string.Join(",", request.Observation.Candidates
+                .Select(candidate => candidate.Id + "=" + candidate.DeterministicPriority)) + "]");
+            return response;
+        }
     }
 
     private sealed class CandidateProvider(string candidateId) : IDecisionProvider

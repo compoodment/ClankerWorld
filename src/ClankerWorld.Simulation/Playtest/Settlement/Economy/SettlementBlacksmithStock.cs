@@ -38,6 +38,20 @@ public sealed partial class PrivateWorldRuntime
             if (pendingHarvest is { } harvest && bestShared.Family != pendingToolFamily &&
                 FreeCarryCapacity(actor) - 1 < checked(harvest.Quantity + harvest.TreeSeedQuantity))
                 continue;
+            if (pendingHarvest is { } upgradedHarvest && bestShared.Family == pendingToolFamily)
+            {
+                var roomMissing = checked(bestShared.GatherQuantity + upgradedHarvest.TreeSeedQuantity) -
+                    (FreeCarryCapacity(actor) - 1);
+                if (roomMissing > 0)
+                {
+                    // The old tool becomes spare after the upgrade. The new
+                    // shared tool is not carried yet and cannot be set down.
+                    var cargo = SpareCargoForFood(actor, roomMissing);
+                    if (cargo.Count == 0 || SpareCargoDestination(actor, inhabitants[actor],
+                            cargo.Sum(move => move.PhysicalQuantity)) is null)
+                        continue;
+                }
+            }
 
             var carried = ToolProgressionRules.BestUsableTool(inventory, actor, family.Key);
             if (carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= bestShared.Tier)
