@@ -24,8 +24,10 @@ the repository. Search before opening one, and use the matching template:
 - One topic per issue, with a title in ordinary words. Link related issues
   instead of copying progress notes between them.
 - Prefer fewer, clearer issues. Something normal playtesting will show anyway
-  does not need its own issue; add it to the playtest checklist in
-  [#285](https://github.com/compoodment/ClankerWorld/issues/285).
+  does not need its own issue; add it to the [playtest list](playtest/README.md).
+- computment reads chat, not GitHub comments. An agent that needs their answer
+  asks in its chat reply and records the answer afterwards
+  ([how](AGENTS.md#ask-the-owner-in-chat)).
 - A routine fix follows the agreed design and existing behavior. A change that
   would settle an open game choice needs a Decision issue or an explicit owner
   decision; a draft pull request does not make a suggestion agreed.
@@ -44,19 +46,19 @@ one, and a workflow updates the repository.
 | Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs` |
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
-| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions, owner tasks or playtest checklists), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:needs-playtest` (merged; waiting for a hands-on check), `status:parked` (closed for a later stage) |
+| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:needs-decision`, `status:blocked` (say by what), `status:parked` (closed for a later stage) |
 | Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
 - **Automatic:** the templates set the type and `priority:p2`. A pull request
-  gets the highest priority of the issues it links, and at least P1 if it
+  gets the highest priority of the issues it closes, and at least P1 if it
   changes [how we work](#priorities); at most two areas from the code it
   changes, set when it opens and again when it is marked ready (fix them by
-  hand if they are wrong); a type from its ticked **Type of change** box; and
-  `status:needs-review` while it is ready. An issue it links with
-  `Closes` or `Refs` gets `status:has-pr`; once the pull request is ready for
-  review, the issue's `status:in-progress` claim is removed. `status:has-pr` is
-  removed when the last such pull request closes; if none merged, the issue
-  goes back to `status:needs-pr`.
+  hand if they are wrong); one type, from the first ticked **Type of change**
+  box; and `status:needs-review` while it is ready. An issue it closes
+  (`Closes`, `Fixes` or `Resolves`) gets `status:has-pr`; once the pull request
+  is ready for review, the issue's `status:in-progress` claim is removed.
+  `status:has-pr` is removed when the last such pull request closes; if none
+  merged, the issue goes back to `status:needs-pr`. `Refs` changes no labels.
 - **By hand:** areas, a priority and a status on new issues; `status:needs-pr`
   only when nothing is left to decide; the other statuses when they become
   true; and `status:parked` when closing agreed work for later.
@@ -96,7 +98,7 @@ when their work lands.
 Ready work is agreed, unblocked, unclaimed and not waiting on the owner:
 
 ```text
-is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" -label:"status:needs-playtest" -label:"status:has-pr" -linked:pr
+is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" -label:"status:has-pr" -linked:pr
 ```
 
 Take the highest priority first: add `label:"priority:p0"` to the search, then
@@ -106,14 +108,18 @@ fixes it, name the commit and close the issue.
 
 ### Claim an issue
 
-Before you start, add `status:in-progress` and comment with who is working on
-it and the branch name; assignment alone does not show which agent took it.
+Before you start, replace `status:needs-pr` with `status:in-progress` and
+comment with who is working on it and the branch name; assignment alone does
+not show which agent took it.
 
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
-- If you stop, remove the label and comment with what you learned.
-- You don't remove it when you open the pull request: once the pull request is
-  ready for review, the issue switches to `status:has-pr` automatically.
+- If you stop, push your branch, put `status:needs-pr` back in place of
+  `status:in-progress` (or `status:blocked` if it now waits on something), and
+  comment with what you learned and the branch name.
+- You don't remove it when you open the pull request: once a pull request that
+  closes the issue is ready for review, the issue switches to `status:has-pr`
+  automatically. A `Refs` pull request leaves the claim alone.
 - A claim with no pull request and no update for 12 hours is stale: say you are
   taking it over, then claim it again.
 
@@ -137,9 +143,9 @@ does not claim the change was playtested; the pull request records what was and
 was not checked.
 
 - **Playtesting after merge** does not keep an issue open. If a hands-on check
-  is still wanted, add `status:needs-playtest` and remove it after the check.
-  If the same failure remains, reopen the issue; if something else is wrong,
-  open a new bug that links back.
+  is still wanted, add a file to the [playtest list](playtest/README.md) in the
+  same pull request. If the check fails the same way, reopen the issue; if
+  something else is wrong, open a new bug that links back.
 - **Partial work:** use `Refs` and comment on the issue with what was done and
   what remains. If the remainder is really separate work, open a new issue and
   close the original.
@@ -186,9 +192,9 @@ to stay in draft.
 
 Routine playtesting by computment can happen after merge during the alpha, so a
 missing Windows playtest, tuning session or latency measurement does not by
-itself block a merge. Record what was and was not checked, add
-`status:needs-playtest` to the issue when a hands-on check is still wanted, and
-never claim an unperformed check passed. This does not waive green CI,
+itself block a merge. Record what was and was not checked, add a
+[playtest list](playtest/README.md) file when a hands-on check is still wanted,
+and never claim an unperformed check passed. This does not waive green CI,
 independent review, safety checks, a check the owner or reviewer asked for, or
 fixing correctness, security or data-loss problems the change introduces.
 Release gates stay separate.
@@ -235,7 +241,7 @@ merges only when the owner explicitly asks and someone else has already
 reviewed the current head. Before merging, check that:
 
 1. The pull request is ready for review, not a draft, and nobody has pushed to
-   it since it was marked ready, other than your own merge of main.
+   it since it was marked ready, other than you.
 2. CI is green on the current head. If main was merged in or the branch changed
    after review, review and check the new head.
 3. Someone other than the author reviewed that exact head. Record who reviewed
@@ -243,6 +249,10 @@ reviewed the current head. Before merging, check that:
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. Any integration order named by this or another pull request is respected.
+
+The reviewer may fix what they find on the pull request's branch, small or
+large: merge main in, resolve conflicts, repair tests or change code. List each
+fix in the squash commit body, and check CI again on the new head.
 
 Squash-merge with the PR title as the commit subject, delete the branch, then:
 
