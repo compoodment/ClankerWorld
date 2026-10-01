@@ -18,10 +18,11 @@
 //   other agents' drafts that mention the issue keep nothing.
 //   Comments and edits do not count, because they show no work anyone can
 //   check, and pushes to ready pull requests belong to their reviewers.
-//   A slashed name in a comment is a branch only if it has a commit or a
-//   push, so file paths cannot crowd out the real branch: of the newest 20
-//   names that are not a linked pull request's branch, the first 5 real
-//   branches are checked.
+//   A slashed name in a comment is a branch only if it has a commit. Names
+//   that look like files (ending in / or in an extension such as .md) are
+//   skipped, then of the newest 20 names that are not a linked pull
+//   request's branch, the first 5 real branches are checked. When the claim
+//   or the claimant's draft is already recent, no branch is looked up.
 //   The issue goes back to status:needs-pr, unless it is blocked or is not
 //   pull request work. The release comment names the claimant's draft or
 //   the newest real branch to continue from, and any ready pull request that
@@ -127,8 +128,10 @@ async function commitActivity(github, repo, ref) {
 // When a commit or branch last reached GitHub: the later of its commit date
 // and the branch's last push in the activity log. Pass no branch for a fork,
 // whose pushes this repository's log does not record.
-async function pushActivity(github, repo, ref, branch = ref) {
+async function pushActivity(github, repo, ref, branch = ref, needCommit = false) {
   const commit = await commitActivity(github, repo, ref);
+  // A name with no commit is not a branch, so skip the activity lookup.
+  if (needCommit && !commit.sha) return { ...commit, pushed: 0 };
   let pushes = [];
   if (branch) {
     try {
@@ -164,7 +167,11 @@ async function prActivity(github, repo, pr) {
   return { pushed: Math.max(newest([pr.created_at]), head.pushed), signature: [pr.number, pr.head.sha, head.pushed] };
 }
 
-async function issueSnapshot(github, repo, repoName, number) {
+const looksLikeFile = name => name.endsWith('/') || /\.[A-Za-z][A-Za-z0-9]{0,9}$/.test(name);
+
+// `now` is passed only for the first look at an issue: then branch lookups are
+// skipped when the claim is clearly fresh, which keeps API calls low.
+async function issueSnapshot(github, repo, repoName, number, now = null) {
   const { data: issue } = await github.rest.issues.get({ ...repo, issue_number: number });
   if (issue.state !== 'open' || issue.pull_request) return null;
   const labels = labelNames(issue.labels);
@@ -184,11 +191,14 @@ async function issueSnapshot(github, repo, repoName, number) {
   for (const pr of own) activities.push(await prActivity(github, repo, pr));
   const prBranches = new Set(linked.map(pr => pr.head.ref));
   const branches = [];
-  for (const name of names.filter(name => !prBranches.has(name)).slice(0, MaxBranchCandidates)) {
-    if (branches.length >= MaxBranches) break;
-    const activity = await pushActivity(github, repo, name);
-    // A file path or other slashed word in backticks has no commit and no pushes.
-    if (activity.sha || activity.pushed) branches.push([name, activity]);
+  const recent = time => now !== null && now - time < IssueHours * Hour;
+  if (!recent(Math.max(claim, ...activities.map(activity => activity.pushed)))) {
+    for (const name of names.filter(name => !prBranches.has(name) && !looksLikeFile(name)).slice(0, MaxBranchCandidates)) {
+      if (branches.length >= MaxBranches) break;
+      const activity = await pushActivity(github, repo, name, name, true);
+      if (activity.sha) branches.push([name, activity]);
+      if (recent(activity.pushed)) break;
+    }
   }
   return { labels, keep, closing, linked, own,
     namedBranches: branches.map(([name]) => name),
@@ -231,13 +241,26 @@ async function stillReleased(github, repo, repoName, number, before, now, ensure
   return live;
 }
 
+// Stop before the token runs low, so a run never starts a release it cannot
+// finish. Checking the rate limit itself costs nothing against the limit.
+const MinRemaining = 150;
+async function enoughBudget(github, core) {
+  if (!github.rest.rateLimit?.get) return true;
+  const { data } = await github.rest.rateLimit.get();
+  const remaining = data.resources?.core?.remaining ?? data.rate?.remaining ?? Infinity;
+  if (remaining >= MinRemaining) return true;
+  core.warning?.(`Stopping early: only ${remaining} API requests left this hour.`);
+  return false;
+}
+
 async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun }) {
   const issues = (await github.paginate(github.rest.issues.listForRepo, {
     ...repo, state: 'open', labels: InProgress, per_page: 100,
   })).filter(issue => !issue.pull_request);
 
   for (const issue of issues) {
-    const before = await issueSnapshot(github, repo, repoName, issue.number);
+    if (!await enoughBudget(github, core)) return;
+    const before = await issueSnapshot(github, repo, repoName, issue.number, now);
     if (!before || !before.labels.includes(InProgress) || before.keep || before.ready || now - before.last < IssueHours * Hour) continue;
     const checked = await issueSnapshot(github, repo, repoName, issue.number);
     if (!checked || !checked.labels.includes(InProgress) || checked.keep || checked.ready || changedOrRecent(before, checked, IssueHours, now)) continue;
@@ -261,24 +284,31 @@ async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun })
     if (dryRun) continue;
 
     if (!await removeLabel(github, repo, issue.number, InProgress)) continue;
-    let live = await stillReleased(github, repo, repoName, issue.number, checked, now);
-    if (!live) continue;
-    const backToQueue = canQueue(live);
-    if (backToQueue) await github.rest.issues.addLabels({ ...repo, issue_number: issue.number,
-      labels: [NeedsPr, ...(live.closing.length > 0 ? ['status:has-pr'] : [])] });
-    live = await stillReleased(github, repo, repoName, issue.number, checked, now, true);
-    if (!live) continue;
-    await github.rest.issues.createComment({
-      ...repo, issue_number: issue.number,
-      body: `${Marker}\nClaim released: nothing was pushed for ${IssueHours} hours${backToQueue ? ', so this issue is back in the queue' : ''}. ${resume}`,
-    });
-    if (draft) {
+    try {
+      let live = await stillReleased(github, repo, repoName, issue.number, checked, now);
+      if (!live) continue;
+      const backToQueue = canQueue(live);
+      if (backToQueue) await github.rest.issues.addLabels({ ...repo, issue_number: issue.number,
+        labels: [NeedsPr, ...(live.closing.length > 0 ? ['status:has-pr'] : [])] });
+      live = await stillReleased(github, repo, repoName, issue.number, checked, now, true);
+      if (!live) continue;
       await github.rest.issues.createComment({
-        ...repo, issue_number: draft.number,
-        body: `${Marker}\nThe claim on #${issue.number} was released after ${IssueHours} hours without a push. Whoever picks up #${issue.number} should continue this branch.`,
+        ...repo, issue_number: issue.number,
+        body: `${Marker}\nClaim released: nothing was pushed for ${IssueHours} hours${backToQueue ? ', so this issue is back in the queue' : ''}. ${resume}`,
       });
+      if (draft) {
+        await github.rest.issues.createComment({
+          ...repo, issue_number: draft.number,
+          body: `${Marker}\nThe claim on #${issue.number} was released after ${IssueHours} hours without a push. Whoever picks up #${issue.number} should continue this branch.`,
+        });
+      }
+      await stillReleased(github, repo, repoName, issue.number, checked, now, true);
+    } catch (error) {
+      // Never leave an issue with neither its claim nor a queue label: put the
+      // claim back so the next run tries again, then fail this run visibly.
+      await github.rest.issues.addLabels({ ...repo, issue_number: issue.number, labels: [InProgress] }).catch(() => {});
+      throw error;
     }
-    await stillReleased(github, repo, repoName, issue.number, checked, now, true);
   }
 }
 
@@ -304,6 +334,7 @@ async function restoreActiveReview(github, repo, number, before, now) {
 async function releaseReviewClaims({ github, core, repo, now, dryRun }) {
   const openPrs = await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 });
   for (const pr of openPrs.filter(pr => labelNames(pr.labels).includes(Reviewing))) {
+    if (!await enoughBudget(github, core)) return;
     const before = await reviewSnapshot(github, repo, pr.number);
     if (before.pr.state !== 'open' || before.pr.draft || !before.labels.includes(Reviewing) || now - before.last < ReviewHours * Hour) continue;
     const checked = await reviewSnapshot(github, repo, pr.number);

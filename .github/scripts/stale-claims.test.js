@@ -8,7 +8,8 @@ const hoursAgo = hours => new Date(Now - hours * 60 * 60 * 1000).toISOString();
 // A small fake of the GitHub API: issues and pull requests share numbers, as on GitHub.
 // `pushes` maps a branch to the times it was pushed, as the repository activity log reports them.
 function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}, pushes = {}, beforeCommit = () => {},
-  beforeRemove = () => {}, beforeAdd = () => {}, beforeComment = () => {} }) {
+  beforeRemove = () => {}, beforeAdd = () => {}, beforeComment = () => {}, remaining = undefined }) {
+  const lookups = [];
   const records = new Map();
   for (const issue of issues) records.set(issue.number, { pull_request: undefined, state: 'open', ...issue });
   for (const pr of prs) records.set(pr.number, { state: 'open', draft: false, body: '', ...pr, pull_request: {} });
@@ -47,6 +48,7 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
       },
       repos: {
         getCommit: async ({ ref }) => {
+          lookups.push(['commit', ref]);
           beforeCommit({ ref, records, comments, events });
           if (!(ref in commits)) throw Object.assign(new Error('missing'), { status: 404 });
           return { data: { commit: { committer: { date: commits[ref] } } } };
@@ -55,6 +57,7 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
     },
     request: async (route, { ref }) => {
       if (route !== 'GET /repos/{owner}/{repo}/activity') throw new Error(`unexpected ${route}`);
+      lookups.push(['activity', ref]);
       if (pushes[ref] instanceof Error) throw pushes[ref];
       return { data: (pushes[ref] ?? []).map(timestamp => ({ activity_type: 'push', ref: `refs/heads/${ref}`, timestamp })).reverse() };
     },
@@ -68,10 +71,13 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
       throw new Error(`unexpected ${method}`);
     },
   };
+  if (remaining !== undefined) github.rest.rateLimit = { get: async () => ({ data: { resources: { core: { remaining } } } }) };
+  const warnings = [];
   const run = (dryRun = false) => releaseStaleClaims({
-    github, context: { repo: { owner: 'compoodment', repo: 'ClankerWorld' } }, core: { info() {} }, now: Now, dryRun,
+    github, context: { repo: { owner: 'compoodment', repo: 'ClankerWorld' } },
+    core: { info() {}, warning: message => warnings.push(message) }, now: Now, dryRun,
   });
-  return { records, posted, run };
+  return { records, posted, run, lookups, warnings, github };
 }
 
 const claimed = (number, hours) => ({ [number]: [{ event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(hours) }] });
@@ -490,6 +496,7 @@ test('file paths in comments cannot crowd out the claimed branch or be named as 
         { body: 'Working on this on `codex/1-fix`.', created_at: hoursAgo(9) },
         { body: `Touched ${paths.map(path => `\`${path}\``).join(', ')}.`, created_at: hoursAgo(2) },
       ] },
+      commits: { 'codex/1-fix': hoursAgo(9) },
       pushes: { 'codex/1-fix': [hoursAgo(9), hoursAgo(lastPush)] },
     });
     await state.run();
@@ -509,13 +516,61 @@ test('the newest five real branches are checked, however many paths come first',
       issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 9),
       // The oldest named branch is the only one pushed recently.
       comments: { 1: [...branches.map((name, index) => ({ body: `Now on \`${name}\`.`, created_at: hoursAgo(9 - index) })),
-        { body: `Touched ${Array.from({ length: 10 }, (_, index) => `\`docs/p${index}.md\``).join(', ')}.`, created_at: hoursAgo(2) }] },
+        { body: `Touched ${Array.from({ length: 25 }, (_, index) => `\`docs/p${index}.md\``).join(', ')}.`, created_at: hoursAgo(2) }] },
       commits: Object.fromEntries(branches.map(name => [name, hoursAgo(9)])),
       pushes: { [branches[0]]: [hoursAgo(9), hoursAgo(1)] },
     });
     await state.run();
     assert.equal(state.records.get(1).labels.includes('status:in-progress'), kept, `${count} branches`);
   }
+});
+
+test('names that look like files are never looked up, and a fresh claim looks up no branches', async () => {
+  const stale = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 9),
+    comments: { 1: [{ body: 'On `codex/1-fix`; touched `docs/a.md`, `src/B.cs` and `.github/workflows/`.', created_at: hoursAgo(9) }] },
+    commits: { 'codex/1-fix': hoursAgo(9) }, pushes: { 'codex/1-fix': [hoursAgo(9)] },
+  });
+  await stale.run(true);
+  assert.ok(stale.lookups.length > 0);
+  assert.ok(stale.lookups.every(([, ref]) => ref === 'codex/1-fix'), JSON.stringify(stale.lookups));
+  const fresh = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 0.5),
+    comments: { 1: [{ body: 'On `codex/1-fix`.', created_at: hoursAgo(0.5) }] },
+    commits: { 'codex/1-fix': hoursAgo(0.5) },
+  });
+  await fresh.run();
+  assert.deepEqual(fresh.lookups, []);
+  assert.ok(fresh.records.get(1).labels.includes('status:in-progress'));
+});
+
+test('a failure part-way through a release puts the claim back', async () => {
+  const state = world({ issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 8) });
+  state.github.rest.issues.createComment = async () => { throw Object.assign(new Error('rate limited'), { status: 403 }); };
+  await assert.rejects(state.run(), /rate limited/);
+  assert.ok(state.records.get(1).labels.includes('status:in-progress'));
+});
+
+test('a run stops before releasing anything when the API budget is low', async () => {
+  const state = world({ issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 8), remaining: 20 });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
+  assert.match(state.warnings[0], /Stopping early/);
+});
+
+test('every branch of a stack named in the claim comment keeps each claim of the stack', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }, { number: 2, labels: ['status:in-progress'] }],
+    prs: [{ number: 9, draft: true, body: 'Closes #1', labels: [], head: { sha: 'abc', ref: 'claude/1-fix' } }],
+    events: { ...claimed(1, 3), ...claimed(2, 3) },
+    comments: { 2: [{ body: 'Stack: `claude/1-fix` then `claude/2-fix`.', created_at: hoursAgo(3) }] },
+    commits: { abc: hoursAgo(3), 'claude/1-fix': hoursAgo(3) },
+    pushes: { 'claude/1-fix': [hoursAgo(3), hoursAgo(0.2)] },
+  });
+  await state.run();
+  assert.ok(state.records.get(1).labels.includes('status:in-progress'));
+  assert.ok(state.records.get(2).labels.includes('status:in-progress'));
 });
 
 test('adding the claim label again after a release starts a fresh claim', async () => {
