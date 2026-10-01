@@ -9,13 +9,13 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? CarriedHouseDelivery(string actor) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == actor && lot.DeliveryBuildingId is not null &&
+            .Where(lot => lot.OwnerId == actor && lot.DeliveryBuildingId is not null && lot.ContainerLotId is null &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private InventoryLot? UnlocatedHouseholdStock(string householdId) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId is null &&
+            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId is null && lot.ContainerLotId is null &&
                 AvailableLotQuantity(lot) > 0 &&
                 (lot.ItemKind != "grain" || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)

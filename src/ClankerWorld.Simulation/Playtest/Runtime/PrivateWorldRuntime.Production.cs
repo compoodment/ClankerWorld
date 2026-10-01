@@ -279,8 +279,8 @@ public sealed partial class PrivateWorldRuntime
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
                 if (BuildingStorageRules.Capacity(definition, building) is not { } capacity) continue;
-                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
-                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => (long)lot.Quantity);
+                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => (long)lot.Quantity);
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
             }
@@ -514,6 +514,23 @@ public sealed partial class PrivateWorldRuntime
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
         var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
+        if (inhabitants.ContainsKey(productionOwner))
+        {
+            var personalInputs = inputs.Where(input => input.OwnerId == productionOwner &&
+                    inventoryState.GetLot(input.LotId).StorageBuildingId is null).Sum(input => input.Quantity);
+            var produced = recipe.Outputs.Sum(output => CropOutputQuantity(recipe, output, cropWeather, soilMoisture));
+            if (Math.Max(0, produced - personalInputs) > CarryingRoom(productionOwner))
+            {
+                ApplyInventoryTransition(inventory =>
+                {
+                    foreach (var input in inputs)
+                        inventory = InventoryFixture.ReleaseReservation(inventory, input.Id, "production_output_full");
+                    return inventory;
+                });
+                AppendEvent("production_output_full", job.WorkerId);
+                return false;
+            }
+        }
         // A household's harvest goes into its own Silo when it holds one;
         // ready-to-eat food still goes home to the House.
         var silo = recipe.IsCrop ? HouseholdBuildingWithTag(productionOwner, "silo")?.InstanceId : null;

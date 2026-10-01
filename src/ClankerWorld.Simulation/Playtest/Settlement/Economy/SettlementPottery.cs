@@ -91,14 +91,16 @@ public sealed partial class PrivateWorldRuntime
         {
             var contents = society.Checkpoint.Inventory.Lots.Where(lot => lot.ContainerLotId == jug.Id)
                 .Sum(lot => lot.Quantity);
-            if (contents > 0 && (person.Position == house.Position ||
+            if (contents > 0 && InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, jug.Id, 1) <= StorageRoom(house.InstanceId) &&
+                (person.Position == house.Position ||
                 FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count > 0))
                 candidates.Add(new("water_deliver", "Carry the filled jug home for cooking and care.", 19, house.InstanceId));
-            else if (contents == 0 && (person.WaterWork?.Shore ?? ReachableFreshWaterShore(actor, person.Position)) is { } shore)
+            else if (contents == 0 && CarryingRoom(actor) > 0 &&
+                (person.WaterWork?.Shore ?? ReachableFreshWaterShore(actor, person.Position)) is { } shore)
                 candidates.Add(new("water_fill", "Take the jug to a river or lake and collect fresh water.", 23,
                     $"water-shore:{shore.X},{shore.Y}"));
         }
-        else if (householdWater < 4 && EmptyHouseholdJug(actor) is not null &&
+        else if (householdWater < 4 && CarryingRoom(actor) > 0 && EmptyHouseholdJug(actor) is not null &&
             ReachableFreshWaterShore(actor, person.Position) is not null)
             candidates.Add(new("water_collect_jug", "Collect an empty household jug to bring back fresh water.", 22));
 
@@ -115,7 +117,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void CollectEmptyWaterJug(string actor, PlaytestInhabitantState person)
     {
-        if (!AdultResident(actor) || PersonalJug(actor) is not null || EmptyHouseholdJug(actor) is not { } jug)
+        if (!AdultResident(actor) || CarryingRoom(actor) == 0 || PersonalJug(actor) is not null || EmptyHouseholdJug(actor) is not { } jug)
             return;
         var position = HouseholdStockPosition(jug);
         var range = HouseholdStockInteractionRange(jug);
@@ -145,7 +147,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, person, house.Position, "pottery_supply", 0);
                 return;
             }
-            var amount = Math.Min(need.Missing, AvailableLotQuantity(carried));
+            var amount = Math.Min(StorageRoom(house.InstanceId), Math.Min(need.Missing, AvailableLotQuantity(carried)));
+            if (amount == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"pottery-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, amount,
                 "pottery_supplied", house.InstanceId));
@@ -161,9 +164,12 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, person, location, "pottery_supply", range);
                 return;
             }
+            var amount = Math.Min(CarryingRoom(actor), Math.Min(need.Missing,
+                Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock))));
+            if (amount == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"pottery-pickup:{WorldTick}:{actor}", householdId, actor, stock.Id,
-                Math.Min(need.Missing, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock))),
+                amount,
                 "pottery_input_picked_up", destinationDeliveryBuildingId: house.InstanceId));
             return;
         }
@@ -189,8 +195,8 @@ public sealed partial class PrivateWorldRuntime
         if (jug is null) return new(false, false, "Carry a usable water jug first.");
         if (!IsFreshWaterShore(shore)) return new(false, false, "Collect fresh water beside a river or lake.");
         if (person.Position != shore) return new(false, false, "Bring the jug to the water's edge first.");
-        var room = InventoryFixture.ContainerRoom(inventory, jug.Id);
-        if (room == 0) return new(false, false, "The jug is full.");
+        var room = Math.Min(CarryingRoom(actor), InventoryFixture.ContainerRoom(inventory, jug.Id));
+        if (room == 0) return new(false, false, "The jug or the collector's hands are full.");
         if (inventory.Reservations.Any(reservation => reservation.LotId == jug.Id &&
             reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
                 InventoryReservationState.Committed))
@@ -232,6 +238,8 @@ public sealed partial class PrivateWorldRuntime
         if (PersonalJug(actor) is not { } jug || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
             !society.Checkpoint.Inventory.Lots.Any(lot => lot.ContainerLotId == jug.Id))
+            return;
+        if (InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, jug.Id, 1) > StorageRoom(house.InstanceId))
             return;
         if (person.Position != house.Position)
         {

@@ -102,8 +102,11 @@ public sealed partial class PrivateWorldRuntime
         if (lot is null || !CarryEquipmentRules.IsClothing(lot.ItemKind) && !CarryEquipmentRules.IsCarryAid(lot.ItemKind))
             return new(false, "The agent must carry a usable garment, basket or sack to equip it.");
         var equipment = person.Equipment ?? new EquipmentState();
-        var proposed = person with { Equipment = CarryEquipmentRules.IsCarryAid(lot.ItemKind)
-            ? equipment with { CarryAidLotId = lot.Id } : equipment with { WornClothingLotId = lot.Id } };
+        var proposed = person with
+        {
+            Equipment = CarryEquipmentRules.IsCarryAid(lot.ItemKind)
+            ? equipment with { CarryAidLotId = lot.Id } : equipment with { WornClothingLotId = lot.Id }
+        };
         if (CarryEquipmentRules.IsCarryAid(lot.ItemKind) && CarryEquipmentRules.Load(inventory, actor) >
             CarryEquipmentRules.Capacity(inventory, proposed))
             return new(false, "Deliver some goods before changing to a smaller carrying aid.");
@@ -111,9 +114,12 @@ public sealed partial class PrivateWorldRuntime
         {
             var equippedId = $"{lot.Id}#equipped:{WorldTick}:{actor}";
             ApplyInventoryTransition(current => InventoryFixture.SplitLot(current, lot.Id, 1, equippedId));
-            proposed = proposed with { Equipment = CarryEquipmentRules.IsCarryAid(lot.ItemKind)
+            proposed = proposed with
+            {
+                Equipment = CarryEquipmentRules.IsCarryAid(lot.ItemKind)
                 ? proposed.Equipment! with { CarryAidLotId = equippedId }
-                : proposed.Equipment! with { WornClothingLotId = equippedId } };
+                : proposed.Equipment! with { WornClothingLotId = equippedId }
+            };
         }
         inhabitants[actor] = proposed;
         checkpointSchemaVersion = StateSchemaVersion;
@@ -165,7 +171,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor)) return;
         if (CarryingRoom(actor) <= 1 &&
             PersonalGoodsForStorage(actor) is not null && society.Checkpoint.GetInhabitant(actor).HouseholdId is { } household &&
-            HouseForHousehold(household) is { } home &&
+            HouseForHousehold(household) is { } home && StorageRoom(home.InstanceId) > 0 &&
             FindUnoccupiedRoute(actor, person.Position, home.Position, 0).Count > 0)
             candidates.Add(new("store_carried_goods", "Deliver carried supplies to the household House to make room.", 16, home.InstanceId));
         var capacity = CarryEquipmentRules.Capacity(society.Checkpoint.Inventory, person);
@@ -187,7 +193,9 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? PersonalGoodsForStorage(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-            AvailableLotQuantity(lot) > 1 && !IsEquippedLot(actor, lot.Id) &&
+            lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0 && !IsEquippedLot(actor, lot.Id) &&
+            (!IsEdibleFood(lot.ItemKind) && ToolCapabilities.ForItem(lot.ItemKind) is null && !VesselRules.IsVessel(lot.ItemKind) ||
+                AvailableLotQuantity(lot) > 1) &&
             !CarryEquipmentRules.IsClothing(lot.ItemKind) && !CarryEquipmentRules.IsCarryAid(lot.ItemKind))
         .OrderByDescending(lot => lot.Quantity).ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -200,7 +208,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, house.Position, "store_carried_goods", 0);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(goods) - 1);
+        var reserve = IsEdibleFood(goods.ItemKind) || ToolCapabilities.ForItem(goods.ItemKind) is not null ? 1 : 0;
+        var quantity = Math.Min(StorageRoom(house.InstanceId), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(goods) - reserve));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"carried-stock:{WorldTick}:{actor}", actor, household, goods.Id, quantity,
@@ -254,8 +263,11 @@ public sealed partial class PrivateWorldRuntime
             var reserved = ReserveQuantities(inventory, [new(material, 1)], $"repair-gear:{WorldTick}:{actor}",
                 WorldTick, building.HouseholdId!, out var ids, building.InstanceId);
             foreach (var id in ids) reserved = InventoryFixture.ConsumeReservation(reserved, id);
-            return reserved with { Lots = reserved.Lots.Select(item => item.Id == lotId
-                ? item with { ConditionBasisPoints = 10_000 } : item).ToArray() };
+            return reserved with
+            {
+                Lots = reserved.Lots.Select(item => item.Id == lotId
+                ? item with { ConditionBasisPoints = 10_000 } : item).ToArray()
+            };
         });
         AppendEvent("equipment_repaired", $"{actor}|{lot.ItemKind}|{building.InstanceId}");
     }

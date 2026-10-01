@@ -401,6 +401,16 @@ public sealed partial class PrivateWorldRuntime
                 Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > StorageRoom(placed.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "There is no storage room for this recipe's finished output.");
 
+            var outputOwner = ProductionOwnerFor(placed, normalizedWorkerId);
+            if (inhabitants.ContainsKey(outputOwner))
+            {
+                var personalInputs = recipe.Inputs.Sum(input => Math.Min(input.Amount,
+                    society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == outputOwner &&
+                        lot.StorageBuildingId is null && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity)));
+                if (Math.Max(0, recipe.Outputs.Sum(output => output.Amount) - personalInputs) > CarryingRoom(outputOwner))
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The worker needs room to carry the finished goods.");
+            }
+
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var preparation = recipe.Tags.Any(tag => tag is "cooking" or "house-cooking" or "clothing" or "cloth")
                 ? UseTool(normalizedWorkerId, ToolKind.Knife) : null;
