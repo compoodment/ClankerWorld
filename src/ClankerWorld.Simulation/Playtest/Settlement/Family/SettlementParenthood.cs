@@ -190,6 +190,7 @@ public sealed partial class PrivateWorldRuntime
             if (PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
                     (lot.StorageBuildingId is null ||
                      society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
+                    CanCollectHouseholdServing(actor, lot) &&
                     FindUnoccupiedRoute(actor, parent.Position, HouseholdStockPosition(lot),
                         HouseholdStockInteractionRange(lot)).Count > 0) is { } sharedFood)
             {
@@ -200,9 +201,7 @@ public sealed partial class PrivateWorldRuntime
                     MoveToward(actor, parent, camp, "care_food", interactionRange);
                     return;
                 }
-                if (CarryingRoom(actor) == 0) return;
-                ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
-                    HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
+                _ = CollectHouseholdServing(actor, sharedFood, $"care-food:{WorldTick}:{actor}", "caregiver_food");
             }
             else
             {

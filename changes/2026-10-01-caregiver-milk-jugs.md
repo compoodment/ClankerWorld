@@ -1,0 +1,1 @@
+- Caregivers collect household milk with its jug before feeding a child, preserving the vessel and any remaining milk. A serving taken from a food pot leaves the pot and its remaining household stock in place.

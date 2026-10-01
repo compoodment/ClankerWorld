@@ -254,8 +254,7 @@ public sealed partial class PrivateWorldRuntime
         ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
             (lot.StorageBuildingId is null ||
              society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-            (lot.ItemKind != "milk" || lot.ContainerLotId is null ||
-             InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, lot.ContainerLotId, 1) <= CarryingRoom(actor)) &&
+            CanCollectHouseholdServing(actor, lot) &&
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                 HouseholdStockInteractionRange(lot)).Count > 0)
         : null;
@@ -272,19 +271,30 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        if (CarryingRoom(inhabitantId) == 0) return;
+        if (!CollectHouseholdServing(inhabitantId, lot, $"household-food:{WorldTick}:{inhabitantId}", "household_food_share")) return;
         if (lot.ItemKind == "milk" && lot.ContainerLotId is { } vesselId)
         {
-            if (InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, vesselId, 1) > CarryingRoom(inhabitantId)) return;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"milk-jug-pickup:{WorldTick}:{inhabitantId}", lot.OwnerId, inhabitantId, vesselId, 1, "household_milk_collected"));
             AppendEvent("household_milk_collected", $"{inhabitantId}:{vesselId}");
             return;
         }
-        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(
-            inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdFor(inhabitantId), inhabitantId,
-            lot.Id, 1, "household_food_share"));
         AppendEvent("household_food_collected", $"{inhabitantId}:{lot.Id}:1");
+    }
+
+    private bool CanCollectHouseholdServing(string actor, InventoryLot food) => CarryingRoom(actor) > 0 &&
+        (food.ContainerLotId is null || society.Checkpoint.Inventory.Lots.Any(vessel =>
+            vessel.Id == food.ContainerLotId && AvailableLotQuantity(vessel) == 1)) &&
+        (food.ItemKind != "milk" || food.ContainerLotId is null || MilkJugIsUnreserved(food.ContainerLotId) &&
+            InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, food.ContainerLotId, 1) <= CarryingRoom(actor));
+
+    // A solid serving can leave its pot. Milk travels with the whole jug;
+    // after collection, consuming its contents keeps the actual vessel.
+    private bool CollectHouseholdServing(string actor, InventoryLot food, string operationId, string purpose)
+    {
+        if (food.OwnerId != HouseholdFor(actor) || !CanCollectHouseholdServing(actor, food)) return false;
+        var collectedId = food.ItemKind == "milk" && food.ContainerLotId is { } vesselId ? vesselId : food.Id;
+        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, operationId, food.OwnerId,
+            actor, collectedId, 1, purpose));
+        return true;
     }
 
     private void ConsumeFood(string inhabitantId, PlaytestInhabitantState state)
