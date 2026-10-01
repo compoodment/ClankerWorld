@@ -192,11 +192,11 @@ public sealed class HouseholdBuildingPreparationDeliveryTests
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default) => new DeterministicDecisionProvider().DecideAsync(request with
-        {
-            Observation = request.Observation with
             {
-                Candidates = [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")],
-            },
-        }, cancellationToken);
+                Observation = request.Observation with
+                {
+                    Candidates = [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")],
+                },
+            }, cancellationToken);
     }
 }
