@@ -73,6 +73,16 @@ the deletion intent are preserved; later recovery can finish after the file is r
 The paired authority identity belongs to the installation, not the selected
 simulation world.
 
+Load World checks each inactive checkpoint against the current runtime before
+marking it compatible. The host keeps only a process-local structural verdict
+and history head for each catalog identity, keyed by a SHA-256 hash of the
+checkpoint bytes. File replacement, catalog-identity changes and a host restart
+force a new structural check. Every list still verifies the referenced history
+chain and current model credentials;
+selection reads and restores the checkpoint again before changing worlds.
+Checking a changed checkpoint can therefore still be slow, especially on a
+large generated map, while repeated unchanged lists avoid rebuilding worlds.
+
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
 selection can archive the active world. This serializes concurrent operations; it
