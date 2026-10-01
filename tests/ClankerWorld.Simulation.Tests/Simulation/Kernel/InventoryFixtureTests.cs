@@ -85,6 +85,14 @@ public sealed class InventoryFixtureTests
         Assert.Equal(InventoryDigest.Events(restored.Events), InventoryDigest.Events(processedAgain.Events));
         Assert.All(fullySpoiled.Lots.Where(lot => lot.ItemKind == "berries"), lot => Assert.Equal(0, lot.FreshnessBasisPoints));
         Assert.Equal(InventoryDigest.State(spoiled), InventoryDigest.State(restored));
+
+        var foodKinds = new HashSet<string>(StringComparer.Ordinal) { "food" };
+        var exposed = InventoryFixture.ProcessSpoilage(genesis, 100, 4, foodKinds);
+        var protectedOwners = new HashSet<string>(StringComparer.Ordinal) { "bravo" };
+        var stored = InventoryFixture.ProcessSpoilage(genesis, 100, 4, foodKinds, protectedOwners);
+        Assert.Equal(9_600, exposed.GetLot("bravo-food").FreshnessBasisPoints);
+        Assert.Equal(9_800, stored.GetLot("bravo-food").FreshnessBasisPoints);
+        Assert.Equal(10_000, stored.GetLot("alpha-wood").FreshnessBasisPoints);
     }
 
     [Theory]
