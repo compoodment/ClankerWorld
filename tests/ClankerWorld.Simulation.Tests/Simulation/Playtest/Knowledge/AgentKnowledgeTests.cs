@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -16,7 +17,7 @@ public sealed class AgentKnowledgeTests
     public async Task DescendantsKeepExploringAndSavingWithLongInheritedIdentities(int seedLength, int generations)
     {
         using var seed = new PrivateWorldRuntime(new string('s', seedLength));
-        var state = seed.ExportState();
+        var state = await PrepareWritingHouseAsync(seed.ExportState(), "founder-scout");
         var parent = "founder-scout";
         for (var generation = 0; generation < generations; generation++)
         {
@@ -43,9 +44,7 @@ public sealed class AgentKnowledgeTests
                     LastLifecycleYearChecked = 20,
                 } : person).ToArray(),
             };
-            var position = state.Map.Tiles.Select(tile => tile.Position).First(point =>
-                state.Map.IsPassable(point) && state.Inhabitants.All(person => person.Position != point) &&
-                state.Map.FootNeighbors(point).Any(state.Map.IsPassable));
+            var position = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "knowledge-test-house").Position;
             state = state with
             {
                 Society = state.Society with { Society = society },
@@ -96,6 +95,7 @@ public sealed class AgentKnowledgeTests
         using var seed = new PrivateWorldRuntime("inherited-natural-record");
         var initial = seed.ExportState();
         var creator = initial.Inhabitants[0].InhabitantId;
+        initial = await PrepareWritingHouseAsync(initial, creator);
         using var scout = PrivateWorldRuntime.Restore(initial with
         {
             Inhabitants = initial.Inhabitants.Select(person => person with { HungerBasisPoints = 9_500 }).ToArray(),
@@ -151,6 +151,7 @@ public sealed class AgentKnowledgeTests
         using var seed = new PrivateWorldRuntime("personal-map-records");
         var initial = seed.ExportState();
         var explorerId = initial.Inhabitants[0].InhabitantId;
+        initial = await PrepareWritingHouseAsync(initial, explorerId);
         var provider = new CandidateProvider(explorerId, "explore");
         using var world = PrivateWorldRuntime.Restore(initial with
         {
@@ -189,7 +190,7 @@ public sealed class AgentKnowledgeTests
         var sourceId = state.Inhabitants[0].InhabitantId;
         var recipientId = state.Inhabitants[1].InhabitantId;
         var otherId = state.Inhabitants[2].InhabitantId;
-        state = WithArtifact(state, sourceId, state.Inhabitants[0].Position);
+        state = await WithArtifactAsync(state, sourceId, state.Inhabitants[0].Position);
         var sourcePosition = state.Inhabitants.Single(person => person.InhabitantId == sourceId).Position;
         var recipientPosition = state.Map.FootNeighbors(sourcePosition)
             .Where(state.Map.IsPassable)
@@ -244,7 +245,7 @@ public sealed class AgentKnowledgeTests
         var sellerId = state.Inhabitants[0].InhabitantId;
         var buyerId = state.Inhabitants[1].InhabitantId;
         var otherId = state.Inhabitants[2].InhabitantId;
-        state = WithArtifact(state, sellerId, state.Inhabitants[0].Position, "field_map");
+        state = await WithArtifactAsync(state, sellerId, state.Inhabitants[0].Position, "field_map");
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             "trade-clothing-for-map", "clothing", buyerId, 2);
         state = state with
@@ -282,64 +283,76 @@ public sealed class AgentKnowledgeTests
     }
 
     [Fact]
-    public void RestoreRejectsMoreKnowledgeArtifactsThanThePerAgentLimit()
+    public async Task RestoreRejectsMoreKnowledgeArtifactsThanThePerAgentLimit()
     {
         using var seed = new PrivateWorldRuntime("knowledge-artifact-bound");
         var state = seed.ExportState();
         var creatorId = state.Inhabitants[0].InhabitantId;
         var position = state.Inhabitants[0].Position;
-        var terrain = state.Map.Tiles.Single(tile => tile.Position == position).Terrain.ToString();
-        var fact = new AgentKnowledgeFact(
-            $"knowledge-fact:{creatorId}:{position.X}:{position.Y}", creatorId, creatorId,
-            position, terrain, [], state.Society.Society.WorldTick, "firsthand");
-        var artifacts = Enumerable.Range(1, 9) // The world allows eight artifacts per creator.
-            .Select(index => new AgentKnowledgeArtifact(
-                $"knowledge-artifact-{index:D6}", creatorId, $"bounded-lot-{index:D6}",
-                "field_record", "Field record · 1 site", state.Society.Society.WorldTick, [fact]))
-            .ToArray();
+        state = await WithArtifactAsync(state, creatorId, position);
+        using var writing = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("nobody", "never"));
+        for (var index = 1; index < 8; index++)
+            Assert.True(writing.WriteKnowledgeArtifact(creatorId, "field_record", [position]).Applied);
+        Assert.Equal(8, writing.Knowledge.Artifacts.Count);
+        Assert.False(writing.WriteKnowledgeArtifact(creatorId, "field_record", [position]).Applied);
+        state = writing.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "knowledge-test-house");
         var inventory = state.Society.Society.Inventory;
-        foreach (var artifact in artifacts)
-            inventory = InventoryFixture.AddLot(inventory, artifact.LotId, artifact.Kind, creatorId, 1,
-                state.Society.Society.WorldTick);
+        var paper = inventory.GetLot("knowledge-test-paper");
+        const string ninthId = "knowledge-artifact-000009";
+        const string purpose = "knowledge-writing:" + ninthId;
+        var reservationId = purpose + ":quantity:0:lot:0";
+        inventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(inventory, reservationId,
+            house.HouseholdId!, paper.Id, 1, purpose, state.Society.Society.WorldTick), reservationId);
+        inventory = InventoryFixture.AddLot(inventory, "knowledge-lot-000009", "field_record", creatorId, 1, state.Society.Society.WorldTick);
+        var ninth = state.Knowledge!.Artifacts[0] with { Id = ninthId, LotId = "knowledge-lot-000009", InputReservationIds = [reservationId] };
         var malformed = state with
         {
-            Knowledge = new PrivateWorldKnowledgeState([fact], artifacts),
-            Society = state.Society with
-            {
-                Society = state.Society.Society with { Inventory = inventory },
-            },
+            Knowledge = state.Knowledge with { Artifacts = state.Knowledge.Artifacts.Append(ninth).ToArray() },
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } }
         };
-
+        // The ninth item has genuine House/paper proof; only the creator bound is invalid.
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(malformed));
     }
 
-    private static PrivateWorldRuntimeState WithArtifact(
-        PrivateWorldRuntimeState state,
-        string creatorId,
-        GridPoint position,
-        string kind = "field_record")
+    private static async Task<PrivateWorldRuntimeState> WithArtifactAsync(
+        PrivateWorldRuntimeState state, string creatorId, GridPoint position, string kind = "field_record")
     {
-        var sequence = (state.Knowledge?.Artifacts.Count ?? 0) + 1;
+        state = await PrepareWritingHouseAsync(state, creatorId);
         var terrain = state.Map.Tiles.Single(tile => tile.Position == position).Terrain.ToString();
-        var fact = new AgentKnowledgeFact(
-            $"knowledge-fact:{creatorId}:{position.X}:{position.Y}", creatorId, creatorId,
+        var fact = new AgentKnowledgeFact($"knowledge-fact:{creatorId}:{position.X}:{position.Y}", creatorId, creatorId,
             position, terrain, ["private-secret-resource"], state.Society.Society.WorldTick, "firsthand");
-        var artifactId = $"knowledge-artifact-{sequence:D6}";
-        var lotId = $"knowledge-lot-{sequence:D6}";
-        var artifact = new AgentKnowledgeArtifact(artifactId, creatorId, lotId, kind,
-            kind == "field_map" ? "Field map · 1 site" : "Field record · 1 site",
-            state.Society.Society.WorldTick, [fact]);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
-            lotId, kind, creatorId, 1, state.Society.Society.WorldTick);
+        using var writing = PrivateWorldRuntime.Restore(state with { Knowledge = new PrivateWorldKnowledgeState([fact], []) },
+            _ => new CandidateProvider("nobody", "never"));
+        var result = writing.WriteKnowledgeArtifact(creatorId, kind, [position]);
+        Assert.True(result.Applied, result.Failure);
+        return writing.ExportState();
+    }
+
+    private static async Task<PrivateWorldRuntimeState> PrepareWritingHouseAsync(PrivateWorldRuntimeState state, string creatorId)
+    {
+        using var activating = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("nobody", "never"));
+        Assert.True(activating.StageStarterContent());
+        for (var tick = 0; tick < 8; tick++) Assert.True((await activating.AdvanceOneTickAsync()).Advanced);
+        state = activating.ExportState();
+        var actor = state.Inhabitants.Single(person => person.InhabitantId == creatorId);
+        var household = state.Society.Society.GetInhabitant(creatorId).HouseholdId!;
+        var occupied = state.Map.CampObjects.Select(item => item.Position).Concat(state.Map.Resources.Select(item => item.Position))
+            .Concat(state.RoadTiles ?? []).Concat(state.WorldSimulation!.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))).ToHashSet();
+        var point = state.Map.Tiles.Where(tile => state.Map.IsBuildable(tile.Position) && !occupied.Contains(tile.Position))
+            .OrderBy(tile => state.Map.FootDistance(actor.Position, tile.Position)).First().Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "knowledge-test-wood", "wood", household, 8);
+        using var placing = PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } },
+            _ => new CandidateProvider("nobody", "never"));
+        Assert.True(placing.PlaceBuilding("knowledge-test-house", HouseContent.House1x1().CanonicalId, point, household).Applied);
+        state = placing.ExportState();
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "knowledge-test-paper", "paper", household, 16, storageBuildingId: "knowledge-test-house");
         return state with
         {
-            Knowledge = new PrivateWorldKnowledgeState(
-                (state.Knowledge?.Facts ?? []).Append(fact).ToArray(),
-                (state.Knowledge?.Artifacts ?? []).Append(artifact).ToArray()),
-            Society = state.Society with
-            {
-                Society = state.Society.Society with { Inventory = inventory },
-            },
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == creatorId
+                ? person with { Position = point, HungerBasisPoints = 10_000 } : person).ToArray()
         };
     }
 
@@ -369,7 +382,11 @@ public sealed class AgentKnowledgeTests
             KnownMapFactsByAgent[request.Observation.InhabitantId] = request.Observation.KnownMapFacts ?? [];
             var selected = onlyTarget && request.Observation.InhabitantId != targetId
                 ? null
-                : request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal));
+                : prefix == "explore" ? request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith("knowledge_write:", StringComparison.Ordinal))
+                    ?? request.Observation.Candidates.FirstOrDefault(item => item.Id == "explore")
+                : request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal))
+                    ?? (prefix.StartsWith("trade_propose:", StringComparison.Ordinal)
+                        ? request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith("trade_meet:", StringComparison.Ordinal)) : null);
             selected ??= request.Observation.Candidates.SingleOrDefault(item => item.Id == "safe_idle")
                 ?? request.Observation.Candidates[0];
             return new DeterministicDecisionProvider().DecideAsync(request with

@@ -1,0 +1,8 @@
+# Ports and communal boats
+
+Pending Windows hands-on playtest. Building costs, boat costs and travel speed are provisional.
+
+- On the paired world: build two Ports with their short ends on land, three rows in water and clear docking water along both sides. Try all four directions, then block a docking tile and check that placement is refused. Carry real wood, rope and refined iron into a completed Port and build a communal boat. Its marker and inspection should show the actual Town owner and berth. ([#411](https://github.com/compoodment/ClankerWorld/issues/411))
+- On the paired world: have an adult board with a filled jug and travel to the second Port. Save and reload underway; the passenger, boat and jug contents should reach that Port together. A visitor needs permission. Revoking it underway should stop the next departure while allowing the current trip to finish. Park and detach any cart, and dismount any horse, before boarding. ([#411](https://github.com/compoodment/ClankerWorld/issues/411))
+- On the paired world: occupy the destination landing. The boat should wait one game day, then return only if an origin berth and adjacent landing are free and reachable. Block both landings and reload while waiting; the passenger and cargo should remain aboard. Clear the origin landing and check that the boat can return. ([#411](https://github.com/compoodment/ClankerWorld/issues/411))
+- On the paired world: let an elder carrying a filled vessel die during a journey. Their real estate stock should stay with the moving boat. After inheritance resolves, the beneficiary should reach the landed Port to collect the vessel and its contents. ([#411](https://github.com/compoodment/ClankerWorld/issues/411))

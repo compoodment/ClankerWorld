@@ -127,6 +127,7 @@ public sealed class SettlementSocialStandingTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var candidate = request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal))
+                ?? (prefix == "trade_propose:" ? request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith("trade_meet:", StringComparison.Ordinal)) : null)
                 ?? request.Observation.Candidates.Single(item => item.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with
             {
