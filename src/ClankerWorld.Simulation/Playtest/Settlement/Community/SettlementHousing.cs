@@ -6,7 +6,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
 /// An adult's request to live in another household's House. Every adult
-/// member of that household at the time of asking must agree; one refusal,
+/// current member of that household must agree; one refusal,
 /// or no answer within the window, ends it.
 /// </summary>
 public sealed record SettlementHousingRequest(string HouseholdId, long RequestedTick, long ExpiryTick,
@@ -180,7 +180,16 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!inhabitants.TryGetValue(actor, out var state) || state.Housing is not { Request: { } request } housing)
             return;
-        var living = HouseholdAdults(request.HouseholdId).Intersect(request.Members, StringComparer.Ordinal).ToArray();
+        var living = HouseholdAdults(request.HouseholdId);
+        var members = request.Members.Union(living, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (!request.Members.SequenceEqual(members, StringComparer.Ordinal))
+        {
+            // Existing answers stay recorded, while adults added or grown into
+            // the household must answer before this request can be accepted.
+            request = request with { Members = members };
+            housing = housing with { Request = request };
+            SetHousing(actor, housing);
+        }
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not null ||
             HouseForHousehold(request.HouseholdId) is null || living.Length == 0)
         {

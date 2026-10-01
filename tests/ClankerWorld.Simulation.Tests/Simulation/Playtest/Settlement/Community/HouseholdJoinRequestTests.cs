@@ -19,6 +19,47 @@ public sealed class HouseholdJoinRequestTests
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AdultAddedToHouseholdMustAnswerAnAlreadyPendingRequest(bool agrees)
+    {
+        var provider = new ScriptedProvider();
+        using var world = NormalPathWorld.CreateGenerated("housing-review-new-adult", _ => provider);
+        var applicant = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(world.AddAgent(applicant, TownTileBeside(world, "first-town-house-a")));
+        provider.Choices[applicant] = "household_ask:" + Alpha;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request is not null);
+        provider.Choices[applicant] = "safe_idle";
+        var originalMembers = world.Society.GetHousehold(Alpha).MemberIds.ToArray();
+        provider.Choices[originalMembers[0]] = "household_admit:" + applicant;
+        provider.Choices[originalMembers[1]] = ScriptedProvider.AnythingButHousing;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request?.Approvals.Contains(originalMembers[0], StringComparer.Ordinal) == true);
+        var newAdult = "agent:" + Guid.NewGuid().ToString("N");
+        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        Assert.Equal(Alpha, world.AddAgent(newAdult, house.Position));
+        provider.Choices[originalMembers[1]] = "household_admit:" + applicant;
+        provider.Choices[newAdult] = ScriptedProvider.AnythingButHousing;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request is { } request &&
+            originalMembers.All(member => request.Approvals.Contains(member, StringComparer.Ordinal)) &&
+            provider.Offered.TryGetValue(newAdult, out var offered) && offered.ContainsKey("household_admit:" + applicant));
+
+        var pending = Housing(world, applicant)!.Request!;
+        Assert.Contains(newAdult, pending.Members);
+        Assert.Contains(originalMembers[0], pending.Approvals);
+        Assert.DoesNotContain(newAdult, pending.Approvals);
+        Assert.Null(world.Society.GetInhabitant(applicant).HouseholdId);
+        Assert.DoesNotContain(applicant, world.Society.GetHousehold(Alpha).MemberIds);
+        Assert.DoesNotContain(provider.Offered[applicant].Keys, candidate => candidate is "collect_shared_food" or "haul_household_stock");
+        provider.Choices[newAdult] = (agrees ? "household_admit:" : "household_refuse:") + applicant;
+        await AdvanceUntil(world, () => world.Society.GetInhabitant(applicant).HouseholdId is not null ||
+            world.ExportState().Events.Any(item => item.Kind == "housing_request_refused"));
+
+        Assert.Equal(agrees ? Alpha : null, world.Society.GetInhabitant(applicant).HouseholdId);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == (agrees ? "household_joined" : "housing_request_refused"));
+        world.Validate();
+    }
+
     [Fact]
     public async Task AdultOnTownLandMustAskAndEveryAdultMustAgreeBeforeJoining()
     {

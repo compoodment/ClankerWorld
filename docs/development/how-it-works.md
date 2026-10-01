@@ -467,9 +467,11 @@ ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
 card and sent to the agent's own model as a `housing` line in its self context.
 An adult with no household is offered `household_ask:{household}` for each
 household that holds a House in the same Town, has an adult who can answer and
-has not refused within the last two world days. Asking freezes that household's
-adult members into the request, which expires after 120 ticks like other
-proposals. Each of those members is offered `household_admit:{applicant}` and
+has not refused within the last two world days. Asking records that household's
+adult members in the request, which expires after 120 ticks like other
+proposals. Adults who join the household or reach adulthood while it is pending
+must also answer; existing answers are retained and adults who die or leave no
+longer need to answer. Each current adult is offered `household_admit:{applicant}` and
 `household_refuse:{applicant}` and cannot continue a project or lesson until
 they answer. One refusal by a living member ends the request; when every living
 member has agreed, `SocietyFixture.JoinHousehold` records the membership and
