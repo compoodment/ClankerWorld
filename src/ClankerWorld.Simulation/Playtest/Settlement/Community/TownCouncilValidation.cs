@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateTownCouncils(PrivateWorldRuntimeState state)
     {
         if (state.TownCouncils is not { } councils) return;
-        if (state.SchemaVersion < 32)
+        if (state.SchemaVersion < 32 && councils.Count > 0)
             throw new InvalidDataException("Physical Town councils requires private-world schema 32.");
         var tick = state.Society.Society.WorldTick;
         var towns = (state.Towns ?? []).ToDictionary(town => town.Id, StringComparer.Ordinal);
