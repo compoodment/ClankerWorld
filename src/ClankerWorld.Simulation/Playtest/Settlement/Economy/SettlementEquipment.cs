@@ -23,6 +23,9 @@ public static class CarryEquipmentRules
     public static bool IsClothing(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak" or "leather_coat";
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack" or "leather_satchel";
 
+    public static int CapacityForKind(string? kind) =>
+        kind switch { "basket" => 48, "sack" or "leather_satchel" => 64, _ => BasicCapacity };
+
     public static long Load(InventoryCheckpoint inventory, string actor) => inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null &&
             (lot.ContainerLotId is null || inventory.Lots.Any(container => container.Id == lot.ContainerLotId &&
@@ -35,7 +38,7 @@ public static class CarryEquipmentRules
             lot.OwnerId == person.InhabitantId && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
             lot.ContainerLotId is null && lot.GroundPosition is null && lot.Quantity > 0 &&
             lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0);
-        return aid?.ItemKind switch { "basket" => 48, "sack" or "leather_satchel" => 64, _ => BasicCapacity };
+        return CapacityForKind(aid?.ItemKind);
     }
 
     public static int Room(InventoryCheckpoint inventory, PlaytestInhabitantState person) =>

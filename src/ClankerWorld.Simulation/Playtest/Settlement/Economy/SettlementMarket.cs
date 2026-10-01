@@ -90,7 +90,8 @@ public sealed partial class PrivateWorldRuntime
     public BusinessActionResult WithdrawBusinessStock(string actor, string buildingId, string lotId, int quantity) =>
         BusinessAction(() => WithdrawBusinessStockCore(actor, buildingId, lotId, quantity));
 
-    private BusinessActionResult WithdrawBusinessStockCore(string actor, string buildingId, string lotId, int quantity)
+    private BusinessActionResult WithdrawBusinessStockCore(string actor, string buildingId, string lotId, int quantity,
+        string? deliveryBuildingId = null)
     {
         var site = BusinessSite(buildingId);
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId);
@@ -102,7 +103,7 @@ public sealed partial class PrivateWorldRuntime
             return new(false, Failure: "A holding household adult at the business needs uncommitted stock and room to carry it.");
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"business-withdrawal:{WorldTick}:{actor}:{businessTrade.NextSequence}", householdId,
-            actor, lot.Id, quantity, "business_stock_withdrawn"));
+            actor, lot.Id, quantity, "business_stock_withdrawn", destinationDeliveryBuildingId: deliveryBuildingId));
         businessTrade = businessTrade with
         {
             NextSequence = businessTrade.NextSequence + 1,

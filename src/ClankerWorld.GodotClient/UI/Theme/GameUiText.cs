@@ -295,6 +295,7 @@ public static class GameUiText
                 : normalized.StartsWith("business_receipts:", StringComparison.Ordinal) ? "collect business payments"
                 : "move or manage business goods";
         if (normalized.StartsWith("market_deliver:", StringComparison.Ordinal)) return "bring goods to a Market stall";
+        if (normalized.StartsWith("market_withdraw:", StringComparison.Ordinal)) return "withdraw unsold Market goods";
         if (normalized.StartsWith("trade_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("trade_propose:", StringComparison.Ordinal) ? "offer a trade"

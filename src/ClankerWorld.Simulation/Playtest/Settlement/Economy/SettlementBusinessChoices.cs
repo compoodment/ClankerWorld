@@ -50,6 +50,10 @@ public sealed partial class PrivateWorldRuntime
             if (BusinessGoodsToList(site) is { } goods)
                 candidates.Add(new("business_list:" + site.InstanceId,
                     $"Offer actual stocked {goods.ItemKind} for an exact quantity of household supplies.", 26, site.InstanceId));
+            if (MarketUnsoldStock(actor, site) is not null)
+                candidates.Add(new("market_withdraw:" + site.InstanceId,
+                    "Withdraw the household's unsold Market goods; the stall remains held while any goods or barter receipts remain.",
+                    110, site.InstanceId));
         }
         if (CarriedHouseDelivery(actor) is null && BusinessSupplyOpportunity(actor) is { } supply)
             candidates.Add(new("business_stock:" + supply.Site.InstanceId,
@@ -123,6 +127,21 @@ public sealed partial class PrivateWorldRuntime
                 BusinessTransferQuantity(receipt, 4, BusinessCarryingRoom(actor)));
             return true;
         }
+        if (candidate.StartsWith("market_withdraw:", StringComparison.Ordinal))
+        {
+            var site = BusinessSite(candidate[16..]);
+            if (site is null || MarketUnsoldStock(actor, site) is not { } stock) return true;
+            if (state.Position != site.Position) MoveToward(actor, state, site.Position, "market_withdrawal", 0);
+            else
+            {
+                var quantity = BusinessTransferQuantity(stock, 4, BusinessCarryingRoom(actor));
+                var home = HouseForHousehold(HouseholdFor(actor));
+                var delivery = home is not null && StorageRoom(home.InstanceId) >=
+                    InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, stock.Id, quantity) ? home.InstanceId : null;
+                WithdrawBusinessStockCore(actor, site.InstanceId, stock.Id, quantity, delivery);
+            }
+            return true;
+        }
         if (candidate.StartsWith("business_stock:", StringComparison.Ordinal))
         {
             SupplyBusinessStock(actor, state, candidate[15..]);
@@ -186,14 +205,13 @@ public sealed partial class PrivateWorldRuntime
             CarryEquipmentRules.Protection(goods, WeatherAt(inhabitants[actor].Position)) >
                 CarryEquipmentRules.Protection(EquippedClothing(actor), WeatherAt(inhabitants[actor].Position));
         if (CarryEquipmentRules.IsCarryAid(kind)) return personal == 0 &&
-            CarryEquipmentRules.Capacity(society.Checkpoint.Inventory, inhabitants[actor]) < (kind == "sack" ? 64 : 48);
+            CarryEquipmentRules.Capacity(society.Checkpoint.Inventory, inhabitants[actor]) < CarryEquipmentRules.CapacityForKind(kind);
         if (ToolCapabilities.ForItem(kind) is { } tool) return ToolCapabilities.Best(society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null), tool.Kind) is not { } existing ||
                 ToolCapabilities.ForItem(existing.ItemKind)!.Tier < tool.Tier;
         if (businessTrade.ToolOrders.Any(order => order.BuyerId == actor && order.ToolKind == kind &&
                 order.State is "queued" or "running" or "ready")) return personal == 0;
-        var example = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.ItemKind == kind);
-        return example is not null && WantsTradeItem(actor, example);
+        return WantsTradeItem(actor, goods);
     }
 
     private bool BusinessIngredientWanted(string actor, string kind)
@@ -215,6 +233,17 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? BusinessReceipt(string buildingId) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.StorageBuildingId == buildingId && IsBusinessReceipt(lot) && BusinessLotCanMove(lot) && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+
+    private InventoryLot? MarketUnsoldStock(string actor, PlacedBuilding site) =>
+        site.HouseholdId == HouseholdFor(actor) && worldContent.Buildings.Single(definition =>
+            definition.CanonicalId == site.DefinitionId).Tags.Contains(BusinessContent.StallKind, StringComparer.Ordinal) &&
+            FindUnoccupiedRoute(actor, inhabitants[actor].Position, site.Position, 0).Count > 0
+            ? society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == site.HouseholdId &&
+                lot.StorageBuildingId == site.InstanceId && BusinessLotCanMove(lot) && !IsBusinessReceipt(lot) &&
+                BusinessTransferQuantity(lot, 4, BusinessCarryingRoom(actor)) > 0 &&
+                !businessTrade.Offers.Any(offer => offer.State == BusinessOfferState.Open && offer.GoodsLotId == lot.Id))
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault()
+            : null;
 
     private InventoryLot? BusinessGoodsToList(PlacedBuilding site) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == site.HouseholdId && lot.StorageBuildingId == site.InstanceId &&

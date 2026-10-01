@@ -219,7 +219,8 @@ public sealed partial class PrivateWorldRuntime
         if (tags.Any(tag => tag is "store" or BusinessContent.StallKind)) return true;
         if (tags.Contains("blacksmith", StringComparer.Ordinal)) return ToolCapabilities.ForItem(kind) is not null ||
             OrnamentContent.IsOrnament(kind) || CombatGearContent.IsGear(kind);
-        if (tags.Contains("tailor", StringComparer.Ordinal)) return CarryEquipmentRules.IsClothing(kind) || kind is "cloth" or "sack";
+        if (tags.Contains("tailor", StringComparer.Ordinal)) return CarryEquipmentRules.IsClothing(kind) ||
+            kind is "cloth" or "leather" or "sack" or "leather_satchel";
         if (tags.Contains("farmhouse", StringComparer.Ordinal)) return FoodItems.IsEdible(kind) || FoodItems.IsFarmStock(kind) ||
             FoodItems.IsPlantingStock(kind) || kind is "seed" or "flour";
         if (tags.Contains("restaurant", StringComparer.Ordinal)) return FoodItems.IsEdible(kind);
