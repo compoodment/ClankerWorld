@@ -24,10 +24,14 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in expansionJobs)
         {
             ContentPackageRules.ValidateLocalId(job.JobId);
-            if (!allJobIds.Add(job.JobId) || !buildings.TryGetValue(job.BuildingInstanceId, out var building) ||
-                !people.ContainsKey(job.WorkerId) ||
-                job.OwnerId != (building.HouseholdId ?? building.TownId) ||
-                !definitions.TryGetValue(building.DefinitionId, out var definition) ||
+            var hasBuilding = buildings.TryGetValue(job.BuildingInstanceId, out var building);
+            var definitionId = job.DefinitionId ?? building?.DefinitionId;
+            if (!allJobIds.Add(job.JobId) || !people.ContainsKey(job.WorkerId) ||
+                string.IsNullOrWhiteSpace(job.OwnerId) ||
+                job.State == WorldProductionJobState.Running && (!hasBuilding || job.OwnerId != (building!.HouseholdId ?? building.TownId)) ||
+                !hasBuilding && (job.State == WorldProductionJobState.Running || schemaVersion < 35 || string.IsNullOrWhiteSpace(job.DefinitionId)) ||
+                hasBuilding && job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
+                definitionId is null || !definitions.TryGetValue(definitionId, out var definition) ||
                 job.TargetFootprint is null || !BuildingStorageRules.IsSupported(definition, job.TargetFootprint) ||
                 job.ExpectedRevision != job.TargetFootprint.Revision - 1 ||
                 job.StartedTick < 0 || job.StartedTick > society.WorldTick || job.CompletionTick <= job.StartedTick ||
@@ -38,10 +42,10 @@ public sealed partial class PrivateWorldRuntime
                 !map.Contains(job.TargetPosition))
                 throw new InvalidDataException("The saved building expansion is malformed.");
             if (job.State != WorldProductionJobState.Running) continue;
-            if (!activeBuildings.Add(job.BuildingInstanceId) || building.Position != job.ExpectedPosition ||
+            if (!hasBuilding || !activeBuildings.Add(job.BuildingInstanceId) || building!.Position != job.ExpectedPosition ||
                 (building.Footprint?.Revision ?? 0) != job.ExpectedRevision)
                 throw new InvalidDataException("The saved expansion no longer refers to its original building footprint.");
-            var target = BuildingStorageRules.WithSize(definition, job.TargetFootprint.Width, job.TargetFootprint.Height);
+            var target = BuildingStorageRules.WithSize(definition!, job.TargetFootprint.Width, job.TargetFootprint.Height);
             var targetTiles = WorldContentSimulationRules.Footprint(target, job.TargetPosition).ToArray();
             if (!WorldContentSimulationRules.Footprint(definition, building).All(targetTiles.Contains) ||
                 targetTiles.Any(tile => !map.IsBuildable(tile)) ||
