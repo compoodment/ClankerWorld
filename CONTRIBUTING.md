@@ -545,9 +545,10 @@ stuck, so whoever closes it:
 - changes the base of each pull request stacked on it to main, with a comment
   saying which of the closed pull request's parts it still carries;
 - searches `is:open label:"status:blocked" <number>` and comments on each pull
-  request or issue that waited on it that it closed without merging. They keep
-  `status:blocked` until whoever holds them, or the owner, decides how to go
-  on without it.
+  request or issue that waited on it that it closed without merging. Where the
+  work can go on without it, remove `status:blocked` and the `Waits on` or
+  `Blocked by` line, and give an issue nobody holds `status:needs-pr`.
+  Otherwise ask the owner in chat what it should wait on now.
 
 A merged change does not need a release; see the
 [release policy](docs/development/releasing.md).
