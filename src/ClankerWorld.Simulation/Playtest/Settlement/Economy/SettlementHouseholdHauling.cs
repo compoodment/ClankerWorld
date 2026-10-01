@@ -65,7 +65,13 @@ public sealed partial class PrivateWorldRuntime
             : Math.Min(capacity, AvailableLotQuantity(stock));
     }
 
-    private InventoryLot? UnlocatedHouseholdStock(string householdId) =>
+    /// <summary>
+    /// Loose household stock to carry to the House. With an actor and House,
+    /// only stock that actor can pick up now is returned, so a vessel load too
+    /// large to haul does not hide the stock behind it.
+    /// </summary>
+    private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
+        string? houseId = null) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ContainerLotId is null && lot.StorageBuildingId is null &&
                 lot.DeliveryBuildingId is null &&
@@ -74,7 +80,9 @@ public sealed partial class PrivateWorldRuntime
                     : AvailableLotQuantity(lot) > 0) &&
                 (!FarmFieldRules.IsFarmStock(lot.ItemKind) || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
-            .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            .ThenBy(lot => lot.Id, StringComparer.Ordinal)
+            .FirstOrDefault(lot => actor is null || houseId is null ||
+                HouseHaulPickupQuantity(actor, lot, houseId) > 0);
 
     private void AddHouseHaulCandidate(List<CognitionCandidate> candidates,
         string actor, PlaytestInhabitantState state)
@@ -100,8 +108,7 @@ public sealed partial class PrivateWorldRuntime
                 24, house.InstanceId));
             return;
         }
-        if (FreeCarryCapacity(actor) > 0 && UnlocatedHouseholdStock(householdId) is { } stock &&
-            HouseHaulPickupQuantity(actor, stock, house.InstanceId) > 0 &&
+        if (FreeCarryCapacity(actor) > 0 && UnlocatedHouseholdStock(householdId, actor, house.InstanceId) is { } stock &&
             (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
              FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
             FindUnoccupiedRoute(actor, HouseholdStockPosition(stock), house.Position, 0).Count > 0)
@@ -183,7 +190,7 @@ public sealed partial class PrivateWorldRuntime
                 $"{actor}:{preparationTool.ItemKind}:{storedQuantity}:{houseForPickup.InstanceId}");
             return;
         }
-        if (UnlocatedHouseholdStock(householdId) is not { } stock)
+        if (UnlocatedHouseholdStock(householdId, actor, houseForPickup.InstanceId) is not { } stock)
             return;
         var source = HouseholdStockPosition(stock);
         var range = HouseholdStockInteractionRange(stock);
