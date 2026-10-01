@@ -217,6 +217,17 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
+Mountain massifs ([#683](https://github.com/compoodment/ClankerWorld/issues/683))
+change elevation, rivers, climate and resources for every generated world, so
+the terrain version saved in `GeographyOptions` (`balancedVisibilityVersion`)
+moves from 1 to 2 for all climate modes. Generation and loading accept only the
+current version. A world saved with version 1 is refused when its checkpoint is
+read, with "This world's map was made by an older terrain generator, before
+mountains formed massifs. This build cannot rebuild that map, so the world is
+not loaded; its save is kept." The file is left unchanged, the world list marks
+it as unable to load, and there is no migration. The save format and schema
+number do not change; the hill band still comes from the saved layers.
+
 Private checkpoint v2 stores verified 64×64 terrain-byte chunks. The old v1
 per-tile format is refused, and generated maps must match the current generator
 and package checks; there is no historical generator or package fallback.
@@ -395,8 +406,9 @@ This prototype changes future weather/events, not past recorded history.
 Advanced generation saves optional forest, mountain and river presets. Missing
 fields mean Normal. New-world water defaults do not alter saved water values.
 Non-default maps require a build that understands their options and validates
-their generated identity. Balanced Small/Medium worlds save the visibility
-algorithm version and, when trial targets apply, the selected candidate attempt.
+their generated identity. Every generated world saves the visibility algorithm
+(terrain) version, now 2, and, when trial targets apply, the selected candidate
+attempt.
 Restore regenerates that exact attempt, checks the saved map manifest, and does
 not rerun candidate selection or silently change the saved map. The attempt
 defaults to 0 for historical saves. A save whose map no longer matches
