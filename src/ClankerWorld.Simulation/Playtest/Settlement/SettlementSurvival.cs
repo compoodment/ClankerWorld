@@ -261,7 +261,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
     {
-        if (HasCarriedItem(actor, kind) || SharedItem(kind, actor) is not { } item)
+        if (HasCarriedEquipmentAtLeast(actor, kind) || SharedItem(kind, actor) is not { } item)
         {
             return;
         }
@@ -275,6 +275,14 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
             item.OwnerId, actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
+    }
+
+    private bool HasCarriedEquipmentAtLeast(string actor, string kind)
+    {
+        if (ToolProgressionRules.Find(kind) is not { } requested)
+            return HasCarriedItem(actor, kind);
+        var carried = ToolProgressionRules.BestUsableTool(society.Checkpoint.Inventory, actor, requested.Family);
+        return carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= requested.Tier;
     }
 
     private void TendFire(string actor, PlaytestInhabitantState person)

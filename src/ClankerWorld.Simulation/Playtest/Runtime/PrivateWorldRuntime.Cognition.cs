@@ -380,6 +380,11 @@ public sealed partial class PrivateWorldRuntime
             GatherBlacksmithOre(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal))
+        {
+            GatherBlacksmithInput(inhabitantId, state, candidateId[GatherBlacksmithInputPrefix.Length..]);
+            return;
+        }
         if (candidateId == "deliver_smith_ore")
         {
             DeliverBlacksmithOre(inhabitantId, state);
@@ -389,6 +394,16 @@ public sealed partial class PrivateWorldRuntime
         {
             CollectEquipment(inhabitantId, state,
                 candidateId == "collect_wooden_axe" ? "wooden_axe" : "wooden_pickaxe");
+            return;
+        }
+        if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
+        {
+            CollectEquipment(inhabitantId, state, candidateId[CollectToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
+        {
+            RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))

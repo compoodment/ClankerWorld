@@ -1552,7 +1552,7 @@ public partial class Main
             if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
                 TreeArtManifest.Entries.Count(entry => entry.Code > 0))
                 throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
-            for (byte kind = 1; kind <= 11; kind++)
+            for (byte kind = 1; kind <= 12; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
             var buildingData = new HashSet<string>(StringComparer.Ordinal);

@@ -111,17 +111,6 @@ public sealed partial class PrivateWorldRuntime
             NeededBuildingMaterial(actor, householdId) is not { } need || need.Material.ResourceId != itemKind ||
             MaterialSource(itemKind, actor) is not { } source)
             return;
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        if (tool is not null && !HasCarriedItem(actor, tool) && SharedItem(tool, actor) is not null)
-        {
-            CollectEquipment(actor, state, tool);
-            return;
-        }
         GatherProjectMaterial(actor, state, itemKind, source);
     }
 }

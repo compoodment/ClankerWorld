@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -9,6 +11,38 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class BlacksmithContentTests
 {
+    [Fact]
+    public void BlacksmithManifestMakesEveryAgreedToolFromRealMaterials()
+    {
+        var manifest = BlacksmithContent.Create();
+        var recipes = manifest.Definitions.Where(definition => definition.Kind == RecipeDefinition.SchemaKind).ToArray();
+        var outputs = recipes
+            .SelectMany(recipe => ReadRecipeQuantities(recipe, "outputs")
+                .Select(output => (recipe.LocalId, output.ResourceId)))
+            .ToHashSet();
+        foreach (var kind in new[]
+                 {
+                     "wooden_axe", "stone_axe", "iron_axe", "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe",
+                     "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "sickle", "iron_knife", "iron",
+                 })
+            Assert.Contains(outputs, output => output.ResourceId == kind);
+
+        var refinement = recipes.Single(recipe => recipe.LocalId == "refine-iron");
+        Assert.Equal([new ContentQuantity("iron_ore", 2), new ContentQuantity("wood", 1)],
+            ReadRecipeQuantities(refinement, "inputs"));
+        Assert.Equal([new ContentQuantity("iron", 1)], ReadRecipeQuantities(refinement, "outputs"));
+    }
+
+    private static ContentQuantity[] ReadRecipeQuantities(ContentDefinition recipe, string propertyName)
+    {
+        using var payload = JsonDocument.Parse(recipe.PayloadJson!);
+        return payload.RootElement.GetProperty(propertyName).EnumerateArray()
+            .Select(quantity => new ContentQuantity(
+                quantity.GetProperty("resourceId").GetString()!,
+                quantity.GetProperty("amount").GetInt32()))
+            .ToArray();
+    }
+
     [Fact]
     public async Task HouseholdMustDeliverWoodBeforeMakingAndCollectingWoodenAxe()
     {
@@ -91,19 +125,27 @@ public sealed class BlacksmithContentTests
             item => item.Kind == "wooden_axe" && item.Quantity == 1);
 
         var collectingState = delivering.ExportState();
+        var brokenAxe = InventoryFixture.AddLot(collectingState.Society.Society.Inventory,
+            "owner-broken-axe", "wooden_axe", alpha, 1, conditionBasisPoints: 0);
         collectingState = collectingState with
         {
+            Society = collectingState.Society with
+            {
+                Society = collectingState.Society.Society with { Inventory = brokenAxe },
+            },
             Inhabitants = collectingState.Inhabitants.Select(person => person.InhabitantId == alpha
                 ? person with { LastDecisionContext = null } : person).ToArray(),
         };
         using var collecting = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(collectingState)),
             id => new CandidateProvider(id == alpha ? "collect_wooden_axe" : "safe_idle"));
-        for (var tick = 0; tick < 20 && !collecting.Society.Inventory.Lots.Any(lot =>
-                 lot.OwnerId == alpha && lot.ItemKind == "wooden_axe"); tick++)
+        for (var tick = 0; tick < 20 && ToolProgressionRules.BestUsableTool(collecting.Society.Inventory, alpha,
+                 ToolFamily.Axe) is null; tick++)
             Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(collecting.Society.Inventory.Lots, lot => lot.Id == "owner-broken-axe" &&
+            lot.ConditionBasisPoints == 0);
         Assert.Contains(collecting.Society.Inventory.Lots, lot => lot.OwnerId == alpha &&
-            lot.ItemKind == "wooden_axe" && lot.StorageBuildingId is null);
+            lot.ItemKind == "wooden_axe" && lot.ConditionBasisPoints > 0 && lot.StorageBuildingId is null);
 
         var refiningRecipe = collecting.WorldContent.Recipes.Single(item => item.LocalId == "refine-iron");
         var noOre = collecting.StartProduction(refiningRecipe.CanonicalId, placed.InstanceId, alpha);
@@ -155,6 +197,7 @@ public sealed class BlacksmithContentTests
         var householdId = state.Society.Society.GetInhabitant(actor).HouseholdId!;
         var source = state.Map.Resources.First(resource =>
             (resource.Kind == material || material == "wood" && resource.Kind == "construction") &&
+            resource.NaturalObjectKind != "fallen_wood" &&
             state.Map.IsReachableFromCampOnFoot(resource.Position));
         var building = seed.WorldContent.Buildings.Single(item => item.LocalId == buildingLocalId);
         var inventory = state.Society.Society.Inventory;
@@ -173,6 +216,7 @@ public sealed class BlacksmithContentTests
                 {
                     Position = source.Position,
                     HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
                     Project = new SettlementProject(TownConstructionCandidateIds.Building(
                             building.CanonicalId, source.Position), building.DisplayName,
                         state.Society.Society.WorldTick, "acquiring",
@@ -181,11 +225,145 @@ public sealed class BlacksmithContentTests
                 : person.Position == source.Position ? person with { Position = oldPosition } : person).ToArray(),
         };
         using var gathering = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
-        Assert.True((await gathering.AdvanceOneTickAsync()).Advanced);
+        for (var tick = 0; tick < 10 && !gathering.ExportState().Events.Any(item =>
+                 item.Kind == "material_gathered" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
+            Assert.True((await gathering.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(gathering.ExportState().Events, item => item.Kind == "material_gathered" &&
             item.Detail == $"{actor}:{material}:6");
         Assert.Contains(gathering.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
             lot.ItemKind == material && lot.Quantity == 6);
+        Assert.Equal(8_000, gathering.Society.Inventory.Lots.Single(lot =>
+            lot.OwnerId == actor && lot.ItemKind == tool).ConditionBasisPoints);
+    }
+
+    [Fact]
+    public async Task HouseholdCanHandGatherFiniteFallenWoodWhenNoAxeIsUsableAndSaveIt()
+    {
+        using var seed = new PrivateWorldRuntime("hand-gather-fallen-wood",
+            _ => new CandidateProvider("safe_idle"), startPace: WorldStartPace.FounderSetup);
+        var founders = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
+        for (var index = 0; index < founders.Length; index++)
+            seed.PlaceFounder("founder:" + (index + 1).ToString("x32", CultureInfo.InvariantCulture), founders[index]);
+        seed.StartWorld();
+        Assert.True(seed.StageStarterContent());
+        for (var tick = 0; tick < 10; tick++)
+            Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
+
+        var state = seed.ExportState();
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == "household:camp-alpha").Id;
+        var householdId = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+        var source = Assert.Single(state.Map.Resources, resource => resource.NaturalObjectKind == "fallen_wood");
+        Assert.True(state.Map.IsReachableFromCampOnFoot(source.Position));
+        var building = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot =>
+                lot.OwnerId != householdId && lot.OwnerId != actor || lot.ItemKind != "wood" &&
+                ToolProgressionRules.Find(lot.ItemKind)?.Family != ToolFamily.Axe).ToArray(),
+        };
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = source.Position,
+                    HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(
+                            building.CanonicalId, source.Position), building.DisplayName,
+                        state.Society.Society.WorldTick, "acquiring",
+                        LastTransitionTick: state.Society.Society.WorldTick),
+                }
+                : person).ToArray(),
+        };
+        using var gathering = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 10 && !gathering.ExportState().Events.Any(item =>
+                 item.Kind == "material_gathered" && item.Detail == $"{actor}:wood:1"); tick++)
+            Assert.True((await gathering.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(gathering.ExportState().Events, item => item.Kind == "material_gathered" &&
+            item.Detail == $"{actor}:wood:1");
+        Assert.Contains(gathering.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "wood" && lot.Quantity == 1);
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(gathering.ExportState()));
+        using var reloaded = PrivateWorldRuntime.Restore(saved, _ => new CandidateProvider("safe_idle"));
+        Assert.Contains(reloaded.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "wood" && lot.Quantity == 1);
+    }
+
+    [Fact]
+    public async Task BlacksmithRepairsOneBrokenUnitUsingTheOwnersCarriedMaterialAndRoundTripsIt()
+    {
+        using var seed = new PrivateWorldRuntime("repair-broken-tool", _ => new CandidateProvider("safe_idle"),
+            startPace: WorldStartPace.FounderSetup);
+        var founders = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
+        for (var index = 0; index < founders.Length; index++)
+            seed.PlaceFounder("founder:" + (index + 1).ToString("x32", CultureInfo.InvariantCulture), founders[index]);
+        seed.StartWorld();
+        Assert.True(seed.StageStarterContent());
+        for (var tick = 0; tick < 10; tick++)
+            Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
+
+        var state = seed.ExportState();
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == "household:camp-alpha").Id;
+        var householdId = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "smith-wood", "wood", householdId, 12);
+        inventory = InventoryFixture.AddLot(inventory, "smith-stone", "stone", householdId, 4);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var placing = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
+        var definition = placing.WorldContent.Buildings.Single(item => item.LocalId == "blacksmith-1x2");
+        var town = Assert.Single(state.Towns!);
+        BuildingPlacementResult? placed = null;
+        foreach (var point in state.Map.Tiles.Select(tile => tile.Position)
+                     .Where(point => TownBorderRules.IsWithinOrAdjacent(town, point, 1, 2)))
+        {
+            var attempt = placing.PlaceBuilding("repair-blacksmith", definition.CanonicalId, point, householdId);
+            if (!attempt.Applied) continue;
+            placed = attempt;
+            break;
+        }
+        Assert.NotNull(placed);
+
+        state = placing.ExportState();
+        inventory = state.Society.Society.Inventory;
+        inventory = InventoryFixture.AddLot(inventory, "broken-axes", "wooden_axe", actor, 2,
+            conditionBasisPoints: 0);
+        inventory = InventoryFixture.AddLot(inventory, "repair-wood", "wood", actor, 1);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = placing.WorldSimulation.Buildings.Single(item => item.InstanceId == placed.InstanceId).Position,
+                    HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
+                }
+                : person).ToArray(),
+        };
+
+        using var repairing = PrivateWorldRuntime.Restore(state,
+            _ => new CandidateProvider("repair_tool:broken-axes"));
+        for (var tick = 0; tick < 10 && !repairing.ExportState().Events.Any(item => item.Kind == "tool_repaired"); tick++)
+            Assert.True((await repairing.AdvanceOneTickAsync()).Advanced);
+        var repaired = repairing.Society.Inventory.Lots.Single(lot => lot.Id.StartsWith("broken-axes:repair:",
+            StringComparison.Ordinal) && lot.OwnerId == actor);
+        Assert.Equal((1, 10_000), (repaired.Quantity, repaired.ConditionBasisPoints));
+        Assert.Contains(repairing.Society.Inventory.Lots, lot => lot.Id == "broken-axes" &&
+            lot.Quantity == 1 && lot.ConditionBasisPoints == 0);
+        Assert.DoesNotContain(repairing.Society.Inventory.Lots, lot => lot.Id == "repair-wood");
+        Assert.Contains(repairing.ExportState().Events, item => item.Kind == "tool_repaired" &&
+            item.Detail == $"{actor}:{repaired.Id}:{placed.InstanceId}");
+
+        var restored = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(repairing.ExportState()));
+        Assert.Equal(repairing.Society.Inventory.Lots, restored.Society.Society.Inventory.Lots);
+        using var reloaded = PrivateWorldRuntime.Restore(restored, _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(repaired.ConditionBasisPoints, reloaded.Society.Inventory.GetLot(repaired.Id).ConditionBasisPoints);
     }
 
     private sealed class CandidateProvider(string candidateId) : IDecisionProvider

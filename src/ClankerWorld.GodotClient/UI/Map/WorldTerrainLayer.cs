@@ -367,6 +367,7 @@ public partial class WorldTerrainLayer : Control
                 "fiber_plant" => (byte)3,
                 "reeds" => (byte)4,
                 "stone_outcrop" => (byte)5,
+                "fallen_wood" => (byte)12,
                 "wild_seed_patch" => (byte)6,
                 "fertile_soil" => (byte)7,
                 "iron_outcrop" => (byte)8,

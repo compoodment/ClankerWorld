@@ -96,6 +96,7 @@ public static class GameUiText
         "fiber_plant" => "Fiber plant",
         "reeds" => "Reeds",
         "stone_outcrop" => "Stone outcrop",
+        "fallen_wood" => "Fallen wood",
         "iron_outcrop" => "Iron outcrop",
         "gold_outcrop" => "Gold outcrop",
         "diamond_outcrop" => "Diamond outcrop",

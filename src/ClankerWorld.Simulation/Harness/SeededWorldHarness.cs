@@ -1424,6 +1424,7 @@ public static class MapAcceptance
             "berry_bush" or "wild_greens" => resourceKind == "food",
             "fiber_plant" or "reeds" => resourceKind == "fiber",
             "stone_outcrop" => resourceKind == "stone",
+            "fallen_wood" => resourceKind == "wood",
             "iron_outcrop" => resourceKind == "iron_ore",
             "gold_outcrop" => resourceKind == "gold_ore",
             "diamond_outcrop" => resourceKind == "diamond",
