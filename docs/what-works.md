@@ -61,8 +61,11 @@ check and the listed model names have been tested against recorded sample
 replies, not yet against live provider accounts. Jev can be switched on or off
 for a paused world.
 When a personal model names a new agent, it gets a stable first-letter hint to
-encourage varied names. The hint does not prevent two agents choosing the same
-full name.
+encourage varied names. If the chosen full name matches another agent's name
+after Unicode normalization, case folding and whitespace cleanup, the game
+asks once more without showing the other name. Deceased agents still count.
+If the second answer is unavailable or also taken, the person keeps the
+placeholder name until the player changes it.
 
 A child's personal model is recorded at birth from the parents' explicit
 personal assignments. When those differ, the parent who began the family plan
@@ -128,12 +131,16 @@ remain unfinished. Memories do not automatically pass to children.
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
 building away from the Roads gets a new side street. Town borders and
-building-site ranking are provisional. Adults placed on an
-owned building join its household; unclaimed Town placement joins the Town
-without a household; outside a Town it starts an independent household. Finding
-existing suitable housing before proposing a new House is not finished. Agents
-without a household cannot build a House; in fresh worlds they rely on clothing
-and natural storm cover until housing is resolved. New Shelters, Storehouses,
+building-site ranking are provisional. Add Agent uses the recorded tile
+ownership: one household-owned building footprint sets the household, and one
+Town border also gives Town membership. Unclaimed land in one Town gives Town
+membership without a household; land outside a Town starts an independent
+household. Overlapping household footprints or Town borders are refused, and
+the server checks the preview against current records again when the adult is
+placed. Walking does not change membership. Finding existing suitable housing
+before proposing a new House is not finished. Agents without a household
+cannot build a House; in fresh worlds they rely on clothing and natural storm
+cover until housing is resolved. New Shelters, Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
