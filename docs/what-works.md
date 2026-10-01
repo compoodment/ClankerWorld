@@ -199,7 +199,10 @@ with an equipped sack. Other carried goods and delivery loads count toward
 that limit; stored and ground goods do not. Wear can break an aid and reduce
 its capacity, but existing cargo and replaced gear remain owned and intact.
 Full carriers decline pickups that would add excess cargo. Food harvests need
-room for the whole yield, including orchard seeds. Exploring still teaches
+room for the whole yield, including orchard seeds. A hungry adult without that
+room first sets down spare supplies for their household, in the House if it
+has room or on the camp pile otherwise. Tools go last; maps, field records,
+worn gear and reserved goods stay carried. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
 Before the first House, builders and helpers deliver construction materials in loads
 to their household's pile at camp. Household adults

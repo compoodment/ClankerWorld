@@ -387,6 +387,69 @@ public sealed class PersonalEquipmentTests
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
     }
 
+    [Fact]
+    public async Task AHungryCarrierSetsDownSpareSuppliesThenGathersFoodAcrossReload()
+    {
+        using var initial = new PrivateWorldRuntime("food-capacity-boundary", _ => new Choices([]));
+        initial.StageStarterContent();
+        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var household = state.Society.Society.Inhabitants.Single(item => item.Id == actor).HouseholdId!;
+        var source = state.Map.Resources.First(item => item.Kind == "food" && item.TreeKind is null);
+        var inventory = state.Society.Society.Inventory;
+        // With no household food to collect, the bush is the only food.
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => lot.OwnerId != actor && !(lot.OwnerId == household && lot.ItemKind == "food")).ToArray(),
+        };
+        // Five carried units leave room for 3; a food pick needs 4.
+        inventory = InventoryFixture.AddLot(inventory, "spare-wood", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "spare-tool", "tool", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = source.Position, HungerBasisPoints = 6_000, LastDecisionContext = null } : person).ToArray(),
+        };
+        var householdWood = inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        var provider = new Choices(["make_room_for_food", "harvest_food", "seek_food"]);
+        var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new Choices([]));
+        try
+        {
+            for (var tick = 0; tick < 60 && !world.ExportState().Events.Any(item => item.Kind == "food_harvested" &&
+                     item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                Assert.InRange(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null), 0, 8);
+                if (tick == 1)
+                {
+                    world.Pause();
+                    var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+                        PrivateWorldRuntimeCodec.Encode(world.ExportState())), id => id == actor ? provider : new Choices([]));
+                    world.Dispose();
+                    world = reloaded;
+                    world.Resume();
+                }
+            }
+
+            var events = world.ExportState().Events;
+            Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("make_room_for_food", StringComparer.Ordinal));
+            Assert.Single(events, item => item.Kind == "spare_cargo_stored" && item.Detail.StartsWith(actor + ":wood:1:", StringComparison.Ordinal));
+            Assert.Single(events, item => item.Kind == "food_harvested" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+            var lots = world.Society.Inventory.Lots;
+            // Wood is set down before the tool, and nothing is lost on the way.
+            Assert.Equal(3, lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+            Assert.Equal(1, lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "tool").Sum(lot => lot.Quantity));
+            Assert.Equal(householdWood + 1, lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+            Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+            world.Validate();
+        }
+        finally
+        {
+            world.Dispose();
+        }
+    }
+
     [Theory]
     [InlineData(5, false)]
     [InlineData(4, true)]
