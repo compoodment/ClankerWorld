@@ -857,7 +857,13 @@ public sealed class OwnerWorldObservationStore
         .OrderBy(group => group.Key, StringComparer.Ordinal)
         .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity),
             ToolCapabilities.ForItem(group.Key) is null ? null : group.Min(lot => lot.ConditionBasisPoints),
-            ToolCapabilities.ForItem(group.Key) is null ? 0 : group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity)))
+            ToolCapabilities.ForItem(group.Key) is null ? 0 : group.Where(lot => lot.ConditionBasisPoints == 0).Sum(lot => lot.Quantity),
+            group.Sum(lot => lot.ContainerCapacity), group.Any(lot => lot.ContainerCapacity > 0)
+                ? state.Society.Society.Inventory.Lots.Where(lot => lot.ContainerLotId is not null &&
+                        group.Any(vessel => vessel.Id == lot.ContainerLotId))
+                    .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal).OrderBy(contents => contents.Key, StringComparer.Ordinal)
+                    .Select(contents => new ViewerInventoryContent(contents.Key, contents.Sum(lot => lot.Quantity))).ToArray()
+                : null))
         .ToArray();
 
     private static ViewerRoute DeterminePlaytestRoute(

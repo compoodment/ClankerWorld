@@ -43,8 +43,9 @@ public sealed record OwnerWorldResource(
     string? TreeStage = null,
     string? NaturalObjectKind = null);
 
+public sealed record OwnerWorldInventoryContent(string Kind, int Quantity);
 public sealed record OwnerWorldInventoryEntry(string Kind, int Quantity, int? ConditionBasisPoints = null,
-    int BrokenQuantity = 0);
+    int BrokenQuantity = 0, int ContainerCapacity = 0, IReadOnlyList<OwnerWorldInventoryContent>? Contents = null);
 
 public sealed record OwnerWorldDecisionFactor(string Key, string Detail);
 

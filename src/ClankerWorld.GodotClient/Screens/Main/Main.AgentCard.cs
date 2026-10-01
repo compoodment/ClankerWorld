@@ -581,7 +581,8 @@ public partial class Main
             : "Carrying " + string.Join(", ", inhabitant.Inventory.Select(item =>
                 $"{Pretty(item.Kind).ToLowerInvariant()} ({item.Quantity})" +
                 (item.ConditionBasisPoints is { } condition ? $" · condition {condition / 100}%" : string.Empty) +
-                (item.BrokenQuantity > 0 ? $" · {item.BrokenQuantity} broken" : string.Empty)));
+                (item.BrokenQuantity > 0 ? $" · {item.BrokenQuantity} broken" : string.Empty) +
+                (item.ContainerCapacity > 0 ? $" [{VesselContentsText(item)}]" : string.Empty)));
         selectedActorConditionLabel.Text = isDeceased
             ? survival is null ? "Historical record" :
                 $"At death · Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}% · Diet {survival.NutritionBasisPoints / 100}%"

@@ -512,7 +512,8 @@ public sealed partial class PrivateWorldRuntime
                     CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
                     targetTick,
                     storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
-                        : IsEdibleFood(output.ResourceId) ? null : silo);
+                        : IsEdibleFood(output.ResourceId) ? null : silo,
+                    containerCapacity: VesselRules.Capacity(output.ResourceId));
             }
 
             return current;

@@ -14,6 +14,14 @@ This page owns save implementation and recovery requirements. The
 
 ## Separate state by ownership
 
+Portable vessels keep their identity while contents are consumed. Contained
+lots name their vessel and share its owner and physical storage/delivery
+location. A transfer or barter of the whole vessel moves those lots together;
+reserved contents prevent moving the vessel. Current saves reject orphaned,
+overfilled or unsuitable contents, bare water and inconsistent collection
+work. In-progress fresh-water collection survives a save with its jug, shore
+and last period of work. This is new alpha state, without an older-save migration.
+
 World state includes its seed and generation options, clock, agents, accepted
 events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage

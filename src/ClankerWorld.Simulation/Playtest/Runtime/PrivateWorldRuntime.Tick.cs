@@ -321,6 +321,7 @@ public sealed partial class PrivateWorldRuntime
             StageForestryContent();
             StageSiloContent();
             StageTailorContent();
+            StagePotteryContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),

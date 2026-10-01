@@ -211,7 +211,9 @@ public sealed partial class PrivateWorldRuntime
             : BuildingsWithTag("storage").Where(building => building.HouseholdId is not null)
                 .Select(building => building.HouseholdId!).ToHashSet(StringComparer.Ordinal);
         ApplyInventoryTransition(inventory => InventoryFixture.ProcessSpoilage(inventory, WorldTick, 4,
-            PerishableKinds, shelteredOwners));
+            PerishableKinds, shelteredOwners, society.Checkpoint.Inventory.Lots
+                .Where(lot => lot.ItemKind == "storage_pot" && lot.ConditionBasisPoints > 0)
+                .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal)));
         foreach (var person in inhabitants.Values.ToArray())
         {
             var old = person.Survival ?? new SurvivalCondition();
@@ -349,6 +351,8 @@ public sealed partial class PrivateWorldRuntime
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
                 (ownerId is null || lot.OwnerId == ownerId))
             .Sum(AvailableLotQuantity);
+        if (ownerId is not null && VesselRules.IsVessel(output.ResourceId))
+            return HouseholdVesselQuantity(ownerId, output.ResourceId) < (output.ResourceId == "water_jug" ? 2 : 1);
         var target = output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
     });

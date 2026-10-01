@@ -66,6 +66,15 @@ public partial class Main
 
     private static string PositionKey(OwnerWorldPosition position) => $"{position.X},{position.Y}";
 
+    private static string VesselContentsText(OwnerWorldInventoryEntry item)
+    {
+        var contents = item.Contents ?? [];
+        var load = contents.Sum(entry => entry.Quantity);
+        return contents.Count == 0 ? $"Empty · holds {item.ContainerCapacity}" :
+            $"{load}/{item.ContainerCapacity} filled · " + string.Join(", ", contents.Select(entry =>
+                $"{Pretty(entry.Kind).ToLowerInvariant()} × {entry.Quantity}"));
+    }
+
     private static string ResourceGlyph(string kind, string? naturalObjectKind) => naturalObjectKind switch
     {
         "berry_bush" => "●",

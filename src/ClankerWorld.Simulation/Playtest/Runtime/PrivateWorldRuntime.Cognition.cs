@@ -327,6 +327,18 @@ public sealed partial class PrivateWorldRuntime
             ApplyCouncilCandidate(inhabitantId, candidateId);
             return;
         }
+        if (candidateId is "pottery_supply" or "water_collect_jug" or "water_fill" or "water_deliver" or "pot_store_food")
+        {
+            switch (candidateId)
+            {
+                case "pottery_supply": SupplyPottery(inhabitantId, state); break;
+                case "water_collect_jug": CollectEmptyWaterJug(inhabitantId, state); break;
+                case "water_fill": CollectFreshWater(inhabitantId, state); break;
+                case "water_deliver": DeliverWaterJug(inhabitantId, state); break;
+                case "pot_store_food": StoreFoodInPot(inhabitantId, state); break;
+            }
+            return;
+        }
         if (candidateId.StartsWith("trade_", StringComparison.Ordinal))
         {
             ApplyTradeCandidate(inhabitantId, state, candidateId);
@@ -651,6 +663,7 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
+            AddPotteryCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
             AddToolRepairCandidate(candidates, inhabitantId);
             AddMiningCandidates(candidates, inhabitantId);

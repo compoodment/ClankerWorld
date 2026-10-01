@@ -1301,6 +1301,22 @@ public static partial class SocietyFixture
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
             foreach (var lot in lots)
             {
+                // A vessel and its contents are one physical bequest. Splitting
+                // contents across heirs would leave goods without their vessel.
+                if (lot.ContainerLotId is not null)
+                    continue;
+                if (lot.ContainerCapacity > 0)
+                {
+                    var beneficiary = beneficiaries.FirstOrDefault() ?? "settlement:communal";
+                    nextLots.Add(lot with { OwnerId = beneficiary, StorageBuildingId = null, DeliveryBuildingId = null });
+                    nextLots.AddRange(lots.Where(item => item.ContainerLotId == lot.Id).Select(item => item with
+                    {
+                        OwnerId = beneficiary,
+                        StorageBuildingId = null,
+                        DeliveryBuildingId = null,
+                    }));
+                    continue;
+                }
                 if (beneficiaries.Length == 0)
                 {
                     nextLots.Add(lot with

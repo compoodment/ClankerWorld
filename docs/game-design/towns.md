@@ -465,6 +465,13 @@ A storage pot slows spoilage for the food within its limited capacity. A water
 jug holds a limited quantity of water. Both remain after their contents are
 used; filling, emptying and carrying them must preserve the vessel and its goods.
 
+The initial pottery implementation uses a provisional capacity of **eight**
+items per vessel. A House fires one vessel from two clay and one wood over 18
+periods of work. Filling a jug takes six periods beside fresh water; ocean
+water is excluded. A pot halves spoilage only for its actual contents. A
+household initially aims for two reusable jugs and one storage pot. These are
+playtest values, not a settled demand or balance rule.
+
 #### Tools, clothing and transport
 
 | Equipment | Production and function |

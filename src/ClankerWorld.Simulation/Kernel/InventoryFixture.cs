@@ -44,7 +44,9 @@ public sealed record InventoryLot(
     long LastProcessedTick,
     string? ProvenanceLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StorageBuildingId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int ContainerCapacity = 0);
 
 public sealed record InventoryReservation(
     string Id,
@@ -100,7 +102,7 @@ public sealed record DirectBarterProposal(
 /// before it creates replacement records, so a rejection leaves its supplied
 /// checkpoint untouched.
 /// </summary>
-public static class InventoryFixture
+public static partial class InventoryFixture
 {
     public static InventoryCheckpoint CreateGenesis(IEnumerable<InventoryLot> lots)
     {
@@ -150,7 +152,9 @@ public static class InventoryFixture
         long? targetTick = null,
         int conditionBasisPoints = 10_000,
         int freshnessBasisPoints = 10_000,
-        string? storageBuildingId = null)
+        string? storageBuildingId = null,
+        string? containerLotId = null,
+        int containerCapacity = 0)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
@@ -176,11 +180,13 @@ public static class InventoryFixture
             conditionBasisPoints,
             freshnessBasisPoints,
             nextTick,
-            StorageBuildingId: storageBuildingId);
+            StorageBuildingId: storageBuildingId,
+            ContainerLotId: containerLotId, ContainerCapacity: containerCapacity);
         var lots = checkpoint.Lots
             .Append(lot)
             .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
             .ToArray();
+        ValidateLots(lots);
         return Commit(
             checkpoint,
             targetTick,
@@ -210,7 +216,8 @@ public static class InventoryFixture
         long targetTick,
         int freshnessLossPerTick,
         IReadOnlySet<string>? itemKinds = null,
-        IReadOnlySet<string>? protectedOwnerIds = null)
+        IReadOnlySet<string>? protectedOwnerIds = null,
+        IReadOnlySet<string>? protectedContainerIds = null)
     {
         ValidateCheckpoint(checkpoint);
         if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0)
@@ -232,6 +239,8 @@ public static class InventoryFixture
             {
                 rate /= 2;
             }
+            if (lot.ContainerLotId is { } containerId && protectedContainerIds?.Contains(containerId) == true)
+                rate /= 2;
             var freshnessLoss = checked(elapsed * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0
@@ -292,6 +301,8 @@ public static class InventoryFixture
 
         var lot = checkpoint.GetLot(reservation.LotId);
         EnsureOwnerAndExactQuantity(lot, reservation.OwnerId, reservation.Quantity);
+        if (checkpoint.Lots.Any(item => item.ContainerLotId == lot.Id))
+            throw new InvalidOperationException("Empty the vessel before consuming or removing it.");
         var lots = lot.Quantity == reservation.Quantity
             ? checkpoint.Lots.Where(candidate => candidate.Id != lot.Id).ToArray()
             : checkpoint.Lots.Select(candidate => candidate.Id == lot.Id
@@ -362,6 +373,7 @@ public static class InventoryFixture
 
         var source = checkpoint.GetLot(lotId);
         EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        EnsurePortableTransfer(checkpoint, source);
         var lots = quantity == source.Quantity
             ? checkpoint.Lots.Select(lot => lot.Id == source.Id
                     ? lot with
@@ -369,6 +381,7 @@ public static class InventoryFixture
                         OwnerId = recipientId,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
+                        ContainerLotId = null,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -384,9 +397,12 @@ public static class InventoryFixture
                     ProvenanceLotId = source.Id,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    ContainerLotId = null,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
+        lots = MoveContainedLots(lots, source.Id, recipientId, destinationStorageBuildingId, destinationDeliveryBuildingId);
+        ValidateLots(lots);
         return Commit(
             checkpoint,
             lots: lots,
@@ -435,6 +451,8 @@ public static class InventoryFixture
         var secondLot = checkpoint.GetLot(proposal.SecondLotId);
         EnsureOwnerAndAvailableQuantity(checkpoint, firstLot, proposal.FirstPartyId, proposal.FirstQuantity);
         EnsureOwnerAndAvailableQuantity(checkpoint, secondLot, proposal.SecondPartyId, proposal.SecondQuantity);
+        EnsurePortableTransfer(checkpoint, firstLot);
+        EnsurePortableTransfer(checkpoint, secondLot);
         var firstReservation = new InventoryReservation(
             $"{proposal.Id}:first", proposal.FirstPartyId, proposal.FirstLotId, proposal.FirstQuantity,
             $"barter:{proposal.Id}", proposal.ExpiryTick, true, InventoryReservationState.Reserved);
@@ -551,9 +569,10 @@ public static class InventoryFixture
     {
         if (source.Quantity == quantity)
         {
-            return lots.Select(lot => lot.Id == source.Id
-                    ? lot with { OwnerId = recipientId, StorageBuildingId = null, DeliveryBuildingId = null } : lot)
+            var moved = lots.Select(lot => lot.Id == source.Id
+                    ? lot with { OwnerId = recipientId, StorageBuildingId = null, DeliveryBuildingId = null, ContainerLotId = null } : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+            return MoveContainedLots(moved, source.Id, recipientId, null, null);
         }
 
         var transferId = $"{source.Id}#barter:{offerId}";
@@ -570,6 +589,7 @@ public static class InventoryFixture
             ProvenanceLotId = source.Id,
             StorageBuildingId = null,
             DeliveryBuildingId = null,
+            ContainerLotId = null,
         };
         return lots.Select(lot => lot.Id == source.Id ? lot with { Quantity = lot.Quantity - quantity } : lot)
             .Append(transferred).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
@@ -583,6 +603,7 @@ public static class InventoryFixture
     {
         EnsureOwnerAndExactQuantity(lot, expectedOwnerId, requestedQuantity);
         EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
+        EnsureContainerReservationAvailable(checkpoint, lot);
     }
 
     private static void EnsureUnreservedQuantity(InventoryCheckpoint checkpoint, InventoryLot lot, int requestedQuantity)
@@ -657,6 +678,7 @@ public static class InventoryFixture
     private static void ValidateLots(IReadOnlyList<InventoryLot> lots)
     {
         EnsureCanonicalIds(lots.Select(lot => lot.Id), "lots");
+        ValidatePortableContainers(lots);
         foreach (var lot in lots)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(lot.ItemKind);
@@ -784,6 +806,7 @@ public static class InventoryCheckpointCodec
                 })
                 .ToArray(),
             document.Events.OrderBy(item => item.EventId).ToArray(), document.EventHistoryFloor);
+        InventoryFixture.ValidatePortableContainers(checkpoint.Lots);
         _ = InventoryDigest.State(checkpoint);
         return checkpoint;
     }

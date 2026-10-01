@@ -223,6 +223,7 @@ public sealed partial class PrivateWorldRuntime
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ValidateVessels(state);
         if (state.SchemaVersion < 10 && (state.Society.Society.LifeClock is not null ||
             state.Society.Society.Inhabitants.Any(person => person.BirthLifeTick is not null)))
         {
