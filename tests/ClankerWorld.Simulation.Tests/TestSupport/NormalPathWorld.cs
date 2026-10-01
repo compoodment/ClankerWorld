@@ -47,6 +47,8 @@ internal static class NormalPathWorld
                 : content.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.LocalId;
             return (selection.IsBuilding ? "building:" : "recipe:") + (localId ?? "unknown");
         }
+        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
+            return string.Join(':', candidateId.Split(':').Take(2));
         var separator = candidateId.IndexOf(':', StringComparison.Ordinal);
         return separator < 0 ? candidateId : candidateId[..separator];
     }
@@ -67,6 +69,8 @@ internal sealed class ActionCoverageRecorder(bool chooseIdle = false) : IDecisio
     /// <summary>The world tick at which each agent was first offered each candidate.</summary>
     public ConcurrentDictionary<(string AgentId, string CandidateId), long> FirstOfferedTick { get; } = new();
 
+    public ConcurrentDictionary<(string AgentId, string BuildingId), byte> WorkstationSupplySites { get; } = new();
+
     public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
 
     public long ProviderEpoch => 0;
@@ -80,6 +84,8 @@ internal sealed class ActionCoverageRecorder(bool chooseIdle = false) : IDecisio
         {
             offered.AddOrUpdate(candidate.Id, 1, (_, count) => count + 1);
             FirstOfferedTick.TryAdd((request.Observation.InhabitantId, candidate.Id), request.Observation.WorldTick);
+            if (candidate.Id.StartsWith("supply_workstation:", StringComparison.Ordinal) && candidate.DestinationId is { } buildingId)
+                WorkstationSupplySites.TryAdd((request.Observation.InhabitantId, buildingId), 0);
         }
         var choice = chooseIdle
             ? request with

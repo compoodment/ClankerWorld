@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
@@ -72,20 +73,42 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
-    public async Task CropJobsAreVisibleAlongsideWorkstationJobs()
+    public void CropJobsAreVisibleAlongsideWorkstationJobs()
     {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        Assert.True(runtime.StageStarterContent());
-        for (var tick = 0; tick < 150; tick++)
+        using var initial = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(chooseIdle: true));
+        var state = initial.ExportState();
+        var farmhouse = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
+        var workers = initial.Society.Inhabitants.Where(person => person.HouseholdId == farmhouse.HouseholdId).ToArray();
+        var crop = initial.WorldContent.Recipes.Single(recipe => recipe.LocalId == "universal-grain-field");
+        var mill = initial.WorldContent.Recipes.Single(recipe => recipe.LocalId == "mill-grain");
+        var occupied = initial.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            initial.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
+        var field = initial.Towns.Single().BorderTiles.First(point => LandFertilityRules.IsFarmable(state.Map, point) &&
+            !occupied.Contains(point) && !initial.RoadTiles.Contains(point) &&
+            !state.Map.Resources.Any(resource => resource.Position == point) && !state.Inhabitants.Any(person => person.Position == point));
+        state = FarmTestFields.Prepare(state, workers[0].Id, field, crop);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "projection-mill-grain", "grain",
+            farmhouse.HouseholdId!, 1, storageBuildingId: farmhouse.InstanceId);
+        state = state with
         {
-            _ = await runtime.AdvanceOneTickAsync();
-        }
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == workers[0].Id ? person with { Position = field } :
+                person.InhabitantId == workers[1].Id ? person with { Position = farmhouse.Position } : person).ToArray(),
+        };
+        using var runtime = PrivateWorldRuntime.Restore(state, _ => new ActionCoverageRecorder(chooseIdle: true));
+        var planted = runtime.StartProduction(crop.CanonicalId, WorldBuildSiteRules.FieldSiteId(field), workers[0].Id);
+        Assert.True(planted.Applied, planted.Failure);
+        var milling = runtime.StartProduction(mill.CanonicalId, farmhouse.InstanceId, workers[1].Id);
+        Assert.True(milling.Applied, milling.Failure);
         var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
-        var state = runtime.ExportState();
+        state = runtime.ExportState();
         Assert.NotEmpty(state.WorldSimulation!.CropBuilds!);
+        Assert.NotEmpty(state.WorldSimulation.ProductionJobs);
         var expected = state.WorldSimulation.ProductionJobs.Concat(state.WorldSimulation.CropBuilds!).Select(item => item.JobId).Order(StringComparer.Ordinal);
         Assert.Equal(expected, snapshot.ProductionJobs.Select(item => item.JobId));
         Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        Assert.Equal(snapshot.ProductionJobs, new OwnerWorldObservationStore(restored).GetSnapshot().ProductionJobs);
     }
 
     [Fact]

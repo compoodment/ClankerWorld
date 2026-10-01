@@ -13,33 +13,58 @@ public sealed class ProjectInputBoundaryTests
     [Fact]
     public async Task CropPreparationDoesNotUseAnotherHouseholdsSeeds()
     {
-        using var seed = await Prepared();
+        using var seed = NormalPathWorld.CreateGenerated("probe-a", _ => new Idle());
         var state = seed.ExportState();
-        var beta = state.Society.Society.Inhabitants.First(person => person.HouseholdId == "household:camp-beta").Id;
-        var recipe = seed.WorldContent.Recipes.Single(item => item.LocalId == "grain-plot");
-        var inventory = state.Society.Society.Inventory;
-        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == "household:camp-beta" && lot.ItemKind == "seed").ToArray())
+        var farmhouse = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse");
+        var household = farmhouse.HouseholdId!;
+        var actor = seed.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
+        var otherHousehold = seed.Society.Households.First(item => item.Id != household).Id;
+        var recipe = seed.WorldContent.Recipes.Single(item => item.LocalId == "universal-grain-field");
+        var occupied = seed.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            seed.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
+            .Concat(seed.RoadTiles).Concat(state.Map.Resources.Select(resource => resource.Position))
+            .Concat(state.Inhabitants.Select(person => person.Position)).ToHashSet();
+        var point = seed.Towns.Single().BorderTiles.First(tile => LandFertilityRules.IsFarmable(state.Map, tile) && !occupied.Contains(tile));
+        var hoe = state.Society.Society.Inventory.Lots.Single(lot => lot.OwnerId == household && lot.ItemKind == "wooden_hoe");
+        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "boundary-hoe", household, actor, hoe.Id, 1, "field-work");
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { Position = point, HungerBasisPoints = 9_500 } : person).ToArray(),
+        };
+        using var tilling = PrivateWorldRuntime.Restore(state, _ => new Idle());
+        for (var turn = 0; turn < 8; turn++)
+        {
+            Assert.True(tilling.TillField(actor, point).Applied);
+            Assert.True((await tilling.AdvanceOneTickAsync()).Advanced);
+        }
+        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(tilling.WorldSimulation.Fields!).Stage);
+        state = tilling.ExportState();
+        inventory = state.Society.Society.Inventory;
+        foreach (var lot in inventory.Lots.Where(lot => (lot.OwnerId == household || lot.OwnerId == actor) && lot.ItemKind == "grain_seed").ToArray())
         {
             inventory = InventoryFixture.Reserve(inventory, "use-" + lot.Id, lot.OwnerId, lot.Id, lot.Quantity, "used", 1000);
             inventory = InventoryFixture.ConsumeReservation(inventory, "use-" + lot.Id);
         }
-        var alphaSeeds = inventory.Lots.Where(lot => lot.OwnerId == "household:camp-alpha" && lot.ItemKind == "seed").Sum(lot => lot.Quantity);
-        Assert.True(alphaSeeds > 0);
+        inventory = InventoryFixture.AddLot(inventory, "other-household-seed", "grain_seed", otherHousehold, 2);
+        var otherSeeds = inventory.Lots.Where(lot => lot.OwnerId == otherHousehold && lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity);
         state = state with
         {
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == beta ? person with
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                HungerBasisPoints = 9_500,
                 Project = new SettlementProject("build:recipe:" + recipe.CanonicalId, "Plant", state.Society.Society.WorldTick, "working", 10,
                     LastTransitionTick: state.Society.Society.WorldTick),
             } : person).ToArray(),
         };
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new Idle());
+        var denied = world.StartProduction(recipe.CanonicalId, WorldBuildSiteRules.FieldSiteId(point), actor);
+        Assert.False(denied.Applied);
+        Assert.Contains("Carry the planting stock", denied.Failure, StringComparison.Ordinal);
         _ = await world.AdvanceOneTickAsync();
-        Assert.NotEqual("working", world.Inhabitants.Single(person => person.InhabitantId == beta).Project!.Stage);
-        Assert.DoesNotContain(world.WorldSimulation.CropBuilds ?? [], job => job.WorkerId == beta);
-        Assert.Equal(alphaSeeds, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == "household:camp-alpha" && lot.ItemKind == "seed").Sum(lot => lot.Quantity));
+        Assert.NotEqual("working", world.Inhabitants.Single(person => person.InhabitantId == actor).Project!.Stage);
+        Assert.DoesNotContain(world.WorldSimulation.CropBuilds ?? [], job => job.WorkerId == actor);
+        Assert.Equal(otherSeeds, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == otherHousehold && lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity));
         _ = PrivateWorldRuntimeCodec.Encode(world.ExportState());
     }
 
@@ -77,17 +102,19 @@ public sealed class ProjectInputBoundaryTests
         Assert.Equal("blocked", blocked.Inhabitants.Single(person => person.InhabitantId == beta).Project!.Stage);
         Assert.Empty(blocked.WorldSimulation.ProductionJobs);
         state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(blocked.ExportState()));
+        var returnedInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "returned-potatoes", "potatoes",
+            "household:camp-beta", 3, storageBuildingId: "cook-home");
         state = state with
         {
             Society = state.Society with
             {
                 Society = state.Society.Society with
                 {
-                    Inventory = state.Society.Society.Inventory with
+                    Inventory = returnedInventory with
                     {
-                        Lots = state.Society.Society.Inventory.Lots.Select(lot =>
-                        lot.OwnerId == "household:camp-beta" && lot.ItemKind is "food" or "wood"
-                            ? lot with { StorageBuildingId = "cook-home" } : lot).ToArray()
+                        Lots = returnedInventory.Lots.Select(lot =>
+                            lot.OwnerId == "household:camp-beta" && lot.ItemKind == "wood"
+                                ? lot with { StorageBuildingId = "cook-home" } : lot).ToArray()
                     },
                 }
             }

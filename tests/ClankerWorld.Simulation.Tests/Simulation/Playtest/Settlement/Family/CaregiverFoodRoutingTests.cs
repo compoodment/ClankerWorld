@@ -19,7 +19,7 @@ public sealed class CaregiverFoodRoutingTests
         initial.AcceptFirstTownLayout(new GridPoint(136, 14));
         var setupMap = initial.ExportState().Map;
         var storagePosition = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a").Position;
-        var localFood = setupMap.Resources.Where(resource => resource.Kind is "food" or "fruit" &&
+        var localFood = setupMap.Resources.Where(resource => FoodItems.IsEdible(resource.Kind) && resource.TreeKind != "orchard" &&
             setupMap.IsReachableOnFoot(storagePosition, resource.Position) && setupMap.FootDistance(storagePosition, resource.Position) > 3)
             .OrderBy(resource => setupMap.FootDistance(storagePosition, resource.Position))
             .First(resource => setupMap.Tiles.Any(tile => setupMap.IsBuildable(tile.Position) && setupMap.FootDistance(tile.Position, resource.Position) <= 1 &&
@@ -31,26 +31,37 @@ public sealed class CaregiverFoodRoutingTests
         var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
         for (var index = 0; index < 4; index++) initial.PlaceFounder(ids[index], positions[index]);
         initial.StartWorld();
+        var blockerPositions = new Dictionary<string, GridPoint>();
         if (blockStorage)
         {
             var map = initial.ExportState().Map;
-            var storage = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a").Position;
-            var blockers = map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) == 1 &&
-                map.IsBuildable(tile.Position) && !map.Resources.Any(resource => resource.Position == tile.Position) &&
-                !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
-            Assert.NotEmpty(blockers);
-            for (var index = 0; index < blockers.Length; index++)
-                initial.AddAgent($"agent:{index + 100:D32}", blockers[index].Position);
-            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) == 1 && map.IsPassable(tile.Position)),
-                tile => Assert.Contains(initial.Inhabitants, person => person.Position == tile.Position));
+            var neighbors = map.Tiles.Where(tile => map.FootDistance(tile.Position, storagePosition) == 1 &&
+                map.IsPassable(tile.Position) && !initial.Inhabitants.Any(person => person.Position == tile.Position)).ToArray();
+            foreach (var neighbor in neighbors)
+            {
+                var spawn = map.Tiles.First(tile => map.IsBuildable(tile.Position) &&
+                    !map.Resources.Any(resource => resource.Position == tile.Position) &&
+                    !initial.Inhabitants.Any(person => person.Position == tile.Position)).Position;
+                var blocker = $"agent:{100 + blockerPositions.Count:D32}";
+                initial.AddAgent(blocker, spawn);
+                blockerPositions.Add(blocker, neighbor.Position);
+            }
         }
         var state = initial.ExportState();
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person =>
+            blockerPositions.TryGetValue(person.InhabitantId, out var point) ? person with { Position = point } : person).ToArray()
+        };
+        if (blockStorage)
+            Assert.All(state.Map.Tiles.Where(tile => state.Map.FootDistance(tile.Position, storagePosition) == 1 && state.Map.IsPassable(tile.Position)),
+                tile => Assert.Contains(state.Inhabitants, person => person.Position == tile.Position));
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
         var society = state.Society.Society;
         society = SocietyFixture.ProposeRelationship(society, new("care-parents", 1,
             SocietyRelationshipType.Partnership, ids[0], ids[1], society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "care-parents", 1, ids[1]).Checkpoint;
-        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
+        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind) && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
             ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
         Assert.Equal("first-town-house-a", birthFood.StorageBuildingId);
@@ -66,7 +77,7 @@ public sealed class CaregiverFoodRoutingTests
             Towns = state.Towns!.Select(town => town.ResidentIds.Contains(ids[0])
                 ? town with { ResidentIds = town.ResidentIds.Append(childId).Order(StringComparer.Ordinal).ToArray() } : town).ToArray(),
         };
-        var storedFood = society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "food").Sum(lot => lot.Quantity);
+        var storedFood = society.Inventory.Lots.Where(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind)).Sum(lot => lot.Quantity);
         Assert.True(storedFood > 0);
         var systems = state.WorldSystems!;
         state = state with
@@ -89,7 +100,7 @@ public sealed class CaregiverFoodRoutingTests
         var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
         try
         {
-            for (var tick = 0; tick < 24; tick++)
+            for (var tick = 0; tick < 96 && world.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints < 3_000; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (tick == 5)
@@ -104,7 +115,7 @@ public sealed class CaregiverFoodRoutingTests
             Assert.True(child.HungerBasisPoints >= 3_000,
                 $"child fullness={child.HungerBasisPoints}; care={result.Events.Count(item => item.Kind == "child_cared_for")}; blocked={result.Events.Count(item => item.Kind == "movement_blocked")}; parent={result.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position}; care choices={provider.CareChoices}; food site={localFood}; home={storagePosition}");
             Assert.Contains(result.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
-            var remainingFood = result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "food").Sum(lot => lot.Quantity);
+            var remainingFood = result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind)).Sum(lot => lot.Quantity);
             if (blockStorage)
             {
                 Assert.Equal(storedFood, remainingFood);

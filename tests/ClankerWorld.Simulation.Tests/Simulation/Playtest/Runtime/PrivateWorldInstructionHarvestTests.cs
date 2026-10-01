@@ -11,9 +11,9 @@ public sealed partial class PrivateWorldRuntimeTests
     private const string HarvestInstructionActor = "agent:00000000000000000000000000000099";
 
     [Theory]
-    [InlineData(false, "food")]
-    [InlineData(true, "fruit")]
-    public async Task MustDoHarvestCompletesForBerriesAndFruitAndAdvancesQueueAfterReload(bool orchard, string itemKind)
+    [InlineData(false, "berries", 4)]
+    [InlineData(true, "fruit", 4)]
+    public async Task MustDoHarvestCompletesForBerriesAndFruitAndAdvancesQueueAfterReload(bool orchard, string itemKind, int quantity)
     {
         using var world = CreateHarvestInstructionWorld(orchard);
         var harvest = world.SubmitInstruction(new OwnerInstructionRequest("harvest", "owner:test",
@@ -25,7 +25,8 @@ public sealed partial class PrivateWorldRuntimeTests
 
         var state = world.ExportState();
         Assert.Contains(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == HarvestInstructionActor && lot.ItemKind == itemKind && lot.Quantity == 4);
+            lot.OwnerId == HarvestInstructionActor && lot.ItemKind == itemKind && lot.Quantity == quantity);
+        if (orchard) Assert.Contains(world.Society.Inventory.Lots, lot => lot.OwnerId == HarvestInstructionActor && lot.ItemKind == "orchard_seed" && lot.Quantity == 1);
         Assert.Contains(harvest.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.DoesNotContain(eat.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.Single(state.Events, item => item.Kind == "instruction_applied" &&
@@ -52,7 +53,7 @@ public sealed partial class PrivateWorldRuntimeTests
     {
         using var initial = CreateHarvestInstructionWorld(orchard: true);
         var state = initial.ExportState();
-        var foodIds = state.Map.Resources.Where(resource => resource.Kind is "food" or "fruit")
+        var foodIds = state.Map.Resources.Where(resource => FoodItems.IsEdible(resource.Kind))
             .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         using var world = PrivateWorldRuntime.Restore(state with
         {
@@ -134,7 +135,7 @@ public sealed partial class PrivateWorldRuntimeTests
     {
         var map = world.ExportState().Map;
         var occupied = world.Inhabitants.Select(person => person.Position).ToHashSet();
-        var food = map.Resources.Where(item => item.Kind == "food").Select(item => item.Position).ToArray();
+        var food = map.Resources.Where(item => FoodItems.IsEdible(item.Kind) && item.TreeKind != "orchard").Select(item => item.Position).ToArray();
         return map.Resources.Where(item => item.TreeKind == "orchard")
             .SelectMany(item => map.FootNeighbors(item.Position))
             .First(point => map.IsBuildable(point) && !occupied.Contains(point) &&

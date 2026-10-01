@@ -130,13 +130,13 @@ public sealed class ClothingCarryTests
         using var full = PrivateWorldRuntime.Restore(state, Provider);
         for (var tick = 0; tick < 3; tick++) Assert.True((await full.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(oldQuantity, full.ExportState().WorldSystems!.Ecology.GetResource(source.Id).Quantity);
-        Assert.DoesNotContain(full.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "food");
+        Assert.DoesNotContain(full.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "berries");
         state = Stock(full.ExportState(), "new-sack", "sack", actor, 1);
         using var equipped = PrivateWorldRuntime.Restore(state, Provider);
         Assert.True(equipped.EquipItem(actor, "new-sack").Applied);
-        for (var tick = 0; tick < 3 && !equipped.Society.Inventory.Lots.Any(lot => lot.OwnerId == actor && lot.ItemKind == "food"); tick++)
+        for (var tick = 0; tick < 3 && !equipped.Society.Inventory.Lots.Any(lot => lot.OwnerId == actor && lot.ItemKind == "berries"); tick++)
             Assert.True((await equipped.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(equipped.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "food" && lot.Quantity == 4);
+        Assert.Contains(equipped.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "berries" && lot.Quantity == 4);
         Assert.Equal(32, equipped.Society.Inventory.GetLot("full-load").Quantity);
         Assert.Equal(1, equipped.Society.Inventory.GetLot("new-sack").Quantity);
         equipped.Validate();

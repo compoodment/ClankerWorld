@@ -194,7 +194,11 @@ public sealed class BuildingExpansionTests
             restored.Society.Inventory.GetReservation(id).State));
         Assert.Equal(initial.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity) - 5,
             restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
-        Assert.All(initial.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId), lot =>
+        var recipeInputs = cookingJob.InputReservationIds.Select(initial.Society.Society.Inventory.GetReservation).Select(item => item.LotId).ToHashSet(StringComparer.Ordinal);
+        Assert.All(cookingJob.InputReservationIds, id => Assert.Equal(InventoryReservationState.Completed, restored.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(initial.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId && lot.ItemKind == "potatoes").Sum(lot => lot.Quantity) - 2,
+            restored.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId && lot.ItemKind == "potatoes").Sum(lot => lot.Quantity));
+        Assert.All(initial.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId && !recipeInputs.Contains(lot.Id)), lot =>
         {
             var actual = restored.Society.Inventory.GetLot(lot.Id);
             Assert.Equal(lot.OwnerId, actual.OwnerId);
@@ -421,6 +425,12 @@ public sealed class BuildingExpansionTests
             building.HouseholdId is null ? 210 : 20, storageBuildingId: building.InstanceId);
         if (building.HouseholdId is null)
             inventory = InventoryFixture.AddLot(inventory, "expansion-stone", "stone", building.TownId!, 8, storageBuildingId: building.InstanceId);
+        else
+        {
+            inventory = InventoryFixture.AddLot(inventory, "expansion-potatoes", "potatoes", building.HouseholdId, 3, storageBuildingId: building.InstanceId);
+            var stored = inventory.Lots.Where(lot => lot.StorageBuildingId == placed.InstanceId).Sum(lot => lot.Quantity);
+            inventory = InventoryFixture.AddLot(inventory, "expansion-filler", "stone", building.HouseholdId, 60 - stored, storageBuildingId: building.InstanceId);
+        }
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actorId
