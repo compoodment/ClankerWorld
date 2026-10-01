@@ -1,0 +1,1 @@
+- Saves now check the format of equipment, care, water collection, boat history and housing kept in deceased profiles. A save cannot hide newer content in a deceased profile while claiming an older format. Current saves retain the profile and the actual estate stock when reloaded.
