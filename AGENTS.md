@@ -56,9 +56,11 @@ What each job adds:
   pull request in draft until it is finished, including while it waits on an
   owner decision. Marking it ready hands it over: after that, don't push to it
   or convert it to draft once a reviewer has claimed it
-  ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)). If you are
-  paused, push your branch before you stop, so another agent on another machine
-  can continue it ([Claim an issue](CONTRIBUTING.md#claim-an-issue)).
+  ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)). Push your
+  branch and open the draft within the first hour, then push at least every 2
+  hours: a claim with no pushed work or comment for 4 hours is released
+  automatically ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are
+  paused, push before you stop, so another agent can continue it.
 - **Review and merge:** another reviewer may be merging at the same time, so
   claim each pull request with `status:reviewing` before you start and merge
   only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).

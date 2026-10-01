@@ -165,3 +165,31 @@ test('a PR reopening during cleanup retains its new reviewer claim and current i
   assert.ok(state.pr.labels.includes('status:reviewing'));
   assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr']);
 });
+
+for (const action of ['edited', 'synchronize']) {
+  test(`a released draft stays findable through ${action} reconciliation`, async () => {
+    const state = scenario({ action, live: { draft: true, labels: [] },
+      issueLabels: ['priority:p2', 'status:has-pr', 'status:needs-pr'] });
+    await state.run();
+    await state.run();
+    assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:needs-pr']));
+  });
+}
+
+test('reclaimed drafts and ready handoffs clear the abandoned queue entry', async () => {
+  for (const draft of [true, false]) {
+    const state = scenario({ live: { draft, labels: [] },
+      issueLabels: ['status:has-pr', 'status:needs-pr', ...(draft ? ['status:in-progress'] : [])] });
+    await state.run();
+    assert.ok(!state.issue.labels.includes('status:needs-pr'));
+    assert.equal(state.issue.labels.includes('status:in-progress'), draft);
+  }
+});
+
+test('a late abandoned-draft reconciliation cannot queue an issue held by another ready PR', async () => {
+  const state = scenario({ live: { draft: true, labels: [] },
+    issueLabels: ['status:has-pr', 'status:needs-pr'],
+    otherPrs: [{ number: 26, state: 'open', draft: false, body: 'Closes #4' }] });
+  await state.run();
+  assert.deepEqual(state.issue.labels, ['status:has-pr']);
+});
