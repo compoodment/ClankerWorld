@@ -640,22 +640,26 @@ public sealed partial class PrivateWorldRuntime
         GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
     }
 
-    private (int Quantity, int SeedQuantity) ProjectMaterialHarvest(string actor, string itemKind, MapResource source)
+    private (int Quantity, int SeedQuantity) ProjectMaterialHarvest(string actor, string itemKind, MapResource source,
+        bool useHarvestBonus = true)
     {
-        var quantity = itemKind == "wood" && HasCarriedItem(actor, "wooden_axe") ||
-            itemKind is "stone" or "iron_ore" && HasCarriedItem(actor, "wooden_pickaxe") ? 6 : 4;
+        var harvestWithTool = useHarvestBonus &&
+            (itemKind == "wood" && HasCarriedItem(actor, "wooden_axe") ||
+             itemKind is ("stone" or "iron_ore") && HasCarriedItem(actor, "wooden_pickaxe"));
+        var quantity = harvestWithTool ? 6 : 4;
         var seeds = TreeGrowthRules.IsWoodTree(source.TreeKind) && worldSystems.Ecology.GetResource(source.Id).Quantity == 1
             ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
         return (quantity, seeds);
     }
 
-    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source)
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source, bool useHarvestBonus = true)
     {
-        var harvest = ProjectMaterialHarvest(actor, itemKind, source);
+        var harvest = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus);
         return harvest.Quantity + harvest.SeedQuantity;
     }
 
-    private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
+    private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
+        MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null)
     {
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
@@ -663,7 +667,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
-        var (quantity, seedQuantity) = ProjectMaterialHarvest(inhabitantId, itemKind, source);
+        var (quantity, seedQuantity) = ProjectMaterialHarvest(inhabitantId, itemKind, source, useHarvestBonus);
         if (FreeCarryCapacity(inhabitantId) < quantity + seedQuantity)
         {
             AppendEvent("carrying_full", inhabitantId);
@@ -689,8 +693,10 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, $"material:{WorldTick}:{inhabitantId}",
-            itemKind, inhabitantId, quantity, WorldTick));
+        var materialLotId = $"material:{WorldTick}:{inhabitantId}";
+        ApplyInventoryTransition(inventory => MarkBuildingMaterialDelivery(
+            InventoryFixture.AddLot(inventory, materialLotId, itemKind, inhabitantId, quantity, WorldTick),
+            materialLotId, deliveryBuildingId));
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
         if (source.TreeKind is not null)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
@@ -699,12 +705,19 @@ public sealed partial class PrivateWorldRuntime
         {
             // A felled tree also gives a seed that can replant a stump or
             // start a new tree elsewhere.
-            ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory,
-                $"tree-seed:{WorldTick}:{inhabitantId}", TreeGrowthRules.TreeSeedItem, inhabitantId,
-                TreeGrowthRules.TreeSeedsPerFelledTree, WorldTick));
+            var seedLotId = $"tree-seed:{WorldTick}:{inhabitantId}";
+            ApplyInventoryTransition(inventory => MarkBuildingMaterialDelivery(
+                InventoryFixture.AddLot(inventory, seedLotId, TreeGrowthRules.TreeSeedItem, inhabitantId,
+                    TreeGrowthRules.TreeSeedsPerFelledTree, WorldTick), seedLotId, deliveryBuildingId));
             AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{TreeGrowthRules.TreeSeedsPerFelledTree}");
         }
     }
+
+    private static InventoryCheckpoint MarkBuildingMaterialDelivery(InventoryCheckpoint inventory, string lotId,
+        string? deliveryBuildingId) => deliveryBuildingId is null ? inventory : inventory with
+    {
+        Lots = inventory.Lots.Select(lot => lot.Id == lotId ? lot with { DeliveryBuildingId = deliveryBuildingId } : lot).ToArray(),
+    };
 
     private IEnumerable<(string Requester, ContentQuantity Input, string OwnerId)> ProjectRequests(string helperId)
     {

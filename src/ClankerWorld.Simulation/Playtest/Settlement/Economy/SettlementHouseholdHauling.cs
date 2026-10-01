@@ -36,6 +36,14 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0)
             return;
+        if (BuildingPreparationToolToStore(actor, householdId) is not null &&
+            (state.Position == house.Position || FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0))
+        {
+            candidates.Add(new("haul_household_stock",
+                "Store a carried work tool in the household House so building materials fit in your load.",
+                24, house.InstanceId));
+            return;
+        }
         if (UnlocatedHouseholdStock(householdId) is { } stock &&
             (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
              FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
@@ -98,6 +106,22 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } houseForPickup)
             return;
+        if (BuildingPreparationToolToStore(actor, householdId) is { } preparationTool)
+        {
+            if (state.Position != houseForPickup.Position)
+            {
+                MoveToward(actor, state, houseForPickup.Position, "household_stock", 0);
+                return;
+            }
+            var storedQuantity = Math.Min(1, AvailableLotQuantity(preparationTool));
+            if (storedQuantity == 0 || StorageRoom(houseForPickup.InstanceId) == 0) return;
+            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
+                $"house-preparation-tool:{WorldTick}:{actor}", actor, householdId, preparationTool.Id,
+                storedQuantity, "household_preparation_tool_stored", destinationStorageBuildingId: houseForPickup.InstanceId));
+            AppendEvent("household_preparation_tool_stored",
+                $"{actor}:{preparationTool.ItemKind}:{storedQuantity}:{houseForPickup.InstanceId}");
+            return;
+        }
         if (UnlocatedHouseholdStock(householdId) is not { } stock)
             return;
         var source = HouseholdStockPosition(stock);
