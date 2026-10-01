@@ -133,6 +133,7 @@ public partial class Main : Control
     private readonly RichTextLabel selectedTileText = new();
     private Vector2I? selectedTile;
     private readonly PanelContainer gameMenuPanel = new();
+    private readonly VBoxContainer menuActions = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
     private readonly ColorRect appBackdrop = new();
@@ -164,7 +165,7 @@ public partial class Main : Control
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
 
-    private readonly Button pauseButton = new();
+    private readonly BoldTextButton pauseButton = new() { Captions = ["Pause", "Paused"] };
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
     private readonly Label pendingSubmissionLabel = new();

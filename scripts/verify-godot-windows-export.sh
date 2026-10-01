@@ -130,6 +130,8 @@ staged_repo_root="${scratch_root}/repository"
 staged_project_dir="${staged_repo_root}/src/ClankerWorld.GodotClient"
 staged_project_file="${staged_project_dir}/ClankerWorld.GodotClient.csproj"
 staged_solution_path="${staged_project_dir}/ClankerWorld.GodotClient.sln"
+shared_placement_rules="${repo_root}/src/ClankerWorld.Shared/AgentPlacementRules.cs"
+staged_shared_dir="${staged_repo_root}/src/ClankerWorld.Shared"
 
 printf 'Extracting Godot .NET editor\n'
 unzip -q "${editor_archive_path}" -d "${tool_root}"
@@ -175,6 +177,12 @@ if [[ ! -f "${staged_project_file}" ]]; then
     printf 'Staged Godot client project file not found: %s\n' "${staged_project_file}" >&2
     exit 1
 fi
+if [[ ! -f "${shared_placement_rules}" ]]; then
+    printf 'Shared agent placement rules not found: %s\n' "${shared_placement_rules}" >&2
+    exit 1
+fi
+mkdir -p "${staged_shared_dir}"
+cp "${shared_placement_rules}" "${staged_shared_dir}/AgentPlacementRules.cs"
 
 printf 'Creating temporary Godot C# solution for export\n'
 dotnet new sln --name "ClankerWorld.GodotClient" --output "${staged_project_dir}" --format sln

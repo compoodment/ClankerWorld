@@ -58,6 +58,15 @@ public sealed partial class ViewerHttpTests
         Assert.Contains("pairing can stay", text, StringComparison.Ordinal);
         Assert.DoesNotContain("not allowed", text, StringComparison.Ordinal);
         Assert.Equal(1, legacy.WorldActionRequests); // Neither client action was posted or downgraded.
+
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        var placement = new Client.OwnerAgentPlacementAction(agentId, 4, 2,
+            new Client.OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini", null,
+                false, agentId, null), null, null);
+        var placementFailure = await Assert.ThrowsAsync<OwnerActionCompatibilityException>(() =>
+            api.PlaceAgentAsync(uri, authority, device.DeviceId, placement, signer, default));
+        Assert.Contains("matching updates", Client.GameUiText.FriendlyFailure(placementFailure), StringComparison.Ordinal);
+        Assert.Equal(0, legacy.AgentPlacementRequests); // The client must not send affiliation-free v1 placement.
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState()));
         Assert.NotNull(await api.ReconnectAsync(uri, authority, device.DeviceId, 0, null, null, null, signer, default));
     }
@@ -98,6 +107,7 @@ public sealed partial class ViewerHttpTests
             OwnerPairingEndpoints.OwnerWorldPreview, serverAction, downgrade);
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
         Assert.Equal(OwnerHttpBinding.WorldCreationPayloadDomain, Client.OwnerWorldActionPayload.WorldCreationPayloadDomain);
+        Assert.Equal(OwnerHttpBinding.AgentPlacementPayloadDomain, Client.OwnerWorldActionPayload.AgentPlacementPayloadDomain);
     }
 
     [Fact]
@@ -126,6 +136,7 @@ public sealed partial class ViewerHttpTests
     private sealed class LegacyWorldActionFilter(string? advertisedDomain) : IStartupFilter
     {
         public int WorldActionRequests { get; private set; }
+        public int AgentPlacementRequests { get; private set; }
 
         public static string V1Payload(OwnerWorldCreationAction action) => string.Join('\n',
             OwnerHttpBinding.WorldCreationPayload(action).Split('\n').Take(10))
@@ -158,6 +169,10 @@ public sealed partial class ViewerHttpTests
                     await (result.IsSuccess ? Results.Ok(new { accepted = true }) :
                         OwnerFailures.ToHttpResult(result.Failure)).ExecuteAsync(context);
                     return;
+                }
+                if (context.Request.Path == OwnerPairingEndpoints.OwnerAgentPlace)
+                {
+                    AgentPlacementRequests++;
                 }
                 await continuation(context);
             });

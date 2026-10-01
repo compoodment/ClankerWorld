@@ -45,6 +45,7 @@ public static class OwnerWorldActionPayload
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -138,6 +139,31 @@ public static class OwnerWorldActionPayload
             $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
     }
 
+    public static string ProviderSetupCheck(OwnerProviderSetupCheckAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var provider = action.Provider?.Trim().ToLowerInvariant();
+        if (provider is not ("openai" or "ollama-cloud"))
+            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
+        if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
+            throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
+        if (action.ApiKey?.Length > 4096)
+            throw new ArgumentException("API keys must be 4096 characters or fewer.", nameof(action));
+        if (action.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _))
+            throw new ArgumentException("Choose a valid saved key.", nameof(action));
+        if (action.ApiKey is not null && action.CredentialSlotId is not null)
+            throw new ArgumentException("Choose a pasted key or a saved key, not both.", nameof(action));
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+            $"provider={EncodeRequired(provider, nameof(action.Provider))}",
+            $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}");
+    }
+
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -195,10 +221,12 @@ public static class OwnerWorldActionPayload
         var cognition = ProviderConfiguration(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 

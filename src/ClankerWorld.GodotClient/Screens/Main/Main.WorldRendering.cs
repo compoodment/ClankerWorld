@@ -91,6 +91,7 @@ public partial class Main
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
             terrainLayer.SetHoveredTile(null);
+            UpdateTownSiteGuidance(null);
             return;
         }
 
@@ -128,6 +129,7 @@ public partial class Main
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
         }
         UpdateMapGeometry(snapshot);
+        UpdateTownSiteGuidance(snapshot);
 
         foreach (var resource in snapshot.Resources)
         {
@@ -167,7 +169,12 @@ public partial class Main
             AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
-                (household is null ? "" : $"\nHousehold · {household.Name}\nStored here · {stored}"),
+                (household is null ? "" : $"\nHousehold · {household.Name}") +
+                (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
+                (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
+                (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
+                (building.ExpansionState == "running" ? "\nExpanding storage" : "") +
+                (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }
 
