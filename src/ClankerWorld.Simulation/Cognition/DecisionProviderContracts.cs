@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Cognition;
@@ -473,6 +474,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
     private readonly Uri endpoint;
     private readonly string model;
     private readonly TimeSpan requestTimeout;
+    private readonly ModelNeedFormat needFormat;
 
     public JevDecisionProvider(
         HttpClient httpClient,
@@ -480,7 +482,8 @@ public sealed class JevDecisionProvider : IDecisionProvider
         Uri? endpoint = null,
         string model = "jev-1.13.0",
         TimeSpan? requestTimeout = null,
-        long providerEpoch = 1)
+        long providerEpoch = 1,
+        ModelNeedFormat needFormat = ModelNeedWords.DefaultFormat)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         this.apiKeyAccessor = apiKeyAccessor ?? throw new ArgumentNullException(nameof(apiKeyAccessor));
@@ -499,6 +502,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
 
         ArgumentOutOfRangeException.ThrowIfNegative(providerEpoch);
         ProviderEpoch = providerEpoch;
+        this.needFormat = Enum.IsDefined(needFormat) ? needFormat : throw new ArgumentOutOfRangeException(nameof(needFormat));
     }
 
     public DecisionProviderKind Kind => DecisionProviderKind.Jev;
@@ -524,7 +528,9 @@ public sealed class JevDecisionProvider : IDecisionProvider
             [ChoiceQuestionId] = new JevQuestion(
                 "choice",
                 "Choose exactly one legal candidate for the agent's next small action. " +
-                "hunger_basis_points says how well fed they are: 10000 is full and 0 is starving.",
+                (needFormat == ModelNeedFormat.Words
+                    ? "fullness says in words how well fed they are, followed by its whole scale from worst to best."
+                    : "hunger_basis_points says how well fed they are: 10000 is full and 0 is starving."),
                 request.Observation.Candidates.ToDictionary(
                     candidate => candidate.Id,
                     candidate => candidate.Description,
@@ -573,6 +579,8 @@ public sealed class JevDecisionProvider : IDecisionProvider
             },
             model,
             questions);
+        if (needFormat == ModelNeedFormat.Words)
+            payload = payload with { State = DescribeNeedsInWords(payload.State, request.Observation) };
 
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -690,6 +698,14 @@ public sealed class JevDecisionProvider : IDecisionProvider
 
     private static string MemoryQuestionId(int index) => $"memory_salience_{index:D2}";
 
+    private static JsonObject DescribeNeedsInWords(object state, InhabitantObservation observation)
+    {
+        var described = JsonSerializer.SerializeToNode(state, JsonOptions)!.AsObject();
+        ModelNeedWords.ReplaceNumber(described, "hunger_basis_points", "fullness",
+            ModelNeedWords.Fullness(observation.HungerBasisPoints));
+        return described;
+    }
+
     private static string NormalizeRequiredText(string? value, string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, name);
@@ -730,6 +746,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
     private readonly Uri endpoint;
     private readonly string model;
     private readonly TimeSpan requestTimeout;
+    private readonly ModelNeedFormat needFormat;
 
     public OpenAiCompatibleDecisionProvider(
         HttpClient httpClient,
@@ -737,7 +754,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         Uri endpoint,
         string model,
         TimeSpan? requestTimeout = null,
-        long providerEpoch = 2)
+        long providerEpoch = 2,
+        ModelNeedFormat needFormat = ModelNeedWords.DefaultFormat)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         this.apiKeyAccessor = apiKeyAccessor ?? throw new ArgumentNullException(nameof(apiKeyAccessor));
@@ -759,6 +777,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
         ArgumentOutOfRangeException.ThrowIfNegative(providerEpoch);
         ProviderEpoch = providerEpoch;
+        this.needFormat = Enum.IsDefined(needFormat) ? needFormat : throw new ArgumentOutOfRangeException(nameof(needFormat));
     }
 
     public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
@@ -774,6 +793,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         cancellationToken.ThrowIfCancellationRequested();
 
         var apiKey = apiKeyAccessor()?.Trim();
+        var words = needFormat == ModelNeedFormat.Words;
         var payload = new
         {
             model,
@@ -783,9 +803,12 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 new
                 {
                     role = "system",
-                    content = "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
+                    content = "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. " +
+                        (words
+                            ? "Your needs are described in words: fullness, warmth and illness each give your current level, then the whole scale from worst to best. "
+                            : "hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. ") +
                         "Self context is your saved identity and condition, not other agents' private information. " +
-                        "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
+                        (words ? string.Empty : "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. ") +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
                         "Housing, when present, says why you have no home of your own. " +
                         "Return JSON only, with fields " +
@@ -815,7 +838,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 new
                 {
                     role = "user",
-                    content = JsonSerializer.Serialize(new
+                    content = SerializeInput(new
                     {
                         agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
@@ -864,7 +887,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             learned_tick = fact.LearnedTick,
                             acquisition = fact.Acquisition,
                         }).ToArray(),
-                    }, JsonOptions),
+                    }, request.Observation),
                 },
             },
         };
@@ -967,6 +990,22 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
+    }
+
+    private string SerializeInput(object input, InhabitantObservation observation)
+    {
+        if (needFormat != ModelNeedFormat.Words) return JsonSerializer.Serialize(input, JsonOptions);
+        var described = JsonSerializer.SerializeToNode(input, JsonOptions)!.AsObject();
+        ModelNeedWords.ReplaceNumber(described, "hunger_basis_points", "fullness",
+            ModelNeedWords.Fullness(observation.HungerBasisPoints));
+        if (described["self"] is JsonObject self && observation.Self is { } condition)
+        {
+            ModelNeedWords.ReplaceNumber(self, "warmth_basis_points", "warmth",
+                condition.WarmthBasisPoints is { } warmth ? ModelNeedWords.Warmth(warmth) : null);
+            ModelNeedWords.ReplaceNumber(self, "illness_basis_points", "illness",
+                condition.IllnessBasisPoints is { } illness ? ModelNeedWords.Illness(illness) : null);
+        }
+        return described.ToJsonString(JsonOptions);
     }
 
     private static char NameInitial(string agentId) =>
