@@ -161,7 +161,11 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (inhabitants[participant].Project is { Stage: not ("completed" or "cancelled") } project)
                 {
-                    SetProject(participant, project with { Stage = "paused", Blocker = "Taking part in an agreed lesson" });
+                    SetProject(participant, project with
+                    {
+                        Stage = "paused",
+                        Blocker = "Taking part in an agreed lesson",
+                    });
                 }
             }
         }

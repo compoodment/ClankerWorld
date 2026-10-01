@@ -88,8 +88,7 @@ public sealed partial class PrivateWorldRuntime
         var owner = ExpansionOwner(building);
         var site = ExpansionGroundPosition(building);
         return society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-                lot.GroundPosition is null ||
+            PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
             lot.OwnerId == owner && lot.StorageBuildingId == building.InstanceId ||
             lot.OwnerId == owner && lot.GroundPosition == site);
     }

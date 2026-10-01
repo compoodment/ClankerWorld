@@ -52,7 +52,7 @@ public sealed partial class PrivateWorldRuntime
                 if (missing <= 0)
                     continue;
                 var carried = society.Checkpoint.Inventory.Lots
-                    .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
@@ -115,6 +115,8 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-pickup:{WorldTick}:{actor}", householdId, actor, stock.Id, quantity,

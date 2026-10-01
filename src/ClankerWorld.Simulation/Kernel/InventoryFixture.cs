@@ -103,7 +103,7 @@ public sealed record DirectBarterProposal(
 /// before it creates replacement records, so a rejection leaves its supplied
 /// checkpoint untouched.
 /// </summary>
-public static class InventoryFixture
+public static partial class InventoryFixture
 {
     public static InventoryCheckpoint CreateGenesis(IEnumerable<InventoryLot> lots)
     {
@@ -352,7 +352,12 @@ public static class InventoryFixture
         }
 
         var source = checkpoint.GetLot(lotId);
-        EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        // Moving physical stock does not make worn or spoiled goods usable.
+        // They retain condition and freshness and still need real repair or
+        // disposal. Consumption and barter keep their usable-stock checks.
+        if (source.OwnerId != senderId || source.Quantity < quantity)
+            throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
+        EnsureUnreservedQuantity(checkpoint, source, quantity);
         var lots = quantity == source.Quantity
             ? checkpoint.Lots.Select(lot => lot.Id == source.Id
                     ? lot with

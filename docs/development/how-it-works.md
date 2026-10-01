@@ -636,6 +636,13 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+If an unpaid household recipe remains blocked for 60 ticks and no household
+member has an actionable way to supply its missing ingredients, the runtime
+pauses its saved plan and stops trying to continue it automatically. The adult
+can choose other work. After ingredients return to the building, choosing the
+recipe again resumes the saved plan. This does not interrupt a running
+production job.
+
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their
 belongings while they have no legal trade response. The society transaction
@@ -962,6 +969,10 @@ first opening can display them. The host checks inactive checkpoints once per
 unchanged file in each process, then reuses only that structural result. It
 hashes the file bytes to notice replacements and still checks required history
 and model configuration every time; selecting a world performs a fresh restore.
+When a private host starts, a background task makes those checks for every
+inactive world, so the first list can reuse them. It holds the world-mutation
+lock only to read the catalog and each file, never while decoding or restoring,
+and a world it cannot check is left for the list to report as usual.
 Open captures the chosen world's ID before
 pausing, so a later catalog refresh cannot change its target. Open, Create and
 Delete share the owner-action gate; selecting a different row cannot re-enable
