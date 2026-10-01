@@ -36,7 +36,9 @@ everything that is available in the current build. See [what works today](../wha
   cooking, storm refuge, childcare and household property functions. Agents
   outside the household may enter **when invited**; invitation does not grant
   access to the household's private inventory. Invited guests may shelter from
-  storms but get no access to the House's stock or cooking. **There is no
+  storms but get no access to the House's stock or cooking. Any adult member of
+  the household may invite a named guest and revoke that invitation later.
+  Invitations are saved and last until revoked. **There is no
   fixed occupant limit for a House**, including invited visitors; prior
   capacity and crowding ideas are superseded. It has no bed or sleep-recovery
   role. A selected building exposes inspectable occupants, stock and ownership in a panel
@@ -585,8 +587,9 @@ These remain open; they are not new decisions.
    another household's House after setup needs the agreement of every adult
    member, as agreed above and built for adults who have no household. Invited
    guests may shelter from storms but cannot use the House's stock or cooking;
-   that guest invitation is agreed but not built. Decide how agents who already
-   have a household later leave or change it, beyond that agreement rule.
+   that named storm-guest invitation is built too, and it is separate from
+   membership. Decide how agents who already have a household later leave or
+   change it, beyond that agreement rule.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details
