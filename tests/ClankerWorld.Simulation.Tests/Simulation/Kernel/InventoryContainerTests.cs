@@ -106,4 +106,54 @@ public sealed class InventoryContainerTests
         Assert.NotEqual(validBytes, orphanedBytes);
         Assert.Throws<InvalidDataException>(() => InventoryCheckpointCodec.Decode(Encoding.UTF8.GetBytes(orphanedBytes)));
     }
+
+    [Fact]
+    public void VesselCapacityAndOwnerChecksRejectContainerChangesAtomically()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [
+            new InventoryLot("pot", InventoryContainerRules.StoragePot, "alpha", 1, 10_000, 10_000, 0),
+            new InventoryLot("too-much-food", "berries", "alpha", 9, 10_000, 10_000, 0),
+            new InventoryLot("other-food", "berries", "bravo", 1, 10_000, 10_000, 0),
+        ]);
+        var before = InventoryCheckpointCodec.Encode(inventory);
+
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.PutIntoContainer(
+            inventory, "overfill", "alpha", "pot", "too-much-food", 9));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.PutIntoContainer(
+            inventory, "wrong-owner", "bravo", "pot", "other-food", 1));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(inventory));
+    }
+
+    [Fact]
+    public void BrokenVesselCannotSupplyOrAcceptContentsButCanStillMoveAsACompleteFamily()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [new InventoryLot("jug", InventoryContainerRules.WaterJug, "alpha", 1, 10_000, 10_000, 0)]);
+        inventory = InventoryFixture.AddLot(inventory, "water", InventoryContainerRules.FreshWater, "alpha", 2,
+            containerLotId: "jug");
+        inventory = InventoryFixture.Reserve(inventory, "input", "alpha", "water", 1, "recipe", 10);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == "jug" ? lot with { ConditionBasisPoints = 0 } : lot).ToArray(),
+        };
+        var beforeRejectedOperations = InventoryCheckpointCodec.Encode(inventory);
+
+        var released = InventoryFixture.ReleaseReservation(inventory, "input");
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Reserve(
+            released, "new-input", "alpha", "water", 1, "recipe", 10));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.ConsumeReservation(inventory, "input"));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.AddLot(
+            inventory, "more-water", InventoryContainerRules.FreshWater, "alpha", 1, containerLotId: "jug"));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.TakeFromContainer(
+            released, "take", "alpha", "alpha", "jug", "water", 1));
+        Assert.Equal(beforeRejectedOperations, InventoryCheckpointCodec.Encode(inventory));
+
+        var moved = InventoryFixture.Transfer(released, "move-broken-jug", "alpha", "bravo", "jug", 1, "repair");
+        Assert.Equal("bravo", moved.GetLot("jug").OwnerId);
+        Assert.Equal(0, moved.GetLot("jug").ConditionBasisPoints);
+        Assert.Equal("bravo", moved.GetLot("water").OwnerId);
+        Assert.Equal(10_000, moved.GetLot("water").FreshnessBasisPoints);
+        Assert.Equal(2, moved.GetLot("water").Quantity);
+    }
 }

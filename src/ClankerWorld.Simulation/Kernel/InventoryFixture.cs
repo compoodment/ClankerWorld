@@ -193,6 +193,8 @@ public static class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        if (containerLotId is not null)
+            EnsureUsableContainer(checkpoint.GetLot(containerLotId));
         var nextTick = targetTick ?? checkpoint.WorldTick;
         if (nextTick < checkpoint.WorldTick)
         {
@@ -298,6 +300,7 @@ public static class InventoryFixture
         }
 
         var lot = checkpoint.GetLot(lotId);
+        EnsureContainerUsableForContents(checkpoint, lot);
         if (InventoryContainerRules.IsContainer(lot.ItemKind))
             throw new InvalidOperationException("A reusable vessel cannot be consumed as a production input.");
         EnsureOwnerAndAvailableQuantity(checkpoint, lot, ownerId, quantity);
@@ -323,6 +326,7 @@ public static class InventoryFixture
         }
 
         var lot = checkpoint.GetLot(reservation.LotId);
+        EnsureContainerUsableForContents(checkpoint, lot);
         EnsureOwnerAndExactQuantity(lot, reservation.OwnerId, reservation.Quantity);
         var lots = lot.Quantity == reservation.Quantity
             ? checkpoint.Lots.Where(candidate => candidate.Id != lot.Id).ToArray()
@@ -393,7 +397,7 @@ public static class InventoryFixture
         }
 
         var source = checkpoint.GetLot(lotId);
-        EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        EnsureOwnerAndAvailablePhysicalQuantity(checkpoint, source, senderId, quantity);
         if (source.ContainerLotId is not null)
             throw new InvalidOperationException("Container contents require an explicit physical take before they can move.");
 
@@ -463,6 +467,7 @@ public static class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         var container = checkpoint.GetLot(containerLotId);
         var source = checkpoint.GetLot(contentLotId);
+        EnsureUsableContainer(container);
         EnsureOwnerAndAvailableQuantity(checkpoint, source, ownerId, quantity);
         EnsureContainerOwnerAndLocation(container, source, ownerId);
         if (source.ContainerLotId is not null || InventoryContainerRules.IsContainer(source.ItemKind) ||
@@ -526,6 +531,7 @@ public static class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(recipientId);
         var container = checkpoint.GetLot(containerLotId);
         var source = checkpoint.GetLot(contentLotId);
+        EnsureUsableContainer(container);
         if (source.ContainerLotId != container.Id)
             throw new InvalidOperationException("The requested lot is not stored in this vessel.");
         EnsureOwnerAndAvailableQuantity(checkpoint, source, ownerId, quantity);
@@ -769,6 +775,17 @@ public static class InventoryFixture
         EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
     }
 
+    private static void EnsureOwnerAndAvailablePhysicalQuantity(
+        InventoryCheckpoint checkpoint,
+        InventoryLot lot,
+        string expectedOwnerId,
+        int requestedQuantity)
+    {
+        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity)
+            throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
+        EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
+    }
+
     private static void EnsureUnreservedQuantity(InventoryCheckpoint checkpoint, InventoryLot lot, int requestedQuantity)
     {
         var reserved = checkpoint.Reservations.Where(reservation => reservation.LotId == lot.Id &&
@@ -790,6 +807,18 @@ public static class InventoryFixture
         {
             throw new InvalidOperationException("The exact owned usable lot quantity is unavailable.");
         }
+    }
+
+    private static void EnsureContainerUsableForContents(InventoryCheckpoint checkpoint, InventoryLot lot)
+    {
+        if (lot.ContainerLotId is { } containerId)
+            EnsureUsableContainer(checkpoint.GetLot(containerId));
+    }
+
+    private static void EnsureUsableContainer(InventoryLot container)
+    {
+        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.ConditionBasisPoints <= 0)
+            throw new InvalidOperationException("A broken or invalid vessel cannot hold, serve, or supply contents.");
     }
 
     private static InventoryCheckpoint Commit(

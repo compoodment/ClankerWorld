@@ -34,10 +34,11 @@ public sealed partial class PrivateWorldRuntime
                      .OrderBy(item => item.InstanceId, StringComparer.Ordinal))
         {
             if (!definitions.TryGetValue(building.DefinitionId, out var definition) ||
-                HouseholdBuildingKind(definition) is null || HasDedicatedSupply(definition))
+                HouseholdBuildingKind(definition) is null)
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
-                    NeedsRecipeOutput(recipe, householdId))
+                    NeedsRecipeOutput(recipe, householdId) &&
+                    (!HasDedicatedSupply(definition) || recipe.Tags.Contains("pottery", StringComparer.Ordinal)))
                 .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
@@ -51,9 +52,17 @@ public sealed partial class PrivateWorldRuntime
                 var missing = target - stocked - incoming;
                 if (missing <= 0)
                     continue;
-                var carried = society.Checkpoint.Inventory.Lots
+                var inventory = society.Checkpoint.Inventory;
+                var carried = inventory.Lots
                     .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
-                        lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
+                        AvailableLotQuantity(lot) > 0)
+                    .Select(lot => lot.ContainerLotId is { } containerId
+                        ? inventory.GetLot(containerId) : lot)
+                    .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null &&
+                        lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+                        (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                         !HasActiveContainerReservation(inventory, lot.Id)))
+                    .DistinctBy(lot => lot.Id)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
@@ -65,15 +74,25 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Household stock not already set aside at another workstation.</summary>
-    private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId) =>
-        society.Checkpoint.Inventory.Lots
+    private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        return inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.StorageBuildingId != destinationId && AvailableLotQuantity(lot) > 0 &&
+                AvailableLotQuantity(lot) > 0)
+            .Select(lot => lot.ContainerLotId is { } containerId
+                ? inventory.GetLot(containerId) : lot)
+            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != destinationId &&
+                lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+                (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                 !HasActiveContainerReservation(inventory, lot.Id)) &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
                         definition.Tags.Any(tag => tag is "house" or "silo")))))
+            .DistinctBy(lot => lot.Id)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+    }
 
     private void AddWorkstationSupplyCandidate(List<CognitionCandidate> candidates, string actor)
     {
