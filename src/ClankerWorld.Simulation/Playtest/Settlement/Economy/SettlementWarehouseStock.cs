@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null &&
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
             AvailableLotQuantity(lot) > WarehouseLoadQuantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

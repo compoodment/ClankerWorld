@@ -272,28 +272,22 @@ public sealed class SettlementSurvivalTests
     }
 
     [Fact]
-    public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
+    public async Task ColdSettlementUsesFuelAndToolsAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        // Expansion changes travel and work timing. Require the actual clothing
-        // recovery chain within a bounded run rather than at one exact tick.
+        // Exercise autonomous survival separately from the finite Tailor
+        // production/equipment chains in PersonalEquipmentTests.
         for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
-            if (tick >= 599 && world.ExportState().Events.Any(item =>
-                    item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal)))
-                break;
         }
         var state = world.ExportState();
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
         Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
-        // This legacy world starts without clothing: its household builds a
-        // Tailor Shop, weaves cloth and sews the garment that is collected here.
-        Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":clothing", StringComparison.Ordinal));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
@@ -354,6 +348,11 @@ public sealed class SettlementSurvivalTests
         var actor = state.Inhabitants[0].InhabitantId;
         var clothedInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "test-clothing", "clothing", actor, 1);
         var clothed = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = clothedInventory } } };
+        clothed = clothed with
+        {
+            Inhabitants = clothed.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Equipment = new("test-clothing") } : person).ToArray()
+        };
         using var exposedWorld = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         using var clothedWorld = PrivateWorldRuntime.Restore(clothed, _ => new IdleProvider());
         for (var tick = 0; tick < 80; tick++)

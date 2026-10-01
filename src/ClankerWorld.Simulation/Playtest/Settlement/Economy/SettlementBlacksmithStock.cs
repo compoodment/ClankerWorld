@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!AdultResident(actor) || FreeCarryCapacity(actor) == 0) return;
         foreach (var (kind, candidate) in new[]
                  { ("wooden_axe", "collect_wooden_axe"), ("wooden_pickaxe", "collect_wooden_pickaxe") })
         {
@@ -25,7 +25,7 @@ public sealed partial class PrivateWorldRuntime
             lot.StorageBuildingId == blacksmithId && lot.ItemKind == "iron_ore").Sum(AvailableLotQuantity);
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "iron_ore" &&
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
             lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -149,6 +149,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == input.ItemKind).Sum(AvailableLotQuantity);
         var target = input.ItemKind == "wood" ? 6 : 2;
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(target - stocked, AvailableLotQuantity(input)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,

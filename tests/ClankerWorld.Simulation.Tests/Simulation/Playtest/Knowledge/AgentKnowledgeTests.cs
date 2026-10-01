@@ -11,6 +11,43 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class AgentKnowledgeTests
 {
     [Theory]
+    [InlineData(8, false)]
+    [InlineData(7, true)]
+    public async Task ExplorationKeepsLearnedFactsWhenThereIsNoRoomForAFieldRecord(int cargo, bool recordFits)
+    {
+        using var seed = new PrivateWorldRuntime("personal-map-records");
+        var initial = seed.ExportState();
+        var actor = initial.Inhabitants[0].InhabitantId;
+        var inventory = initial.Society.Society.Inventory with
+        {
+            Lots = initial.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "scout-cargo", "wood", actor, cargo);
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Inhabitants = initial.Inhabitants.Select(person => person with { HungerBasisPoints = 9_500 }).ToArray(),
+            Society = initial.Society with { Society = initial.Society.Society with { Inventory = inventory } },
+        }, _ => new CandidateProvider(actor, "explore"));
+        for (var tick = 0; tick < 75; tick++)
+            _ = await world.AdvanceOneTickAsync();
+
+        var saved = world.ExportState();
+        Assert.Contains(saved.Events, item => item.Kind == "exploration_completed");
+        Assert.Contains(saved.Knowledge!.Facts, fact => fact.OwnerId == actor);
+        Assert.Equal(recordFits, saved.Knowledge.Artifacts.Any(artifact => artifact.CreatorId == actor));
+        Assert.Equal(cargo, saved.Society.Society.Inventory.GetLot("scout-cargo").Quantity);
+        Assert.Equal(8, saved.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor).Sum(lot => lot.Quantity));
+        if (!recordFits)
+            Assert.Contains(saved.Events, item => item.Kind == "agent_knowledge_artifact_limited" &&
+                item.Detail.Contains("carrying_full", StringComparison.Ordinal));
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
+        Assert.Equal(saved.Knowledge.Facts.Select(FactKey), restored.ExportState().Knowledge!.Facts.Select(FactKey));
+        Assert.Equal(saved.Knowledge.Artifacts.Select(ArtifactKey), restored.ExportState().Knowledge!.Artifacts.Select(ArtifactKey));
+        restored.Validate();
+    }
+
+    [Theory]
     [InlineData(100, 1)]
     [InlineData(50, 2)]
     public async Task DescendantsKeepExploringAndSavingWithLongInheritedIdentities(int seedLength, int generations)

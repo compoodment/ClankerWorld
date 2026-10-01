@@ -175,6 +175,26 @@ The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
 
+Agents can now equip a padded coat for cold weather, a rain cloak for wet
+weather, or a basic garment. The House makes rope and baskets; the Tailor Shop
+makes cloth, garments and sacks from physically delivered private inputs.
+The agent card shows the worn garment, carrying aid, their condition, cargo
+amount and carrying limit, and an active repair. Garments do not change map
+sprites.
+
+The trial carrying limits are 8 cargo units, 16 with an equipped basket, or 24
+with an equipped sack. Other carried goods and delivery loads count toward
+that limit; stored and ground goods do not. Wear can break an aid and reduce
+its capacity, but existing cargo and replaced gear remain owned and intact.
+Full carriers decline pickups that would add excess cargo. Food harvests need
+room for the whole yield, including orchard seeds. Exploring still teaches
+personal knowledge when there is no room to carry a new map or field record.
+Household adults
+can spend cloth to repair garments or sacks at their Tailor Shop, or fiber
+and rope to repair a basket at their House. Work, reservations, equipment and
+overloaded cargo survive saving and reopening. These paths have automated
+checks; Windows playtesting and balance tuning remain pending.
+
 ## Maps, weather and appearance
 
 Small/Medium worlds have generated land, rivers, lakes, separate ground and

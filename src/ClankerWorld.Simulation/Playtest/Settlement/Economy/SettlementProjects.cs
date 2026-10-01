@@ -561,7 +561,7 @@ public sealed partial class PrivateWorldRuntime
         ContentQuantity input, string constructionOwner)
     {
         var project = state.Project!;
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
             lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
         {
@@ -611,6 +611,8 @@ public sealed partial class PrivateWorldRuntime
             if (communal is null) return;
             var quantity = Math.Min(WarehouseLoadQuantity,
                 Math.Min(input.Amount, AvailableLotQuantity(communal)));
+            quantity = Math.Min(quantity, FreeCarryCapacity(inhabitantId));
+            if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"warehouse-pickup:{WorldTick}:{inhabitantId}", warehouse.TownId!, inhabitantId,
                 communal.Id, quantity, "town_resource_collected"));
@@ -646,6 +648,21 @@ public sealed partial class PrivateWorldRuntime
         GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
     }
 
+    private (int Quantity, int SeedQuantity) ProjectMaterialHarvest(string actor, string itemKind, MapResource source)
+    {
+        var quantity = itemKind == "wood" && HasCarriedItem(actor, "wooden_axe") ||
+            itemKind is "stone" or "iron_ore" && HasCarriedItem(actor, "wooden_pickaxe") ? 6 : 4;
+        var seeds = TreeGrowthRules.IsWoodTree(source.TreeKind) && worldSystems.Ecology.GetResource(source.Id).Quantity == 1
+            ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
+        return (quantity, seeds);
+    }
+
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source)
+    {
+        var harvest = ProjectMaterialHarvest(actor, itemKind, source);
+        return harvest.Quantity + harvest.SeedQuantity;
+    }
+
     private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
     {
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
@@ -654,6 +671,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
+        var (quantity, seedQuantity) = ProjectMaterialHarvest(inhabitantId, itemKind, source);
+        if (FreeCarryCapacity(inhabitantId) < quantity + seedQuantity)
+        {
+            AppendEvent("carrying_full", inhabitantId);
+            return;
+        }
         var harvest = EcologyRules.Harvest(ecology, 1);
         if (!harvest.IsValid || harvest.Resource is null)
         {
@@ -674,13 +697,6 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        var quantity = tool is not null && HasCarriedItem(inhabitantId, tool) ? 6 : 4;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, $"material:{WorldTick}:{inhabitantId}",
             itemKind, inhabitantId, quantity, WorldTick));
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
@@ -770,7 +786,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var itemKind = request.Input.ResourceId;
             if (MaterialSource(itemKind, helperId) is not null || society.Checkpoint.Inventory.Lots.Any(lot =>
-                    lot.OwnerId == helperId && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
+                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
@@ -787,7 +803,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         // A load already on its way into a household building is not spare.
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == helperId &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, helperId) &&
             lot.ItemKind == itemKind && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
@@ -810,6 +826,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, recipient, carried.Id, quantity, "project_request_fulfilled",

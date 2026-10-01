@@ -76,7 +76,7 @@ public sealed class TownBuildingManagementTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(originalBorder, Assert.Single(restored.Towns, item => item.Id == building.TownId).BorderTiles);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(saved with { SchemaVersion = 34 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(saved with { SchemaVersion = 36 }));
     }
 
     [Fact]

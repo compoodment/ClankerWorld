@@ -134,6 +134,7 @@ public sealed record ViewerInhabitant(
 
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
+    public ViewerEquipment? Equipment { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
@@ -157,6 +158,9 @@ public sealed record ViewerInhabitant(
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);
+public sealed record ViewerEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
+    int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 // Keep the existing observation field name so older owner clients can still display a lesson.
