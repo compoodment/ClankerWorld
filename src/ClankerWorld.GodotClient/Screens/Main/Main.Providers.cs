@@ -425,6 +425,7 @@ public partial class Main
         cognitionTargetChoice.AddItem("World defaults");
         cognitionTargetChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -437,6 +438,7 @@ public partial class Main
         cognitionRoleChoice.TooltipText = "Routine covers everyday choices. Planning covers bigger projects. Jev, the optional helper, is turned on or off for the whole world in Settings.";
         cognitionRoleChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -450,6 +452,7 @@ public partial class Main
         PopulateProviderChoices("deterministic");
         cognitionProviderChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateCredentialChoices();
             RenderProviderConfiguration();
@@ -460,6 +463,7 @@ public partial class Main
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
         cognitionCredentialChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
@@ -474,6 +478,7 @@ public partial class Main
         body.AddChild(cognitionApiKeyInput);
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
+        cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
         body.AddChild(cognitionModelPicker);
         cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
         cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";

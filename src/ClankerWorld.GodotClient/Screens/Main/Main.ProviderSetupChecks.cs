@@ -12,6 +12,8 @@ public partial class Main
     private readonly Button cognitionModelSetupCheckButton = new();
     private readonly Label cognitionModelSetupCheckStatus = new();
     private string? cognitionModelSetupCheckContext;
+    private int founderModelSetupCheckRevision;
+    private int cognitionModelSetupCheckRevision;
 
     private async Task RunFounderModelSetupCheckAsync()
     {
@@ -39,11 +41,13 @@ public partial class Main
             founderModelSetupCheckStatus,
             provider,
             model,
-            action);
+            action,
+            () => founderModelSetupCheckRevision);
     }
 
     private async Task RunCognitionModelSetupCheckAsync()
     {
+        ResetCognitionModelSetupCheckForCurrentChoice();
         var provider = SelectedProviderId();
         var model = EmptyToNull(cognitionModelPicker.Model);
         var credentialChoice = SelectedCredentialChoice();
@@ -68,7 +72,8 @@ public partial class Main
             cognitionModelSetupCheckStatus,
             provider,
             model,
-            action);
+            action,
+            () => cognitionModelSetupCheckRevision);
     }
 
     private async Task RunModelSetupCheckAsync(
@@ -76,7 +81,8 @@ public partial class Main
         Label resultLabel,
         string provider,
         string model,
-        OwnerProviderSetupCheckAction action)
+        OwnerProviderSetupCheckAction action,
+        Func<int> currentRevision)
     {
         if (button.Disabled)
             return;
@@ -87,6 +93,7 @@ public partial class Main
             return;
         }
 
+        var testedRevision = currentRevision();
         button.Disabled = true;
         resultLabel.Show();
         resultLabel.Text = $"Checking {provider} / {model}. This sends one paid call.";
@@ -98,12 +105,14 @@ public partial class Main
                 {
                     var result = await ownerApi.CheckProviderSetupAsync(
                         ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
-                    resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
+                    if (currentRevision() == testedRevision)
+                        resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                     return result.Message;
                 }
                 catch (Exception exception) when (exception is not OutOfMemoryException)
                 {
-                    resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: No result was received. Check paid-call usage before trying again.";
+                    if (currentRevision() == testedRevision)
+                        resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: No result was received. Check paid-call usage before trying again.";
                     return "The setup-check result was not received. Check paid-call usage before retrying.";
                 }
             });
@@ -121,7 +130,21 @@ public partial class Main
         if (context == cognitionModelSetupCheckContext)
             return;
         cognitionModelSetupCheckContext = context;
+        ClearCognitionModelSetupCheck();
+    }
+
+    private void ClearFounderModelSetupCheck()
+    {
+        ++founderModelSetupCheckRevision;
+        founderModelSetupCheckStatus.Text = string.Empty;
+        founderModelSetupCheckStatus.Hide();
+    }
+
+    private void ClearCognitionModelSetupCheck()
+    {
+        ++cognitionModelSetupCheckRevision;
         cognitionModelSetupCheckStatus.Text = string.Empty;
+        cognitionModelSetupCheckStatus.Hide();
     }
 
     private void VerifyModelSetupCheckControls()
@@ -133,5 +156,43 @@ public partial class Main
             !founderModelSetupCheckButton.TooltipText.Contains("counts toward your paid-call limit", StringComparison.OrdinalIgnoreCase) ||
             !cognitionModelSetupCheckButton.TooltipText.Contains("counts toward your paid-call limit", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Add Agent and an agent's Model panel must expose the same explicit one-paid-call setup check beside the model picker.");
+
+        VerifySetupCheckInvalidation(founderModelPicker, founderApiKeyInput, founderModelSetupCheckStatus,
+            founderCredentialChoice, () => founderModelSetupCheckRevision, isNewAgent: true);
+        VerifySetupCheckInvalidation(cognitionModelPicker, cognitionApiKeyInput, cognitionModelSetupCheckStatus,
+            cognitionCredentialChoice, () => cognitionModelSetupCheckRevision);
+    }
+
+    private static void VerifySetupCheckInvalidation(ModelPicker picker, LineEdit keyInput, Label status,
+        OptionButton credentialChoice, Func<int> currentRevision, bool isNewAgent = false)
+    {
+        var originalModel = picker.Model;
+        var originalTyping = picker.IsTyping;
+        var originalKey = keyInput.Text;
+        try
+        {
+            VerifyCleared(() => picker.TypedInput.Text = "setup-check-smoke-model");
+            VerifyCleared(() => picker.Choice.EmitSignal(OptionButton.SignalName.ItemSelected, picker.Choice.ItemCount - 1));
+            VerifyCleared(() => keyInput.Text = "setup-check-smoke-key");
+            VerifyCleared(() => credentialChoice.EmitSignal(OptionButton.SignalName.ItemSelected, credentialChoice.Selected));
+        }
+        finally
+        {
+            keyInput.Text = originalKey;
+            if (originalTyping) picker.ShowTypedOnly(originalModel);
+            else picker.SetModel(originalModel, isNewAgent);
+            status.Text = string.Empty;
+            status.Hide();
+        }
+
+        void VerifyCleared(Action edit)
+        {
+            status.Text = "The previous model was ready.";
+            status.Show();
+            var testedRevision = currentRevision();
+            edit();
+            if (status.Text.Length > 0 || status.Visible || currentRevision() == testedRevision)
+                throw new InvalidOperationException("Changing the model or key must clear the previous setup-check result and invalidate a reply still in flight.");
+        }
     }
 }
