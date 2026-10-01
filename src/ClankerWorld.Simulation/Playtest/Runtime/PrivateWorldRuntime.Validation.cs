@@ -135,43 +135,69 @@ public sealed partial class PrivateWorldRuntime
         if (savedTowns.Count == 0 && !setup.Started && setup.FounderIds.Count == 0 &&
             map.CampObjects.Count == 0 && simulation.Buildings.Count == 0)
             return;
-        if (savedTowns.Count != 1)
-            throw new InvalidDataException("A founder-setup world must have exactly one first Town.");
-        var town = savedTowns[0];
-        if (town.Id != TownBorderRules.FirstTownId || town.Name != TownBorderRules.FirstTownName ||
-            town.FoundingState != (setup.Started ? "founded" : "founding") || town.FoundedTick != 0 ||
-            town.OriginSite is { } origin && !map.IsBuildable(origin) ||
-            town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
-            town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
-            town.AssignedBuildingIds.Distinct(StringComparer.Ordinal).Count() != town.AssignedBuildingIds.Count ||
-            town.BorderTiles.Distinct().Count() != town.BorderTiles.Count || town.BorderTiles.Count == 0)
-            throw new InvalidDataException("The first Town identity, founding state, or membership is invalid.");
+
+        var firstTown = savedTowns.SingleOrDefault(item => item.Id == TownBorderRules.FirstTownId);
+        if (firstTown is null || savedTowns.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != savedTowns.Count)
+            throw new InvalidDataException("A founder-setup world must keep its original first Town and unique Town identities.");
 
         var active = society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        if (town.ResidentIds.Any(id => !active.Contains(id)) ||
-            setup.FounderIds.Any(id => active.Contains(id) && !town.ResidentIds.Contains(id, StringComparer.Ordinal)))
-            throw new InvalidDataException("Town residents must be active inhabitants and active founders retain their founding membership.");
-
+        var assignedResidents = new HashSet<string>(StringComparer.Ordinal);
         var byInstance = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
-        var assignedIds = simulation.Buildings.Where(item => item.TownId == town.Id)
-            .Select(item => item.InstanceId).Order(StringComparer.Ordinal).ToArray();
-        if (!town.AssignedBuildingIds.Order(StringComparer.Ordinal).SequenceEqual(assignedIds) ||
-            simulation.Buildings.Any(item => item.TownId is not null && item.TownId != town.Id))
-            throw new InvalidDataException("Town building assignments disagree with the placed-building state.");
-
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        foreach (var buildingId in town.AssignedBuildingIds)
-            if (!byInstance.ContainsKey(buildingId))
-                throw new InvalidDataException("A Town references a building that is not placed.");
-        // The saved border is authoritative; it must lie on the map and cover
-        // the Town's origin and every assigned building.
-        var border = town.BorderTiles.ToHashSet();
-        if (town.BorderTiles.Any(point => !map.Contains(point)) ||
-            town.OriginSite is { } site && !border.Contains(site) ||
-            town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
-                WorldContentSimulationRules.Footprint(definition, byInstance[id]).Any(tile => !border.Contains(tile))))
-            throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
+        var townIds = savedTowns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var town in savedTowns)
+        {
+            var isFirstTown = town.Id == TownBorderRules.FirstTownId;
+            if (string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() || town.Id.Length > 128 ||
+                town.Id.Any(char.IsControl) || string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() ||
+                town.Name.Length > 120 || town.FoundedTick < 0 || town.FoundedTick > society.WorldTick ||
+                town.OriginSite is { } origin && !map.IsBuildable(origin) ||
+                town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
+                town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
+                town.AssignedBuildingIds.Distinct(StringComparer.Ordinal).Count() != town.AssignedBuildingIds.Count ||
+                town.BorderTiles.Distinct().Count() != town.BorderTiles.Count || town.BorderTiles.Count == 0 ||
+                town.ResidentIds.Any(id => !active.Contains(id) || !assignedResidents.Add(id)))
+                throw new InvalidDataException("A Town identity, founding record, membership, or footprint is invalid.");
+
+            if (isFirstTown)
+            {
+                if (town.Name != TownBorderRules.FirstTownName ||
+                    town.FoundingState != (setup.Started ? "founded" : "founding") || town.FoundedTick != 0)
+                    throw new InvalidDataException("The original first Town's identity and founding history are invalid.");
+            }
+            else if (town.FoundingState != "founded")
+            {
+                throw new InvalidDataException("An additional recorded Town must have a completed founding record.");
+            }
+
+            var assignedIds = simulation.Buildings.Where(item => item.TownId == town.Id)
+                .Select(item => item.InstanceId).Order(StringComparer.Ordinal).ToArray();
+            if (!town.AssignedBuildingIds.Order(StringComparer.Ordinal).SequenceEqual(assignedIds))
+                throw new InvalidDataException("Town building assignments disagree with the placed-building state.");
+
+            var border = town.BorderTiles.ToHashSet();
+            if (town.BorderTiles.Any(point => !map.Contains(point)) ||
+                town.OriginSite is { } site && !border.Contains(site))
+                throw new InvalidDataException("The saved Town border does not cover its founding site.");
+            foreach (var buildingId in town.AssignedBuildingIds)
+            {
+                if (!byInstance.TryGetValue(buildingId, out var building) ||
+                    !definitions.TryGetValue(building.DefinitionId, out var definition))
+                    throw new InvalidDataException("A Town references a building that is not placed.");
+                if (WorldContentSimulationRules.Footprint(definition, building).Any(tile => !border.Contains(tile)) &&
+                    !definition.Tags.Contains("warehouse", StringComparer.Ordinal))
+                    throw new InvalidDataException("The saved Town border does not cover an assigned building.");
+            }
+
+            var warehouses = town.AssignedBuildingIds.Count(id => definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) &&
+                definition.Tags.Contains("warehouse", StringComparer.Ordinal));
+            if (warehouses > 1)
+                throw new InvalidDataException("A Town can have only one assigned Warehouse.");
+        }
+
+        if (simulation.Buildings.Any(item => item.TownId is { } townId && !townIds.Contains(townId)))
+            throw new InvalidDataException("A placed building references a Town that is not recorded.");
     }
 
     private static void ValidateFounderSetup(FounderSetupState? setup, SocietyCheckpoint society)

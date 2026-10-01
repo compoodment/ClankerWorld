@@ -372,6 +372,22 @@ public static class OwnerWorldActionPayload
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
         $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
 
+    public static string BuildingRemoval(OwnerBuildingRemovalAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-removal.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}");
+
+    public static string BuildingReassignment(OwnerBuildingReassignmentAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-reassignment.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"target-town-id={EncodeOptional(action.TargetTownId)}",
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}");
+
     public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
         '\n',
         "clankerworld.owner-production-start.v1",

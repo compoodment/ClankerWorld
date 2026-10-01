@@ -389,6 +389,72 @@ internal static partial class OwnerEndpoints
             return Results.Ok(result);
         });
 
+        app.MapPost("/api/v1/owner/buildings/remove", (
+            OwnerSignedHttpRequest<OwnerBuildingRemovalAction> request,
+            OwnerRequestAuthorizer authorizer,
+            IServiceProvider services) =>
+        {
+            if (!isPrivateWorld)
+                return Results.Conflict(new OwnerControlFailure("private_world_required",
+                    "Building removal is available only in the integrated private world."));
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A building removal action is required."],
+                });
+
+            string payload;
+            try { payload = OwnerContentBinding.BuildingRemovalPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = [exception.Message],
+                });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/buildings/remove", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+
+            var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+            var result = runtime.RemoveBuilding(request.Action.InstanceId, request.Action.ExpectedTownId,
+                request.Action.ExpectedHouseholdId);
+            if (result.Applied) services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            return Results.Ok(result);
+        });
+
+        app.MapPost("/api/v1/owner/buildings/reassign", (
+            OwnerSignedHttpRequest<OwnerBuildingReassignmentAction> request,
+            OwnerRequestAuthorizer authorizer,
+            IServiceProvider services) =>
+        {
+            if (!isPrivateWorld)
+                return Results.Conflict(new OwnerControlFailure("private_world_required",
+                    "Building reassignment is available only in the integrated private world."));
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A building reassignment action is required."],
+                });
+
+            string payload;
+            try { payload = OwnerContentBinding.BuildingReassignmentPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = [exception.Message],
+                });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/buildings/reassign", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+
+            var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+            var result = runtime.ReassignBuilding(request.Action.InstanceId, request.Action.ExpectedTownId,
+                request.Action.ExpectedHouseholdId, request.Action.TargetTownId, request.Action.TargetHouseholdId);
+            if (result.Applied) services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            return Results.Ok(result);
+        });
+
         app.MapPost("/api/v1/owner/production/start", (
             OwnerSignedHttpRequest<OwnerProductionStartAction> request,
             OwnerRequestAuthorizer authorizer,
