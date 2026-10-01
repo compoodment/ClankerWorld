@@ -84,6 +84,8 @@ public partial class Main
         developerPanel.ZIndex = 86;
         developerPanel.Hide();
         content.AddChild(developerPanel);
+        // Readouts change length as they update; refit once the new text is laid out.
+        developerBody.MinimumSizeChanged += () => Callable.From(PositionDeveloperTools).CallDeferred();
         UpdateAuthoringHint();
     }
 
@@ -265,7 +267,8 @@ public partial class Main
                 var row = developerAgentList.AddItem(person.DisplayName);
                 developerAgentList.SetItemMetadata(row, person.Id);
             }
-            if (people.Length == 0) developerAgentList.AddItem("No one lives here yet.", selectable: false);
+            if (people.Length == 0)
+                developerAgentList.SetItemMetadata(developerAgentList.AddItem("No one lives here yet.", selectable: false), string.Empty);
         }
         developerAgentList.DeselectAll();
         for (var index = 0; index < developerAgentList.ItemCount; index++)
