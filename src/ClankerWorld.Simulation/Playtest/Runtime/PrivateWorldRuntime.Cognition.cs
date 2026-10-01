@@ -41,7 +41,11 @@ public sealed partial class PrivateWorldRuntime
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
-                SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
+                SetProject(inhabitant.Id, project with
+                {
+                    Stage = "paused",
+                    Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs",
+                });
                 physical = inhabitants[inhabitant.Id];
             }
             if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
@@ -50,6 +54,13 @@ public sealed partial class PrivateWorldRuntime
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
+            if (PauseExpiredUnfillableHouseholdRecipeProject(inhabitant.Id))
+            {
+                physical = inhabitants[inhabitant.Id];
+                candidates = CreateCandidates(inhabitant.Id, physical)
+                    .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
+                    .ToList();
+            }
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
@@ -424,6 +435,11 @@ public sealed partial class PrivateWorldRuntime
             StoreHouseholdFood(inhabitantId, state);
             return;
         }
+        if (candidateId == "make_room_for_food")
+        {
+            MakeRoomForFood(inhabitantId, state);
+            return;
+        }
         if (candidateId == "store_town_resources")
         {
             StoreTownResources(inhabitantId, state);
@@ -683,7 +699,8 @@ public sealed partial class PrivateWorldRuntime
 
         var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
         // An optional reserve remains selectable without outranking ordinary activities.
-        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000 && FreeCarryCapacity(inhabitantId) > 0;
+        var wantsFood = !hasFood && state.HungerBasisPoints < 7_000;
+        var shouldGatherFood = wantsFood && FreeCarryCapacity(inhabitantId) > 0;
         var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
         if (foodSource is not null && FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(foodSource))
@@ -712,6 +729,10 @@ public sealed partial class PrivateWorldRuntime
                 "Travel within gathering range of an available food source.",
                 foodPriority,
                 foodSource.Id));
+        }
+        else if (wantsFood && sharedFood is null)
+        {
+            AddMakeRoomForFoodCandidate(candidates, inhabitantId, state, foodPriority);
         }
 
         if (instructionCandidate == "seek_food" && foodSource is not null &&

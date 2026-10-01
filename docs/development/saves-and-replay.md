@@ -19,6 +19,14 @@ events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+The October 1 terrain tuning changes deterministic generation for new worlds.
+Loading retains the saved map and current weather episode; it does not replace
+either with a freshly generated map or a new weather roll. Earlier alpha maps
+may fail the existing regeneration checks and are refused and preserved; no
+terrain migration is provided. New saves with default weather store a null
+profile list to select the reduced built-in preset. Explicit profile lists
+keep their configured weather weights.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
@@ -28,6 +36,33 @@ save/load and replay. Schema 32 adds saved household requests and recent refusal
 for adults without an authorized home. These states are validated and survive
 save/load and replay. Older alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
+
+Private-world schema 34 adds household field tiles and their crop/work state.
+The saved inventory also records a ground position for physical harvest lots.
+Field ownership, work inputs, growth times and replanting reservations are
+validated together with inventory and map geometry. Current-format roundtrips
+retain intermediate work, carried deliveries and planting reserves. Fertility
+is derived from the seed and immutable map layers rather than saved per tile.
+Older alpha saves need not load; no field or orchard migration is provided.
+
+Schema 37 adds authoritative garment and carrying-aid lot IDs and timed repair
+work, with exact material reservations. Loading checks the selected goods are
+single, unreserved units physically carried by their recorded owner; repair
+work also needs its private work site and exact live inputs. Broken gear and
+existing overloads remain valid property. Carry capacity and weather protection
+are derived from the selected lots rather than saved as a second authority.
+An unpaid household recipe may also keep a paused plan that requires a fresh
+choice after its inputs become unavailable; validation only accepts that flag
+on a paused project without a linked job. Older schemas carrying equipment
+records are refused. No migration is added.
+
+Private-world schema 38 retains a building's definition identity in completed
+or cancelled expansion history after an owner removes that building. A
+building with active production or expansion work cannot be removed or
+reassigned, and a household's last Farmhouse stays assigned until its field
+work finishes. Town membership, building assignments and physical inventory
+locations are validated together; older alpha saves need not load and no
+migration is provided.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -46,30 +81,6 @@ after infancy. Living and deceased profiles validate the descriptor against its
 recorded birth and schema. While provider storage is being recovered, the Model
 panel keeps showing the selected provider and model with a setup message.
 
-Private-world schema 34 adds household field tiles and their crop/work state.
-The saved inventory also records a ground position for physical harvest lots.
-Field ownership, work inputs, growth times and replanting reservations are
-validated together with inventory and map geometry. Current-format roundtrips
-retain intermediate work, carried deliveries and planting reserves. Fertility
-is derived from the seed and immutable map layers rather than saved per tile.
-Older alpha saves need not load; no field or orchard migration is provided.
-
-Schema 36 adds authoritative garment and carrying-aid lot IDs and timed repair
-work, with exact material reservations. Loading checks the selected goods are
-single, unreserved units physically carried by their recorded owner; repair
-work also needs its private work site and exact live inputs. Broken gear and
-existing overloads remain valid property. Carry capacity and weather protection
-are derived from the selected lots rather than saved as a second authority.
-Older schemas carrying equipment records are refused. No migration is added.
-
-Private-world schema 37 retains a building's definition identity in completed
-or cancelled expansion history after an owner removes that building. A
-building with active production or expansion work cannot be removed or
-reassigned, and a household's last Farmhouse stays assigned until its field
-work finishes. Town membership, building assignments and physical inventory
-locations are validated together; older alpha saves need not load and no
-migration is provided.
-
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.
@@ -80,6 +91,19 @@ without preventing the healthy active world from starting. Unverified files and
 the deletion intent are preserved; later recovery can finish after the file is repaired.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
+
+Load World checks each inactive checkpoint against the current runtime before
+marking it compatible. The host keeps only a process-local structural verdict
+and history head for each catalog identity, keyed by a SHA-256 hash of the
+checkpoint bytes. File replacement, catalog-identity changes and a host restart
+force a new structural check. Every list still verifies the referenced history
+chain and current model credentials;
+selection reads and restores the checkpoint again before changing worlds.
+Checking a changed checkpoint can therefore still be slow, especially on a
+large generated map, while repeated unchanged lists avoid rebuilding worlds.
+After a host start, a background task makes the structural check for each
+inactive checkpoint, so the first list can reuse it; it reads checkpoints only
+and changes no save.
 
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
@@ -209,7 +233,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -247,8 +271,9 @@ current alpha cutoff.
 | Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
-| Schema 36 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
-| Schema 37 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
+| Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
+| Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

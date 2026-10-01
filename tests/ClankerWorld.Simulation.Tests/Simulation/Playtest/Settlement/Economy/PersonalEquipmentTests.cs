@@ -387,6 +387,69 @@ public sealed class PersonalEquipmentTests
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
     }
 
+    [Fact]
+    public async Task AHungryCarrierSetsDownSpareSuppliesThenGathersFoodAcrossReload()
+    {
+        using var initial = new PrivateWorldRuntime("food-capacity-boundary", _ => new Choices([]));
+        initial.StageStarterContent();
+        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var household = state.Society.Society.Inhabitants.Single(item => item.Id == actor).HouseholdId!;
+        var source = state.Map.Resources.First(item => item.Kind == "food" && item.TreeKind is null);
+        var inventory = state.Society.Society.Inventory;
+        // With no household food to collect, the bush is the only food.
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => lot.OwnerId != actor && !(lot.OwnerId == household && lot.ItemKind == "food")).ToArray(),
+        };
+        // Five carried units leave room for 3; a food pick needs 4.
+        inventory = InventoryFixture.AddLot(inventory, "spare-wood", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "spare-tool", "tool", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = source.Position, HungerBasisPoints = 6_000, LastDecisionContext = null } : person).ToArray(),
+        };
+        var householdWood = inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        var provider = new Choices(["make_room_for_food", "harvest_food", "seek_food"]);
+        var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new Choices([]));
+        try
+        {
+            for (var tick = 0; tick < 60 && !world.ExportState().Events.Any(item => item.Kind == "food_harvested" &&
+                     item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                Assert.InRange(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null), 0, 8);
+                if (tick == 1)
+                {
+                    world.Pause();
+                    var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+                        PrivateWorldRuntimeCodec.Encode(world.ExportState())), id => id == actor ? provider : new Choices([]));
+                    world.Dispose();
+                    world = reloaded;
+                    world.Resume();
+                }
+            }
+
+            var events = world.ExportState().Events;
+            Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("make_room_for_food", StringComparer.Ordinal));
+            Assert.Single(events, item => item.Kind == "spare_cargo_stored" && item.Detail.StartsWith(actor + ":wood:1:", StringComparison.Ordinal));
+            Assert.Single(events, item => item.Kind == "food_harvested" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+            var lots = world.Society.Inventory.Lots;
+            // Wood is set down before the tool, and nothing is lost on the way.
+            Assert.Equal(3, lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+            Assert.Equal(1, lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "tool").Sum(lot => lot.Quantity));
+            Assert.Equal(householdWood + 1, lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+            Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+            world.Validate();
+        }
+        finally
+        {
+            world.Dispose();
+        }
+    }
+
     [Theory]
     [InlineData(5, false)]
     [InlineData(4, true)]
@@ -439,7 +502,7 @@ public sealed class PersonalEquipmentTests
     }
 
     [Fact]
-    public async Task FirstHouseHelperStagesMaterialsAtCampEvenWhenTheBuilderCannotCarryMoreAcrossReload()
+    public async Task NoHouseHelperWaitsForRequesterCapacityThenTransfersOnlyWhatFitsAcrossReload()
     {
         using var initial = new PrivateWorldRuntime("settlement-acquisition", _ => new Choices([]));
         initial.StageStarterContent();
@@ -450,6 +513,8 @@ public sealed class PersonalEquipmentTests
         var household = state.Society.Society.GetInhabitant(requester).HouseholdId!;
         var camp = state.Map.GetObject("storage").Position;
         var house = initial.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        Assert.DoesNotContain(state.WorldSimulation!.Buildings,
+            building => building.HouseholdId == household && building.DefinitionId == house.CanonicalId);
         var site = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsBuildable(point) &&
             !state.Map.CampObjects.Any(item => item.Position == point) &&
             !state.Map.Resources.Any(item => item.Position == point) &&
@@ -475,22 +540,147 @@ public sealed class PersonalEquipmentTests
         };
         var provider = new Choices(["assist:wood"]);
         using var world = PrivateWorldRuntime.Restore(state, id => id == helper ? provider : new Choices([]));
+        for (var tick = 0; tick < 30 && provider.Offers.Count == 0; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.NotEmpty(provider.Offers);
+        Assert.All(provider.Offers, offer => Assert.DoesNotContain("assist:wood", offer.Split(',')));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "project_request_fulfilled");
+        Assert.Equal(helper, world.Society.Inventory.GetLot("helper-house-wood").OwnerId);
+        Assert.Equal(4, world.Society.Inventory.GetLot("helper-house-wood").Quantity);
+        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, requester, null));
+
+        var fullRequesterSave = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var fullRequesterState = PrivateWorldRuntimeCodec.Decode(fullRequesterSave);
+        using (var fullRequesterReload = PrivateWorldRuntime.Restore(fullRequesterState, _ => new Choices([])))
+        {
+            Assert.Equal(fullRequesterSave, PrivateWorldRuntimeCodec.Encode(fullRequesterReload.ExportState()));
+            Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(fullRequesterReload.Society.Inventory, requester, null));
+        }
+
+        var capacityInventory = InventoryFixture.Transfer(fullRequesterState.Society.Society.Inventory,
+            "requester-unloads-stone", requester, household, "full-builders-stone", 1, "test_setup_capacity",
+            destinationGroundPosition: new InventoryGroundPosition(camp.X, camp.Y));
+        var capacityState = WithInventory(fullRequesterState, capacityInventory) with
+        {
+            Inhabitants = fullRequesterState.Inhabitants.Select(person => person.InhabitantId == helper
+                ? person with { LastDecisionContext = null } : person).ToArray(),
+        };
+        var capacitySave = PrivateWorldRuntimeCodec.Encode(capacityState);
+        var capacityProvider = new Choices(["assist:wood"]);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(capacitySave),
+            id => id == helper ? capacityProvider : new Choices([]));
+        Assert.Equal(capacitySave, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        for (var tick = 0; tick < 30 && !restored.ExportState().Events.Any(item => item.Kind == "project_request_fulfilled"); tick++)
+        {
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+            Assert.InRange(PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null), 0, 8);
+        }
+        Assert.Contains(capacityProvider.Offers, offer => offer.Split(',').Contains("assist:wood", StringComparer.Ordinal));
+        Assert.Contains(restored.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
+            item.Detail == helper + ":" + requester + ":wood:1");
+
+        Assert.Contains(restored.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
+            item.Detail.Contains($":{helper}:{requester}:helper-house-wood:1:project_request_fulfilled", StringComparison.Ordinal));
+        var helperRemainder = restored.Society.Inventory.GetLot("helper-house-wood");
+        Assert.Equal(helper, helperRemainder.OwnerId);
+        Assert.Equal(3, helperRemainder.Quantity);
+        var delivered = Assert.Single(restored.Society.Inventory.Lots,
+            lot => lot.ProvenanceLotId == "helper-house-wood");
+        Assert.Equal(requester, delivered.OwnerId);
+        Assert.Null(delivered.GroundPosition);
+        Assert.Null(delivered.StorageBuildingId);
+        Assert.Null(delivered.DeliveryBuildingId);
+        Assert.Equal(1, delivered.Quantity);
+        var stagedStone = restored.Society.Inventory.GetLot("full-builders-stone#transfer:requester-unloads-stone");
+        Assert.Equal(household, stagedStone.OwnerId);
+        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), stagedStone.GroundPosition);
+        Assert.Equal(1, stagedStone.Quantity);
+        Assert.Equal(7, restored.Society.Inventory.GetLot("full-builders-stone").Quantity);
+        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null));
+        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        var saved = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.Equal(delivered, reloaded.Society.Inventory.GetLot(delivered.Id));
+        Assert.Equal(stagedStone, reloaded.Society.Inventory.GetLot(stagedStone.Id));
+        reloaded.Validate();
+    }
+
+    [Fact]
+    public async Task NoHouseAssistanceSkipsFullFirstRequesterForEligibleSecondRequester()
+    {
+        using var initial = new PrivateWorldRuntime("settlement-acquisition", _ => new Choices([]));
+        initial.StageStarterContent();
+        for (var tick = 0; tick < 6; tick++) Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        const string helper = "founder-mira";
+        const string fullRequester = "founder-ilya";
+        const string availableRequester = "founder-rowan";
+        var household = state.Society.Society.GetInhabitant(fullRequester).HouseholdId!;
+        Assert.Equal(household, state.Society.Society.GetInhabitant(availableRequester).HouseholdId);
+        var house = initial.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var sites = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsBuildable(point) &&
+            !state.Map.CampObjects.Any(item => item.Position == point) &&
+            !state.Map.Resources.Any(item => item.Position == point) &&
+            !state.Inhabitants.Any(person => person.Position == point)).Take(2).ToArray();
+        Assert.Equal(2, sites.Length);
+        Assert.DoesNotContain(state.WorldSimulation!.Buildings,
+            building => building.HouseholdId == household && building.DefinitionId == house.CanonicalId);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != helper &&
+                lot.OwnerId != fullRequester && lot.OwnerId != availableRequester && lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "full-first-requester-stone", "stone", fullRequester, 8);
+        inventory = InventoryFixture.AddLot(inventory, "eligible-requester-wood", "wood", helper, 4);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId switch
+            {
+                var id when id == helper => person with { HungerBasisPoints = 9_500, Equipment = null, LastDecisionContext = null },
+                var id when id == fullRequester => person with
+                {
+                    HungerBasisPoints = 9_500,
+                    Equipment = null,
+                    LastDecisionContext = null,
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, sites[0]),
+                        house.DisplayName, initial.WorldTick, "paused",
+                        Blocker: "Materials for this work are unavailable. Choose another task for now.",
+                        LastTransitionTick: initial.WorldTick, RequiresFreshChoice: true),
+                },
+                var id when id == availableRequester => person with
+                {
+                    HungerBasisPoints = 9_500,
+                    Equipment = null,
+                    LastDecisionContext = null,
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, sites[1]),
+                        house.DisplayName, initial.WorldTick, "paused",
+                        Blocker: "Materials for this work are unavailable. Choose another task for now.",
+                        LastTransitionTick: initial.WorldTick, RequiresFreshChoice: true),
+                },
+                _ => person,
+            }).ToArray(),
+        };
+        var provider = new Choices(["assist:wood"]);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == helper ? provider : new Choices([]));
         for (var tick = 0; tick < 30 && !world.ExportState().Events.Any(item => item.Kind == "project_request_fulfilled"); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("assist:wood", StringComparer.Ordinal));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
-            item.Detail == helper + ":" + requester + ":wood:4");
-        var staged = world.Society.Inventory.GetLot("helper-house-wood");
-        Assert.Equal(household, staged.OwnerId);
-        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), staged.GroundPosition);
-        Assert.Null(staged.StorageBuildingId);
-        Assert.Null(staged.DeliveryBuildingId);
-        Assert.Equal(4, staged.Quantity);
-        Assert.Equal(8, world.Society.Inventory.GetLot("full-builders-stone").Quantity);
-        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, requester, null));
+            item.Detail == helper + ":" + availableRequester + ":wood:4");
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
+            item.Detail.StartsWith(helper + ":" + fullRequester + ":", StringComparison.Ordinal));
+        Assert.Contains(world.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
+            item.Detail.Contains($":{helper}:{availableRequester}:eligible-requester-wood:4:project_request_fulfilled", StringComparison.Ordinal));
+        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, fullRequester, null));
+        Assert.InRange(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, availableRequester, null), 0, 8);
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        Assert.Equal(staged, restored.Society.Inventory.GetLot(staged.Id));
+        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, fullRequester, null));
+        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
         restored.Validate();
     }
 

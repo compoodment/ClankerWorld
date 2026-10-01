@@ -358,8 +358,14 @@ calendars round durations to whole ticks. Conditions use the region-center
 climate, previous condition, seed and a shared pre-transition neighbor snapshot.
 No model call or camera state participates; drifting visuals are not fronts.
 
-Weights are provisional, pending tuning in [#204](https://github.com/compoodment/ClankerWorld/issues/204),
-not approved rain balance. Wet neighbors add at most four rain-weight points;
+The October 1 default preset reduces rain, storm and snow weights by exactly
+one quarter after climate and latitude adjustments. The removed share goes to
+clear and cloudy weather. Integer weights use four units per old weight point,
+so small weights keep the same exact reduction. Explicit custom weather
+profiles retain their declared weights. Episode neighbor and persistence
+bonuses use the same weight scale. Further tuning remains provisional in
+[#204](https://github.com/compoodment/ClankerWorld/issues/204).
+Wet neighbors add at most four rain-weight points;
 a reduction to base precipitation weights offsets that bonus. The fixed-seed
 comparison is recorded in [the prototype report](weather-episode-prototype.md).
 Local survival and crop exposure use the active episode. Soil moisture retains
@@ -384,23 +390,27 @@ so each can be checked on its own
 2. **Surface.** Sand comes from two explicit rules, never from simply touching
    water: *desert* (dry climate, rainfall 42 or less) and *beach* (land below
    elevation 175, beside the ocean, where a seeded beach-noise field reaches
-   0.1). Rivers and lakes keep grass banks. *Forest floor* marks groves: forest
+   0.3). Rivers and lakes keep grass banks except where a desert reaches them. *Forest floor* marks groves: forest
    tiles whose seeded grove noise reaches 0.15, keeping only the 24 strongest in
    each 64×64 chunk and none in the 6×5 starting clearing.
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
-   on desert sand are unchanged.
+   on desert sand follow the dry climate; cacti additionally need hot desert
+   sand, never dry scrub, ordinary beaches, water or rock.
 4. **Object placement.** The starter berry patch, tree and grain seed patch must
    stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
    picks another tile rather than stand on sand, water or mountain rock, and
    map acceptance refuses one that does. Stone outcrops and clay banks are not
-   plants and may stand on sand.
+   plants and may stand on sand. Eligible forest-grass tiles have a provisional
+   35% tree chance; meadows have a 2% chance. Seeded ranking spreads trees
+   through any chunk that reaches its budget instead of filling one edge.
 
-Generated sites use at most 56 of a chunk's 64 resource slots. The rest stays
+Generated sites use at most 1,016 of a chunk's 1,024 resource slots; the validated
+configuration ceiling is 2,048. The remaining eight slots stay
 free for sites the running world adds, such as the three settlement sites
-beside the first Town. That budget is why groves are small: denser forests
-would need a larger chunk budget, which is a separate performance choice.
+beside the first Town. Grove surfaces still use the 24-tile limit; the larger
+budget supplies the denser trees on forest grass.
 
 **Hills** are dry land below mountain height (215), at least 190 high and within
 three tiles (counting diagonal steps as one) of a mountain or peak. They are a
@@ -413,12 +423,53 @@ and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
-Over the test worlds, beaches cover about a quarter to a half of low ocean
-shore, every forest-floor tile holds a tree, about 2–3% of forest-grass tiles
-hold one, and hills are about 0.3–2% of dry land at Normal mountain relief.
-`TerrainPlacementTests` prints these measurements, including shoreline,
-inland-river, wrap-seam and mountain-edge cases. Generation takes roughly 10–20%
-longer than before (a Medium map about 250 ms on a shared test machine).
+Current fixed-world tests require 25–45% forest-grass tree coverage, and every
+forest-floor tile holds a tree. Hills remain about 0.3–2% of dry land at Normal
+mountain relief.
+
+The October 1 measurements used .NET 10.0.401 and Godot 4.7.2 under WSL, with
+two .NET processors. Both Small maps are 256×128, use current hydrology and
+the Balanced visibility rules, and were measured before and after this change:
+
+| Seed | Resources before → after | Most resources in a chunk before → after | Forest-grass tiles with trees before → after | Ocean shore with sand before → after | Median generation ms before → after |
+| --- | --- | --- | --- | --- | --- |
+| `probe-a` | 391 → 1,748 | 56 → 420 | 76/3,913 (1.9%) → 1,377/3,949 (34.9%) | 195/851 (22.9%) → 73/851 (8.6%) | 119.5 → 207.8 |
+| `probe-b` | 364 → 1,969 | 56 → 558 | 87/4,500 (1.9%) → 1,636/4,586 (35.7%) | 246/1,226 (20.1%) → 90/1,226 (7.3%) | 146.5 → 116.5 |
+
+Generation used one warmup and five timed runs, reporting the median. Times
+include shared-machine scheduling noise; the faster second map does not prove
+a generation speedup. The separate uniform-Dry fixture had 39 cactus tiles,
+all on desert sand, compared with 48 before, nine outside desert sand.
+
+Godot measurements execute the actual terrain layer's `_Draw` and time CPU
+draw-command submission. Each camera uses five warmups and 20 measured draws:
+
+| Seed | Full overview median ms before → after | Detail median ms before → after |
+| --- | --- | --- |
+| `probe-a` | 3.61 → 6.26 | 6.73 → 6.07 |
+| `probe-b` | 3.14 → 6.65 | 8.56 → 8.51 |
+
+The overview covers all 32,768 tiles at size 2; detail covers 96×48 tiles at
+size 16. These headless measurements exclude GPU work and frame presentation;
+they do not establish Windows frame rates or a hands-on playtest. Denser
+resources increased overview CPU cost in this sample.
+
+To repeat generation measurements and write public map fixtures:
+
+```bash
+bash scripts/measure-map-generation.sh /tmp/clankerworld-map-measurements current
+godot --headless --path src/ClankerWorld.GodotClient -- --measure-map-draw /tmp/clankerworld-map-measurements/current-probe-a.json
+```
+
+Use the pinned engine and build the client scripts first. The draw probe exits
+with an error if the engine never calls `_Draw`. It does not start a host or
+use private saves. Across a separate four-seed, 160-day episode sample, wet
+time fell to 78.1% of the previous Tropical level, 70.9% Dry, 75.4% Temperate,
+73.3% Cold and 75.7% Polar. Episode durations and neighboring weather explain
+why time spent wet is not exactly the same as the base-weight reduction.
+`TerrainPlacementTests` reports terrain coverage for shoreline, inland-river,
+wrap-seam and mountain-edge cases. The script and Godot probe above report
+generation and draw timings.
 
 The [terrain comparison](assets/terrain-placement-comparison.png) shows a
 90×50-tile area of seed `river-world-a` (Small, 50% water, wrapped): the
@@ -568,6 +619,13 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+If an unpaid household recipe remains blocked for 60 ticks and no household
+member has an actionable way to supply its missing ingredients, the runtime
+pauses its saved plan and stops trying to continue it automatically. The adult
+can choose other work. After ingredients return to the building, choosing the
+recipe again resumes the saved plan. This does not interrupt a running
+production job.
 
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their
@@ -891,16 +949,22 @@ new save remains available while listing is slow.
 Load World keeps a visible checking state until its signed catalog request
 finishes. Back cancels the client request; a late response cannot overwrite a
 newer list or New World screen. Results trigger layout after population so the
-first opening can display them. Compatibility still comes from the host's
-checkpoint/history/configuration assessment; no compatibility cache or unchecked
-"compatible" shortcut was added. Open captures the chosen world's ID before
+first opening can display them. The host checks inactive checkpoints once per
+unchanged file in each process, then reuses only that structural result. It
+hashes the file bytes to notice replacements and still checks required history
+and model configuration every time; selecting a world performs a fresh restore.
+When a private host starts, a background task makes those checks for every
+inactive world, so the first list can reuse them. It holds the world-mutation
+lock only to read the catalog and each file, never while decoding or restoring,
+and a world it cannot check is left for the list to report as usual.
+Open captures the chosen world's ID before
 pausing, so a later catalog refresh cannot change its target. Open, Create and
 Delete share the owner-action gate; selecting a different row cannot re-enable
 Open or Delete until the current action finishes. Cleanup checks the current
 selection rather than a row retained across an await.
 
-Client cancellation does not interrupt a host
-assessment that already holds its mutation lock.
+Client cancellation stops the host between world assessments. It does not
+interrupt one restore already holding the mutation lock.
 
 World Settings reads autosaves for its current opening, paired device and
 observed world. Closing Settings, choosing Game Settings or changing worlds
