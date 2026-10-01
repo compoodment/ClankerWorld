@@ -53,18 +53,21 @@ public sealed partial class PrivateWorldRuntime
                 if (missing <= 0)
                     continue;
                 var inventory = society.Checkpoint.Inventory;
+                var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
                     .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         AvailableLotQuantity(lot) > 0)
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
                     .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
-                        lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+                        lot.DeliveryBuildingId is null && deliveryRoom > 0 && AvailableLotQuantity(lot) > 0 &&
+                        (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                         ContainerFamilyQuantity(inventory, lot.Id) <= deliveryRoom) &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          !HasActiveContainerReservation(inventory, lot.Id)))
                     .DistinctBy(lot => lot.Id)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-                var stock = carried is not null ? null : SpareHouseholdStock(householdId, input.Key, building.InstanceId);
+                var stock = carried is not null ? null : SpareHouseholdStock(actor, householdId, input.Key, building);
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
                 if (carried is null && stock is null && source is null)
                     continue;
@@ -74,7 +77,24 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Household stock not already set aside at another workstation.</summary>
-    private InventoryLot? SpareHouseholdStock(string householdId, string itemKind, string destinationId)
+    private int WorkstationDeliveryRoom(InventoryCheckpoint inventory, string destinationId) =>
+        Math.Max(0, StorageRoom(destinationId) - inventory.Lots
+            .Where(lot => lot.DeliveryBuildingId == destinationId).Sum(lot => lot.Quantity));
+
+    private int WorkstationPickupQuantity(string actor, InventoryCheckpoint inventory, InventoryLot stock,
+        string destinationId, int missing)
+    {
+        var capacity = Math.Min(HouseHaulLoadQuantity, Math.Min(FreeCarryCapacity(actor),
+            WorkstationDeliveryRoom(inventory, destinationId)));
+        if (capacity <= 0)
+            return 0;
+        return InventoryContainerRules.IsContainer(stock.ItemKind)
+            ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity ? 1 : 0
+            : Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock)));
+    }
+
+    private InventoryLot? SpareHouseholdStock(string actor, string householdId, string itemKind,
+        PlacedBuilding destination)
     {
         var inventory = society.Checkpoint.Inventory;
         return inventory.Lots
@@ -82,7 +102,7 @@ public sealed partial class PrivateWorldRuntime
                 AvailableLotQuantity(lot) > 0)
             .Select(lot => lot.ContainerLotId is { } containerId
                 ? inventory.GetLot(containerId) : lot)
-            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != destinationId &&
+            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != destination.InstanceId &&
                 lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                  !HasActiveContainerReservation(inventory, lot.Id)) &&
@@ -90,6 +110,8 @@ public sealed partial class PrivateWorldRuntime
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
                         definition.Tags.Any(tag => tag is "house" or "silo")))))
+            .Where(lot => WorkstationPickupQuantity(actor, inventory, lot, destination.InstanceId,
+                int.MaxValue) > 0)
             .DistinctBy(lot => lot.Id)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
@@ -117,7 +139,12 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, building.Position, "supply_workstation", 0);
                 return;
             }
-            var quantity = Math.Min(need.Missing, AvailableLotQuantity(carried));
+            var currentInventory = society.Checkpoint.Inventory;
+            var room = WorkstationDeliveryRoom(currentInventory, building.InstanceId);
+            var quantity = InventoryContainerRules.IsContainer(carried.ItemKind)
+                ? ContainerFamilyQuantity(currentInventory, carried.Id) <= room ? 1 : 0
+                : Math.Min(room, Math.Min(need.Missing, AvailableLotQuantity(carried)));
+            if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, quantity,
                 "workstation_supplied", building.InstanceId));
@@ -133,8 +160,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, position, "supply_workstation", range);
                 return;
             }
-            var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock)));
-            quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            var currentInventory = society.Checkpoint.Inventory;
+            var quantity = WorkstationPickupQuantity(actor, currentInventory, stock, building.InstanceId, need.Missing);
             if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,

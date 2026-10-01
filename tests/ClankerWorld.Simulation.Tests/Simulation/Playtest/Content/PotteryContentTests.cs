@@ -283,6 +283,111 @@ public sealed class PotteryContentTests
             lot.ItemKind == "berries" && lot.Quantity == 1 && lot.ContainerLotId is null);
     }
 
+    [Theory]
+    [InlineData(3, true)]
+    [InlineData(4, false)]
+    public async Task WorkstationWaterSupplyMovesOnlyContainerFamiliesWithinTheHaulLoad(int waterQuantity,
+        bool familyFits)
+    {
+        const string householdId = "household:camp-alpha";
+        const string sourceHouseId = "first-town-house-a";
+        const string jugId = "supply-test-jug";
+        const string waterId = "supply-test-water";
+        var (initial, _) = TailorTestWorld.Create($"container-workstation-supply-{waterQuantity}", 0);
+        var actor = initial.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        using var setup = PrivateWorldRuntime.Restore(initial, _ => new IdleProvider());
+        var package = WaterWorkstationFixture(waterQuantity);
+        setup.ProposeContent(package);
+        var resolution = setup.ResolveContent(package.PackageId);
+        Assert.True(resolution.IsSuccess, resolution.Diagnostic);
+        setup.ValidateContent(package.PackageId, resolution);
+        setup.ApproveContent(package.PackageId);
+        setup.StageContent(package.PackageId);
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+
+        var shopDefinition = setup.WorldContent.Buildings.Single(item => item.LocalId == "test-water-workstation");
+        const string shopId = "test-water-workstation";
+        var sourceHouse = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == sourceHouseId);
+        var placed = Enumerable.Range(-4, 9).SelectMany(dy => Enumerable.Range(-4, 9)
+                .Select(dx => new GridPoint(sourceHouse.Position.X + dx, sourceHouse.Position.Y + dy)))
+            .OrderBy(point => Math.Abs(point.X - sourceHouse.Position.X) + Math.Abs(point.Y - sourceHouse.Position.Y))
+            .Select(point => setup.PlaceBuilding("test-water-workstation", shopDefinition.CanonicalId, point, householdId))
+            .FirstOrDefault(result => result.Applied);
+        Assert.True(placed?.Applied, "A reachable test workstation should fit beside the household House.");
+
+        var state = SetActorCondition(setup.ExportState(), actor, 10_000, sourceHouse.Position);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, jugId,
+            InventoryContainerRules.WaterJug, householdId, 1, state.Society.Society.WorldTick,
+            storageBuildingId: sourceHouseId);
+        foreach (var building in setup.WorldSimulation.Buildings.Where(building =>
+                     building.HouseholdId == householdId && building.InstanceId != shopId))
+        {
+            var definition = setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+            foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId)
+                         .SelectMany(recipe => recipe.Inputs).GroupBy(item => item.ResourceId))
+                inventory = InventoryFixture.AddLot(inventory,
+                    $"supply-fixture-buffer:{building.InstanceId}:{input.Key}", input.Key, householdId,
+                    input.Max(item => item.Amount) * 2, state.Society.Society.WorldTick,
+                    storageBuildingId: building.InstanceId);
+        }
+        inventory = InventoryFixture.AddLot(inventory, waterId, InventoryContainerRules.FreshWater,
+            householdId, waterQuantity, state.Society.Society.WorldTick, containerLotId: jugId,
+            storageBuildingId: sourceHouseId);
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+
+        var provider = new ContainerSupplyProvider();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor
+            ? provider : new IdleProvider());
+        var attempts = familyFits ? 80 : 1;
+        for (var tick = 0; tick < attempts && (familyFits
+                 ? world.Society.Inventory.GetLot(jugId).StorageBuildingId != shopId
+                 : !provider.OfferedCandidates.Contains("supply_workstation:fresh_water")); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        if (!familyFits)
+        {
+            Assert.DoesNotContain(provider.OfferedCandidates, id => id == "supply_workstation:fresh_water");
+            Assert.Equal(sourceHouseId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+            Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
+            Assert.Equal(waterQuantity, world.Society.Inventory.GetLot(waterId).Quantity);
+            world.Validate();
+            return;
+        }
+
+        var actorState = world.Inhabitants.Single(person => person.InhabitantId == actor);
+        var actorLots = world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor)
+            .Select(lot => $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}:storage={lot.StorageBuildingId}:delivery={lot.DeliveryBuildingId}");
+        Assert.True(provider.OfferedCandidates.Contains("supply_workstation:fresh_water"),
+            $"Actor free capacity {PersonalEquipmentRules.FreeCapacity(world.Society.Inventory, actor, actorState.Equipment)}; " +
+            $"actor lots [{string.Join(" | ", actorLots)}]; " +
+            $"actor hunger {actorState.HungerBasisPoints}; candidates [{string.Join(" | ", provider.OfferedCandidates.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}]; " +
+            $"source jug {world.Society.Inventory.GetLot(jugId)}; recipes " +
+            $"[{string.Join(" | ", world.WorldContent.Recipes.Where(item => item.WorkstationBuildingId == shopDefinition.CanonicalId).Select(item => item.LocalId))}]");
+        Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
+        Assert.Equal(shopId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+        Assert.Equal(shopId, world.Society.Inventory.GetLot(waterId).StorageBuildingId);
+        Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.Id == jugId || lot.ContainerLotId == jugId)
+            .Sum(lot => lot.Quantity));
+
+        var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "water-input-fixture");
+        var started = world.StartProduction(recipe.CanonicalId, shopId, actor);
+        Assert.True(started.Applied, started.Failure);
+        for (var tick = 0; tick < recipe.DurationTicks; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
+        Assert.Equal(shopId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == waterId);
+        world.Validate();
+    }
+
     private static int HouseQuantity(PrivateWorldRuntime world, string ownerId, string buildingId, string itemKind) =>
         world.Society.Inventory.Lots.Where(lot => lot.OwnerId == ownerId && lot.StorageBuildingId == buildingId &&
             lot.ItemKind == itemKind).Sum(lot => lot.Quantity);
@@ -325,6 +430,40 @@ public sealed class PotteryContentTests
             [new ContentDependency(HouseContent.PackageId,
                 new ContentVersionRange(ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")))],
             [definition], []);
+    }
+
+    private static ContentPackageManifest WaterWorkstationFixture(int waterAmount)
+    {
+        const string packageId = "test-water-workstation-v1";
+        var version = ContentVersion.Parse("1.0.0");
+        var identity = $"{packageId}:1.0.0:water-workstation:{waterAmount}";
+        var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+        var workshop = new BuildingDefinition(digest, "test-water-workstation", version, "Test water workstation",
+            1, 1, 1, [], ["store"]);
+        var recipe = new RecipeDefinition(digest, "water-input-fixture", version, "Use water in a test recipe",
+            [new(InventoryContainerRules.FreshWater, waterAmount)], [new("test-water-product", 1)], 2,
+            workshop.CanonicalId, ["test", "water-input"]);
+        var buildingDefinition = new ContentDefinition(BuildingDefinition.SchemaKind, workshop.LocalId, version,
+            workshop.DisplayName, workshop.PayloadDigest, JsonSerializer.Serialize(new
+            {
+                schema = "building/v1",
+                workshop.Width,
+                workshop.Height,
+                workshop.Capacity,
+                buildCosts = workshop.BuildCosts,
+                workshop.Tags,
+            }, PayloadOptions));
+        var recipeDefinition = new ContentDefinition(RecipeDefinition.SchemaKind, recipe.LocalId, version,
+            recipe.DisplayName, recipe.PayloadDigest, JsonSerializer.Serialize(new
+            {
+                schema = "recipe/v1",
+                recipe.Inputs,
+                recipe.Outputs,
+                recipe.DurationTicks,
+                recipe.WorkstationBuildingId,
+                recipe.Tags,
+            }, PayloadOptions));
+        return new ContentPackageManifest(packageId, version, digest, [], [buildingDefinition, recipeDefinition], []);
     }
 
     private static IEnumerable<GridPoint> CardinalNeighbors(SeededMap map, GridPoint point)
@@ -398,6 +537,29 @@ public sealed class PotteryContentTests
                 request.Observation.DecisionGeneration, request.Observation.ObservationDigest, selected.Id, 1,
                 request.Observation.Candidates.ToDictionary(candidate => candidate.Id,
                     candidate => candidate.Id == selected.Id ? 1d : 0d)));
+        }
+    }
+
+    private sealed class ContainerSupplyProvider : IDecisionProvider
+    {
+        public ConcurrentBag<string> OfferedCandidates { get; } = [];
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var candidate in request.Observation.Candidates)
+                OfferedCandidates.Add(candidate.Id);
+            var choice = request.Observation.Candidates.FirstOrDefault(candidate =>
+                             candidate.Id == "supply_workstation:fresh_water") ??
+                         request.Observation.Candidates.FirstOrDefault(candidate =>
+                             candidate.Id == "haul_household_stock") ??
+                         request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            return new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = request.Observation with { Candidates = [choice] },
+            }, cancellationToken);
         }
     }
 }
