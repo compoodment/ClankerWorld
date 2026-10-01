@@ -1,5 +1,4 @@
 using ClankerWorld.GodotClient.UI;
-using ClankerWorld.Simulation.Playtest;
 using Godot;
 using System.Globalization;
 
@@ -367,7 +366,7 @@ public partial class Main
                 buildingManagementChoice.SetItemMetadata(buildingManagementChoice.ItemCount - 1, town.Id);
             }
         }
-        else if (building.Tags?.Any(HouseholdBuildingKinds.IsKindTag) == true)
+        else if (building.AllowsHouseholdOwner || building.HouseholdId is not null)
         {
             var isHouse = building.Tags.Contains("house", StringComparer.Ordinal);
             buildingManagementNote.Text = "Changing a private building's household owner keeps its recorded Town assignment and title. Stock, deliveries and active work block the change.";
