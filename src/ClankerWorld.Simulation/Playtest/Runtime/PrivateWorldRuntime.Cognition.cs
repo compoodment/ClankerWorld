@@ -68,7 +68,9 @@ public sealed partial class PrivateWorldRuntime
                 inhabitant.Id,
                 WorldTick,
                 candidates);
-            var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
+            var observerGuidance = ObserverGuidanceFor(inhabitant.Id);
+            var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id) ||
+                observerGuidance.Count > 0;
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
                 physical.Personality, physical.Aspiration, inhabitant.HouseholdId,
@@ -82,7 +84,8 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 society.Checkpoint.RunEpoch,
                 generation,
-                ObservationDigest(inhabitant.Id, physical, candidates, retrievedMemories, [], knownMapFacts, self),
+                ObservationDigest(inhabitant.Id, checkpoint.WorldId, physical, candidates, retrievedMemories,
+                    [], knownMapFacts, self, observerGuidance),
                 physical.HungerBasisPoints,
                 candidates,
                 NeedsName: inhabitant.NeedsName,
@@ -92,6 +95,8 @@ public sealed partial class PrivateWorldRuntime
                 NeedsPersonality: physical.IdentityChoicePending,
                 NeedsAspiration: physical.IdentityChoicePending)
             {
+                WorldId = checkpoint.WorldId,
+                ObserverGuidance = observerGuidance,
                 ConversationChoiceContext = conversationChoiceContext,
             };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
@@ -113,7 +118,8 @@ public sealed partial class PrivateWorldRuntime
                             {
                                 MemoryCompactionCandidates = memoryCandidates,
                                 ObservationDigest = ObservationDigest(
-                                    inhabitant.Id, physical, candidates, retrievedMemories, memoryCandidates, knownMapFacts, self),
+                                    inhabitant.Id, checkpoint.WorldId, physical, candidates, retrievedMemories,
+                                    memoryCandidates, knownMapFacts, self, observerGuidance),
                             };
                         }
                     }
@@ -300,6 +306,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        var completedSuggestions = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
         var forcedCandidate = !decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo
@@ -323,12 +330,72 @@ public sealed partial class PrivateWorldRuntime
             _ => false,
         });
 
-        if (!decision.Admission.FellBack && pendingInstruction is not null &&
-            (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedApplied))
+        foreach (var instructionId in completedSuggestions)
+        {
+            AppendEvent("instruction_applied", $"{instructionId}:{candidateId}");
+        }
+
+        if (!decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo && forcedApplied)
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);
             AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
         }
+    }
+
+    private IReadOnlyList<string> ApplyObserverGuidanceResult(
+        string inhabitantId,
+        CognitionAdmissionResult admission)
+    {
+        if (!admission.Accepted || admission.FellBack ||
+            admission.Intention?.Provider != DecisionProviderKind.LargeLanguageModel ||
+            admission.ObserverGuidance is not { } result ||
+            result.WorldId != society.Checkpoint.WorldId ||
+            result.InhabitantId != inhabitantId ||
+            result.RunEpoch != admission.Intention.RunEpoch ||
+            result.DecisionGeneration != admission.Intention.DecisionGeneration ||
+            result.ObservationDigest != admission.Intention.ObservationDigest ||
+            !inhabitants.ContainsKey(inhabitantId))
+            return [];
+
+        var replies = result.Replies.ToDictionary(reply => reply.InstructionId, StringComparer.Ordinal);
+        var completedSuggestions = new List<string>();
+        foreach (var message in result.Messages)
+        {
+            if (!instructionsByIdempotency.Values.Any(instruction =>
+                    instruction.InstructionId == message.InstructionId &&
+                    instruction.IssuerId == message.IssuerId &&
+                    instruction.TargetInhabitantId == inhabitantId &&
+                    instruction.TargetInhabitantId == message.TargetInhabitantId &&
+                    ToWireValue(instruction.Kind) == message.Kind &&
+                    instruction.Text == message.Text &&
+                    instruction.SubmittedTick == message.SubmittedTick &&
+                    instruction.RunEpoch == message.RunEpoch &&
+                    instruction.SubmissionSequence == message.SubmissionSequence &&
+                    (instruction.Kind != OwnerInstructionKind.MustDo ||
+                     UnderstoodTaskFor(InstructionCandidate(instruction.Text)) == message.UnderstoodTask) &&
+                    (instruction.ObserverReply is null) == message.ReplyAllowed))
+                continue;
+
+            var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+                item.InstructionId == message.InstructionId);
+            if (instruction is null || completedInstructionIds.Contains(instruction.InstructionId))
+                continue;
+
+            var observerReply = replies.TryGetValue(instruction.InstructionId, out var reply)
+                ? reply.Text
+                : instruction.ObserverReply;
+            instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+            {
+                ObservedTick = instruction.ObservedTick ?? WorldTick,
+                ObserverReply = observerReply,
+            };
+            checkpointSchemaVersion = StateSchemaVersion;
+            if (instruction.Kind == OwnerInstructionKind.Suggestive &&
+                completedInstructionIds.Add(instruction.InstructionId))
+                completedSuggestions.Add(instruction.InstructionId);
+        }
+
+        return completedSuggestions;
     }
 
     private void ApplyCandidate(
@@ -797,16 +864,19 @@ public sealed partial class PrivateWorldRuntime
 
     private static string ObservationDigest(
         string inhabitantId,
+        string worldId,
         PlaytestInhabitantState state,
         IReadOnlyList<CognitionCandidate> candidates,
         IReadOnlyList<CognitionMemoryExcerpt> memories,
         IReadOnlyList<CognitionMemoryCompactionCandidate> compactionCandidates,
         IReadOnlyList<CognitionKnowledgeFact> knownMapFacts,
-        CognitionSelfContext self)
+        CognitionSelfContext self,
+        IReadOnlyList<CognitionObserverGuidance> observerGuidance)
     {
         var text = new StringBuilder()
-            .Append("clankerworld.private-world-observation/v1|")
+            .Append("clankerworld.private-world-observation/v2|")
             .Append(inhabitantId).Append('|')
+            .Append(worldId.Length).Append(':').Append(worldId).Append('|')
             .Append(state.Position.X).Append(',').Append(state.Position.Y).Append('|')
             .Append(state.HungerBasisPoints).Append('|')
             .Append(string.Join(',', candidates.Select(candidate => candidate.Id)));
@@ -841,6 +911,17 @@ public sealed partial class PrivateWorldRuntime
                 .Append(fact.Terrain).Append('|').Append(string.Join(',', fact.ResourceKinds))
                 .Append('|').Append(fact.DiscovererId).Append('|').Append(fact.Acquisition)
                 .Append('|').Append(fact.LearnedTick);
+        foreach (var message in observerGuidance)
+            text.Append("|observer=").Append(message.InstructionId.Length).Append(':').Append(message.InstructionId)
+                .Append('|').Append(message.IssuerId.Length).Append(':').Append(message.IssuerId)
+                .Append('|').Append(message.TargetInhabitantId.Length).Append(':').Append(message.TargetInhabitantId)
+                .Append('|').Append(message.Kind)
+                .Append('|').Append(message.Text.Length).Append(':').Append(message.Text)
+                .Append('|').Append(message.SubmittedTick)
+                .Append('|').Append(message.RunEpoch)
+                .Append('|').Append(message.SubmissionSequence)
+                .Append('|').Append(message.UnderstoodTask ?? "none")
+                .Append('|').Append(message.ReplyAllowed);
         text.Append("|self=").Append(JsonSerializer.Serialize(self))
             .Append("|identity_pending=").Append(state.IdentityChoicePending);
         return $"sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())))}";

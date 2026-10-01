@@ -163,6 +163,36 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(item => item.SubmissionSequence)
             .FirstOrDefault();
 
+    private IReadOnlyList<CognitionObserverGuidance> ObserverGuidanceFor(string inhabitantId) =>
+        instructionsByIdempotency.Values
+            .Where(item => item.TargetInhabitantId == inhabitantId &&
+                !completedInstructionIds.Contains(item.InstructionId) &&
+                (item.Kind == OwnerInstructionKind.Suggestive || InstructionCandidate(item.Text) is not null))
+            .OrderBy(item => item.SubmissionSequence)
+            .Take(InhabitantObservation.MaximumObserverGuidanceCount)
+            .Select(item => new CognitionObserverGuidance(
+                item.InstructionId,
+                item.IssuerId,
+                item.TargetInhabitantId,
+                ToWireValue(item.Kind),
+                item.Text,
+                item.SubmittedTick,
+                item.RunEpoch,
+                item.SubmissionSequence,
+                item.Kind == OwnerInstructionKind.MustDo
+                    ? UnderstoodTaskFor(InstructionCandidate(item.Text))
+                    : null,
+                item.ObserverReply is null))
+            .ToArray();
+
+    private static string? UnderstoodTaskFor(string? candidate) => candidate switch
+    {
+        "consume_food" => "eat one carried food item",
+        "seek_food" => "travel within gathering range of an available food source",
+        "harvest_food" => "gather several food servings from a nearby food source",
+        _ => null,
+    };
+
     private static readonly HashSet<string> HarvestInstructionWords =
         new(StringComparer.Ordinal) { "harvest", "harvests", "harvesting", "gather", "gathers", "gathering" };
     private static readonly HashSet<string> BerryInstructionWords =
@@ -250,6 +280,9 @@ public sealed partial class PrivateWorldRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Text);
+        var text = request.Text.Trim();
+        if (text.Length > OwnerQueuedInstruction.MaximumTextLength || text.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction text must be at most 512 characters without control characters.");
     }
 
     private static string ToWireValue(OwnerInstructionKind kind) => kind switch

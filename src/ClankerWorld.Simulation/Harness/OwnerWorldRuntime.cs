@@ -51,7 +51,12 @@ public sealed record OwnerQueuedInstruction(
     long SubmittedTick,
     long RunEpoch,
     long SubmissionSequence,
-    OwnerInstructionState State);
+    OwnerInstructionState State,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ObservedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ObserverReply = null)
+{
+    public const int MaximumTextLength = 512;
+}
 
 /// <summary>
 /// A stable reply to an instruction submission. Repeating the same request
