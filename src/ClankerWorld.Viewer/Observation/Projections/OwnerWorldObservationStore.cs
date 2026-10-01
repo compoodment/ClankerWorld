@@ -365,11 +365,11 @@ public sealed class OwnerWorldObservationStore
                 ? CreateWeatherRegions(weatherSystems, map)
                 : [],
             WeatherRegionSize = WeatherRules.RegionSize,
-            CalendarPace = state.WorldSystems is { } worldSystems
-                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
-                : null,
             DarknessBasisPoints = state.WorldSystems is { } daylightSystems
                 ? DaylightRules.DarknessBasisPoints(daylightSystems)
+                : null,
+            CalendarPace = state.WorldSystems is { } worldSystems
+                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,

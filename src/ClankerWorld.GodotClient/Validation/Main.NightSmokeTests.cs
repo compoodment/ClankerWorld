@@ -24,7 +24,8 @@ public partial class Main
         if (nightLayer.GetParent() != mapStage || layers.IndexOf(nightLayer) != layers.IndexOf(terrainLayer) + 1 ||
             layers.IndexOf(objectLayer) < layers.IndexOf(nightLayer) || layers.IndexOf(entityLayer) < layers.IndexOf(nightLayer) ||
             layers.IndexOf(weatherLayer) < layers.IndexOf(nightLayer) || nightLayer.GetChildCount() != 0 ||
-            nightLayer.MouseFilter != Control.MouseFilterEnum.Ignore || mapCanvas.GetChildren().IndexOf(uiLayer) < mapCanvas.GetChildren().IndexOf(mapStage))
+            nightLayer.MouseFilter != Control.MouseFilterEnum.Ignore || mapCanvas.GetChildren().IndexOf(uiLayer) < mapCanvas.GetChildren().IndexOf(mapStage) ||
+            nightLayer.ZIndex != terrainLayer.ZIndex || objectLayer.ZIndex < nightLayer.ZIndex || entityLayer.ZIndex < nightLayer.ZIndex)
             throw new InvalidOperationException("The night wash must lie just over the ground, under map labels, agents, weather and panels, and let clicks through.");
 
         // The host reports darkness once a tick; the wash eases between readings.
