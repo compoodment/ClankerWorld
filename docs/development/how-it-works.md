@@ -859,6 +859,12 @@ that the whole planned load fits before it depletes ecology, then commits the
 inventory output and single-unit wear together. A full load or a refused action
 does not consume source stock or damage a tool.
 
+An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
+diamond mining from a reachable finite outcrop. The complete eight-item trial
+load must fit. The decision stops offering more once the adult and their
+household together hold eight of that material. These goods remain carried
+physical stock; ornament making and a special rare-goods market are later work.
+
 The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
 iron ore into separate refined iron, and repairs one carried worn tool at a
 time. Repair consumes the recipe materials carried by that tool's owner; it

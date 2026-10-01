@@ -491,6 +491,11 @@ public sealed partial class PrivateWorldRuntime
             RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(RareMiningPrefix, StringComparison.Ordinal))
+        {
+            GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
         {
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
@@ -819,6 +824,7 @@ public sealed partial class PrivateWorldRuntime
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
             AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
+            AddRareMiningCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);

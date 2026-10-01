@@ -8,6 +8,42 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private const string RepairToolPrefix = "repair_tool:";
+    private const string RareMiningPrefix = "gather_rare_material:";
+    // One trial load before a household needs another use for these goods.
+    private const int RareMaterialStockTarget = 8;
+
+    private MapResource? RareMiningSource(string actor, string itemKind)
+    {
+        if (itemKind is not ("gold_ore" or "diamond") || !AdultResident(actor) ||
+            !inhabitants.TryGetValue(actor, out var state) || NeedsUrgentFood(state) ||
+            NeedsUrgentWarmth(state) || state.Project is { Stage: not ("completed" or "cancelled"), RequiresFreshChoice: false } ||
+            ToolProgressionRules.BestUsableTool(society.Checkpoint.Inventory, actor, ToolFamily.Pickaxe) is not { } pick ||
+            ToolProgressionRules.Find(pick.ItemKind)!.Tier < 3)
+            return null;
+        var household = HouseholdFor(actor);
+        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == itemKind &&
+                (lot.OwnerId == actor || lot.OwnerId == household)).Sum(lot => lot.Quantity);
+        if (stock >= RareMaterialStockTarget)
+            return null;
+        var source = MaterialSource(itemKind, actor);
+        var plan = source is null ? null : ProjectMaterialHarvest(actor, itemKind, source);
+        return plan is not null && FreeCarryCapacity(actor) >= plan.Quantity + plan.TreeSeedQuantity
+            ? source : null;
+    }
+
+    private void AddRareMiningCandidates(List<CognitionCandidate> candidates, string actor)
+    {
+        foreach (var itemKind in new[] { "gold_ore", "diamond" })
+            if (RareMiningSource(actor, itemKind) is { } source)
+                candidates.Add(new(RareMiningPrefix + itemKind,
+                    $"Mine {itemKind.Replace('_', ' ')} with the carried iron pickaxe.", 36, source.Id));
+    }
+
+    private void GatherRareMaterial(string actor, PlaytestInhabitantState state, string itemKind)
+    {
+        if (RareMiningSource(actor, itemKind) is { } source)
+            GatherProjectMaterial(actor, state, itemKind, source);
+    }
 
     private bool CanGatherFromSource(string actor, string itemKind, MapResource source)
     {
