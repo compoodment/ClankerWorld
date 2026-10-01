@@ -909,7 +909,7 @@ for another seller; goods keep their recorded owner and must be
 carried away or transferred through an actual trade.
 
 **Owner answer on October 1, 2026:** the Town owns the stalls that sellers
-borrow. How the Town builds new stalls remains to be settled.
+borrow. The Town adds stalls when sellers need them, using Town materials.
 
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods
