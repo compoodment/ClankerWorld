@@ -21,6 +21,7 @@ public sealed partial class PrivateWorldRuntimeService(
     private bool recoveryWritePending;
     private bool invalidStateHalt;
     private bool writingCheckpoint;
+    private readonly Dictionary<string, FrozenChildModelBinding> pendingChildModelBindings = new(StringComparer.Ordinal);
 
     [LoggerMessage(EventId = 2287, Level = LogLevel.Error,
         Message = "world_recovery outcome={Outcome} tick={WorldTick} reason={Reason}")]
@@ -167,14 +168,29 @@ public sealed partial class PrivateWorldRuntimeService(
             return false;
         }
 
+        if (!TryBindPendingChildModels(out var recoveredChildBindings))
+        {
+            LogGateTransition("waiting_for_child_model_binding", runtime.WorldTick);
+            return false;
+        }
+        if (recoveredChildBindings)
+        {
+            writingCheckpoint = true;
+            _ = stateFile.Save(runtime);
+            writingCheckpoint = false;
+        }
+
         _ = runtime.StageStarterContent();
         using var monitorLifetime = new CancellationTokenSource();
         using var tickCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var monitor = MonitorTickGateAsync(tickCancellation, monitorLifetime.Token);
+        var preparedChildBindings = new Dictionary<string, FrozenChildModelBinding>(StringComparer.Ordinal);
         PrivateWorldStepResult result;
         try
         {
-            result = await runtime.AdvanceOneTickNonBlockingAsync(() => clientPresence.HasActiveClient, tickCancellation.Token);
+            result = await runtime.AdvanceOneTickNonBlockingAsync(() => clientPresence.HasActiveClient,
+                (proposed, events) => PrepareChildModelSelections(proposed, events, preparedChildBindings),
+                tickCancellation.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && tickCancellation.IsCancellationRequested)
         {
@@ -189,6 +205,32 @@ public sealed partial class PrivateWorldRuntimeService(
         LogGateTransition(result.Advanced ? "advancing" : result.Outcome, result.WorldTick);
         if (result.Advanced)
         {
+            foreach (var (childId, binding) in preparedChildBindings)
+                pendingChildModelBindings[childId] = binding;
+            var bornChildren = result.Events.Where(item => item.Kind == "child_born").Select(item => item.Detail)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            if (bornChildren.Length > 0)
+            {
+                // The birth descriptor is part of the runtime tick commit. Persist it
+                // before touching provider storage, so manual saves, world switches,
+                // and shutdown cannot publish an unbound newborn.
+                writingCheckpoint = true;
+                if (providers is null)
+                {
+                    _ = stateFile.Save(runtime);
+                }
+                else
+                {
+                    lock (providers.WorldMutationGate)
+                        _ = stateFile.Save(runtime);
+                }
+                writingCheckpoint = false;
+                if (!TryBindPendingChildModels(out _))
+                {
+                    LogGateTransition("waiting_for_child_model_binding", runtime.WorldTick);
+                    return false;
+                }
+            }
             writingCheckpoint = true;
             var compacted = stateFile.Save(runtime);
             writingCheckpoint = false;
@@ -367,6 +409,115 @@ public sealed partial class PrivateWorldRuntimeService(
         }
 
         return result.Advanced;
+    }
+
+    private bool TryBindPendingChildModels(out bool changed)
+    {
+        changed = false;
+        if (providers is null) return true;
+
+        try
+        {
+            lock (providers.WorldMutationGate)
+            {
+                var configuration = providers.CaptureRuntimeConfiguration();
+                var people = runtime.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+                foreach (var childId in pendingChildModelBindings.Keys.ToArray())
+                {
+                    if (!people.TryGetValue(childId, out var child))
+                    {
+                        pendingChildModelBindings.Remove(childId);
+                        continue;
+                    }
+                    if (child.ChildModelSelection is null)
+                        throw new InvalidDataException("A newly born child has no birth-bound model choice.");
+                    if (pendingChildModelBindings[childId].Selection != child.ChildModelSelection)
+                        pendingChildModelBindings[childId] = new FrozenChildModelBinding(child.ChildModelSelection, null);
+                }
+
+                foreach (var child in people.Values.Where(item => item.ChildModelSelection is not null))
+                {
+                    var selection = child.ChildModelSelection!;
+                    var childRows = (configuration.Assignments ?? []).Where(item =>
+                        item.InhabitantId == child.InhabitantId &&
+                        item.Role is PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole).ToArray();
+                    var birthRows = childRows.Where(item => item.SelectionReason is not null).ToArray();
+                    if (selection.Provider is null)
+                    {
+                        if (birthRows.Length > 0)
+                            throw new InvalidDataException("An unconfigured child has a saved birth model assignment.");
+                        if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                            continue;
+                    }
+                    else
+                    {
+                        if (birthRows.Any(item => item.Provider != selection.Provider || item.Model != selection.ModelId ||
+                                item.CredentialSlotId != selection.CredentialSlotId || item.SelectionReason != selection.ChoiceReason))
+                            throw new InvalidDataException("A child's saved route does not match its birth model choice.");
+                        var bothRolesConfigured = new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole }
+                            .All(role => childRows.Any(item => item.Role == role));
+                        if (bothRolesConfigured)
+                        {
+                            pendingChildModelBindings.Remove(child.InhabitantId);
+                            continue;
+                        }
+                    }
+                    if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                        pendingChildModelBindings.Add(child.InhabitantId, new FrozenChildModelBinding(selection, null));
+                }
+
+                foreach (var childId in pendingChildModelBindings.Keys.Order(StringComparer.Ordinal).ToArray())
+                {
+                    if (!people.TryGetValue(childId, out var child)) continue;
+                    var binding = pendingChildModelBindings[childId];
+                    if (child.ChildModelSelection != binding.Selection)
+                        throw new InvalidDataException("The pending child model choice no longer matches the saved birth descriptor.");
+                    providers.ConfigureChildModelSelectionWithCommit(childId, binding,
+                        boundSelection => runtime.ApplyChildModelSelection(childId, boundSelection));
+                    pendingChildModelBindings.Remove(childId);
+                    changed = true;
+                }
+            }
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or
+            InvalidOperationException or ArgumentException)
+        {
+            runtime.Pause();
+            runtime.CancelPendingHostedDecisions();
+            if (logger is not null)
+                LogRecovery(logger, "waiting_for_child_model_binding", runtime.WorldTick, exception.GetType().Name);
+            return false;
+        }
+    }
+
+    private List<PreparedChildModelSelection> PrepareChildModelSelections(
+        PrivateWorldRuntime proposed,
+        IReadOnlyList<PlaytestWorldEvent> events,
+        Dictionary<string, FrozenChildModelBinding> preparedBindings)
+    {
+        if (providers is null) return [];
+        var births = events.Where(item => item.Kind == "child_born")
+            .Select(item => item.Detail).Distinct(StringComparer.Ordinal).ToArray();
+        if (births.Length == 0) return [];
+
+        var configuration = providers.CaptureRuntimeConfiguration();
+        var people = proposed.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var selections = new List<PreparedChildModelSelection>(births.Length);
+        foreach (var childId in births)
+        {
+            if (!people.TryGetValue(childId, out var child) || child.ChildModelSelection is not null)
+                throw new InvalidDataException("A newborn child cannot receive a second model choice.");
+            var initiator = people.Values.FirstOrDefault(item => item.Parenthood?.ChildId == childId);
+            if (initiator?.Parenthood is not { } plan)
+                throw new InvalidDataException("A newly born child has no initiating parent record.");
+
+            var selection = ChildModelSelectionResolver.Choose(initiator.InhabitantId, plan.PartnerId, configuration);
+            var frozen = ProviderConfigurationStore.FreezeChildModelSelection(selection, configuration);
+            preparedBindings.Add(childId, frozen);
+            selections.Add(new PreparedChildModelSelection(childId, frozen.Selection));
+        }
+        return selections;
     }
 
     private void LogTownEvent(PlaytestWorldEvent worldEvent)

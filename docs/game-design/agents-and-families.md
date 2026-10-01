@@ -94,14 +94,16 @@ everything that is available in the current build. See [what works today](../wha
   it a prerequisite for having a child.
 - **A child uses their own selected personal AI model once they leave infancy.**
   Infants do not make calls to their personal model. The parents' provider/model
-  choice can be stored at birth, then used when that agent enters the child
-  stage. This resolves the earlier open question about *whether* children use
+  choice is recorded at birth, then used when that agent enters the child stage.
+  This resolves the earlier open question about *whether* children use
   their own models; initial age-up thresholds are below. Jev must not be
   required for infant care, because Jev is optional per world. If the two
   parents choose different models, the **initiating parent's model** is used,
   as a disclosed tie-break. If the chosen model has no working key, the child
   shows "model needs setup" and idles safely. The game never substitutes a
-  different paid model.
+  different paid model. The owner can later select another personal model or
+  leave the child without one; an explicitly unconfigured child keeps using
+  built-in choices and does not inherit the world's default provider.
 - **Children are real social agents, not silent placeholders.** Their personal
   models can converse, play, learn, form friendships, and choose age-appropriate
   simple helping tasks. Adult-only decisions such as land deals and parenthood
@@ -187,9 +189,10 @@ placement, the local search extent, the placement boundary's exact distance
 measurement near tile/footprint edges, whether geometric proximity also
 requires a walkable route, and how changing site revalidates any positions or
 claims tied to the previous layout without clearing model/provider choices.
-Warehouse details remain open: formal ownership, how Town residency is
-determined, access when the building is outside all Town borders or borders
-change, and how its hard access gate relates to any future crime system. The
+Town residency follows the [agreed membership rules](towns.md#town-membership).
+Warehouse access across border changes and public salvage in an abandoned Town
+follow the [agreed Town rules](towns.md#borders-abandoned-towns-and-salvage).
+How its ordinary access gate relates to a future crime system remains open. The
 optional survival grace period still
 needs a duration and precise effects. Also open:
 whether unrelated newcomers can arrive without player action or are only
@@ -203,8 +206,9 @@ Computment briefly considered removing the close-relative pairing ban, then
 retracted that thought; the ban still stands. A model-usage meter and optional
 AI-usage limit have since been accepted; neither is a population cap.
 
-For inheritance, still open: the exact final-model-turn contract; which assets
-are personal versus already household-owned; conflicts between a will and
+Personal ownership is separate from storage or carrying location under the
+[agreed household goods rules](towns.md#household-goods-and-departure).
+For inheritance, still open: the exact final-model-turn contract; conflicts between a will and
 agent-made law; minors, multiple heirs, debts, and no-household cases; and
 whether a final message beyond the will is part of the death event. Clanker's
 proposed safety rule is to freeze the estate at death, validate the model's

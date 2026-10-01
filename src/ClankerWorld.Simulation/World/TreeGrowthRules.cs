@@ -44,6 +44,8 @@ public static class TreeGrowthRules
 
     /// <summary>One tree-seed item serves both wood species (content list 2.1 and 2.2).</summary>
     public const string TreeSeedItem = "tree_seed";
+    public const string OrchardSeedItem = "orchard_seed";
+    public const int OrchardSeedsPerPick = 1;
 
     /// <summary>Map resource IDs of trees planted on new tiles: <c>planted-tree-{x}-{y}</c>.</summary>
     public const string PlantedTreeIdPrefix = "planted-tree-";
@@ -74,8 +76,9 @@ public static class TreeGrowthRules
 
     public static bool IsWoodTree(string? treeKind) => treeKind is Broadleaf or Conifer;
 
-    /// <summary>Orchard trees are not plantable yet: orchard propagation is still an open decision.</summary>
-    public static bool IsPlantableSpecies(string? species) => IsWoodTree(species);
+    public static bool IsPlantableSpecies(string? species) => IsWoodTree(species) || species == Orchard;
+    public static string SeedItem(string species) => species == Orchard ? OrchardSeedItem : TreeSeedItem;
+    public static string ResourceKind(string species) => species == Orchard ? "fruit" : "construction";
 
     public static string PlantedTreeId(GridPoint position) =>
         $"{PlantedTreeIdPrefix}{position.X}-{position.Y}";
@@ -103,8 +106,10 @@ public static class TreeGrowthRules
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentOutOfRangeException.ThrowIfNegative(plantedDay);
-        return new EcologyResource(tree.Id, tree.Kind, tree.Position, true, 0, 1, 1, StumpRegrowthDays,
-            StumpRegrowthSeason, checked(plantedDay + SaplingGrowthDays), EcologyResourceState.Regenerating,
+        return new EcologyResource(tree.Id, tree.Kind, tree.Position, true, 0, 1, 1,
+            tree.TreeKind == Orchard ? OrchardRefruitDays : StumpRegrowthDays,
+            tree.TreeKind == Orchard ? OrchardFruitSeason : StumpRegrowthSeason,
+            checked(plantedDay + SaplingGrowthDays), EcologyResourceState.Regenerating,
             IsPlanted: true);
     }
 
@@ -119,6 +124,7 @@ public static class TreeGrowthRules
         Broadleaf or Conifer when tree.IsPlanted => "sapling",
         Broadleaf or Conifer when tree.Quantity > 0 && tree.State == EcologyResourceState.Available => "mature",
         Broadleaf or Conifer => "stump",
+        Orchard when tree?.IsPlanted == true => "sapling",
         Orchard when tree?.Quantity > 0 => "fruiting",
         Orchard when tree is not null && season == tree.RegenerationSeason => "picked",
         Orchard => "growing",
@@ -166,15 +172,15 @@ public static class TreeGrowthRules
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(tree);
-        return tree.Id == PlantedTreeId(tree.Position) && tree.Kind == "construction" && tree.IsRenewable &&
+        return tree.Id == PlantedTreeId(tree.Position) && tree.Kind == ResourceKind(tree.TreeKind ?? "") && tree.IsRenewable &&
             IsPlantableSpecies(tree.TreeKind) && tree.NaturalObjectKind is null &&
             GroundRefusal(map, tree.Position) is null;
     }
 
     public static string Reason(TreePlantingRefusal refusal) => refusal switch
     {
-        TreePlantingRefusal.UnsupportedSpecies => "Only broadleaf and conifer trees can be planted from seed for now.",
-        TreePlantingRefusal.NotATreeSeed => "Only a tree seed can be planted as a tree.",
+        TreePlantingRefusal.UnsupportedSpecies => "Choose a broadleaf, conifer or orchard tree.",
+        TreePlantingRefusal.NotATreeSeed => "Wood trees need tree seeds; orchard trees need orchard seeds.",
         TreePlantingRefusal.SeedNotOwned => "The planter can only plant a seed they carry.",
         TreePlantingRefusal.NoSeedLeft => "There is no tree seed left to plant.",
         TreePlantingRefusal.PlanterUnavailable => "Only an adult in the world can plant a tree.",

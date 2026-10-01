@@ -89,7 +89,7 @@ public sealed class GeographyGeneratorTests
         Assert.Contains(SurfaceKind.DryScrub, surfaces);
         Assert.Contains(SurfaceKind.Rock, surfaces);
         Assert.Contains(SurfaceKind.Snow, surfaces);
-        Assert.Contains(SurfaceKind.FertileSoil, surfaces);
+        Assert.DoesNotContain(SurfaceKind.FertileSoil, surfaces);
         Assert.Contains(VegetationCover.Cactus, vegetation);
         Assert.NotEmpty(naturalObjects);
         Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "berry_bush");
@@ -104,11 +104,11 @@ public sealed class GeographyGeneratorTests
         Assert.Contains(naturalObjects, resource => resource.NaturalObjectKind == "wild_seed_patch");
         Assert.All(naturalObjects, resource => Assert.Null(resource.TreeKind));
         Assert.Equal(naturalObjects.Length, naturalObjects.Select(resource => resource.Position).Distinct().Count());
-        var resourceSoilSites = naturalObjects.Where(resource => resource.NaturalObjectKind == "fertile_soil")
-            .Select(resource => resource.Position).ToHashSet();
-        var markedSoilTiles = first.Tiles.Where(tile => first.SurfaceAt(tile.Position) == SurfaceKind.FertileSoil)
-            .Select(tile => tile.Position).ToHashSet();
-        Assert.Equal(resourceSoilSites, markedSoilTiles);
+        Assert.DoesNotContain(naturalObjects, resource => resource.NaturalObjectKind == "fertile_soil");
+        var fertility = new LandFertility(first, options.Seed);
+        var repeatedFertility = new LandFertility(second, options.Seed);
+        Assert.Contains(first.Tiles, tile => fertility.CanFarm(tile.Position));
+        Assert.All(first.Tiles, tile => Assert.Equal(fertility.At(tile.Position), repeatedFertility.At(tile.Position)));
         Assert.All(naturalObjects.Where(resource => resource.NaturalObjectKind is
             "iron_outcrop" or "gold_outcrop" or "diamond_outcrop"), resource =>
         {
@@ -601,7 +601,12 @@ public sealed class GeographyGeneratorTests
         var tropicalMap = GeneratedCampMapGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
         Assert.Contains(dryMap.Tiles, tile => tile.Terrain == TerrainKind.Sand);
         Assert.Contains(tropicalMap.Tiles, tile => tile.Terrain == TerrainKind.Forest);
-        Assert.All(dryMap.Resources.Where(site => site.Id.StartsWith("wild-", StringComparison.Ordinal)),
+        // The starter wild-greens patch keeps its food identity in every
+        // climate; this climate rule applies to distributed wild resources.
+        var dryWildResources = dryMap.Resources.Where(site =>
+            site.Id.StartsWith("wild-", StringComparison.Ordinal) && site.Id != "wild-greens-patch").ToArray();
+        Assert.NotEmpty(dryWildResources);
+        Assert.All(dryWildResources,
             site => Assert.True(site.Kind is "stone" or "fiber"));
         Assert.Contains(tropicalMap.Resources, site => site.Id.StartsWith("wild-", StringComparison.Ordinal) &&
             site.Kind == "construction" && site.IsRenewable);

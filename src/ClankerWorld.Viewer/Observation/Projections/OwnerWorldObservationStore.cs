@@ -200,6 +200,7 @@ public sealed class OwnerWorldObservationStore
         string? knownMapLayersDigest = null)
     {
         var map = state.Map;
+        var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
@@ -274,8 +275,17 @@ public sealed class OwnerWorldObservationStore
             latestEventId)
         {
             PackedTerrain = packedTerrain,
-            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map),
+            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed),
             MapLayersDigest = mapLayersDigest,
+            Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,
+                field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
+                field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
+            GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0)
+                .GroupBy(lot => (Position: lot.GroundPosition!.Value, lot.OwnerId, lot.ItemKind))
+                .OrderBy(group => group.Key.Position.Y).ThenBy(group => group.Key.Position.X)
+                .ThenBy(group => group.Key.ItemKind, StringComparer.Ordinal).ThenBy(group => group.Key.OwnerId, StringComparer.Ordinal)
+                .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
+                    group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
@@ -461,15 +471,20 @@ public sealed class OwnerWorldObservationStore
             Convert.ToBase64String(bytes));
     }
 
-    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map)
+    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed = null)
     {
         if (map.ClimateZones is not { } climate || map.ElevationLevels is not { } elevation ||
             map.HydrologyKinds is not { } hydrology || map.SurfaceKinds is not { } surface ||
             map.VegetationKinds is not { } vegetation) return null;
+        var fertility = worldSeed is null ? null : new LandFertility(map, worldSeed);
         return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v2",
             Convert.ToBase64String(climate), Convert.ToBase64String(elevation),
             Convert.ToBase64String(hydrology), Convert.ToBase64String(surface),
-            Convert.ToBase64String(vegetation));
+            Convert.ToBase64String(vegetation))
+        {
+            Fertility = fertility is null ? null : Convert.ToBase64String(map.Tiles.OrderBy(tile => tile.Position.Y)
+                .ThenBy(tile => tile.Position.X).Select(tile => checked((byte)fertility.At(tile.Position))).ToArray()),
+        };
     }
 
     private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)
@@ -589,6 +604,12 @@ public sealed class OwnerWorldObservationStore
         };
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("birth-model-provider", birthProvider));
+            if (birthModel.ModelId is { } modelId)
+                decisionFactors.Add(new ViewerDecisionFactor("birth-model-id", modelId));
+        }
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         var modelStatus = physical.LastModelAttempt?.Status ?? "ready";

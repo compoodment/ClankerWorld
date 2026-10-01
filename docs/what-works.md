@@ -67,6 +67,17 @@ asks once more without showing the other name. Deceased agents still count.
 If the second answer is unavailable or also taken, the person keeps the
 placeholder name until the player changes it.
 
+A child's personal model is recorded at birth from the parents' explicit
+personal assignments. When those differ, the parent who began the family plan
+is the disclosed tie-break. Infants make no personal-model calls. After
+infancy, the child uses the saved model only when its original key is available
+and normal call checks allow it; if the key is missing, built-in choices keep
+the child safe and the game does not substitute another paid model. The child
+card shows the selected model or that it needs setup. Children whose parents
+have no explicit model remain unconfigured; world defaults are not inherited.
+The owner can later choose a different personal model or explicitly clear it;
+that setting is saved, and a cleared child continues with built-in choices.
+
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant
@@ -106,13 +117,13 @@ generated memory summaries and full conversations are unfinished.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
-| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing there, carrying fiber in from its own stock or gathering it; an adult without clothing collects a finished garment from the shop. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
-| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Store are not offered yet. |
+| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
+| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. Quantities, work times, yields and farm planning remain provisional. |
+| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Adults can ask a free, healthy agent with a saved skill for a practical lesson. The learner keeps the skill, teacher and time; the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and rich dialogue remain unfinished. |
-| Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
+| Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
@@ -142,8 +153,14 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials or no
-legal site. How an adult forms a new household is still open, so an adult
-nobody takes in relies on clothing and natural storm cover. This is a basic
+legal site. [Solo formation and departure](game-design/towns.md#household-membership),
+with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
+are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+The agreed [House resident limits and relocation rules](game-design/towns.md#house-resident-capacity-and-relocation)
+likewise await [#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+Until solo formation works, an adult nobody takes in relies on clothing and
+natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.

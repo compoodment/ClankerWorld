@@ -28,6 +28,8 @@ public static class BlacksmithContent
                 [new("wood", 3)], [new("wooden_axe", 1)], 20, blacksmith.CanonicalId, ["tool", "woodcutting"]),
             new(digest, "wooden-pickaxe", version, "Make wooden pickaxe",
                 [new("wood", 3)], [new("wooden_pickaxe", 1)], 20, blacksmith.CanonicalId, ["tool", "mining"]),
+            new(digest, "wooden-hoe", version, "Make wooden hoe",
+                [new("wood", 3)], [new("wooden_hoe", 1)], 20, blacksmith.CanonicalId, ["tool", "farming"]),
             new(digest, "refine-iron", version, "Refine iron ore",
                 [new("iron_ore", 2), new("wood", 1)], [new("iron", 1)], 24,
                 blacksmith.CanonicalId, ["metalworking"]),
@@ -38,5 +40,5 @@ public static class BlacksmithContent
     }
 
     private static string PackageDigest() => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes("clankerworld-blacksmith-v1:1.0.0:wooden-axe-pickaxe-refined-iron")));
+        Encoding.UTF8.GetBytes("clankerworld-blacksmith-v1:1.0.0:wooden-axe-pickaxe-hoe-refined-iron")));
 }

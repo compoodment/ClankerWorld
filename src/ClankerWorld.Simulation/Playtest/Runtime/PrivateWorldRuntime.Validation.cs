@@ -30,7 +30,8 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants);
+            society.Checkpoint.Inhabitants, map);
+        ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -192,13 +193,16 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var lot in inventory.Lots)
         {
+            if (lot.GroundPosition is { } ground && (!map.Contains(new(ground.X, ground.Y)) ||
+                lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
             if (lot.StorageBuildingId is { } storageId)
             {
                 if (!buildings.TryGetValue(storageId, out var storage) ||
@@ -233,6 +237,11 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
+        if (state.SchemaVersion < 34 && (state.Fields is { Count: > 0 } ||
+            state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
+            throw new InvalidDataException("Household fields and ground harvest lots require private-world schema 34.");
+        if (state.SchemaVersion >= 34 && state.Fields is null)
+            throw new InvalidDataException("Private-world schema 34 requires authoritative household field state.");
         if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0)
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
         if (state.Geography is not null &&
@@ -287,6 +296,7 @@ public sealed partial class PrivateWorldRuntime
                  attempt.SetupBlocker is not (null or "unsupported_request") ||
                  attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
                 throw new InvalidDataException("The saved model attempt is invalid.");
+            ValidateSavedChildModelSelection(person, state.Society.Society, state.SchemaVersion);
             ValidateProficiency(person);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.Society.Society.WorldTick);
@@ -309,7 +319,10 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-            state.WorldContent, state.Society.Society.Inhabitants);
+            state.WorldContent, state.Society.Society.Inhabitants, state.Map);
+        ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
+            state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
+                state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
         if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !state.Society.Society.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -349,6 +362,15 @@ public sealed partial class PrivateWorldRuntime
         return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 
+    private static void ValidateSavedChildModelSelection(
+        PlaytestInhabitantState person, SocietyCheckpoint society, int schemaVersion)
+    {
+        if (person.ChildModelSelection is not { } selection) return;
+        if (schemaVersion < 33 || !society.Births.Any(item => item.ChildId == person.InhabitantId))
+            throw new InvalidDataException("A saved child model choice requires schema 33 and a recorded birth.");
+        ValidateChildModelSelection(selection);
+    }
+
     private static void ValidateDeceasedArchive(
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
@@ -370,6 +392,7 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
+            ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);

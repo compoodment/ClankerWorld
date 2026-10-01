@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
@@ -72,20 +73,36 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
-    public async Task CropJobsAreVisibleAlongsideWorkstationJobs()
+    public async Task FieldWorkIsVisibleAlongsideWorkstationJobsAndSurvivesReconnect()
     {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        Assert.True(runtime.StageStarterContent());
-        for (var tick = 0; tick < 150; tick++)
+        var (state, farmer, household, point) = FarmFieldTests.PreparedFarmer("field-observation");
+        var farmhouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
+        var miller = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household && person.Id != farmer).Id;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "observation-grain", "grain", household, 1,
+            storageBuildingId: farmhouse.InstanceId);
+        state = FarmFieldTests.WithInventory(state, inventory) with
         {
-            _ = await runtime.AdvanceOneTickAsync();
-        }
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == miller
+                ? person with { Position = farmhouse.Position, HungerBasisPoints = 10_000 } : person).ToArray(),
+        };
+        using var runtime = FarmFieldTests.Restore(state);
+        var mill = runtime.WorldContent.Recipes.Single(recipe => recipe.LocalId == "mill-grain");
+        Assert.True(runtime.StartProduction(mill.CanonicalId, farmhouse.InstanceId, miller).Applied);
+        Assert.True(runtime.StartFieldWork(farmer, point, FarmWorkKind.Till).Accepted);
+        for (var tick = 0; tick < 3; tick++) Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
         var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
-        var state = runtime.ExportState();
-        Assert.NotEmpty(state.WorldSimulation!.CropBuilds!);
-        var expected = state.WorldSimulation.ProductionJobs.Concat(state.WorldSimulation.CropBuilds!).Select(item => item.JobId).Order(StringComparer.Ordinal);
-        Assert.Equal(expected, snapshot.ProductionJobs.Select(item => item.JobId));
+        var field = Assert.Single(snapshot.Fields!);
+        Assert.Equal(new ViewerPosition(point.X, point.Y), field.Position);
+        Assert.Equal(household, field.HouseholdId);
+        Assert.Equal("preparing", field.Stage);
+        Assert.Equal(farmer, field.WorkerId);
+        Assert.Equal(5, field.WorkRemaining);
+        Assert.Equal(miller, Assert.Single(snapshot.ProductionJobs).WorkerId);
         Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
+        using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())));
+        var reconnect = new OwnerWorldObservationStore(restored).GetReconnectBaseline(0).Snapshot;
+        Assert.Equal(snapshot.Fields, reconnect.Fields);
+        Assert.Equal(snapshot.ProductionJobs, reconnect.ProductionJobs);
     }
 
     [Fact]
@@ -162,7 +179,7 @@ public sealed class ViewerObservationTests
         Assert.NotNull(snapshot.Cognition);
         Assert.NotNull(snapshot.WorldSystems);
         Assert.Equal("spring", snapshot.WorldSystems!.Season);
-        Assert.Equal(3, snapshot.WorldSystems.EcologyResourceCount);
+        Assert.Equal(4, snapshot.WorldSystems.EcologyResourceCount);
         Assert.Equal(1, snapshot.WorldSystems.FactionCount);
         Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
     }
