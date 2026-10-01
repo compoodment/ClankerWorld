@@ -372,6 +372,7 @@ public partial class Main
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
         founderModelPicker.Editable = !actionDisabled;
+        founderModelSetupCheckButton.Disabled = actionDisabled;
         founderApiKeyInput.Editable = !actionDisabled;
         founderKeyLabelInput.Editable = !actionDisabled;
         var infantSelected = selected?.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant") == true;
@@ -404,6 +405,7 @@ public partial class Main
         cognitionProviderChoice.Disabled = actionDisabled;
         cognitionCredentialChoice.Disabled = actionDisabled;
         cognitionModelPicker.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        cognitionModelSetupCheckButton.Disabled = actionDisabled;
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionCredentialLabelInput.Editable = !actionDisabled;
         refreshCognitionProviderButton.Disabled = actionDisabled;

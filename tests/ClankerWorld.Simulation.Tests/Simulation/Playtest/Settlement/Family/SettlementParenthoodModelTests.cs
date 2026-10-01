@@ -249,6 +249,93 @@ public sealed partial class SettlementParenthoodTests
         }
     }
 
+    [Fact]
+    public async Task OwnerChildModelChoiceSurvivesLaterTicksAndRestart()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-child-model-owner-choice-");
+        try
+        {
+            var state = await PreparedState();
+            var initiatorId = state.Inhabitants[0].InhabitantId;
+            var partnerId = state.Inhabitants[1].InhabitantId;
+            IDecisionProvider ProviderFor(string id) => id == initiatorId
+                ? new ParentProvider("parent_propose:")
+                : id == partnerId
+                    ? new ParentProvider("parent_accept:")
+                    : new DeterministicDecisionProvider();
+
+            var providerDirectory = Path.Combine(directory.FullName, "providers");
+            var providerPath = Path.Combine(providerDirectory, "providers.json");
+            var providers = new ProviderConfigurationStore(providerPath,
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            _ = providers.Configure(new("personal", "openai", "parent-model", "parent-only-test-key",
+                false, initiatorId));
+
+            using var world = PrivateWorldRuntime.Restore(state, ProviderFor);
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            for (var tick = 0; tick < 599; tick++)
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+            var stateFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), ProviderFor);
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromHours(1));
+            presence.RecordAuthenticatedReconnect("owner");
+            using var service = new PrivateWorldRuntimeService(world, stateFile, presence, providers: providers);
+            Directory.Delete(providerDirectory, recursive: true);
+            File.WriteAllText(providerDirectory, "block the provider configuration directory");
+            Assert.False(await service.TryAdvanceOnceAsync());
+
+            var child = Assert.Single(world.Inhabitants.Where(item => item.ChildModelSelection is not null));
+            var birthChoice = child.ChildModelSelection;
+            File.Delete(providerDirectory);
+            Directory.CreateDirectory(providerDirectory);
+            var ownerSlotId = Guid.NewGuid().ToString("N");
+            _ = providers.Configure(new("personal", "ollama-cloud", "owner-selected-model", "owner-only-test-key",
+                false, child.InhabitantId, ownerSlotId, "Owner-selected model"));
+
+            var ownerAssignments = providers.CaptureRuntimeConfiguration().Assignments!
+                .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
+            Assert.Equal(2, ownerAssignments.Length);
+            Assert.All(ownerAssignments, assignment =>
+            {
+                Assert.Equal("ollama-cloud", assignment.Provider);
+                Assert.Equal("owner-selected-model", assignment.Model);
+                Assert.Equal(ownerSlotId, assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
+
+            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Equal(birthChoice, world.Inhabitants.Single(item => item.InhabitantId == child.InhabitantId)
+                .ChildModelSelection);
+            Assert.Equal("owner-selected-model", providers.CaptureRuntimeConfiguration().Assignments!
+                .Single(item => item.InhabitantId == child.InhabitantId && item.Role == PlayerDecisionProviders.PlanningRole).Model);
+
+            using var restartedWorld = stateFile.LoadOrCreate("settlement-parenthood");
+            var restartedProviders = new ProviderConfigurationStore(providerPath,
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            using var restartedService = new PrivateWorldRuntimeService(restartedWorld, stateFile, presence,
+                providers: restartedProviders);
+            Assert.True(await restartedService.TryAdvanceOnceAsync());
+
+            Assert.Equal(birthChoice, restartedWorld.Inhabitants.Single(item => item.InhabitantId == child.InhabitantId)
+                .ChildModelSelection);
+            var restartedAssignments = restartedProviders.CaptureRuntimeConfiguration().Assignments!
+                .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
+            Assert.Equal(2, restartedAssignments.Length);
+            Assert.All(restartedAssignments, assignment =>
+            {
+                Assert.Equal("ollama-cloud", assignment.Provider);
+                Assert.Equal("owner-selected-model", assignment.Model);
+                Assert.Equal(ownerSlotId, assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     private sealed class CountingProvider(string inhabitantId, Dictionary<string, int> callCounts) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;

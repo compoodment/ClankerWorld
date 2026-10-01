@@ -41,8 +41,11 @@ that version mismatch. You can still reconnect to the existing world.
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
 3. Create the world. It opens paused. Choose a rough site for its first Town;
-   the game places two Houses, a Warehouse, Farmhouse, Blacksmith and Roads.
-   You can choose another site before placing the founders.
+   greener shading and the hovered tips show nearby food, fertile ground, wood,
+   stone and open space for Roads. These are suggestions only: the game checks
+   whether the starter layout fits after you choose a site. It then places two
+   Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
+   site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -63,6 +66,13 @@ Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**
 You can save both providers' keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
+
+To check a selected model, press **Test model · 1 paid call** in Add Agent or
+an agent's Model panel. This sends one real request and counts toward the
+installation's paid-call limit, even if the provider times out or rejects it.
+A key pasted for this check is not saved. The result tells you whether the
+provider returned a reply the game can use; it does not show provider error
+details.
 
 ## Look around
 

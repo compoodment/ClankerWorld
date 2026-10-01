@@ -1014,6 +1014,8 @@ public sealed partial class ConfigurableDecisionProvider(
         {
             credential = credential with { Model = model };
         }
+        if (providerId != PlayerDecisionProviders.Deterministic && string.IsNullOrWhiteSpace(credential.ApiKey))
+            throw new CognitionProviderUnavailableException("missing_key", "Add a key in this agent's model settings.");
         IDecisionProvider provider = providerId switch
         {
             PlayerDecisionProviders.Deterministic => new DeterministicDecisionProvider(),
@@ -1040,8 +1042,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
         // Reserve before any potentially billable HTTP request. A retry is a
         // new DecideAsync invocation and consumes a separate allowance.
-        var usageTicket = providerId == PlayerDecisionProviders.Deterministic ||
-            string.IsNullOrWhiteSpace(credential.ApiKey)
+        var usageTicket = providerId == PlayerDecisionProviders.Deterministic
             ? null : usageStore?.Begin(providerId, credential.Model, role);
         var stopwatch = Stopwatch.StartNew();
         try

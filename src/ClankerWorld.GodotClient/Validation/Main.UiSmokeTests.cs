@@ -978,6 +978,7 @@ public partial class Main
             VerifyConsistentButtons();
             VerifyModelPicker();
             VerifyChildModelStatus();
+            VerifyModelSetupCheckControls();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
@@ -1843,6 +1844,21 @@ public partial class Main
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             if (!quickWarmthMeter.Visible || !profileWarmthMeter.Visible)
                 throw new InvalidOperationException("Reported agent condition must be shown again.");
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Inhabitants = [founder with
+                {
+                    DecisionFactors = [.. founder.DecisionFactors.Where(factor => factor.Key != "model-status"),
+                        new("model-status", "unusable_reply"), new("last-model-choice", "seek_food")],
+                    PublicIntention = new("safe_idle", "keeping a safe routine", "deterministic", 1),
+                }],
+            });
+            if (!quickCardActivityLabel.Text.Contains("Model: Unusable reply", StringComparison.Ordinal) ||
+                !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Last model choice:", StringComparison.Ordinal) ||
+                quickCardActivityLabel.Text.Contains("unusable_reply", StringComparison.Ordinal))
+                throw new InvalidOperationException("Agent cards must distinguish a failed model attempt, the safe activity and the last accepted model choice.");
+            RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             UpdateTileHover(founderButton.Position + mapStage.Position + founderButton.Size / 2);
             if (terrainLayer.HoveredTile is not null)
                 throw new InvalidOperationException("An agent marker must take hover priority over its ground tile.");
@@ -2049,6 +2065,78 @@ public partial class Main
                 PlacedBuildings = [],
                 Towns = [],
             };
+            var siteWidth = 32;
+            var siteHeight = 32;
+            var siteLength = siteWidth * siteHeight;
+            var siteTerrain = new OwnerWorldPackedTerrain(siteWidth, siteHeight, "terrain-kind-v1",
+                Convert.ToBase64String(new byte[siteLength]));
+            var siteHydrology = new byte[siteLength];
+            var siteSurface = new byte[siteLength];
+            siteHydrology[(siteHeight - 1) * siteWidth + siteWidth - 1] = 1;
+            siteSurface[(siteHeight - 1) * siteWidth + siteWidth - 1] = 4;
+            siteSurface[16 * siteWidth + 21] = 7;
+            var siteLayers = new OwnerWorldPackedMapLayers(siteWidth, siteHeight, "map-layers-v1",
+                Convert.ToBase64String(Enumerable.Repeat((byte)2, siteLength).ToArray()),
+                Convert.ToBase64String(Enumerable.Repeat((byte)100, siteLength).ToArray()),
+                Convert.ToBase64String(siteHydrology), Convert.ToBase64String(siteSurface),
+                Convert.ToBase64String(Enumerable.Repeat((byte)1, siteLength).ToArray()));
+            var siteSnapshot = new OwnerWorldSnapshot("ui-town-site-guidance", 0, "site-guidance-map",
+                [], [],
+                [
+                    new("site-food", "food", new(20, 16), false, "available", 4, NaturalObjectKind: "berry_bush"),
+                    new("site-farmland", "fertile_land", new(21, 16), false, "available", 1, NaturalObjectKind: "fertile_soil"),
+                    new("site-wood", "construction", new(19, 16), true, "available", 5, TreeKind: "broadleaf", TreeStage: "mature"),
+                    new("site-stone", "stone", new(20, 18), false, "available", 3, NaturalObjectKind: "stone_outcrop"),
+                ], null, 0)
+            {
+                PackedTerrain = siteTerrain,
+                PackedMapLayers = siteLayers,
+                FounderSetup = new OwnerFounderSetup(4, 0, false) { CanChooseTownSite = true },
+            };
+            RenderMap(siteSnapshot);
+            choosingFirstTownSite = true;
+            UpdateTownSiteGuidance(siteSnapshot, force: true);
+            RenderFounderSetup(siteSnapshot);
+            var guidance = terrainLayer.CurrentTownSiteGuidance
+                ?? throw new InvalidOperationException("Choosing a Town site must draw suitability guidance.");
+            var betterSite = guidance.At(20, 16);
+            var lessSuitableSite = guidance.At(2, 2);
+            if (!betterSite.IsBuildableGround || !betterSite.HasNearbyFood || !betterSite.HasNearbyFarmland ||
+                !betterSite.HasNearbyWood || !betterSite.HasNearbyStone ||
+                lessSuitableSite.GuidanceStrength >= betterSite.GuidanceStrength ||
+                !lessSuitableSite.IsBuildableGround ||
+                !CanSubmitFirstTownSiteChoice(siteSnapshot, new Vector2I(2, 2)) ||
+                !townSiteButton.Visible ||
+                townSiteButton.Text != "Cancel Town site")
+                throw new InvalidOperationException("Town-site advice must distinguish a stronger local mix while still submitting a less suitable buildable site for the host's layout check.");
+            UpdateHoverReadout(siteSnapshot, new Vector2I(20, 16));
+            if (!hoverReadoutLabel.Text.Contains("Town-site advice", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("fertile ground", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("stone", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("Roads", StringComparison.Ordinal))
+                throw new InvalidOperationException("Town-site hover help must explain the nearby factors behind its map tint.");
+            UpdateHoverReadout(siteSnapshot, new Vector2I(2, 2));
+            if (!hoverReadoutLabel.Text.Contains("no food nearby", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("no stone nearby", StringComparison.Ordinal))
+                throw new InvalidOperationException("Town-site hover help must identify missing nearby factors as well as helpful ones.");
+            var wrappedSiteSnapshot = siteSnapshot with
+            {
+                WorldId = "ui-wrapped-site-guidance",
+                WrapsEastWest = true,
+                Resources = [new("seam-food", "food", new(siteWidth - 1, 16), false, "available", 1,
+                    NaturalObjectKind: "wild_greens")],
+            };
+            var wrappedSiteTerrain = WorldTerrainMap.FromPacked(siteTerrain, siteLayers, wrapsEastWest: true);
+            var wrappedGuidance = TownSiteGuidance.Create(wrappedSiteTerrain, wrappedSiteSnapshot);
+            if (!wrappedGuidance.At(0, 16).HasNearbyFood ||
+                TownSiteGuidance.Create(WorldTerrainMap.FromPacked(siteTerrain, siteLayers), wrappedSiteSnapshot)
+                    .At(0, 16).HasNearbyFood ||
+                guidance.At(siteWidth - 1, siteHeight - 1).IsBuildableGround)
+                throw new InvalidOperationException("Town-site advice must follow wrapped geography and leave water unshaded.");
+            choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            UpdateHoverReadout(siteSnapshot, new Vector2I(2, 2));
+            RenderFounderSetup(sample);
             RenderMap(largeMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (terrainLayer.DrawsGroundTextures)

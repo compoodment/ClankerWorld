@@ -29,7 +29,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int TravelCooldownTicks = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChildPersonalModelSelection? ChildModelSelection = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChildPersonalModelSelection? ChildModelSelection = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null);
 
 /// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
 public sealed record ChildPersonalModelSelection(
@@ -42,6 +43,13 @@ public sealed record ChildPersonalModelSelection(
 
 /// <summary>A birth-bound child model choice prepared by the playable host.</summary>
 public sealed record PreparedChildModelSelection(string ChildId, ChildPersonalModelSelection Selection);
+
+public sealed record PlaytestModelAttempt(
+    string Status,
+    long WorldTick,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastAcceptedCandidateId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? LastAcceptedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SetupBlocker = null);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 

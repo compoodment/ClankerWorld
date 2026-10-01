@@ -455,8 +455,18 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var child in people.Values.Where(item => item.ChildModelSelection is not null))
                 {
                     var selection = child.ChildModelSelection!;
-                    var rows = (configuration.Assignments ?? []).Where(item =>
-                        item.InhabitantId == child.InhabitantId && item.SelectionReason is not null).ToArray();
+                    var childRows = (configuration.Assignments ?? []).Where(item =>
+                        item.InhabitantId == child.InhabitantId &&
+                        item.Role is PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole).ToArray();
+                    if (childRows.Any(item => item.SelectionReason is null))
+                    {
+                        // An owner choice supersedes the birth default. Keep the
+                        // descriptor as history, but never replay it over the
+                        // current personal route after a tick or restart.
+                        pendingChildModelBindings.Remove(child.InhabitantId);
+                        continue;
+                    }
+                    var rows = childRows.Where(item => item.SelectionReason is not null).ToArray();
                     var hasExpectedAssignments = selection.Provider is null
                         ? rows.Length == 0
                         : rows.Length == 2 && rows.All(item => item.Provider == selection.Provider &&

@@ -359,10 +359,12 @@ public partial class Main
         var option = providerConfiguration?.Providers.FirstOrDefault(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal));
         var hosted = provider is not ("deterministic" or "inherit");
+        var personalSetupCheckAvailable = SelectedCognitionTarget() is not null && HasModelList(provider);
         cognitionRoleChoice.Visible = SelectedCognitionTarget() is null;
         var agentCredential = hosted && SelectedCognitionTarget() is not null && provider is ("openai" or "ollama-cloud");
         var newCredential = agentCredential && SelectedCredentialChoice() == "new";
         cognitionModelPicker.Visible = hosted;
+        cognitionModelSetupCheckButton.Visible = personalSetupCheckAvailable;
         cognitionCredentialChoice.Visible = agentCredential;
         cognitionCredentialLabelInput.Visible = newCredential;
         cognitionApiKeyInput.Visible = hosted && (!agentCredential || newCredential);
@@ -371,6 +373,8 @@ public partial class Main
         deleteCognitionCredentialSlotButton.Visible = agentCredential &&
             SelectedCredentialChoice() is not ("default" or "new");
         if (hosted) SyncCognitionModelPicker();
+        ResetCognitionModelSetupCheckForCurrentChoice();
+        cognitionModelSetupCheckStatus.Visible = personalSetupCheckAvailable && cognitionModelSetupCheckStatus.Text.Length > 0;
 
         cognitionApiKeyInput.PlaceholderText = newCredential ? "New API key" : option?.HasCredential == true
             ? "Leave blank to keep saved key"
@@ -451,6 +455,7 @@ public partial class Main
         cognitionTargetChoice.AddItem("World defaults");
         cognitionTargetChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -463,6 +468,7 @@ public partial class Main
         cognitionRoleChoice.TooltipText = "Routine covers everyday choices. Planning covers bigger projects. Jev, the optional helper, is turned on or off for the whole world in Settings.";
         cognitionRoleChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -476,6 +482,7 @@ public partial class Main
         PopulateProviderChoices("deterministic");
         cognitionProviderChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateCredentialChoices();
             RenderProviderConfiguration();
@@ -486,6 +493,7 @@ public partial class Main
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
         cognitionCredentialChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
@@ -500,7 +508,16 @@ public partial class Main
         body.AddChild(cognitionApiKeyInput);
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
+        cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
         body.AddChild(cognitionModelPicker);
+        cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
+        cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(cognitionModelSetupCheckButton);
+        cognitionModelSetupCheckButton.Pressed += () => _ = RunCognitionModelSetupCheckAsync();
+        body.AddChild(cognitionModelSetupCheckButton);
+        cognitionModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        cognitionModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(cognitionModelSetupCheckStatus);
 
         cognitionCredentialHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         cognitionCredentialHint.ThemeTypeVariation = "DimLabel";

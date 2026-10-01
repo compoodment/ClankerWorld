@@ -138,10 +138,15 @@ everything that is available in the current build. See [what works today](../wha
 
 ### Agreed starter Town and remaining choices
 
+These setup decisions come from [issue #160](https://github.com/compoodment/ClankerWorld/issues/160)
+and its reviewed [design PR #296](https://github.com/compoodment/ClankerWorld/pull/296).
+
 The player chooses a **rough site for the first Town** in New World, with the
 best suitable areas shown as **guidance, not the only allowed locations**.
 Fertile land, reachable wood and stone, and short connected Roads make a site
 more suitable; lack of an ideal score does not forbid the player's choice.
+The current map tint and hovered tips are provisional advice from nearby map
+resources and open ground; they do not decide whether a site can be chosen.
 Water or another physically impossible location cannot hold the Town. Within
 the chosen rough site, Town generation automatically picks a feasible layout
 for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
