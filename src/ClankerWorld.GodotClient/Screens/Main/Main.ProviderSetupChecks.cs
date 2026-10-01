@@ -107,7 +107,7 @@ public partial class Main
                         ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
                     if (currentRevision() == testedRevision)
                         resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
-                    return result.Message;
+                    return $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                 }
                 catch (Exception exception) when (exception is not OutOfMemoryException)
                 {
@@ -157,10 +157,19 @@ public partial class Main
             !cognitionModelSetupCheckButton.TooltipText.Contains("counts toward your paid-call limit", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Add Agent and an agent's Model panel must expose the same explicit one-paid-call setup check beside the model picker.");
 
-        VerifySetupCheckInvalidation(founderModelPicker, founderApiKeyInput, founderModelSetupCheckStatus,
-            founderCredentialChoice, () => founderModelSetupCheckRevision, isNewAgent: true);
-        VerifySetupCheckInvalidation(cognitionModelPicker, cognitionApiKeyInput, cognitionModelSetupCheckStatus,
-            cognitionCredentialChoice, () => cognitionModelSetupCheckRevision);
+        try
+        {
+            VerifySetupCheckInvalidation(founderModelPicker, founderApiKeyInput, founderModelSetupCheckStatus,
+                founderCredentialChoice, () => founderModelSetupCheckRevision, isNewAgent: true);
+            VerifySetupCheckInvalidation(cognitionModelPicker, cognitionApiKeyInput, cognitionModelSetupCheckStatus,
+                cognitionCredentialChoice, () => cognitionModelSetupCheckRevision);
+        }
+        finally
+        {
+            // The smoke edits must not start delayed model-list lookups.
+            ++founderKeyEdits;
+            ++cognitionKeyEdits;
+        }
     }
 
     private static void VerifySetupCheckInvalidation(ModelPicker picker, LineEdit keyInput, Label status,
@@ -171,10 +180,10 @@ public partial class Main
         var originalKey = keyInput.Text;
         try
         {
-            VerifyCleared(() => picker.TypedInput.Text = "setup-check-smoke-model");
-            VerifyCleared(() => picker.Choice.EmitSignal(OptionButton.SignalName.ItemSelected, picker.Choice.ItemCount - 1));
-            VerifyCleared(() => keyInput.Text = "setup-check-smoke-key");
-            VerifyCleared(() => credentialChoice.EmitSignal(OptionButton.SignalName.ItemSelected, credentialChoice.Selected));
+            VerifyCleared("typed model", () => EditText(picker.TypedInput, "setup-check-smoke-model"));
+            VerifyCleared("chosen model", () => picker.Choice.EmitSignal(OptionButton.SignalName.ItemSelected, picker.Choice.ItemCount - 1));
+            VerifyCleared("pasted key", () => EditText(keyInput, "setup-check-smoke-key"));
+            VerifyCleared("chosen key", () => credentialChoice.EmitSignal(OptionButton.SignalName.ItemSelected, credentialChoice.Selected));
         }
         finally
         {
@@ -185,14 +194,21 @@ public partial class Main
             status.Hide();
         }
 
-        void VerifyCleared(Action edit)
+        void VerifyCleared(string choice, Action edit)
         {
             status.Text = "The previous model was ready.";
             status.Show();
             var testedRevision = currentRevision();
             edit();
             if (status.Text.Length > 0 || status.Visible || currentRevision() == testedRevision)
-                throw new InvalidOperationException("Changing the model or key must clear the previous setup-check result and invalidate a reply still in flight.");
+                throw new InvalidOperationException($"Changing the {choice} must clear the previous setup-check result and invalidate a reply still in flight.");
+        }
+
+        static void EditText(LineEdit input, string text)
+        {
+            input.Text = text;
+            // Setting Text does not emit the signal Godot sends for a user edit.
+            input.EmitSignal(LineEdit.SignalName.TextChanged, text);
         }
     }
 }
