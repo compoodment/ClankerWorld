@@ -3,8 +3,8 @@ name: Verify
 on:
   push:
     branches: [main]
+  # Every base branch, so a pull request stacked on another one's branch gets CI too.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

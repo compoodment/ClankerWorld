@@ -13,6 +13,10 @@ on:
       - .github/labels.json
       - .github/scripts/sync-labels.js
       - .github/workflows/labels.yml
+  schedule:
+    # Deletes retired labels again, and restores listed ones, if someone
+    # re-creates or changes them by hand.
+    - cron: '41 */6 * * *'
   workflow_dispatch:
 
 permissions:

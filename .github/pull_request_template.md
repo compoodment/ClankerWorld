@@ -17,11 +17,13 @@ before each number. "Implements" does not close anything, and "Fixes" followed
 by two numbers closes only the first. See
 https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#link-issues-from-the-pull-request -->
 
-- Closes (each issue this completes):
-- Refs (related or partly completed issues, and what remains):
+- Author (tool and session ID, such as `Claude Code session 1a2b3c4d`, of each session that pushed before it was marked ready, or your name):
+- Closes #  <!-- one keyword directly before each issue number: "Closes #<number>, closes #<number>" -->
+- Refs #  (and what remains)
 - Reason no issue is needed, if none:
 - Agreed design or existing behavior this follows:
 - Other open PRs that overlap:
+- Stacked on (the pull request this is based on, if any; merge after it):
 - Work left for later, and where it is tracked:
 - Needs a hands-on check after merge (file added in `playtest/`):
 - If draft, unfinished work or decision needed before marking ready:

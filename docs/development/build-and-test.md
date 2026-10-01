@@ -98,10 +98,11 @@ dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 ```
 
-These checks cover the required pages, front matter, local links and linked
-headings. The documentation test reads each page with both LF and CRLF line
-endings, and CI also runs it on a Windows checkout. That job is separate from a
-Windows game playtest and from the native provider-storage checks.
+These checks cover the required pages, front matter, local links, linked
+headings and that each entry in `changes/` starts with a `- ` bullet. The
+documentation test reads each page with both LF and CRLF line endings, and CI
+also runs it on a Windows checkout. That job is separate from a Windows game
+playtest and from the native provider-storage checks.
 
 ## Windows playtests
 
@@ -109,12 +110,13 @@ The [playtest list](../../playtest/README.md) holds the merged changes that
 still need trying by hand in the Windows game. Automated checks, including the
 Windows CI jobs and a passing export, do not count as a playtest.
 
-When you record a playtest result, note the client and host commits, the
-Windows build, the date, the screen resolution and the interface size it
-picked. Say whether each check passed, failed or could not be run, with what
-you did and saw. Leave out private keys, pairing codes, agent thoughts and raw
-model replies. Link each failure to its own issue; one passing check does not
-close a report with several problems.
+When you record a playtest result, note what you know of the client and host
+commits, the Windows build, the date, the screen resolution and the interface
+size it picked; ask the owner for missing details only when a check failed. Say
+whether each check passed, failed or could not be run, with what you did and
+saw. Leave out private keys, pairing codes, agent thoughts and raw model
+replies. Link each failure to its own issue; one passing check does not close a
+report with several problems.
 
 Do not deploy, change credentials or modify the active playtest save just to
 run a check; that needs the owner's separate go-ahead. Use a disposable world
