@@ -221,7 +221,7 @@ public sealed class CognitionRuntime
 
                 // An unusable answer to this decision is terminal, not a reason
                 // to spend another hosted call on the same queued decision.
-                if (rejection is "malformed_response" or "candidate_not_legal")
+                if (rejection is "malformed_response" or "candidate_not_legal" or "town_law_not_requested")
                     return ApplyFallbackLocked(request, rejection);
                 RetireInFlight(CognitionRequestState.Rejected, rejection, null);
                 AppendEvent(request.Observation.WorldTick, "cognition_response_rejected", $"{request.RequestId}:{rejection}");
