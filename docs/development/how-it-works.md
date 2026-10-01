@@ -706,6 +706,10 @@ reduce harvest work; an iron sickle is faster than a wooden one. Each committed
 work tick wears one unit of the selected tool. Interrupted or refused work does
 not wear it. A tool in storage, on the ground, in delivery or inside a pot is
 not directly usable; it must first be carried at the top level.
+If wear breaks a selected tool before the field effect completes, the runtime
+stops that work in the same committed action. The crop stays at its earlier
+stage and the broken tool stays in the owner's cargo, so the checkpoint remains
+valid without waiting for another tick.
 
 Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard

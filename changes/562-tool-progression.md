@@ -1,2 +1,2 @@
 - Agents can mine finite deposits with the right pickaxe, make and repair wooden, stone and iron tool tiers at a Blacksmith, and work faster with hoes, hammers, wooden and iron sickles, and knives. Using tools wears them; fallen wood can still be gathered by hand. Trial rates remain provisional.
-- The legacy simulation initializer starts its first household with one wooden axe and one wooden pickaxe as household-owned stock that residents must physically collect. The playable FounderSetup still provisions its starter tools in the first Town Warehouse.
+- If a tool breaks before field work finishes, the work stops safely and the crop remains available. Saving at that point preserves the broken tool and the unfinished crop.

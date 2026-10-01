@@ -183,7 +183,10 @@ public sealed partial class PrivateWorldRuntime
         if (work.RemainingTicks > 0)
         {
             ApplyToolWork(workerId, toolPlans.ToArray());
-            SetFarmField(field with { Work = work });
+            if (FieldWorkToolsAvailable(workerId, work))
+                SetFarmField(field with { Work = work });
+            else
+                CancelFarmWork(field with { Work = work });
             return true;
         }
         switch (work.Kind)
