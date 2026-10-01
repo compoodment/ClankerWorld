@@ -58,9 +58,8 @@ public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 /// footprint size (32 or 16 px per tile). Each design has one standard
 /// appearance, per the vision ledger: roofs show the building's family, the
 /// ridge follows its long side, and a door or doorstep marks the side the
-/// building faces its Road from. The House, Warehouse, Blacksmith, Silo and
-/// Tailor shop use the drawing the owner approved in the first art review
-/// (<see cref="ApprovedArt"/>); the Farmhouse, Workshop, generic building and
+/// building faces its Road from. Every current kind uses the drawing the
+/// owner approved in the art review (<see cref="ApprovedArt"/>); only the
 /// retired camp objects keep their earlier provisional drawing.
 /// </summary>
 public static class BuildingSprites
@@ -126,16 +125,14 @@ public static class BuildingSprites
 
     private static (Color Lit, Color Shade, Color Edge, Color Ridge) Palette(BuildingKind kind) => kind switch
     {
-        BuildingKind.Farmhouse => (new Color("D2AE5E"), new Color("A98A45"), new Color("6B5528"), new Color("E6C77B")),
         BuildingKind.Shelter => (new Color("8C8A4E"), new Color("6D6B3C"), new Color("403F22"), new Color("A8A564")),
         BuildingKind.Storehouse => (new Color("8E6C47"), new Color("6E5236"), new Color("3F2E1F"), new Color("AC8A60")),
-        BuildingKind.Workshop => (new Color("6F7C6A"), new Color("566150"), new Color("30372D"), new Color("8E9B88")),
         BuildingKind.Path => (new Color("A89F8C"), new Color("857C69"), new Color("5F5848"), new Color("C4BBA6")),
         BuildingKind.Bedroll => (new Color("A0523E"), new Color("7E3F30"), new Color("4A2A20"), new Color("C97A5E")),
         _ => (new Color("8D8577"), new Color("6E675C"), new Color("3F3A33"), new Color("AAA293")),
     };
 
-    /// <summary>The earlier provisional drawing, kept for the kinds the art review has not redrawn.</summary>
+    /// <summary>The earlier provisional drawing, kept for the retired camp objects.</summary>
     private static void Paint(PixelCanvas canvas, BuildingKind kind, int width, int height, BuildingDoor door)
     {
         switch (kind)
@@ -187,29 +184,7 @@ public static class BuildingSprites
         }
 
         var roof = new Rect2(inset, inset, roofWidth, roofHeight);
-        switch (kind)
-        {
-            case BuildingKind.Farmhouse:
-                Thatch(canvas, inset, roofWidth, roofHeight, palette.Edge with { A = 0.35f });
-                Doorstep(canvas, roof, door);
-                break;
-            case BuildingKind.Storehouse:
-                DoorBand(canvas, roof, door, 6, 0, new Color("4A3321"));
-                break;
-            case BuildingKind.Workshop:
-                // A hammer sign over the door marks a place for making things.
-                var (signX, signY) = Inward(roof, door, 9);
-                canvas.Rect(signX - 5, signY - 4, 10, 9, palette.Edge);
-                canvas.Rect(signX - 4, signY - 3, 8, 7, new Color("B99A6B"));
-                canvas.Line(signX - 2, signY + 2, signX + 1.5f, signY - 1.5f, new Color("5A3E28"));
-                canvas.Rect(signX, signY - 3, 3, 2, new Color("6E737A"));
-                canvas.Rect(signX + 1, signY - 1, 2, 1, new Color("6E737A"));
-                Doorstep(canvas, roof, door);
-                break;
-            case BuildingKind.Generic:
-                Doorstep(canvas, roof, door);
-                break;
-        }
+        if (kind == BuildingKind.Storehouse) DoorBand(canvas, roof, door, 6, 0, new Color("4A3321"));
         // A building that faces a Road gets the start of its doorstep path,
         // which the Road's own doorstep path continues.
         if (door.Tile is not null && kind != BuildingKind.Shelter)
@@ -239,34 +214,14 @@ public static class BuildingSprites
         }
     }
 
-    /// <summary>Uneven straw bundles in rows, for thatched roofs.</summary>
-    private static void Thatch(PixelCanvas canvas, float inset, float roofWidth, float roofHeight, Color strand)
-    {
-        if (canvas.Unit < 1) return;
-        for (var row = 0; row < roofHeight - 4; row += 3)
-            for (var column = 0; column < roofWidth - 4; column += 4)
-            {
-                var jitter = (int)(PixelArt.Hash(column, row, 41) % 3);
-                canvas.Rect(inset + 2 + column + jitter, inset + 2 + row, 2, 1, strand);
-            }
-    }
-
-    /// <summary>A small stone doorstep with a darker outer edge.</summary>
-    private static void Doorstep(PixelCanvas canvas, Rect2 roof, BuildingDoor door)
-    {
-        DoorBand(canvas, roof, door, 6, 0, new Color("B9AB8E"));
-        DoorBand(canvas, roof, door, 6, 2, new Color("8C7F66"), 1);
-    }
-
     /// <summary>
     /// A strip across the door, <paramref name="across"/> pixels wide, that
     /// overlaps the roof edge by one pixel and reaches two beyond it.
-    /// <paramref name="outward"/> and <paramref name="depth"/> pick rows of it,
-    /// counted out from the roof edge.
+    /// <paramref name="outward"/> picks how far out from the roof edge it starts.
     /// </summary>
-    private static void DoorBand(PixelCanvas canvas, Rect2 roof, BuildingDoor door, float across, float outward,
-        Color color, float depth = 3)
+    private static void DoorBand(PixelCanvas canvas, Rect2 roof, BuildingDoor door, float across, float outward, Color color)
     {
+        const float depth = 3;
         var middle = DoorMiddle(roof, door);
         var start = middle - across / 2f;
         switch (door.Side)
@@ -294,19 +249,6 @@ public static class BuildingSprites
         var length = horizontal ? roof.Size.X : roof.Size.Y;
         var middle = door.Tile is { } tile ? tile * 32 + 16 : from + length / 2f;
         return Math.Clamp(middle, from + 5, from + length - 5);
-    }
-
-    /// <summary>A point inside the roof, <paramref name="distance"/> pixels in from the door.</summary>
-    private static (float X, float Y) Inward(Rect2 roof, BuildingDoor door, float distance)
-    {
-        var middle = DoorMiddle(roof, door);
-        return door.Side switch
-        {
-            DoorSide.North => (middle, roof.Position.Y + distance),
-            DoorSide.East => (roof.End.X - distance, middle),
-            DoorSide.West => (roof.Position.X + distance, middle),
-            _ => (middle, roof.End.Y - distance),
-        };
     }
 
     private static void PaintHearth(PixelCanvas canvas, int width, int height)
@@ -362,25 +304,34 @@ public static class BuildingSprites
     }
 
     /// <summary>
-    /// The building exteriors the owner approved in the first art review
-    /// (2026-10-01): House, Warehouse, Blacksmith, Silo and Tailor shop, at
-    /// any footprint and door side. The layout keeps the earlier contract:
-    /// the roof sits three units in from the footprint, the door is on the
-    /// side that faces the Road, and the doorstep path starts at the edge.
-    /// Each roof is laid in a real material (clay tiles, slate, planks,
-    /// shingles) in courses that follow its eaves, lit from the north-west,
-    /// with ridge and hip lines, an eave shadow, a visible door over a stone
-    /// doorstep, and one identifying feature per kind. Layouts are written in
-    /// 32-unit tile space and drawn at 32 or 16 px per tile.
+    /// The building exteriors the owner approved in the art review
+    /// (2026-10-01): House, Warehouse, Blacksmith, Silo and Tailor shop from
+    /// the first round, and the Farmhouse, Workshop and generic building from
+    /// the second, at any footprint and door side. The layout keeps the
+    /// earlier contract: the roof sits three units in from the footprint, the
+    /// door is on the side that faces the Road, and the doorstep path starts at
+    /// the edge. Each roof is laid in a real material (clay tiles, thatch,
+    /// slate, planks, shingles) in courses that follow its eaves, lit from the
+    /// north-west, with ridge and hip lines, an eave shadow, a visible door
+    /// over a stone doorstep, and one identifying feature per kind. Layouts
+    /// are written in 32-unit tile space and drawn at 32 or 16 px per tile.
     /// </summary>
     private static class ApprovedArt
     {
         // Every colour is a step of an art style guide ramp.
         private static readonly Ramp Clay = Ramp.Of("5E2E22", "9E4E34", "C66A45", "E08E64", "EFA982");
+        private static readonly Ramp Thatch = Ramp.Of("6B5528", "A98A45", "D2AE5E", "E6C77B", "F0DA9A");
         private static readonly Ramp Slate = Ramp.Of("2B2E33", "4A4E55", "62666E", "80858E", "9A9FA7");
         private static readonly Ramp GreyTimber = Ramp.Of("343C43", "59656F", "758390", "97A5B0", "AEBBC4");
         private static readonly Ramp SiloWood = Ramp.Of("54462F", "8E7A58", "B7A07A", "D3C09A", "E4D4B4");
         private static readonly Ramp DyedShingle = Ramp.Of("3E2B47", "6E4F7C", "8F6A9E", "B08CBE", "C8A8D4");
+        private static readonly Ramp GreenPlank = Ramp.Of("30372D", "566150", "6F7C6A", "8E9B88", "A8B4A2");
+        /// <summary>
+        /// A plain building the game cannot name: the first four steps are the
+        /// earlier generic palette; the highlight is one step on, toward Cloth
+        /// highlight, because the style guide has no row for it.
+        /// </summary>
+        private static readonly Ramp Plain = Ramp.Of("3F3A33", "6E675C", "8D8577", "AAA293", "C2BBAE");
         private static readonly Ramp Timber = Ramp.Of("3F2A1A", "6E4E31", "8A6440", "A77C52", "D2AC77");
         private static readonly Ramp Doorstep = Ramp.Of("5F5848", "8C7F66", "B9AB8E", "C9BDA2", "DED3BC");
         private static readonly Ramp Rock = Ramp.Of("4A4542", "625B56", "756D68", "8B837D", "A49C95");
@@ -404,7 +355,7 @@ public static class BuildingSprites
         private static readonly Color RoofShadow = new(0.04f, 0.06f, 0.05f, 0.38f);
 
         /// <summary>Roof materials; each has its own course pattern in <see cref="Surface"/>.</summary>
-        private enum Material { Clay, Slate, Shingle, Plank }
+        private enum Material { Clay, Slate, Thatch, Shingle, Plank }
 
         /// <summary>A gable has two faces along the ridge; a hip adds triangular end faces.</summary>
         private enum RoofShape { Gable, Hip }
@@ -424,8 +375,12 @@ public static class BuildingSprites
         {
             BuildingKind.House => new(Clay, Material.Clay, RoofShape.Hip, 7),
             BuildingKind.Warehouse => new(GreyTimber, Material.Plank, RoofShape.Gable, 38),
+            // The roof stands back eight units on the door side so the grain sacks fit beside the doorstep.
+            BuildingKind.Farmhouse => new(Thatch, Material.Thatch, RoofShape.Hip, 69, Yard: 18, Clearance: 8),
             BuildingKind.Blacksmith => new(Slate, Material.Slate, RoofShape.Gable, 100, Yard: 20),
             BuildingKind.TailorShop => new(DyedShingle, Material.Shingle, RoofShape.Hip, 162),
+            BuildingKind.Workshop => new(GreenPlank, Material.Plank, RoofShape.Gable, 379, Yard: 16),
+            BuildingKind.Generic => new(Plain, Material.Shingle, RoofShape.Hip, 410),
             _ => null,
         };
 
@@ -537,8 +492,22 @@ public static class BuildingSprites
             var roof = p.Px(plan.Roof);
             var middle = p.P(plan.DoorMiddle);
 
-            // Only the Blacksmith has a yard: its packed-earth forge yard.
-            if (plan.Yard is { } yardUnits) YardFloor(p, p.Px(yardUnits), Dirt.Shade, Dirt.Edge, 113);
+            if (plan.Yard is { } yardUnits)
+            {
+                var yard = p.Px(yardUnits);
+                if (kind == BuildingKind.Blacksmith)
+                {
+                    // The forge yard: the whole end in darker packed earth with cinders.
+                    YardFloor(p, yard, Dirt.Shade, Dirt.Edge, Iron.Shade, 113);
+                }
+                else
+                {
+                    // The farmyard and the work yard are smaller worn patches, not the whole end.
+                    var inset = p.P(2);
+                    var patch = new Rect2I(yard.Position.X + inset, yard.Position.Y + inset, yard.Size.X - inset * 2, yard.Size.Y - inset * 2);
+                    YardFloor(p, patch, Dirt.Base, Dirt.Shade, Dirt.Shade, kind == BuildingKind.Farmhouse ? 117 : 131);
+                }
+            }
             PaintRoof(p, roof, recipe);
 
             var nextRow = 0;
@@ -547,6 +516,20 @@ public static class BuildingSprites
                 case BuildingKind.House:
                     var (cx, cy) = ChimneySpot(roof, p.Small, door.Side, middle);
                     Chimney(p, cx, cy);
+                    nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    break;
+                case BuildingKind.Farmhouse:
+                    if (plan.Yard is { } farmYard) Sheaves(p, p.Px(farmYard));
+                    nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    GrainSacks(p, roof, door.Side, middle);
+                    break;
+                case BuildingKind.Workshop:
+                    if (plan.Yard is { } workYard) WorkYard(p, p.Px(workYard));
+                    var hammer = Inward(p, roof, door.Side, middle, 9);
+                    HammerSign(p, hammer.X, hammer.Y);
+                    nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    break;
+                case BuildingKind.Generic:
                     nextRow = Door(p, roof, door.Side, middle, 3, 3);
                     break;
                 case BuildingKind.Blacksmith:
@@ -576,6 +559,7 @@ public static class BuildingSprites
             int x0 = roof.Position.X, y0 = roof.Position.Y, w = roof.Size.X, h = roof.Size.Y;
             if (w < 5 || h < 5) return;
             var ramp = recipe.Roof;
+            var thatch = recipe.Material == Material.Thatch;
             p.Fill(new Rect2I(x0 + p.P(2), y0 + p.P(3), w, h), Shadow);
 
             int iw = w - 2, ih = h - 2;
@@ -593,13 +577,18 @@ public static class BuildingSprites
                     p.Put(x0 + 1 + u, y0 + 1 + v, Surface(recipe, face, along, across, p.Small));
                 }
 
-            // The roof's one-pixel edge.
+            // The roof's one-pixel edge; thatch eaves have rounded corners.
             for (var x = 0; x < w; x++)
                 for (var y = 0; y < h; y++)
                 {
                     if (x != 0 && y != 0 && x != w - 1 && y != h - 1) continue;
+                    var corner = (x == 0 || x == w - 1) && (y == 0 || y == h - 1);
+                    if (corner && thatch) continue;
                     p.Put(x0 + x, y0 + y, ramp.Edge);
                 }
+            if (thatch)
+                foreach (var (cx, cy) in new[] { (1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2) })
+                    p.Put(x0 + cx, y0 + cy, ramp.Edge);
 
             RidgeAndHips(p, x0 + 1, y0 + 1, iw, ih, recipe);
         }
@@ -634,12 +623,13 @@ public static class BuildingSprites
         /// The ridge as a one-pixel light line along the long side with a
         /// crease just below it on the shaded half, and on hipped roofs the
         /// four hips: soft light where they touch a lit face, a lifted shade
-        /// on the south-east hip.
+        /// on the south-east hip. Thatch gets a bound ridge band instead of lines.
         /// </summary>
         private static void RidgeAndHips(Plate p, int left, int top, int iw, int ih, Recipe recipe)
         {
             var r = recipe.Roof;
             var hip = recipe.Shape == RoofShape.Hip;
+            var thatch = recipe.Material == Material.Thatch;
             var horizontal = iw >= ih;
             // One routine for both directions: "along" follows the ridge, "across" spans the roof.
             void Put(int along, int across, Color c)
@@ -652,7 +642,7 @@ public static class BuildingSprites
             var ridge = (breadth + 1) / 2 - 1;
             var from = hip ? ridge : 0;
             var to = hip ? length - 1 - ridge : length - 1;
-            var litHip = Toward(r, 2, 3, 0.8f);
+            var litHip = Toward(r, 2, 3, thatch ? 0.45f : 0.8f);
             var shadedHip = Toward(r, 1, 2, 0.7f);
 
             if (hip)
@@ -665,8 +655,22 @@ public static class BuildingSprites
                 for (var t = 0; breadth - 1 - t > ridge; t++)
                 {
                     Put(t, breadth - 1 - t, litHip);
-                    Put(length - 1 - t, breadth - 1 - t, shadedHip);
+                    if (!thatch) Put(length - 1 - t, breadth - 1 - t, shadedHip);
                 }
+            }
+            if (thatch)
+            {
+                // A bound ridge: a raised roll of straw tied down with spars every few pixels.
+                var start = Math.Max(0, from - 1);
+                var end = Math.Min(length - 1, to + 1);
+                for (var a = start; a <= end; a++)
+                {
+                    if (ridge - 1 >= 0) Put(a, ridge - 1, Toward(r, 3, 4, 0.3f));
+                    Put(a, ridge, (a + recipe.Salt) % 4 == 0 && !p.Small ? r[1] : r[3]);
+                    if (ridge + 1 < breadth) Put(a, ridge + 1, r[2]);
+                    if (ridge + 2 < breadth && !p.Small) Put(a, ridge + 2, Toward(r, 1, 0, 0.6f));
+                }
+                return;
             }
             for (var a = from; a <= to && ridge + 1 < breadth; a++) Put(a, ridge + 1, Toward(r, 1, 0, 0.7f));
             for (var a = from; a <= to; a++) Put(a, ridge, r[3]);
@@ -699,6 +703,7 @@ public static class BuildingSprites
                 Material.Clay => ClayTiles(tones, along, across, small),
                 Material.Slate => Slates(tones, along, across, small, recipe.Salt),
                 Material.Shingle => Shingles(tones, lit, along, across, small, recipe.Salt),
+                Material.Thatch => Straw(tones, along, across, small, recipe.Salt),
                 _ => Planks(tones, along, across, small, recipe.Salt),
             };
         }
@@ -779,6 +784,23 @@ public static class BuildingSprites
             var body = roll == 0 ? t.Body.Lerp(t.Accent, 0.35f) : roll == 1 ? t.Grain : t.Body;
             if (row == 1 && PixelArt.Hash(along / 3, course, salt + 9) % 7 == 0) body = t.Grain;
             return body;
+        }
+
+        /// <summary>
+        /// Farmhouse: thatch. Trimmed straw ends along the eave with a soft
+        /// shadow under the lip, faint layer lines and short strands running
+        /// down the slope in light and dark.
+        /// </summary>
+        private static Color Straw(Tones t, int along, int across, bool small, int salt)
+        {
+            if (across == 0) return t.Accent;
+            if (across == 1 && !small) return along % 2 == 0 ? t.Joint : t.Body;
+            if (!small && across % 7 == 0 && PixelArt.Hash(along, across, salt) % 3 != 0) return t.Grain;
+            var phase = (int)(PixelArt.Hash(along, 0, salt) % 3);
+            var strand = PixelArt.Hash(along, (across + phase) / 3, salt + 1) % (small ? 8u : 5u);
+            if (strand == 0) return t.Joint;
+            if (strand == 1 && !small) return t.Body.Lerp(t.Accent, 0.6f);
+            return t.Body;
         }
 
         // ------------------------------------------------------------------
@@ -985,10 +1007,11 @@ public static class BuildingSprites
 
         /// <summary>
         /// Yard ground: packed earth in <paramref name="ground"/> with soft
-        /// patches a little toward <paramref name="worn"/>, a few cinders and a
+        /// patches a little toward <paramref name="worn"/>, a few
+        /// <paramref name="speck"/> specks (cinders in the forge yard) and a
         /// feathered edge, so it reads like the Roads and stays calm.
         /// </summary>
-        private static void YardFloor(Plate p, Rect2I yard, Color ground, Color worn, int salt)
+        private static void YardFloor(Plate p, Rect2I yard, Color ground, Color worn, Color speck, int salt)
         {
             var patch = ground.Lerp(worn, 0.35f);
             for (var y = yard.Position.Y; y < yard.End.Y; y++)
@@ -1006,7 +1029,7 @@ public static class BuildingSprites
                         continue;
                     }
                     var blob = PixelArt.Hash((x + (y / 3 % 2) * 2) / 5, y / 3, salt + 1) % 4 == 0;
-                    var c = roll < 3 && !p.Small ? Iron.Shade : blob ? patch : ground;
+                    var c = roll < 3 && !p.Small ? speck : blob ? patch : ground;
                     p.Put(x, y, c);
                 }
         }
@@ -1014,6 +1037,7 @@ public static class BuildingSprites
         /// <summary>
         /// Blacksmith: in the forge yard, a stone hearth with its ember glow
         /// against the wall, an anvil on a stump and a quench barrel of water.
+        /// A short yard (the 1 × 2 Blacksmith) has room for the hearth and anvil only.
         /// </summary>
         private static void ForgeYard(Plate p, Rect2I yard)
         {
@@ -1021,8 +1045,9 @@ public static class BuildingSprites
             (int X, int Y) At(float f) => tall
                 ? (yard.Position.X + yard.Size.X / 2, yard.Position.Y + (int)(yard.Size.Y * f))
                 : (yard.Position.X + (int)(yard.Size.X * f), yard.Position.Y + yard.Size.Y / 2);
-            var hearth = At(0.22f);
-            var anvil = At(0.52f);
+            var compact = (tall ? yard.Size.Y : yard.Size.X) < p.P(40);
+            var hearth = At(compact ? 0.27f : 0.22f);
+            var anvil = At(compact ? 0.76f : 0.52f);
             var barrel = At(0.8f);
             if (p.Small)
             {
@@ -1062,6 +1087,7 @@ public static class BuildingSprites
             p.Fill(ax - 2, ay - 1, 5, 2, Iron.Base);
             p.Fill(ax - 4, ay - 1, 2, 1, Iron.Light);
             p.Fill(ax - 2, ay - 1, 5, 1, Iron.Highlight);
+            if (compact) return;
             // Quench barrel: a timber ring holding dark water with a glint.
             int bx = barrel.X, by = barrel.Y;
             p.Disc(bx + 1.5f, by + 2.5f, 3.5f, SmallShadow);
@@ -1069,6 +1095,281 @@ public static class BuildingSprites
             p.Disc(bx + 0.5f, by + 0.5f, 2.6f, Timber.Light);
             p.Disc(bx + 0.5f, by + 0.5f, 1.8f, River.Shade);
             p.Put(bx - 1, by - 1, River.Highlight);
+        }
+
+        /// <summary>
+        /// Farmhouse: bound sheaves of grain laid out to dry in the yard, every
+        /// other one turned the other way, as a stack is laid. Each sheaf has
+        /// the shape of the grain item icon: three ears on stalks, tied at the
+        /// waist. There is no painted cart, because a cart is a real vehicle.
+        /// </summary>
+        private static void Sheaves(Plate p, Rect2I yard)
+        {
+            int sheafWide = p.Small ? 4 : 11, sheafHigh = p.Small ? 6 : 13, gap = 1;
+            var wide = yard.Size.X >= yard.Size.Y;
+            var room = wide ? yard.Size.X - 2 : yard.Size.Y - 2;
+            var step = wide ? sheafWide + gap : sheafHigh + gap;
+            var count = Math.Clamp(room / step, 1, 3);
+            var span = count * step - gap;
+            for (var i = 0; i < count; i++)
+            {
+                var flip = i % 2 == 1;
+                var left = wide ? yard.Position.X + (yard.Size.X - span) / 2 + i * step : yard.Position.X + (yard.Size.X - sheafWide) / 2;
+                var top = wide ? yard.Position.Y + (yard.Size.Y - sheafHigh) / 2 : yard.Position.Y + (yard.Size.Y - span) / 2 + i * step;
+                WithShadow(p, 1, p.Small ? 1 : 2, q => Sheaf(q, left, top, flip));
+            }
+        }
+
+        /// <summary>
+        /// One bound sheaf lying on the ground, its top-left at (left, top), ears
+        /// to the north (south when <paramref name="flip"/>): three ears in Thatch
+        /// light with an edge outline and a lit tip, stalks gathering to a twine
+        /// band, and the cut stalk ends splayed at the foot.
+        /// </summary>
+        private static void Sheaf(Plate p, int left, int top, bool flip)
+        {
+            if (p.Small)
+            {
+                // Four by six: two ears, the band, the stalk foot.
+                string[] rows = ["lh.h", "bllb", ".bs.", ".ts.", ".bs.", "b..s"];
+                for (var j = 0; j < rows.Length; j++)
+                {
+                    var row = rows[flip ? rows.Length - 1 - j : j];
+                    for (var i = 0; i < row.Length; i++)
+                    {
+                        Color? c = row[i] switch { 'l' => Thatch.Light, 'h' => Thatch.Highlight, 'b' => Thatch.Base, 's' => Thatch.Shade, 't' => Timber.Shade, _ => null };
+                        if (c is { } colour) p.Put(left + i, top + j, colour);
+                    }
+                }
+                return;
+            }
+            const float height = 13;
+            var middle = left + 5.5f;
+            float Y(float down) => flip ? top + height - down : top + down;
+            // Stalks: from each ear down to the waist, then splayed out to the cut ends.
+            foreach (var x in new[] { -3f, 0f, 3f })
+            {
+                p.Line(middle + x, Y(6), middle, Y(8.5f), Thatch.Shade);
+                p.Line(middle, Y(9.5f), middle + x * 0.9f, Y(12.5f), Thatch.Base);
+            }
+            foreach (var x in new[] { -3f, 3f })
+                p.Put((int)(middle + x * 0.9f), (int)Y(12.5f), Thatch.Edge);
+            // Ears: the side ears first, the middle one standing a pixel further out over them.
+            foreach (var (x, down) in new[] { (-3f, 4f), (3f, 4f), (0f, 3f) })
+            {
+                p.Ellipse(middle + x, Y(down), 2.1f, 3.3f, Thatch.Edge);
+                p.Ellipse(middle + x, Y(down), 1.2f, 2.4f, Thatch.Light);
+                p.Put((int)(middle + x) - 1, (int)Y(down - 1), Thatch.Highlight);
+                p.Put((int)(middle + x), (int)Y(down + 1), Thatch.Base);
+            }
+            // The twine band at the waist.
+            p.Fill((int)middle - 1, (int)Y(9), 3, 1, Timber.Shade);
+        }
+
+        /// <summary>
+        /// Draws something onto a scratch plate, then lays a small shadow of its
+        /// whole silhouette on <paramref name="p"/> (offset by dx, dy and painted
+        /// once, so overlapping parts never darken twice) and the drawing over it.
+        /// </summary>
+        private static void WithShadow(Plate p, int dx, int dy, Action<Plate> draw)
+        {
+            var scratch = new Plate(p.Width, p.Height, p.Scale);
+            draw(scratch);
+            var shadow = new ShadowMask(p.Width, p.Height);
+            for (var y = 0; y < p.Height; y++)
+                for (var x = 0; x < p.Width; x++)
+                    if (scratch.Image.GetPixel(x, y).A > 0) shadow.Add(x + dx, y + dy);
+            shadow.Paint(p, SmallShadow);
+            for (var y = 0; y < p.Height; y++)
+                for (var x = 0; x < p.Width; x++)
+                    p.Put(x, y, scratch.Image.GetPixel(x, y));
+        }
+
+        /// <summary>
+        /// Farmhouse: grain sacks by the doorstep, one lying on the west or
+        /// north side of the step with its tied neck pointing away, one standing
+        /// on the other side, and a few spilled grains.
+        /// </summary>
+        private static void GrainSacks(Plate p, Rect2I roof, DoorSide side, int middle)
+        {
+            var alongX = side is DoorSide.South or DoorSide.North;
+            if (p.Small)
+            {
+                foreach (var t in new[] { middle - 4, middle + 3 })
+                {
+                    var (sx, sy) = OutPoint(roof, side, 2, t);
+                    p.Fill((int)sx, (int)sy, 2, 2, SmallShadow);
+                    p.Put((int)sx - 1, (int)sy - 1, Cloth.Light);
+                    p.Put((int)sx, (int)sy - 1, Cloth.Base);
+                    p.Put((int)sx - 1, (int)sy, Cloth.Base);
+                    p.Put((int)sx, (int)sy, Cloth.Shade);
+                }
+                return;
+            }
+            var (lx, ly) = OutPoint(roof, side, 4, middle - 8);
+            LyingSack(p, lx, ly, alongX);
+            var (standX, standY) = OutPoint(roof, side, 4, middle + 7);
+            StandingSack(p, standX, standY);
+            foreach (var (k, t, colour) in new[] { (6, middle + 5, Thatch.Light), (7, middle + 6, Thatch.Base), (7, middle + 9, Thatch.Light) })
+            {
+                var (gx, gy) = OutPoint(roof, side, k, t);
+                p.Put((int)gx, (int)gy, colour);
+            }
+        }
+
+        /// <summary>
+        /// The middle of the pixel <paramref name="k"/> rows out from the roof edge
+        /// on the door side, <paramref name="t"/> along it (as <see cref="Out"/>).
+        /// </summary>
+        private static (float X, float Y) OutPoint(Rect2I roof, DoorSide side, int k, int t) => side switch
+        {
+            DoorSide.North => (t + 0.5f, roof.Position.Y - k + 0.5f),
+            DoorSide.East => (roof.End.X - 1 + k + 0.5f, t + 0.5f),
+            DoorSide.West => (roof.Position.X - k + 0.5f, t + 0.5f),
+            _ => (t + 0.5f, roof.End.Y - 1 + k + 0.5f),
+        };
+
+        /// <summary>
+        /// A cloth sack standing on its base, seen from above: a round body lit
+        /// north-west with a shaded south-east crescent, and the gathered neck in
+        /// the middle, a pale tuft tied round with twine.
+        /// </summary>
+        private static void StandingSack(Plate p, float cx, float cy)
+        {
+            p.Disc(cx + 1, cy + 1.5f, 2.6f, SmallShadow);
+            p.Disc(cx, cy, 2.75f, Cloth.Edge);
+            p.Disc(cx + 0.4f, cy + 0.4f, 1.9f, Cloth.Shade);
+            p.Disc(cx - 0.3f, cy - 0.3f, 1.6f, Cloth.Base);
+            var x = (int)cx;
+            var y = (int)cy;
+            p.Put(x - 1, y - 1, Cloth.Light);
+            p.Put(x - 1, y, Cloth.Light);
+            p.Put(x, y, Cloth.Highlight);
+            p.Put(x + 1, y, Timber.Light);
+            p.Put(x, y + 1, Timber.Light);
+        }
+
+        /// <summary>
+        /// A cloth sack lying on its side along the x or y axis: a long rounded
+        /// body, lit north-west, with its neck tied off in twine at the west or
+        /// north end and the tuft flaring past it. Drawn at 32 px only.
+        /// </summary>
+        private static void LyingSack(Plate p, float cx, float cy, bool alongX)
+        {
+            var (rx, ry) = alongX ? (3.5f, 2.5f) : (2.5f, 3.5f);
+            p.Ellipse(cx + 1, cy + 1.5f, rx, ry, SmallShadow);
+            p.Ellipse(cx, cy, rx, ry, Cloth.Edge);
+            p.Ellipse(cx + 0.4f, cy + 0.4f, rx - 0.9f, ry - 0.9f, Cloth.Shade);
+            p.Ellipse(cx - 0.3f, cy - 0.3f, rx - 1.2f, ry - 1.2f, Cloth.Base);
+            p.Ellipse(cx - 1, cy - 1, 0.9f, 0.9f, Cloth.Light);
+            // A fold across the body where the cloth sags, and the neck tied off.
+            var (x, y) = ((int)cx, (int)cy);
+            if (alongX) p.Put(x + 1, y, Cloth.Shade);
+            else p.Put(x, y + 1, Cloth.Shade);
+            if (alongX)
+            {
+                var end = (int)(cx - rx);
+                p.Put(end, y, Timber.Shade);
+                p.Put(end - 1, y, Cloth.Light);
+                p.Put(end - 2, y - 1, Cloth.Edge);
+                p.Put(end - 2, y, Cloth.Base);
+                p.Put(end - 2, y + 1, Cloth.Edge);
+            }
+            else
+            {
+                var end = (int)(cy - ry);
+                p.Put(x, end, Timber.Shade);
+                p.Put(x, end - 1, Cloth.Light);
+                p.Put(x - 1, end - 2, Cloth.Edge);
+                p.Put(x, end - 2, Cloth.Base);
+                p.Put(x + 1, end - 2, Cloth.Edge);
+            }
+        }
+
+        /// <summary>
+        /// Workshop yard: a trestle bench (a long board on two trestles) with a
+        /// saw on it and shavings around, and a neat stack of planks, on a worn
+        /// patch of earth.
+        /// </summary>
+        private static void WorkYard(Plate p, Rect2I yard)
+        {
+            var tall = yard.Size.Y >= yard.Size.X;
+            (int X, int Y) At(float f) => tall
+                ? (yard.Position.X + yard.Size.X / 2, yard.Position.Y + (int)(yard.Size.Y * f))
+                : (yard.Position.X + (int)(yard.Size.X * f), yard.Position.Y + yard.Size.Y / 2);
+            var bench = At(0.3f);
+            var stack = At(0.72f);
+            // Rectangles written along the yard (a) and across it (b), from a centre.
+            Rect2I Box((int X, int Y) c, int a, int b, int along, int across) => tall
+                ? new Rect2I(c.X + b, c.Y + a, across, along)
+                : new Rect2I(c.X + a, c.Y + b, along, across);
+            if (p.Small)
+            {
+                p.Fill(Box(bench, -4, -1, 8, 3), SmallShadow);
+                p.Fill(Box(bench, -4, -1, 8, 2), Timber.Light);
+                p.Fill(Box(stack, -3, -2, 6, 4), Timber.Edge);
+                p.Fill(Box(stack, -2, -1, 4, 2), Timber.Base);
+                return;
+            }
+            var shadow = new ShadowMask(p.Width, p.Height);
+            foreach (var r in new[] { Box(bench, -8, -2, 16, 5), Box(bench, -6, -5, 2, 11), Box(bench, 4, -5, 2, 11), Box(stack, -7, -5, 15, 11) })
+                shadow.Add(r, 1, 2);
+            shadow.Paint(p, SmallShadow);
+            // Trestles: short beams across the bench, their splayed feet just showing at the ends.
+            foreach (var a in new[] { -6, 4 })
+            {
+                p.Fill(Box(bench, a, -5, 2, 11), Timber.Edge);
+                p.Fill(Box(bench, a, -4, 1, 9), Timber.Shade);
+            }
+            // The board: pale, lit along its north or west edge, with a saw lying on it.
+            p.Fill(Box(bench, -8, -2, 16, 5), Timber.Edge);
+            p.Fill(Box(bench, -7, -1, 14, 3), Timber.Light);
+            p.Fill(Box(bench, -7, -1, 14, 1), Timber.Highlight);
+            p.Fill(Box(bench, -5, 0, 5, 1), Iron.Light);
+            p.Fill(Box(bench, -5, 1, 4, 1), Iron.Base);
+            p.Fill(Box(bench, 0, 0, 2, 2), Timber.Shade);
+            foreach (var (a, b) in new[] { (-9, 4), (7, -4), (9, 3), (-3, 5) })
+            {
+                var spot = Box(bench, a, b, 1, 1);
+                p.Put(spot.Position.X, spot.Position.Y, Timber.Highlight);
+            }
+            // Plank stack: boards laid side by side, ends a little ragged, seams one step darker.
+            p.Fill(Box(stack, -7, -5, 15, 11), Timber.Edge);
+            for (var i = 0; i < 3; i++)
+            {
+                var offset = i == 1 ? 1 : 0;
+                var board = Box(stack, -6 + offset, -4 + i * 3, 13 - offset, 3);
+                p.Fill(board, Timber.Base);
+                p.Fill(Box(stack, -6 + offset, -4 + i * 3, 13 - offset, 1), Timber.Light);
+                p.Fill(Box(stack, -6 + offset, -2 + i * 3, 13 - offset, 1), Toward(Timber, 2, 1, 0.6f));
+            }
+        }
+
+        /// <summary>Workshop: a cream sign board with an iron-headed hammer over the door.</summary>
+        private static void HammerSign(Plate p, int cx, int cy)
+        {
+            if (p.Small)
+            {
+                p.Fill(cx - 1, cy - 1, 4, 4, SmallShadow);
+                p.Fill(cx - 2, cy - 2, 4, 4, Timber.Edge);
+                p.Fill(cx - 1, cy - 1, 2, 2, Cloth.Light);
+                p.Put(cx, cy - 1, Iron.Base);
+                return;
+            }
+            p.Fill(cx - 3, cy - 3, 9, 8, SmallShadow);
+            p.Fill(cx - 4, cy - 4, 9, 8, Timber.Edge);
+            p.Fill(cx - 3, cy - 3, 7, 6, Cloth.Light);
+            p.Fill(cx - 3, cy - 3, 7, 1, Cloth.Highlight);
+            // Handle running down to the south-west, head across its top.
+            p.Put(cx - 2, cy + 2, Timber.Shade);
+            p.Put(cx - 1, cy + 1, Timber.Base);
+            p.Put(cx, cy, Timber.Base);
+            p.Put(cx - 1, cy + 2, Timber.Edge);
+            p.Fill(cx - 1, cy - 3, 4, 2, Iron.Base);
+            p.Fill(cx - 1, cy - 3, 4, 1, Iron.Light);
+            p.Put(cx + 2, cy - 2, Iron.Edge);
+            p.Put(cx + 1, cy - 1, Iron.Edge);
+            p.Put(cx - 1, cy - 3, Iron.Highlight);
         }
 
         // ------------------------------------------------------------------
@@ -1160,9 +1461,40 @@ public static class BuildingSprites
         }
 
         /// <summary>
+        /// Collects the pixels a shadow covers and paints each once, so
+        /// overlapping parts (bench, trestles, sheaves) never darken the ground twice.
+        /// </summary>
+        private sealed class ShadowMask(int width, int height)
+        {
+            private readonly bool[] covered = new bool[width * height];
+
+            public void Add(int x, int y)
+            {
+                if (x >= 0 && y >= 0 && x < width && y < height) covered[y * width + x] = true;
+            }
+
+            public void Add(Rect2I area, int dx, int dy)
+            {
+                for (var y = area.Position.Y; y < area.End.Y; y++)
+                    for (var x = area.Position.X; x < area.End.X; x++)
+                        Add(x + dx, y + dy);
+            }
+
+            public void Paint(Plate p, Color color)
+            {
+                for (var y = 0; y < height; y++)
+                    for (var x = 0; x < width; x++)
+                        if (covered[y * width + x]) p.Put(x, y, color);
+            }
+        }
+
+        /// <summary>
         /// The image a building is painted on, with the scale from the 32-unit
         /// tile space layouts are written in to output pixels (1 at 32 px, 0.5
-        /// at 16 px). Painting blends, so shadows and soft edges compose.
+        /// at 16 px). Painting blends, so shadows and soft edges compose. Every
+        /// blended colour is snapped to the nearest 8-bit step before it is
+        /// stored: Godot truncates a channel when it stores it, so without this
+        /// a half-transparent shadow could land one step off the reviewed art.
         /// </summary>
         private sealed class Plate
         {
@@ -1194,7 +1526,8 @@ public static class BuildingSprites
             public void Put(int x, int y, Color color)
             {
                 if (x < 0 || y < 0 || x >= Width || y >= Height || color.A <= 0) return;
-                Image.SetPixel(x, y, Image.GetPixel(x, y).Blend(color));
+                var blended = Image.GetPixel(x, y).Blend(color);
+                Image.SetPixel(x, y, new Color(Step(blended.R), Step(blended.G), Step(blended.B), Step(blended.A)));
             }
 
             public void Fill(Rect2I area, Color color)
@@ -1208,7 +1541,29 @@ public static class BuildingSprites
 
             /// <summary>A disc centred on a pixel position, radius in pixels.</summary>
             public void Disc(float x, float y, float radius, Color color) =>
-                new PixelCanvas(Image, new Rect2I(0, 0, Width, Height), Scale).Disc(x / Scale, y / Scale, radius / Scale, color);
+                Ellipse(x / Scale, y / Scale, radius / Scale, radius / Scale, color);
+
+            /// <summary>An ellipse in tile units, covering the same pixels as <see cref="PixelCanvas.Ellipse"/>.</summary>
+            public void Ellipse(float centerX, float centerY, float radiusX, float radiusY, Color color)
+            {
+                var cx = centerX * Scale;
+                var cy = centerY * Scale;
+                var rx = Math.Max(0.6f, radiusX * Scale);
+                var ry = Math.Max(0.6f, radiusY * Scale);
+                for (var y = (int)(cy - ry - 1); y <= (int)(cy + ry + 1); y++)
+                    for (var x = (int)(cx - rx - 1); x <= (int)(cx + rx + 1); x++)
+                    {
+                        var dx = (x + 0.5f - cx) / rx;
+                        var dy = (y + 0.5f - cy) / ry;
+                        if (dx * dx + dy * dy <= 1f) Put(x, y, color);
+                    }
+            }
+
+            /// <summary>A one-pixel line in tile units, in an opaque colour.</summary>
+            public void Line(float fromX, float fromY, float toX, float toY, Color color) =>
+                new PixelCanvas(Image, new Rect2I(0, 0, Width, Height), Scale).Line(fromX, fromY, toX, toY, color);
+
+            private static float Step(float channel) => Math.Clamp(MathF.Round(channel * 255f), 0f, 255f) / 255f;
         }
     }
 }
