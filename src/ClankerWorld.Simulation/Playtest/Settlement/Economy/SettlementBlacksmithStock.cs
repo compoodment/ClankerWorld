@@ -17,6 +17,12 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || FreeCarryCapacity(actor) <= 0) return;
         var inventory = society.Checkpoint.Inventory;
+        var pendingHarvest = HouseholdFor(actor) is { } householdId &&
+            BlacksmithForHousehold(householdId) is { } smith &&
+            BlacksmithHarvestToPrepare(householdId, smith.InstanceId, actor) is { } missing
+            ? ProjectMaterialHarvest(actor, missing.ItemKind, missing.Source) : null;
+        var pendingToolFamily = pendingHarvest?.ToolLotId is { } requiredToolId
+            ? ToolProgressionRules.Find(inventory.GetLot(requiredToolId).ItemKind)?.Family : null;
         foreach (var family in ToolProgressionRules.All.GroupBy(tool => tool.Family)
                      .OrderBy(group => group.Key))
         {
@@ -27,6 +33,11 @@ public sealed partial class PrivateWorldRuntime
                 .ThenBy(tool => tool.ItemKind, StringComparer.Ordinal)
                 .FirstOrDefault();
             if (bestShared is null) continue;
+            // Leave room for the pending whole harvest. Otherwise a spare tool
+            // set down for that work would be immediately collected again.
+            if (pendingHarvest is { } harvest && bestShared.Family != pendingToolFamily &&
+                FreeCarryCapacity(actor) - 1 < checked(harvest.Quantity + harvest.TreeSeedQuantity))
+                continue;
 
             var carried = ToolProgressionRules.BestUsableTool(inventory, actor, family.Key);
             if (carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= bestShared.Tier)
@@ -96,7 +107,8 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
             return;
         if (MaterialSource("iron_ore", actor) is not { } source ||
-            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) ||
+            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) &&
+                !CanMakeRoomForBlacksmithHarvest(actor, state, "iron_ore", source) ||
             !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(actor, state.Position, source.Position, ResourceInteractionRange).Count == 0)
             return;
@@ -109,11 +121,12 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= 2 ||
+            BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore") ||
             PersonalSmithOre(actor) is not null ||
             MaterialSource("iron_ore", actor) is not { } source)
             return;
-        GatherProjectMaterial(actor, state, "iron_ore", source);
+        if (!MakeRoomForBlacksmithHarvest(actor, state, householdId, "iron_ore", source))
+            GatherProjectMaterial(actor, state, "iron_ore", source);
     }
 
     private void DeliverBlacksmithOre(string actor, PlaytestInhabitantState state)
@@ -197,7 +210,42 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithInputToGather(householdId, blacksmith.InstanceId, actor) is not { } missing ||
             missing.ItemKind != itemKind)
             return;
-        GatherProjectMaterial(actor, state, itemKind, missing.Source);
+        if (!MakeRoomForBlacksmithHarvest(actor, state, householdId, itemKind, missing.Source))
+            GatherProjectMaterial(actor, state, itemKind, missing.Source);
+    }
+
+    private bool MakeRoomForBlacksmithHarvest(string actor, PlaytestInhabitantState state,
+        string householdId, string itemKind, MapResource source)
+    {
+        if (ProjectMaterialHarvest(actor, itemKind, source) is not { } plan)
+            return false;
+        var missing = checked(plan.Quantity + plan.TreeSeedQuantity) - FreeCarryCapacity(actor);
+        return missing > 0 && StoreSpareCargo(actor, state, householdId,
+            SpareCargoForFood(actor, missing, plan.ToolLotId));
+    }
+
+    private bool CanMakeRoomForBlacksmithHarvest(string actor, PlaytestInhabitantState state,
+        string itemKind, MapResource source)
+    {
+        if (ProjectMaterialHarvest(actor, itemKind, source) is not { } plan)
+            return false;
+        var cargo = SpareCargoForFood(actor,
+            checked(plan.Quantity + plan.TreeSeedQuantity) - FreeCarryCapacity(actor), plan.ToolLotId);
+        return cargo.Count > 0 && SpareCargoDestination(actor, state,
+            cargo.Sum(move => move.PhysicalQuantity)) is not null;
+    }
+
+    private (string ItemKind, MapResource Source)? BlacksmithHarvestToPrepare(string householdId,
+        string blacksmithId, string actor)
+    {
+        if (BlacksmithInputToGather(householdId, blacksmithId, actor) is { } missing)
+            return missing;
+        if (PersonalSmithOre(actor) is not null ||
+            BlacksmithOreStocked(householdId, blacksmithId) >= BlacksmithInputTarget(blacksmithId, "iron_ore") ||
+            society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
+                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
+            return null;
+        return MaterialSource("iron_ore", actor) is { } source ? ("iron_ore", source) : null;
     }
 
     private void AddBlacksmithStockCandidate(List<CognitionCandidate> candidates, string actor,

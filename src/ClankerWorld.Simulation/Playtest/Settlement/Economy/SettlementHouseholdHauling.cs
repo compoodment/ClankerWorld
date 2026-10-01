@@ -234,13 +234,14 @@ public sealed partial class PrivateWorldRuntime
 
     private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity);
 
-    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing)
+    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing, string? protectedLotId = null)
     {
         if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
         var inventory = society.Checkpoint.Inventory;
         var spare = inventory.Lots
             .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+                lot.Id != protectedLotId &&
                 lot.DeliveryBuildingId is null &&
                 lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
                 lot.ItemKind is not ("field_map" or "field_record") &&
@@ -283,13 +284,19 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return;
         var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        StoreSpareCargo(actor, state, householdId, cargo);
+    }
+
+    private bool StoreSpareCargo(string actor, PlaytestInhabitantState state, string householdId,
+        List<SpareCargoMove> cargo)
+    {
         if (cargo.Count == 0 ||
             SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
-            return;
+            return false;
         if (!IsWithinInteractionRange(state.Position, destination.Position, destination.Range))
         {
             MoveToward(actor, state, destination.Position, "make_room", destination.Range);
-            return;
+            return true;
         }
         foreach (var move in cargo)
         {
@@ -302,5 +309,6 @@ public sealed partial class PrivateWorldRuntime
                     ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
             AppendEvent("spare_cargo_stored", $"{actor}:{lot.ItemKind}:{quantity}:{destination.StorageBuildingId ?? "camp"}");
         }
+        return true;
     }
 }
