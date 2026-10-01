@@ -295,7 +295,8 @@ public sealed partial class PrivateWorldConversationTests
         {
             InitiatorId, InviteeId,
         });
-        using var world = NewWorld("nearby-conversation", provider);
+        // Bystanders stay nearby through the save boundary; only the two participants can speak.
+        using var world = NewWorld("nearby-conversation", _ => provider);
         world.StartWorld();
 
         for (var attempt = 0; attempt < 40 && world.Conversations.All(item => item.Turns.Count == 0); attempt++)
