@@ -738,8 +738,8 @@ public partial class WorldTerrainLayer : Control
 
     /// <summary>
     /// Packed-dirt Road pieces joined along the Road, with smooth diagonals
-    /// and doorstep paths. At overview zoom the same links are drawn as flat
-    /// lines.
+    /// and doorstep paths. A Road in line with a bridge deck runs up to it.
+    /// At overview zoom the same links are drawn as flat lines.
     /// </summary>
     private void DrawRoads((int Left, int Top, int Width, int Height) bounds, int stride)
     {
@@ -754,9 +754,11 @@ public partial class WorldTerrainLayer : Control
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                // A deck tile draws its planks instead of a Road piece.
+                if (bridgeDecks.ContainsKey(new Vector2I(mapX, y))) continue;
                 var links = RoadLinksAt(x, y);
                 if (!RoadSprites.Draws(links)) continue;
-                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
                 if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(mapX, y));
                 var variant = (int)(PixelArt.Hash(mapX, y, 7) % RoadSprites.VariantCount);
                 var dark = RoadSprites.NeedsDarkEdge(world.StyleAt(mapX, y));
@@ -765,15 +767,20 @@ public partial class WorldTerrainLayer : Control
             }
     }
 
-    /// <summary>Which of a tile's neighbours are Road, and whether it is Road itself.</summary>
+    /// <summary>
+    /// Which of a tile's neighbours are Road, and whether it is Road itself. A
+    /// Road tile in line with a bridge deck counts the deck as Road, so the
+    /// street runs onto the bridge instead of ending short of it.
+    /// </summary>
     private RoadLinks RoadLinksAt(int x, int y)
     {
         var links = RoadLinks.None;
-        if (IsRoad(x, y)) links |= RoadLinks.Road;
-        if (IsRoad(x, y - 1)) links |= RoadLinks.North;
-        if (IsRoad(x + 1, y)) links |= RoadLinks.East;
-        if (IsRoad(x, y + 1)) links |= RoadLinks.South;
-        if (IsRoad(x - 1, y)) links |= RoadLinks.West;
+        var road = IsRoad(x, y);
+        if (road) links |= RoadLinks.Road;
+        if (IsRoad(x, y - 1) || (road && IsDeck(x, y - 1, eastWest: false))) links |= RoadLinks.North;
+        if (IsRoad(x + 1, y) || (road && IsDeck(x + 1, y, eastWest: true))) links |= RoadLinks.East;
+        if (IsRoad(x, y + 1) || (road && IsDeck(x, y + 1, eastWest: false))) links |= RoadLinks.South;
+        if (IsRoad(x - 1, y) || (road && IsDeck(x - 1, y, eastWest: true))) links |= RoadLinks.West;
         // Diagonals only matter for Road tiles and for tiles between two Roads.
         if (!links.HasFlag(RoadLinks.Road) && System.Numerics.BitOperations.PopCount((uint)links) < 2) return links;
         if (IsRoad(x + 1, y - 1)) links |= RoadLinks.NorthEast;
@@ -786,6 +793,11 @@ public partial class WorldTerrainLayer : Control
     private bool IsRoad(int x, int y) => world is not null && y >= 0 && y < world.Height &&
         (wrapsEastWest || x >= 0 && x < world.Width) &&
         roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y));
+
+    /// <summary>Whether a bridge deck running along the given axis lies on this tile.</summary>
+    private bool IsDeck(int x, int y, bool eastWest) => world is not null && y >= 0 && y < world.Height &&
+        (wrapsEastWest || x >= 0 && x < world.Width) &&
+        bridgeDecks.TryGetValue(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y), out var axis) && axis == eastWest;
 
     private void DrawRoadLines((int Left, int Top, int Width, int Height) bounds, int stride, Color color, float width)
     {
@@ -803,41 +815,42 @@ public partial class WorldTerrainLayer : Control
                     if (dx != 0 && dy != 0 && (IsRoad(x + dx, y) || IsRoad(x, y + dy))) continue;
                     DrawLine(center, center + new Vector2(dx * stride, dy * stride), color, width);
                 }
+                // Run on to the edge of a bridge deck in line with the Road.
+                foreach (var (dx, dy) in new (int X, int Y)[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    if (IsDeck(x + dx, y + dy, eastWest: dy == 0))
+                        DrawLine(center, center + new Vector2(dx, dy) * (stride / 2f), color, width);
             }
     }
 
+    /// <summary>
+    /// Plank bridge decks over their saved tiles, so deck tiles join each
+    /// other and the Road on each bank. At overview zoom a deck is a flat
+    /// timber band with dark side rails.
+    /// </summary>
     private void DrawBridges((int Left, int Top, int Width, int Height) bounds, int stride)
     {
         if (world is null || bridgeDecks.Count == 0 || tileSize <= 0) return;
-        // A plank deck reaching a little onto each bank, with dark side rails
-        // and, when large enough to read, cross planks.
-        var deck = new Color("A47A4C");
-        var rail = new Color("4F3522");
-        var plank = new Color("7C5836");
-        var breadth = Math.Max(2f, tileSize * 0.62f);
-        var overhang = tileSize * 0.3f;
+        var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
+        var deck = new Color("A77C52");
+        var rail = new Color("3F2A1A");
+        var breadth = Math.Max(2f, tileSize * 0.625f);
+        var railWidth = Math.Max(1f, tileSize / 14f);
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
                 var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
                 if (!bridgeDecks.TryGetValue(new Vector2I(mapX, y), out var eastWest)) continue;
-                var center = new Vector2(x * stride + tileSize / 2f, y * stride + tileSize / 2f);
-                var length = stride + overhang * 2;
+                var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
+                if (tileSize >= SpriteTileMinimum)
+                {
+                    DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
+                    continue;
+                }
+                var center = tile.GetCenter();
+                var length = (float)stride;
                 var size = eastWest ? new Vector2(length, breadth) : new Vector2(breadth, length);
                 var rect = new Rect2(center - size / 2f, size);
                 DrawRect(rect, deck);
-                if (tileSize >= SpriteTileMinimum)
-                {
-                    var planks = Math.Max(2, tileSize / 6);
-                    for (var index = 1; index < planks * 2; index++)
-                    {
-                        var offset = -length / 2f + index * length / (planks * 2);
-                        var from = eastWest ? center + new Vector2(offset, -breadth / 2f) : center + new Vector2(-breadth / 2f, offset);
-                        var to = eastWest ? center + new Vector2(offset, breadth / 2f) : center + new Vector2(breadth / 2f, offset);
-                        DrawLine(from, to, plank, 1f);
-                    }
-                }
-                var railWidth = Math.Max(1f, tileSize / 14f);
                 if (eastWest)
                 {
                     DrawLine(rect.Position, rect.Position + new Vector2(rect.Size.X, 0), rail, railWidth);

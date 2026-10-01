@@ -1219,29 +1219,103 @@ public partial class Main
                                 if (foam.GetPixel(column, row).A > 0 && land.GetPixel(column, row).A > 0)
                                     throw new InvalidOperationException($"{atlasSize}px foam must lie along the land's edge, not on it.");
                     }
+            // A tile's pixels packed as RGBA, row by row, for exact comparisons.
+            static uint[] Packed(Image tile)
+            {
+                var data = tile.GetData();
+                var pixels = new uint[data.Length / 4];
+                for (var index = 0; index < pixels.Length; index++)
+                    pixels[index] = (uint)data[index * 4] << 24 | (uint)data[index * 4 + 1] << 16 | (uint)data[index * 4 + 2] << 8 | data[index * 4 + 3];
+                return pixels;
+            }
+            // Pixels that differ between line `lineA` of one tile and line `lineB` of another.
+            static int Mismatches(uint[] a, int lineA, uint[] b, int lineB, int size, bool columns)
+            {
+                var count = 0;
+                for (var along = 0; along < size; along++)
+                    if (columns ? a[along * size + lineA] != b[along * size + lineB] : a[lineA * size + along] != b[lineB * size + along])
+                        count++;
+                return count;
+            }
+            // Lone pixels: one colour set alone among eight neighbours of another single colour.
+            static int LonePixels(uint[] pixels, int size)
+            {
+                var lone = 0;
+                for (var y = 0; y < size; y++)
+                    for (var x = 0; x < size; x++)
+                    {
+                        var around = pixels[y * size + (x + 1) % size];
+                        var alone = around != pixels[y * size + x];
+                        for (var dy = -1; dy <= 1 && alone; dy++)
+                            for (var dx = -1; dx <= 1 && alone; dx++)
+                                alone = (dx == 0 && dy == 0) || pixels[(y + dy + size) % size * size + (x + dx + size) % size] == around;
+                        if (alone) lone++;
+                    }
+                return lone;
+            }
             foreach (var atlasSize in new[] { 16, 32 })
                 foreach (var style in Enum.GetValues<TerrainStyle>())
                 {
                     var baseColor = TerrainTextures.BaseColor(style);
-                    var first = TerrainTextures.Tile(style, 0, atlasSize);
-                    var second = TerrainTextures.Tile(style, 1, atlasSize);
-                    foreach (var texture in new[] { first, second })
-                    {
-                        var detail = 0;
-                        for (var ty = 0; ty < atlasSize; ty++)
-                            for (var tx = 0; tx < atlasSize; tx++)
-                                if (!texture.GetPixel(tx, ty).IsEqualApprox(baseColor)) detail++;
-                        // Calm ground: a few pixel clusters, never per-pixel grain.
-                        // Mountains and peaks are drawn as relief shapes instead.
-                        var detailLimit = style is TerrainStyle.Mountain or TerrainStyle.Peak ? 0.4f : 0.12f;
-                        if (detail > atlasSize * atlasSize * detailLimit)
-                            throw new InvalidOperationException($"{style} {atlasSize}px texture is too busy: {detail} detail pixels.");
-                        for (var edge = 0; edge < atlasSize; edge++)
-                            if (!texture.GetPixel(edge, 0).IsEqualApprox(baseColor) || !texture.GetPixel(0, edge).IsEqualApprox(baseColor))
-                                throw new InvalidOperationException($"{style} {atlasSize}px details must stay off tile edges so neighbors join without seams.");
-                    }
-                    if (style != TerrainStyle.Unknown && first.GetData().SequenceEqual(second.GetData()))
+                    Image[] tiles = [TerrainTextures.Tile(style, 0, atlasSize), TerrainTextures.Tile(style, 1, atlasSize)];
+                    if (style != TerrainStyle.Unknown && tiles[0].GetData().SequenceEqual(tiles[1].GetData()))
                         throw new InvalidOperationException($"{style} needs two distinct texture variants.");
+                    if (style is TerrainStyle.Mountain or TerrainStyle.Peak)
+                    {
+                        // Mountains and peaks are relief shapes kept inside their
+                        // tile, so mountain tiles meet on plain ground without seams.
+                        foreach (var texture in tiles)
+                        {
+                            var relief = 0;
+                            for (var ty = 0; ty < atlasSize; ty++)
+                                for (var tx = 0; tx < atlasSize; tx++)
+                                    if (!texture.GetPixel(tx, ty).IsEqualApprox(baseColor)) relief++;
+                            if (relief > atlasSize * atlasSize * 0.4f)
+                                throw new InvalidOperationException($"{style} {atlasSize}px texture is too busy: {relief} relief pixels.");
+                            for (var edge = 0; edge < atlasSize; edge++)
+                                if (!texture.GetPixel(edge, 0).IsEqualApprox(baseColor) || !texture.GetPixel(0, edge).IsEqualApprox(baseColor))
+                                    throw new InvalidOperationException($"{style} {atlasSize}px relief must stay off tile edges so neighbors join without seams.");
+                        }
+                        continue;
+                    }
+                    // Calm ground: soft patches and a few small motifs that keep
+                    // the overview colour on average, never per-pixel grain.
+                    var pixels = tiles.Select(Packed).ToArray();
+                    foreach (var tile in pixels)
+                    {
+                        var (red, green, blue) = (0f, 0f, 0f);
+                        foreach (var pixel in tile)
+                        {
+                            red += (pixel >> 24) / 255f;
+                            green += (pixel >> 16 & 0xFF) / 255f;
+                            blue += (pixel >> 8 & 0xFF) / 255f;
+                        }
+                        var count = tile.Length;
+                        if (Math.Abs(red / count - baseColor.R) > 0.04f || Math.Abs(green / count - baseColor.G) > 0.04f ||
+                            Math.Abs(blue / count - baseColor.B) > 0.04f)
+                            throw new InvalidOperationException($"{style} {atlasSize}px ground must average within 4% of its overview colour.");
+                        var lone = LonePixels(tile, atlasSize);
+                        if (lone > atlasSize / 4)
+                            throw new InvalidOperationException($"{style} {atlasSize}px ground is grainy: {lone} lone pixels.");
+                    }
+                    // Seamless: patches may run across an edge only if they carry
+                    // on at the opposite edge, so where any two tiles meet, in
+                    // either variant, the join is no rougher than a line inside one.
+                    var last = atlasSize - 1;
+                    var roughestColumn = 0;
+                    var roughestRow = 0;
+                    foreach (var tile in pixels)
+                        for (var line = 0; line < last; line++)
+                        {
+                            roughestColumn = Math.Max(roughestColumn, Mismatches(tile, line, tile, line + 1, atlasSize, columns: true));
+                            roughestRow = Math.Max(roughestRow, Mismatches(tile, line, tile, line + 1, atlasSize, columns: false));
+                        }
+                    // A tile's east edge against its neighbour's west edge, and its south edge against the neighbour's north edge.
+                    foreach (var tile in pixels)
+                        foreach (var neighbour in pixels)
+                            if (Mismatches(tile, last, neighbour, 0, atlasSize, columns: true) > roughestColumn ||
+                                Mismatches(tile, last, neighbour, 0, atlasSize, columns: false) > roughestRow)
+                                throw new InvalidOperationException($"{style} {atlasSize}px ground must join its neighbours without a seam.");
                 }
             foreach (var atlasSize in new[] { 16, 32 })
                 foreach (var style in new[] { TerrainStyle.Ocean, TerrainStyle.Lake, TerrainStyle.River, TerrainStyle.ShallowWater })
