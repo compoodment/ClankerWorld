@@ -129,6 +129,13 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
                 lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        if (building.HouseholdId is { } householdId && definition.Tags.Contains("farmhouse", StringComparer.Ordinal) &&
+            fields.Any(field => field.HouseholdId == householdId && field.Work is not null) &&
+            !worldSimulation.Buildings.Any(other => other.InstanceId != id && other.HouseholdId == householdId &&
+                worldContent.Buildings.Any(candidate => candidate.CanonicalId == other.DefinitionId &&
+                    candidate.Tags.Contains("farmhouse", StringComparer.Ordinal))))
+            return "Let active field work finish before removing or reassigning this household's last Farmhouse.";
         if (worldSimulation.ProductionJobs.Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
             (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running))
@@ -136,13 +143,13 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private IReadOnlyList<BuildingExpansionJob> PreserveExpansionDefinitionIdentity(string buildingId, string definitionId) =>
+    private BuildingExpansionJob[] PreserveExpansionDefinitionIdentity(string buildingId, string definitionId) =>
         (worldSimulation.BuildingExpansions ?? []).Select(job =>
             job.BuildingInstanceId == buildingId && job.DefinitionId is null
                 ? job with { DefinitionId = definitionId }
                 : job).ToArray();
 
-    private IReadOnlyList<HouseGuestInvitation> RemoveHouseInvitations(string buildingId) =>
+    private HouseGuestInvitation[] RemoveHouseInvitations(string buildingId) =>
         (worldSimulation.GuestInvitations ?? []).Where(item => item.HouseInstanceId != buildingId).ToArray();
 
     private void RemoveTownBuildingAssignment(string townId, string buildingId)

@@ -35,6 +35,14 @@ retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
 Older alpha saves need not load; no field or orchard migration is provided.
 
+Private-world schema 35 retains a building's definition identity in completed
+or cancelled expansion history after an owner removes that building. A
+building with active production or expansion work cannot be removed or
+reassigned, and a household's last Farmhouse stays assigned until its field
+work finishes. Town membership, building assignments and physical inventory
+locations are validated together; older alpha saves need not load and no
+migration is provided.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
