@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
+using System.Collections.Concurrent;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -293,6 +294,15 @@ public sealed class ConcreteMealTests
     public async Task GeneratedHarvestTravelsThroughFarmStockAndHouseCookingBeforeItIsEaten()
     {
         var (state, actor, household, point) = await FarmFieldTests.ReadyFarmer("grain-harvest-to-porridge");
+        var starterRations = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household &&
+            lot.ItemKind == "food").Sum(lot => lot.Quantity);
+        Assert.True(starterRations > 0);
+        // Start after the household has eaten its actual rations, leaving room
+        // for the harvested meal's inputs and the jug's complete water load.
+        state = FarmFieldTests.FeedHouseholdFromAvailableStock(state, household);
+        Assert.Equal(starterRations, state.Society.Society.Inventory.Reservations.Where(reservation =>
+                reservation.Purpose == "household_meals" && reservation.State == InventoryReservationState.Completed)
+            .Sum(reservation => reservation.Quantity));
         using var harvest = Restore(state);
         Assert.True(harvest.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
         for (var tick = 0; tick < 4; tick++) Assert.True((await harvest.AdvanceOneTickAsync()).Advanced);
@@ -329,9 +339,17 @@ public sealed class ConcreteMealTests
             Inhabitants = waterState.Inhabitants.Select(person => person.InhabitantId == actor
                 ? person with { HungerBasisPoints = 10_000, LastDecisionContext = null } : person).ToArray(),
         };
-        using var water = Restore(waterState, actor, "fill_water_jug", "return_water_jug", "collect_water_jug");
+        var waterChoices = new Chooser("fill_water_jug", "return_water_jug", "collect_water_jug");
+        using var water = PrivateWorldRuntime.Restore(waterState,
+            id => id == actor ? waterChoices : new Chooser());
         await AdvanceUntil(water, () => water.ExportState().Events.Any(item => item.Kind == "water_jug_returned" &&
-            item.Detail.Contains("harvest-cooking-jug", StringComparison.Ordinal)), 300);
+            item.Detail.Contains("harvest-cooking-jug", StringComparison.Ordinal)), 300, () =>
+            "offers=" + string.Join(",", waterChoices.OfferedCandidates.Distinct()) + " | " +
+            "position=" + water.Inhabitants.Single(person => person.InhabitantId == actor).Position +
+            " | stock=" + System.Text.Json.JsonSerializer.Serialize(water.Society.Inventory.Lots.Where(lot =>
+                lot.OwnerId == actor || lot.OwnerId == household)) + " | jug events=" +
+            string.Join(",", water.ExportState().Events.Where(item => item.Kind.StartsWith("water_jug", StringComparison.Ordinal))
+                .Select(item => item.Kind + ":" + item.Detail)));
         Assert.Contains(water.ExportState().Events, item => item.Kind == "water_jug_filled" &&
             item.Detail.Contains("harvest-cooking-jug", StringComparison.Ordinal));
         var porridge = water.WorldContent.Recipes.Single(recipe => recipe.LocalId == "porridge" &&
@@ -345,16 +363,9 @@ public sealed class ConcreteMealTests
         Assert.Equal(house.InstanceId, serving.StorageBuildingId);
         Assert.Equal(InventoryReservationState.Reserved, cooking.Society.Inventory.GetReservation(reserve.Id).State);
         var eatState = cooking.ExportState();
-        // Account for the remaining starter rations so this check specifically follows the cooked harvest.
-        inventory = eatState.Society.Society.Inventory;
-        foreach (var ration in inventory.Lots.Where(lot => (lot.OwnerId == household || lot.OwnerId == actor) &&
-                     lot.ItemKind == "food").ToArray())
-        {
-            var id = "harvest-test-rations:" + ration.Id;
-            inventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(inventory, id, ration.OwnerId,
-                ration.Id, ration.Quantity, "fixture", inventory.WorldTick), id);
-        }
-        eatState = FarmFieldTests.WithInventory(eatState, inventory) with
+        Assert.DoesNotContain(eatState.Society.Society.Inventory.Lots, lot =>
+            (lot.OwnerId == household || lot.OwnerId == actor) && lot.ItemKind == "food");
+        eatState = eatState with
         {
             Inhabitants = eatState.Inhabitants.Select(person => person.InhabitantId == actor
                 ? person with { HungerBasisPoints = 1_000, LastDecisionContext = null } : person).ToArray(),
@@ -440,19 +451,23 @@ public sealed class ConcreteMealTests
         return PrivateWorldRuntime.Restore(state, id => new Chooser(id == actor ? choices : []));
     }
 
-    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, int limit)
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, int limit,
+        Func<string>? failureContext = null)
     {
         for (var tick = 0; tick < limit && !done(); tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True(done(), string.Join(" | ", world.ExportState().Events.TakeLast(12).Select(item => item.Kind + ":" + item.Detail)));
+        Assert.True(done(), string.Join(" | ", world.ExportState().Events.TakeLast(12).Select(item => item.Kind + ":" + item.Detail)) +
+            " | " + failureContext?.Invoke());
     }
 
     private sealed class Chooser(params string[] choices) : IDecisionProvider
     {
+        public ConcurrentBag<string> OfferedCandidates { get; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
+            foreach (var candidate in request.Observation.Candidates) OfferedCandidates.Add(candidate.Id);
             var selected = choices.Select(choice => request.Observation.Candidates.FirstOrDefault(candidate =>
                     candidate.Id == choice || candidate.Id.StartsWith(choice + ":", StringComparison.Ordinal)))
                 .FirstOrDefault(candidate => candidate is not null) ??
