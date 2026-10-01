@@ -182,7 +182,7 @@ def main():
                     continue
                 c = card(fkey, pid)
                 c['current'] = data_uri(apath); c['cw'], c['ch'] = ae['width'], ae['height']
-                c['currentLabel'] = 'round 1'
+                c['currentLabel'] = f'round {args.round - 1}'
                 c['proposed'] = data_uri(path); c['pw'], c['ph'] = e['width'], e['height']
                 c['note'] = e.get('note') or ''
                 c['kind'] = 'replaced'

@@ -1,12 +1,26 @@
-# Buildings: rounds 1 to 3
+# Buildings: rounds 1 to 4
 
 What to look at: `out/proposed/sheet-buildings.png` next to
 `out/baseline/sheet-buildings.png`, and the town in
 `out/scene/scene-buildings-32.x3.png` and `scene-buildings-16.x4.png` next to
 `scene-current-*`. Every entry is shown over grass (or water), as in the
 baseline, and also on its own (the `.sprite` entries) so it can be placed in a
-scene. Round 3 is described first; the round-2 and round-1 notes follow
+scene. The newest round is described first; the earlier notes follow
 unchanged below it.
+
+## Round 4
+
+You approved everything in round 3 except the Market plaza, which you found a
+bit too big for eight stalls. Only `Market.plaza` and `Market.plaza.16`
+change; every other picture is the same, pixel for pixel.
+
+- **Market.plaza (smaller):** 5 × 4 tiles instead of 7 × 5, so 20 tiles of
+  packed earth instead of 35. The spare row in front of the hall and the
+  spare column on each side are gone. The eight stalls still stand back to
+  back in two rows of four, each row facing its own aisle: the top aisle runs
+  past the hall's door, the bottom one along the plaza's south edge. The path
+  from the hall's door to the Road runs down the middle, so every open tile is
+  an aisle or the path. Also `Market.plaza.16`.
 
 ## Round 3
 

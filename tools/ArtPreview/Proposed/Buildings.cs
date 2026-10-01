@@ -213,9 +213,9 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         foreach (var (id, w, h, side, water, note) in MooredPorts)
             yield return new(Family, id, MooredPort(w, h, side, water), note);
         yield return new(Family, "Market.plaza", MarketPlaza(32),
-            "Round 3: the market hall at the head of a small plaza of packed earth (Road tiles drawn as one area), eight approved stalls standing on it and a Road leading in.");
+            "Round 4: the plaza is smaller, 5 x 4 tiles instead of 7 x 5. The eight approved stalls stand back to back in two rows of four, each row facing its own aisle, with the path from the hall's door to the Road down the middle. Nothing else changed.");
         yield return new(Family, "Market.plaza.16", MarketPlaza(16),
-            "Round 3, 16 px: the same Market plaza at mid zoom.");
+            "Round 4, 16 px: the same smaller Market plaza at mid zoom.");
     }
 
     /// <summary>
@@ -3231,27 +3231,30 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     // ----------------------------------------------------------------------
-    // Market plaza (round 3).
+    // Market plaza (round 3, made smaller in round 4).
     // ----------------------------------------------------------------------
 
     /// <summary>
     /// The Market as a whole: the market hall at the head of a small plaza of
     /// packed earth with stalls standing on it, and a Road leading in. The
-    /// plaza is a block of ordinary Road tiles (7 × 5) drawn by the game's
+    /// plaza is a block of ordinary Road tiles (5 × 4) drawn by the game's
     /// <see cref="RoadSprites"/>: where every neighbour is Road the pieces
     /// join into one continuous area, so it shows no lanes and no tile grid,
     /// only the soft worn edge round the outside. The stall tiles count as
     /// plaza ground, so the earth runs under them. Eight approved stalls
-    /// stand in two rows of four facing each other across the middle, with
-    /// an open way from the hall's door to the Road.
+    /// stand back to back in two rows of four, each row facing its own aisle,
+    /// with an open way from the hall's door to the Road. Round 4: the owner
+    /// found the 7 × 5 plaza a bit too big for eight stalls, so the spare row
+    /// and the two spare columns are gone and every open tile is an aisle or
+    /// the path.
     /// </summary>
     private static Image MarketPlaza(int tilePixels)
     {
         const int tilesWide = 9, tilesHigh = 9;
         var image = Grass(tilesWide, tilesHigh, tilePixels);
-        static bool Plaza(int x, int y) => x is >= 1 and <= 7 && y is >= 2 and <= 6;
+        static bool Plaza(int x, int y) => x is >= 2 and <= 6 && y is >= 2 and <= 5;
         // The Road leads in from the south on the middle column and carries on past the picture's edge.
-        static bool Road(int x, int y) => Plaza(x, y) || (x == 4 && y > 6);
+        static bool Road(int x, int y) => Plaza(x, y) || (x == 4 && y > 5);
         // The hall's door asks the plaza tile in front of it for a doorstep path, as any building does.
         var doorTile = new Vector2I(4, 2);
         for (var y = 0; y < tilesHigh; y++)
@@ -3273,7 +3276,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
                 Sheet.Blend(image, RoadSprites.Render(links, variant, tilePixels, false), x * tilePixels, y * tilePixels);
             }
         Sheet.Blend(image, Draw(Design.Market, 2, 2, tilePixels, new BuildingDoor(DoorSide.South, 1)), 3 * tilePixels, 0);
-        // Two rows of four stalls face each other across the plaza, leaving the middle column open.
+        // Two rows of four stalls back to back, each facing its aisle, leaving the middle column open.
         foreach (var (x, y, side) in MarketStalls)
             Sheet.Blend(image, Draw(Design.MarketStall, 1, 1, tilePixels, new BuildingDoor(side)), x * tilePixels, y * tilePixels);
         return image;
@@ -3282,8 +3285,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     /// <summary>Where the stalls stand on the plaza, in tiles, and the way each faces.</summary>
     private static readonly (int X, int Y, DoorSide Side)[] MarketStalls =
     [
-        (2, 4, DoorSide.North), (3, 4, DoorSide.North), (5, 4, DoorSide.North), (6, 4, DoorSide.North),
-        (2, 5, DoorSide.South), (3, 5, DoorSide.South), (5, 5, DoorSide.South), (6, 5, DoorSide.South),
+        (2, 3, DoorSide.North), (3, 3, DoorSide.North), (5, 3, DoorSide.North), (6, 3, DoorSide.North),
+        (2, 4, DoorSide.South), (3, 4, DoorSide.South), (5, 4, DoorSide.South), (6, 4, DoorSide.South),
     ];
 
     // ----------------------------------------------------------------------
