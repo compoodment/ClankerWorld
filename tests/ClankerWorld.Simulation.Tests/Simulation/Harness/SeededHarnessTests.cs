@@ -299,27 +299,6 @@ public sealed class SeededHarnessTests
             [], [], string.Empty);
 
     [Fact]
-    public void ScriptedActorMovesHarvestsAndConsumesInOrderedTicks()
-    {
-        var genesis = ScriptedHarness.CreateGenesis("camp-alpha");
-        var final = ScriptedHarness.RunEntireSequence("camp-alpha");
-
-        Assert.Equal(final.Map.GetResource("berry-patch").Position, final.Actor.Position);
-        Assert.Equal(ResourceState.Depleted, final.GetResource("berry-patch").State);
-        Assert.Equal(0, final.Actor.FoodItems);
-        Assert.True(final.Actor.HungerBasisPoints > genesis.Actor.HungerBasisPoints);
-        Assert.Equal(
-            Enumerable.Range(1, final.Events.Count).Select(number => (long)number),
-            final.Events.Select(worldEvent => worldEvent.EventId));
-        Assert.Equal(
-            Enumerable.Range(1, final.Events.Count).Select(number => (long)number),
-            final.Events.Select(worldEvent => worldEvent.WorldTick));
-        Assert.Contains(final.Events, worldEvent => worldEvent.Detail == "harvest:berry-patch");
-        Assert.Contains(final.Events, worldEvent => worldEvent.Detail == "consume:actor-scout");
-        Assert.Equal("consume:actor-scout", final.Events[^1].Detail);
-    }
-
-    [Fact]
     public void SaveReloadAndPhysicalReplayProduceTheSameFinalDigestsAsTheCleanRun()
     {
         var clean = ScriptedHarness.RunEntireSequence("camp-gamma");

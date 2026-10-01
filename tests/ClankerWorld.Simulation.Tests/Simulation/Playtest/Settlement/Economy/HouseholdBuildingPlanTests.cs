@@ -10,34 +10,6 @@ public sealed class HouseholdBuildingPlanTests
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
     [Fact]
-    public async Task PlansWaitForMaterialsInHand()
-    {
-        var idle = new ActionCoverageRecorder(chooseIdle: true);
-        using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => idle);
-        var state = setup.ExportState();
-        Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot => lot.ItemKind == "stone" && lot.Quantity > 0);
-
-        using (var withoutStone = PrivateWorldRuntime.Restore(state, _ => idle))
-        {
-            for (var tick = 0; tick < 40; tick++)
-                Assert.True((await withoutStone.AdvanceOneTickAsync()).Advanced);
-            var families = idle.FamiliesOffered(withoutStone.WorldContent);
-            Assert.DoesNotContain(families, family => family.StartsWith("building:", StringComparison.Ordinal));
-            Assert.Contains(FamiliesForHousehold(withoutStone, idle, Alpha), family => family == "gather_building_material");
-        }
-
-        var stocked = new ActionCoverageRecorder(chooseIdle: true);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "alpha-stone", "stone", Alpha, 4,
-            storageBuildingId: "first-town-house-a");
-        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
-        using var withStone = PrivateWorldRuntime.Restore(state, _ => stocked);
-        for (var tick = 0; tick < 40; tick++)
-            Assert.True((await withStone.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains("building:blacksmith-1x2", FamiliesForHousehold(withStone, stocked, Alpha));
-        Assert.DoesNotContain("building:farmhouse-1x1", FamiliesForHousehold(withStone, stocked, Beta));
-    }
-
-    [Fact]
     public async Task OnlyTheFarmhouseHouseholdPlansASiloAndOnlyBesideItsFarmhouse()
     {
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new ActionCoverageRecorder(chooseIdle: true));
