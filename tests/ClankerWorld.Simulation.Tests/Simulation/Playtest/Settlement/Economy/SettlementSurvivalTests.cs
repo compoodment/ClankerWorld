@@ -412,7 +412,11 @@ public sealed class SettlementSurvivalTests
         }
 
         using (var clothed = NightAt(null, clothing: true))
+        {
             Assert.True(await WarmthAfterNightTicks(clothed) > 8_000, "Clothing must still keep out a mild night's cold.");
+            // Garments wear in cold or wet weather, not merely because it is night.
+            Assert.Equal(10_000, clothed.Society.Inventory.GetLot("night-clothing").ConditionBasisPoints);
+        }
         using (var sheltered = NightAt("shelter", clothing: false))
             Assert.True(await WarmthAfterNightTicks(sheltered) > 8_000, "Shelter must still keep out a mild night's cold.");
         using (var warmed = NightAt("fire", clothing: false))

@@ -289,11 +289,12 @@ playtest pace.
 
 Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
 saved field: time of day is derived from the saved tick and ticks per day, so
-the schema stays 37 and no version changes. A schema-37 save made before night
-existed loads unchanged; nights, and their chill on outdoor warmth, apply from
-its next tick. Its recorded history is not re-simulated. A world saved during
-dawn reloads at the same darkness and advances to the same bytes as the live
-world, which `SettlementSurvivalTests` checks.
+the checkpoint schema and every other version stay as they are. A current-schema
+save made before night existed loads unchanged; nights, and their chill on
+outdoor warmth, apply from its next tick. Its recorded history is not
+re-simulated. A world saved during dawn reloads at the same darkness and
+advances to the same bytes as the live world, which `SettlementSurvivalTests`
+checks.
 
 ## Pending model work and estates
 

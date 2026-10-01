@@ -251,8 +251,10 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Equipment?.Repair is not null && !CanContinueEquipmentRepair(person.InhabitantId))
                 CancelEquipmentRepair(person.InhabitantId);
+            // Garments wear in cold or wet weather only. The night chill is
+            // felt as lost warmth, but adds no wear the agreed design did not ask for.
             if (person.Equipment?.Repair?.LotId == person.Equipment?.ClothingLotId ||
-                OutdoorExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
+                WeatherExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
             ApplyInventoryTransition(inventory => InventoryFixture.WearSingleUnit(inventory, garment.Id, 10));
         }
     }

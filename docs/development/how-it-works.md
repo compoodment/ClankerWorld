@@ -123,12 +123,13 @@ world, and its founder setup, starts at night.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
-the weather, climate and season exposure, so everything that reacts to outdoor
-exposure reacts to it: warmth loss, the protection from clothing (35 for a basic
-garment when dry), shelter (45) and a lit fire (+90), the choice to put on
-better clothing, wear on a worn garment, the warmth budget for a scouting trip
-and the preference for making garments. In mild clear weather a basic garment
-or any shelter cancels it; with no protection an agent loses about a fifth of
+the weather, climate and season exposure (`OutdoorExposure`), and clothing (35
+for a basic garment when dry), shelter (45) and a lit fire (+90) offset it just
+as they offset weather. The same outdoor exposure decides the choice to put on
+better clothing, the warmth budget for a scouting trip and the preference for
+making garments. Wear on a worn garment still follows the weather alone, so a
+mild night adds no repair work. In mild clear weather a basic garment or any
+shelter cancels the chill; with no protection an agent loses about a fifth of
 their warmth over a night. There are no night-only limits on choices, travel,
 work or conversation, and no sleep or energy. Night does not change weather or
 crops yet, and night length does not vary by season.
