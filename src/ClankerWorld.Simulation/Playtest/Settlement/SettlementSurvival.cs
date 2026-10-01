@@ -135,11 +135,12 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<PlacedBuilding> AccessibleShelters(string actor) => BuildingsWithTag("shelter")
         .Where(building => building.HouseholdId is null ||
-            building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
+            building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+            || WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(actor, building.InstanceId));
 
     private bool NearShelter(string actor, GridPoint point) => AccessibleShelters(actor).Any(building =>
-        IsWithinInteractionRange(point, building.Position,
-            building.HouseholdId is null ? ResourceInteractionRange : 0));
+        building.HouseholdId is null ? IsWithinInteractionRange(point, building.Position, ResourceInteractionRange) :
+            WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).Contains(point));
 
     private bool NaturalStormCover(GridPoint point) =>
         map.VegetationAt(point) == VegetationCover.Forest ||

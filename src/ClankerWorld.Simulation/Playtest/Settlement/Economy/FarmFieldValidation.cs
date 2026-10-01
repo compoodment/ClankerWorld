@@ -16,7 +16,8 @@ public sealed partial class PrivateWorldRuntime
         var fertility = new LandFertility(map, seed);
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(roads).Concat(simulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position))).ToHashSet();
+                content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+            .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles)).ToHashSet();
         if (fields.Select(field => field.Position).Distinct().Count() != fields.Length ||
             !fields.SequenceEqual(fields.OrderBy(field => field.Position.Y).ThenBy(field => field.Position.X)) ||
             fields.Where(field => field.Work is not null).GroupBy(field => field.Work!.WorkerId).Any(group => group.Count() > 1))

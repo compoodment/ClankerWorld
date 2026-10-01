@@ -196,7 +196,8 @@ public partial class Main
 
     private readonly OwnerActionGate ownerActionGate = new();
 
-    private async Task RunOwnerActionAsync(Func<Task<string>> action, bool waitForTurn = false)
+    private async Task RunOwnerActionAsync(Func<Task<string>> action, bool waitForTurn = false,
+        string? conflictMessage = null)
     {
         await ownerActionGate.RunAsync(async () =>
         {
@@ -209,6 +210,11 @@ public partial class Main
                 var detail = await action();
                 SetStatus(detail, good: true);
                 await RefreshAsync();
+            }
+            catch (System.Net.Http.HttpRequestException exception)
+                when (exception.StatusCode == System.Net.HttpStatusCode.Conflict && conflictMessage is not null)
+            {
+                SetStatus(conflictMessage, good: false);
             }
             catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
             {

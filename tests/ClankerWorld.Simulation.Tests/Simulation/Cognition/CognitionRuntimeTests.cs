@@ -18,7 +18,7 @@ public sealed class CognitionRuntimeTests
     }
 
     [Fact]
-    public void LowConfidenceProviderResponseFallsBackToDeterministicCandidate()
+    public void LowConfidenceLegalChoiceIsAccepted()
     {
         var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 2));
         var request = runtime.IssueRequest(CreateObservation());
@@ -31,9 +31,9 @@ public sealed class CognitionRuntimeTests
             confidence: 0.2));
 
         Assert.True(result.Accepted);
-        Assert.True(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Equal(CognitionRequestState.Fallback, runtime.Capture().Requests.Single().State);
+        Assert.False(result.FellBack);
+        Assert.Equal("seek_food", result.Intention?.CandidateId);
+        Assert.Equal(CognitionRequestState.Applied, runtime.Capture().Requests.Single().State);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class CognitionRuntimeTests
         Assert.True(result.Accepted);
         Assert.True(result.FellBack);
         Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Contains("provider_failure", result.Outcome, StringComparison.Ordinal);
+        Assert.Equal("model_unavailable", result.Outcome);
     }
 
     private static InhabitantObservation CreateObservation(

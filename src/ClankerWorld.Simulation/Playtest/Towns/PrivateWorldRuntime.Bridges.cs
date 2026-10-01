@@ -31,7 +31,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat(fields.Select(field => field.Position))
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
-                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position)))
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .ToHashSet();
     }
 
