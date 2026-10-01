@@ -161,6 +161,99 @@ public sealed class CaregiverFoodRoutingTests
         finally { world.Dispose(); }
     }
 
+    [Fact]
+    public async Task CaregiverFeedsInfantFromTheHouseholdPotAcrossReload()
+    {
+        var options = new GeographyOptions("island-fuel-review-0", WorldSizePreset.Small);
+        using var initial = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+        initial.InitializeFirstTownContent();
+        initial.AcceptFirstTownLayout(new GridPoint(136, 14));
+        var setupMap = initial.ExportState().Map;
+        var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var others = new[] { new GridPoint(131, 9), new GridPoint(132, 9), new GridPoint(133, 9) };
+        var actorPosition = setupMap.Tiles.First(tile => setupMap.IsBuildable(tile.Position) &&
+            setupMap.FootDistance(tile.Position, house.Position) is > 1 and <= 4 && !others.Contains(tile.Position) &&
+            !setupMap.Resources.Any(resource => resource.Position == tile.Position)).Position;
+        var ids = Enumerable.Range(1, 4).Select(index => $"founder:{index:D32}").ToArray();
+        initial.PlaceFounder(ids[0], actorPosition);
+        for (var index = 1; index < 4; index++) initial.PlaceFounder(ids[index], others[index - 1]);
+        initial.StartWorld();
+        var state = initial.ExportState();
+        var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
+        var society = state.Society.Society;
+        society = SocietyFixture.ProposeRelationship(society, new("pot-care-parents", 1,
+            SocietyRelationshipType.Partnership, ids[0], ids[1], society.WorldTick)).Checkpoint;
+        society = SocietyFixture.AcceptRelationship(society, "pot-care-parents", 1, ids[1]).Checkpoint;
+        var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
+        var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
+            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
+        var childId = Assert.IsType<string>(birth.CreatedId);
+        society = birth.Checkpoint;
+        // The household's only food is in its House pot.
+        var inventory = society.Inventory with
+        {
+            Lots = society.Inventory.Lots.Where(lot => !(InventoryContainerRules.IsFood(lot.ItemKind) &&
+                (lot.OwnerId == household || ids.Contains(lot.OwnerId)))).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "care-pot", InventoryContainerRules.StoragePot, household, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "care-pot-food", "food", household, 6,
+            storageBuildingId: house.InstanceId, containerLotId: "care-pot");
+        society = society with { Inventory = inventory };
+        var childPosition = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
+            state.Map.FootDistance(tile.Position, actorPosition) == 1 &&
+            !state.Inhabitants.Any(person => person.Position == tile.Position)).Position;
+        var systems = state.WorldSystems!;
+        state = state with
+        {
+            Society = state.Society with { Society = society },
+            Survival = new SettlementSurvivalState(0, []),
+            Inhabitants = state.Inhabitants.Append(new PlaytestInhabitantState(childId, childPosition, 1_000, 0,
+                "curious", "grow", Survival: new SurvivalCondition())).Select(person => person with
+                {
+                    HungerBasisPoints = person.InhabitantId == childId ? 1_000 : 9_000,
+                    Survival = new SurvivalCondition(WarmthBasisPoints: 10_000),
+                }).ToArray(),
+            Towns = state.Towns!.Select(town => town.ResidentIds.Contains(ids[0])
+                ? town with { ResidentIds = town.ResidentIds.Append(childId).Order(StringComparer.Ordinal).ToArray() } : town).ToArray(),
+            WorldSystems = systems with
+            {
+                RegionalWeather = null,
+                Config = systems.Config with { WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 1, 0, 0, 0, 0)).ToArray() },
+                Climate = systems.Climate with { Weather = WeatherKind.Clear },
+            },
+        };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
+        var provider = new CareProvider(ids[0]);
+        var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        try
+        {
+            for (var tick = 0; tick < 60 &&
+                world.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints < 3_000; tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                if (tick == 3)
+                {
+                    var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+                    world.Dispose();
+                    world = PrivateWorldRuntime.Restore(saved, _ => provider);
+                }
+            }
+            var result = world.ExportState();
+            Assert.True(result.Inhabitants.Single(person => person.InhabitantId == childId).HungerBasisPoints >= 3_000,
+                string.Join("\n", result.Events.Where(item => item.Detail.Contains(ids[0], StringComparison.Ordinal)).TakeLast(20)
+                    .Select(item => $"{item.WorldTick} {item.Kind}: {item.Detail}")));
+            Assert.Contains(result.Events, item => item.Kind == "food_taken_from_pot" &&
+                item.Detail.StartsWith($"{ids[0]}:care-pot:", StringComparison.Ordinal));
+            Assert.Contains(result.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
+            Assert.True(world.Society.Inventory.GetLot("care-pot-food").Quantity < 6);
+            Assert.Equal(household, world.Society.Inventory.GetLot("care-pot").OwnerId);
+            Assert.Equal(house.InstanceId, world.Society.Inventory.GetLot("care-pot").StorageBuildingId);
+            world.Validate();
+        }
+        finally { world.Dispose(); }
+    }
+
     private sealed class CareProvider(string actor) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
