@@ -175,6 +175,37 @@ public sealed class TownLandRightsTests
         }));
     }
 
+    [Fact]
+    public void RestoreRejectsNullTownIdsBeforeLookingUpTownRecords()
+    {
+        using var world = CreateStartedTown("town-land-rights-null-town-id");
+        var state = world.ExportState();
+        Assert.NotEmpty(state.TownLandTitles!);
+        Assert.NotEmpty(state.HouseholdLandUseRights!);
+        var title = state.TownLandTitles![0];
+        var right = state.HouseholdLandUseRights![0];
+        var town = Assert.Single(state.Towns!, item => item.Id == TownBorderRules.FirstTownId);
+        var household = state.Society.Society.Households[0];
+        var agent = state.Society.Society.Inhabitants.First(person =>
+            person.HouseholdId == household.Id && person.Status == SocietyInhabitantStatus.Active);
+        var plot = title.Tiles.Take(1).ToArray();
+        var request = new HouseholdLandUseRequest("request:null-town", town.Id, household.Id,
+            agent.Id, plot, state.Society.Society.WorldTick);
+
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
+        {
+            TownLandTitles = [title with { TownId = null! }],
+        }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRights = [right with { TownId = null! }],
+        }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRequests = [request with { TownId = null! }],
+        }));
+    }
+
     private static PrivateWorldRuntime CreateStartedTown(string seed)
     {
         var geography = new GeographyOptions(seed, WorldSizePreset.Small);

@@ -296,6 +296,9 @@ public sealed partial class PrivateWorldRuntime
         jevPolicyRevision = proposed.jevPolicyRevision;
         founderSetup = proposed.founderSetup;
         towns = proposed.towns;
+        townLandTitles = proposed.townLandTitles;
+        householdLandUseRights = proposed.householdLandUseRights;
+        householdLandUseRequests = proposed.householdLandUseRequests;
         roadTiles = proposed.roadTiles;
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;

@@ -159,8 +159,9 @@ public static class TownLandRightsRules
         var titledTiles = new HashSet<GridPoint>();
         foreach (var title in titles)
         {
-            if (!ValidId(title.Id) || !townsById.TryGetValue(title.TownId, out var town) || town.OriginSite is null ||
-                !ValidId(title.TownId) || !IsValidPlot(map, title.Tiles, worldTick, title.RecordedTick) ||
+            if (!ValidId(title.Id) || !ValidId(title.TownId) ||
+                !townsById.TryGetValue(title.TownId, out var town) || town.OriginSite is null ||
+                !IsValidPlot(map, title.Tiles, worldTick, title.RecordedTick) ||
                 title.Tiles.Any(tile => !town.BorderTiles.Contains(tile) || !titledTiles.Add(tile)))
                 throw new InvalidDataException("A saved Town title is invalid or outside its recorded Town border.");
         }
@@ -171,7 +172,7 @@ public static class TownLandRightsRules
         var grantedUseTiles = new HashSet<GridPoint>();
         foreach (var right in rights)
         {
-            if (!ValidId(right.Id) || !townsById.ContainsKey(right.TownId) || !ValidId(right.TownId) ||
+            if (!ValidId(right.Id) || !ValidId(right.TownId) || !townsById.ContainsKey(right.TownId) ||
                 !households.Contains(right.HouseholdId) || !ValidId(right.HouseholdId) ||
                 !ValidText(right.GrantSource, 64) ||
                 !IsValidPlot(map, right.Tiles, worldTick, right.GrantedTick, right.AgreedEndTick) ||
@@ -182,7 +183,7 @@ public static class TownLandRightsRules
 
         foreach (var request in requests)
         {
-            if (!ValidId(request.Id) || !townsById.ContainsKey(request.TownId) || !ValidId(request.TownId) ||
+            if (!ValidId(request.Id) || !ValidId(request.TownId) || !townsById.ContainsKey(request.TownId) ||
                 !households.Contains(request.HouseholdId) || !ValidId(request.HouseholdId) ||
                 !ValidId(request.RequestedByAgentId) || !agents.Contains(request.RequestedByAgentId) ||
                 !IsValidPlot(map, request.Tiles, worldTick, request.RequestedTick, request.AgreedEndTick) ||
