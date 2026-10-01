@@ -140,6 +140,39 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(4, world.Inhabitants.Count);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FirstCousinsButNotAuntsOrUnclesCanPlanAChild(bool cousins)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var third = state.Inhabitants[2].InhabitantId;
+        var fourth = state.Inhabitants[3].InhabitantId;
+        if (cousins)
+        {
+            (state, var grandparent) = FamilyTreeFixture.WithDeadAncestor(state, "grandparent");
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (grandparent, third), (grandparent, fourth), (third, first), (fourth, second));
+        }
+        else
+        {
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (fourth, first), (fourth, third), (third, second));
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
+        await world.AdvanceOneTickAsync();
+        if (cousins)
+        {
+            Assert.Equal("requested", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
+        }
+        else
+        {
+            Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
+        }
+    }
+
     [Fact]
     public async Task EndingPartnershipCancelsPreparation()
     {
