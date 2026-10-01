@@ -520,8 +520,19 @@ public partial class Main
             .Select(item => item.HouseholdId)
             .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
                 .Select(item => (string?)item.HouseholdId));
+        var rights = snapshot.HouseholdLandUseRights
+            .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var requests = snapshot.HouseholdLandUseRequests
+            .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var claimants = rights.Select(item => item.HouseholdId)
+            .Concat(requests.Select(item => item.HouseholdId))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (claimants.Length > 1) householdOwners = householdOwners.Concat(claimants);
+        else householdOwners = householdOwners.Concat(rights.Select(item => item.HouseholdId));
         var townIds = snapshot.Towns
-            .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y))
+            .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||
+                snapshot.TownLandTitles.Any(title => title.TownId == item.Id &&
+                    title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)))
             .Select(item => item.Id);
         return AgentPlacementRules.Resolve(householdOwners, townIds);
     }
@@ -533,7 +544,7 @@ public partial class Main
         return (household, town) switch
         {
             (true, true) => "Household property and Town borders overlap here. Choose another tile.",
-            (true, false) => "Household property overlaps here. Choose a tile with one clear household owner.",
+            (true, false) => "Household property or land claims overlap here. Choose a tile with one clear household owner.",
             (false, true) => "Town borders overlap here. Choose a tile inside only one Town.",
             _ => "This tile cannot be used for Add Agent.",
         };

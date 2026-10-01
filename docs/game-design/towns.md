@@ -551,22 +551,35 @@ building. The generator should not preselect a fixed lifetime building count.
 
 ### Town land and household use rights
 
-The **Town holds formal title** to land it claims; households hold inspectable
-**use rights** for homes, farms and businesses rather than household land title.
-The Town border alone does not silently take over another claim or transfer a
-building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. A later mayor, once that role exists,
-reviews land rights; how that office is created and what changes it may make
-remain open. The first Town begins with a council, not an assumed mayor.
+The **Town holds formal title** to land; a household can hold a separate,
+inspectable **right to use** a plot for its homes, fields or businesses. A plot
+is a connected group of land tiles and can include empty land. The first
+accepted Town layout records title to the connected land in that layout's
+border. Later border growth makes room for the Town but does not silently add
+title. A household's starter use rights cover the footprints of the buildings
+assigned to it; the shared Warehouse remains Town property.
 
-Competing requests are visible as **pending disputes**. While one is pending,
-conflicting formal rights transfers pause; residents are not evicted, goods
-are not seized and ordinary physical movement is not stopped by the dispute
-record. Resolution needs an adjudicator authorized by Town law, with the
-authority, evidence and exact change recorded. With no such law or adjudicator,
-the dispute remains pending; there is no automatic first-claimer winner.
-Plot boundaries, ordinary shared-use grants, expiry and transfer procedures,
-and the future mayor's precise powers still need decisions.
+**Agreed on October 1:** ordinary household use permission continues unless it
+is disputed, and households may agree on an optional end date. A household may
+transfer a use right by agreement; a mayor's approval is not required for every
+transfer. An ordinary new grant needs the proper Town approval and acceptance
+by the household that will use the land. A voluntary grant or transfer needs
+every current adult in each affected household to agree, with at least one
+valid adult signatory. Filing a request alone is never consent. These are the
+agreed rules; their approval, consent and transfer actions are not part of the
+saved-record foundation described in [what works today](../what-works.md).
+
+Conflicting claims remain **pending** until a lawful case decision changes the
+record. Disputed land is striped on the map; clicking a tile lists the Town
+title, each household's use right or pending request, and the households
+claiming it. An expired permission is provisional until a valid decision is
+recorded. A dispute does not take title, a building, crops or goods from anyone,
+evict residents, or stop ordinary walking and work access. The accepted case
+and hearing rules are recorded in [PR #636](https://github.com/compoodment/ClankerWorld/pull/636);
+this foundation does not invent a judge or resolve a case. The government and
+case execution work is tracked separately in
+[#631](https://github.com/compoodment/ClankerWorld/issues/631) and
+[#633](https://github.com/compoodment/ClankerWorld/issues/633).
 
 ### How Roads and bridges appear
 

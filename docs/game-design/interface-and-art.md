@@ -81,9 +81,9 @@ everything that is available in the current build. See [what works today](../wha
   notification proposal; an agent's inspectable info panel is not an event
   notice.
 - World Info should let the player inspect discovered capabilities and other
-  world information. Filters should reveal established Town land claims,
-  household use areas and property, Town borders, and similar world facts.
-  The UI must not invent ownership or borders that agents have not established.
+  world information. Separate map filters show Town title, household land use,
+  disputed land, household property and Town borders. The UI must not invent
+  ownership or borders that agents have not established.
 - **Agreed on September 30:** World Info lists discovered capabilities from
   recorded discoveries only. When nothing has been discovered it says
   **No recorded discoveries**, rather than listing every built-in recipe as
@@ -223,6 +223,10 @@ everything that is available in the current build. See [what works today](../wha
   Town borders show as a pale dashed line along the border's edge (option B of
   four looks). Add Agent placement still shows Town borders and household
   property while placing, without switching the Filters on.
+- **Agreed on October 1:** show Town title and household use rights as separate
+  map overlays. Stripe land with competing household claims; clicking a tile
+  lists the Town title, each household's use right or pending request, and the
+  households claiming it. Add Agent placement shows these records as well.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player
@@ -244,13 +248,13 @@ everything that is available in the current build. See [what works today](../wha
   context remains open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
   household and which Town the new agent will belong to. One shared rule
-  decides this, checked in this order: household property first, then
-  unclaimed land inside a Town, then land outside both. The preview is not a
-  reservation: when the player confirms, the game checks the same map again and
-  tells the player if the placement changed. If claims or Towns overlap so that
-  the answer is ambiguous, the placement is refused and the game explains why.
-  It is never decided by list order or distance. How claims and use rights
-  work is in
+  decides this from household property and recorded land-use rights, then Town
+  title or border, then land outside both. A single pending use request does
+  not create household membership. Conflicting household claims make placement
+  ambiguous and are refused. The preview is not a reservation: when the player
+  confirms, the game checks the same map again and tells the player if the
+  placement changed. It is never decided by list order or distance. How claims
+  and use rights work is in
   [Town land and household use rights](towns.md#town-land-and-household-use-rights).
 - Selecting an agent opens an **interactive info popup near that agent**. The
   player can change that agent's provider and model there, including choosing

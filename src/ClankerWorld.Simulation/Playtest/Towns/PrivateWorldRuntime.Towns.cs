@@ -184,9 +184,21 @@ public sealed partial class PrivateWorldRuntime
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
                 WorldContentSimulationRules.Footprint(definition, building).Contains(position))
             .Select(building => building.HouseholdId)
-            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
-        var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
+            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId))
+            .Concat(HouseholdLandClaimantsAt(position));
+        var townIds = towns.Where(item => item.BorderTiles.Contains(position) ||
+                TownLandRightsRules.IsCoveredByTownTitle(position, item.Id, townLandTitles))
+            .Select(item => item.Id);
         return AgentPlacementRules.Resolve(householdOwners, townIds);
+    }
+
+    private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position)
+    {
+        var rights = householdLandUseRights.Where(right => right.Tiles.Contains(position)).ToArray();
+        var requests = householdLandUseRequests.Where(request => request.Tiles.Contains(position)).ToArray();
+        if (TownLandRightsRules.IsDisputed(position, rights, requests))
+            return TownLandRightsRules.ClaimantsAt(position, rights, requests);
+        return rights.Select(right => right.HouseholdId);
     }
 
     private static void EnsurePlacementIsUnambiguous(AgentPlacementResolution membership)

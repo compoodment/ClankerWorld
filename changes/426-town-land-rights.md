@@ -1,0 +1,1 @@
+- The first Town now records its land title, starter household use rights and pending land claims. The map shows these separately, and Add Agent follows recorded rights. Grant approval, transfer consent and land-case decisions remain future work.
