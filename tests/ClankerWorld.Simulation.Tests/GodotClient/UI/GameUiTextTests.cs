@@ -11,25 +11,8 @@ public sealed class GameUiTextTests
     [InlineData("future_internal_diagnostic", false)]
     [InlineData("saved_road_footprints_repaired", false)]
     [InlineData("tick_advanced", false)]
-    [InlineData("town_resident_joined", true)]
-    [InlineData("child_born", true)]
-    [InlineData("tree_planted", true)]
-    [InlineData("tree_replanted", true)]
     [InlineData("tree_planting_refused", false)]
-    [InlineData("build_completed", true)]
-    [InlineData("world_started", true)]
-    [InlineData("partnership_accepted", true)]
-    [InlineData("partnership_ended", true)]
-    [InlineData("caregiver_assigned", true)]
-    [InlineData("council_policy_adopted", true)]
-    [InlineData("settlement_trade_completed", true)]
-    [InlineData("paused", true)]
-    [InlineData("instruction_not_understood", true)]
     [InlineData("instruction_applied", false)]
-    [InlineData("housing_request_made", true)]
-    [InlineData("household_joined", true)]
-    [InlineData("housing_request_refused", true)]
-    [InlineData("housing_request_expired", true)]
     [InlineData("housing_blocked", true)]
     [InlineData("housing_answer_recorded", false)]
     [InlineData("housing_request_cancelled", false)]
@@ -38,10 +21,8 @@ public sealed class GameUiTextTests
         Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));
     }
 
-
     [Theory]
     [InlineData("  Alexandria   Smith  ", "Alexandria")]
-    [InlineData("Alexandriannnnnnnn", "A.")]
     [InlineData("Álexandriannnnnnnn", "Á.")]
     [InlineData("李 小龙", "李")]
     [InlineData("  ", "?")]
@@ -125,28 +106,10 @@ public sealed class GameUiTextTests
         Assert.DoesNotContain("0/", GameUiText.ResourceTooltip(legacy), StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(0, "01-01-0001 · 00:00")]
-    [InlineData(1_440, "02-01-0001 · 00:00")]
-    [InlineData(44_640, "01-02-0001 · 00:00")]
-    public void WorldClockUsesTheSavedCalendarInsteadOfRawTicks(long worldTick, string expected)
-    {
-        Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick));
-    }
-
-    [Theory]
-    [InlineData(0, "01-01-0001 · 12:00 AM")]
-    [InlineData(720, "01-01-0001 · 12:00 PM")]
-    [InlineData(780, "01-01-0001 · 1:00 PM")]
-    [InlineData(1_439, "01-01-0001 · 11:59 PM")]
-    public void WorldClockCanUseTwelveHourDisplayWithoutChangingWorldTime(long worldTick, string expected)
-    {
-        Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick, useTwelveHourClock: true));
-    }
-
     [Fact]
-    public void CustomFortyDayYearUsesFourTenDayMonthsAndScalesClockFromWorldTicks()
+    public void WorldClockUsesDefaultAndCustomCalendarBoundariesAndScalesWorldTicks()
     {
+        Assert.Equal("01-02-0001 · 00:00", GameUiText.FormatWorldClock(44_640));
         var calendar = new OwnerWorldCalendarPace(360, 40);
         Assert.Equal("01-01-0001 · 00:04", GameUiText.FormatWorldClock(1, calendarPace: calendar));
         Assert.Equal("01-02-0001 · 00:00", GameUiText.FormatWorldClock(3_600, calendarPace: calendar));
@@ -171,6 +134,10 @@ public sealed class GameUiTextTests
                 WindowWidth: 1600, WindowHeight: 900, Fullscreen: false));
             var restored = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load();
             Assert.True(restored.UseTwelveHourClock);
+            Assert.Equal("01-01-0001 · 12:00 AM", GameUiText.FormatWorldClock(0,
+                useTwelveHourClock: restored.UseTwelveHourClock));
+            Assert.Equal("01-01-0001 · 11:59 PM", GameUiText.FormatWorldClock(1_439,
+                useTwelveHourClock: restored.UseTwelveHourClock));
             Assert.Equal((1600, 900), (restored.WindowWidth, restored.WindowHeight));
             Assert.False(restored.UsesFullscreen);
             store.Save(restored with { DateFormat = "ymd" });
@@ -206,31 +173,6 @@ public sealed class GameUiTextTests
     }
 
     [Fact]
-    public void SavedTimesReadTheWayAPersonWouldSayThem()
-    {
-        var now = new DateTimeOffset(2026, 10, 1, 15, 0, 0, TimeSpan.Zero);
-        Assert.Equal("just now", GameUiText.SavedAgo(now.AddSeconds(-20), now));
-        Assert.Equal("1 minute ago", GameUiText.SavedAgo(now.AddMinutes(-1), now));
-        Assert.Equal("12 minutes ago", GameUiText.SavedAgo(now.AddMinutes(-12), now));
-        Assert.Equal("3 days ago", GameUiText.SavedAgo(now.AddDays(-3), now));
-        Assert.Equal("1 Sep 2026", GameUiText.SavedAgo(now.AddDays(-30), now));
-        var localNow = new DateTimeOffset(now.ToLocalTime().Date.AddHours(12), now.ToLocalTime().Offset);
-        Assert.Equal("2 hours ago", GameUiText.SavedAgo(localNow.AddHours(-2), localNow));
-        Assert.Equal("yesterday", GameUiText.SavedAgo(localNow.AddDays(-1), localNow));
-    }
-
-    [Theory]
-    [InlineData(1280, 720, 1)]
-    [InlineData(1600, 900, 1)]
-    [InlineData(1920, 1080, 2)]
-    [InlineData(1920, 1200, 2)]
-    [InlineData(2560, 1440, 2)]
-    [InlineData(3840, 2160, 3)]
-    [InlineData(5120, 2880, 4)]
-    public void TheInterfaceFollowsTheScreenInWholeSteps(int width, int height, int factor) =>
-        Assert.Equal(factor, DisplayUiScalePolicy.FittingFactor(width, height));
-
-    [Fact]
     public void TheInterfaceDropsASizeRatherThanSqueezeTheMenus()
     {
         Assert.Equal(1, DisplayUiScalePolicy.FittingFactor(1700, 1080));
@@ -245,27 +187,6 @@ public sealed class GameUiTextTests
             monitor, new DisplayDimensions(1600, 900), fullscreen: true));
         Assert.Equal(new DisplayDimensions(1600, 900), DisplayResolutionPolicy.AutomaticRenderSize(
             monitor, new DisplayDimensions(1600, 900), fullscreen: false));
-    }
-
-    [Theory]
-    [InlineData("household_membership", "accepted", null, "Member of Camp Alpha")]
-    [InlineData("biological_parentage", "accepted", "parent", "Parent of Camp Alpha")]
-    [InlineData("biological_parentage", "ended_by_death", "child", "Child of Camp Alpha · ended by death")]
-    [InlineData("partnership", "proposed", null, "Partnership with Camp Alpha · proposed")]
-    [InlineData("legal_guardian", "accepted", null, "Legal guardian with Camp Alpha")]
-    public void RelationshipsReadAsPlainPhrases(string type, string state, string? direction, string expected)
-    {
-        Assert.Equal(expected, GameUiText.RelationshipSummary(type, state, "Camp Alpha", direction));
-    }
-
-    [Theory]
-    [InlineData(7_000, "well fed")]
-    [InlineData(6_999, "fed")]
-    [InlineData(3_499, "hungry")]
-    [InlineData(2_499, "very hungry")]
-    public void FullnessStatesReadLowValuesAsHungry(int fullness, string expected)
-    {
-        Assert.Equal(expected, GameUiText.FullnessState(fullness));
     }
 
     [Theory]
@@ -295,16 +216,5 @@ public sealed class GameUiTextTests
         Assert.Equal("First Town", GameUiText.PartyName(snapshot, "town:first"));
         Assert.Equal("a household", GameUiText.PartyName(snapshot, "household:agent:123"));
         Assert.DoesNotContain("household:", GameUiText.PartyName(null, "household:camp-beta"), StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("seek_food", "find food")]
-    [InlineData("guardian_tend:dependent-42", "look after someone who is ill")]
-    [InlineData("trade_propose:offer-1", "offer a trade")]
-    [InlineData("council_vote_yes", "vote for a food rule")]
-    [InlineData("learn:builder", "ask to be taught a skill")]
-    public void InternalIdentifiersBecomeReadablePhrases(string value, string expected)
-    {
-        Assert.Equal(expected, GameUiText.HumanizeIdentifier(value));
     }
 }

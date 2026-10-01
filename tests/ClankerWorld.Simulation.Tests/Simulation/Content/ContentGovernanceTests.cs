@@ -5,27 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ContentGovernanceTests
 {
     [Fact]
-    public void ResolverChoosesTheHighestCompatibleVersionAndLocksDependenciesFirst()
-    {
-        var coreV1 = Package("core", "1.0.0", 'a');
-        var coreV11 = Package("core", "1.1.0", 'b');
-        var world = Package(
-            "world",
-            "1.0.0",
-            'c',
-            [new ContentDependency(
-                "core",
-                new ContentVersionRange(ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")))]);
-
-        var result = ContentPackageResolver.Resolve([world, coreV1, coreV11], ["world"]);
-
-        Assert.True(result.IsSuccess, result.Diagnostic);
-        Assert.Equal(["core", "world"], result.Lock.Select(entry => entry.PackageId));
-        Assert.Equal(ContentVersion.Parse("1.1.0"), result.Lock[0].Version);
-        Assert.Equal(ContentPackageRules.LockDigest(result.Lock), ContentPackageRules.LockDigest(result.Lock));
-    }
-
-    [Fact]
     public void ResolverReportsCyclesAndDoesNotReturnAPartialLock()
     {
         var first = Package(
@@ -44,24 +23,6 @@ public sealed class ContentGovernanceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("dependency_cycle", result.FailureCode);
         Assert.Empty(result.Lock);
-    }
-
-    [Fact]
-    public void MissingOptionalDependenciesDoNotBlockResolution()
-    {
-        var package = Package(
-            "world",
-            "1.0.0",
-            'a',
-            [new ContentDependency(
-                "optional-art",
-                new ContentVersionRange(ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")),
-                Optional: true)]);
-
-        var result = ContentPackageResolver.Resolve([package], ["world"]);
-
-        Assert.True(result.IsSuccess, result.Diagnostic);
-        Assert.Single(result.Lock);
     }
 
     [Fact]

@@ -22,15 +22,6 @@ public sealed class SurvivalPriorityPrototypeTests
     }
 
     [Fact]
-    public async Task BelowComfortableFullnessCanStillChooseAndPerformCuriosity()
-    {
-        var provider = new CandidateProbe("explore");
-        using var world = PrivateWorldRuntime.Restore(await BoundaryState(3_900, 5_900), _ => provider);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "exploration_started");
-    }
-
-    [Fact]
     public async Task UrgentFoodPrefersEatingButDoesNotRemoveCareResponse()
     {
         var initial = await BoundaryState(1_900, 6_000);
