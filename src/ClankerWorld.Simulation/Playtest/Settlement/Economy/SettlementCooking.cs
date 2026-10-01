@@ -60,7 +60,7 @@ public sealed partial class PrivateWorldRuntime
 
     private int MealFullness(InventoryLot lot) => FoodItems.Fullness(lot.ItemKind) + (IsEnrichedPorridge(lot) ? 500 : 0);
 
-    private bool IsLegacyCampCooking(RecipeDefinition recipe) => founderSetup is not null &&
+    private bool IsLegacyCampCooking(RecipeDefinition recipe) => geographyOptions is not null && founderSetup is not null &&
         recipe.PackageDigest == LegacyCookingPackageDigest && recipe.LocalId == "meal";
 
     /// <summary>Only filled, unreserved whole jugs are moved; water contents never leave their vessel.</summary>
@@ -68,6 +68,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var householdId = HouseholdFor(actor);
         var inventory = society.Checkpoint.Inventory;
+        var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
         return inventory.Lots.Where(jug => jug.ItemKind == "water_jug" && jug.ContainerLotId is null &&
                 jug.StorageBuildingId != building.InstanceId && AvailableLotQuantity(jug) == 1 &&
                 (jug.OwnerId == actor && jug.StorageBuildingId is null && jug.DeliveryBuildingId is null ||
@@ -76,7 +77,7 @@ public sealed partial class PrivateWorldRuntime
                 !inventory.Reservations.Any(reservation => (reservation.State is InventoryReservationState.Reserved or
                     InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed) &&
                     (reservation.LotId == jug.Id || inventory.Lots.Any(contents => contents.Id == reservation.LotId && contents.ContainerLotId == jug.Id))) &&
-                InventoryFixture.TransferLoadQuantity(inventory, jug.Id, 1) <= StorageRoom(building.InstanceId) &&
+                InventoryFixture.TransferLoadQuantity(inventory, jug.Id, 1) <= Math.Max(0, StorageRoom(building.InstanceId) - incoming) &&
                 (jug.OwnerId == actor || InventoryFixture.TransferLoadQuantity(inventory, jug.Id, 1) <= CarryingRoom(actor)))
             .OrderBy(jug => jug.OwnerId == actor ? 0 : 1).ThenBy(jug => jug.Id, StringComparer.Ordinal).FirstOrDefault();
     }
