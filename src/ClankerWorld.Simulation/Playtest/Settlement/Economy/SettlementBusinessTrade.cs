@@ -133,6 +133,7 @@ public sealed partial class PrivateWorldRuntime
             return InventoryFixture.Transfer(paid, offer.Id + ":goods", offer.HouseholdId,
                 buyerId, offer.GoodsLotId, offer.GoodsQuantity, "business_purchase");
         }, offer.Id);
+        ReadTradedKnowledge(offer.SellerId, buyerId, offer.GoodsLotId, offer.PaymentLotId);
         SetBusinessOffer(offer with { State = BusinessOfferState.Settled, Blocker = null });
         businessTrade = businessTrade with { Listings = businessTrade.Listings.Where(item => item.Id != offer.ListingId).ToArray() };
         AppendEvent("business_exchange_completed", $"{buyerId}|{offer.SellerId}|{offer.Id}|{site.InstanceId}");
