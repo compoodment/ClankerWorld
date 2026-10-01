@@ -88,7 +88,12 @@ public sealed partial class SettlementParenthoodTests
             var originalWorldId = catalog.Active().Id;
             var selection = new WorldSelectionCoordinator(catalog, world, stateFile, providers, autosave,
                 new WorldJevPolicy(), NullLogger<WorldSelectionCoordinator>.Instance, ProviderFor);
-            _ = selection.Create("Child binding check", new GeographyOptions("child-binding-switch", WorldSizePreset.Small));
+            var switchOptions = new GeographyOptions("child-binding-switch", WorldSizePreset.Small,
+                WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion);
+            var switchPreview = selection.Preview(switchOptions);
+            Assert.NotNull(switchPreview.MapLayersDigest);
+            _ = selection.Create("Child binding check", switchOptions, switchPreview.Coverage!.Attempt,
+                switchPreview.ManifestDigest, switchPreview.MapLayersDigest, acceptUnmetTargets: true);
             _ = selection.Select(originalWorldId);
 
             _ = providers.Configure(new("personal", "ollama-cloud", "later-parent-model", "later-parent-secret",

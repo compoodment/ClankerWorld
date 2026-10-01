@@ -838,6 +838,51 @@ public partial class Main
                 worldAdvancedToggle.ButtonPressed = true;
                 if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
+                var missedCoverage = new OwnerWorldCandidateReport(2, 100, 15, 10, 15, 10,
+                    2, 10, 1, 10, true, true, false, true);
+                previewedWorldOptions = CurrentWorldOptions();
+                previewedWorldResult = new OwnerWorldPreview(new OwnerWorldPackedTerrain(1, 1, "terrain-v1", "AA=="),
+                    new OwnerWorldPosition(0, 0), "preview-manifest")
+                {
+                    MapLayersDigest = "preview-layers",
+                    Coverage = missedCoverage,
+                    Candidates = [missedCoverage],
+                };
+                worldAcceptUnmetTargets.Show();
+                if (CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("A preview that misses a default Balanced target must require explicit acceptance.");
+                worldAcceptUnmetTargets.ButtonPressed = true;
+                if (!CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("Explicitly accepting displayed coverage misses must enable creation of that preview.");
+                worldAcceptUnmetTargets.ButtonPressed = false;
+                var mountainOnly = missedCoverage with { ForestTargetApplicable = false, ForestTargetMet = false };
+                var mountainOnlyPreview = previewedWorldResult with
+                {
+                    Coverage = mountainOnly,
+                    Candidates = [mountainOnly],
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview);
+                if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                var forestOnly = missedCoverage with
+                {
+                    ForestTargetApplicable = true,
+                    ForestTargetMet = false,
+                    MountainTargetApplicable = false,
+                    MountainTargetMet = false,
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = forestOnly, Candidates = [forestOnly] });
+                if (!worldPreviewStatus.Text.Contains("Missed: Forest 15.0%", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("Candidate results:", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name a missed Normal target and candidate results when only forest is targeted.");
+                var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
+                if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("15.0% forest and 10.0% mountains", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
+                InvalidateWorldPreview(refresh: false);
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))
