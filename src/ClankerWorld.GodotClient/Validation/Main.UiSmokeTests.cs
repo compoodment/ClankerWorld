@@ -2713,11 +2713,26 @@ public partial class Main
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
-            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
-            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+            var family = new List<OwnerWorldInhabitant> { parent, child, partner };
+            var currentParent = parent;
+            for (var generation = 0; generation < 8; generation++)
+            {
+                var ancestor = parent with
+                {
+                    Id = $"ancestor:{generation}",
+                    DisplayName = $"Ancestor {generation + 1}",
+                    Relationships = [new OwnerWorldInhabitantRelationship($"birth:ancestor:{generation}", currentParent.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent")],
+                };
+                family.Add(ancestor);
+                currentParent = ancestor;
+            }
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = family.ToArray() }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 9 || familyTreeView.PartnerEdgeCount != 1 ||
                 !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
                 !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
-                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
+                family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
             var familyWindow = GetWindow();
             var originalFamilySize = familyWindow.Size;
@@ -2731,6 +2746,9 @@ public partial class Main
                 if (familyTreeScroll.Size.Y <= 0 || familyTreeView.Size.Y <= 0 ||
                     !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect))
                     throw new InvalidOperationException($"Family tree must show its content in a screen-bounded scroll panel at {size}: panel={panelRect}, scroll={scrollRect}, tree={familyTreeView.Size}.");
+                if (size == new Vector2I(1024, 768) &&
+                    familyTreeScroll.GetVScrollBar().MaxValue <= familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A tall family tree must remain scrollable when the panel is capped to the screen.");
             }
             familyWindow.Size = originalFamilySize;
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
