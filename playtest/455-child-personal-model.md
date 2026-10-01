@@ -1,0 +1,4 @@
+# A child's personal model
+
+- On a paired world, give both parents different personal models and keys. Have one begin a family plan, let the other accept, and wait for their child to be born. Open the child's Model panel and check that it shows the model of the parent who began the plan. Confirm the infant makes no paid model calls. ([#455](https://github.com/compoodment/ClankerWorld/issues/455))
+- After the child grows out of infancy, check that it uses the selected model only when its saved key is available and normal call checks allow it. Remove that named key or try the save on another installation; the child should keep its model choice, make safe built-in choices, and never use a different paid model. ([#455](https://github.com/compoodment/ClankerWorld/issues/455))

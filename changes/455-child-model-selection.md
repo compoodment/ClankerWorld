@@ -1,0 +1,1 @@
+- A newborn keeps the model chosen by its parents, with the parent who started their family plan breaking a disagreement. Infants make no model calls. After infancy, a child uses that model only when its own saved key is available and normal call checks allow it; otherwise built-in choices keep the child safe, with no paid fallback.

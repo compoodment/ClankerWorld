@@ -20,9 +20,9 @@ Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
 At birth, a child also saves its personal-model role, provider endpoint, model
-ID, optional installation-local key-slot ID and selection reason. Matching
-parent assignments are disclosed as agreement; when they differ, the parent
-who began the family plan is the tie-break. The provider store preserves that
+ID, installation-local key-slot ID for a hosted model, and selection reason.
+Matching parent assignments are disclosed as agreement; when they differ, the
+parent who began the family plan is the tie-break. The provider store preserves that
 choice if its key is unavailable after moving a save or deleting a key, so the
 child idles on built-in choices until setup is restored rather than using a
 different paid model. A child without an explicit parental model remains

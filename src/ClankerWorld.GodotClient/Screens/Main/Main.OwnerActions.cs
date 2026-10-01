@@ -421,7 +421,8 @@ public partial class Main
         forgetCognitionCredentialButton.Disabled = actionDisabled || selectedProvider == "deterministic" ||
             selectedProviderStatus?.HasCredential != true;
         deleteCognitionCredentialSlotButton.Disabled = actionDisabled ||
-            providerConfiguration?.Assignments?.Any(item => item.CredentialSlotId == SelectedCredentialChoice()) == true;
+            providerConfiguration?.Assignments?.Any(item =>
+                item.CredentialSlotId == SelectedCredentialChoice() && item.SelectionReason is null) == true;
         // A public key can have only one pending server pairing. Keep the
         // visible comparison value stable until it expires or activates.
         pairButton.Disabled = isPairingOperation || deviceKey is null || pendingPairing is not null || registration is not null;

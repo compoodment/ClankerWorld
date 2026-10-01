@@ -60,6 +60,9 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (selection.ChoiceReason == ChildModelChoiceNoParentModel)
+            throw new InvalidDataException("A child with no parental model choice cannot have a provider assignment.");
+
         var endpoint = selection.Provider switch
         {
             "deterministic" => DeterministicModelEndpointIdentity,
@@ -79,9 +82,9 @@ public sealed partial class PrivateWorldRuntime
 
         if (string.IsNullOrWhiteSpace(selection.ModelId) || selection.ModelId.Length > 200 ||
             selection.ModelId != selection.ModelId.Trim() || selection.ModelId.Any(char.IsControl) ||
-            selection.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _))
+            selection.CredentialSlotId is not { } slotId || !Guid.TryParseExact(slotId, "N", out _))
         {
-            throw new InvalidDataException("The saved child model or key-slot reference is invalid.");
+            throw new InvalidDataException("The saved child model or required key-slot reference is invalid.");
         }
     }
 }

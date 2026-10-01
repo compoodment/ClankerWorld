@@ -40,6 +40,9 @@ public sealed record ChildPersonalModelSelection(
     string? CredentialSlotId,
     string ChoiceReason);
 
+/// <summary>A birth-bound child model choice prepared by the playable host.</summary>
+public sealed record PreparedChildModelSelection(string ChildId, ChildPersonalModelSelection Selection);
+
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);

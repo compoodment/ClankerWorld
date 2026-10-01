@@ -112,7 +112,7 @@ public sealed class ProviderConfigurationStoreTests
             var selection = new ChildPersonalModelSelection("personal", "openai",
                 PrivateWorldRuntime.OpenAiModelEndpointIdentity, "inherited-private-model", slotId,
                 PrivateWorldRuntime.ChildModelChoiceInitiatingParent);
-            original.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, () => { });
+            original.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, static _ => { });
             var savedAssignments = original.CaptureStatus().Assignments!;
             Assert.Equal(2, savedAssignments.Count);
             Assert.All(savedAssignments, assignment =>
@@ -172,14 +172,43 @@ public sealed class ProviderConfigurationStoreTests
             var defaultKeyStore = new ProviderConfigurationStore(Path.Combine(directory.FullName, "default-key.json"), EmptySeed());
             _ = defaultKeyStore.Configure(new("planning", "openai", "default-model", "default-key-secret", false));
             var defaultKeySelection = selection with { CredentialSlotId = null, ModelId = "default-model" };
-            defaultKeyStore.ConfigureChildModelSelectionWithCommit("inhabitant-test", defaultKeySelection, () => { });
-            _ = defaultKeyStore.Configure(new("planning", "openai", "default-model", null, true));
+            var boundDefaultSelection = defaultKeyStore.ConfigureChildModelSelectionWithCommit(
+                "inhabitant-test", defaultKeySelection, static _ => { });
+            var localSlotId = Assert.IsType<string>(boundDefaultSelection.CredentialSlotId);
+            Assert.Contains(defaultKeyStore.CaptureStatus().CredentialSlots!, item => item.Id == localSlotId && item.Provider == "openai");
+            var defaultAssignments = defaultKeyStore.CaptureStatus().Assignments!;
+            Assert.All(defaultAssignments, assignment =>
+            {
+                Assert.Equal("default-model", assignment.Model);
+                Assert.Equal(localSlotId, assignment.CredentialSlotId);
+            });
+
+            var movedDefaultKeyStore = new ProviderConfigurationStore(Path.Combine(directory.FullName, "moved-default.json"), EmptySeed());
+            _ = movedDefaultKeyStore.Configure(new("planning", "openai", "different-machine-model", "different-machine-key", false));
+            Assert.True(movedDefaultKeyStore.CanRestoreWorldAssignments(defaultAssignments));
+            movedDefaultKeyStore.RestoreWorldAssignments(defaultAssignments);
+            var movedDefaultHandler = new ProviderResponseHandler();
+            var movedDefaultRouter = new ConfigurableDecisionProvider(movedDefaultKeyStore,
+                new FixedHttpClientFactory(movedDefaultHandler));
+            var movedDefaultRequest = Request(movedDefaultRouter.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.Deterministic, movedDefaultRouter.KindFor(movedDefaultRequest.Observation));
+            Assert.Equal(DecisionProviderKind.Deterministic, (await movedDefaultRouter.DecideAsync(movedDefaultRequest)).Provider);
+            Assert.Null(movedDefaultHandler.LastUri);
+            var retainedDefault = Assert.Single(movedDefaultKeyStore.CaptureStatus().Assignments!,
+                item => item.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("default-model", retainedDefault.Model);
+            Assert.Equal(localSlotId, retainedDefault.CredentialSlotId);
+
+            defaultKeyStore.DeleteCredentialSlot(localSlotId);
+            var afterDelete = new ConfigurableDecisionProvider(defaultKeyStore, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                afterDelete.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
             Assert.Equal("default-model", Assert.Single(defaultKeyStore.CaptureStatus().Assignments!,
                 item => item.Role == "planning").Model);
-            var afterDefaultForget = new ConfigurableDecisionProvider(defaultKeyStore, new FixedHttpClientFactory(handler));
-            Assert.Equal(DecisionProviderKind.Deterministic,
-                afterDefaultForget.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
-            Assert.Null(handler.LastUri);
         }
         finally { directory.Delete(recursive: true); }
     }

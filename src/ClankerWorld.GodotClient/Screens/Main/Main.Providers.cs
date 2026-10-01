@@ -224,7 +224,8 @@ public partial class Main
             SetStatus("Choose a saved key to delete.", good: false);
             return;
         }
-        if (providerConfiguration?.Assignments?.Any(item => item.CredentialSlotId == slotId) == true)
+        if (providerConfiguration?.Assignments?.Any(item =>
+                item.CredentialSlotId == slotId && item.SelectionReason is null) == true)
         {
             SetStatus("An agent is still using this key. Give that agent another key first.", good: false);
             return;
@@ -521,7 +522,7 @@ public partial class Main
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
         deleteCognitionCredentialSlotButton.Text = "Delete named key";
-        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key you no longer use. Move any agents using it to another key first.";
+        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();
         buttons.AddChild(deleteCognitionCredentialSlotButton);
