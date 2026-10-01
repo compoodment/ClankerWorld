@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -12,9 +13,9 @@ public sealed record ProviderUsageStatus(long Attempts, long Completed, long Fai
 
 public sealed record ProviderUsageLimitAction(long? AttemptLimit, long AdditionalCalls = 0);
 
-public sealed class ProviderUsageLimitReachedException : InvalidOperationException
+public sealed class ProviderUsageLimitReachedException : CognitionProviderUnavailableException
 {
-    public ProviderUsageLimitReachedException() : base("The optional paid-call limit was reached. Owner consent is required before another paid call.") { }
+    public ProviderUsageLimitReachedException() : base("usage_limit", "The optional paid-call limit was reached. Owner consent is required before another paid call.") { }
 }
 
 /// <summary>

@@ -64,7 +64,8 @@ public sealed partial class PrivateWorldRuntime
         if (interactionRange == 0 && worldSimulation.Buildings.Any(building =>
                 building.Position == destination &&
                 building.HouseholdId is not null &&
-                building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId))
+                (building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId ||
+                 WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId))))
             occupied.Remove(destination);
         // An occupied exact destination cannot be reached. Keep the household
         // sharing exception above, and avoid searching an entire map for it.

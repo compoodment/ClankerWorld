@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 
@@ -16,7 +17,8 @@ public sealed record PlacedBuilding(
     long PlacedTick,
     string? TownId = null,
     string? HouseholdId = null,
-    GridPoint? Entrance = null);
+    GridPoint? Entrance = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BuildingFootprintRevision? Footprint = null);
 
 public enum WorldProductionJobState
 {
@@ -78,7 +80,9 @@ public sealed record WorldContentSimulationState(
     IReadOnlyList<PlacedBuilding> Buildings,
     IReadOnlyList<WorldProductionJob> ProductionJobs,
     long NextProductionJobSequence,
-    IReadOnlyList<WorldProductionJob>? CropBuilds = null)
+    IReadOnlyList<WorldProductionJob>? CropBuilds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BuildingExpansionJob>? BuildingExpansions = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null)
 {
     public static WorldContentSimulationState Empty { get; } = new([], [], 1, []);
 }
@@ -148,6 +152,9 @@ public static class WorldContentSimulationRules
                 throw new InvalidDataException("Placed buildings must have unique IDs and registered definitions.");
             }
 
+            if (building.Footprint is { } footprint && !BuildingStorageRules.IsSupported(definition, footprint))
+                throw new InvalidDataException("The saved building footprint revision is not supported.");
+            definition = BuildingStorageRules.EffectiveDefinition(definition, building);
             var isHouse = definition.Tags.Contains("house", StringComparer.Ordinal);
             var acceptsHouseholdOwner = definition.Tags.Any(HouseholdBuildingKinds.IsKindTag);
             if (isHouse && string.IsNullOrWhiteSpace(building.HouseholdId) ||
@@ -256,7 +263,7 @@ public static class WorldContentSimulationRules
             .ToHashSet();
         foreach (var existing in existingBuildings)
         {
-            foreach (var point in Footprint(existing.Definition, existing.Placement.Position))
+            foreach (var point in Footprint(existing.Definition, existing.Placement))
             {
                 occupied.Add(point);
             }
@@ -277,6 +284,9 @@ public static class WorldContentSimulationRules
         return besideColumn && (entrance.Y == position.Y - 1 || entrance.Y == position.Y + definition.Height) ||
             besideRow && (entrance.X == position.X - 1 || entrance.X == position.X + definition.Width);
     }
+
+    public static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, PlacedBuilding building) =>
+        Footprint(BuildingStorageRules.EffectiveDefinition(definition, building), building.Position);
 
     public static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint position)
     {

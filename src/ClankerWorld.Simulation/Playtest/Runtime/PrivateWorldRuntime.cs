@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 28;
+    public const int StateSchemaVersion = 30;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
@@ -37,7 +37,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private string worldSeed;
     private GeographyOptions? geographyOptions;
     private readonly Func<string, IDecisionProvider>? providerFactory;
-    private readonly double minimumCognitionConfidence;
     private readonly int maxCognitionDispatchPerCycle;
     private SeededMap map;
     private SocietyWorldRuntime society;
@@ -89,11 +88,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
         int maxCognitionDispatchPerCycle = 4,
-        double minimumCognitionConfidence = 0.5,
         WorldStartPace startPace = WorldStartPace.Legacy,
         GeographyOptions? geographyOptions = null)
-        : this(worldSeed, providerFactory, maxCognitionQueueLength, maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence, startPace, geographyOptions, preparedMap: null)
+        : this(worldSeed, providerFactory, maxCognitionQueueLength, maxCognitionDispatchPerCycle, startPace, geographyOptions, preparedMap: null)
     {
     }
 
@@ -102,7 +99,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         WorldStartPace startPace,
         GeographyOptions? geographyOptions,
         SeededMap? preparedMap,
@@ -120,14 +116,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new ArgumentOutOfRangeException(nameof(maxCognitionQueueLength));
         }
 
-        if (double.IsNaN(minimumCognitionConfidence) ||
-            double.IsInfinity(minimumCognitionConfidence) ||
-            minimumCognitionConfidence is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minimumCognitionConfidence));
-        }
-
-        this.minimumCognitionConfidence = minimumCognitionConfidence;
         this.maxCognitionDispatchPerCycle = maxCognitionDispatchPerCycle;
         contentRegistry = new ContentPackageRegistry();
         worldContent = new DeclarativeWorldContentState([], []);
@@ -144,7 +132,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             providerFactory,
             maxCognitionQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence,
             startPace);
         if (startPace is WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup)
         {
@@ -214,16 +201,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public static PrivateWorldRuntime Restore(
         PrivateWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory = null,
-        int maxCognitionDispatchPerCycle = 4,
-        double minimumCognitionConfidence = 0.5)
-        => RestoreCore(state, providerFactory, maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence, trustedPreparedState: false);
+        int maxCognitionDispatchPerCycle = 4)
+        => RestoreCore(state, providerFactory, maxCognitionDispatchPerCycle, trustedPreparedState: false);
 
     private static PrivateWorldRuntime RestoreCore(
         PrivateWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         bool trustedPreparedState)
     {
         if (!trustedPreparedState) ValidateStateForCodec(state);
@@ -232,10 +216,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             providerFactory,
             state.Society.Cognition.MaxQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence,
             state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup,
             state.Geography,
-            trustedPreparedState ? state.Map : null);
+            trustedPreparedState ? state.Map : null,
+            includeLegacyBedroll: state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"));
         if (!trustedPreparedState && !IsCompatibleSavedMap(runtime.map, state))
         {
             runtime.Dispose();
@@ -252,9 +236,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.society.Dispose();
         runtime.society = SocietyWorldRuntime.Restore(
             state.Society,
-            providerFactory,
-            minimumCognitionConfidence);
-        runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content!);
+            providerFactory);
+        runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
         runtime.worldContent = state.WorldContent!;
         runtime.worldSimulation = state.WorldSimulation! with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -345,13 +328,12 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             {
                 // Keep the live world paused throughout the write. A failed write
                 // discards this proposal, including its resume event and epoch.
-                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle,
-                    minimumCognitionConfidence, trustedPreparedState: true);
+                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle, trustedPreparedState: true);
                 proposed.Resume();
                 var persisted = persist(proposed.CaptureState());
                 if (persisted.HistoryArchiveHead != proposed.historyArchiveHead)
                 {
-                    using var compacted = Restore(persisted, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    using var compacted = Restore(persisted, providerFactory, maxCognitionDispatchPerCycle);
                     CommitPreparedTick(compacted);
                 }
                 else CommitPreparedTick(proposed);
@@ -360,7 +342,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var saved = persist(CaptureState());
             if (saved.HistoryArchiveHead != historyArchiveHead)
             {
-                using var compacted = Restore(saved, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                using var compacted = Restore(saved, providerFactory, maxCognitionDispatchPerCycle);
                 CommitPreparedTick(compacted);
             }
         }

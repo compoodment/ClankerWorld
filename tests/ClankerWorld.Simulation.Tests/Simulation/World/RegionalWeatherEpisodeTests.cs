@@ -13,32 +13,32 @@ public sealed class RegionalWeatherEpisodeTests(ITestOutputHelper output)
     public async Task CurrentWorldCanKeepItsStormWithoutRegionalWeatherEpisodes()
     {
         using var seed = new PrivateWorldRuntime("episode-owner-boundary");
-        var state = seed.ExportState();
-        state = state with
+        var initialState = seed.ExportState();
+        initialState = initialState with
         {
-            Society = state.Society with
+            Society = initialState.Society with
             {
-                Society = state.Society.Society with
+                Society = initialState.Society.Society with
                 {
-                    Config = state.Society.Society.Config with { TicksPerWorldDay = 16 },
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
-                    { BirthTick = person.BirthTick / state.Society.Society.Config.TicksPerWorldDay * 16 }).ToArray(),
+                    Config = initialState.Society.Society.Config with { TicksPerWorldDay = 16 },
+                    Inhabitants = initialState.Society.Society.Inhabitants.Select(person => person with
+                    { BirthTick = person.BirthTick / initialState.Society.Society.Config.TicksPerWorldDay * 16 }).ToArray(),
                 }
             },
-            WorldSystems = state.WorldSystems! with
+            WorldSystems = initialState.WorldSystems! with
             {
                 SchemaVersion = 1,
                 RegionalWeather = null,
-                Config = state.WorldSystems.Config with
+                Config = initialState.WorldSystems.Config with
                 {
                     TicksPerDay = 16,
                     WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 0, 0, 0, 100, 0)).ToArray()
                 },
-                Climate = state.WorldSystems.Climate with { Weather = WeatherKind.Storm },
+                Climate = initialState.WorldSystems.Climate with { Weather = WeatherKind.Storm },
             }
         };
         using var world = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(initialState)));
         world.Pause();
         Assert.Null(world.ExportState().WorldSystems!.RegionalWeather);
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().WeatherRegions, region => Assert.Equal("storm", region.Weather));

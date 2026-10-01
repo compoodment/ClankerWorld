@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         assetReservations.Validate();
         ValidateAssetReservationsAgainstActivePackages();
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
@@ -165,7 +166,7 @@ public sealed partial class PrivateWorldRuntime
         if (town.BorderTiles.Any(point => !map.Contains(point)) ||
             town.OriginSite is { } site && !border.Contains(site) ||
             town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
-                WorldContentSimulationRules.Footprint(definition, byInstance[id].Position).Any(tile => !border.Contains(tile))))
+                WorldContentSimulationRules.Footprint(definition, byInstance[id]).Any(tile => !border.Contains(tile))))
             throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
     }
 
@@ -216,6 +217,13 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
+    {
+        if (schemaVersion < MinimumSupportedStateSchemaVersion)
+            throw new InvalidDataException(
+                $"Private-world save schema {schemaVersion} is older than the minimum supported schema {MinimumSupportedStateSchemaVersion}.");
+    }
+
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -234,6 +242,9 @@ public sealed partial class PrivateWorldRuntime
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
             state.Bridges is null || state.BridgeTraffic is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required Town, map-knowledge, Road or bridge state.");
+        if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
+            state.WorldSimulation is null || state.AssetReservations is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
@@ -242,6 +253,10 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The private-world history reference or schema is invalid.");
         }
+
+        if (state.Geography is not null && (state.Map.ClimateZones is null || state.Map.ElevationLevels is null ||
+            state.Map.HydrologyKinds is null || state.Map.SurfaceKinds is null || state.Map.VegetationKinds is null))
+            throw new InvalidDataException("The current generated geography is missing required map layers.");
 
         if (!MapAcceptance.Validate(state.Map, allowEmptyCamp: state.FounderSetup is not null).IsValid)
         {
@@ -260,6 +275,16 @@ public sealed partial class PrivateWorldRuntime
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {
+            if (person.LastModelAttempt is { } attempt &&
+                (!CognitionProviderFailures.IsStatus(attempt.Status) ||
+                 attempt.WorldTick < 0 || attempt.WorldTick > state.Society.Society.WorldTick ||
+                 (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
+                 attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
+                 attempt.LastAcceptedCandidateId is { } candidate &&
+                    (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
+                 attempt.SetupBlocker is not (null or "unsupported_request") ||
+                 attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
+                throw new InvalidDataException("The saved model attempt is invalid.");
             ValidateProficiency(person);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.Society.Society.WorldTick);
@@ -267,11 +292,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
-        if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
-            state.WorldSimulation is null || state.AssetReservations is null)
-            throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
         ContentPackageRegistry.Restore(state.Content);
-
         WorldSystemsRules.Validate(state.WorldSystems);
         if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
             !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal) ||
@@ -280,13 +301,11 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved world systems do not match the society clock, calendar, or seed.");
         }
-
         state.WorldContent.Validate();
-        WorldContentSimulationRules.Validate(
-            state.WorldSimulation,
-            state.WorldContent,
-            state.Map,
+        WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
             state.Society.Society.WorldTick);
+        ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
+            state.Map, state.SchemaVersion);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants);
         if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
@@ -298,7 +317,6 @@ public sealed partial class PrivateWorldRuntime
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Inhabitants);
-
         WorldAssetReservationLedger.Restore(state.AssetReservations);
         var activeIds = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
@@ -321,17 +339,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
-    {
-        if (schemaVersion < MinimumSupportedStateSchemaVersion)
-            throw new InvalidDataException(
-                $"Private-world save schema {schemaVersion} is older than the minimum supported schema {MinimumSupportedStateSchemaVersion}.");
-    }
-
     private static SeededMap TravelMap(PrivateWorldRuntimeState state)
     {
-        RiverBridgeRules.ValidateSaved(state.Bridges!, state.Map, state.RoadTiles!, state.Society.Society.WorldTick);
-        var decks = RiverBridgeRules.Decks(state.Bridges!);
+        var bridges = state.Bridges!;
+        RiverBridgeRules.ValidateSaved(bridges, state.Map, state.RoadTiles!, state.Society.Society.WorldTick);
+        var decks = RiverBridgeRules.Decks(bridges);
         return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 

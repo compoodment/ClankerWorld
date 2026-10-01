@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
@@ -18,10 +20,14 @@ public sealed class PrivateWorldTerrainChunkTests
             startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         var state = world.ExportState();
         var newBytes = PrivateWorldRuntimeCodec.Encode(state);
+        var rawCurrentBytes = JsonSerializer.SerializeToUtf8Bytes(state,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         var newText = Encoding.UTF8.GetString(newBytes);
 
         Assert.DoesNotContain("\"tiles\"", newText, StringComparison.Ordinal);
         Assert.Contains("\"terrainEncoding\":\"terrain-chunks/v1\"", newText, StringComparison.Ordinal);
+        Assert.True(newBytes.Length < rawCurrentBytes.Length / 4,
+            $"Chunked terrain should materially shrink the current raw checkpoint: {newBytes.Length} to {rawCurrentBytes.Length} bytes.");
         var decoded = PrivateWorldRuntimeCodec.Decode(newBytes);
         Assert.Equal(state.Map.ManifestDigest, decoded.Map.ManifestDigest);
         Assert.Equal(state.Map.Tiles, decoded.Map.Tiles);
@@ -42,24 +48,86 @@ public sealed class PrivateWorldTerrainChunkTests
         var state = world.ExportState();
         var unsupportedState = state with
         {
-            SchemaVersion = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1,
+            SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1,
             Bridges = null,
             BridgeTraffic = null,
         };
 
         var encodedError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(unsupportedState));
-        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.MinimumSupportedStateSchemaVersion}",
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
             encodedError.Message, StringComparison.Ordinal);
 
         var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
         var savedState = document["state"]!.AsObject();
-        savedState["schemaVersion"] = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1;
+        savedState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
         savedState.Remove("bridges");
         savedState.Remove("bridgeTraffic");
         var unsupportedBytes = Encoding.UTF8.GetBytes(document.ToJsonString());
         var decodeError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(unsupportedBytes));
-        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.MinimumSupportedStateSchemaVersion}",
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
             decodeError.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CurrentGeographyWithoutItsSavedLayersIsRefusedAndPreserved()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "clankerworld-missing-map-layers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var geography = new GeographyOptions("missing-current-map-layers", WorldSizePreset.Small);
+            var file = new PrivateWorldStateFile(Path.Combine(directory, "world.json"),
+                newWorldPace: WorldStartPace.FounderSetup, newWorldGeography: geography);
+            using var created = file.LoadOrCreate(geography.Seed);
+            var state = created.ExportState();
+            var missingLayersState = state with
+            {
+                Map = state.Map with
+                {
+                    ElevationLevels = null,
+                    HydrologyKinds = null,
+                    SurfaceKinds = null,
+                    VegetationKinds = null,
+                },
+            };
+            var encodeError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(missingLayersState));
+            Assert.Contains("missing required map layers", encodeError.Message, StringComparison.Ordinal);
+
+            var document = JsonNode.Parse(File.ReadAllBytes(file.Path))!.AsObject();
+            var map = document["state"]!["map"]!.AsObject();
+            map["elevationLevels"] = null;
+            map["hydrologyKinds"] = null;
+            map["surfaceKinds"] = null;
+            map["vegetationKinds"] = null;
+            map["mapLayersSha256"] = null;
+            var missingLayersBytes = Encoding.UTF8.GetBytes(document.ToJsonString());
+            File.WriteAllBytes(file.Path, missingLayersBytes);
+
+            var decodeError = Assert.Throws<InvalidDataException>(() => file.LoadOrCreate(geography.Seed));
+            Assert.Contains("missing required map layers", decodeError.Message, StringComparison.Ordinal);
+            Assert.Equal(missingLayersBytes, File.ReadAllBytes(file.Path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RecomputedLayerChecksumCannotReplaceDeterministicCurrentGeography()
+    {
+        var geography = new GeographyOptions("changed-current-map-layer", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        var state = world.ExportState();
+        var elevation = state.Map.ElevationLevels!.ToArray();
+        elevation[0] ^= 1;
+        var tamperedState = state with { Map = state.Map with { ElevationLevels = elevation } };
+
+        Assert.Equal(state.Map.ManifestDigest, tamperedState.Map.ManifestDigest);
+        var decoded = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(tamperedState));
+        Assert.NotEqual(MapLayerManifestCodec.Digest(state.Map), MapLayerManifestCodec.Digest(decoded.Map));
+        var error = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(decoded));
+        Assert.Contains("map does not match deterministic regeneration", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

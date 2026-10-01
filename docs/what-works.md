@@ -80,10 +80,14 @@ people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
 
-One slow model can wait while other agents and the world continue. A failed or
-low-confidence response uses only the explicit safe fallback; it does not invent
-an important choice or complete a firm instruction. The paired Windows/model-wait
-check remains in [the playtest list](../playtest/windows-and-paired-world.md).
+One slow model can wait while other agents and the world continue. A legal
+choice is accepted even when the model reports low confidence. A failed or
+unusable reply uses the safe fallback and finishes that attempt without another
+paid repair request. The agent card shows whether the model is ready, waiting,
+canceled, missing a key, out of allowed calls, unable to give a usable reply,
+timed out or unavailable. It shows the last accepted model choice separately.
+Those facts survive a refresh and save/reload. The paired Windows/model-wait
+check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. This is a basic version. The game understands only orders to gather
@@ -104,7 +108,8 @@ generated memory summaries and full conversations are unfinished.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing there, carrying fiber in from its own stock or gathering it; an adult without clothing collects a finished garment from the shop. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
-| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Warehouse expansion and Store are not offered yet. |
+| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Store are not offered yet. |
+| Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |

@@ -72,10 +72,15 @@ public sealed class CognitionTests
         Assert.True((await runtime.AdvanceOneActionAsync()).Advanced);
     }
 
-    [Fact]
-    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage(bool includesProbabilityMap)
     {
-        var handler = new RecordingHandler(JsonResponse());
+        var reply = System.Text.Json.Nodes.JsonNode.Parse(JsonResponse())!;
+        if (!includesProbabilityMap)
+            reply["answers"]!["selected_candidate"]!.AsObject().Remove("probabilities");
+        var handler = new RecordingHandler(reply.ToJsonString());
         using var client = new HttpClient(handler);
         var provider = new JevDecisionProvider(
             client,
@@ -320,7 +325,7 @@ public sealed class CognitionTests
     public void CognitionAdmissionRejectsJevCompactionScoresForAnotherOwner()
     {
         var provider = new ThrowingProvider();
-        var runtime = new CognitionRuntime("actor-scout", provider, minimumConfidence: 0);
+        var runtime = new CognitionRuntime("actor-scout", provider);
         var observation = new InhabitantObservation(
             "actor-scout", 9, 0, 1, "sha256:owner-check", 2_000,
             [new CognitionCandidate("safe_idle", "Continue safely.")],

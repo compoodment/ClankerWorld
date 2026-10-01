@@ -34,6 +34,11 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool SavedMapMatchesBaseline(PrivateWorldRuntimeState state, SeededMap baseline)
     {
+        if (state.Geography is not null &&
+            (state.Map.WrapsEastWest != baseline.WrapsEastWest ||
+             !string.Equals(MapLayerManifestCodec.Digest(state.Map), MapLayerManifestCodec.Digest(baseline),
+                 StringComparison.Ordinal)))
+            return false;
         if (baseline.ManifestDigest == state.Map.ManifestDigest)
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
@@ -215,7 +220,8 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
+                worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .ToHashSet();
         var additions = new List<MapResource>();
         var townStorage = SettlementStoragePosition;
@@ -449,8 +455,7 @@ public sealed partial class PrivateWorldRuntime
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
         }
         var constructionOwner = recipe is not null ? ProductionOwnerFor(recipeBuilding, inhabitantId)
-            : building?.Tags.Any(IsHouseholdBuildingTag) == true ? HouseholdFor(inhabitantId)
-            : society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : HouseholdId;
+            : BuildingConstructionOwner(inhabitantId, building!);
         if (recipe is not null && recipeBuilding?.HouseholdId is not null &&
             worldContent.Buildings.Any(definition => definition.CanonicalId == recipeBuilding.DefinitionId &&
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
@@ -583,10 +588,16 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(inhabitantId, inhabitants[inhabitantId], store, "deliver", interactionRange);
                 return;
             }
+            var deliveryQuantity = Math.Min(input.Amount, AvailableLotQuantity(carried));
+            if (house is not null) deliveryQuantity = Math.Min(deliveryQuantity, StorageRoom(house.InstanceId));
+            if (deliveryQuantity == 0)
+            {
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "House storage is full; expand it before delivering more." });
+                return;
+            }
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"project-delivery:{WorldTick}:{inhabitantId}", inhabitantId, constructionOwner, carried.Id,
-                Math.Min(input.Amount, AvailableLotQuantity(carried)), "project_contribution",
-                house?.InstanceId));
+                deliveryQuantity, "project_contribution", house?.InstanceId));
             AppendEvent("project_material_delivered", $"{inhabitantId}:{input.ResourceId}");
             return;
         }
@@ -701,13 +712,14 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            var building = selection.IsBuilding ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) : null;
+            if (selection.IsBuilding && building is null) continue;
             var inputs = selection.IsBuilding
-                ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.BuildCosts
+                ? building!.BuildCosts
                 : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.Inputs;
-            var constructionOwner = selection.IsBuilding &&
-                worldContent.Buildings.Any(item => item.CanonicalId == selection.DefinitionId &&
-                    item.Tags.Any(IsHouseholdBuildingTag)) ||
-                !selection.IsBuilding && worldContent.Recipes.Any(item =>
+            var constructionOwner = selection.IsBuilding
+                ? BuildingConstructionOwner(person.InhabitantId, building!)
+                : worldContent.Recipes.Any(item =>
                     item.CanonicalId == selection.DefinitionId &&
                     (item.Tags.Contains("grain", StringComparer.Ordinal) ||
                      item.WorkstationBuildingId is { } workstationId && worldContent.Buildings.Any(definition =>
@@ -789,18 +801,22 @@ public sealed partial class PrivateWorldRuntime
             }
             return;
         }
-        var house = society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId
-            ? HouseForHousehold(request.OwnerId) : null;
-        var store = house?.Position ?? SettlementStoragePosition;
-        var interactionRange = house is null ? ResourceInteractionRange : 0;
+        var house = HouseForHousehold(request.OwnerId);
+        // A helper may deliver supplies without gaining access to the recipient's stock.
+        // Without a House, hand them to the requester to keep them physically carried.
+        var recipient = house is null ? request.Requester : request.OwnerId;
+        var store = house?.Position ?? inhabitants[request.Requester].Position;
+        var interactionRange = society.Checkpoint.GetInhabitant(helperId).HouseholdId == request.OwnerId ? 0 : ResourceInteractionRange;
         if (!IsWithinInteractionRange(state.Position, store, interactionRange))
         {
             MoveToward(helperId, state, store, "share_materials", interactionRange);
             return;
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
+        if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
-            helperId, request.OwnerId, carried.Id, quantity, "project_request_fulfilled",
+            helperId, recipient, carried.Id, quantity, "project_request_fulfilled",
             house?.InstanceId));
         IncreaseTrust(request.Requester, helperId, 2, "material_help");
         var memoryId = $"project-gratitude:{request.Requester}:{helperId}";

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Saves and replay
@@ -124,14 +124,14 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
-Private-world checkpoints use the verified 64×64 terrain-byte chunks in v2 and
-the current private-world schema. Older alpha schemas and the former per-tile
-JSON checkpoint format are refused without changing their files. Generated maps
-must match the current generator, apart from current saved settlement resources
-and planted trees. Damaged chunks are also rejected without replacing the save.
-Restore removes Road tiles inside validated saved building footprints, leaving
-other Roads and state intact. The repair applies once and may expose an already
-broken Road connection; it does not reroute Roads or create bridges.
+Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON
+remains readable and migrates atomically on load. Historical generators and
+known package digests validate older generated maps without replacing their
+resource layout. Damaged chunks are rejected without replacing the save. Restore also removes
+Road tiles inside validated saved building footprints, leaving other Roads and
+state intact. The repair applies once and may expose an already broken Road
+connection; it does not reroute Roads or create bridges. Back up older saves
+before an upgrade.
 
 Bridges are saved in the same checkpoint as the Road tiles they join, so a
 Road never ends at a river without its bridge. Loading checks every bridge
@@ -143,20 +143,22 @@ bridge. Traffic evidence must be recent, within its per-agent bound, for real
 unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
-During alpha, the minimum supported private-world checkpoint schema is the
-current `PrivateWorldRuntime.StateSchemaVersion`. An earlier schema is refused
-with a reason and the original file is kept. The minimum follows the current
-schema value, so an alpha checkpoint format change ends support for the prior
-private-world schema. This rule covers the private-world checkpoint only;
-nested contracts such as world-systems state keep their own validation.
+The alpha accepts only the current private-world checkpoint schema, currently
+`PrivateWorldRuntime.StateSchemaVersion` 30. The minimum supported schema is
+the same value, so older alpha checkpoints are refused with a reason and left
+unchanged; no private-world migration runs. The current schema includes
+bounded model-attempt status and last accepted model choice per agent, plus
+building footprint revisions, reserved expansion jobs and House guest
+invitations. These fields retain their current validation and roundtrip
+behavior.
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
 changed; a cosmetic game-version bump is not a migration.
 
-The saved clock and lifecycle values govern a restored world. Restore validates
-matching society/world-system calendar values rather than silently assigning
-the newest playtest pace.
+The saved clock/lifecycle values govern old worlds. Restore validates matching
+society/world-system calendar values rather than silently assigning the newest
+playtest pace.
 
 ## Pending model work and estates
 
@@ -227,9 +229,8 @@ For an incompatible rollback, restore the matching older application and
 pre-upgrade save/history. An older host is not expected to read a newer schema.
 The September 2026 internal-identifier reset was an explicitly approved
 pre-release fresh-save/new-pairing exception. It never permits deleting saves.
-During alpha a checkpoint with an earlier private-world schema is refused with
-a reason and kept. Finished releases follow the migration promise in
-[Saves](../game-design/saves.md).
+During alpha an older save may stop loading, but it is refused with a reason and
+kept. Finished releases follow the migration promise in [Saves](../game-design/saves.md).
 
 ## Validation boundaries
 
@@ -250,10 +251,10 @@ New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
 
 Episode version and bounds are validated, including topology against the saved
-map. Episode-bearing world systems use schema 2. World-systems schema 1 remains
-readable in a current private-world checkpoint, with the absent field omitted
-when null. Older private-world checkpoint schemas are refused by the outer
-schema cutoff.
+map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
+World-systems schema 1 remains readable, with the absent field omitted when null.
+Older binaries reject the newer schema instead of silently dropping episodes.
+The new code reads old saves; keep backups before testing.
 This prototype changes future weather/events, not past recorded history.
 
 Advanced generation saves optional forest, mountain and river presets. Missing

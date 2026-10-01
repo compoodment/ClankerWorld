@@ -261,7 +261,7 @@ public sealed partial class ViewerHttpTests
                 var originalBytes = File.ReadAllBytes(firstPath);
                 var olderDocument = JsonNode.Parse(originalBytes)!.AsObject();
                 var olderState = olderDocument["state"]!.AsObject();
-                olderState["schemaVersion"] = PrivateWorldRuntime.MinimumSupportedStateSchemaVersion - 1;
+                olderState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
                 olderState.Remove("bridges");
                 olderState.Remove("bridgeTraffic");
                 olderState["map"]!.AsObject().Remove("bridgeDecks");

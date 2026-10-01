@@ -182,7 +182,7 @@ public sealed partial class PrivateWorldRuntime
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var householdOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
-                WorldContentSimulationRules.Footprint(definition, building.Position).Contains(position))
+                WorldContentSimulationRules.Footprint(definition, building).Contains(position))
             .Select(building => building.HouseholdId);
         var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
         return AgentPlacementRules.Resolve(householdOwners, townIds);
@@ -208,7 +208,7 @@ public sealed partial class PrivateWorldRuntime
         return worldSimulation.Buildings.Any(building =>
             definitions.TryGetValue(building.DefinitionId, out var definition) &&
             definition.Tags.Contains("house", StringComparer.Ordinal) &&
-            WorldContentSimulationRules.Footprint(definition, building.Position).Contains(position));
+            WorldContentSimulationRules.Footprint(definition, building).Contains(position));
     }
 
     public bool RenameAgent(string agentId, string name)
