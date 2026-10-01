@@ -17,6 +17,7 @@ public sealed class PersonalEquipmentTests
             new("sack", "sack", "person", 1, 10_000, 10_000, 0), new("coat", "padded_coat", "person", 1, 10_000, 10_000, 0),
             new("wood", "wood", "person", 8, 10_000, 10_000, 0, DeliveryBuildingId: "house"),
             new("pot", "jug", "person", 1, 10_000, 10_000, 0), new("water", "water", "person", 3, 10_000, 10_000, 0),
+            new("ground-stock", "grain", "person", 30, 10_000, 10_000, 0, GroundPosition: new(2, 3)),
         ]);
         var equipment = new PersonalEquipment("coat", "sack");
         Assert.Equal(12, PersonalEquipmentRules.CarriedQuantity(inventory, "person", equipment));
@@ -100,6 +101,14 @@ public sealed class PersonalEquipmentTests
     {
         var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + kind, fiber);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        // Exhaust the starting garments so the selected garment must come
+        // from the actual Tailor production chain below.
+        var inventory = state.Society.Society.Inventory;
+        state = WithInventory(state, inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.OwnerId == Alpha && PersonalEquipmentRules.IsGarment(lot.ItemKind)
+                ? lot with { ConditionBasisPoints = 0 } : lot).ToArray(),
+        });
         if (kind == "sack")
             state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
                 "sack-rope", "rope", Alpha, 1, storageBuildingId: "first-town-house-a"));
@@ -124,7 +133,7 @@ public sealed class PersonalEquipmentTests
         var target = state.WorldContent!.Recipes.Single(item => item.LocalId == recipeId);
         var weave = state.WorldContent.Recipes.Single(item => item.LocalId == "weave-cloth");
         string[] choices = ["wear_clothing", "equip_carry_aid", "build:recipe:" + target.CanonicalId,
-            "supply_workstation:rope", "build:recipe:" + weave.CanonicalId, "supply_workstation:fiber",
+            "haul_household_stock", "supply_workstation:rope", "build:recipe:" + weave.CanonicalId, "supply_workstation:fiber",
             "seek_warmth", "tend_fire", "consume_food", "collect_shared_food"];
         var actorChoices = new Choices(choices);
         IDecisionProvider Provider(string id) => id == actor ? actorChoices : new Choices([]);
@@ -304,9 +313,15 @@ public sealed class PersonalEquipmentTests
         Assert.Equal((Alpha, 8, house.InstanceId), (delivered.OwnerId, delivered.Quantity, delivered.StorageBuildingId));
         using var swap = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(delivery.ExportState())), id => new Choices(id == actor ? ["wear_clothing"] : []));
-        for (var tick = 0; tick < 60 && swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId != "full-coat"; tick++)
+        for (var tick = 0; tick < 60 && swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId == "full-garment"; tick++)
             Assert.True((await swap.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal("full-coat", swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
+        var replacementId = Assert.IsType<string>(swap.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
+        Assert.NotEqual("full-garment", replacementId);
+        var replacement = swap.Society.Inventory.GetLot(replacementId);
+        Assert.True(PersonalEquipmentRules.IsGarment(replacement.ItemKind));
+        Assert.Equal((actor, 1), (replacement.OwnerId, replacement.Quantity));
+        Assert.Null(replacement.StorageBuildingId);
+        Assert.True(replacement.ConditionBasisPoints > swap.Society.Inventory.GetLot("full-garment").ConditionBasisPoints);
         Assert.Equal((actor, 1), (swap.Society.Inventory.GetLot("full-garment").OwnerId, swap.Society.Inventory.GetLot("full-garment").Quantity));
         Assert.Equal((Alpha, 1), (swap.Society.Inventory.GetLot("full-cloth").OwnerId, swap.Society.Inventory.GetLot("full-cloth").Quantity));
         swap.Validate();

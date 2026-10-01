@@ -61,8 +61,8 @@ public sealed partial class PrivateWorldRuntime
         var weather = WeatherAt(inhabitants[actor].Position);
         return PrivateEquipmentSources(actor).Where(lot => PersonalEquipmentRules.IsGarment(lot.ItemKind) &&
                 lot.Id != current?.Id && CanEquipPrivateItem(actor, lot, false) &&
-                (current is null || PersonalEquipmentRules.Protection(lot, weather) >=
-                    PersonalEquipmentRules.Protection(current, weather) + 5))
+                (current is null || PersonalEquipmentRules.Protection(lot, weather) >
+                    PersonalEquipmentRules.Protection(current, weather)))
             .OrderByDescending(lot => PersonalEquipmentRules.Protection(lot, weather))
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
