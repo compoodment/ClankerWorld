@@ -77,7 +77,6 @@ public sealed class CognitionRuntime
 
     private readonly object sync = new();
     private readonly IDecisionProvider provider;
-    private readonly double minimumConfidence;
     private readonly List<CognitionEvent> events = [];
     private readonly Dictionary<string, CognitionRequestRecord> requests =
         new(StringComparer.Ordinal);
@@ -93,17 +92,10 @@ public sealed class CognitionRuntime
 
     public CognitionRuntime(
         string inhabitantId,
-        IDecisionProvider? provider = null,
-        double minimumConfidence = 0.5)
+        IDecisionProvider? provider = null)
     {
         InhabitantId = NormalizeRequiredText(inhabitantId, nameof(inhabitantId));
-        if (double.IsNaN(minimumConfidence) || double.IsInfinity(minimumConfidence) || minimumConfidence is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minimumConfidence));
-        }
-
         this.provider = provider ?? new DeterministicDecisionProvider();
-        this.minimumConfidence = minimumConfidence;
     }
 
     public string InhabitantId { get; }
@@ -190,37 +182,15 @@ public sealed class CognitionRuntime
         CancellationToken cancellationToken = default)
     {
         var request = IssueRequest(observation);
-        for (var attempt = 0; attempt < 2; attempt++)
+        try
         {
-            try
-            {
-                var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
-                return ApplyResponse(response);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return FailRequest(request.RequestId, "provider_cancelled");
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                if (attempt == 0)
-                {
-                    lock (sync)
-                    {
-                        AppendEvent(
-                            request.Observation.WorldTick,
-                            "cognition_retry_requested",
-                            exception.GetType().Name);
-                    }
-
-                    continue;
-                }
-
-                return FailRequest(request.RequestId, $"provider_failure:{exception.GetType().Name}");
-            }
+            var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
+            return ApplyResponse(response);
         }
-
-        return FailRequest(request.RequestId, "provider_failure:retry_exhausted");
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return FailRequest(request.RequestId, CognitionProviderFailures.FromException(exception, cancellationToken));
+        }
     }
 
     public CognitionAdmissionResult ApplyResponse(CognitionDecisionResponse response)
@@ -255,11 +225,6 @@ public sealed class CognitionRuntime
                 RetireInFlight(CognitionRequestState.Rejected, rejection, null);
                 AppendEvent(request.Observation.WorldTick, "cognition_response_rejected", $"{request.RequestId}:{rejection}");
                 return Rejected(rejection);
-            }
-
-            if (response.Confidence < minimumConfidence)
-            {
-                return ApplyFallbackLocked(request, $"low_confidence:{response.Confidence.ToString("0.###", CultureInfo.InvariantCulture)}");
             }
 
             var candidate = request.Observation.Candidates.Single(candidate =>
@@ -371,8 +336,7 @@ public sealed class CognitionRuntime
 
     public static CognitionRuntime Restore(
         CognitionRuntimeState state,
-        IDecisionProvider? provider = null,
-        double minimumConfidence = 0.5)
+        IDecisionProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -380,7 +344,7 @@ public sealed class CognitionRuntime
             throw new InvalidDataException($"Unsupported cognition state schema '{state.SchemaVersion}'.");
         }
 
-        var runtime = new CognitionRuntime(state.InhabitantId, provider, minimumConfidence);
+        var runtime = new CognitionRuntime(state.InhabitantId, provider);
         if (state.RunEpoch < 0 || state.DecisionGeneration < 0 || state.NextRequestSequence <= 0)
         {
             throw new InvalidDataException("Cognition state contains an invalid epoch or sequence.");
