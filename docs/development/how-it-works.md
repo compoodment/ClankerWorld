@@ -655,6 +655,13 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+If an unpaid household recipe remains blocked for 60 ticks and no household
+member has an actionable way to supply its missing ingredients, the runtime
+pauses its saved plan and stops trying to continue it automatically. The adult
+can choose other work. After ingredients return to the building, choosing the
+recipe again resumes the saved plan. This does not interrupt a running
+production job.
+
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their
 belongings while they have no legal trade response. The society transaction

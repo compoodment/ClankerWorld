@@ -48,6 +48,7 @@ public sealed partial class PrivateWorldRuntime
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
         RecordBridgeTraffic(inhabitantId, state.Position, next);
+        WearCarryAid(inhabitantId);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
     }
 
@@ -141,6 +142,12 @@ public sealed partial class PrivateWorldRuntime
         .FirstOrDefault(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||
             FindUnoccupiedRoute(actor, position, resource.Position, ResourceInteractionRange).Count > 0);
 
+    private static int FoodHarvestQuantity(MapResource source) => source.TreeKind == TreeGrowthRules.Orchard
+        ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
+
+    private static int FoodHarvestCarryUnits(MapResource source) => FoodHarvestQuantity(source) +
+        (source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardSeedsPerPick : 0);
+
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
         var source = AvailableFoodSource(inhabitantId, state.Position);
@@ -150,6 +157,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        var harvestYield = FoodHarvestQuantity(source);
+        if (FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(source))
+        {
+            AppendEvent("carrying_full", inhabitantId);
+            return;
+        }
         var ecologyResource = worldSystems.Ecology.GetResource(source.Id);
         var harvest = EcologyRules.Harvest(ecologyResource, 1);
         if (!harvest.IsValid || harvest.Resource is null)
@@ -176,7 +189,6 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var harvestYield = source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
             inventory,
             $"food:harvest:{WorldTick:D10}:{inhabitantId}",
@@ -234,6 +246,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
     {
+        if (FreeCarryCapacity(inhabitantId) == 0) return;
         if (AvailableSharedFood(inhabitantId) is not { } lot)
             return;
         var supplyPoint = HouseholdStockPosition(lot);
