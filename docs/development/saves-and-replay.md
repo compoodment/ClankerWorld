@@ -243,6 +243,14 @@ Unpublished generations are retained; no cleanup policy is implied. Older
 binaries do not understand this pointer and must not load newly overwritten
 saves. Use a matching pre-upgrade backup for rollback.
 
+The world catalog keeps a small terrain thumbnail for each world, packed like
+the world's own terrain (`terrain-kind-v1`) and at most 96 pixels wide, so Load
+World can show it without reading the world's checkpoint. Worlds catalogued
+before thumbnails existed get one the first time they are listed, from the
+checkpoint that listing already reads. It is a convenience copy, not world
+state: an older host ignores it, and a missing or damaged thumbnail shows a globe
+while the rest of the world list stays available.
+
 A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.
