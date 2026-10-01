@@ -99,18 +99,20 @@ become the default if they do no worse than numbers.
 
 The run makes paid calls, so it only starts when asked. Set
 `CLANKERWORLD_NEED_WORDING_PROVIDER` to `ollama` or `openai` to use that
-service's chat-completions endpoint and read its key from `OLLAMA_API_KEY` or
-`OPENAI_API_KEY`. `CLANKERWORLD_NEED_WORDING_ENDPOINT` and
-`CLANKERWORLD_NEED_WORDING_API_KEY` override either one. The key is read when
-each call is made and is never written to the report.
+service's chat-completions endpoint, or give any OpenAI-compatible endpoint in
+`CLANKERWORLD_NEED_WORDING_ENDPOINT`. The key comes from
+`CLANKERWORLD_NEED_WORDING_API_KEY` when it is set; otherwise from
+`OLLAMA_API_KEY` for `ollama.com` or `OPENAI_API_KEY` for `api.openai.com`, the
+variables the owner has set up for new sessions. The key is read when each
+call is made and is never written to the report. Each command below is one
+model's whole comparison, run from the repository root.
 
 GLM 5.3 Flash on Ollama Cloud:
 
 ```bash
-export CLANKERWORLD_NEED_WORDING_COMPARISON=model
-export CLANKERWORLD_NEED_WORDING_PROVIDER=ollama
-export CLANKERWORLD_NEED_WORDING_MODEL=glm-5.3-flash
-export OLLAMA_API_KEY=<key>
+CLANKERWORLD_NEED_WORDING_COMPARISON=model \
+CLANKERWORLD_NEED_WORDING_PROVIDER=ollama \
+CLANKERWORLD_NEED_WORDING_MODEL=glm-5.3-flash \
 dotnet test --configuration Release --filter "FullyQualifiedName~ReportNeedWordingComparison" --logger "console;verbosity=detailed"
 ```
 
@@ -119,10 +121,9 @@ game's own list calls it `gpt-6-luna`:
 
 ```bash
 curl -s https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY" | grep -o '"id": *"[^"]*luna[^"]*"'
-export CLANKERWORLD_NEED_WORDING_COMPARISON=model
-export CLANKERWORLD_NEED_WORDING_PROVIDER=openai
-export CLANKERWORLD_NEED_WORDING_MODEL=<model ID from the list>
-export OPENAI_API_KEY=<key>
+CLANKERWORLD_NEED_WORDING_COMPARISON=model \
+CLANKERWORLD_NEED_WORDING_PROVIDER=openai \
+CLANKERWORLD_NEED_WORDING_MODEL=<model ID from the list> \
 dotnet test --configuration Release --filter "FullyQualifiedName~ReportNeedWordingComparison" --logger "console;verbosity=detailed"
 ```
 

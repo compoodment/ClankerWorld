@@ -160,29 +160,35 @@ public sealed class NeedWordingComparisonTests(ITestOutputHelper output)
 
     /// <summary>
     /// CLANKERWORLD_NEED_WORDING_PROVIDER=ollama or openai picks that service's
-    /// endpoint and reads OLLAMA_API_KEY or OPENAI_API_KEY.
-    /// CLANKERWORLD_NEED_WORDING_ENDPOINT and CLANKERWORLD_NEED_WORDING_API_KEY
-    /// override either; CLANKERWORLD_NEED_WORDING_MODEL is always required.
+    /// chat-completions endpoint; CLANKERWORLD_NEED_WORDING_ENDPOINT overrides it.
+    /// The key comes from CLANKERWORLD_NEED_WORDING_API_KEY when set, otherwise
+    /// from OLLAMA_API_KEY or OPENAI_API_KEY by the endpoint's host.
+    /// CLANKERWORLD_NEED_WORDING_MODEL is always required.
     /// </summary>
     private sealed record ModelTarget(Uri Endpoint, string Model, string KeyVariable)
     {
         public static ModelTarget FromEnvironment()
         {
-            var (serviceEndpoint, serviceKey) = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_PROVIDER")?.Trim().ToLowerInvariant() switch
+            var serviceEndpoint = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_PROVIDER")?.Trim().ToLowerInvariant() switch
             {
-                "ollama" => ("https://ollama.com/v1/chat/completions", "OLLAMA_API_KEY"),
-                "openai" => ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY"),
-                null or "" => ((string?)null, (string?)null),
+                "ollama" => "https://ollama.com/v1/chat/completions",
+                "openai" => "https://api.openai.com/v1/chat/completions",
+                null or "" => null,
                 _ => throw new InvalidOperationException("CLANKERWORLD_NEED_WORDING_PROVIDER must be ollama or openai."),
             };
-            var endpoint = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_ENDPOINT") is { Length: > 0 } custom
+            var endpoint = new Uri(Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_ENDPOINT") is { Length: > 0 } custom
                 ? custom
-                : serviceEndpoint ?? Required("CLANKERWORLD_NEED_WORDING_ENDPOINT");
+                : serviceEndpoint ?? Required("CLANKERWORLD_NEED_WORDING_ENDPOINT"), UriKind.Absolute);
             var keyVariable = Environment.GetEnvironmentVariable("CLANKERWORLD_NEED_WORDING_API_KEY") is { Length: > 0 }
                 ? "CLANKERWORLD_NEED_WORDING_API_KEY"
-                : serviceKey ?? "CLANKERWORLD_NEED_WORDING_API_KEY";
+                : endpoint.Host.ToLowerInvariant() switch
+                {
+                    "ollama.com" => "OLLAMA_API_KEY",
+                    "api.openai.com" => "OPENAI_API_KEY",
+                    _ => "CLANKERWORLD_NEED_WORDING_API_KEY",
+                };
             _ = Required(keyVariable);
-            return new ModelTarget(new Uri(endpoint, UriKind.Absolute), Required("CLANKERWORLD_NEED_WORDING_MODEL"), keyVariable);
+            return new ModelTarget(endpoint, Required("CLANKERWORLD_NEED_WORDING_MODEL"), keyVariable);
         }
     }
 
