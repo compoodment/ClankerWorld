@@ -363,7 +363,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (words.Overlaps(EatInstructionWords))
         {
-            return HasUnsupportedEatObject(text) ? null : "consume_food";
+            return HasUnsupportedEatObject(text) || HasNegatedEatInstruction(text) ? null : "consume_food";
         }
 
         if (words.Overlaps(TravelInstructionWords))
@@ -405,11 +405,15 @@ public sealed partial class PrivateWorldRuntime
     private static bool HasUnsupportedEatObject(string text)
     {
         var match = Regex.Match(text,
-            @"\b(?:eat|eats|eating)\s+(?:(?:the|a|an|some|one|two|three|four|five|six|seven|eight|nine|ten|all|any|\d+)\s+)*(?<object>[\p{L}]+)\b",
+            @"\b(?:eat|eats|eating)\s+(?:(?:the|a|an|some|one|two|three|four|five|six|seven|eight|nine|ten|all|any|[-+]?(?:\d+(?:\.\d+)?|\.\d+))\s+)*(?<object>[\p{L}]+)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return match.Success && !SupportedFoodObjectInstructionWords.Contains(match.Groups["object"].Value.ToLowerInvariant());
     }
 
+    private static bool HasNegatedEatInstruction(string text) =>
+        Regex.IsMatch(text,
+            @"\b(?:(?:do|does)\s+not|don't|doesn't|never|not)\s+(?:to\s+)?(?:eat|eats|eating)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
     {
         var action = InstructionCandidate(text);
@@ -488,6 +492,10 @@ public sealed partial class PrivateWorldRuntime
     private static bool TryParseRequestedUnits(string text, out int? requestedUnits)
     {
         requestedUnits = null;
+        if (Regex.IsMatch(text,
+                @"(?<![\p{L}\p{N}])[-+]?(?:\d+\.\d+|\.\d+)\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            return false;
         if (Regex.IsMatch(text,
                 @"(?<![\p{L}\p{N}])[-+]\s*\d+\s+(?:wild\s+greens|food|berries|berry|fruit|items?|pieces?|servings?)\b",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))

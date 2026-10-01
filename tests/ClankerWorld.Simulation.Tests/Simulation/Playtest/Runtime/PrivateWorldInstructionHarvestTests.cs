@@ -69,6 +69,9 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("gather berries from berry-patch-unknown")]
     [InlineData("eat 3 wood")]
     [InlineData("eat 3 stones")]
+    [InlineData("eat -3 wood")]
+    [InlineData("eat 1.5 berries")]
+    [InlineData("do not eat berries")]
     [InlineData("gather -3 berries")]
     public async Task UnsupportedInstructionsDoNotSubstituteARealFoodAction(string text)
     {
@@ -76,7 +79,8 @@ public sealed partial class PrivateWorldRuntimeTests
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var initialState = setup.ExportState();
         setup.Dispose();
-        if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase))
+        if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("do not eat ", StringComparison.OrdinalIgnoreCase))
         {
             initialState = initialState with
             {
