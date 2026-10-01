@@ -356,8 +356,11 @@ public sealed class ConcreteMealTests
                 "restaurant-build-wood", "wood", household, 8);
             buildingStock = InventoryFixture.AddLot(buildingStock, "restaurant-build-stone", "stone", household, 2);
             using var placementWorld = Restore(FarmFieldTests.WithInventory(state, buildingStock));
+            var housePosition = site.Position;
             var placed = state.Map.Tiles.Select(tile => tile.Position)
-                .Where(point => state.Map.IsReachableFromCampOnFoot(point))
+                .Where(point => Math.Abs(point.X - housePosition.X) <= 8 &&
+                    Math.Abs(point.Y - housePosition.Y) <= 8 && state.Map.IsReachableFromCampOnFoot(point))
+                .OrderBy(point => state.Map.FootDistance(housePosition, point))
                 .Select(point => placementWorld.PlaceBuilding("meal-test-restaurant", definition.CanonicalId, point, household))
                 .First(result => result.Applied);
             site = placementWorld.WorldSimulation.Buildings.Single(building => building.InstanceId == placed.InstanceId);
