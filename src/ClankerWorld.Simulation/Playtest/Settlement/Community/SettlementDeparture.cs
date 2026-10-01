@@ -235,7 +235,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
-            if (HouseForHousehold(lot.OwnerId) is not null)
+            if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is not null)
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } home && HouseForHousehold(home) is { } house &&
             StorageRoom(house.InstanceId) > 0)

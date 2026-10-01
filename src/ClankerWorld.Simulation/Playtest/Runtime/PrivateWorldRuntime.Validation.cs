@@ -38,14 +38,26 @@ public sealed partial class PrivateWorldRuntime
         var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
+        var productionOwners = society.Checkpoint.Households.Select(home => home.Id)
+            .Concat(society.Checkpoint.Inhabitants.Select(person => person.Id)).ToHashSet(StringComparer.Ordinal);
+        if (worldSimulation.ProductionJobs.Any(job => job.OwnerId is { } owner &&
+                (!productionOwners.Contains(owner) || job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused && worldSimulation.Buildings.Single(building =>
+                    building.InstanceId == job.BuildingInstanceId).HouseholdId is { } home && owner != home && owner != job.WorkerId)))
+            throw new InvalidDataException("A production job has an unknown owner or differs from its private building's owner.");
         foreach (var job in worldSimulation.ProductionJobs
                      .Concat(worldSimulation.CropBuilds ?? [])
                      .Where(item => item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         {
+            if (job.OwnerId is null)
+                throw new InvalidDataException("An active production job has no recorded owner.");
             if (job.InputReservationIds.Any(id => !inventoryReservationIds.Contains(id)))
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' has a missing inventory reservation.");
             }
+            if (job.OwnerId is { } owner && job.InputReservationIds.Any(id =>
+                    society.Checkpoint.Inventory.GetReservation(id) is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed } reservation &&
+                    reservation.OwnerId != owner))
+                throw new InvalidDataException("A production job differs from its committed materials' owner.");
         }
         WorldSystemsRules.Validate(worldSystems);
         if (worldSystems.WorldTick != WorldTick ||

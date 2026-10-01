@@ -149,8 +149,8 @@ public sealed class HouseholdBuildingPreparationDeliveryTests
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.Contains(world.ExportState().Events, item => item.Kind == "equipment_collected" && item.Detail == actor + ":tool");
             Assert.StartsWith("build:building:", world.Inhabitants.Single(person => person.InhabitantId == actor).Project!.CandidateId);
-            Assert.Contains(world.Society.Inventory.Lots, lot => lot.Id == "prep-house-tool" && lot.OwnerId == actor &&
-                PersonalEquipmentRules.IsCarried(lot, actor));
+            Assert.Contains(world.Society.Inventory.Lots, lot => lot.Id == "prep-house-tool" && lot.OwnerId == Household &&
+                lot.CarrierId == actor && PersonalEquipmentRules.IsCarried(lot, actor));
         }
         finally
         {

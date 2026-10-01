@@ -155,9 +155,14 @@ public sealed class FounderSetupTests
         using var stocked = PrivateWorldRuntime.Restore(state);
         var started = stocked.StartProduction(tools.CanonicalId, "town-workshop", agentId);
         Assert.True(started.Applied, started.Failure);
+        Assert.Equal(agentId, stocked.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).OwnerId);
+        var saved = PrivateWorldRuntimeCodec.Encode(stocked.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
         for (var tick = 0; tick < tools.DurationTicks; tick++)
-            Assert.True((await stocked.AdvanceOneTickAsync()).Advanced);
-        var output = stocked.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00");
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.NotNull(reloaded.Society.GetInhabitant(agentId).HouseholdId);
+        var output = reloaded.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00");
         Assert.Equal(agentId, output.OwnerId);
     }
 
@@ -329,9 +334,10 @@ public sealed class FounderSetupTests
             Assert.Equal(position, resumedSetup.Inhabitants.Single(item => item.InhabitantId == agentId).Position);
             Assert.True((await resumedSetup.AdvanceOneTickAsync()).Advanced);
             var positionAfterTick = resumedSetup.Inhabitants.Single(item => item.InhabitantId == agentId).Position;
+            var householdAfterTick = resumedSetup.Society.GetInhabitant(agentId).HouseholdId;
             file.Save(resumedSetup);
             using var reloaded = file.LoadOrCreate("new-camp");
-            Assert.Null(reloaded.Society.GetInhabitant(agentId).HouseholdId);
+            Assert.Equal(householdAfterTick, reloaded.Society.GetInhabitant(agentId).HouseholdId);
             Assert.Equal(independentHouseholdId, reloaded.Society.GetInhabitant(independentId).HouseholdId);
             Assert.Equal("Nova", reloaded.Society.GetInhabitant(agentId).Name);
             Assert.Equal(positionAfterTick, reloaded.Inhabitants.Single(item => item.InhabitantId == agentId).Position);

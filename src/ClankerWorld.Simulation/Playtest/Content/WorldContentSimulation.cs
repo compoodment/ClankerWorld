@@ -40,6 +40,9 @@ public sealed record WorldProductionJob(
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? PausedAtTick { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OwnerId { get; init; }
 }
 
 public sealed record WorldContentSimulationState(
@@ -162,7 +165,8 @@ public static class WorldContentSimulationRules
                 (job.PausedAtTick is not { } paused || paused < job.StartedTick || paused > worldTick || paused >= job.CompletionTick) ||
                 job.State != WorldProductionJobState.Paused && job.PausedAtTick is not null && job.State != WorldProductionJobState.Cancelled)
                 throw new InvalidDataException("The saved production pause is invalid.");
-            if (!Enum.IsDefined(job.State) || string.IsNullOrWhiteSpace(job.WorkerId) || job.StartedTick < 0 ||
+            if (!Enum.IsDefined(job.State) || string.IsNullOrWhiteSpace(job.WorkerId) ||
+                job.OwnerId is { } owner && (string.IsNullOrWhiteSpace(owner) || owner != owner.Trim()) || job.StartedTick < 0 ||
                 job.CompletionTick <= job.StartedTick || job.CompletionTick < worldTick &&
                 job.State == WorldProductionJobState.Running ||
                 job.InputReservationIds is null ||

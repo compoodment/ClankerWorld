@@ -374,6 +374,7 @@ public sealed partial class PrivateWorldRuntime
 
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + recipe.DurationTicks);
+            var productionOwner = ProductionOwnerFor(placed, normalizedWorkerId);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -382,7 +383,7 @@ public sealed partial class PrivateWorldRuntime
                     recipe.Inputs,
                     $"{jobId}:input",
                     completionTick,
-                    ProductionOwnerFor(placed, normalizedWorkerId),
+                    productionOwner,
                     out reservationIds,
                     onSiteHouseholdRecipe ? placed!.InstanceId : null);
                 return reserved;
@@ -396,7 +397,8 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
-                reservationIds.ToArray());
+                reservationIds.ToArray())
+            { OwnerId = productionOwner };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),

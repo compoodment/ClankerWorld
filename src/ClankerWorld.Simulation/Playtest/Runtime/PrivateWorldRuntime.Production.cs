@@ -477,7 +477,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
-        var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
+        var productionOwner = job.OwnerId ?? throw new InvalidDataException("A production job has no recorded owner.");
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;

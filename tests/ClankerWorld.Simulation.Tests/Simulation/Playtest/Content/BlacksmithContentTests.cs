@@ -100,10 +100,10 @@ public sealed class BlacksmithContentTests
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(collectingState)),
             id => new CandidateProvider(id == alpha ? "collect_wooden_axe" : "safe_idle"));
         for (var tick = 0; tick < 20 && !collecting.Society.Inventory.Lots.Any(lot =>
-                 lot.OwnerId == alpha && lot.ItemKind == "wooden_axe"); tick++)
+                 lot.ItemKind == "wooden_axe" && PersonalEquipmentRules.IsCarried(lot, alpha)); tick++)
             Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(collecting.Society.Inventory.Lots, lot => lot.OwnerId == alpha &&
-            lot.ItemKind == "wooden_axe" && lot.StorageBuildingId is null);
+        Assert.Contains(collecting.Society.Inventory.Lots, lot => lot.OwnerId == "household:camp-alpha" &&
+            lot.CarrierId == alpha && lot.ItemKind == "wooden_axe" && lot.StorageBuildingId is null);
 
         var refiningRecipe = collecting.WorldContent.Recipes.Single(item => item.LocalId == "refine-iron");
         var noOre = collecting.StartProduction(refiningRecipe.CanonicalId, placed.InstanceId, alpha);

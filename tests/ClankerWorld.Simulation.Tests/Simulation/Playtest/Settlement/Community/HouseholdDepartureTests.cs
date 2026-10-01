@@ -65,6 +65,78 @@ public sealed class HouseholdDepartureTests
     }
 
     [Fact]
+    public async Task PublicWorkKeepsOriginalHouseholdOwnerAcrossLeavingFoundingAndReload()
+    {
+        var provider = new Choices();
+        using var initial = NormalPathWorld.CreateGenerated("departure-public-work", _ => provider);
+        initial.Pause();
+        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var workshop = initial.WorldContent.Buildings.Single(building => building.LocalId == "workshop");
+        var recipe = initial.WorldContent.Recipes.Single(item => item.LocalId == "tools");
+        BuildingPlacementResult? placed = null;
+        foreach (var point in initial.ExportState().Map.Tiles.Select(tile => tile.Position))
+        {
+            var attempt = initial.PlaceBuilding("departure-public-workshop", workshop.CanonicalId, point);
+            if (!attempt.Applied) continue;
+            placed = attempt;
+            break;
+        }
+        Assert.NotNull(placed);
+        var state = initial.ExportState();
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = placed.Position, LastDecisionContext = null } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => provider);
+        var started = world.StartProduction(recipe.CanonicalId, placed.InstanceId, actor);
+        Assert.True(started.Applied, started.Failure);
+        Assert.Equal(Alpha, world.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).OwnerId);
+        foreach (var owner in new string?[] { Beta, null })
+        {
+            var invalidOwner = world.ExportState();
+            invalidOwner = invalidOwner with
+            {
+                WorldSimulation = invalidOwner.WorldSimulation! with
+                {
+                    ProductionJobs = invalidOwner.WorldSimulation!.ProductionJobs.Select(job => job.JobId == started.JobId
+                        ? job with { OwnerId = owner } : job).ToArray(),
+                },
+            };
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(invalidOwner));
+        }
+        provider.Wanted[actor] = "household_leave";
+        world.Resume();
+        await AdvanceUntil(world, () => world.Society.GetInhabitant(actor).HouseholdId is null);
+        world.Pause();
+        var homeless = world.ExportState();
+        homeless = homeless with
+        {
+            Inhabitants = homeless.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    LastDecisionContext = null,
+                    Housing = new(Refusals:
+                    [new(Alpha, world.WorldTick), new(Beta, world.WorldTick)])
+                } : person).ToArray(),
+        };
+        using var forming = PrivateWorldRuntime.Restore(homeless, _ => provider);
+        provider.Wanted[actor] = "household_found";
+        forming.Resume();
+        await AdvanceUntil(forming, () => forming.Society.GetInhabitant(actor).HouseholdId is not null);
+        Assert.NotEqual(Alpha, forming.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal(WorldProductionJobState.Running, forming.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
+        forming.Pause();
+        var saved = PrivateWorldRuntimeCodec.Encode(forming.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        provider.Wanted[actor] = "safe_idle";
+        restored.Resume();
+        await AdvanceUntil(restored, () => restored.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State == WorldProductionJobState.Completed);
+        Assert.Equal(Alpha, restored.Society.Inventory.GetLot(started.JobId + ":output:00").OwnerId);
+    }
+
+    [Fact]
     public void DisplacementDoesNotInventFoodOrTouchReservationsAndLastAdultPropertySurvives()
     {
         using var initial = NormalPathWorld.CreateGenerated("departure-reserved", _ => new Choices());
@@ -271,7 +343,7 @@ public sealed class HouseholdDepartureTests
             WorldSimulation = state.WorldSimulation! with
             {
                 ProductionJobs = [new WorldProductionJob("departure-private-job", recipe.CanonicalId, house.InstanceId,
-                    actor, initial.WorldTick, initial.WorldTick + 30, WorldProductionJobState.Running, reservationIds)],
+                    actor, initial.WorldTick, initial.WorldTick + 30, WorldProductionJobState.Running, reservationIds) { OwnerId = Alpha }],
             },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
