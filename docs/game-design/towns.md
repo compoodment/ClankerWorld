@@ -812,7 +812,8 @@ election interview.
   vacant.** One remaining representative cannot approve an ordinary proposal
   alone. When the all-adult fallback governs, use a strict majority of its
   own adult membership instead of the representative council's threshold.
-- **Close unfinished proposals without passage when the council changes.**
+- **Close unfinished ordinary council proposals without passage when the
+  council changes.**
   This applies to changes in eligible council membership, representatives or
   governing form. An agent may submit the proposal afresh to the current
   council, with fresh votes and a new one-unpaused-day window. Previously
@@ -852,8 +853,8 @@ election interview.
   at an invented nomination phase.
 
 These rules complete the initial ordinary proposal and election process.
-Law scope and approval for government changes are agreed below. The detailed
-government-change process, enforcement and other topics remain separate choices.
+Law scope and the protected government-change process are agreed below.
+The remaining mayor-office choices, enforcement and other topics stay separate.
 Implementation is tracked in
 [#618](https://github.com/compoodment/ClankerWorld/issues/618), followed by
 Town membership and admission integration in
@@ -888,9 +889,9 @@ Town membership and admission integration in
   half of all adult Town residents.** Representatives cannot replace
   elections with a permanent ruler using an ordinary council vote. An
   eight-adult Town needs five yes votes to establish a mayor or change its
-  electoral arrangement. Silence supplies no approval. The government-change
-  voting window, voter-roster handling, allowed forms and transition safeguards
-  remain to be decided; this settles approval authority, not those procedures.
+  electoral arrangement. Silence supplies no approval. The voting roster,
+  procedure and handover safeguards are agreed in
+  [Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
 - **A new law applies from its recorded adoption onward.** Assess earlier
   conduct under the laws that existed then; do not create a new violation by
   applying a later law retrospectively. Protecting the grove today does not
@@ -898,9 +899,64 @@ Town membership and admission integration in
   the applicable version remains identifiable.
 
 These law-scope, visitor, amendment and prospective-application rules are
-settled. Government-change safeguards and enforcement are the next batches in
-[#619](https://github.com/compoodment/ClankerWorld/issues/619). A law remains
-separate from fixed physics, ownership and validated action authority.
+settled. A law remains separate from fixed physics, ownership and validated
+action authority.
+
+### Government-change procedure and safeguards
+
+**Agreed with the owner on October 1, answers 52A–57A:**
+
+- **Any adult Town resident may initiate a valid government-change proposal.**
+  It does not need permission from the current council or leader. Officeholders
+  cannot veto the resident vote merely to keep their positions. Homeless
+  residents have the same eligibility as housed residents.
+- **Voting lasts one unpaused world day and uses the adult resident list at
+  opening.** Later arrivals and agents who become adults wait for the next
+  vote. Death or departure from Town membership removes that resident's vote
+  and reduces the electorate; travel alone changes neither. Approval requires
+  yes votes from more than half of the remaining eligible opening list. Eight
+  voters need five yes votes; if two leave the Town before resolution, the
+  remaining six need four. Votes are final once cast, silence is not approval,
+  and the vote can resolve early once its result is settled. Actual notices
+  and communication supply awareness through agents' normal model turns.
+- **Only one government-change process runs per Town, including its handover.**
+  Merge equivalent proposals without resetting the clock; queue different
+  proposals. Each subsequent process opens with a fresh electorate and fresh
+  votes. A failed or withdrawn proposal has the ordinary one-day retry
+  cooldown, unless a material change justifies an earlier retry.
+- **The initial supported forms are an all-adult council, an elected council,
+  and one elected leader.** A proposal must spell out who makes ordinary
+  decisions, how officeholders are selected, their tenure and what happens
+  when an office becomes vacant. More custom forms need their own design;
+  ordinary law text cannot create them. Creating a role does not itself grant
+  new land powers or authority to confiscate household property. The mayor's
+  already agreed land-dispute role and election method remain applicable;
+  its remaining office rules are still to be settled.
+- **Approval starts a handover lasting at most three unpaused world days.**
+  This is an initial trial duration. The existing government continues until
+  a valid replacement is ready; the new form takes effect at that recorded
+  handover, rather than immediately when the approval vote passes. Elective
+  offices need willing, eligible officeholders selected through the agreed
+  voting rules. If a mayoral vote ties, another vote between the tied highest
+  candidates is required; do not use the council's random tie-break. If no
+  valid replacement is ready by the handover deadline, cancel the attempted
+  transition. An all-adult council consists automatically of eligible adults
+  and does not require each resident to consent to taking a seat.
+- **The resident government-change procedure stays protected under every
+  supported form.** A new governing arrangement cannot abolish or change this
+  route or its required resident majority. If no government can validly
+  continue under the agreed continuity rules and no valid successor is ready,
+  restore the all-adult council. Existing laws, Town membership
+  and property records survive a government change or restoration. This does
+  not revive a Town with no living residents or bring abandoned-Town work
+  forward from its parked stage.
+
+The initiative, vote, serialization, supported forms, handover and restoration
+rules are settled. Remaining mayor timing, tenure, succession and council
+relationships are tracked in
+[#619](https://github.com/compoodment/ClankerWorld/issues/619), alongside the
+recorded land work in
+[#426](https://github.com/compoodment/ClankerWorld/issues/426).
 
 ### Still to decide
 
@@ -913,9 +969,11 @@ Ordinary proposal changes, candidate registration, retries and election overlap
 are agreed in [Council changes and election scheduling](#council-changes-and-election-scheduling).
 Law scope, visitor obligations, repeal and prospective application are agreed
 in [Town law scope and changes](#town-law-scope-and-changes).
-Still open: the detailed government-change process and safeguards; how a
-violation is witnessed, investigated, enforced, or punished; specific land
-rights grant and adjudication procedures;
+The protected resident vote and handover are agreed in
+[Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
+Still open: the mayor's first-election trigger, tenure, succession, relationship
+to the council and election scheduling; how a violation is witnessed,
+investigated, enforced, or punished; specific land adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
 should know only laws or violations they have learned about in-world.
 The next law and government interview is tracked separately in
