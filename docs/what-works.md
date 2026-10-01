@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # What works today
@@ -30,7 +30,7 @@ test alone does not make it available in the game.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
-| Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance and player-chosen supplies are unfinished. |
+| Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |

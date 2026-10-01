@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Playing the current game
@@ -41,8 +41,11 @@ that version mismatch. You can still reconnect to the existing world.
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
 3. Create the world. It opens paused. Choose a rough site for its first Town;
-   the game places two Houses, a Warehouse, Farmhouse, Blacksmith and Roads.
-   You can choose another site before placing the founders.
+   greener shading and the hovered tips show nearby food, fertile ground, wood,
+   stone and open space for Roads. These are suggestions only: the game checks
+   whether the starter layout fits after you choose a site. It then places two
+   Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
+   site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
