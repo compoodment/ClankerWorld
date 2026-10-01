@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state, string householdId)
     {
         TownLayoutContext? sharedLayout = null;
-        foreach (var definition in PlannableHouseholdBuildings(householdId))
+        foreach (var definition in PlannableHouseholdBuildings(householdId, inhabitant.Id))
         {
             if (NeedsUrgentWarmth(state) && !definition.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
                 continue;
@@ -48,25 +48,28 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Active building designs this household may plan now, in a stable order.</summary>
-    private IEnumerable<BuildingDefinition> PlannableHouseholdBuildings(string householdId) => worldContent.Buildings
+    private IEnumerable<BuildingDefinition> PlannableHouseholdBuildings(string householdId, string actor) => worldContent.Buildings
         .Where(definition => !RetiredBuildings.Contains(definition) &&
-            HouseholdBuildingKind(definition) is { } kind && HouseholdMayPlan(householdId, kind))
+            HouseholdBuildingKind(definition) is { } kind && HouseholdMayPlan(householdId, kind, actor))
         .OrderBy(definition => HouseholdBuildingKinds.PlanOrder(HouseholdBuildingKind(definition)))
         .ThenBy(definition => definition.CanonicalId, StringComparer.Ordinal);
 
-    private bool HouseholdMayPlan(string householdId, string kind) =>
+    private bool HouseholdMayPlan(string householdId, string kind, string actor) =>
         HouseholdBuildingWithTag(householdId, kind) is null &&
         (kind != "silo" || FarmhouseForHousehold(householdId) is not null) &&
-        !HouseholdBuildingProjectInProgress(householdId, kind);
+        !HouseholdBuildingProjectInProgress(householdId, kind, actor);
 
     /// <summary>Whether a member already has a live plan for this kind, so the household plans at most one.</summary>
-    private bool HouseholdBuildingProjectInProgress(string householdId, string? kind = null) =>
+    private bool HouseholdBuildingProjectInProgress(string householdId, string? kind = null,
+        string? retryingActor = null) =>
         inhabitants.Values.Any(person =>
-            person.Project is { Stage: not ("completed" or "cancelled") } project &&
+            person.Project is { } project && project.Stage is not ("completed" or "cancelled") &&
             TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) && selection.IsBuilding &&
             society.Checkpoint.GetInhabitant(person.InhabitantId).HouseholdId == householdId &&
             worldContent.Buildings.FirstOrDefault(definition => definition.CanonicalId == selection.DefinitionId) is { } planned &&
-            HouseholdBuildingKind(planned) is { } plannedKind && (kind is null || plannedKind == kind));
+            HouseholdBuildingKind(planned) is { } plannedKind && (kind is null || plannedKind == kind) &&
+            !(person.InhabitantId == retryingActor && project.Stage == "blocked" &&
+                WorldTick - project.LastTransitionTick >= BlockedProjectRetryDelayTicks));
 
     /// <summary>Materials the household owns, wherever it stores them, plus what its members carry.</summary>
     private bool HouseholdHasMaterialsInHand(string householdId, IReadOnlyList<ContentQuantity> costs) =>
@@ -85,9 +88,9 @@ public sealed partial class PrivateWorldRuntime
     /// </summary>
     private (BuildingDefinition Building, ContentQuantity Material)? NeededBuildingMaterial(string actor, string householdId)
     {
-        if (HouseholdBuildingProjectInProgress(householdId))
+        if (HouseholdBuildingProjectInProgress(householdId, retryingActor: actor))
             return null;
-        foreach (var definition in PlannableHouseholdBuildings(householdId))
+        foreach (var definition in PlannableHouseholdBuildings(householdId, actor))
         {
             var missing = definition.BuildCosts.FirstOrDefault(cost =>
                 HouseholdMaterialInHand(householdId, cost.ResourceId) < cost.Amount);
