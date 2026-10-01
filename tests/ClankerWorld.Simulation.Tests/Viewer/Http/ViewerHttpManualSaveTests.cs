@@ -533,6 +533,18 @@ public sealed partial class ViewerHttpTests
                 Assert.True(host.Services.GetRequiredService<WorldAutosaveStore>().Capture().Enabled);
                 Assert.Equal(5, host.Services.GetRequiredService<WorldAutosaveStore>().Capture().IntervalMinutes);
                 Assert.False(host.Services.GetRequiredService<ManualWorldSaveStore>().Read(backupId).JevEnabled);
+                // The world left behind stays on the save's branch; playing on from
+                // the loaded save starts a second branch.
+                var branchStore = host.Services.GetRequiredService<ManualWorldSaveStore>();
+                var original = Assert.Single(branchStore.List(), item => item.Id == saveId);
+                Assert.Equal(original.Branch, Assert.Single(branchStore.List(), item => item.Id == backupId).Branch);
+                var afterLoad = new OwnerManualSaveAction("create", "After loading");
+                using var savedAfterLoad = await SendSignedAsync(host, client, key, device.DeviceId,
+                    createPath, afterLoad, OwnerHttpBinding.ManualSavePayload(afterLoad));
+                Assert.Equal(HttpStatusCode.OK, savedAfterLoad.StatusCode);
+                var branched = await savedAfterLoad.Content.ReadFromJsonAsync<ManualWorldSave>();
+                Assert.Equal(2, branched?.Branch?.Number);
+                Assert.Equal(saveId, branched?.Branch?.StartedFromId);
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);
                 var statusAction = new OwnerControlAction("autosave-status");
