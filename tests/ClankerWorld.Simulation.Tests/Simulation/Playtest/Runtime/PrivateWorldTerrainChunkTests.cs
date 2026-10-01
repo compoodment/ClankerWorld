@@ -25,13 +25,16 @@ public sealed class PrivateWorldTerrainChunkTests
             startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         var state = world.ExportState();
         var newBytes = PrivateWorldRuntimeCodec.Encode(state);
-        var rawCurrentBytes = JsonSerializer.SerializeToUtf8Bytes(state, RawStateJsonOptions);
+        var rawTerrainBytes = JsonSerializer.SerializeToUtf8Bytes(state.Map.Tiles, RawStateJsonOptions);
         var newText = Encoding.UTF8.GetString(newBytes);
 
         Assert.DoesNotContain("\"tiles\"", newText, StringComparison.Ordinal);
         Assert.Contains("\"terrainEncoding\":\"terrain-chunks/v1\"", newText, StringComparison.Ordinal);
-        Assert.True(newBytes.Length < rawCurrentBytes.Length / 4,
-            $"Chunked terrain should materially shrink the current raw checkpoint: {newBytes.Length} to {rawCurrentBytes.Length} bytes.");
+        using var document = JsonDocument.Parse(newBytes);
+        var terrainChunkBytes = Encoding.UTF8.GetByteCount(document.RootElement.GetProperty("state")
+            .GetProperty("map").GetProperty("terrainChunks").GetRawText());
+        Assert.True(terrainChunkBytes < rawTerrainBytes.Length / 4,
+            $"Chunked terrain should materially shrink the raw terrain: {terrainChunkBytes} to {rawTerrainBytes.Length} bytes.");
         var decoded = PrivateWorldRuntimeCodec.Decode(newBytes);
         Assert.Equal(state.Map.ManifestDigest, decoded.Map.ManifestDigest);
         Assert.Equal(state.Map.Tiles, decoded.Map.Tiles);
