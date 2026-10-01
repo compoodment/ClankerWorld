@@ -100,6 +100,14 @@ public sealed partial class PrivateWorldRuntime
 
             if (building.TownId == nextTownId && building.HouseholdId == nextHouseholdId)
                 return BuildingManagementResult.Rejected(instanceId, "That building already has this owner.");
+            if (nextHouseholdId is { } householdId && HouseholdBuildingKinds.KindOf(definition) is { } kind &&
+                worldSimulation.Buildings.Any(item => item.InstanceId != instanceId && item.HouseholdId == householdId &&
+                    HouseholdBuildingKinds.KindOf(worldContent.Buildings.Single(candidate => candidate.CanonicalId == item.DefinitionId)) == kind))
+            {
+                var verb = kind == "house" ? "has" : "holds";
+                return BuildingManagementResult.Rejected(instanceId,
+                    $"That household already {verb} a {definition.DisplayName}.");
+            }
 
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {

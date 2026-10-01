@@ -9,31 +9,33 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class TownBuildingManagementTests
 {
     [Fact]
-    public void PrivateBuildingCanChangeHouseholdWithoutChangingTownAndTerminalHistorySurvivesRemoval()
+    public void PrivateBuildingCanChangeHouseholdWithoutChangingTownAndTerminalProductionHistorySurvivesRemoval()
     {
         var state = StartedState("town-building-history");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "historic-tailor-fiber",
+            "fiber", "household:camp-alpha", 2, storageBuildingId: "first-town-house-a");
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
         using (var setup = PrivateWorldRuntime.Restore(state, _ => new IdleProvider()))
         {
             var setupState = setup.ExportState();
-            var house = setupState.WorldContent!.Buildings.Single(item => item.LocalId == "house-1x1");
+            var buildingDefinition = setupState.WorldContent!.Buildings.Single(item => item.LocalId == "tailor-shop-1x1");
             var setupTown = setupState.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
             var occupied = setupState.WorldSimulation!.Buildings.SelectMany(placed =>
                 WorldContentSimulationRules.Footprint(setupState.WorldContent.Buildings.Single(item =>
                     item.CanonicalId == placed.DefinitionId), placed)).ToHashSet();
             var site = setupTown.BorderTiles.First(point => setupState.Map.IsBuildable(point) &&
                 !occupied.Contains(point) && !setupState.Map.Resources.Any(item => item.Position == point));
-            var placed = setup.PlaceBuilding("historic-house", house.CanonicalId, site, "household:camp-alpha");
+            var placed = setup.PlaceBuilding("historic-tailor", buildingDefinition.CanonicalId, site, "household:camp-alpha");
             Assert.True(placed.Applied, placed.Failure);
             state = setup.ExportState();
         }
-        var building = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "historic-house");
+        var building = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "historic-tailor");
         var town = state.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
         var worker = state.Society.Society.Inhabitants.First(item => item.HouseholdId == building.HouseholdId).Id;
         var recipe = state.WorldContent!.Recipes.First(item => !item.IsCrop);
-        var expansion = new BuildingExpansionJob(
-            "historic-expansion", building.InstanceId, worker, building.HouseholdId!, 0,
-            building.Position, building.Position, new(1, 2, 1),
-            0, 1, WorldProductionJobState.Completed, ["historic-reservation"]);
         var production = new WorldProductionJob("historic-production", recipe.CanonicalId,
             building.InstanceId, worker, 0, 1, WorldProductionJobState.Completed, []);
         state = state with
@@ -41,7 +43,6 @@ public sealed class TownBuildingManagementTests
             WorldSimulation = state.WorldSimulation with
             {
                 ProductionJobs = [production],
-                BuildingExpansions = [expansion],
             },
         };
 
@@ -69,14 +70,92 @@ public sealed class TownBuildingManagementTests
         Assert.Equal(originalBorder, Assert.Single(world.Towns, item => item.Id == building.TownId).BorderTiles);
         Assert.Contains(saved.WorldSimulation.ProductionJobs, item => item.JobId == production.JobId &&
             item.BuildingInstanceId == building.InstanceId && item.State == WorldProductionJobState.Completed);
-        Assert.Contains(saved.WorldSimulation.BuildingExpansions!, item => item.JobId == expansion.JobId &&
-            item.BuildingInstanceId == building.InstanceId && item.DefinitionId == building.DefinitionId);
 
         var bytes = PrivateWorldRuntimeCodec.Encode(saved);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(originalBorder, Assert.Single(restored.Towns, item => item.Id == building.TownId).BorderTiles);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(saved with { SchemaVersion = 36 }));
+    }
+
+    [Fact]
+    public void RemovingAHousePreservesItsCompletedExpansionDefinitionForReload()
+    {
+        var state = StartedState("town-building-expansion-history");
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-b");
+        var worker = state.Society.Society.Inhabitants.First(item => item.HouseholdId == house.HouseholdId).Id;
+        var lotIds = state.Society.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == house.InstanceId || lot.DeliveryBuildingId == house.InstanceId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !lotIds.Contains(lot.Id)).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations
+                .Where(item => !lotIds.Contains(item.LotId)).ToArray(),
+        };
+        var expansion = new BuildingExpansionJob(
+            "historic-expansion", house.InstanceId, worker, house.HouseholdId!, 0,
+            house.Position, house.Position, new(1, 2, 1),
+            0, 1, WorldProductionJobState.Completed, ["historic-reservation"]);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            WorldSimulation = state.WorldSimulation with { BuildingExpansions = [expansion] },
+        };
+
+        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var removed = world.RemoveBuilding(house.InstanceId, house.TownId, house.HouseholdId);
+        Assert.True(removed.Applied, removed.Failure);
+        var saved = world.ExportState();
+        var history = Assert.Single(saved.WorldSimulation!.BuildingExpansions!);
+        Assert.Equal(house.InstanceId, history.BuildingInstanceId);
+        Assert.Equal(house.DefinitionId, history.DefinitionId);
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(saved);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.DoesNotContain(restored.WorldSimulation.Buildings, item => item.InstanceId == house.InstanceId);
+    }
+
+    [Fact]
+    public void ReassignmentCannotGiveAHouseholdASecondBuildingOfTheSameKind()
+    {
+        var state = StartedState("town-building-duplicate-kind");
+        var definitions = state.WorldContent!.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var houses = state.WorldSimulation!.Buildings.Where(item =>
+            HouseholdBuildingKinds.KindOf(definitions[item.DefinitionId]) == "house").ToArray();
+        Assert.Equal(2, houses.Length);
+        Assert.Equal(2, houses.Select(item => item.HouseholdId).Distinct(StringComparer.Ordinal).Count());
+        var source = houses.Single(item => item.HouseholdId == "household:camp-beta");
+        var targetHouseholdId = "household:camp-alpha";
+        var sourceLotIds = state.Society.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == source.InstanceId || lot.DeliveryBuildingId == source.InstanceId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !sourceLotIds.Contains(lot.Id)).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations
+                .Where(item => !sourceLotIds.Contains(item.LotId)).ToArray(),
+        };
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+
+        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var result = world.ReassignBuilding(source.InstanceId, source.TownId, source.HouseholdId,
+            targetTownId: null, targetHouseholdId: targetHouseholdId);
+
+        Assert.False(result.Applied);
+        Assert.Contains("already has a House", result.Failure, StringComparison.Ordinal);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Validate();
+
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before), _ => new IdleProvider());
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Contains(restored.WorldSimulation.Buildings, item => item.InstanceId == source.InstanceId &&
+            item.HouseholdId == source.HouseholdId);
     }
 
     [Fact]
