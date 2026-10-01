@@ -6,6 +6,38 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    /// <summary>Saves from two versions of events are grouped apart, and each branch's latest point is clear.</summary>
+    private void VerifySaveBranchList()
+    {
+        var start = DateTimeOffset.UnixEpoch;
+        var first = new SaveBranch("a", 1);
+        var second = new SaveBranch("b", 2, "flood", "Before the flood", 10);
+        ManualWorldSave flood = new("flood", "Before the flood", start, 10, false, first);
+        ManualWorldSave harvest = new("harvest", "Big harvest", start.AddMinutes(1), 90, false, first, "flood", start);
+        ManualWorldSave winter = new("winter", "Hungry winter", start.AddMinutes(2), 60, false, second, "flood", start);
+        ManualWorldSave old = new("old", "Old save", start.AddMinutes(-1), 5);
+        ManualWorldSave[] saves = [old, flood, harvest, winter];
+        var ordered = OrderSavesByBranch(saves).Select(save => save.Id).ToArray();
+        if (!ordered.SequenceEqual(["winter", "harvest", "flood", "old"]))
+            throw new InvalidOperationException("Saves must be grouped by branch, newest branch and newest point first: " +
+                string.Join(", ", ordered));
+        if (!IsLatestInBranch(harvest, saves) || !IsLatestInBranch(winter, saves) ||
+            IsLatestInBranch(flood, saves) || IsLatestInBranch(old, saves))
+            throw new InvalidOperationException("Only the newest point of a branch may continue it.");
+        if (BranchLabel(second) != "Branch 2" || BranchLabel(null) != "Earlier saves")
+            throw new InvalidOperationException("Branch labels must name the branch, or saves from before branches.");
+
+        allListedManualSaves = saves;
+        listedManualSaves = OrderSavesByBranch(saves);
+        RenderManualSaveList();
+        var winterCard = manualSaveList.GetItemTitle(0);
+        if (manualSaveList.ItemCount != 4 || winterCard != "Hungry winter")
+            throw new InvalidOperationException("The save list must show every branch's saves.");
+        allListedManualSaves = [];
+        listedManualSaves = [];
+        manualSaveList.Clear();
+    }
+
     private async Task VerifyManualSaveListOwnershipAsync()
     {
         var previousRegistration = registration;
