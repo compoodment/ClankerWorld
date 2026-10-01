@@ -99,8 +99,11 @@ public sealed class ConcreteMealTests
         state = FarmFieldTests.WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Project = new SettlementProject("build:recipe:" + recipe.CanonicalId,
-                    recipe.DisplayName, state.Society.Society.WorldTick, "working", 10) } : person).ToArray(),
+                ? person with
+                {
+                    Project = new SettlementProject("build:recipe:" + recipe.CanonicalId,
+                    recipe.DisplayName, state.Society.Society.WorldTick, "working", 10)
+                } : person).ToArray(),
         };
         using var world = Restore(state);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -151,8 +154,12 @@ public sealed class ConcreteMealTests
         state = FarmFieldTests.WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { HungerBasisPoints = 1_000, LastDecisionContext = null,
-                    Survival = person.Survival! with { NutritionBasisPoints = 5_000, LastMealKind = "bread" } }
+                ? person with
+                {
+                    HungerBasisPoints = 1_000,
+                    LastDecisionContext = null,
+                    Survival = person.Survival! with { NutritionBasisPoints = 5_000, LastMealKind = "bread" }
+                }
                 : person).ToArray(),
         };
         using var world = Restore(state, actor, "consume_food");
@@ -240,8 +247,11 @@ public sealed class ConcreteMealTests
         var other = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household && person.Id != actor).Id;
         using var society = SocietyWorldRuntime.Restore(state.Society);
         society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, other, SocietyDeathCause.Accident, checkpoint.WorldTick));
-        state = state with { Society = society.ExportState(),
-            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != other).ToArray() };
+        state = state with
+        {
+            Society = society.ExportState(),
+            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != other).ToArray()
+        };
         var inventory = state.Society.Society.Inventory with
         {
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != household ||
@@ -262,8 +272,11 @@ public sealed class ConcreteMealTests
         inventory = InventoryFixture.AddLot(inventory, "post-upgrade-greens", "cultivated_greens", household, 1,
             storageBuildingId: restaurant.InstanceId);
         var observer = new ActionCoverageRecorder(chooseIdle: true);
-        state = FarmFieldTests.WithInventory(stocked, inventory) with { Inhabitants = world.ExportState().Inhabitants.Select(person =>
-            person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray() };
+        state = FarmFieldTests.WithInventory(stocked, inventory) with
+        {
+            Inhabitants = world.ExportState().Inhabitants.Select(person =>
+            person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray()
+        };
         using var completed = PrivateWorldRuntime.Restore(state, id => id == actor ? observer : new Chooser());
         for (var tick = 0; tick < 6; tick++) Assert.True((await completed.AdvanceOneTickAsync()).Advanced);
         Assert.DoesNotContain(observer.FamiliesOfferedTo(actor, completed.WorldContent), family =>
@@ -385,8 +398,13 @@ public sealed class ConcreteMealTests
         {
             Survival = new SettlementSurvivalState(0, []),
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = site.Position, HungerBasisPoints = 9_000, LastDecisionContext = null,
-                    Survival = new SurvivalCondition() }
+                ? person with
+                {
+                    Position = site.Position,
+                    HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
+                    Survival = new SurvivalCondition()
+                }
                 : person).ToArray(),
         };
         return (state, actor, household, site, recipe);

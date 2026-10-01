@@ -506,9 +506,17 @@ public sealed class PotteryContentTests
         Assert.True(placed?.Applied, "A reachable test workstation should fit beside the household House.");
 
         var state = SetActorCondition(setup.ExportState(), actor, 10_000, sourceHouse.Position);
-        state = state with { Society = state.Society with { Society = state.Society.Society with
-        { Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "water-supply-ready-meals",
-            "simple_meal", householdId, 4, storageBuildingId: sourceHouseId) } } };
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "water-supply-ready-meals",
+            "simple_meal", householdId, 4, storageBuildingId: sourceHouseId)
+                }
+            }
+        };
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, jugId,
             InventoryContainerRules.WaterJug, householdId, 1, state.Society.Society.WorldTick,
             storageBuildingId: sourceHouseId);

@@ -14,7 +14,7 @@ public sealed class SettlementSurvivalTests
     {
         var (state, actor, _, _) = FarmFieldTests.PreparedFarmer("named-food-spoilage");
         string[] readyFoods = ["food", "fruit", "berries", "wild_greens", "cultivated_greens"];
-        string[] dryStock = [ "grain_seed", "cultivated_green_seed", "orchard_seed"];
+        string[] dryStock = ["grain_seed", "cultivated_green_seed", "orchard_seed"];
         var inventory = state.Society.Society.Inventory;
         foreach (var kind in readyFoods.Concat(dryStock).Append("grain"))
             inventory = InventoryFixture.AddLot(inventory, "spoilage:" + kind, kind, actor, 1);
