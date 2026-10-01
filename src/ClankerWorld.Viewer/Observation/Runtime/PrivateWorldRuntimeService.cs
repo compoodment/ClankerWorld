@@ -458,21 +458,28 @@ public sealed partial class PrivateWorldRuntimeService(
                     var childRows = (configuration.Assignments ?? []).Where(item =>
                         item.InhabitantId == child.InhabitantId &&
                         item.Role is PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole).ToArray();
-                    if (childRows.Any(item => item.SelectionReason is null))
+                    var birthRows = childRows.Where(item => item.SelectionReason is not null).ToArray();
+                    if (selection.Provider is null)
                     {
-                        // An owner choice supersedes the birth default. Keep the
-                        // descriptor as history, but never replay it over the
-                        // current personal route after a tick or restart.
-                        pendingChildModelBindings.Remove(child.InhabitantId);
-                        continue;
+                        if (birthRows.Length > 0)
+                            throw new InvalidDataException("An unconfigured child has a saved birth model assignment.");
+                        if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                            continue;
                     }
-                    var rows = childRows.Where(item => item.SelectionReason is not null).ToArray();
-                    var hasExpectedAssignments = selection.Provider is null
-                        ? rows.Length == 0
-                        : rows.Length == 2 && rows.All(item => item.Provider == selection.Provider &&
-                            item.Model == selection.ModelId && item.CredentialSlotId == selection.CredentialSlotId &&
-                            item.SelectionReason == selection.ChoiceReason);
-                    if (!hasExpectedAssignments && !pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                    else
+                    {
+                        if (birthRows.Any(item => item.Provider != selection.Provider || item.Model != selection.ModelId ||
+                                item.CredentialSlotId != selection.CredentialSlotId || item.SelectionReason != selection.ChoiceReason))
+                            throw new InvalidDataException("A child's saved route does not match its birth model choice.");
+                        var bothRolesConfigured = new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole }
+                            .All(role => childRows.Any(item => item.Role == role));
+                        if (bothRolesConfigured)
+                        {
+                            pendingChildModelBindings.Remove(child.InhabitantId);
+                            continue;
+                        }
+                    }
+                    if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
                         pendingChildModelBindings.Add(child.InhabitantId, new FrozenChildModelBinding(selection, null));
                 }
 

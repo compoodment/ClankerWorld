@@ -481,7 +481,10 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("world-model", handler.LastModel);
 
             _ = store.Configure(new("planning", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Empty(store.CaptureStatus().Assignments!);
+            var inherited = store.CaptureStatus().Assignments!;
+            var inheritedPlanning = Assert.Single(inherited);
+            Assert.Equal(PlayerDecisionProviders.PlanningRole, inheritedPlanning.Role);
+            Assert.Equal(PlayerDecisionProviders.Inherit, inheritedPlanning.Provider);
             _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
             Assert.Equal("ollama.com", handler.LastUri!.Host);
 
@@ -564,7 +567,9 @@ public sealed class ProviderConfigurationStoreTests
             _ = store.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
             var deleted = store.DeleteCredentialSlot(slotId);
             Assert.Empty(deleted.CredentialSlots!);
-            Assert.Empty(deleted.Assignments!);
+            Assert.Equal(2, deleted.Assignments!.Count);
+            Assert.All(deleted.Assignments, assignment =>
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider));
             Assert.DoesNotContain(secret, File.ReadAllText(path), StringComparison.Ordinal);
             Assert.DoesNotContain(secret, System.Text.Json.JsonSerializer.Serialize(deleted), StringComparison.Ordinal);
             Assert.Throws<ArgumentException>(() => store.DeleteCredentialSlot(slotId));
@@ -623,7 +628,9 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("chosen-model", handler.LastModel);
 
             _ = store.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Empty(store.CaptureStatus().Assignments!);
+            var inherited = store.CaptureStatus().Assignments!;
+            Assert.Equal(2, inherited.Count);
+            Assert.All(inherited, assignment => Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider));
         }
         finally
         {

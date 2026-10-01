@@ -289,19 +289,28 @@ public sealed partial class SettlementParenthoodTests
             var birthChoice = child.ChildModelSelection!;
             File.Delete(providerDirectory);
             Directory.CreateDirectory(providerDirectory);
+            var pendingOwnerSlotId = Guid.NewGuid().ToString("N");
+            _ = providers.Configure(new(PlayerDecisionProviders.PlanningRole, "ollama-cloud",
+                "owner-pending-model", "owner-pending-test-key", false, child.InhabitantId,
+                pendingOwnerSlotId, "Owner model set during recovery"));
             Assert.False(await service.TryAdvanceOnceAsync(),
-                "Persisting the recovered birth route must leave the world paused until the owner resumes it.");
+                "Persisting the missing birth route must leave the world paused until the owner resumes it.");
 
             var birthAssignments = providers.CaptureRuntimeConfiguration().Assignments!
                 .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
             Assert.Equal(2, birthAssignments.Length);
-            Assert.All(birthAssignments, assignment =>
-            {
-                Assert.Equal(birthChoice.Provider, assignment.Provider);
-                Assert.Equal(birthChoice.ModelId, assignment.Model);
-                Assert.Equal(birthChoice.CredentialSlotId, assignment.CredentialSlotId);
-                Assert.Equal(birthChoice.ChoiceReason, assignment.SelectionReason);
-            });
+            var recoveredBirthRoute = Assert.Single(birthAssignments,
+                assignment => assignment.Role == PlayerDecisionProviders.RoutineRole);
+            Assert.Equal(birthChoice.Provider, recoveredBirthRoute.Provider);
+            Assert.Equal(birthChoice.ModelId, recoveredBirthRoute.Model);
+            Assert.Equal(birthChoice.CredentialSlotId, recoveredBirthRoute.CredentialSlotId);
+            Assert.Equal(birthChoice.ChoiceReason, recoveredBirthRoute.SelectionReason);
+            var pendingOwnerRoute = Assert.Single(birthAssignments,
+                assignment => assignment.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("ollama-cloud", pendingOwnerRoute.Provider);
+            Assert.Equal("owner-pending-model", pendingOwnerRoute.Model);
+            Assert.Equal(pendingOwnerSlotId, pendingOwnerRoute.CredentialSlotId);
+            Assert.Null(pendingOwnerRoute.SelectionReason);
 
             world.Resume();
             var ownerSlotId = Guid.NewGuid().ToString("N");
@@ -351,9 +360,41 @@ public sealed partial class SettlementParenthoodTests
             Assert.Equal(ownerSlotId, restartedOwnerRoute.CredentialSlotId);
             Assert.Null(restartedOwnerRoute.SelectionReason);
 
-            _ = restartedProviders.Configure(new("personal", PlayerDecisionProviders.Inherit,
+            _ = restartedProviders.Configure(new(PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.Inherit,
                 null, null, false, child.InhabitantId));
-            var explicitlyUnconfigured = restartedProviders.CaptureRuntimeConfiguration().Assignments!
+            var partiallyUnconfigured = restartedProviders.CaptureRuntimeConfiguration().Assignments!
+                .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
+            Assert.Equal(2, partiallyUnconfigured.Length);
+            var inheritedRoutine = Assert.Single(partiallyUnconfigured,
+                assignment => assignment.Role == PlayerDecisionProviders.RoutineRole);
+            Assert.Equal(PlayerDecisionProviders.Inherit, inheritedRoutine.Provider);
+            Assert.Null(inheritedRoutine.SelectionReason);
+            var retainedPlanning = Assert.Single(partiallyUnconfigured,
+                assignment => assignment.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("ollama-cloud", retainedPlanning.Provider);
+            Assert.Equal("owner-selected-model", retainedPlanning.Model);
+            Assert.Null(retainedPlanning.SelectionReason);
+            Assert.True(await restartedService.TryAdvanceOnceAsync());
+
+            using var partiallyUnconfiguredWorld = stateFile.LoadOrCreate("settlement-parenthood");
+            var partiallyUnconfiguredProviders = new ProviderConfigurationStore(providerPath,
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            using var partiallyUnconfiguredService = new PrivateWorldRuntimeService(
+                partiallyUnconfiguredWorld, stateFile, presence, providers: partiallyUnconfiguredProviders);
+            Assert.True(await partiallyUnconfiguredService.TryAdvanceOnceAsync());
+            Assert.Equal(birthChoice, partiallyUnconfiguredWorld.Inhabitants
+                .Single(item => item.InhabitantId == child.InhabitantId).ChildModelSelection);
+            var reloadedPartialChoice = partiallyUnconfiguredProviders.CaptureRuntimeConfiguration().Assignments!
+                .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
+            Assert.Equal(2, reloadedPartialChoice.Length);
+            Assert.Equal(PlayerDecisionProviders.Inherit,
+                Assert.Single(reloadedPartialChoice, item => item.Role == PlayerDecisionProviders.RoutineRole).Provider);
+            Assert.Equal("owner-selected-model",
+                Assert.Single(reloadedPartialChoice, item => item.Role == PlayerDecisionProviders.PlanningRole).Model);
+
+            _ = partiallyUnconfiguredProviders.Configure(new("personal", PlayerDecisionProviders.Inherit,
+                null, null, false, child.InhabitantId));
+            var explicitlyUnconfigured = partiallyUnconfiguredProviders.CaptureRuntimeConfiguration().Assignments!
                 .Where(item => item.InhabitantId == child.InhabitantId).ToArray();
             Assert.Equal(2, explicitlyUnconfigured.Length);
             Assert.All(explicitlyUnconfigured, assignment =>
@@ -361,7 +402,7 @@ public sealed partial class SettlementParenthoodTests
                 Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
                 Assert.Null(assignment.SelectionReason);
             });
-            Assert.True(await restartedService.TryAdvanceOnceAsync());
+            Assert.True(await partiallyUnconfiguredService.TryAdvanceOnceAsync());
 
             using var explicitlyUnconfiguredWorld = stateFile.LoadOrCreate("settlement-parenthood");
             var explicitlyUnconfiguredProviders = new ProviderConfigurationStore(providerPath,

@@ -366,7 +366,8 @@ public sealed class ProviderConfigurationStore
             }
             var assignments = (state.Assignments ?? [])
                 .Where(item => item.InhabitantId != childId ||
-                    item.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole))
+                    item.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) ||
+                    item.SelectionReason is null)
                 .ToList();
             if (boundSelection.Provider is { } provider)
             {
@@ -383,10 +384,13 @@ public sealed class ProviderConfigurationStore
                     (string.IsNullOrWhiteSpace(boundSelection.ModelId) ||
                      boundSelection.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _)))
                     throw new ArgumentException("The inherited child model choice is incomplete.", nameof(frozen));
-                assignments.Add(new InhabitantProviderAssignment(childId, PlayerDecisionProviders.RoutineRole, provider,
-                    boundSelection.ModelId, boundSelection.CredentialSlotId, boundSelection.ChoiceReason));
-                assignments.Add(new InhabitantProviderAssignment(childId, PlayerDecisionProviders.PlanningRole, provider,
-                    boundSelection.ModelId, boundSelection.CredentialSlotId, boundSelection.ChoiceReason));
+                foreach (var role in new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole })
+                {
+                    if (assignments.Any(item => item.InhabitantId == childId && item.Role == role))
+                        continue;
+                    assignments.Add(new InhabitantProviderAssignment(childId, role, provider,
+                        boundSelection.ModelId, boundSelection.CredentialSlotId, boundSelection.ChoiceReason));
+                }
             }
             else if (boundSelection.ChoiceReason == PrivateWorldRuntime.ChildModelChoiceParentsAgreed)
             {
