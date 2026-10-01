@@ -7,8 +7,8 @@ namespace ClankerWorld.GodotClient.UI;
 /// in three or four shades, and gets a one-pixel outline all the way round
 /// its silhouette, in a darker shade of whatever it borders, so the outline
 /// is always complete. Icons scale only by whole numbers (16, 32, 48 px) so
-/// they stay crisp. An item kind without its own icon yet (for example new
-/// content) shows a plain crate, so it is still counted.
+/// they stay crisp. Concrete meals without distinct art share the meal icon.
+/// Other item kinds without their own icon show a plain crate.
 /// </summary>
 public static class ItemIcons
 {
@@ -17,6 +17,10 @@ public static class ItemIcons
     private static readonly Color Ink = new("2A1A10");
     private static readonly Dictionary<(string Kind, int Size), ImageTexture> Cache = [];
     private static readonly Dictionary<string, Image> Art = [];
+    private static readonly HashSet<string> MealAliases = new(StringComparer.Ordinal)
+    {
+        "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal"
+    };
 
     /// <summary>Each row is one line of pixels; '.' is empty and every other letter is a palette colour.</summary>
     private sealed record Icon(string Palette, string[] Rows);
@@ -464,18 +468,11 @@ public static class ItemIcons
         ]),
     };
 
-    static ItemIcons()
-    {
-        // Concrete meals share the shipped meal icon while keeping separate stock names.
-        foreach (var kind in new[] { "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "bread", "stew", "restaurant_meal" })
-            Icons[kind] = Icons["food"];
-    }
-
     /// <summary>The item kinds that have their own icon.</summary>
     public static IReadOnlyCollection<string> Kinds => Icons.Keys.Where(kind => kind != Fallback).ToArray();
 
-    /// <summary>Whether this kind has its own icon rather than the crate.</summary>
-    public static bool Has(string kind) => kind != Fallback && Icons.ContainsKey(kind);
+    /// <summary>Whether this kind has item art rather than the crate.</summary>
+    public static bool Has(string kind) => kind != Fallback && (Icons.ContainsKey(kind) || MealAliases.Contains(kind));
 
     public static ImageTexture Texture(string kind, int size)
     {
@@ -492,7 +489,7 @@ public static class ItemIcons
     /// </summary>
     public static Image Render(string kind, int size)
     {
-        var art = OutlinedArt(Icons.ContainsKey(kind) ? kind : Fallback);
+        var art = OutlinedArt(kind);
         var scale = Math.Max(1, size / Grid);
         var offset = (size - Grid * scale) / 2;
         var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
@@ -509,6 +506,7 @@ public static class ItemIcons
     /// <summary>The 16 × 16 art with its outline, drawn once per kind.</summary>
     public static Image OutlinedArt(string kind)
     {
+        kind = Icons.ContainsKey(kind) ? kind : MealAliases.Contains(kind) ? "food" : Fallback;
         if (Art.TryGetValue(kind, out var cached)) return cached;
         var icon = Icons[kind];
         var palette = icon.Palette.Split(' ').ToDictionary(entry => entry[0], entry => new Color(entry[1..]));
@@ -540,7 +538,7 @@ public static class ItemIcons
     }
 
     /// <summary>Whether every row is 16 wide and no pixel touches the edge, so the outline fits.</summary>
-    public static bool FitsGrid(string kind) => Icons.TryGetValue(kind, out var icon) && icon.Rows.Length == Grid &&
+    public static bool FitsGrid(string kind) => Icons.TryGetValue(MealAliases.Contains(kind) ? "food" : kind, out var icon) && icon.Rows.Length == Grid &&
         icon.Rows.All(row => row.Length == Grid) &&
         icon.Rows[0].All(pixel => pixel == '.') && icon.Rows[^1].All(pixel => pixel == '.') &&
         icon.Rows.All(row => row[0] == '.' && row[^1] == '.');
