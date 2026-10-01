@@ -148,13 +148,16 @@ black overlay; the ramps already shift hue toward blue in the shade.
   Both tile seamlessly with themselves and each other: motifs stay one pixel
   clear of the edges and mottling blobs may cross edges only if they
   continue on the opposite edge.
-- T3 **Mountains and peaks are one landform.** The owner rejected
-  per-tile mountain pictures on October 1 ("a mountain is a whole entity").
-  The proposal in review draws relief from the world's elevation across many
-  tiles, lit from the north-west, with snow on the highest ground. Until it
-  is approved, the game keeps its current mountain and peak tiles.
-- T4 **Hills** are soft foothill shading of the same landform, never rings
-  or mounds. Also in review.
+- T3 **Mountains and peaks are one landform**, drawn from the world's
+  elevation across many tiles rather than as a picture per tile. Tile
+  elevations blend into one smooth surface with spurs and gullies, shaded
+  from the north-west with the Rock ramp; snow covers the highest ground and
+  turns blue-grey on shaded faces; a thin light line marks bare crests. The
+  relief is fully opaque over Mountain and Peak tiles and fades softly onto
+  the land around them, so a range's edge follows the land, not tile squares.
+  The client renders it per 16×16-tile chunk (`UI/Map/ReliefRenderer.cs`).
+- T4 **Hills** are faint foothill shading of the same surface over their own
+  ground, strongest next to the mountains, never rings or mounds.
 - T5 **Fertile soil** reads as tilled earth: furrows two shades apart
   running east–west four pixels apart, a few clods in the light step.
 - T6 Snow is smooth with one or two drift ridges in the shade step and
@@ -221,10 +224,12 @@ black overlay; the ramps already shift hue toward blue in the shade.
   in three tones); Farmhouse thatch (jittered strands, bound ridge);
   Blacksmith slate (6 × 3 slabs) with a forge yard; Warehouse grey timber
   planks along the ridge; Tailor dyed shingles; Workshop green planks;
-  Silo conical seams; Store striped awning over the door; Market canvas
-  roof with stall awnings; Town Hall slate with a small bell tower;
+  Silo conical seams; Store striped awning over the door; Market timber
+  hall; Town Hall slate with a small bell tower;
   Port timber planks on piles over water; Restaurant clay tiles with a
-  pot sign; Clinic shingles with a cross-and-herb sign.
+  pot sign; Clinic shingles with a cross-and-herb sign. The Market is a
+  timber hall without stalls; its 1×1 stalls stand on a plaza of packed earth
+  around it, drawn as an area of the Road's surface.
 - B4 The ridge runs along the long side as a one-pixel light line; the
   north or west half is lit and the south or east half shaded. Square roofs
   are hipped.
@@ -257,9 +262,11 @@ black overlay; the ramps already shift hue toward blue in the shade.
   the south-east; skin and hair keep the palettes above.
 - A5 Infants stay a wrapped bundle; children are 0.78 scale; elders have
   D9D6CF hair, a slight stoop (head one pixel south) and a one-pixel cane.
-- A6 Horses (later): body ellipse 22 × 12 in Timber shade/base with a mane
-  in Hair 1, head toward the facing, a Timber edge saddle; a rider is an
-  agent torso on the saddle.
+- A6 Horses (later): an outlined body about 17 × 11 that fits its tile, in
+  Timber shade/base with a mane in Hair 1, head toward the facing, a saddle;
+  a rider is an agent torso on the saddle.
+- A8 Animals, handcarts and boats face the same eight directions as agents,
+  drawn as real pixel art for each diagonal rather than a blurred rotation.
 - A7 At 16 px an adult keeps a 7 px head, 10 × 6 shoulders and the outline.
 
 ## 11. Items

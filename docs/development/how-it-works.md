@@ -417,8 +417,12 @@ three tiles (counting diagonal steps as one) of a mountain or peak. They are a
 visual layer only: nothing is saved for them, they keep their own surface, and
 they cost the same to walk and build on as grass. `SeededMap.IsHillAt` and the
 Godot client's `WorldTerrainMap` apply the same rule to the saved elevation and
-water layers. The client draws a relief overlay on hill tiles, warms their
-overview color and shows "Landform: Hills" in tile inspection. Hill travel cost
+water layers. The client draws mountains, peaks and hills as one relief layer
+from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders 16×16-tile
+chunks on worker threads, caches one texture per chunk and atlas size, and
+shows the per-tile mountain and hill art for a chunk until its relief is
+ready. It also warms hills' overview color and shows "Landform: Hills" in tile
+inspection. Hill travel cost
 and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed

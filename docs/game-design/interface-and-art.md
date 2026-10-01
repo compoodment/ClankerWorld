@@ -494,8 +494,20 @@ The recent history should persist with the world save but remain bounded.
   ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); the Main Menu valley keeps its look
   with better mountains; tilled soil needs more than plain lines; the grain
   icon must read as grain as clearly as before; and the Farmhouse loses its
-  painted cart, because handcarts will be real vehicles. These redraws are in
-  a second review round.
+  painted cart, because handcarts will be real vehicles.
+- **Agreed after the second round of the art review (October 1):** computment
+  approved 211 of 222 pictures, with no rejections. Mountains, peaks and
+  hills are drawn from the world's elevation as one landform spanning many
+  tiles: a range reads as one mass with a snowy crest, and hills are soft
+  foothill shading with no rings ("I like that mountain is a range"). Also
+  approved: the Main Menu valley with its new mountains; tilled soil and the
+  scrub, dry brush, desert brush and tundra snow ground; the clearer grain
+  icon; the Farmhouse with grain sheaves and sacks instead of a cart; every
+  building footprint, the Workshop, the Restaurant, a handcart vehicle and a
+  rowing boat; chickens, sheep and cows; the remaining tree, plant, outcrop
+  and crop states; 43 more item icons; and part of the interface icon set.
+  Animals, handcarts and boats face all eight directions, like agents. How
+  mountains generate stays open in [#628](https://github.com/compoodment/ClankerWorld/issues/628).
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.
@@ -523,7 +535,7 @@ method remains Clanker's proposal, not an accepted implementation rule.
 
 ### Still to decide
 
-How mountains, peaks and hills are drawn and generated; animation timing;
+How mountains, peaks and hills generate ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); animation timing;
 AI-generation provider and spending controls; how much visual cleanup can be
 automated; quality criteria; asset size budgets; and the final art/content
 metadata contract. Also open: the minimum distinct designs each category

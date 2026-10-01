@@ -1,3 +1,7 @@
 - The map uses the pixel art approved in the October 1 art review. Grass, forest, sand, rock, snow and tundra ground has soft, calm patches; water has gentle depth; Roads are calmer packed dirt; and bridges are plank decks that the street runs straight onto. Trees, bushes, outcrops and clay banks have clearer light and outlines, and the House, Warehouse, Blacksmith, Silo and Tailor Shop show real roof materials, a visible door and one telling feature each, such as the forge yard.
 - Agents now face the way they last moved, in eight directions, take walking steps as they move, and show when they are carrying, working, talking or hurt.
 - Water, wild greens, potatoes, porridge, stew, meals and diamonds have their own item icons instead of a crate, and wood, stone, bread, clothing and the wooden axe have redrawn icons.
+- Mountains, peaks and hills are drawn as one landform: a mountain range now reads as a single mass with a snowy crest instead of a grid of little triangles, and hills are soft foothill shading instead of rings.
+- Farm fields show tilled soil with grain, potatoes or greens drawn at each stage, from seed to harvest. Scrub, dry brush, desert brush and tundra snow ground are redrawn to match the rest of the map.
+- The Farmhouse shows grain sheaves and sacks, and the Workshop is redrawn. Every item has its own icon, and a few interface icons are clearer.
+- The Main Menu valley has more detailed snowy mountains, by day and at dusk.
