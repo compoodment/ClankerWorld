@@ -120,6 +120,16 @@ every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
 
+The owner snapshot sends every open message, plus the six most recently
+submitted closed messages for each agent, whether or not a personal model heard
+them. An order the game could not act on, or one carried out by local rules,
+therefore still appears on the agent card as closed and not heard. The card
+shows up to four messages per agent, newest first by submission but always
+preferring open messages over closed ones, then lists them in the order they
+were sent. Newer closed messages therefore cannot hide an order that is still
+waiting. The save keeps
+every message; only the snapshot is bounded.
+
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
 methods remain for isolated tests; they are not the live scheduling path.

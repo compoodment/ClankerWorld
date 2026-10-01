@@ -16,7 +16,7 @@ namespace ClankerWorld.Viewer.Observation;
 public sealed class OwnerWorldObservationStore
 {
     private const int AgentKnowledgeArtifactLimit = 8;
-    private const int RecentObservedInstructionLimitPerAgent = 6;
+    private const int RecentClosedInstructionLimitPerAgent = 6;
     private static readonly string[] OwnerServerCapabilities =
     [
         "snapshot.read.v1",
@@ -497,6 +497,10 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    // Every open message stays visible. Closed messages are bounded to each
+    // agent's newest few, whether or not a personal model heard them: an order
+    // the game could not act on, or one done by local rules, still belongs on
+    // the card. Newest means latest submitted, the order the card reads them in.
     private static OwnerQueuedInstruction[] ProjectPrivateInstructions(
         PrivateWorldRuntimeState state,
         HashSet<string> completedInstructionIds) =>
@@ -505,13 +509,11 @@ public sealed class OwnerWorldObservationStore
             .SelectMany(group =>
             {
                 var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
-                var recentObserved = group
-                    .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId) &&
-                        instruction.ObservedTick is not null)
-                    .OrderByDescending(instruction => instruction.ObservedTick)
-                    .ThenByDescending(instruction => instruction.SubmissionSequence)
-                    .Take(RecentObservedInstructionLimitPerAgent);
-                return pending.Concat(recentObserved);
+                var recentClosed = group
+                    .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId))
+                    .OrderByDescending(instruction => instruction.SubmissionSequence)
+                    .Take(RecentClosedInstructionLimitPerAgent);
+                return pending.Concat(recentClosed);
             })
             .OrderBy(instruction => instruction.SubmissionSequence)
             .ToArray();

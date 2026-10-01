@@ -645,9 +645,11 @@ public partial class Main
             ? "None recorded yet."
             : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
                 .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
+        // Show the newest four, but never let newer closed messages hide one still open.
         var recentInstructions = snapshot.Instructions
             .Where(item => item.TargetInhabitantId == inhabitant.Id)
-            .OrderByDescending(item => item.SubmissionSequence)
+            .OrderBy(item => item.State == "completed")
+            .ThenByDescending(item => item.SubmissionSequence)
             .Take(4)
             .OrderBy(item => item.SubmissionSequence)
             .Select(item =>
