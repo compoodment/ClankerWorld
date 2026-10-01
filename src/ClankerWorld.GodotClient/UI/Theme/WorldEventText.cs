@@ -51,6 +51,10 @@ public static class WorldEventText
             "estate_will_default" => "Their belongings went to their household.",
             "partnership_accepted" => "Two agents formed a partnership.",
             "partnership_ended" => "A partnership ended.",
+            "continuity_rule_on" => "The continuity rule is on because fewer than eight people who are not elders are alive. " +
+                "Couples may put off having a child for up to two days but cannot refuse.",
+            "continuity_rule_off" => "The continuity rule is off because eight or more people who are not elders are alive. " +
+                "Couples may decide against having a child again.",
             "caregiver_assigned" => "A child has a new caregiver.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",

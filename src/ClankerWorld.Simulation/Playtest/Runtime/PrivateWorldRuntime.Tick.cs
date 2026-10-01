@@ -277,6 +277,7 @@ public sealed partial class PrivateWorldRuntime
         worldSystems = proposed.worldSystems;
         survivalState = proposed.survivalState;
         council = proposed.council;
+        continuity = proposed.continuity;
         worldContent = proposed.worldContent;
         worldSimulation = proposed.worldSimulation;
         assetReservations = proposed.assetReservations;
@@ -468,6 +469,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainPartnerships();
             MaintainHousing();
             MaintainParenthood();
+            MaintainContinuity();
             MaintainDependentCare();
             UpdateConversationsForTick(targetTick);
             EnqueueDueCognition();

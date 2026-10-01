@@ -20,10 +20,11 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 37;
+    public const int StateSchemaVersion = 38;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
+    public const int ContinuitySchemaVersion = 38;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
@@ -171,6 +172,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
+        StartContinuityRule();
     }
 
     /// <summary>Creates a world from the already previewed deterministic map.</summary>
@@ -293,6 +295,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
+        runtime.continuity = state.Continuity!;
         runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
@@ -423,7 +426,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        continuity);
 
     private void AppendEvent(string kind, string detail)
     {

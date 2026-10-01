@@ -61,21 +61,36 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in inhabitants.Values.Where(person => ActiveParenthood(person.Parenthood) &&
                      (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)))
         {
+            // While the continuity rule holds a couple, "not yet" replaces refusal until their two days are up.
+            var rule = ContinuityCoupleFor(person.InhabitantId, person.Parenthood!.PartnerId);
+            var mayPostpone = rule is not null && ContinuityAllowsPostponement(rule);
             if (person.Parenthood is { Stage: "requested" } && person.InhabitantId != actor)
             {
                 if (FamilyResourcesReady(actor))
                 {
                     candidates.Add(new("parent_accept:" + person.InhabitantId, "Agree to parenthood and caregiving with your partner; preparation takes time and needs food and shelter.", 25));
                 }
-                candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
+                if (rule is null)
+                    candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
+                else if (mayPostpone)
+                    candidates.Add(new("parent_postpone:" + person.InhabitantId, "Say not yet to having a child. While fewer than eight " +
+                        "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 70));
             }
-            else
+            else if (rule is null)
             {
                 candidates.Add(new("parent_cancel:" + person.InhabitantId, "Withdraw consent before the planned birth.", 110));
             }
+            else if (mayPostpone)
+            {
+                candidates.Add(new("parent_postpone:" + person.InhabitantId, "Put off the child plan for now. While fewer than eight " +
+                    "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 110));
+            }
         }
+        // A couple held by the continuity rule may start sooner even with an older child, as long as no infant.
+        var continuityCouple = ContinuityCoupleOf(actor);
         if (!FamilyResourcesReady(actor) || inhabitants.Values.Any(person => ActiveParenthood(person.Parenthood) &&
                 (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)) ||
+            continuityCouple is null &&
             society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver && item.ProposerId == actor &&
                 item.State == SocietyRelationshipState.Accepted && inhabitants.ContainsKey(item.TargetId) &&
                 society.Checkpoint.GetInhabitant(item.TargetId).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child) ||
@@ -89,7 +104,10 @@ public sealed partial class PrivateWorldRuntime
                 (person.InhabitantId == other || person.Parenthood!.PartnerId == other)));
         if (partner is not null)
         {
-            candidates.Add(new("parent_propose:" + partner, "Ask your partner whether to raise a child together. Their independent consent is required.", 75));
+            candidates.Add(new("parent_propose:" + partner, continuityCouple is null
+                ? "Ask your partner whether to raise a child together. Their independent consent is required."
+                : "Ask your partner to start raising a child together now. While fewer than eight non-elders are alive " +
+                    "they may say not yet but not refuse; the plan goes ahead when your two days are up.", 75));
         }
     }
 
@@ -122,6 +140,12 @@ public sealed partial class PrivateWorldRuntime
         {
             SetParenthood(target, plan with { Stage = "preparing" });
         }
+        else if (ContinuityCoupleFor(target, plan.PartnerId) is { } rule)
+        {
+            // Refusal is not available while the rule holds the couple; "not yet" lasts only until the deadline.
+            if (candidate.StartsWith("parent_postpone:", StringComparison.Ordinal) && ContinuityAllowsPostponement(rule))
+                SetParenthood(target, plan with { Stage = "postponed" });
+        }
         else if (candidate.StartsWith("parent_cancel:", StringComparison.Ordinal) || candidate.StartsWith("parent_decline:", StringComparison.Ordinal))
         {
             SetParenthood(target, plan with { Stage = "cancelled" });
@@ -137,8 +161,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            // A plan the continuity rule has sent ahead waits for food and shelter instead of expiring.
             if (!Partners(person.InhabitantId, plan.PartnerId) ||
-                WorldTick - plan.LastTransitionTick > (plan.Stage == "requested" ? 120 : 2_400))
+                WorldTick - plan.LastTransitionTick > (plan.Stage == "requested" ? 120 : 2_400) &&
+                !ContinuityPlanDue(person.InhabitantId, plan.PartnerId))
             {
                 SetParenthood(person.InhabitantId, plan with { Stage = "cancelled" });
                 continue;
@@ -256,7 +282,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Parenthood is not { } plan) continue;
             if (!known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
-                plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled") || plan.RequestedTick < 0 ||
+                plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled" or "postponed") || plan.RequestedTick < 0 ||
                 plan.LastTransitionTick < plan.RequestedTick || plan.LastTransitionTick > state.Society.Society.WorldTick ||
                 plan.Stage == "completed" && (plan.ChildId is null || !known.Contains(plan.ChildId) ||
                     !state.Society.Society.Births.Any(birth => birth.ChildId == plan.ChildId &&
