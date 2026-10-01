@@ -106,6 +106,27 @@ public sealed class WorldEventTextTests
     }
 
     [Fact]
+    public void HousingEventsNameTheAdultAndTheHouseholdAsThePlayerSeesThem()
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster")) with
+        {
+            Stockpiles = [new("household:camp-alpha", "Alpha stores", [])],
+        };
+        Assert.Equal("Aster asked Alpha stores for a place to live in their House.", WorldEventText.Describe(
+            new(1, 0, "housing_request_made", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Aster now lives with Alpha stores.", WorldEventText.Describe(
+            new(2, 0, "household_joined", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Alpha stores did not agree to let Aster move in.", WorldEventText.Describe(
+            new(3, 0, "housing_request_refused", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("a household did not answer Aster's request to move in.", WorldEventText.Describe(
+            new(4, 0, "housing_request_expired", AgentId + ":household:camp-beta"), snapshot));
+        Assert.Equal("Aster has no home: they belong to no household, so no House can be planned for them.",
+            WorldEventText.Describe(new(5, 0, "housing_blocked", AgentId + ":no_household"), snapshot));
+        Assert.Equal("Aster has no home: their household has no legal site for a House.",
+            WorldEventText.Describe(new(6, 0, "housing_blocked", AgentId + ":no_legal_site"), snapshot));
+    }
+
+    [Fact]
     public void MissingSnapshotStillSupportsDelimiterFreeLegacyNamesAndSafeUnknownActors()
     {
         Assert.Equal("Scout ate.", WorldEventText.Describe(new(1, 0, "food_consumed", "scout"), null));

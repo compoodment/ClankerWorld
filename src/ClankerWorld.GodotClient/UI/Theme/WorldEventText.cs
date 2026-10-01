@@ -68,6 +68,11 @@ public static class WorldEventText
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
+            "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
+            "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
+            "housing_request_refused" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not agree to let {LeadingName(snapshot, worldEvent.Detail)} move in.",
+            "housing_request_expired" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not answer {LeadingName(snapshot, worldEvent.Detail)}'s request to move in.",
+            "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
@@ -112,6 +117,33 @@ public static class WorldEventText
         if (worldEvent.Kind == "town_resident_joined") residentId = BeforeLastField(residentId);
         return Name(snapshot, residentId);
     }
+
+    /// <summary>The household named after the leading agent ID, as the player sees it.</summary>
+    private static string HouseholdAfterAgent(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var person = snapshot?.Inhabitants.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(detail, item.Id));
+        string rest;
+        if (person is not null)
+        {
+            rest = detail.Length > person.Id.Length ? detail[(person.Id.Length + 1)..] : string.Empty;
+        }
+        else
+        {
+            var marker = detail.IndexOf(":household:", StringComparison.Ordinal);
+            rest = marker < 0 ? string.Empty : detail[(marker + 1)..];
+        }
+        return rest.Length == 0 ? "a household" : GameUiText.PartyName(snapshot, rest);
+    }
+
+    private static string HousingReason(string detail) => detail[(detail.LastIndexOf(':') + 1)..] switch
+    {
+        "no_household" => "they belong to no household, so no House can be planned for them",
+        "no_authorized_home" => "their household holds no House yet",
+        "missing_materials" => "their household lacks the materials for a House",
+        "no_legal_site" => "their household has no legal site for a House",
+        _ => "no House is available to them yet",
+    };
 
     private static string BeforeLastField(string detail)
     {
