@@ -324,22 +324,28 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task AcceptedPersonalModelThoughtIsSavedAndShownOnlyOnItsOwnersProfile()
     {
         var hosted = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
-            privateThought: "I should gather food before the others wake.");
-        using var world = new PrivateWorldRuntime("private-thoughts", id =>
-            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
+            privateThought: "I should gather food before the others wake.", chosenName: "Aster Vale");
+        using var world = CreateNameTestWorld("private-thoughts", hosted);
+        world.StartWorld();
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(hosted.NeedsNameObserved);
+        Assert.True(world.RenameAgent(NameTargetId, "Player-picked"));
+        Assert.False(world.Society.IsPaused);
         hosted.Release.TrySetResult(true);
         await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(world, "founder-scout");
+        var admitted = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.False(Assert.Single(admitted.Decisions, item => item.InhabitantId == NameTargetId).Admission.FellBack);
+        Assert.Equal("Player-picked", world.Society.GetInhabitant(NameTargetId).Name);
 
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
         using var restored = PrivateWorldRuntime.Restore(saved);
+        Assert.Equal("Player-picked", restored.Society.GetInhabitant(NameTargetId).Name);
         var people = new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants;
         Assert.Equal("I should gather food before the others wake.",
-            Assert.Single(people.Single(person => person.Id == "founder-scout").RecentPrivateThoughts).Text);
-        Assert.All(people.Where(person => person.Id != "founder-scout"),
+            Assert.Single(people.Single(person => person.Id == NameTargetId).RecentPrivateThoughts).Text);
+        Assert.All(people.Where(person => person.Id != NameTargetId),
             person => Assert.Empty(person.RecentPrivateThoughts));
         Assert.DoesNotContain(world.ExportState().Events,
             item => item.Detail.Contains("I should gather food", StringComparison.Ordinal));

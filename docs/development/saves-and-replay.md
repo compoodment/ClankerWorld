@@ -82,6 +82,9 @@ chain and current model credentials;
 selection reads and restores the checkpoint again before changing worlds.
 Checking a changed checkpoint can therefore still be slow, especially on a
 large generated map, while repeated unchanged lists avoid rebuilding worlds.
+After a host start, a background task makes the structural check for each
+inactive checkpoint, so the first list can reuse it; it reads checkpoints only
+and changes no save.
 
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
@@ -144,7 +147,11 @@ compatibility.
 
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
-object is invalid data, not an unexpected null-reference fault. Compatibility
+object is invalid data, not an unexpected null-reference fault. No saved list
+holds empty entries, so decoding refuses a null entry in any list in the
+checkpoint before the typed records are read; the serializer's non-null checks
+cover members, not list entries. A saved world size other than Small or Medium
+is refused too, since only those sizes can be created. Compatibility
 assessment marks that inactive world incompatible while retaining healthy list
 entries. Selecting it fails before replacing the active world; the damaged file
 stays available for recovery. Optional fields retain their declared defaults.
