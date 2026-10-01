@@ -20,12 +20,13 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 39;
+    public const int StateSchemaVersion = 40;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
+    public const int ReusableContainerSchemaVersion = 39;
     // Wills with several heirs, a Town heir, final words and the dead agent's Town.
-    public const int WillHeirsSchemaVersion = 39;
+    public const int WillHeirsSchemaVersion = 40;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;

@@ -119,6 +119,46 @@ public sealed class PostDeathWillTests
         Assert.DoesNotContain(settled.Memories, memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task AVesselAndItsContentsGoToOneHeirAndKeepTheirIdentity()
+    {
+        var provider = new WillProvider(CognitionWillContext.HeirsCandidateId, observation =>
+            new CognitionWillChoice([HeirKey(observation, "Mira"), HeirKey(observation, "Rowan")],
+                CognitionWillContext.EqualSplit, FinalWords: Words));
+        using var world = NewWorld(provider, vessels: true);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await AdvanceUntilResolved(world);
+
+        var will = Assert.Single(provider.Observations).Will!;
+        Assert.Equal(["water_jug", "storage_pot", "rope", "seed", "stone"], will.Items.Select(item => item.Kind));
+        Assert.Equal(["3 fresh_water", "2 berries", null, null, null], will.Items.Select(item => item.Contents));
+        var estate = world.Society.Estates.Single(item => item.DeceasedId == "founder-scout");
+        Assert.Equal("accepted", estate.WillStatus);
+        // Each vessel is one unit in the rotation, and its contents follow it.
+        Assert.Equal(
+        [
+            new SocietyWillBequest("jug-lot", "founder-mira", 1),
+            new SocietyWillBequest("jug-water", "founder-mira", 3),
+            new SocietyWillBequest("pot-lot", "founder-rowan", 1),
+            new SocietyWillBequest("pot-berries", "founder-rowan", 2),
+            new SocietyWillBequest("rope-lot", "founder-mira", 1),
+            new SocietyWillBequest("seed-lot", "founder-mira", 1),
+            new SocietyWillBequest("seed-lot", "founder-rowan", 2),
+            new SocietyWillBequest("stone-lot", "founder-mira", 3),
+            new SocietyWillBequest("stone-lot", "founder-rowan", 2),
+        ], estate.WillBequests);
+
+        var settled = await AdvanceUntilSettled(world, estate.Id);
+        var jug = settled.Inventory.GetLot("jug-lot");
+        var water = settled.Inventory.GetLot("jug-water");
+        Assert.Equal(("founder-mira", "founder-mira", "jug-lot", 3), (jug.OwnerId, water.OwnerId, water.ContainerLotId, water.Quantity));
+        var pot = settled.Inventory.GetLot("pot-lot");
+        var berries = settled.Inventory.GetLot("pot-berries");
+        Assert.Equal(("founder-rowan", "founder-rowan", "pot-lot", 2), (pot.OwnerId, berries.OwnerId, berries.ContainerLotId, berries.Quantity));
+        Assert.Equal(2, FinalWordMemories(settled).Length);
+    }
+
     [Theory]
     [InlineData("unknown_heir")]
     [InlineData("unoffered_item")]
@@ -162,7 +202,7 @@ public sealed class PostDeathWillTests
     [Fact]
     public void DeadUnknownOrSelfHeirsAndItemsTheAgentDidNotOwnCannotBeCommitted()
     {
-        using var world = NewWorld(new WillProvider(CognitionWillContext.HouseholdCandidateId));
+        using var world = NewWorld(new WillProvider(CognitionWillContext.HouseholdCandidateId), vessels: true);
         var started = SocietyFixture.MarkWillStarted(world.Society,
             world.Society.Estates.Single(item => item.DeceasedId == "founder-scout").Id).Checkpoint;
         var estateId = started.Estates.Single(item => item.DeceasedId == "founder-scout").Id;
@@ -184,6 +224,12 @@ public sealed class PostDeathWillTests
             (started, new(["founder-mira"], "items", new Dictionary<string, string> { ["not-owned"] = "founder-mira" })),
             (forged, new(["founder-mira"], "equal")),
             (started, new(["founder-mira", "founder-mira"], "equal")),
+            // A vessel's contents cannot be left apart from the vessel.
+            (started, new(["founder-mira", "founder-rowan"], "items", new Dictionary<string, string>
+            {
+                ["jug-lot"] = "founder-mira",
+                ["jug-water"] = "founder-rowan",
+            })),
         };
         foreach (var (checkpoint, directive) in cases)
         {
@@ -363,7 +409,7 @@ public sealed class PostDeathWillTests
             .Select(memory => (memory.OwnerId, memory.Summary))
             .OrderBy(item => item.OwnerId, StringComparer.Ordinal).ToArray();
 
-    private static PrivateWorldRuntime NewWorld(IDecisionProvider provider, bool childHeir = false)
+    private static PrivateWorldRuntime NewWorld(IDecisionProvider provider, bool childHeir = false, bool vessels = false)
     {
         using var seed = new PrivateWorldRuntime("postdeath-will-seed");
         var state = seed.ExportState();
@@ -372,6 +418,14 @@ public sealed class PostDeathWillTests
         inventory = InventoryFixture.AddLot(inventory, "seed-lot", "seed", "founder-scout", 3);
         inventory = InventoryFixture.AddLot(inventory, "stone-lot", "stone", "founder-scout", 5);
         inventory = InventoryFixture.AddLot(inventory, "rope-lot", "rope", "founder-scout", 1);
+        if (vessels)
+        {
+            inventory = InventoryFixture.AddLot(inventory, "jug-lot", InventoryContainerRules.WaterJug, "founder-scout", 1);
+            inventory = InventoryFixture.AddLot(inventory, "jug-water", InventoryContainerRules.FreshWater, "founder-scout", 3,
+                containerLotId: "jug-lot");
+            inventory = InventoryFixture.AddLot(inventory, "pot-lot", InventoryContainerRules.StoragePot, "founder-scout", 1);
+            inventory = InventoryFixture.AddLot(inventory, "pot-berries", "berries", "founder-scout", 2, containerLotId: "pot-lot");
+        }
         checkpoint = checkpoint with { Inventory = inventory };
         if (childHeir)
         {

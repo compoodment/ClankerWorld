@@ -102,13 +102,19 @@ public sealed partial class PrivateWorldRuntime
         var deceased = checkpoint.GetInhabitant(estate.DeceasedId);
         var archived = deceasedInhabitants.GetValueOrDefault(estate.DeceasedId);
         var snapshot = (estate.FrozenLots ?? []).OrderBy(item => item.LotId, StringComparer.Ordinal).ToArray();
+        // A vessel's contents go with the vessel, so only top-level lots are offered.
+        var containedIn = checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
+            .ToDictionary(lot => lot.Id, lot => lot.ContainerLotId!, StringComparer.Ordinal);
         var itemKeys = new Dictionary<string, string>(StringComparer.Ordinal);
         var items = new List<CognitionWillItem>();
-        foreach (var lot in snapshot.Take(CognitionWillContext.MaximumItems))
+        foreach (var lot in snapshot.Where(item => !containedIn.ContainsKey(item.LotId)).Take(CognitionWillContext.MaximumItems))
         {
             var key = "item:" + (items.Count + 1).ToString(CultureInfo.InvariantCulture);
+            var contents = string.Join(", ", snapshot.Where(item => containedIn.GetValueOrDefault(item.LotId) == lot.LotId)
+                .Select(item => $"{item.Quantity} {item.ItemKind}"));
             itemKeys.Add(key, lot.LotId);
-            items.Add(new CognitionWillItem(key, lot.ItemKind, lot.Quantity));
+            items.Add(new CognitionWillItem(key, lot.ItemKind, lot.Quantity,
+                contents.Length is > 0 and <= 128 ? contents : null));
         }
 
         var heirKeys = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -131,7 +137,8 @@ public sealed partial class PrivateWorldRuntime
             heirs.Add(new CognitionWillHeir(key, towns.Single(item => item.Id == townId).Name, "your Town"));
         }
 
-        var summary = string.Join(", ", items.Select(item => $"{item.Quantity} {item.Kind}"));
+        var summary = string.Join(", ", items.Select(item =>
+            $"{item.Quantity} {item.Kind}{(item.Contents is { } held ? $" holding {held}" : "")}"));
         var candidates = new List<CognitionCandidate>
         {
             new(CognitionWillContext.HouseholdCandidateId,

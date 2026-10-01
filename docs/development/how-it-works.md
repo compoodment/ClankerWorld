@@ -693,7 +693,9 @@ and every lot under "equal", is divided equally: each heir gets the same whole
 number of units, and the units left over go one at a time to the heirs in the
 order the will names them, continuing from where the previous lot's leftovers
 stopped. Lots are taken in lot-ID order, so each lot's parts always sum to its
-frozen quantity.
+frozen quantity. A storage pot or water jug counts as one unit, and its contents
+always go with it to the same heir; only top-level lots are offered to the
+model, with a vessel's contents described beside it.
 
 Settlement runs once, when the escrow expires and no will is pending. A
 living person heir owns their part where it lies: ground lots keep their tile
@@ -704,7 +706,11 @@ and refused kinds (food) as `SocietyTownStore`. Whatever the will cannot
 deliver (a share for an heir who has since died, food or goods beyond the room)
 follows the household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock
-when none remain. A quantity-one map or field record keeps its lot ID.
+when none remain. A vessel and its contents move as one family and keep their
+lot IDs: the Town takes a family only when the Warehouse accepts every kind in
+it and has room for all of it, otherwise the family follows the household
+default, where vessels rotate between the living beneficiaries. A quantity-one
+map or field record keeps its lot ID.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
 turns control and invisible formatting characters into spaces, collapses

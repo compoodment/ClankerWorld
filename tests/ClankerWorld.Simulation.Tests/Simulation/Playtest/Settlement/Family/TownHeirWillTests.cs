@@ -166,6 +166,48 @@ public sealed class TownHeirWillTests
         Assert.Empty(settled.Memories);
     }
 
+    [Fact]
+    public void TheTownKeepsAJugWithItsWaterButAPotOfFoodGoesToTheHousehold()
+    {
+        var config = new SocietyConfig(TicksPerWorldDay: 2, DaysPerWorldYear: 2, BaseNaturalMortalityBasisPoints: 0);
+        var checkpoint = SocietyFixture.CreateGenesis("vessel-heir-fixture",
+        [
+            SocietyFixture.CreateFounder("alice", "Alice", "model:a", config: config),
+            SocietyFixture.CreateFounder("bob", "Bob", "model:b", config: config),
+        ], config: config);
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
+        var inventory = InventoryFixture.AddLot(checkpoint.Inventory, "jug", InventoryContainerRules.WaterJug, "alice", 1);
+        inventory = InventoryFixture.AddLot(inventory, "water", InventoryContainerRules.FreshWater, "alice", 4, containerLotId: "jug");
+        inventory = InventoryFixture.AddLot(inventory, "pot", InventoryContainerRules.StoragePot, "alice", 1);
+        inventory = InventoryFixture.AddLot(inventory, "berries", "berries", "alice", 3, containerLotId: "pot");
+        checkpoint = checkpoint with { Inventory = inventory };
+        checkpoint = SocietyFixture.Kill(checkpoint, "alice", SocietyDeathCause.Hazard).Checkpoint;
+        const string estateId = "estate:alice:0";
+        checkpoint = SocietyFixture.MarkWillStarted(checkpoint, estateId).Checkpoint;
+        checkpoint = SocietyFixture.ResolveWill(checkpoint, estateId,
+            new SocietyWillDirective(["town:first"], "equal"), "accepted",
+            townHeirIds: new HashSet<string>(["town:first"])).Checkpoint;
+        Assert.Equal(
+        [
+            new SocietyWillBequest("jug", "town:first", 1),
+            new SocietyWillBequest("water", "town:first", 4),
+            new SocietyWillBequest("pot", "town:first", 1),
+            new SocietyWillBequest("berries", "town:first", 3),
+        ], checkpoint.GetEstate(estateId).WillBequests);
+
+        var settled = SocietyFixture.AdvanceTo(checkpoint, config.EstateEscrowDays * config.TicksPerWorldDay,
+            [new SocietyTownStore("town:first", "warehouse", 10, new HashSet<string>(["berries"]))]).Checkpoint;
+
+        Assert.Equal(
+        [
+            ("berries", "bob", (string?)null, 3, "pot"),
+            ("jug", "town:first", "warehouse", 1, null),
+            ("pot", "bob", null, 1, null),
+            ("water", "town:first", "warehouse", 4, "jug"),
+        ], settled.Inventory.Lots.Where(lot => lot.Id is "berries" or "jug" or "pot" or "water")
+            .Select(lot => (lot.Id, lot.OwnerId, lot.StorageBuildingId, lot.Quantity, lot.ContainerLotId)));
+    }
+
     private sealed class SocietyCheckpointComparer : IEqualityComparer<SocietyCheckpoint>
     {
         public static readonly SocietyCheckpointComparer Instance = new();

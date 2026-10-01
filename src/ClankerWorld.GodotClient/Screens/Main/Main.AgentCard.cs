@@ -581,7 +581,7 @@ public partial class Main
         profileMeters.Visible = !isDeceased;
         var carrying = inhabitant.Inventory.Count == 0
             ? "Carrying nothing"
-            : "Carrying " + string.Join(", ", inhabitant.Inventory.Select(item => $"{Pretty(item.Kind).ToLowerInvariant()} ({item.Quantity})"));
+            : "Carrying " + string.Join(", ", inhabitant.Inventory.Select(item => $"{GameUiText.ItemName(item.Kind).ToLowerInvariant()} ({item.Quantity})"));
         selectedActorConditionLabel.Text = isDeceased
             ? survival is null ? "Historical record" :
                 $"At death · Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}% · Diet {survival.NutritionBasisPoints / 100}%"

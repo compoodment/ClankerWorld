@@ -1005,8 +1005,11 @@ public static partial class SocietyFixture
                 lot.ItemKind == frozen.ItemKind && lot.Quantity == frozen.Quantity)) &&
             checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).Count() == estate.FrozenLots.Count;
         var words = finalWords is null ? null : CognitionWillChoice.NormalizeFinalWords(finalWords);
+        var containedIn = checkpoint.Inventory.Lots
+            .Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
+            .ToDictionary(lot => lot.Id, lot => lot.ContainerLotId!, StringComparer.Ordinal);
         var bequests = validSnapshot && outcome == "accepted" && directive is not null
-            ? PlanBequests(checkpoint, estate, directive, townHeirIds ?? new HashSet<string>(StringComparer.Ordinal))
+            ? PlanBequests(checkpoint, estate, directive, townHeirIds ?? new HashSet<string>(StringComparer.Ordinal), containedIn)
             : null;
         var accepted = bequests is not null;
         var next = checkpoint with
@@ -1033,11 +1036,12 @@ public static partial class SocietyFixture
     /// whole number of units, and the units left over go one at a time to the
     /// heirs in the order the will names them, continuing from where the
     /// previous lot's leftovers stopped. Lots are taken in lot-ID order.
+    /// A vessel is one unit, and its contents go with it to the same heir.
     /// Nothing is created or lost: each lot's parts sum to its frozen quantity.
     /// </summary>
     private static List<SocietyWillBequest>? PlanBequests(
         SocietyCheckpoint checkpoint, SocietyEstate estate, SocietyWillDirective directive,
-        IReadOnlySet<string> townHeirIds)
+        IReadOnlySet<string> townHeirIds, Dictionary<string, string> containedIn)
     {
         var heirs = directive.HeirIds;
         if (heirs is null || heirs.Count is 0 or > CognitionWillContext.MaximumNamedHeirs ||
@@ -1049,16 +1053,23 @@ public static partial class SocietyFixture
             return null;
         var frozen = estate.FrozenLots ?? [];
         var lotHeirs = directive.LotHeirs ?? new Dictionary<string, string>(StringComparer.Ordinal);
-        if (lotHeirs.Any(item => !frozen.Any(lot => lot.LotId == item.Key) || !heirs.Contains(item.Value, StringComparer.Ordinal)))
+        if (lotHeirs.Any(item => !frozen.Any(lot => lot.LotId == item.Key) || containedIn.ContainsKey(item.Key) ||
+                !heirs.Contains(item.Value, StringComparer.Ordinal)))
             return null;
 
         var bequests = new List<SocietyWillBequest>();
         var cursor = 0;
-        foreach (var lot in frozen.OrderBy(item => item.LotId, StringComparer.Ordinal))
+        void AddContents(string containerId, string heir) =>
+            bequests.AddRange(frozen.Where(content => containedIn.GetValueOrDefault(content.LotId) == containerId)
+                .OrderBy(content => content.LotId, StringComparer.Ordinal)
+                .Select(content => new SocietyWillBequest(content.LotId, heir, content.Quantity)));
+        foreach (var lot in frozen.Where(item => !containedIn.ContainsKey(item.LotId))
+                     .OrderBy(item => item.LotId, StringComparer.Ordinal))
         {
             if (lotHeirs.TryGetValue(lot.LotId, out var single))
             {
                 bequests.Add(new SocietyWillBequest(lot.LotId, single, lot.Quantity));
+                AddContents(lot.LotId, single);
                 continue;
             }
             var share = lot.Quantity / heirs.Count;
@@ -1072,6 +1083,9 @@ public static partial class SocietyFixture
                 if (quantities[index] > 0)
                     bequests.Add(new SocietyWillBequest(lot.LotId, heirs[index], quantities[index]));
             }
+            // A vessel is a single unit, so exactly one heir received it above.
+            if (InventoryContainerRules.IsContainer(lot.ItemKind))
+                AddContents(lot.LotId, heirs[Array.FindIndex(quantities, quantity => quantity > 0)]);
         }
         return bequests;
     }
@@ -1113,6 +1127,7 @@ public static partial class SocietyFixture
         {
             throw new InvalidDataException("Society and inventory clocks must agree.");
         }
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint.Inventory);
 
         if (checkpoint.LifeClock is { } clock && (clock.Rate is not (1 or 365 or 1_460) ||
             clock.WorldAnchorTick < 0 || clock.WorldAnchorTick > checkpoint.WorldTick || clock.LifeAnchorTick < clock.WorldAnchorTick ||
@@ -1370,7 +1385,14 @@ public static partial class SocietyFixture
             bequests.Any(item => item.Quantity <= 0 || !heirs.Contains(item.HeirId, StringComparer.Ordinal)) ||
             bequests.Select(item => (item.LotId, item.HeirId)).Distinct().Count() != bequests.Count)
             return false;
-        return frozen.All(lot => bequests.Where(item => item.LotId == lot.LotId).Sum(item => (long)item.Quantity) == lot.Quantity) &&
+        // While the estate is held, a vessel's contents must go to the vessel's heir.
+        var containersStayWhole = estate.Settled || checkpoint.Inventory.Lots
+            .Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
+            .All(content => bequests.Where(item => item.LotId == content.Id).Select(item => item.HeirId)
+                .Concat(bequests.Where(item => item.LotId == content.ContainerLotId).Select(item => item.HeirId))
+                .Distinct(StringComparer.Ordinal).Count() == 1);
+        return containersStayWhole &&
+            frozen.All(lot => bequests.Where(item => item.LotId == lot.LotId).Sum(item => (long)item.Quantity) == lot.Quantity) &&
             bequests.All(item => frozen.Any(lot => lot.LotId == item.LotId));
     }
 
@@ -1456,7 +1478,8 @@ public static partial class SocietyFixture
     /// cannot deliver, such as a share for an heir who has since died, food or
     /// goods the Warehouse cannot take, follows the household default: an equal
     /// split between the living household beneficiaries, or communal stock when
-    /// none remain. People who inherit hear any final words as a private memory.
+    /// none remain. A vessel and its contents always move together, keeping
+    /// their IDs. People who inherit hear any final words as a private memory.
     /// </summary>
     private static SocietyCheckpoint SettleDueEstates(
         SocietyCheckpoint checkpoint,
@@ -1480,11 +1503,47 @@ public static partial class SocietyFixture
             var listeners = new SortedSet<string>(StringComparer.Ordinal);
             if (estate.WillStatus == "accepted")
                 listeners.UnionWith((estate.WillHeirIds ?? []).Where(IsLiving));
-            foreach (var lot in lots)
+            var bequests = estate.WillBequests ?? [];
+            var containerOrdinal = 0;
+            foreach (var lot in lots.Where(lot => lot.ContainerLotId is null))
             {
+                if (InventoryContainerRules.IsContainer(lot.ItemKind))
+                {
+                    // A vessel and its contents are a single physical estate
+                    // family. Keep their IDs and quantities together instead
+                    // of splitting a child lot away from the vessel.
+                    var family = lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id).ToArray();
+                    var heir = bequests.FirstOrDefault(item => item.LotId == lot.Id)?.HeirId;
+                    string? owner = null;
+                    string? storage = null;
+                    if (heir is not null && IsLiving(heir))
+                    {
+                        owner = heir;
+                    }
+                    else if (heir is not null && townStores.FirstOrDefault(store => store.TownId == heir) is { } store &&
+                             family.All(member => !store.RefusedItemKinds.Contains(member.ItemKind)) &&
+                             room[store.TownId] >= family.Sum(member => member.Quantity))
+                    {
+                        room[store.TownId] -= family.Sum(member => member.Quantity);
+                        (owner, storage) = (store.TownId, store.WarehouseId);
+                    }
+                    owner ??= beneficiaries.Length == 0
+                        ? "settlement:communal"
+                        : beneficiaries[containerOrdinal++ % beneficiaries.Length];
+                    if (owner != "settlement:communal" && storage is null) listeners.Add(owner);
+                    nextLots.AddRange(family.Select(member => member with
+                    {
+                        OwnerId = owner,
+                        StorageBuildingId = storage,
+                        DeliveryBuildingId = null,
+                        GroundPosition = storage is null ? member.GroundPosition : null,
+                    }));
+                    continue;
+                }
+
                 var parts = new List<(string OwnerId, string? StorageId, int Quantity)>();
                 var undelivered = lot.Quantity;
-                foreach (var bequest in (estate.WillBequests ?? []).Where(item => item.LotId == lot.Id))
+                foreach (var bequest in bequests.Where(item => item.LotId == lot.Id))
                 {
                     var quantity = Math.Min(bequest.Quantity, undelivered);
                     if (IsLiving(bequest.HeirId))

@@ -64,17 +64,17 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
-Schema 39 saves wills with several heirs. An estate keeps its household
+Schema 40 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. The deceased archive records the Town the agent lived in. Loading
 checks that only an accepted will has heirs and a division, that the division
-covers every frozen lot exactly with no other lots, that person heirs are known
-agents and Town heirs existing Towns, and that final words are already
-normalized. Final words become private memories only at settlement, so a
-current-format save taken between the will and settlement replays the same
-transfers and memories. Older schemas carrying these records are refused; no
-migration is added.
+covers every frozen lot exactly with no other lots, that a held vessel's
+contents go to the vessel's heir, that person heirs are known agents and Town
+heirs existing Towns, and that final words are already normalized. Final words
+become private memories only at settlement, so a current-format save taken
+between the will and settlement replays the same transfers and memories. Older
+schemas carrying these records are refused; no migration is added.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -249,24 +249,26 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 40. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, bounded conversations with daily allowances,
-selected garments/carry aids with timed equipment repairs and exact reservations,
-and wills with up to three heirs, exact divisions and final words.
-These fields retain their current validation and roundtrip behavior.
+with ground harvest lots, bounded conversations with daily allowances, personal
+equipment with timed repairs and exact reservations, reusable container lots
+with their contents, locations, owners and reservations, and wills with up to
+three heirs, exact divisions and final words. These fields retain their current
+validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
-Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, and schema 35 for conversations, record when those
-fields were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
+for fields and ground lots, schema 35 for conversations, schema 37 for personal
+equipment, schema 39 for reusable containers and schema 40 for wills with
+several heirs, record when those fields were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -291,7 +293,8 @@ current alpha cutoff.
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
 | Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
-| Schema 39 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
+| Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
+| Schema 40 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

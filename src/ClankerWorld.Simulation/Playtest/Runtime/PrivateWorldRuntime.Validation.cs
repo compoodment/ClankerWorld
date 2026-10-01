@@ -471,7 +471,7 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("A will names a Town that does not exist.");
         if (schemaVersion < WillHeirsSchemaVersion && (archive.Any(person => person.TownId is not null) ||
             society.Estates.Any(estate => estate.WillHeirIds is not null || estate.FinalWords is not null)))
-            throw new InvalidDataException("Wills with several heirs or final words require private-world schema 39.");
+            throw new InvalidDataException("Wills with several heirs or final words require private-world schema 40.");
         var archived = archive.ToArray();
         if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
             throw new InvalidDataException("The deceased inhabitant archive contains duplicate identities.");
