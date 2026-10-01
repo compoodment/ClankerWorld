@@ -262,13 +262,7 @@ public sealed partial class PrivateWorldRuntime
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, inhabitantId, lot.Id, 1));
         inhabitants[inhabitantId] = state with
         {
-            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + (lot.ItemKind switch
-            {
-                "berries" => 2_000,
-                "wild_greens" => 1_500,
-                "cultivated_greens" => 4_000,
-                _ => 3_000,
-            })),
+            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + FoodNourishment(lot.ItemKind)),
             Survival = AfterMeal(state, lot)
         };
         AppendEvent("food_consumed", inhabitantId);

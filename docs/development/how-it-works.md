@@ -454,10 +454,11 @@ Town shares, including a new Warehouse, are never offered to a household. The
 kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
 it follows the same rules once its content exists.
 Harvests remain household-owned lots on their actual field tile. An adult
-carries a load of at most four items to the household's Farmhouse or Silo.
+carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
 pickup and delivery both check remaining space. Grain prefers the Farmhouse,
-while other farm stock prefers the Silo. Neither stock nor ownership moves
+while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
+the household's House. Neither stock nor ownership moves
 remotely.
 
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
@@ -591,12 +592,14 @@ field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.
 
-Planning compares population and available food with a trial reserve of two
+Planning compares population and available ready-to-eat food with a trial reserve of two
 days at two meals per resident per day, then estimates fields from expected
 yield. It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
-household that lacks one and has the materials. Grain is milled into flour
+household that lacks one and has the materials. Raw grain and potatoes cannot
+satisfy this food reserve while their cooking paths remain unfinished, so they
+do not stop farmers planting fresh greens. Grain is milled into flour
 at the Farmhouse, one grain to one flour. Prepared meals and tool tiers are
 separate work.
 

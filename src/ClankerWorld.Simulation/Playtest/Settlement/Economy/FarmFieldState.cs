@@ -37,7 +37,7 @@ public static class FarmFieldRules
         Greens => GreensSeed,
         _ => throw new ArgumentOutOfRangeException(nameof(crop)),
     };
-    public static bool IsFarmStock(string item) => IsCrop(item) || item is GrainSeed or GreensSeed or OrchardSeed or "fruit" or "flour";
+    public static bool IsFarmStock(string item) => item is Grain or Potatoes or GrainSeed or GreensSeed or OrchardSeed or "flour";
     public static int WorkTicks(FarmWorkKind kind) => kind == FarmWorkKind.Till ? 8 : 4;
     public static int HarvestQuantity(string crop, int fertility) =>
         (crop == Potatoes ? 5 : 4) + fertility / 25;

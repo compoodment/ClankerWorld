@@ -87,11 +87,29 @@ public sealed class FarmFieldTests
             System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
     }
 
+    [Fact]
+    public void FieldsAndGroundHarvestLotsRequireTheirOwnSchema()
+    {
+        var (state, _, household, point) = PreparedFarmer("field-schema");
+        using var preceding = Restore(state with { SchemaVersion = 33, Fields = null });
+        Assert.Throws<InvalidDataException>(() => Restore(state with { Fields = null }));
+        var fieldState = state with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        Assert.Throws<InvalidDataException>(() => Restore(fieldState with { SchemaVersion = 33 }));
+        using var fieldsRestored = Restore(fieldState);
+        Assert.Single(fieldsRestored.Fields);
+
+        var groundState = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "field-ground-schema", "grain", household, 1, groundPosition: new(point.X, point.Y)));
+        Assert.Throws<InvalidDataException>(() => Restore(groundState with { SchemaVersion = 33 }));
+        using var groundRestored = Restore(groundState);
+        Assert.Equal(new InventoryGroundPosition(point.X, point.Y), groundRestored.Society.Inventory.GetLot("field-ground-schema").GroundPosition);
+    }
+
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit" or "grain" or "potatoes").ToArray())
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
         {
             var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
                 .Where(reservation => reservation.LotId == lot.Id && reservation.State is
@@ -103,6 +121,28 @@ public sealed class FarmFieldTests
                 lot.Id, available, "household_meals", checked(inventory.WorldTick + 1)), reservationId);
         }
         return WithInventory(state, inventory);
+    }
+
+    [Fact]
+    public async Task RawCropReservesDoNotSuppressFreshFoodPlantingAcrossReload()
+    {
+        var (state, _, household, point) = PreparedFarmer("field-raw-stock-shortage");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "raw-reserve-grain", "grain", household, 40,
+            storageBuildingId: "first-town-farmhouse");
+        inventory = InventoryFixture.AddLot(inventory, "raw-reserve-potatoes", "potatoes", household, 40);
+        state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new DeterministicDecisionProvider());
+        for (var tick = 0; tick < 120 && !world.Fields.Any(field => field.HouseholdId == household &&
+                 field.Crop == FarmFieldRules.Greens); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_planted" &&
+            item.Detail.EndsWith(":" + FarmFieldRules.Greens, StringComparison.Ordinal));
+        Assert.Equal(40, world.Society.Inventory.GetLot("raw-reserve-grain").Quantity);
+        Assert.Equal(40, world.Society.Inventory.GetLot("raw-reserve-potatoes").Quantity);
+        using var restored = Reload(world);
+        Assert.Contains(restored.Fields, field => field.HouseholdId == household && field.Crop == FarmFieldRules.Greens);
     }
 
     [Theory]
@@ -447,6 +487,49 @@ public sealed class FarmFieldTests
         Assert.Equal(96, delivering.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == farmhouse).Sum(lot => lot.Quantity));
         Assert.Equal(103, delivering.Society.Inventory.Lots.Where(lot => lot.Id is "nearly-full-farm" or "ground-grain" || lot.ProvenanceLotId == "ground-grain")
             .Sum(lot => lot.Quantity));
+        delivering.Validate();
+    }
+
+    [Theory]
+    [InlineData("cultivated_greens")]
+    [InlineData("fruit")]
+    public async Task ReadyFoodIsCarriedFromItsGroundTileToFiniteHouseStorageAcrossReload(string kind)
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-ready-food-hauling");
+        var house = state.WorldSimulation!.Buildings.First(building => building.HouseholdId == household &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+        var capacity = BuildingStorageRules.Capacity(state.WorldContent!.Buildings.Single(
+            definition => definition.CanonicalId == house.DefinitionId), house)!.Value;
+        var inventory = state.Society.Society.Inventory;
+        var stored = inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        inventory = InventoryFixture.AddLot(inventory, "house-capacity-filler", "wood", household,
+            capacity - stored - 2, storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "ready-ground-food", kind, household, 9,
+            groundPosition: new(point.X, point.Y));
+        inventory = InventoryFixture.Reserve(InventoryFixture.AddLot(inventory, "protected-ground-seed", "grain_seed", household, 1,
+            groundPosition: new(point.X, point.Y)), "protected-replanting-seed", household, "protected-ground-seed", 1,
+            "field_replanting", long.MaxValue);
+        using var collecting = PrivateWorldRuntime.Restore(WithInventory(state, inventory),
+            id => id == actor ? HaulProvider() : new IdleProvider());
+        for (var tick = 0; tick < 20 && !collecting.Society.Inventory.Lots.Any(lot => lot.ProvenanceLotId == "ready-ground-food"); tick++)
+            Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
+        var carried = Assert.Single(collecting.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "ready-ground-food");
+        Assert.Equal(actor, carried.OwnerId);
+        Assert.Equal(house.InstanceId, carried.DeliveryBuildingId);
+        Assert.Equal(2, carried.Quantity);
+        Assert.Null(carried.GroundPosition);
+        Assert.Equal(7, collecting.Society.Inventory.GetLot("ready-ground-food").Quantity);
+        Assert.DoesNotContain(collecting.Society.Inventory.Lots, lot => lot.ItemKind == kind &&
+            lot.DeliveryBuildingId == "first-town-farmhouse");
+        using var delivering = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(collecting.ExportState())),
+            id => id == actor ? HaulProvider() : new IdleProvider());
+        for (var tick = 0; tick < 80 && delivering.Society.Inventory.GetLot(carried.Id).StorageBuildingId != house.InstanceId; tick++)
+            Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(house.InstanceId, delivering.Society.Inventory.GetLot(carried.Id).StorageBuildingId);
+        Assert.Equal(capacity, delivering.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
+        Assert.Equal(9, delivering.Society.Inventory.Lots.Where(lot => lot.Id == "ready-ground-food" || lot.ProvenanceLotId == "ready-ground-food").Sum(lot => lot.Quantity));
+        Assert.Equal(1, delivering.Society.Inventory.GetLot("protected-ground-seed").Quantity);
+        Assert.Equal(InventoryReservationState.Reserved, delivering.Society.Inventory.GetReservation("protected-replanting-seed").State);
         delivering.Validate();
     }
 

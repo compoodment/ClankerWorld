@@ -10,6 +10,26 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SettlementSurvivalTests
 {
+    [Fact]
+    public async Task NamedReadyFoodKeepsItsSpoilageWhileDryCropsAndSeedsStayIntactAcrossReload()
+    {
+        var (state, actor, _, _) = FarmFieldTests.PreparedFarmer("named-food-spoilage");
+        string[] readyFoods = ["food", "fruit", "berries", "wild_greens", "cultivated_greens"];
+        string[] dryStock = ["grain", "grain_seed", "cultivated_green_seed", "orchard_seed"];
+        var inventory = state.Society.Society.Inventory;
+        foreach (var kind in readyFoods.Concat(dryStock))
+            inventory = InventoryFixture.AddLot(inventory, "spoilage:" + kind, kind, actor, 1);
+        using var first = FarmFieldTests.Restore(FarmFieldTests.WithInventory(state, inventory));
+        for (var tick = 0; tick < 4; tick++) Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+        using var second = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(first.ExportState())));
+        for (var tick = 0; tick < 4; tick++) Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+        var generic = second.Society.Inventory.GetLot("spoilage:food").FreshnessBasisPoints;
+        Assert.True(generic < 10_000);
+        Assert.All(readyFoods, kind => Assert.Equal(generic, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
+        Assert.All(dryStock, kind => Assert.Equal(10_000, second.Society.Inventory.GetLot("spoilage:" + kind).FreshnessBasisPoints));
+        Assert.All(readyFoods.Concat(dryStock), kind => Assert.Equal(1, second.Society.Inventory.GetLot("spoilage:" + kind).Quantity));
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

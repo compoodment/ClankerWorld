@@ -238,6 +238,11 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
+        if (state.SchemaVersion < 34 && (state.Fields is { Count: > 0 } ||
+            state.Society.Society.Inventory.Lots.Any(lot => lot.GroundPosition is not null)))
+            throw new InvalidDataException("Household fields and ground harvest lots require private-world schema 34.");
+        if (state.SchemaVersion >= 34 && state.Fields is null)
+            throw new InvalidDataException("Private-world schema 34 requires authoritative household field state.");
         if (state.SchemaVersion < 20 && state.Society.Society.Beliefs is { Count: > 0 })
             throw new InvalidDataException("Agent belief history requires private-world schema 20.");
         if (state.SchemaVersion < 22 && state.Society.Society.MemoryCompactions is { Count: > 0 })
@@ -307,6 +312,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException("The saved model attempt is invalid.");
             if (person.IdentityChoicePending && state.SchemaVersion < 28)
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
+            ValidateSavedChildModelSelection(person, state.Society.Society, state.SchemaVersion);
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);
@@ -405,6 +411,15 @@ public sealed partial class PrivateWorldRuntime
         return RiverBridgeRules.SameDecks(state.Map.BridgeDecks, decks) ? state.Map : state.Map with { BridgeDecks = decks };
     }
 
+    private static void ValidateSavedChildModelSelection(
+        PlaytestInhabitantState person, SocietyCheckpoint society, int schemaVersion)
+    {
+        if (person.ChildModelSelection is not { } selection) return;
+        if (schemaVersion < 33 || !society.Births.Any(item => item.ChildId == person.InhabitantId))
+            throw new InvalidDataException("A saved child model choice requires schema 33 and a recorded birth.");
+        ValidateChildModelSelection(selection);
+    }
+
     private static void ValidateDeceasedArchive(
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
@@ -428,6 +443,7 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+            ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
             ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);

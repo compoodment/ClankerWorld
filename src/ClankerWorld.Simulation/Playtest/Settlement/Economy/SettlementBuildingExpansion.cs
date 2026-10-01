@@ -163,7 +163,7 @@ public sealed partial class PrivateWorldRuntime
         BuildingFootprintRevision footprint, out string failure, string? ownJobId = null)
     {
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        failure = "The expansion overlaps terrain, a resource, a Road, another building, or another expansion.";
+        failure = "The expansion overlaps terrain, a resource, a Road, a field, another building, or another expansion.";
         var target = BuildingStorageRules.WithSize(definition, footprint.Width, footprint.Height);
         if (!BuildingStorageRules.IsSupported(definition, footprint) ||
             !WorldContentSimulationRules.Fits(map, worldSimulation.Buildings
@@ -174,6 +174,7 @@ public sealed partial class PrivateWorldRuntime
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
         if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
+            fields.Any(field => tiles.Contains(field.Position)) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);

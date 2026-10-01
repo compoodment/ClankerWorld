@@ -223,7 +223,7 @@ public sealed partial class PrivateWorldRuntime
         if (child.HungerBasisPoints < 7_000 && PreferredFood(actor, actor).FirstOrDefault() is { } serving)
         {
             society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, actor, serving.Id, 1));
-            child = child with { HungerBasisPoints = Math.Min(10_000, child.HungerBasisPoints + 3_000), Survival = AfterMeal(child, serving) };
+            child = child with { HungerBasisPoints = Math.Min(10_000, child.HungerBasisPoints + FoodNourishment(serving.ItemKind)), Survival = AfterMeal(child, serving) };
         }
         child = child with
         {

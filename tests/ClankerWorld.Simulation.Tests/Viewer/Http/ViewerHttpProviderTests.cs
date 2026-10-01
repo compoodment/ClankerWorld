@@ -292,6 +292,23 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(HttpStatusCode.BadRequest, missingResponse.StatusCode);
                 Assert.Equal(personalStatus.Revision, host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus().Revision);
 
+                var inherit = new OwnerProviderConfigurationAction(
+                    "personal", "inherit", null, null, ForgetCredential: false, InhabitantId: "founder-scout");
+                using var inheritResponse = await SendSignedAsync(host, client, key, pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure", inherit, OwnerHttpBinding.ProviderConfigurationPayload(inherit));
+                Assert.Equal(HttpStatusCode.OK, inheritResponse.StatusCode);
+                var inheritedStatus = await inheritResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+                Assert.NotNull(inheritedStatus);
+                var inheritedRows = inheritedStatus!.Assignments!.Where(item => item.InhabitantId == "founder-scout").ToArray();
+                Assert.Equal(2, inheritedRows.Length);
+                Assert.All(inheritedRows, assignment =>
+                {
+                    Assert.Equal("inherit", assignment.Provider);
+                    Assert.Null(assignment.Model);
+                    Assert.Null(assignment.CredentialSlotId);
+                    Assert.Null(assignment.SelectionReason);
+                });
+
                 var providerPath = host.Services.GetRequiredService<ProviderConfigurationStore>().Path;
                 if (OperatingSystem.IsWindows())
                 {
@@ -331,6 +348,9 @@ public sealed partial class ViewerHttpTests
                 var restored = await statusResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
                 Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
                 Assert.Equal("openai", restored!.PlanningProvider);
+                var restoredInheritRows = restored.Assignments!.Where(item => item.InhabitantId == "founder-scout").ToArray();
+                Assert.Equal(2, restoredInheritRows.Length);
+                Assert.All(restoredInheritRows, assignment => Assert.Equal("inherit", assignment.Provider));
 
                 var forgetAction = new OwnerProviderConfigurationAction(
                     "planning",

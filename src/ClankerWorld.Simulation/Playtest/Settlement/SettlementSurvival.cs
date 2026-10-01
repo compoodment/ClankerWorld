@@ -51,7 +51,8 @@ public static class SettlementIllnessRules
 public sealed partial class PrivateWorldRuntime
 {
     private SettlementSurvivalState? survivalState;
-    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal) { "food" };
+    private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
+        { "food", "fruit", "berries", "wild_greens", "cultivated_greens" };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -377,6 +378,14 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static bool IsEdibleFood(string kind) => kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
+
+    private static int FoodNourishment(string kind) => kind switch
+    {
+        "berries" => 2_000,
+        "wild_greens" => 1_500,
+        "cultivated_greens" => 4_000,
+        _ => 3_000,
+    };
 
     private IEnumerable<InventoryLot> PreferredFood(string owner, string? actor = null)
     {
