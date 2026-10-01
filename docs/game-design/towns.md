@@ -476,8 +476,9 @@ and invented content are not silently approved. In particular:
   intermediate, including at a Market; cloth, made at the Tailor Shop from
   plant fiber, is likewise a real intermediate item.
 - The Blacksmith refines **iron ore into a separate metal item**, then uses it to
-  make tools. Selling spare refined metal directly from the Blacksmith is
-  a strong proposed extension awaiting final confirmation. The Blacksmith
+  make tools. The owner's October 1 answer on
+  [#651](https://github.com/compoodment/ClankerWorld/issues/651) permits selling
+  spare refined iron directly from the Blacksmith. The Blacksmith
   already sells tools directly and takes tool-making requests—no separate
   Store is required for its own products.
 - The accepted medical goods include **bandages and medicine**. Their cloth
@@ -897,7 +898,7 @@ these item pipelines. See [combat](agents-and-families.md#combat) and
 #### Physical trade and production safeguards
 
 The Farmhouse sells produce, seeds and flour stocked at its location. The
-Blacksmith sells tools and takes tool-making orders. The Tailor Shop sells
+Blacksmith sells tools and spare refined iron and takes tool-making orders. The Tailor Shop sells
 clothing, cloth and sacks. Restaurants buy ingredients and sell finished meals;
 Clinics stock care goods and sell treatment. An optional Store receives goods
 by actual delivery before selling them. Market sellers carry goods into their

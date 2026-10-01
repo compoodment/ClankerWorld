@@ -94,7 +94,7 @@ are provisional. Farm planning responds to population, yield and stored reserves
 | --- | --- | --- | --- |
 | 3.1 | Agreed | Wood | Trees and hand-gathered fallen wood → tools, buildings, fuel, carts and boats. One wood item initially; split logs/planks only when useful. |
 | 3.2 | Agreed | Stone | Outcrops → stone tools and construction. |
-| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). Offering refined metal directly from the Blacksmith remains a separate business-catalogue choice. |
+| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment and may sell spare refined iron, as agreed in [#651](https://github.com/compoodment/ClankerWorld/issues/651). Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 3.4 | Agreed | Gold / diamond / ornament | Iron pickaxe extracts rare deposits. The Blacksmith makes gold ornaments, optionally set with a diamond, for wearing, gifts and trade; no gold standard or diamond tool tier. |
 | 3.5 | Agreed | Plant fiber / cloth | Fiber plants → the Tailor Shop turns plant fiber into a real **cloth intermediate** → the Tailor Shop turns cloth into clothing; cloth can be held and traded as its own stock. Recipe numbers are provisional (see 6.8). |
 | 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
@@ -164,7 +164,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, held by a starting household. Household-held, **not communal**: the holding household works there and sells directly from it, and any adult resident of that household may use it. A Farmhouse household may also build a Silo and an optional Store. |
 | 6.5 | Agreed | Farm fields | Prepared/seeded/growing/ready/harvested states for each accepted crop, not visible building interiors. |
 | 6.6 | Agreed | Private farm Silo: 1×1 | Separate private farm-work stock **next to the Farmhouse**, which the Farmhouse household may build; exact adjacency/placement rule and storage capacity open. |
-| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
+| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and spare refined iron and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
 | 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn. The Town owns the stalls and adds them from Town materials when sellers need them. Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Exact plot placement remains open. Trading admits any Town's agents. |
@@ -271,8 +271,7 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: optional starter supplies beyond the guaranteed minima; whether a
-Blacksmith offers refined metal directly in its business catalogue; exact Port
+Still open: optional starter supplies beyond the guaranteed minima; exact Port
 clearance, visitor-permission authority and boat queueing; Market plot
 placement; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;

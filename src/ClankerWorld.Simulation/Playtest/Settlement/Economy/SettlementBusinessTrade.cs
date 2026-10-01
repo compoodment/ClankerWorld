@@ -38,6 +38,14 @@ public sealed partial class PrivateWorldRuntime
     private bool BusinessBuyerWants(string actor, InventoryLot lot)
     {
         if (WantsTradeItem(actor, lot)) return true;
+        if (lot.ItemKind == "iron")
+        {
+            var household = HouseholdFor(actor);
+            // Trial reserve for real iron-tool work, not a tool to equip.
+            return HouseholdBuildingWithTag(household, "blacksmith") is not null &&
+                society.Checkpoint.Inventory.Lots.Where(item => item.ItemKind == "iron" &&
+                    (item.OwnerId == actor || item.OwnerId == household)).Sum(AvailableLotQuantity) < 2;
+        }
         var carried = society.Checkpoint.Inventory.Lots.Where(item => PersonalEquipmentRules.IsCarried(item, actor));
         if (BusinessRules.MaySell("blacksmith", lot.ItemKind))
             return !carried.Any(item => ToolTradeFamily(item.ItemKind) == ToolTradeFamily(lot.ItemKind) &&

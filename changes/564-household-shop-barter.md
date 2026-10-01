@@ -1,1 +1,3 @@
 Household shops can exchange goods kept at their actual location. Both traders meet before the exchange, Store stock must be carried in, and the building card shows each offer and its outcome. Unfinished exchanges stay visible ahead of recent completed or cancelled offers.
+
+A Blacksmith can sell spare refined iron from its own stock. Another Blacksmith household can buy it for tool work; a transaction still reserves exact goods and payment and preserves both households' private work rights.
