@@ -1,8 +1,9 @@
 name: Release stale claims
 
-# Every hour, release issue claims (status:in-progress) with no work for 4 hours
-# and review claims (status:reviewing) with no work for 2 hours, so the labels
-# show what is really being worked on. See CONTRIBUTING.md, "Claim an issue".
+# Every hour, release issue claims (status:in-progress) with nothing pushed for
+# 4 hours and review claims (status:reviewing) with no push or comment for 2
+# hours, so the labels show what is really being worked on. See
+# CONTRIBUTING.md, "Claim an issue".
 # It reads GitHub data only and runs main's copy of the script.
 on:
   schedule:

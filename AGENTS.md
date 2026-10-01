@@ -58,9 +58,11 @@ What each job adds:
   or convert it to draft once a reviewer has claimed it
   ([Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness)). Push your
   branch and open the draft within the first hour, then push at least every 2
-  hours: a claim with no pushed work or comment for 4 hours is released
-  automatically ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are
-  paused, push before you stop, so another agent can continue it.
+  hours: only pushes keep a claim, and one with nothing pushed for 4 hours is
+  released automatically. Comments don't count; while you wait on the owner,
+  add `status:needs-decision`, which keeps it
+  ([Claim an issue](CONTRIBUTING.md#claim-an-issue)). If you are paused, push
+  before you stop, so another agent can continue it.
 - **Review and merge:** another reviewer may be merging at the same time, so
   claim each pull request with `status:reviewing` before you start and merge
   only on top of current main ([Review and merge](CONTRIBUTING.md#review-and-merge)).

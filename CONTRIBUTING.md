@@ -123,17 +123,21 @@ not show which agent took it.
 
 - **Show your work.** Push your branch and open a draft pull request within the
   first hour, then push at least every 2 hours while you work. Pushed commits
-  are how everyone, including the owner, can see the claim is alive. If you
-  are waiting rather than coding, say so in a comment.
+  are how everyone, including the owner, can see the claim is alive, so only
+  pushes keep it; comments do not. If you are waiting on the owner, add
+  `status:needs-decision`, which keeps the claim. If you are waiting on
+  something else, add `status:blocked` and say what it is waiting on.
 - **Quiet claims are released automatically.** Every hour a workflow releases
-  any claim with no pushed commit, linked pull request activity or comment for
-  4 hours. The issue goes back to `status:needs-pr` with a comment naming the
-  draft or branch to continue from. Claims waiting on the owner
-  (`status:needs-decision` on the issue or pull request) are kept. Recent pull
-  request creation and activity count even when its commits have older dates;
-  routine label changes and the workflow's own cleanup notes do not count as
-  work. New claims still count. The cleanup checks current claims and handoffs
-  again before and after changing labels.
+  any claim with nothing pushed for 4 hours. Work counts as a push to a linked
+  draft pull request's branch or to a branch named in the issue's comments, or
+  opening a linked draft; a push counts from when it reached GitHub, even if
+  its commits are older. Comments, edits, label changes and pushes to ready
+  pull requests, which belong to their reviewers, do not count. The issue goes
+  back to `status:needs-pr` with a comment naming the draft or branch to
+  continue from; a blocked issue stays out of the queue.
+  Claims waiting on the owner (`status:needs-decision` on the issue or pull
+  request) are kept. New claims still count. The cleanup checks current claims
+  and handoffs again before and after changing labels.
 - An abandoned draft keeps `status:has-pr` alongside `status:needs-pr` until
   someone claims its issue or a closing pull request becomes ready. Routine
   draft edits and pushes do not hide that unclaimed work from the search.
@@ -285,10 +289,11 @@ More than one reviewer may be merging at the same time, so:
   from `is:pr is:open draft:false -label:"status:reviewing"`, add
   `status:reviewing`, and comment with who is reviewing and the commit you
   started from. Then read the comments again: if someone else's claim came
-  first, leave the label alone and pick another pull request. A claim with no
-  pushed commit or comment for 2 hours is released automatically, like issue
-  claims. The label also comes off when the pull request closes or goes back
-  to draft; remove it yourself if you stop without merging.
+  first, leave the label alone and pick another pull request. A review claim
+  with no pushed commit or comment for 2 hours is released automatically;
+  unlike issue claims, comments count here. The label also comes off when the
+  pull request closes or goes back to draft; remove it yourself if you stop
+  without merging.
 - **Never use draft as a hold.** Your `status:reviewing` claim already keeps
   others away while you merge main in, add a fix or wait for a prerequisite
   pull request; if you are waiting, say which pull request in a comment.
