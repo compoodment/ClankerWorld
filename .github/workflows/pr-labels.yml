@@ -13,6 +13,11 @@ permissions:
   issues: write
   pull-requests: write
 
+# One writer per PR; every queued event reads the live state before labeling.
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   label:
     runs-on: ubuntu-latest

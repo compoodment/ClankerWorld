@@ -235,11 +235,15 @@ async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
 async function labelPullRequest({ github, context, core }) {
   const repo = context.repo;
   const action = context.payload.action;
-  const pr = context.payload.pull_request;
+  // Events can wait in the workflow queue while the PR is edited, claimed,
+  // drafted, closed or reopened. Reconcile the current PR, not that snapshot.
+  const { data: pr } = await github.rest.pulls.get({
+    ...repo, pull_number: context.payload.pull_request.number,
+  });
   const repoName = `${repo.owner}/${repo.repo}`;
   const linked = closingIssueNumbers(pr.body, repoName);
 
-  if (action === 'closed') {
+  if (pr.state === 'closed') {
     await removeLabel(github, repo, pr.number, NeedsReview);
     await removeLabel(github, repo, pr.number, Reviewing);
     for (const number of linked) {
@@ -247,9 +251,7 @@ async function labelPullRequest({ github, context, core }) {
     }
     return;
   }
-  // An edit or other event on a closed pull request, for example a description
-  // edited after merging, must not put back its review or issue labels.
-  if (pr.state !== undefined && pr.state !== 'open') return;
+  if (pr.state !== 'open') return;
 
   const files = (await github.paginate(github.rest.pulls.listFiles, {
     ...repo, pull_number: pr.number, per_page: 100,
