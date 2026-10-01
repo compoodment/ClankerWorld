@@ -307,6 +307,7 @@ public sealed partial class PrivateWorldRuntime
                 worldSimulation = worldSimulation with { Buildings = worldSimulation.Buildings.Select(item => item.InstanceId == expanded.InstanceId ? expanded : item).ToArray() };
                 if (towns.SingleOrDefault(item => item.Id == expanded.TownId) is { } town)
                     SetTown(town with { BorderTiles = TownBorderRules.Expand(map, town, ExpansionTiles(job)) });
+                CreditCompletedWork(job.WorkerId, "building");
             }
             worldSimulation = worldSimulation with
             {
