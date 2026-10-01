@@ -303,6 +303,28 @@ public sealed record ViewerBridge(
     IReadOnlyList<ViewerPosition> Span,
     long BuiltTick);
 
+public sealed record ViewerConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record ViewerConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<ViewerConversationTurn> Turns);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -335,6 +357,9 @@ public sealed record ViewerWorldSnapshot(
     /// backwards-compatible Phase 2 diagnostic clients.
     /// </summary>
     public IReadOnlyList<ViewerInhabitant> Inhabitants { get; init; } = [];
+
+    /// <summary>Recent public dialogue only; private thoughts never enter this projection.</summary>
+    public IReadOnlyList<ViewerConversation> Conversations { get; init; } = [];
 
     /// <summary>
     /// Present for the Phase 2 composite host. Its separate topology revision

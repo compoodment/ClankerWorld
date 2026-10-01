@@ -19,7 +19,7 @@ public sealed partial class PrivateWorldRuntime
         AdultResident(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) && HasSkill(teacher, skill);
 
     private bool FreeToMentor(string teacher, string? requestedStudent = null) =>
-        ReadyForLesson(teacher) && ActiveStudent(teacher) is null &&
+        ReadyForLesson(teacher) && !IsConversationBusy(teacher) && ActiveStudent(teacher) is null &&
         inhabitants[teacher].Project is null or { Stage: "completed" or "cancelled" or "paused" } &&
         !HasCouncilDecision(teacher) && !HasHousingDecision(teacher) && !HasTradeResponse(teacher) && !HasFamilyDecision(teacher) &&
         !HasParenthoodDecision(teacher) && !HasDependentCareDecision(teacher) &&
@@ -34,16 +34,18 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanContinueLesson(string actor)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || IsConversationBusy(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
         {
             return false;
         }
         if (inhabitants[actor].Lesson is { Stage: "accepted" or "training" } lesson)
         {
-            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
+            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) &&
+                !IsConversationBusy(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
         }
         return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) &&
-            ReadyForLesson(student.InhabitantId) && !HasHousingDecision(student.InhabitantId);
+            ReadyForLesson(student.InhabitantId) && !IsConversationBusy(student.InhabitantId) &&
+            !HasHousingDecision(student.InhabitantId);
     }
 
     private void MaintainLessons()
