@@ -94,6 +94,8 @@ public sealed partial class PrivateWorldRuntime
             return new(false, "This physical boat is already reserved or is away from a Port.");
         if (!AdultResident(passengerId) || !CanUseTownBoat(boat.TownId, passengerId) || PassengerBoat(passengerId) is not null)
             return new(false, "The traveler needs permission for this Town's communal boat.");
+        if (PulledCart(passengerId) is not null)
+            return new(false, "Park and detach the cart before boarding this passenger boat.");
         if (inhabitants[passengerId].Project is { Stage: not ("completed" or "cancelled") } || inhabitants[passengerId].WaterWork is not null)
             return new(false, "Finish the current work before boarding a boat.");
         var origin = Port(boat.DockedPortId);

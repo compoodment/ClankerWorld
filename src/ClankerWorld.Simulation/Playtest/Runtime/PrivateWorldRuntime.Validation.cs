@@ -33,6 +33,8 @@ public sealed partial class PrivateWorldRuntime
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, boatTransport);
         ValidateBusinessTrade(CaptureState());
+        ValidateMedicalCare(CaptureState());
+        ValidateCarts(CaptureState());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
