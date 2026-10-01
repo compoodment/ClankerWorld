@@ -479,13 +479,17 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
-            CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
+            var kind = candidateId == "collect_wooden_axe" ? "wooden_axe" :
+                candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe";
+            if (MayCollectToolFamily(inhabitantId, ToolProgressionRules.Find(kind)!.Family))
+                CollectEquipment(inhabitantId, state, kind);
             return;
         }
         if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
         {
-            CollectEquipment(inhabitantId, state, candidateId[CollectToolPrefix.Length..]);
+            var kind = candidateId[CollectToolPrefix.Length..];
+            if (ToolProgressionRules.Find(kind) is { } tool && MayCollectToolFamily(inhabitantId, tool.Family))
+                CollectEquipment(inhabitantId, state, kind);
             return;
         }
         if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
