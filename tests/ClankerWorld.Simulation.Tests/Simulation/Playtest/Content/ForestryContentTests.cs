@@ -52,7 +52,9 @@ public sealed class ForestryContentTests
         Assert.False(ready.IsPlanted);
         Assert.Equal(1, ready.Quantity);
         Assert.Equal(EcologyResourceState.Available, ready.State);
-        Assert.Equal(wild, grown.GetResource(wild.Id));
+        // Natural renewal changes a felled stump to Regenerating before its due day.
+        // Its stock, deadline and every other record field must stay unchanged.
+        Assert.Equal(wild with { State = EcologyResourceState.Regenerating }, grown.GetResource(wild.Id));
         Assert.Equal(0, grown.GetResource(wild.Id).Quantity);
         Assert.NotEqual(wild.Id, ready.Id);
     }
