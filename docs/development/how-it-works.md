@@ -480,8 +480,15 @@ member has agreed, `SocietyFixture.JoinHousehold` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered
 as a refusal for the cooldown. The request grants nothing while pending: stock,
 shelter and route rules still check household membership. Adults who already
-have a household are never offered a request, because leaving or changing a
-household is still an open design question.
+have a household are never offered a request in the current implementation.
+[Household departure and solo formation](../game-design/towns.md#household-membership),
+including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
+are agreed but remain implementation work in
+[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
+and overcrowding relocation are follow-ups in
+[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 A recipe project that finds its work site busy waits with the blocker "Waiting
 for a free work site". While anyone waits, no one else is offered a new recipe
