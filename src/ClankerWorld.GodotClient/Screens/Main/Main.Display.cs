@@ -167,9 +167,13 @@ public partial class Main
     // Every labelled settings row shares one caption column so the choices
     // line up; ApplyResponsiveLayout widens it with the caption text.
     /// <summary>A small heading that groups related settings.</summary>
-    private static Label SettingsSection(string text)
+    /// <summary>A boxed group of settings under its own heading, like API keys.</summary>
+    private static PanelContainer SettingsBox(string title, params Control[] rows)
     {
-        return new Label { Text = text.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" };
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
+        foreach (var row in rows) body.AddChild(row);
+        return NewPanel(title, body);
     }
 
     private HBoxContainer DisplaySettingRow(string label, Control choice)

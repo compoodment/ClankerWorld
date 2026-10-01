@@ -53,6 +53,7 @@ public partial class Main : Control
     private readonly Button pairAgainButton = new();
     private readonly Label connectionStatusLabel = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
+    private readonly PanelContainer usageLimitPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();

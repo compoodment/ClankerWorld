@@ -73,6 +73,8 @@ public partial class Main
         CloseAgentModelEditor();
         modLibraryPanel.Hide();
         settingsPanel.Show();
+        // Each category opens at its top rather than where the other was scrolled.
+        settingsScroll.ScrollVertical = 0;
         gameSettingsContent.Visible = !worldSpecific;
         worldSettingsContent.Visible = worldSpecific;
         if (!worldSpecific && renderResolutionChoice.ItemCount > 0)
@@ -349,29 +351,26 @@ public partial class Main
 
         gameSettingsContent.AddThemeConstantOverride("separation", 8);
         worldSettingsContent.AddThemeConstantOverride("separation", 8);
-        gameSettingsContent.AddChild(SettingsSection("Interface"));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);
         themeChoice.Selected = (int)UiTheme.Parse(displayPreferences.Theme);
         themeChoice.TooltipText = "Light parchment or dark wood panels. Match system follows your computer's setting.";
         themeChoice.ItemSelected += SetUiTheme;
-        gameSettingsContent.AddChild(DisplaySettingRow("Theme", themeChoice));
 
         foreach (var percentage in DisplayUiScalePolicy.SupportedPercentages)
             uiScaleChoice.AddItem(percentage == DisplayUiScalePolicy.Automatic ? "Automatic" : $"{percentage}%");
         uiScaleChoice.Selected = DisplayUiScalePolicy.IndexOfPercent(displayPreferences.UiScalePercent);
         uiScaleChoice.TooltipText = "Makes all menus, panels and text bigger or smaller. Automatic picks a size for your screen. Bigger sizes need a bigger window.";
         uiScaleChoice.ItemSelected += SetUiScale;
-        gameSettingsContent.AddChild(DisplaySettingRow("UI Scale", uiScaleChoice));
+        gameSettingsContent.AddChild(SettingsBox("Interface",
+            DisplaySettingRow("Theme", themeChoice), DisplaySettingRow("UI Scale", uiScaleChoice)));
 
-        gameSettingsContent.AddChild(SettingsSection("Display"));
         fullscreenToggle.Text = string.Empty;
         fullscreenToggle.TooltipText = "Fill the whole screen.";
         fullscreenToggle.ButtonPressed = DisplayServer.WindowGetMode() == DisplayServer.WindowMode.Fullscreen;
         fullscreenToggle.Toggled += SetFullscreen;
         fullscreenToggle.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-        gameSettingsContent.AddChild(DisplaySettingRow("Fullscreen", fullscreenToggle));
 
         foreach (var preset in DisplaySizePresets)
         {
@@ -382,36 +381,30 @@ public partial class Main
         windowSizeChoice.Disabled = fullscreenToggle.ButtonPressed;
         windowSizeChoice.TooltipText = "Size of the game window. Fullscreen uses your screen's size.";
         windowSizeChoice.ItemSelected += SetWindowSize;
-        gameSettingsContent.AddChild(DisplaySettingRow("Window Size", windowSizeChoice));
-        RefreshRenderResolutionOptions();
-        renderResolutionChoice.TooltipText = "How sharp the picture is. Automatic matches your window or screen. Fixed sizes are scaled to fit.";
-        renderResolutionChoice.ItemSelected += SetRenderResolution;
-        gameSettingsContent.AddChild(DisplaySettingRow("Render Resolution", renderResolutionChoice));
+        gameSettingsContent.AddChild(SettingsBox("Display",
+            DisplaySettingRow("Fullscreen", fullscreenToggle), DisplaySettingRow("Window Size", windowSizeChoice)));
 
-
-        gameSettingsContent.AddChild(SettingsSection("Weather"));
         cloudHazeToggle.TooltipText = "A faint haze of cloud that drifts over the land now and then.";
         cloudHazeToggle.ButtonPressed = displayPreferences.CloudHaze;
         cloudHazeToggle.Toggled += SetCloudHaze;
-        gameSettingsContent.AddChild(DisplaySettingRow("Cloud haze", cloudHazeToggle));
         lightningToggle.TooltipText = "A soft flash every several seconds during storms.";
         lightningToggle.ButtonPressed = displayPreferences.LightningFlashes;
         lightningToggle.Toggled += SetLightningFlashes;
-        gameSettingsContent.AddChild(DisplaySettingRow("Lightning flashes", lightningToggle));
+        gameSettingsContent.AddChild(SettingsBox("Weather",
+            DisplaySettingRow("Cloud haze", cloudHazeToggle), DisplaySettingRow("Lightning flashes", lightningToggle)));
 
-        gameSettingsContent.AddChild(SettingsSection("Date and time"));
         clockFormatChoice.AddItem("24-hour", 0);
         clockFormatChoice.AddItem("12-hour (AM/PM)", 1);
         clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
         clockFormatChoice.ItemSelected += SetClockFormat;
-        gameSettingsContent.AddChild(DisplaySettingRow("Time display", clockFormatChoice));
 
         dateFormatChoice.AddItem("DD-MM-YYYY");
         dateFormatChoice.AddItem("MM-DD-YYYY");
         dateFormatChoice.AddItem("YYYY-MM-DD");
         dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
         dateFormatChoice.ItemSelected += SetDateFormat;
-        gameSettingsContent.AddChild(DisplaySettingRow("Date display", dateFormatChoice));
+        gameSettingsContent.AddChild(SettingsBox("Date and time",
+            DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
 
         var lifePaceRow = new HBoxContainer();
         lifePaceRow.AddChild(new Label { Text = "Aging multiplier" });
@@ -442,10 +435,12 @@ public partial class Main
         jevAssistanceToggle.Text = "Let Jev help in this world";
         jevAssistanceToggle.TooltipText = "Jev is an optional helper for small everyday choices, so your agents' own models are called less. Turn it off and nothing is lost. Memories and keys stay.";
         jevAssistanceToggle.Toggled += enabled => _ = SaveJevAssistanceAsync(enabled);
-        worldSettingsContent.AddChild(jevAssistanceToggle);
+        worldSettingsContent.AddChild(SettingsBox("Jev", jevAssistanceToggle));
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
+        BuildUsageLimitPanel();
+        worldSettingsContent.AddChild(usageLimitPanel);
 
         BuildApiKeysPanel();
         BuildConnectionPanel();
@@ -460,7 +455,11 @@ public partial class Main
         settingsScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         settingsScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         settingsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-        settingsScroll.AddChild(settingsPages);
+        // Keep the scrollbar clear of the boxes' edges and drop-downs.
+        var scrollGap = new MarginContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        scrollGap.AddThemeConstantOverride("margin_right", 10);
+        scrollGap.AddChild(settingsPages);
+        settingsScroll.AddChild(scrollGap);
         var settingsCategories = new VBoxContainer { CustomMinimumSize = new Vector2(130, 0) };
         gameSettingsCategoryButton.Text = "Game";
         StyleSettingsCategoryButton(gameSettingsCategoryButton);
@@ -702,11 +701,13 @@ public partial class Main
 
     private static void AddPanelContents(PanelContainer panel, string title, Control content, bool closable = false, Action? onClose = null)
     {
+        // A titled box inside a menu already has its inset frame's padding.
+        var pad = closable || string.IsNullOrWhiteSpace(title) ? 10 : 4;
         var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_left", 10);
-        margin.AddThemeConstantOverride("margin_right", 10);
-        margin.AddThemeConstantOverride("margin_top", 10);
-        margin.AddThemeConstantOverride("margin_bottom", 10);
+        margin.AddThemeConstantOverride("margin_left", pad);
+        margin.AddThemeConstantOverride("margin_right", pad);
+        margin.AddThemeConstantOverride("margin_top", pad);
+        margin.AddThemeConstantOverride("margin_bottom", pad);
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 7);
         if (!string.IsNullOrWhiteSpace(title) && closable)
@@ -727,7 +728,9 @@ public partial class Main
         }
         else if (!string.IsNullOrWhiteSpace(title))
         {
-            var heading = new Label { Text = title, ThemeTypeVariation = "HeadingLabel" };
+            // A box inside a menu, such as API keys, takes a small section label
+            // so several fit on screen together.
+            var heading = new Label { Text = title.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" };
             body.AddChild(heading);
         }
 
