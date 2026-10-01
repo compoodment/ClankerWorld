@@ -28,10 +28,29 @@ public sealed class WorldSelectionCoordinator(
             {
                 Worlds = snapshot.Worlds.Select(world =>
                 world.Id == snapshot.ActiveId
-                    ? world with { Compatibility = "compatible", CompatibilityReason = null }
+                    ? WithThumbnail(world, () => runtime.ExportState().Map) with { Compatibility = "compatible", CompatibilityReason = null }
                     : Assess(world)).ToArray()
             };
         }
+    }
+
+    /// <summary>
+    /// Worlds catalogued before thumbnails existed get one the first time they
+    /// are listed, from the map already at hand, and the catalog keeps it.
+    /// </summary>
+    private CatalogWorld WithThumbnail(CatalogWorld world, Func<SeededMap> map)
+    {
+        if (world.Thumbnail is not null) return world;
+        var thumbnail = WorldThumbnail.From(map());
+        try
+        {
+            catalog.RememberThumbnail(world.Id, thumbnail);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The list still shows it; the catalog can keep it next time.
+        }
+        return world with { Thumbnail = thumbnail };
     }
 
     private CatalogWorld Assess(CatalogWorld world)
@@ -39,6 +58,7 @@ public sealed class WorldSelectionCoordinator(
         try
         {
             var checkpoint = catalog.Read(world.Id);
+            world = WithThumbnail(world, () => checkpoint.Map);
             stateFile.VerifyRequiredHistory(checkpoint);
             using var verified = PrivateWorldRuntime.Restore(checkpoint, providerFactory);
             if (!providers.CanRestoreWorldAssignments(world.Assignments))
