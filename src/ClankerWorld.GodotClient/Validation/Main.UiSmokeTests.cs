@@ -384,6 +384,7 @@ public partial class Main
 
     private async Task VerifyFirstWorldListAsync()
     {
+        VerifyWorldThumbnailFallback();
         worldMenuColumns.Hide();
         worldSelectionList.Show();
         worldSelectButton.Show();
@@ -392,21 +393,67 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            worldSelectionList.Placeholder != "Checking saved worlds…" ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
             new CatalogWorld($"world-{index}", $"World {index}", $"world-{index}", "seed",
-                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible")).ToArray()));
+                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible",
+                Thumbnail: index switch
+                {
+                    0 => new WorldThumbnail(1, 1, "terrain-kind-v1", null!),
+                    1 => new WorldThumbnail(2, 1, "terrain-kind-v1", "AAU="),
+                    _ => null,
+                })).ToArray()));
         await loading;
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        // Each world is a card, current world first; the arrow keys move between them.
+        if (worldSelectionList.GetItemTitle(0) != "World 0" || worldSelectionList.GetItemTitle(6) != "World 6")
+            throw new InvalidOperationException("World cards must show each world's name, the current world first.");
+        worldSelectionList.Select(0);
+        worldSelectionList._GuiInput(new InputEventAction { Action = "ui_down", Pressed = true });
+        if (worldSelectionList.GetSelectedItems() is not [1])
+            throw new InvalidOperationException("The down arrow must choose the next world card.");
         worldSelectionList.Select(6);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
         worldMenuOverlay.Hide();
+    }
+
+    private static void VerifyWorldThumbnailFallback()
+    {
+        WorldThumbnail?[] invalid =
+        [
+            null,
+            new(1, 1, "terrain-kind-v1", null!),
+            new(1, 1, null!, "AA=="),
+            new(1, 1, "unknown", "AA=="),
+            new(1, 1, "terrain-kind-v1", "!!!!"),
+            new(1, 1, "terrain-kind-v1", "AAAA"),
+            new(1, 1, "terrain-kind-v1", "/w=="),
+            new(0, 1, "terrain-kind-v1", ""),
+            new(1, -1, "terrain-kind-v1", ""),
+            new(97, 1, "terrain-kind-v1", Convert.ToBase64String(new byte[97])),
+            new(1, 2049, "terrain-kind-v1", Convert.ToBase64String(new byte[2049])),
+            new(int.MaxValue, int.MaxValue, "terrain-kind-v1", "AA=="),
+        ];
+        foreach (var thumbnail in invalid)
+        {
+            using var unusable = WorldThumbnailTexture(thumbnail);
+            if (unusable is not null)
+                throw new InvalidOperationException("Missing or damaged world thumbnails must fall back to the globe.");
+        }
+        using var texture = WorldThumbnailTexture(new WorldThumbnail(2, 1, "terrain-kind-v1", "AAU="));
+        if (texture is null || texture.GetWidth() != 2 || texture.GetHeight() != 1)
+            throw new InvalidOperationException("A valid world thumbnail must retain its shape.");
+        using var image = texture.GetImage();
+        if (image.GetPixel(0, 0) != TerrainTextures.BaseColor(TerrainStyle.Grass) ||
+            image.GetPixel(1, 0) != TerrainTextures.BaseColor(TerrainStyle.Ocean))
+            throw new InvalidOperationException("World thumbnails must draw the overview's terrain colors.");
     }
 
     /// <summary>The logo replaces the old title and slogan, sits above the card and stays crisp.</summary>
@@ -493,7 +540,7 @@ public partial class Main
                     !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
                     throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
                 worldAdvancedToggle.ButtonPressed = true;
-                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
