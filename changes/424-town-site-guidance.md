@@ -1,0 +1,1 @@
+- Choosing the first Town now shades more promising buildable land and explains nearby food, fertile ground, wood, stone and space for Roads. The advice is provisional and does not limit site choice; the game still checks whether the Town layout fits.
