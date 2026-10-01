@@ -224,7 +224,8 @@ public partial class Main
             SetStatus("Choose a saved key to delete.", good: false);
             return;
         }
-        if (providerConfiguration?.Assignments?.Any(item => item.CredentialSlotId == slotId) == true)
+        if (providerConfiguration?.Assignments?.Any(item =>
+                item.CredentialSlotId == slotId && item.SelectionReason is null) == true)
         {
             SetStatus("An agent is still using this key. Give that agent another key first.", good: false);
             return;
@@ -389,10 +390,86 @@ public partial class Main
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
             ? "Loading…"
-            : SelectedTargetWasBornHere() && SelectedAssignment() is null
-            ? "No personal model selected for this child. After infancy, safe local decisions continue until a model is assigned; world defaults are not used."
+            : SelectedTargetWasBornHere()
+            ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
         RefreshControlAvailability();
+    }
+
+    private string SelectedChildModelStatus()
+    {
+        var childId = SelectedCognitionTarget();
+        var assignments = providerConfiguration?.Assignments ?? [];
+        var routine = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "routine");
+        var planning = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "planning");
+        var child = observationSession.Current?.Baseline.Snapshot.Inhabitants.FirstOrDefault(item => item.Id == childId);
+        var birthProvider = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-provider")?.Detail;
+        var birthModel = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-id")?.Detail;
+        if ((routine is null || planning is null) && birthProvider is "openai" or "ollama-cloud" &&
+            !string.IsNullOrWhiteSpace(birthModel))
+        {
+            var pendingModelName = $"{ProviderDisplayName(birthProvider)} · {birthModel}";
+            if (routine is null && planning is null)
+                return $"Model needs setup: {pendingModelName} was chosen at birth; its settings are waiting to be saved. Built-in choices continue until setup is recovered.";
+
+            var pendingRoute = $"{pendingModelName} waiting for saved setup; built-in choices continue";
+            return $"Routine: {(routine is null ? pendingRoute : ChildModelRouteSummary(routine))} · Planning: {(planning is null ? pendingRoute : ChildModelRouteSummary(planning))}.";
+        }
+        if (IsUnconfiguredChildRoute(routine) && IsUnconfiguredChildRoute(planning))
+            return "No personal model selected for this child. Safe local decisions continue until a model is assigned; world defaults are not used.";
+
+        if (!SameChildProviderRoute(routine, planning))
+        {
+            return $"Routine: {ChildModelRouteSummary(routine)} · Planning: {ChildModelRouteSummary(planning)}.";
+        }
+
+        var assignment = planning ?? routine!;
+
+        var provider = ProviderDisplayName(assignment.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        if (ChildModelNeedsSetup(assignment))
+            return $"Model needs setup: {modelName} has no available key on this computer. Add or select a key; built-in choices continue until then, with no other model used.";
+
+        return assignment.SelectionReason switch
+        {
+            "parents_agreed" => $"Their model choices matched: {modelName}.",
+            "initiating_parent" => $"Chosen from the parent who began the family plan: {modelName}.",
+            _ => $"Personal model: {modelName}.",
+        };
+    }
+
+    private string ChildModelRouteSummary(InhabitantProviderAssignment? assignment)
+    {
+        if (IsUnconfiguredChildRoute(assignment))
+            return "no personal model (safe local; world defaults are not used)";
+
+        var provider = ProviderDisplayName(assignment!.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        return ChildModelNeedsSetup(assignment)
+            ? $"{modelName} needs setup; built-in choices continue until a key is available"
+            : modelName;
+    }
+
+    private static bool IsUnconfiguredChildRoute(InhabitantProviderAssignment? assignment) =>
+        assignment is null || assignment.Provider is "deterministic" or "inherit";
+
+    private static bool SameChildProviderRoute(
+        InhabitantProviderAssignment? left,
+        InhabitantProviderAssignment? right) =>
+        IsUnconfiguredChildRoute(left) && IsUnconfiguredChildRoute(right) ||
+        left is not null && right is not null && left.Provider == right.Provider &&
+        left.Model == right.Model && left.CredentialSlotId == right.CredentialSlotId;
+
+    private bool ChildModelNeedsSetup(InhabitantProviderAssignment assignment)
+    {
+        if (assignment.Provider is "deterministic" or "inherit") return false;
+        if (assignment.CredentialSlotId is { } slotId)
+            return providerConfiguration?.CredentialSlots?.Any(slot => slot.Id == slotId && slot.Provider == assignment.Provider) != true;
+        return providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == assignment.Provider)?.HasCredential != true;
     }
 
     private static string RoleDisplayName(string role) => role == "planning"
@@ -509,7 +586,7 @@ public partial class Main
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
         deleteCognitionCredentialSlotButton.Text = "Delete named key";
-        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key you no longer use. Move any agents using it to another key first.";
+        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();
         buttons.AddChild(deleteCognitionCredentialSlotButton);

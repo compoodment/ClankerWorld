@@ -29,10 +29,23 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int TravelCooldownTicks = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementExploration? Exploration = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool IdentityChoicePending = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChildPersonalModelSelection? ChildModelSelection = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSkill>? Skills = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null);
+
+/// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
+public sealed record ChildPersonalModelSelection(
+    string Role,
+    string? Provider,
+    string? EndpointIdentity,
+    string? ModelId,
+    string? CredentialSlotId,
+    string ChoiceReason);
+
+/// <summary>A birth-bound child model choice prepared by the playable host.</summary>
+public sealed record PreparedChildModelSelection(string ChildId, ChildPersonalModelSelection Selection);
 
 public sealed record PlaytestModelAttempt(
     string Status,
