@@ -14,12 +14,17 @@ public sealed partial class PrivateWorldRuntime
                 lot.StorageBuildingId != farmhouseId && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
+    private int FarmhouseGrainDeliveryRoom(string farmhouseId) => Math.Max(0,
+        StorageRoom(farmhouseId) - society.Checkpoint.Inventory.Lots
+            .Where(lot => lot.DeliveryBuildingId == farmhouseId).Sum(lot => lot.Quantity));
+
     private void AddFarmGrainCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
+        if (!AdultResident(actor) || householdId is null || CarryingRoom(actor) == 0 || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is not { } farmhouse ||
+            FarmhouseGrainDeliveryRoom(farmhouse.InstanceId) == 0 ||
             FarmGrainForDelivery(householdId, farmhouse.InstanceId) is not { } grain)
             return;
         var source = HouseholdStockPosition(grain);
@@ -46,7 +51,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, source, "farm_grain", range);
             return;
         }
-        var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain)));
+        var quantity = Math.Min(FarmhouseGrainDeliveryRoom(farmhouse.InstanceId),
+            Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain))));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-grain-pickup:{WorldTick}:{actor}", householdId, actor, grain.Id,

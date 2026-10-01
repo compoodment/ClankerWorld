@@ -1,0 +1,1 @@
+- Grain stays in its field when its household's Farmhouse is full. Farmers collect only as much as the Farmhouse can hold, including grain already on its way there.
