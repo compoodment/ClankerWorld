@@ -288,6 +288,7 @@ static class SceneRunner
             if (set.Building != defaults.Building) combined.Building = set.Building;
             if (set.Agent != defaults.Agent) combined.Agent = set.Agent;
             if (set.Bridge is not null) combined.Bridge = set.Bridge;
+            if (set.Relief is not null) combined.Relief = set.Relief;
             if (set.Nature != defaults.Nature)
             {
                 if (set.Name == "crops") cropsNature = set.Nature;
@@ -301,9 +302,14 @@ static class SceneRunner
                 ? orchard(sprite, size) : others(sprite, size);
         }
         sets.Add(combined);
+        var range = SceneSpec.MountainRange();
         foreach (var set in sets)
             foreach (var tileSize in new[] { 32, 16 })
             {
+                var rangeImage = SceneComposer.Render(range, set, tileSize);
+                File.WriteAllBytes(Path.Combine(root, $"range-{set.Name}-{tileSize}.png"), rangeImage.SavePngToBuffer());
+                File.WriteAllBytes(Path.Combine(root, $"range-{set.Name}-{tileSize}.x{(tileSize == 32 ? 2 : 4)}.png"),
+                    Sheet.Upscale(rangeImage, tileSize == 32 ? 2 : 4).SavePngToBuffer());
                 var image = SceneComposer.Render(spec, set, tileSize);
                 File.WriteAllBytes(Path.Combine(root, $"scene-{set.Name}-{tileSize}.png"), image.SavePngToBuffer());
                 File.WriteAllBytes(Path.Combine(root, $"scene-{set.Name}-{tileSize}.x{(tileSize == 32 ? 3 : 4)}.png"),

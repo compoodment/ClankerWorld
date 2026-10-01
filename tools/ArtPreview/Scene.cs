@@ -24,6 +24,15 @@ public sealed class ArtSet
     public Func<int, int, int, int, int, Image> Agent = (variant, stage, facing, frame, size) => AgentSprites.Sprite(variant, stage, size);
     /// <summary>Bridge deck over one tile; null keeps the game's current plank drawing.</summary>
     public Func<bool, int, Image>? Bridge;
+    /// <summary>
+    /// Optional relief drawn over the whole ground pass, before roads: given
+    /// the map and the tile size it returns an image of the full map
+    /// (map.Width × tileSize by map.Height × tileSize) to blend on top, so
+    /// mountains, peaks and hills can be drawn as landforms spanning many
+    /// tiles from the map's elevation instead of one tile at a time. Null
+    /// keeps today's per-tile mountain tiles and hill overlays.
+    /// </summary>
+    public Func<WorldTerrainMap, int, Image>? Relief;
 }
 
 /// <summary>A proposal that also wants the reference scene drawn with its art.</summary>
@@ -61,6 +70,68 @@ public sealed class SceneSpec
             Convert.ToBase64String(climate), Convert.ToBase64String(Elevation), Convert.ToBase64String(Hydrology),
             Convert.ToBase64String(Surface), Convert.ToBase64String(Vegetation));
         return WorldTerrainMap.FromPacked(new OwnerWorldPackedTerrain(Width, Height, "terrain-kind-v1", terrain), layers);
+    }
+
+    /// <summary>
+    /// A 32 × 20 tile mountain range for judging mountains, peaks and hills
+    /// as whole landforms: a long massif with a peaked spine running
+    /// west-north-west to east-south-east, a smaller outlier, a foothill band
+    /// at the game's hill thresholds, a river skirting the range and a Town
+    /// edge in the south-west.
+    /// </summary>
+    public static SceneSpec MountainRange()
+    {
+        const int w = 32, h = 20;
+        var hydrology = new byte[w * h];
+        var surface = new byte[w * h];
+        var vegetation = new byte[w * h];
+        var elevation = new byte[w * h];
+        int I(int x, int y) => y * w + x;
+        float Noise(float x, float y, int salt)
+        {
+            int ix = (int)MathF.Floor(x), iy = (int)MathF.Floor(y);
+            float fx = x - ix, fy = y - iy;
+            float R(int a, int b) => PixelArt.Hash(a, b, salt) % 1000 / 1000f;
+            float sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            return Mathf.Lerp(Mathf.Lerp(R(ix, iy), R(ix + 1, iy), sx), Mathf.Lerp(R(ix, iy + 1), R(ix + 1, iy + 1), sx), sy);
+        }
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                // Distance from the range's spine, a gently bending line.
+                var spineY = 6.5f + x * 0.22f + MathF.Sin(x * 0.35f) * 1.2f;
+                var across = MathF.Abs(y - spineY) / (3.4f + 1.2f * Noise(x * 0.3f, 0, 3));
+                var along = Mathf.SmoothStep(1f, 5f, x) * Mathf.SmoothStep(31f, 25f, x);
+                var range = MathF.Max(0, 1 - across) * along;
+                // A small outlier massif to the north-east.
+                var outlier = MathF.Max(0, 1 - new Vector2((x - 26f) / 3.2f, (y - 2.5f) / 2.4f).Length());
+                var height = 150 + 115 * MathF.Max(range, outlier * 0.9f) + 22 * (Noise(x * 0.45f, y * 0.45f, 9) - 0.5f);
+                elevation[I(x, y)] = (byte)Math.Clamp((int)height, 0, 255);
+            }
+        // A river along the south of the range, two tiles wide.
+        for (var x = 0; x < w; x++)
+        {
+            var ry = Math.Clamp((int)MathF.Round(13.5f + MathF.Sin(x * 0.28f) * 1.2f), 0, h - 2);
+            hydrology[I(x, ry)] = 3;
+            hydrology[I(x, ry + 1)] = 3;
+        }
+        // Forest on the western foothills, a little bare rock high up.
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                if (hydrology[I(x, y)] != 0) continue;
+                if (x < 7 && y < 9 && elevation[I(x, y)] < 215) { vegetation[I(x, y)] = 2; if (x < 4) surface[I(x, y)] = 5; }
+                if (elevation[I(x, y)] is >= 205 and < 215 && Noise(x * 0.8f, y * 0.8f, 21) > 0.62f) surface[I(x, y)] = 2;
+            }
+        var scene = new SceneSpec { Width = w, Height = h, Hydrology = hydrology, Surface = surface, Vegetation = vegetation, Elevation = elevation };
+        for (var x = 0; x < 9; x++) scene.Roads.Add(new(x, 19));
+        scene.Roads.Add(new(5, 18));
+        scene.Buildings.Add(new(new Rect2I(3, 17, 1, 2), BuildingKind.House, new BuildingDoor(DoorSide.South, 0)));
+        scene.Buildings.Add(new(new Rect2I(6, 17, 1, 1), BuildingKind.House, new BuildingDoor(DoorSide.West, 0)));
+        foreach (var (x, y) in new[] { (1, 1), (3, 2), (2, 4), (5, 3), (0, 6), (4, 6), (6, 1) })
+            if (hydrology[I(x, y)] == 0 && elevation[I(x, y)] < 215) scene.Nature[new(x, y)] = (x + y) % 2 == 0 ? NatureSprite.Conifer : NatureSprite.Broadleaf;
+        scene.Agents.Add(new(new(7, 19), 0, "adult", 6));
+        return scene;
     }
 
     /// <summary>The standard reference scene: 20 × 12 tiles.</summary>
@@ -186,9 +257,11 @@ public static class SceneComposer
                 Place(image, art.Tile(style, TerrainTextures.VariantAt(x, y), atlasSize), px, py, tileSize);
                 TerrainTransitions.Collect(map, x, y, false, pieces);
                 foreach (var (over, piece) in pieces) Place(image, art.EdgePiece(over, piece, atlasSize), px, py, tileSize);
-                if (map.IsHillAt(x, y))
+                if (art.Relief is null && map.IsHillAt(x, y))
                     Place(image, art.Hill((int)(PixelArt.Hash(x, y, 61) % TerrainTextures.VariantCount), atlasSize), px, py, tileSize);
             }
+        if (art.Relief is { } relief)
+            Sheet.Blend(image, relief(map, tileSize), 0, 0);
 
         // Roads, with doorstep paths toward each building's door.
         var doorsteps = new Dictionary<Vector2I, RoadLinks>();
