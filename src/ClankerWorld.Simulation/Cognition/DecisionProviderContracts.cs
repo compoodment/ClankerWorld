@@ -97,11 +97,14 @@ public sealed record CognitionKnowledgeFact(
     long LearnedTick,
     string Acquisition);
 
-/// <summary>Actor-owned context only; absent survival data remains unknown, not invented.</summary>
+/// <summary>
+/// Actor-owned context only; absent survival data remains unknown, not invented.
+/// <paramref name="HousingNote"/> says why the actor has no home, or is null when it has one.
+/// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
-    string? HouseholdName = null, string? TownName = null);
+    string? HouseholdName = null, string? TownName = null, string? HousingNote = null);
 
 /// <summary>
 /// Compact, provider-neutral state supplied to a decision provider. It is an
@@ -124,6 +127,15 @@ public sealed record InhabitantObservation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsPersonality = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsAspiration = false)
 {
+    // Scheduler control metadata is materialized only for duplicate-name
+    // retries and live conversation choices. It is not stored in a save or
+    // sent to a provider.
+    [JsonIgnore]
+    public bool IsNameRetry { get; init; }
+
+    [JsonIgnore]
+    public string? ConversationChoiceContext { get; init; }
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(InhabitantId);
@@ -132,6 +144,9 @@ public sealed record InhabitantObservation(
         {
             throw new ArgumentOutOfRangeException(nameof(WorldTick));
         }
+
+        if (ConversationChoiceContext is { Length: > 512 })
+            throw new ArgumentException("Conversation choice context exceeds its bound.", nameof(ConversationChoiceContext));
 
         if (HungerBasisPoints is < 0 or > 10_000)
         {
@@ -144,7 +159,7 @@ public sealed record InhabitantObservation(
             self.Personality is null || self.Personality.Length > 256 ||
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
-            self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 ||
+            self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -499,7 +514,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         var apiKey = apiKeyAccessor()?.Trim();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            throw new InvalidOperationException("Jev is enabled but no TypeSafe API key is configured.");
+            throw new CognitionProviderUnavailableException("missing_key", "Jev is enabled but no TypeSafe API key is configured.");
         }
 
         var questions = new Dictionary<string, JevQuestion>(StringComparer.Ordinal)
@@ -531,6 +546,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 hunger_basis_points = request.Observation.HungerBasisPoints,
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
+                housing = request.Observation.Self?.HousingNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -572,7 +588,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+                $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).", null, response.StatusCode);
         }
 
         var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
@@ -598,12 +614,13 @@ public sealed class JevDecisionProvider : IDecisionProvider
 
             var selected = answer.GetProperty("choice").GetString();
             var confidence = answer.GetProperty("confidence").GetDouble();
-            var probabilities = answer.GetProperty("probabilities")
-                .EnumerateObject()
-                .ToDictionary(
+            var probabilities = answer.TryGetProperty("probabilities", out var probabilitiesProperty)
+                ? probabilitiesProperty.EnumerateObject().ToDictionary(
                     property => property.Name,
                     property => property.Value.GetDouble(),
-                    StringComparer.Ordinal);
+                    StringComparer.Ordinal)
+                : request.Observation.Candidates.ToDictionary(candidate => candidate.Id,
+                    candidate => candidate.Id == selected ? 1d : 0d, StringComparer.Ordinal);
             var usage = root.TryGetProperty("usage", out var usageProperty)
                 ? new CognitionUsage(
                     modelId,
@@ -768,13 +785,17 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Self context is your saved identity and condition, not other agents' private information. " +
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
+                        "Housing, when present, says why you have no home of your own. " +
                         "Return JSON only, with fields " +
-                        "selected_candidate_id (string), confidence (number 0..1), and " +
-                        "probabilities (object mapping candidate IDs to numbers 0..1), and optional " +
+                        "selected_candidate_id (string), confidence (number 0..1), " +
+                        "and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
+                        (request.Observation.IsNameRetry
+                            ? "The full name you chose is already taken in this world. Choose a different full name. Do not list or ask for anyone else’s name. "
+                            : string.Empty) +
                         "When needs_personality or needs_aspiration is true, you may also include " +
                         "chosen_personality and chosen_aspiration respectively, in your own words, " +
                         "each at most 256 characters with no control characters. This is a one-time choice. " +
@@ -797,6 +818,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         needs_name = request.Observation.NeedsName,
+                        name_retry = request.Observation.IsNameRetry,
                         needs_personality = request.Observation.NeedsPersonality,
                         needs_aspiration = request.Observation.NeedsAspiration,
                         self = request.Observation.Self is { } self ? new
@@ -805,6 +827,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             personality = self.Personality, aspiration = self.Aspiration,
                             household = self.HouseholdName,
                             town = self.TownName,
+                            housing = self.HousingNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -862,7 +885,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+                $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).", null, response.StatusCode);
         }
 
         var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);

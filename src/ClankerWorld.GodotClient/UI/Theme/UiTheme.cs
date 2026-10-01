@@ -258,13 +258,15 @@ public static class UiTheme
         // An inset that opens something when clicked, under the pointer.
         theme.SetTypeVariation("InsetPanelHover", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanelHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 8));
+        // The chosen card in a list of worlds or saves.
+        theme.SetTypeVariation("InsetPanelSelected", "PanelContainer");
+        theme.SetStylebox("panel", "InsetPanelSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 8));
+        // The tray holding a row of linked choice buttons such as Low, Normal and High.
+        theme.SetTypeVariation("SegmentedPanel", "PanelContainer");
+        theme.SetStylebox("panel", "SegmentedPanel", Box(p.Field, p.FieldEdge, 2, contentMargin: 2));
         theme.SetTypeVariation("TopBar", "PanelContainer");
         theme.SetStylebox("panel", "TopBar", TopBar(p));
         // A wax-seal count on a button's corner, and a small warning dot.
-        theme.SetTypeVariation("Badge", "PanelContainer");
-        theme.SetStylebox("panel", "Badge", Round(p.Seal, p.SealRing, 10, 2));
-        theme.SetTypeVariation("WarningDot", "PanelContainer");
-        theme.SetStylebox("panel", "WarningDot", Round(p.Ember, p.ButtonEdge, 4, 1));
 
         // Buttons.
         var button = Bevel(p.Button, p.ButtonLight, p.ButtonDark, p.ButtonEdge);
@@ -322,15 +324,19 @@ public static class UiTheme
         SetLabel(theme, "GoodLabel", p.Good, "Label");
         SetLabel(theme, "BadLabel", p.Bad, "Label");
         SetLabel(theme, "KeyLabel", p.Section, "Label");
-        SetLabel(theme, "BadgeLabel", p.SealInk, "Label");
         SetLabel(theme, "NewMarkLabel", p.Warning, "Label");
         // Text sitting straight on a wooden bar rather than on parchment.
         SetLabel(theme, "WoodLabel", p.OnWood, "Label");
         SetLabel(theme, "WoodSoftLabel", p.OnWoodSoft, "Label");
+        // Small tags on list cards: filled for the current world, outlined for notes.
+        SetLabel(theme, "TagLabel", p.PrimaryInk, "Label");
+        theme.SetStylebox("normal", "TagLabel", Flat(p.Primary, 5, 2, p.PrimaryEdge));
+        SetLabel(theme, "TagNoteLabel", p.InkMuted, "Label");
+        theme.SetStylebox("normal", "TagNoteLabel", Flat(new Color(0, 0, 0, 0), 5, 2, p.InkFaint));
         // Titles, headings, section labels and counts use the Timber lettering.
         SetLabel(theme, "TitleLabel", p.Ink, "Label");
         foreach (var (type, size) in new[] { ("TitleLabel", UiFonts.Title), ("HeadingLabel", UiFonts.Heading),
-            ("SectionLabel", UiFonts.Body), ("BadgeLabel", UiFonts.Body) })
+            ("SectionLabel", UiFonts.Body), ("TagLabel", UiFonts.Body), ("TagNoteLabel", UiFonts.Body) })
         {
             theme.SetFont("font", type, UiFonts.Headings);
             theme.SetFontSize("font_size", type, size);
@@ -340,6 +346,14 @@ public static class UiTheme
         theme.SetColor("selection_color", "RichTextLabel", p.Selection);
         theme.SetStylebox("normal", "RichTextLabel", new StyleBoxEmpty());
         theme.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
+
+        // Sliders: a sunken track that fills green up to a wooden knob.
+        theme.SetStylebox("slider", "HSlider", Box(p.Field, p.FieldEdge, 2, 0, 3));
+        theme.SetStylebox("grabber_area", "HSlider", Box(p.Primary, p.PrimaryEdge, 2, 0, 3));
+        theme.SetStylebox("grabber_area_highlight", "HSlider", Box(p.Primary, p.PrimaryEdge, 2, 0, 3));
+        theme.SetIcon("grabber", "HSlider", SliderKnob(p, hover: false));
+        theme.SetIcon("grabber_highlight", "HSlider", SliderKnob(p, hover: true));
+        theme.SetIcon("grabber_disabled", "HSlider", SliderKnob(p, hover: false));
 
         // Fields and choosers.
         var field = Box(p.Field, p.FieldEdge, 2, 10, 6);
@@ -541,20 +555,6 @@ public static class UiTheme
         }
         return box;
     }
-
-    private static StyleBoxFlat Round(Color fill, Color ring, int radius, int ringWidth) => new()
-    {
-        BgColor = fill,
-        BorderColor = ring,
-        BorderWidthLeft = ringWidth,
-        BorderWidthTop = ringWidth,
-        BorderWidthRight = ringWidth,
-        BorderWidthBottom = ringWidth,
-        CornerRadiusTopLeft = radius,
-        CornerRadiusTopRight = radius,
-        CornerRadiusBottomLeft = radius,
-        CornerRadiusBottomRight = radius,
-    };
 
     private static StyleBoxLine Line(Color color, bool vertical) =>
         new() { Color = color, Thickness = 2, Vertical = vertical };
@@ -760,6 +760,28 @@ public static class UiTheme
                 image.SetPixel(x, y, on ? p.PrimaryInk : edgeHere ? p.ButtonEdge : p.Button);
             }
         if (disabled) Fade(image);
+        return ImageTexture.CreateFromImage(image);
+    }
+
+    /// <summary>A slider's knob: a small wooden block with a dark edge, lighter under the pointer.</summary>
+    private static ImageTexture SliderKnob(UiPalette p, bool hover)
+    {
+        const int Width = 12;
+        const int Height = 18;
+        var image = Image.CreateEmpty(Width, Height, false, Image.Format.Rgba8);
+        for (var y = 0; y < Height; y++)
+            for (var x = 0; x < Width; x++)
+            {
+                var edge = x < 2 || x >= Width - 2 || y < 2 || y >= Height - 2;
+                var lip = y is 2 or 3;
+                image.SetPixel(x, y, edge ? p.ButtonEdge : hover ? p.ButtonHover : lip ? p.ButtonLight : p.Button);
+            }
+        // Two grip lines in the middle.
+        for (var y = 6; y < Height - 6; y++)
+        {
+            image.SetPixel(4, y, p.ButtonDark);
+            image.SetPixel(7, y, p.ButtonDark);
+        }
         return ImageTexture.CreateFromImage(image);
     }
 

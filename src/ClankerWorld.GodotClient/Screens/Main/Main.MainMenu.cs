@@ -38,22 +38,24 @@ public partial class Main
     private readonly Label worldMenuStatus = new();
     private readonly LineEdit worldNameInput = new();
     private readonly LineEdit worldSeedInput = new();
-    private readonly OptionButton worldSizeChoice = new();
-    private readonly OptionButton worldWaterChoice = new();
-    private readonly OptionButton worldForestChoice = new();
-    private readonly OptionButton worldMountainChoice = new();
-    private readonly OptionButton worldRiverChoice = new();
+    private readonly SegmentedChoice worldSizeChoice = new();
+    private readonly HSlider worldWaterSlider = new() { MinValue = 20, MaxValue = 80, Step = 1, Value = 50 };
+    private readonly Label worldWaterValue = new() { CustomMinimumSize = new Vector2(36, 0), HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly SegmentedChoice worldForestChoice = new();
+    private readonly SegmentedChoice worldMountainChoice = new();
+    private readonly SegmentedChoice worldRiverChoice = new();
     private readonly VBoxContainer worldAdvancedOptions = new();
-    private readonly CheckButton worldAdvancedToggle = new() { Text = "Advanced" };
-    private readonly OptionButton worldResourceChoice = new();
-    private readonly OptionButton worldClimateModeChoice = new();
+    private readonly Button worldAdvancedToggle = new() { Text = "+ More options", ToggleMode = true };
+    private readonly SegmentedChoice worldResourceChoice = new();
+    private readonly SegmentedChoice worldClimateModeChoice = new();
     private readonly OptionButton worldClimateFamilyChoice = new();
     private readonly CheckBox worldWrapChoice = new();
     private readonly CheckBox worldLatitudeChoice = new();
     private readonly WorldOverview worldPreview = new();
     private readonly Label worldPreviewStatus = new();
+    private readonly CheckBox worldAcceptUnmetTargets = new();
     private readonly Button worldPreviewButton = new();
-    private readonly ItemList worldSelectionList = new();
+    private readonly SlotList worldSelectionList = new();
     private readonly Button worldCreateButton = new();
     private readonly Button worldSelectButton = new();
     private CatalogWorld[] listedWorlds = [];
@@ -61,6 +63,7 @@ public partial class Main
     private string? listedActiveWorldId;
     private readonly WorldListRequest worldListRequest = new();
     private OwnerWorldCreationAction? previewedWorldOptions;
+    private OwnerWorldPreview? previewedWorldResult;
     private bool worldMenuBusy;
     private int worldPreviewRevision;
     private readonly ConfirmationDialog quitToMenuConfirmation = new();
@@ -223,7 +226,7 @@ public partial class Main
         mainMenuCenter.MouseFilter = MouseFilterEnum.Ignore;
         menuShade.ZIndex = 190;
         gameMenuPanel.ZIndex = 200;
-        menuHeadingLabel.Text = "Game Settings";
+        menuHeadingLabel.Text = "Settings";
         StyleIconButton(menuCloseButton, PixelGlyph.Back);
         menuCloseButton.TooltipText = "Back to Main Menu";
         SetWorldMenuActionsVisible(false);
@@ -318,7 +321,6 @@ public partial class Main
         // keeps a visible caption.
         worldNameInput.PlaceholderText = "World name";
         worldNameInput.MaxLength = 80;
-        options.AddChild(WorldOptionRow("Name", worldNameInput));
         worldSeedInput.PlaceholderText = "Generation seed";
         worldSeedInput.MaxLength = 100;
         worldSeedInput.TextChanged += _ => InvalidateWorldPreview();
@@ -331,44 +333,74 @@ public partial class Main
             if (!worldMenuBusy) _ = PreviewWorldAsync();
         };
         seedRow.AddChild(reroll);
-        options.AddChild(seedRow);
-        worldSizeChoice.AddItem("Small · 256 × 128", 0);
-        worldSizeChoice.AddItem("Medium · 512 × 256", 1);
+        worldSizeChoice.AddItem("Small", 0);
+        worldSizeChoice.AddItem("Medium", 1);
+        worldSizeChoice.SetItemTooltip(0, "256 × 128 tiles");
+        worldSizeChoice.SetItemTooltip(1, "512 × 256 tiles. Takes longer to make and to load.");
+        worldSizeChoice.Select(0);
         worldSizeChoice.ItemSelected += _ => InvalidateWorldPreview();
-        options.AddChild(WorldOptionRow("Size", worldSizeChoice));
-        worldAdvancedToggle.Toggled += visible => worldAdvancedOptions.Visible = visible;
+        options.AddChild(SettingsBox("World", WorldOptionRow("Name", worldNameInput), seedRow,
+            WorldOptionRow("Size", worldSizeChoice)));
+
+        // The rarer choices stay folded away until asked for. The toggle reads
+        // as a link, not as a pressed button, whichever way it is set.
+        StyleButton(worldAdvancedToggle);
+        worldAdvancedToggle.ThemeTypeVariation = "TabButton";
+        worldAdvancedToggle.Alignment = HorizontalAlignment.Left;
+        worldAdvancedToggle.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+        var unpressed = new StyleBoxEmpty { ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 7, ContentMarginBottom = 7 };
+        worldAdvancedToggle.AddThemeStyleboxOverride("pressed", unpressed);
+        worldAdvancedToggle.AddThemeStyleboxOverride("hover_pressed", unpressed);
+        worldAdvancedToggle.Toggled += visible =>
+        {
+            worldAdvancedOptions.Visible = visible;
+            worldAdvancedToggle.Text = visible ? "− Fewer options" : "+ More options";
+        };
         options.AddChild(worldAdvancedToggle);
         options.AddChild(worldAdvancedOptions);
+        worldAdvancedOptions.AddThemeConstantOverride("separation", 8);
         worldAdvancedOptions.Visible = false;
-        for (var percent = 20; percent <= 80; percent++)
-            worldWaterChoice.AddItem(percent + "%", percent);
-        worldWaterChoice.Select(30);
-        worldWaterChoice.ItemSelected += _ => InvalidateWorldPreview();
-        worldAdvancedOptions.AddChild(WorldOptionRow("Water", worldWaterChoice));
-        foreach (var (label, choice) in new[] { ("Forest cover", worldForestChoice), ("Mountain relief", worldMountainChoice), ("Rivers", worldRiverChoice) })
+
+        worldWaterSlider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        worldWaterSlider.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        worldWaterSlider.TooltipText = "How much of the world is sea and lakes.";
+        worldWaterSlider.ValueChanged += value =>
+        {
+            worldWaterValue.Text = $"{value:0}%";
+            InvalidateWorldPreview();
+        };
+        worldWaterValue.Text = $"{worldWaterSlider.Value:0}%";
+        var waterRow = WorldOptionRow("Water", worldWaterSlider);
+        waterRow.AddChild(worldWaterValue);
+        foreach (var choice in new[] { worldForestChoice, worldMountainChoice, worldRiverChoice })
         {
             choice.AddItem("Low", 1);
             choice.AddItem("Normal", 0);
             choice.AddItem("High", 2);
             choice.Select(1);
             choice.ItemSelected += _ => InvalidateWorldPreview();
-            worldAdvancedOptions.AddChild(WorldOptionRow(label, choice));
         }
         worldResourceChoice.AddItem("Low", 0);
         worldResourceChoice.AddItem("Normal", 1);
         worldResourceChoice.AddItem("High", 2);
         worldResourceChoice.Select(1);
         worldResourceChoice.ItemSelected += _ => InvalidateWorldPreview();
-        worldAdvancedOptions.AddChild(WorldOptionRow("Resources", worldResourceChoice));
+        worldAdvancedOptions.AddChild(SettingsBox("Land", waterRow,
+            WorldOptionRow("Forest", worldForestChoice), WorldOptionRow("Mountains", worldMountainChoice),
+            WorldOptionRow("Rivers", worldRiverChoice), WorldOptionRow("Resources", worldResourceChoice)));
+
         worldClimateModeChoice.AddItem("Balanced", 0);
         worldClimateModeChoice.AddItem("Uniform", 1);
         worldClimateModeChoice.AddItem("Dominant", 2);
+        worldClimateModeChoice.SetItemTooltip(0, "A mix of climates, colder toward the poles.");
+        worldClimateModeChoice.SetItemTooltip(1, "One climate everywhere.");
+        worldClimateModeChoice.SetItemTooltip(2, "Mostly one climate, with others at the edges.");
+        worldClimateModeChoice.Select(0);
         worldClimateModeChoice.ItemSelected += _ =>
         {
             worldClimateFamilyChoice.GetParent<Control>().Visible = worldClimateModeChoice.GetSelectedId() != 0;
             InvalidateWorldPreview();
         };
-        worldAdvancedOptions.AddChild(WorldOptionRow("Climates", worldClimateModeChoice));
         worldClimateFamilyChoice.AddItem("Tropical", 0);
         worldClimateFamilyChoice.AddItem("Dry", 1);
         worldClimateFamilyChoice.AddItem("Temperate", 2);
@@ -378,17 +410,17 @@ public partial class Main
         worldClimateFamilyChoice.ItemSelected += _ => InvalidateWorldPreview();
         var familyRow = WorldOptionRow("Main climate", worldClimateFamilyChoice);
         familyRow.Visible = false;
-        worldAdvancedOptions.AddChild(familyRow);
         worldLatitudeChoice.Text = "Colder toward the poles";
         worldLatitudeChoice.ButtonPressed = true;
         worldLatitudeChoice.Toggled += _ => InvalidateWorldPreview();
-        worldAdvancedOptions.AddChild(worldLatitudeChoice);
         worldWrapChoice.Text = "Wrap east/west";
+        worldWrapChoice.TooltipText = "Walking off the east edge comes back on the west.";
         worldWrapChoice.ButtonPressed = true;
         worldWrapChoice.Toggled += _ => InvalidateWorldPreview();
-        worldAdvancedOptions.AddChild(worldWrapChoice);
+        worldAdvancedOptions.AddChild(SettingsBox("Climate", WorldOptionRow("Climates", worldClimateModeChoice),
+            familyRow, worldLatitudeChoice, worldWrapChoice));
 
-        var reset = new Button { Text = "Reset generation settings" };
+        var reset = new Button { Text = "Reset these options" };
         StyleButton(reset);
         reset.Pressed += ResetWorldGenerationOptions;
         worldAdvancedOptions.AddChild(reset);
@@ -411,8 +443,13 @@ public partial class Main
         worldPreviewFrame.AddChild(worldPreview);
         previewColumn.AddChild(worldPreviewFrame);
         worldPreviewStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        worldPreviewStatus.CustomMinimumSize = new Vector2(0, 44);
+        worldPreviewStatus.CustomMinimumSize = new Vector2(0, 64);
         previewColumn.AddChild(worldPreviewStatus);
+        worldAcceptUnmetTargets.Text = "I accept this map's displayed coverage misses";
+        worldAcceptUnmetTargets.TooltipText = "Create this exact map even though one or more default Balanced trial targets are missed.";
+        worldAcceptUnmetTargets.Hide();
+        worldAcceptUnmetTargets.Toggled += _ => RefreshWorldMenuAvailability();
+        previewColumn.AddChild(worldAcceptUnmetTargets);
 
         worldMenuColumns.AddThemeConstantOverride("h_separation", 20);
         worldMenuColumns.AddThemeConstantOverride("v_separation", 12);
@@ -439,6 +476,11 @@ public partial class Main
 
         var actions = new HBoxContainer();
         actions.AddThemeConstantOverride("separation", 8);
+        // Deleting sits apart on the left, away from the main action on the right.
+        worldDeleteButton.Text = "Delete World";
+        StyleButton(worldDeleteButton);
+        worldDeleteButton.Pressed += ConfirmWorldDeletion;
+        actions.AddChild(worldDeleteButton);
         actions.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         worldPreviewButton.Text = "Preview again";
         worldPreviewButton.TooltipText = "The preview updates by itself when you change an option. Use this if it failed.";
@@ -457,10 +499,6 @@ public partial class Main
         worldSelectButton.Pressed += () => _ = SelectListedWorldAsync();
         worldSelectButton.Hide();
         actions.AddChild(worldSelectButton);
-        worldDeleteButton.Text = "Delete World";
-        StyleButton(worldDeleteButton);
-        worldDeleteButton.Pressed += ConfirmWorldDeletion;
-        actions.AddChild(worldDeleteButton);
         worldMenuBody.AddChild(actions);
 
         worldMenuBody.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -523,8 +561,8 @@ public partial class Main
         worldListRequest.Cancel();
         worldMenuHeading.Text = create ? "New World" : "Load World";
         worldMenuStatus.Text = create
-            ? "Choose a seed and size. Then choose your first Town's site and add four founders before starting time."
-            : "Choose a world. The current world is saved before switching.";
+            ? "Choose a name, seed and size. You'll pick your first Town's site next."
+            : "Choose a world to open. The current world is saved first.";
         worldMenuColumns.Visible = create;
         worldPreviewButton.Visible = create;
         worldPreview.Visible = create && previewedWorldOptions is not null;
@@ -562,34 +600,69 @@ public partial class Main
         if (worldListRequest.IsLoading)
         {
             worldMenuStatus.Text = "Checking saved worlds… This can take a moment. You can go back while you wait.";
+            worldSelectionList.Placeholder = "Checking saved worlds…";
         }
         else if (worldListRequest.Failure is { } failure)
         {
             worldMenuStatus.Text = "Could not list worlds: " + FriendlyFailure(failure);
+            worldSelectionList.Placeholder = "No worlds to show.";
         }
         else if (worldListRequest.Catalog is { } catalog)
         {
             listedActiveWorldId = catalog.ActiveId;
             listedWorlds = catalog.Worlds.OrderByDescending(world => world.Id == catalog.ActiveId)
                 .ThenByDescending(world => world.UpdatedUtc).ToArray();
+            var globe = SlotIcon(PixelGlyph.Globe);
             foreach (var world in listedWorlds)
             {
-                var state = world.Compatibility switch
-                {
-                    "incompatible" => "  ·  can't open in this version",
-                    "unknown" => "  ·  not checked yet",
-                    _ => string.Empty,
-                };
-                var row = worldSelectionList.AddItem(world.Name +
-                    (world.Id == catalog.ActiveId ? "  ·  current" : string.Empty) +
-                    "  ·  saved " + world.UpdatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) + state);
-                if (world.Compatibility == "incompatible")
-                    worldSelectionList.SetItemCustomFgColor(row, UiTheme.Current.InkMuted);
+                var icon = WorldThumbnailTexture(world.Thumbnail) ?? globe;
+                List<SlotTag> tags = [];
+                if (world.Id == catalog.ActiveId) tags.Add(new SlotTag("Current"));
+                if (world.Compatibility == "incompatible") tags.Add(new SlotTag("Can't open", Note: true));
+                else if (world.Compatibility == "unknown") tags.Add(new SlotTag("Not checked", Note: true));
+                worldSelectionList.AddItem(world.Name,
+                    $"Saved {GameUiText.SavedAgo(world.UpdatedUtc, DateTimeOffset.Now)} · Seed {world.Seed}",
+                    icon, tags, muted: world.Compatibility == "incompatible");
             }
+            worldSelectionList.Placeholder = "No worlds yet. Make one with New World.";
             worldMenuStatus.Text = listedWorlds.Length == 0 ? "No worlds yet." : "Choose a world. Double-click to open it.";
         }
-        // ItemList population is asynchronous; size the first opening after its containers update.
+        // The list fills after its containers update; size the first opening once it has.
         Callable.From(LayoutWorldMenu).CallDeferred();
+    }
+
+    /// <summary>
+    /// A world's map thumbnail from the host, or nothing when the host sent none
+    /// or it can't be read, in which case the card shows a globe.
+    /// </summary>
+    private static ImageTexture? WorldThumbnailTexture(WorldThumbnail? thumbnail)
+    {
+        // The host limits thumbnails to 96 columns and checkpoint maps to
+        // 2048 rows. Check these before decoding or creating a texture; this
+        // optional catalog copy must never prevent healthy cards from drawing.
+        if (thumbnail is null || thumbnail.Width is < 1 or > 96 || thumbnail.Height is < 1 or > 2048 ||
+            thumbnail.Encoding != "terrain-kind-v1" || thumbnail.Data is null ||
+            thumbnail.Data.Length != ((thumbnail.Width * thumbnail.Height + 2) / 3) * 4)
+            return null;
+        try
+        {
+            return WorldOverview.Thumbnail(WorldTerrainMap.FromPacked(
+                new OwnerWorldPackedTerrain(thumbnail.Width, thumbnail.Height, thumbnail.Encoding, thumbnail.Data)));
+        }
+        catch (Exception exception) when (exception is InvalidDataException or FormatException or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A world or save card's icon, in the same colors as the menu choice that opens it.</summary>
+    private static ImageTexture SlotIcon(PixelGlyph glyph)
+    {
+        var dark = UiTheme.Current.Name == "dark";
+        var color = glyph == PixelGlyph.Globe
+            ? dark ? new Color("8DBA6A") : UiTheme.Current.Primary
+            : dark ? new Color("C99A62") : new Color("9C6C42");
+        return PixelIcons.Themed(glyph, color, HudIconScale);
     }
 
     private CatalogWorld? SelectedListedWorld()
@@ -607,7 +680,15 @@ public partial class Main
         worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
         worldDeleteButton.Disabled = disabled || world is null;
         worldPreviewButton.Disabled = disabled;
-        worldCreateButton.Disabled = disabled || !SameGeneration(previewedWorldOptions, CurrentWorldOptions());
+        worldCreateButton.Disabled = disabled || !CanCreatePreview(CurrentWorldOptions());
+    }
+
+    private bool CanCreatePreview(OwnerWorldCreationAction options)
+    {
+        if (!SameGeneration(previewedWorldOptions, options) || previewedWorldResult is not { } preview ||
+            preview.Coverage is not { } coverage || string.IsNullOrWhiteSpace(preview.MapLayersDigest))
+            return false;
+        return coverage.MeetsTargets || !coverage.TargetsApplicable || worldAcceptUnmetTargets.ButtonPressed;
     }
 
     private async Task RunWorldMenuActionAsync(Func<Task> action)
@@ -631,7 +712,7 @@ public partial class Main
     private OwnerWorldCreationAction CurrentWorldOptions() => new(
         worldNameInput.Text.Trim(), worldSeedInput.Text.Trim(),
         worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
-        worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed,
+        (int)worldWaterSlider.Value, worldWrapChoice.ButtonPressed,
         worldClimateModeChoice.GetSelectedId() switch { 1 => "Uniform", 2 => "Dominant", _ => "Balanced" },
         worldClimateFamilyChoice.GetSelectedId() switch
         {
@@ -645,7 +726,7 @@ public partial class Main
         worldResourceChoice.GetSelectedId() switch { 0 => "Sparse", 2 => "Abundant", _ => "Normal" },
         GenerationAmountText(worldForestChoice), GenerationAmountText(worldMountainChoice), GenerationAmountText(worldRiverChoice));
 
-    private static string GenerationAmountText(OptionButton choice) => choice.GetSelectedId() switch
+    private static string GenerationAmountText(SegmentedChoice choice) => choice.GetSelectedId() switch
     {
         1 => "Low",
         2 => "High",
@@ -655,7 +736,7 @@ public partial class Main
     private void ResetWorldGenerationOptions()
     {
         worldSizeChoice.Select(0);
-        worldWaterChoice.Select(30);
+        worldWaterSlider.Value = 50;
         worldResourceChoice.Select(1);
         worldForestChoice.Select(1);
         worldMountainChoice.Select(1);
@@ -680,6 +761,9 @@ public partial class Main
     {
         var revision = ++worldPreviewRevision;
         previewedWorldOptions = null;
+        previewedWorldResult = null;
+        worldAcceptUnmetTargets.ButtonPressed = false;
+        worldAcceptUnmetTargets.Hide();
         worldCreateButton.Disabled = true;
         worldPreview.Hide();
         worldPreviewStatus.Text = "Updating the preview…";
@@ -711,6 +795,8 @@ public partial class Main
         worldMenuBusy = true;
         worldPreviewButton.Disabled = true;
         worldCreateButton.Disabled = true;
+        worldAcceptUnmetTargets.ButtonPressed = false;
+        worldAcceptUnmetTargets.Hide();
         worldPreviewStatus.Text = "Generating map preview…";
         try
         {
@@ -724,9 +810,9 @@ public partial class Main
             worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain, result.PackedMapLayers, action.WrapEastWest));
             worldPreview.Show();
             previewedWorldOptions = action;
-            worldCreateButton.Disabled = false;
-            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
-                "You will choose where your first Town goes after creating the world.";
+            previewedWorldResult = result;
+            SetWorldPreviewStatus(result);
+            worldCreateButton.Disabled = !CanCreatePreview(CurrentWorldOptions());
         }
         catch (Exception exception)
         {
@@ -743,6 +829,56 @@ public partial class Main
         }
     }
 
+    private void SetWorldPreviewStatus(OwnerWorldPreview result)
+    {
+        var coverage = result.Coverage;
+        if (coverage is null)
+        {
+            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
+                "You will choose where your first Town goes after creating the world.";
+            worldAcceptUnmetTargets.ButtonPressed = false;
+            worldAcceptUnmetTargets.Hide();
+            return;
+        }
+
+        var selected = $"Candidate #{coverage.Attempt}: {coverage.ForestPercent:F1}% forest and " +
+            $"{coverage.MountainPercent:F1}% mountains across {coverage.DryLandTiles:N0} dry-land tiles.";
+        if (!coverage.TargetsApplicable)
+        {
+            worldPreviewStatus.Text = selected + " No trial targets apply to these settings.";
+            worldAcceptUnmetTargets.ButtonPressed = false;
+            worldAcceptUnmetTargets.Hide();
+        }
+        else
+        {
+            var targetNames = new List<string>(2);
+            if (coverage.ForestTargetApplicable) targetNames.Add("forest (20–40%)");
+            if (coverage.MountainTargetApplicable) targetNames.Add("mountains (5–12%)");
+            var candidateResults = string.Join(" · ", result.Candidates.Select(candidate =>
+            {
+                var outcome = candidate.MeetsTargets
+                    ? "meets applicable targets"
+                    : "misses " + string.Join(", ", candidate.UnmetTargets);
+                return $"#{candidate.Attempt} F {candidate.ForestPercent:F1}% / M {candidate.MountainPercent:F1}% ({outcome})";
+            }));
+            if (coverage.MeetsTargets)
+            {
+                var targetWord = targetNames.Count == 1 ? "target" : "targets";
+                worldPreviewStatus.Text = $"{selected} Met applicable Normal {targetWord}: " +
+                    string.Join(" and ", targetNames) + $". Candidate results: {candidateResults}.";
+                worldAcceptUnmetTargets.ButtonPressed = false;
+                worldAcceptUnmetTargets.Hide();
+            }
+            else
+            {
+                worldPreviewStatus.Text = selected + " Missed: " + string.Join("; ", coverage.UnmetTargets) +
+                    $". Candidate results: {candidateResults}. Choose a new seed or accept these misses.";
+                worldAcceptUnmetTargets.Show();
+            }
+        }
+        worldPreviewStatus.Text += $" {result.ResourceSites} resource sites; you will choose where your first Town goes after creation.";
+    }
+
     private async Task CreateSelectedWorldAsync()
     {
         if (worldMenuBusy || isOwnerAction || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
@@ -755,12 +891,23 @@ public partial class Main
             return;
         }
         var action = CurrentWorldOptions();
-        if (!SameGeneration(previewedWorldOptions, action))
+        if (!CanCreatePreview(action))
         {
-            worldPreviewStatus.Text = "Preview the map before creating the world.";
-            worldCreateButton.Disabled = true;
+            worldPreviewStatus.Text = previewedWorldResult?.Coverage is { TargetsApplicable: true, MeetsTargets: false }
+                ? "Accept the displayed coverage misses, or choose a new seed, before creating the world."
+                : "Preview the map before creating the world.";
+            RefreshWorldMenuAvailability();
             return;
         }
+        var preview = previewedWorldResult!;
+        var createAction = action with
+        {
+            CandidateAttempt = preview.Coverage!.Attempt,
+            ExpectedManifestDigest = preview.ManifestDigest,
+            ExpectedMapLayersDigest = preview.MapLayersDigest,
+            AcceptUnmetTargets = !preview.Coverage.MeetsTargets && preview.Coverage.TargetsApplicable &&
+                worldAcceptUnmetTargets.ButtonPressed,
+        };
         await RunWorldMenuActionAsync(async () =>
         {
             worldMenuStatus.Text = "Generating world…";
@@ -770,7 +917,7 @@ public partial class Main
                     signer, CancellationToken.None);
                 resumeWorldOnContinue = false;
                 await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
-                    action, signer, CancellationToken.None));
+                    createAction, signer, CancellationToken.None));
                 worldMenuOverlay.Hide();
                 await EnterWorldAsync();
             }

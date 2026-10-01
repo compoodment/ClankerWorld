@@ -19,7 +19,7 @@ public partial class Main
         body.AddChild(note);
         ConfigureTextPanel(modLibraryContents, 190);
         body.AddChild(modLibraryContents);
-        AddPanelContents(modLibraryPanel, "Mod Library", body);
+        AddPanelContents(modLibraryPanel, body);
         modLibraryPanel.ThemeTypeVariation = "InsetPanel";
         modLibraryPanel.Hide();
         menuBody.AddChild(modLibraryPanel);
@@ -32,6 +32,7 @@ public partial class Main
         modLibraryPanel.Show();
         if (observationSession.Current?.Baseline.Snapshot is { } snapshot)
             RenderModLibrary(snapshot);
+        ShowPauseMenuPage("Mod Library");
         ApplyResponsiveLayout();
     }
 

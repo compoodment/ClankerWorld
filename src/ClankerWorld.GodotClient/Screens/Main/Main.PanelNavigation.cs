@@ -53,6 +53,7 @@ public partial class Main
     {
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        conversationPanel.Hide();
         familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
         UpdateFamilyTreeStatus();
         rosterPanel.Hide();
@@ -91,6 +92,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         thoughtsPanel.Hide();
+        conversationPanel.Hide();
         memoriesPanel.Show();
         ApplyResponsiveLayout();
     }
@@ -114,9 +116,13 @@ public partial class Main
         familyTreePanel.Hide();
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        conversationPanel.Hide();
         returnToMainMenu = false;
         menuResumeButton.Text = "Resume";
         SetWorldMenuActionsVisible(true);
+        settingsPanel.Hide();
+        modLibraryPanel.Hide();
+        menuActions.Show();
         menuHeadingLabel.Text = "Paused";
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
         menuCloseButton.TooltipText = "Return to the world";
@@ -134,6 +140,36 @@ public partial class Main
         {
             menuPauseConfirmed = await SetPausedAsync(paused: true);
         }
+    }
+
+    /// <summary>Whether Settings or the Mod Library covers the pause menu's buttons.</summary>
+    private bool PauseMenuPageOpen => !returnToMainMenu && gameMenuPanel.Visible && !menuActions.Visible;
+
+    /// <summary>
+    /// Settings and the Mod Library open in place of the pause menu's buttons,
+    /// with a back arrow, so the menu stays one screen tall like Main Menu
+    /// Settings.
+    /// </summary>
+    private void ShowPauseMenuPage(string title)
+    {
+        if (returnToMainMenu || !gameMenuPanel.Visible) return;
+        menuActions.Hide();
+        menuHeadingLabel.Text = title;
+        StyleIconButton(menuCloseButton, PixelGlyph.Back);
+        menuCloseButton.TooltipText = "Back (Esc)";
+    }
+
+    private void ShowPauseMenuButtons()
+    {
+        CloseAgentModelEditor();
+        settingsPanel.Hide();
+        modLibraryPanel.Hide();
+        developerScroll.Hide();
+        menuActions.Show();
+        menuHeadingLabel.Text = "Paused";
+        StyleIconButton(menuCloseButton, PixelGlyph.Close);
+        menuCloseButton.TooltipText = "Return to the world";
+        ApplyResponsiveLayout();
     }
 
     private async Task CloseGameMenuAsync()
@@ -160,6 +196,7 @@ public partial class Main
         settingsPanel.Hide();
         modLibraryPanel.Hide();
         developerScroll.Hide();
+        menuActions.Show();
         menuPausedWorld = false;
         menuPauseConfirmed = false;
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
@@ -239,7 +276,8 @@ public partial class Main
         }
         if (gameMenuPanel.Visible)
         {
-            _ = CloseGameMenuAsync();
+            if (PauseMenuPageOpen) ShowPauseMenuButtons();
+            else _ = CloseGameMenuAsync();
             return true;
         }
         if (mainMenuOverlay.Visible || !isInWorld) return false;
@@ -265,7 +303,7 @@ public partial class Main
             placingAddedAgent = false;
             return true;
         }
-        foreach (var panel in new Control[] { familyTreePanel, memoriesPanel, thoughtsPanel })
+        foreach (var panel in new Control[] { conversationPanel, familyTreePanel, memoriesPanel, thoughtsPanel })
         {
             if (!panel.Visible) continue;
             panel.Hide();

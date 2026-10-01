@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.Kernel;
@@ -200,12 +201,15 @@ public sealed class OwnerWorldObservationStore
         string? knownMapLayersDigest = null)
     {
         var map = state.Map;
+        var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
+        var inhabitantsById = state.Society.Society.Inhabitants
+            .ToDictionary(item => item.Id, StringComparer.Ordinal);
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -274,8 +278,17 @@ public sealed class OwnerWorldObservationStore
             latestEventId)
         {
             PackedTerrain = packedTerrain,
-            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map),
+            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed),
             MapLayersDigest = mapLayersDigest,
+            Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,
+                field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
+                field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
+            GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0)
+                .GroupBy(lot => (Position: lot.GroundPosition!.Value, lot.OwnerId, lot.ItemKind))
+                .OrderBy(group => group.Key.Position.Y).ThenBy(group => group.Key.Position.X)
+                .ThenBy(group => group.Key.ItemKind, StringComparer.Ordinal).ThenBy(group => group.Key.OwnerId, StringComparer.Ordinal)
+                .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
+                    group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
@@ -283,6 +296,34 @@ public sealed class OwnerWorldObservationStore
                     .Where(inhabitant => inhabitant.Status == SocietyInhabitantStatus.Dead && deceasedById.ContainsKey(inhabitant.Id))
                     .Select(inhabitant => ToDeceasedInhabitant(state, inhabitant, deceasedById[inhabitant.Id])))
                 .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
+                .ToArray(),
+            Conversations = (state.Conversations ?? [])
+                .OrderByDescending(conversation => conversation.LastUpdatedTick)
+                .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
+                .Take(16)
+                .Select(conversation => new ViewerConversation(
+                    conversation.Id,
+                    conversation.InitiatorId,
+                    inhabitantsById.GetValueOrDefault(conversation.InitiatorId)?.Name ?? conversation.InitiatorId,
+                    conversation.InviteeId,
+                    inhabitantsById.GetValueOrDefault(conversation.InviteeId)?.Name ?? conversation.InviteeId,
+                    ConversationStatus(conversation.Status),
+                    conversation.Interruption == AgentConversationInterruption.None
+                        ? null : ConversationInterruption(conversation.Interruption),
+                    conversation.Outcome,
+                    conversation.CreatedTick,
+                    conversation.LastUpdatedTick,
+                    conversation.Turns.TakeLast(AgentConversationRules.MaximumPublicTurns +
+                            AgentConversationRules.MaximumWrapUpTurns)
+                        .Select(turn => new ViewerConversationTurn(
+                            turn.Id,
+                            turn.SpeakerId,
+                            inhabitantsById.GetValueOrDefault(turn.SpeakerId)?.Name ?? turn.SpeakerId,
+                            turn.Text,
+                            turn.WorldTick,
+                            turn.ListenerIds.Take(AgentConversationRules.MaximumListenersPerTurn).ToArray(),
+                            turn.IsWrapUp))
+                        .ToArray()))
                 .ToArray(),
             Stockpiles = state.Society.Society.Households.Select(household =>
                 new ViewerStockpile(household.Id, (household.Id, household.Name) switch
@@ -419,8 +460,8 @@ public sealed class OwnerWorldObservationStore
                     item.PlacedTick,
                     buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.DisplayName,
                     buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
+                    item.Footprint?.Width ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
+                    item.Footprint?.Height ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
                     item.TownId,
                     item.HouseholdId,
                     item.HouseholdId is { } householdId
@@ -428,7 +469,15 @@ public sealed class OwnerWorldObservationStore
                         : item.TownId is { } townId && buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?
                             .Tags.Contains("warehouse", StringComparer.Ordinal) == true
                             ? InventoryFor(state, townId, item.InstanceId) : null,
-                    item.Entrance is { } entrance ? ToPosition(entrance) : null))
+                    item.Entrance is { } entrance ? ToPosition(entrance) : null,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId) is { } storageDefinition
+                        ? BuildingStorageRules.Capacity(storageDefinition, item) : null,
+                    state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == item.InstanceId).Sum(lot => lot.Quantity),
+                    item.Footprint?.Revision ?? 0,
+                    (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
+                        .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
@@ -444,6 +493,29 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    private static string ConversationStatus(AgentConversationStatus status) => status switch
+    {
+        AgentConversationStatus.Proposed => "proposed",
+        AgentConversationStatus.Ready => "ready",
+        AgentConversationStatus.AwaitingSpeaker => "awaiting_speaker",
+        AgentConversationStatus.WrapUp => "wrap_up",
+        AgentConversationStatus.Suspended => "suspended",
+        AgentConversationStatus.Closed => "closed",
+        _ => "unknown",
+    };
+
+    private static string ConversationInterruption(AgentConversationInterruption interruption) => interruption switch
+    {
+        AgentConversationInterruption.OwnerPaused => "owner_paused",
+        AgentConversationInterruption.Disconnected => "disconnected",
+        AgentConversationInterruption.UrgentNeed => "urgent_need",
+        AgentConversationInterruption.ProviderUnavailable => "provider_unavailable",
+        AgentConversationInterruption.ProviderTimedOut => "provider_timed_out",
+        AgentConversationInterruption.ProviderRejected => "provider_rejected",
+        AgentConversationInterruption.Restored => "restored",
+        _ => "unknown",
+    };
+
     internal static ViewerPackedTerrain PackTerrain(SeededMap map)
     {
         var bytes = new byte[checked(map.Width * map.Height)];
@@ -453,15 +525,20 @@ public sealed class OwnerWorldObservationStore
             Convert.ToBase64String(bytes));
     }
 
-    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map)
+    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed = null)
     {
         if (map.ClimateZones is not { } climate || map.ElevationLevels is not { } elevation ||
             map.HydrologyKinds is not { } hydrology || map.SurfaceKinds is not { } surface ||
             map.VegetationKinds is not { } vegetation) return null;
+        var fertility = worldSeed is null ? null : new LandFertility(map, worldSeed);
         return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v2",
             Convert.ToBase64String(climate), Convert.ToBase64String(elevation),
             Convert.ToBase64String(hydrology), Convert.ToBase64String(surface),
-            Convert.ToBase64String(vegetation));
+            Convert.ToBase64String(vegetation))
+        {
+            Fertility = fertility is null ? null : Convert.ToBase64String(map.Tiles.OrderBy(tile => tile.Position.Y)
+                .ThenBy(tile => tile.Position.X).Select(tile => checked((byte)fertility.At(tile.Position))).ToArray()),
+        };
     }
 
     private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)
@@ -579,8 +656,23 @@ public sealed class OwnerWorldObservationStore
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
+        if (HousingDetail(state, physical.Housing) is { } housingDetail)
+            decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("birth-model-provider", birthProvider));
+            if (birthModel.ModelId is { } modelId)
+                decisionFactors.Add(new ViewerDecisionFactor("birth-model-id", modelId));
+        }
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
+        var modelStatus = physical.LastModelAttempt?.Status ?? "ready";
+        if (modelStatus == "waiting" && state.Society.Society.IsPaused) modelStatus = "canceled";
+        decisionFactors.Add(new ViewerDecisionFactor("model-status", modelStatus));
+        if (physical.LastModelAttempt?.LastAcceptedCandidateId is { } acceptedCandidate)
+            decisionFactors.Add(new ViewerDecisionFactor("last-model-choice", acceptedCandidate));
+        if (physical.LastModelAttempt?.SetupBlocker is { } setupBlocker)
+            decisionFactors.Add(new ViewerDecisionFactor("model-setup-blocker", setupBlocker));
         if (state.Society.Cognition.Queue.Any(item => item.InhabitantId == inhabitant.Id))
             decisionFactors.Add(new ViewerDecisionFactor("decision-pending", "true"));
         if (runtime?.CurrentIntention is { } intention)
@@ -619,10 +711,11 @@ public sealed class OwnerWorldObservationStore
                     inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
-                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
+                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
             Proficiency = physical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(physical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, physical),
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
@@ -639,9 +732,53 @@ public sealed class OwnerWorldObservationStore
                         edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
                         state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
                     ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
+                .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
     }
+
+    /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>
+    private static string? HousingDetail(PrivateWorldRuntimeState state, SettlementHousing? housing)
+    {
+        if (housing?.Blocker is not { } blocker)
+            return null;
+        var asked = housing.Request is { } request
+            ? state.Society.Society.Households.FirstOrDefault(item => item.Id == request.HouseholdId)?.Name ?? "another"
+            : "another";
+        return blocker switch
+        {
+            HousingBlockers.AwaitingAnswer => $"No home yet. Asked the {asked} household to live in their House; every adult member must agree.",
+            HousingBlockers.NoHousehold => "No home. Belongs to no household, so no House can be planned. A household with a House may agree to take them in.",
+            HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
+            HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
+            HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            _ => null,
+        };
+    }
+
+    /// <summary>Requests to live in this adult's House that they must answer, or have answered.</summary>
+    private static IEnumerable<string> HousingRequestNotes(PrivateWorldRuntimeState state, SocietyInhabitant member)
+    {
+        if (member.HouseholdId is null)
+            yield break;
+        foreach (var applicant in state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal))
+        {
+            if (applicant.Housing?.Request is not { } request || request.HouseholdId != member.HouseholdId ||
+                !request.Members.Contains(member.Id, StringComparer.Ordinal))
+                continue;
+            var name = state.Society.Society.GetInhabitant(applicant.InhabitantId).Name;
+            yield return request.Approvals.Contains(member.Id, StringComparer.Ordinal)
+                ? $"Agreed to let {name} live in the House; waiting for the other adults."
+                : request.Rejections.Contains(member.Id, StringComparer.Ordinal)
+                    ? $"Refused {name}'s request to live in the House."
+                    : $"{name} asked to live in the household's House. Every adult member must answer.";
+        }
+    }
+
+    private static ViewerSkill[] ProjectSkills(PlaytestInhabitantState physical, SocietyCheckpoint society) =>
+        (physical.Skills ?? []).Select(skill => new ViewerSkill(skill.Kind.ToString().ToLowerInvariant(),
+            skill.LearnedTick, skill.TeacherId,
+            skill.TeacherId is { } teacher ? society.GetInhabitant(teacher).Name : null)).ToArray();
 
     private static ViewerInhabitant ToDeceasedInhabitant(
         PrivateWorldRuntimeState state,
@@ -685,6 +822,7 @@ public sealed class OwnerWorldObservationStore
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
         };
     }

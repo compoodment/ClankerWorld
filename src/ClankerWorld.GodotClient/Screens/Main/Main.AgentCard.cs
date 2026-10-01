@@ -55,9 +55,11 @@ public partial class Main
         BuildQuickCard();
         BuildAgentProfile();
         BuildThoughtsReader();
+        BuildConversationReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
         uiLayer.AddChild(thoughtsPanel);
+        uiLayer.AddChild(conversationPanel);
     }
 
     private void BuildQuickCard()
@@ -335,6 +337,7 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        conversationPanel.Hide();
         RenderThoughtsReader(snapshot, inhabitant);
         thoughtsPanel.Show();
         ApplyResponsiveLayout();
@@ -558,8 +561,9 @@ public partial class Main
             : waitingForDecision
             ? "Deciding what to do next"
             : Sentence(GameUiText.ActivityPhrase(inhabitant.PublicIntention?.CandidateId, inhabitant.PublicIntention?.Summary));
-        quickCardActivityLabel.Text = activity;
-        profileActivityLabel.Text = activity;
+        var modelStatus = GameUiText.ModelStatus(Factor("model-status"));
+        quickCardActivityLabel.Text = isDeceased ? activity : activity + "\nModel: " + modelStatus;
+        profileActivityLabel.Text = quickCardActivityLabel.Text;
 
         // How they are: bars where the host reports a value, and plain facts beside them.
         var fullness = NeedPercent(inhabitant.HungerBasisPoints);
@@ -587,14 +591,21 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
+            details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
+        if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")
+            details.Add("This model rejected the request format. Choose a compatible model in Model settings.");
         if (inhabitant.Project is { } project)
         {
             details.Add($"{project.Label} · {Pretty(project.Stage)} · {project.WorkDone}/{project.WorkRequired}");
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
         if (inhabitant.Lesson is { } lesson)
-            details.Add($"Learning {Pretty(lesson.Role)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+            details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+        foreach (var skill in inhabitant.Skills ?? [])
+            details.Add($"{Pretty(skill.Kind)} skill · {(skill.TeacherName is { } teacher ? "taught by " + teacher : "learned by doing")} · {DisplayWorldClock(skill.LearnedTick)}");
         if (inhabitant.Proficiency is { } practice)
             details.Add($"Practice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30");
         if (isDeceased)

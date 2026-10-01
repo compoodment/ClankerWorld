@@ -130,7 +130,6 @@ public sealed partial class PrivateWorldRuntime
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
@@ -154,9 +153,13 @@ public sealed partial class PrivateWorldRuntime
                     new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),
                     new("wood:camp-beta", "wood", SecondHouseholdId, 24, 10_000, 10_000, 0),
                     new("tools:camp-beta", "tool", SecondHouseholdId, 2, 10_000, 10_000, 0),
-                    new("seeds:camp-alpha", "seed", HouseholdId, 8, 10_000, 10_000, 0),
+                    new("seeds:camp-alpha", "grain_seed", HouseholdId, 8, 10_000, 10_000, 0),
+                    new("green-seeds:camp-alpha", "cultivated_green_seed", HouseholdId, 4, 10_000, 10_000, 0),
+                    new("potatoes:camp-alpha", "potatoes", HouseholdId, 4, 10_000, 10_000, 0),
                     new("clothing:camp-alpha", "clothing", HouseholdId, 2, 10_000, 10_000, 0),
-                    new("seeds:camp-beta", "seed", SecondHouseholdId, 8, 10_000, 10_000, 0),
+                    new("seeds:camp-beta", "grain_seed", SecondHouseholdId, 8, 10_000, 10_000, 0),
+                    new("green-seeds:camp-beta", "cultivated_green_seed", SecondHouseholdId, 4, 10_000, 10_000, 0),
+                    new("potatoes:camp-beta", "potatoes", SecondHouseholdId, 4, 10_000, 10_000, 0),
                     new("clothing:camp-beta", "clothing", SecondHouseholdId, 2, 10_000, 10_000, 0),
                 } : []),
             ],
@@ -180,8 +183,7 @@ public sealed partial class PrivateWorldRuntime
             checkpoint,
             providerFactory,
             maxCognitionQueueLength,
-            maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            maxCognitionDispatchPerCycle);
     }
 
     private void CreatePhysicalState()

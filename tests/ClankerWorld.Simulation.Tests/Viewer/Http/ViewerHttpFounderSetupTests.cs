@@ -5,6 +5,7 @@ using System.Text;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.AgentPlacement;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 using Microsoft.AspNetCore.Hosting;
@@ -110,7 +111,17 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(runtime.FounderSetup.FounderIds[^1], host.Services
                 .GetRequiredService<OwnerWorldObservationStore>().GetSnapshot().FounderSetup!.LastFounderId);
             var providerStatus = host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus();
-            Assert.DoesNotContain(providerStatus.Assignments ?? [], item => item.InhabitantId == lastFounder);
+            var inheritedRoutes = providerStatus.Assignments!.Where(item => item.InhabitantId == lastFounder).ToArray();
+            Assert.Equal(2, inheritedRoutes.Length);
+            Assert.Equal([PlayerDecisionProviders.PlanningRole, PlayerDecisionProviders.RoutineRole],
+                inheritedRoutes.Select(item => item.Role).Order(StringComparer.Ordinal));
+            Assert.All(inheritedRoutes, assignment =>
+            {
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
+                Assert.Null(assignment.Model);
+                Assert.Null(assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
             Assert.Contains(providerStatus.CredentialSlots ?? [], item => item.Id == slotId);
             Assert.Contains(placementLog.Messages, message => message.Contains(
                 "founder_setup outcome=undone world_tick=0", StringComparison.Ordinal));
@@ -138,28 +149,54 @@ public sealed partial class ViewerHttpTests
                 OwnerHttpBinding.FounderUndoPayload(new OwnerFounderUndoAction(replacementId)));
             Assert.Equal(HttpStatusCode.Conflict, lateUndo.StatusCode);
             var agentId = "agent:" + Guid.NewGuid().ToString("N");
-            var adult = new OwnerAgentPlacementAction(agentId, 4, 2,
-                new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini", null,
-                    false, agentId, slotId));
+            var observationStore = host.Services.GetRequiredService<OwnerWorldObservationStore>();
+            var stateBeforePreview = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var preview = observationStore.GetSnapshot();
+            Assert.Equal(stateBeforePreview, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            var placement = AgentPlacementRules.Resolve(
+                preview.PlacedBuildings.Where(building => building.HouseholdId is not null &&
+                    4 >= building.Position.X && 4 < building.Position.X + building.Width &&
+                    2 >= building.Position.Y && 2 < building.Position.Y + building.Height)
+                    .Select(building => building.HouseholdId),
+                preview.Towns.Where(town => town.BorderTiles.Any(tile => tile.X == 4 && tile.Y == 2))
+                    .Select(town => town.Id));
+            Assert.False(placement.IsAmbiguous);
+            var adultCognition = new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini", null,
+                false, agentId, slotId);
+            var adult = new OwnerAgentPlacementAction(agentId, 4, 2, adultCognition,
+                placement.HouseholdIdFor(agentId), placement.TownId);
             const string agentPath = "/api/v1/owner/agents/place";
             var signedAdult = await CreateSignedRequestAsync(host, client, key, device.DeviceId, agentPath,
                 adult, OwnerHttpBinding.AgentPlacementPayload(adult));
             using var tamperedAdult = await client.PostAsJsonAsync(agentPath, signedAdult with
             {
-                Action = adult with { X = 5 },
+                Action = adult with { ExpectedTownId = "town:stale" },
             });
             Assert.False(tamperedAdult.IsSuccessStatusCode);
             Assert.Equal(4, runtime.Inhabitants.Count);
+
+            var staleId = "agent:" + Guid.NewGuid().ToString("N");
+            var stale = new OwnerAgentPlacementAction(staleId, adult.X, adult.Y,
+                adultCognition with { InhabitantId = staleId }, null, "town:stale");
+            using var changed = await SendSignedAsync(host, client, key, device.DeviceId, agentPath,
+                stale, OwnerHttpBinding.AgentPlacementPayload(stale));
+            Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
+            var changedFailure = await changed.Content.ReadFromJsonAsync<OwnerControlFailure>();
+            Assert.Equal("placement_changed", changedFailure!.Code);
+            Assert.Equal(4, runtime.Inhabitants.Count);
+            Assert.DoesNotContain(host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus()
+                .Assignments ?? [], assignment => assignment.InhabitantId == staleId);
+
             using var added = await SendSignedAsync(host, client, key, device.DeviceId, agentPath,
                 adult, OwnerHttpBinding.AgentPlacementPayload(adult));
             Assert.Equal(HttpStatusCode.OK, added.StatusCode);
             var addedReceipt = await added.Content.ReadFromJsonAsync<OwnerAgentPlacementReceipt>();
             Assert.Null(addedReceipt!.HouseholdId);
+            Assert.Equal(placement.TownId, addedReceipt.TownId);
             Assert.Equal(5, runtime.Inhabitants.Count);
             Assert.Null(runtime.Society.GetInhabitant(agentId).HouseholdId);
             Assert.Contains(agentId, runtime.Towns.Single().ResidentIds);
-            var observedAdult = host.Services.GetRequiredService<OwnerWorldObservationStore>()
-                .GetSnapshot().Inhabitants.Single(person => person.Id == agentId);
+            var observedAdult = observationStore.GetSnapshot().Inhabitants.Single(person => person.Id == agentId);
             Assert.Equal("active", observedAdult.Lifecycle);
             Assert.Equal("unhoused", observedAdult.DecisionFactors.Single(factor => factor.Key == "household").Detail);
             using var duplicate = await SendSignedAsync(host, client, key, device.DeviceId, agentPath,

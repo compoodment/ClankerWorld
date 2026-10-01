@@ -28,10 +28,10 @@ public sealed class SettlementSocialStandingTests
     }
 
     [Fact]
-    public void LegacyCooperationProjectsAsTrustWithoutRewritingCheckpoint()
+    public void CooperationMemoriesProjectAsTrustWithoutRewritingCurrentCheckpoint()
     {
-        using var seed = new PrivateWorldRuntime("legacy-social-standing");
-        var state = seed.ExportState() with { SchemaVersion = 11 };
+        using var seed = new PrivateWorldRuntime("cooperation-social-standing");
+        var state = seed.ExportState();
         var owner = state.Inhabitants[0].InhabitantId;
         var subject = state.Inhabitants[1].InhabitantId;
         using var society = SocietyWorldRuntime.Restore(state.Society);

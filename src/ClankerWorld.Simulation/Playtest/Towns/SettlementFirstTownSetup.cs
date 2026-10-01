@@ -41,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 AssignedBuildingIds = placed.Select(building => building.InstanceId).Order(StringComparer.Ordinal).ToArray(),
                 BorderTiles = TownBorderRules.Expand(map, town, placed
-                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position))
+                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
                     .Concat(plan.RoadTiles)),
             };
             var starterInventory = PrepareFirstTownStock(society.Checkpoint.Inventory);
@@ -97,6 +97,9 @@ public sealed partial class PrivateWorldRuntime
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-pickaxe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-pickaxe", "wooden_pickaxe",
+                TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
+        if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-hoe"))
+            stock = InventoryFixture.AddLot(stock, "first-town-wooden-hoe", "wooden_hoe",
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
         return stock;
     }

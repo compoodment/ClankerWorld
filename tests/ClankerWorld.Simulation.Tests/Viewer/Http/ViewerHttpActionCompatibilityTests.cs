@@ -20,7 +20,7 @@ public sealed partial class ViewerHttpTests
     [Theory]
     [InlineData(null)]
     [InlineData("clankerworld.owner-world-creation.v1")]
-    [InlineData("clankerworld.owner-world-creation.v3")]
+    [InlineData("clankerworld.owner-world-creation.v2")]
     public async Task OlderActionHostAllowsReconnectButClientExplainsNewWorldUpdate(string? advertisedDomain)
     {
         using var baseHost = new ViewerWebApplicationFactory(null, privateWorld: true, legacyPrivateWorld: false);
@@ -42,7 +42,7 @@ public sealed partial class ViewerHttpTests
         Assert.NotNull(reconnect.Baseline.Snapshot);
 
         var action = new OwnerWorldCreationAction("Disposable", "compatibility", "Small", 50, false);
-        // Reproduce the old host's actual strict v1 verification with a new v2 proof.
+        // Reproduce the old host's actual strict v1 verification with a new v3 proof.
         using var failedAction = await SendSignedAsync(host, client, key, device.DeviceId,
             OwnerPairingEndpoints.OwnerWorldPreview, action, OwnerHttpBinding.WorldCreationPayload(action));
         Assert.Equal(HttpStatusCode.Unauthorized, failedAction.StatusCode);
@@ -58,6 +58,15 @@ public sealed partial class ViewerHttpTests
         Assert.Contains("pairing can stay", text, StringComparison.Ordinal);
         Assert.DoesNotContain("not allowed", text, StringComparison.Ordinal);
         Assert.Equal(1, legacy.WorldActionRequests); // Neither client action was posted or downgraded.
+
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        var placement = new Client.OwnerAgentPlacementAction(agentId, 4, 2,
+            new Client.OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini", null,
+                false, agentId, null), null, null);
+        var placementFailure = await Assert.ThrowsAsync<OwnerActionCompatibilityException>(() =>
+            api.PlaceAgentAsync(uri, authority, device.DeviceId, placement, signer, default));
+        Assert.Contains("matching updates", Client.GameUiText.FriendlyFailure(placementFailure), StringComparison.Ordinal);
+        Assert.Equal(0, legacy.AgentPlacementRequests); // The client must not send affiliation-free v1 placement.
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState()));
         Assert.NotNull(await api.ReconnectAsync(uri, authority, device.DeviceId, 0, null, null, null, signer, default));
     }
@@ -77,7 +86,13 @@ public sealed partial class ViewerHttpTests
         var action = new Client.OwnerWorldCreationAction("Disposable", "compatible-advanced", "Small", 50, false,
             "Dominant", "Temperate", false, "Abundant", "High", "Low", "High");
         var preview = await api.PreviewWorldAsync(uri, authority, device.DeviceId, action, signer, default);
-        var created = await api.CreateWorldAsync(uri, authority, device.DeviceId, action, signer, default);
+        var createAction = action with
+        {
+            CandidateAttempt = preview.Coverage!.Attempt,
+            ExpectedManifestDigest = preview.ManifestDigest,
+            ExpectedMapLayersDigest = preview.MapLayersDigest,
+        };
+        var created = await api.CreateWorldAsync(uri, authority, device.DeviceId, createAction, signer, default);
         var state = host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState();
         Assert.Equal(created.WorldId, state.Society.Society.WorldId);
         Assert.Equal(preview.ManifestDigest, state.Map.ManifestDigest);
@@ -92,6 +107,7 @@ public sealed partial class ViewerHttpTests
             OwnerPairingEndpoints.OwnerWorldPreview, serverAction, downgrade);
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
         Assert.Equal(OwnerHttpBinding.WorldCreationPayloadDomain, Client.OwnerWorldActionPayload.WorldCreationPayloadDomain);
+        Assert.Equal(OwnerHttpBinding.AgentPlacementPayloadDomain, Client.OwnerWorldActionPayload.AgentPlacementPayloadDomain);
     }
 
     [Fact]
@@ -120,10 +136,11 @@ public sealed partial class ViewerHttpTests
     private sealed class LegacyWorldActionFilter(string? advertisedDomain) : IStartupFilter
     {
         public int WorldActionRequests { get; private set; }
+        public int AgentPlacementRequests { get; private set; }
 
         public static string V1Payload(OwnerWorldCreationAction action) => string.Join('\n',
             OwnerHttpBinding.WorldCreationPayload(action).Split('\n').Take(10))
-            .Replace("clankerworld.owner-world-creation.v2", "clankerworld.owner-world-creation.v1", StringComparison.Ordinal);
+            .Replace("clankerworld.owner-world-creation.v3", "clankerworld.owner-world-creation.v1", StringComparison.Ordinal);
 
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
         {
@@ -152,6 +169,10 @@ public sealed partial class ViewerHttpTests
                     await (result.IsSuccess ? Results.Ok(new { accepted = true }) :
                         OwnerFailures.ToHttpResult(result.Failure)).ExecuteAsync(context);
                     return;
+                }
+                if (context.Request.Path == OwnerPairingEndpoints.OwnerAgentPlace)
+                {
+                    AgentPlacementRequests++;
                 }
                 await continuation(context);
             });

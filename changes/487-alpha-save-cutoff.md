@@ -1,0 +1,1 @@
+- Older alpha private-world saves can no longer be opened. The game refuses them and keeps the save files unchanged.

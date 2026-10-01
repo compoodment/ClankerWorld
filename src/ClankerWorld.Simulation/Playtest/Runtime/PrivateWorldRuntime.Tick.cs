@@ -18,15 +18,24 @@ public sealed partial class PrivateWorldRuntime
 
     public async ValueTask<PrivateWorldStepResult> AdvanceOneTickAsync(
         Func<bool>? commitPermitted, CancellationToken cancellationToken = default) =>
-        await AdvanceOneTickCoreAsync(false, commitPermitted, cancellationToken).ConfigureAwait(false);
+        await AdvanceOneTickCoreAsync(false, commitPermitted, null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Playable-host path: hosted decisions run between ticks, never inside a tick transaction.</summary>
     public ValueTask<PrivateWorldStepResult> AdvanceOneTickNonBlockingAsync(
         Func<bool>? commitPermitted = null, CancellationToken cancellationToken = default) =>
-        AdvanceOneTickCoreAsync(true, commitPermitted, cancellationToken);
+        AdvanceOneTickCoreAsync(true, commitPermitted, null, cancellationToken);
+
+    /// <summary>Playable-host path that binds birth choices into the admitted tick transaction.</summary>
+    public ValueTask<PrivateWorldStepResult> AdvanceOneTickNonBlockingAsync(
+        Func<bool>? commitPermitted,
+        Func<PrivateWorldRuntime, IReadOnlyList<PlaytestWorldEvent>, IReadOnlyList<PreparedChildModelSelection>> prepareChildModelSelections,
+        CancellationToken cancellationToken = default) =>
+        AdvanceOneTickCoreAsync(true, commitPermitted, prepareChildModelSelections, cancellationToken);
 
     private async ValueTask<PrivateWorldStepResult> AdvanceOneTickCoreAsync(
-        bool deferHosted, Func<bool>? commitPermitted, CancellationToken cancellationToken)
+        bool deferHosted, Func<bool>? commitPermitted,
+        Func<PrivateWorldRuntime, IReadOnlyList<PlaytestWorldEvent>, IReadOnlyList<PreparedChildModelSelection>>? prepareChildModelSelections,
+        CancellationToken cancellationToken)
     {
         await tickGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -35,6 +44,7 @@ public sealed partial class PrivateWorldRuntime
             long baselineEventId;
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
+            PendingConversationTurn[] completedConversationTurns = [];
             string[] activeWillIds = [];
             IReadOnlyDictionary<string, string> inactiveWillReasons = new Dictionary<string, string>();
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -85,6 +95,9 @@ public sealed partial class PrivateWorldRuntime
                     activeWillIds = pendingWills.Keys.ToArray();
                     inactiveWillReasons = new Dictionary<string, string>(pendingWillCancellationReasons, StringComparer.Ordinal);
                 }
+                ReconcilePendingConversationTurns();
+                completedConversationTurns = pendingConversationTurns.Values
+                    .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
             }
@@ -100,11 +113,12 @@ public sealed partial class PrivateWorldRuntime
             // gate. Clone its mutable systems without regenerating or
             // revalidating millions of immutable terrain tiles each tick.
             using var proposed = RestoreCore(baseline, providerFactory,
-                maxCognitionDispatchPerCycle, minimumCognitionConfidence,
+                maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
-                activeWillIds, inactiveWillReasons, cancellationToken).ConfigureAwait(false);
+                activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var gateHeld = true;
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -120,6 +134,36 @@ public sealed partial class PrivateWorldRuntime
                 {
                     return result;
                 }
+                if (prepareChildModelSelections is not null)
+                {
+                    // Provider preparation can read another store whose owner
+                    // transactions may call back into this runtime. Do it outside
+                    // the runtime gate, then revalidate before committing.
+                    gate.Release();
+                    gateHeld = false;
+                    var births = result.Events.Where(item => item.Kind == "child_born")
+                        .Select(item => item.Detail).ToHashSet(StringComparer.Ordinal);
+                    foreach (var prepared in prepareChildModelSelections(proposed, result.Events))
+                    {
+                        if (!births.Contains(prepared.ChildId))
+                            throw new InvalidOperationException("A child model selection must belong to a child born in the committed tick.");
+                        proposed.ApplyChildModelSelection(prepared.ChildId, prepared.Selection);
+                    }
+                    await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    gateHeld = true;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (commitPermitted is not null && !commitPermitted())
+                        return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
+                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                        return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
+                }
+                // A provider assignment can change without advancing a world
+                // event or tick. Admit its completed turn only now, while
+                // the live-state gate protects the commit boundary.
+                proposed.CompleteConversationTurns(
+                    completedConversationTurns,
+                    proposed.WorldTick,
+                    IsConversationTurnProviderCurrent);
                 CommitPreparedTick(proposed);
                 if (deferHosted)
                 {
@@ -137,16 +181,32 @@ public sealed partial class PrivateWorldRuntime
                         pendingWills.Remove(item.EstateId);
                         item.Cancellation.Dispose();
                     }
+                    foreach (var item in completedConversationTurns)
+                    {
+                        pendingConversationTurns.Remove(item.Request.ConversationId);
+                        item.Cancellation.Dispose();
+                    }
+                    CancelNoLongerAwaitingConversationTurns();
                     foreach (var id in inactiveWillReasons.Keys)
                         pendingWillCancellationReasons.Remove(id);
                     if (commitPermitted is null || commitPermitted()) StartWillDecisions();
                     if (commitPermitted is null || commitPermitted()) StartHostedDecisions();
                 }
+                else
+                {
+                    foreach (var item in completedConversationTurns)
+                    {
+                        pendingConversationTurns.Remove(item.Request.ConversationId);
+                        item.Cancellation.Dispose();
+                    }
+                    CancelNoLongerAwaitingConversationTurns();
+                }
+                if (commitPermitted is null || commitPermitted()) StartConversationTurns();
                 return result with { Events = events.Where(item => item.EventId >= baselineEventId).ToArray() };
             }
             finally
             {
-                gate.Release();
+                if (gateHeld) gate.Release();
             }
         }
         finally
@@ -164,27 +224,20 @@ public sealed partial class PrivateWorldRuntime
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
             {
-                for (var attempt = 0; attempt < 2; attempt++)
+                try
                 {
-                    try
-                    {
-                        cancellation.Token.ThrowIfCancellationRequested();
-                        return new HostedDecisionOutcome(
-                            await preview.DecideAsync(cancellation.Token).ConfigureAwait(false), null);
-                    }
-                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-                    {
-                        return new HostedDecisionOutcome(null, "provider_cancelled");
-                    }
-                    catch (Exception exception) when (exception is not OutOfMemoryException)
-                    {
-                        if (attempt == 1)
-                            return new HostedDecisionOutcome(null, $"provider_failure:{exception.GetType().Name}");
-                    }
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    return new HostedDecisionOutcome(
+                        await preview.DecideAsync(cancellation.Token).ConfigureAwait(false), null);
                 }
-                return new HostedDecisionOutcome(null, "provider_failure:retry_exhausted");
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    return new HostedDecisionOutcome(null,
+                        CognitionProviderFailures.FromException(exception, cancellation.Token));
+                }
             });
             pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation));
+            RecordModelAttempt(preview.InhabitantId, "waiting");
             AppendEvent("hosted_decision_started", preview.InhabitantId);
         }
     }
@@ -192,6 +245,7 @@ public sealed partial class PrivateWorldRuntime
     private void CancelPendingHosted(string inhabitantId)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
+        RecordModelAttempt(inhabitantId, "canceled");
         pending.Cancellation.Cancel();
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
@@ -203,6 +257,9 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
             foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            foreach (var id in pendingConversationTurns.Keys.ToArray())
+                CancelPendingConversationTurn(id, AgentConversationInterruption.Disconnected);
+            SuspendAllConversations(AgentConversationInterruption.Disconnected);
         }
         finally { gate.Release(); }
     }
@@ -213,6 +270,8 @@ public sealed partial class PrivateWorldRuntime
         (society, proposed.society) = (proposed.society, society);
         worldSeed = proposed.worldSeed;
         map = proposed.map;
+        fertility = proposed.fertility;
+        fields = proposed.fields;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -240,6 +299,8 @@ public sealed partial class PrivateWorldRuntime
         roadTiles = proposed.roadTiles;
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
+        conversations = proposed.conversations;
+        conversationBudgets = proposed.conversationBudgets;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -259,12 +320,14 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before loading a checkpoint.");
                 using var restored = Restore(checkpoint, providerFactory,
-                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    maxCognitionDispatchPerCycle);
                 // Loading never resumes a world implicitly, even if the saved
                 // checkpoint was taken while it was running.
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                foreach (var id in pendingConversationTurns.Keys.ToArray())
+                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
             }
             finally { gate.Release(); }
@@ -285,10 +348,12 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before selecting another world.");
                 using var restored = Restore(checkpoint, providerFactory,
-                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    maxCognitionDispatchPerCycle);
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                foreach (var id in pendingConversationTurns.Keys.ToArray())
+                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
             }
             finally { gate.Release(); }
@@ -300,6 +365,7 @@ public sealed partial class PrivateWorldRuntime
         bool deferHosted, IReadOnlyList<PendingHostedDecision> completed,
         IReadOnlyList<PendingWillDecision> completedWills, IReadOnlyList<string> activeWillIds,
         IReadOnlyDictionary<string, string> inactiveWillReasons,
+        IReadOnlyList<PendingConversationTurn> completedConversationTurns,
         CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -318,7 +384,6 @@ public sealed partial class PrivateWorldRuntime
             StageFarmContent();
             StageBlacksmithContent();
             StageHouseCookingContent();
-            StageForestryContent();
             StageSiloContent();
             StageTailorContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -389,8 +454,9 @@ public sealed partial class PrivateWorldRuntime
                     package.Lifecycle == ContentPackageLifecycle.Active && package.ActivationTick == 0))
                 AddSettlementResources();
             CancelUnavailableWorkers();
+            ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
-            ProcessCropBuilds(targetTick);
+            MaintainFarmFields();
 
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
@@ -399,13 +465,16 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();
+            MaintainHousing();
             MaintainParenthood();
             MaintainDependentCare();
+            UpdateConversationsForTick(targetTick);
             EnqueueDueCognition();
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
             {
-                foreach (var item in completed)
+                foreach (var item in completed.OrderBy(
+                             item => item.Request.Observation.InhabitantId, StringComparer.Ordinal))
                 {
                     var id = item.Request.Observation.InhabitantId;
                     if (!inhabitants.TryGetValue(id, out var physical)) continue;
@@ -416,6 +485,7 @@ public sealed partial class PrivateWorldRuntime
                         outcome.Failure, legal);
                     if (decision is not null)
                     {
+                        RecordModelCompletion(id, decision.Admission, outcome.Failure);
                         ApplyPersonalIdentityChoice(id, item.Request, outcome.Response, decision.Admission);
                         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
                             outcome.Response is
@@ -432,20 +502,17 @@ public sealed partial class PrivateWorldRuntime
                             };
                             checkpointSchemaVersion = StateSchemaVersion;
                         }
-                        if (decision.Admission.Accepted && !decision.Admission.FellBack &&
-                            outcome.Response is
-                            {
-                                Provider: DecisionProviderKind.LargeLanguageModel,
-                                ChosenName: { } chosenName
-                            } && society.Checkpoint.GetInhabitant(id).NeedsName)
-                        {
-                            society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, id, chosenName));
-                            AppendEvent("agent_named", id);
-                        }
+                        if (outcome.Response is { } response)
+                            ApplyChosenNameOutcome(item.Request, response, decision.Admission);
+                        CloseUnresolvedNameRetry(item.Request);
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
-                    else AppendEvent("hosted_decision_discarded", id);
+                    else
+                    {
+                        RecordModelAttempt(id, "canceled");
+                        AppendEvent("hosted_decision_discarded", id);
+                    }
                 }
             }
             var dispatch = deferHosted

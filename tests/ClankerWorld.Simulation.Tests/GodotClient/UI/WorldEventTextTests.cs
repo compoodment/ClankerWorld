@@ -8,6 +8,16 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void SkillEventsShowLearnerAndTeacherWithoutSplittingTheirIds()
+    {
+        var snapshot = Snapshot(Person(ChildId, "Aster"), Person(FounderId, "Mira", "dead"));
+        Assert.Equal("Aster learned farming from Mira.", WorldEventText.Describe(
+            new(1, 1, "skill_learned", $"{ChildId}|farming|{FounderId}"), snapshot));
+        Assert.Equal("Aster learned smithing by doing the work.", WorldEventText.Describe(
+            new(2, 2, "skill_learned", $"{ChildId}|smithing|work"), snapshot));
+    }
+
     [Theory]
     [InlineData(ChildId)]
     [InlineData("founder-scout")]
@@ -33,6 +43,32 @@ public sealed class WorldEventTextTests
             Assert.Equal($"Aster {action}.", WorldEventText.Describe(worldEvent, snapshot));
             var renamed = snapshot with { Inhabitants = [Person(id, "Rowan", "dead")] };
             Assert.Equal($"Rowan {action}.", WorldEventText.Describe(worldEvent, renamed));
+            Assert.Equal(detail, worldEvent.Detail);
+        }
+    }
+
+    [Fact]
+    public void FieldEventsUseCompleteWorkerNamesAndReadHarvestConditionsFromTheEnd()
+    {
+        var snapshot = Snapshot(Person(ChildId, "Aster"));
+        var cases = new[]
+        {
+            ("field_work_started", ChildId + ":field-12-7:Till", "Aster started work on a field."),
+            ("field_prepared", ChildId + ":field-12-7:", "Aster prepared a field."),
+            ("field_planted", ChildId + ":field-12-7:cultivated_greens", "Aster planted cultivated greens."),
+            ("field_tended", ChildId + ":field-12-7:grain", "Aster tended grain."),
+            ("field_harvested", ChildId + ":field-12-7:potatoes", "Aster harvested potatoes."),
+            ("field_ready", "field-12-7", "A field is ready to harvest."),
+            ("field_work_interrupted", "field-12-7", "Work on a field stopped."),
+            ("crop_weather_loss", "field-12-7:harvest:2:snow", "Snow reduced a crop harvest."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:wet:70", "Moist soil improved a crop harvest."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:dry:10", "Dry soil reduced a crop harvest."),
+        };
+        foreach (var (kind, detail, expected) in cases)
+        {
+            Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+            var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
+            Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
             Assert.Equal(detail, worldEvent.Detail);
         }
     }
@@ -70,11 +106,33 @@ public sealed class WorldEventTextTests
     }
 
     [Fact]
+    public void HousingEventsNameTheAdultAndTheHouseholdAsThePlayerSeesThem()
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster")) with
+        {
+            Stockpiles = [new("household:camp-alpha", "Alpha stores", [])],
+        };
+        Assert.Equal("Aster asked Alpha stores for a place to live in their House.", WorldEventText.Describe(
+            new(1, 0, "housing_request_made", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Aster now lives with Alpha stores.", WorldEventText.Describe(
+            new(2, 0, "household_joined", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Alpha stores did not agree to let Aster move in.", WorldEventText.Describe(
+            new(3, 0, "housing_request_refused", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("a household did not answer Aster's request to move in.", WorldEventText.Describe(
+            new(4, 0, "housing_request_expired", AgentId + ":household:camp-beta"), snapshot));
+        Assert.Equal("Aster has no home: they belong to no household, so no House can be planned for them.",
+            WorldEventText.Describe(new(5, 0, "housing_blocked", AgentId + ":no_household"), snapshot));
+        Assert.Equal("Aster has no home: their household has no legal site for a House.",
+            WorldEventText.Describe(new(6, 0, "housing_blocked", AgentId + ":no_legal_site"), snapshot));
+    }
+
+    [Fact]
     public void MissingSnapshotStillSupportsDelimiterFreeLegacyNamesAndSafeUnknownActors()
     {
         Assert.Equal("Scout ate.", WorldEventText.Describe(new(1, 0, "food_consumed", "scout"), null));
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId), null));
         Assert.Equal("Someone ate.", WorldEventText.Describe(new(3, 0, "food_consumed", ""), null));
+        Assert.Equal("Someone planted something new.", WorldEventText.Describe(new(4, 0, "field_planted", ""), null));
     }
 
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>

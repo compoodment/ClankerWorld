@@ -84,7 +84,7 @@ public partial class Main
             .Select(row => $"{row.Provider} / {row.Model}: {row.Attempts} calls");
         usageMeterStatus.Text = usageStatus.AttemptLimit is { } limit
             ? $"{usageStatus.Attempts} of {limit} model calls used on this installation."
-            : $"{usageStatus.Attempts} model calls used on this installation. No limit set.";
+            : $"{usageStatus.Attempts} model calls used on this installation.";
         if (usageStatus.LimitReached)
             usageMeterStatus.Text += " Time is paused. Raise the limit to allow more calls, then resume.";
         if (usageStatus.Rows.Count > 0)
@@ -224,7 +224,8 @@ public partial class Main
             SetStatus("Choose a saved key to delete.", good: false);
             return;
         }
-        if (providerConfiguration?.Assignments?.Any(item => item.CredentialSlotId == slotId) == true)
+        if (providerConfiguration?.Assignments?.Any(item =>
+                item.CredentialSlotId == slotId && item.SelectionReason is null) == true)
         {
             SetStatus("An agent is still using this key. Give that agent another key first.", good: false);
             return;
@@ -358,10 +359,12 @@ public partial class Main
         var option = providerConfiguration?.Providers.FirstOrDefault(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal));
         var hosted = provider is not ("deterministic" or "inherit");
+        var personalSetupCheckAvailable = SelectedCognitionTarget() is not null && HasModelList(provider);
         cognitionRoleChoice.Visible = SelectedCognitionTarget() is null;
         var agentCredential = hosted && SelectedCognitionTarget() is not null && provider is ("openai" or "ollama-cloud");
         var newCredential = agentCredential && SelectedCredentialChoice() == "new";
         cognitionModelPicker.Visible = hosted;
+        cognitionModelSetupCheckButton.Visible = personalSetupCheckAvailable;
         cognitionCredentialChoice.Visible = agentCredential;
         cognitionCredentialLabelInput.Visible = newCredential;
         cognitionApiKeyInput.Visible = hosted && (!agentCredential || newCredential);
@@ -370,6 +373,8 @@ public partial class Main
         deleteCognitionCredentialSlotButton.Visible = agentCredential &&
             SelectedCredentialChoice() is not ("default" or "new");
         if (hosted) SyncCognitionModelPicker();
+        ResetCognitionModelSetupCheckForCurrentChoice();
+        cognitionModelSetupCheckStatus.Visible = personalSetupCheckAvailable && cognitionModelSetupCheckStatus.Text.Length > 0;
 
         cognitionApiKeyInput.PlaceholderText = newCredential ? "New API key" : option?.HasCredential == true
             ? "Leave blank to keep saved key"
@@ -385,10 +390,86 @@ public partial class Main
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
             ? "Loading…"
-            : SelectedTargetWasBornHere() && SelectedAssignment() is null
-            ? "No personal model selected for this child. After infancy, safe local decisions continue until a model is assigned; world defaults are not used."
+            : SelectedTargetWasBornHere()
+            ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
         RefreshControlAvailability();
+    }
+
+    private string SelectedChildModelStatus()
+    {
+        var childId = SelectedCognitionTarget();
+        var assignments = providerConfiguration?.Assignments ?? [];
+        var routine = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "routine");
+        var planning = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "planning");
+        var child = observationSession.Current?.Baseline.Snapshot.Inhabitants.FirstOrDefault(item => item.Id == childId);
+        var birthProvider = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-provider")?.Detail;
+        var birthModel = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-id")?.Detail;
+        if ((routine is null || planning is null) && birthProvider is "openai" or "ollama-cloud" &&
+            !string.IsNullOrWhiteSpace(birthModel))
+        {
+            var pendingModelName = $"{ProviderDisplayName(birthProvider)} · {birthModel}";
+            if (routine is null && planning is null)
+                return $"Model needs setup: {pendingModelName} was chosen at birth; its settings are waiting to be saved. Built-in choices continue until setup is recovered.";
+
+            var pendingRoute = $"{pendingModelName} waiting for saved setup; built-in choices continue";
+            return $"Routine: {(routine is null ? pendingRoute : ChildModelRouteSummary(routine))} · Planning: {(planning is null ? pendingRoute : ChildModelRouteSummary(planning))}.";
+        }
+        if (IsUnconfiguredChildRoute(routine) && IsUnconfiguredChildRoute(planning))
+            return "No personal model selected for this child. Safe local decisions continue until a model is assigned; world defaults are not used.";
+
+        if (!SameChildProviderRoute(routine, planning))
+        {
+            return $"Routine: {ChildModelRouteSummary(routine)} · Planning: {ChildModelRouteSummary(planning)}.";
+        }
+
+        var assignment = planning ?? routine!;
+
+        var provider = ProviderDisplayName(assignment.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        if (ChildModelNeedsSetup(assignment))
+            return $"Model needs setup: {modelName} has no available key on this computer. Add or select a key; built-in choices continue until then, with no other model used.";
+
+        return assignment.SelectionReason switch
+        {
+            "parents_agreed" => $"Their model choices matched: {modelName}.",
+            "initiating_parent" => $"Chosen from the parent who began the family plan: {modelName}.",
+            _ => $"Personal model: {modelName}.",
+        };
+    }
+
+    private string ChildModelRouteSummary(InhabitantProviderAssignment? assignment)
+    {
+        if (IsUnconfiguredChildRoute(assignment))
+            return "no personal model (safe local; world defaults are not used)";
+
+        var provider = ProviderDisplayName(assignment!.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        return ChildModelNeedsSetup(assignment)
+            ? $"{modelName} needs setup; built-in choices continue until a key is available"
+            : modelName;
+    }
+
+    private static bool IsUnconfiguredChildRoute(InhabitantProviderAssignment? assignment) =>
+        assignment is null || assignment.Provider is "deterministic" or "inherit";
+
+    private static bool SameChildProviderRoute(
+        InhabitantProviderAssignment? left,
+        InhabitantProviderAssignment? right) =>
+        IsUnconfiguredChildRoute(left) && IsUnconfiguredChildRoute(right) ||
+        left is not null && right is not null && left.Provider == right.Provider &&
+        left.Model == right.Model && left.CredentialSlotId == right.CredentialSlotId;
+
+    private bool ChildModelNeedsSetup(InhabitantProviderAssignment assignment)
+    {
+        if (assignment.Provider is "deterministic" or "inherit") return false;
+        if (assignment.CredentialSlotId is { } slotId)
+            return providerConfiguration?.CredentialSlots?.Any(slot => slot.Id == slotId && slot.Provider == assignment.Provider) != true;
+        return providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == assignment.Provider)?.HasCredential != true;
     }
 
     private static string RoleDisplayName(string role) => role == "planning"
@@ -421,6 +502,7 @@ public partial class Main
         cognitionTargetChoice.AddItem("World defaults");
         cognitionTargetChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -433,6 +515,7 @@ public partial class Main
         cognitionRoleChoice.TooltipText = "Routine covers everyday choices. Planning covers bigger projects. Jev, the optional helper, is turned on or off for the whole world in Settings.";
         cognitionRoleChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -446,6 +529,7 @@ public partial class Main
         PopulateProviderChoices("deterministic");
         cognitionProviderChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             PopulateCredentialChoices();
             RenderProviderConfiguration();
@@ -456,6 +540,7 @@ public partial class Main
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
         cognitionCredentialChoice.ItemSelected += _ =>
         {
+            ClearCognitionModelSetupCheck();
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
@@ -470,7 +555,16 @@ public partial class Main
         body.AddChild(cognitionApiKeyInput);
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
+        cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
         body.AddChild(cognitionModelPicker);
+        cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
+        cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(cognitionModelSetupCheckButton);
+        cognitionModelSetupCheckButton.Pressed += () => _ = RunCognitionModelSetupCheckAsync();
+        body.AddChild(cognitionModelSetupCheckButton);
+        cognitionModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        cognitionModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(cognitionModelSetupCheckStatus);
 
         cognitionCredentialHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         cognitionCredentialHint.ThemeTypeVariation = "DimLabel";
@@ -492,7 +586,7 @@ public partial class Main
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
         deleteCognitionCredentialSlotButton.Text = "Delete named key";
-        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key you no longer use. Move any agents using it to another key first.";
+        deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();
         buttons.AddChild(deleteCognitionCredentialSlotButton);
@@ -502,19 +596,27 @@ public partial class Main
         buttons.AddChild(refreshCognitionProviderButton);
         body.AddChild(buttons);
 
-        body.AddChild(new Label { Text = "Model calls" });
+        AddPanelContents(cognitionSettingsPanel, "Agent model", body);
+        cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
+        RenderProviderConfiguration();
+    }
+
+    /// <summary>
+    /// The installation's model-call count and optional limit. It stays on the
+    /// World page when the Agent model box moves into an agent's card.
+    /// </summary>
+    private void BuildUsageLimitPanel()
+    {
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
         usageMeterStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(usageMeterStatus);
-        body.AddChild(new Label
-        {
-            Text = "Optional cap on paid model calls. The game pauses when you reach it. Leave blank for no cap.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        });
-        usageAttemptLimitInput.PlaceholderText = "Maximum model calls (blank = no limit)";
-        usageAttemptLimitInput.TooltipText = "Every call counts, even ones that fail or are retried. This counts calls, not money.";
-        body.AddChild(usageAttemptLimitInput);
+        usageAttemptLimitInput.PlaceholderText = "No limit";
+        usageAttemptLimitInput.TooltipText = "Time pauses when this many calls have been made. Every call counts, even ones that fail or are retried. This counts calls, not money.";
+        body.AddChild(DisplaySettingRow("Limit", usageAttemptLimitInput));
         var usageButtons = new HBoxContainer();
-        applyUsageLimitButton.Text = "Apply limit";
+        usageButtons.AddThemeConstantOverride("separation", 6);
+        applyUsageLimitButton.Text = "Set limit";
         StyleButton(applyUsageLimitButton);
         applyUsageLimitButton.Pressed += () => _ = ConfigureUsageAsync(grant: false);
         usageButtons.AddChild(applyUsageLimitButton);
@@ -524,15 +626,13 @@ public partial class Main
         grantUsageCallsButton.Pressed += () => _ = ConfigureUsageAsync(grant: true);
         grantUsageCallsButton.Visible = false;
         usageButtons.AddChild(grantUsageCallsButton);
-        refreshUsageButton.Text = "Refresh usage";
+        refreshUsageButton.Text = "Refresh";
         StyleButton(refreshUsageButton);
         refreshUsageButton.Pressed += () => _ = RefreshUsageAsync();
         usageButtons.AddChild(refreshUsageButton);
         body.AddChild(usageButtons);
-
-        AddPanelContents(cognitionSettingsPanel, "Agent model", body);
-        cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
-        RenderProviderConfiguration();
+        AddPanelContents(usageLimitPanel, "Model calls", body);
+        usageLimitPanel.ThemeTypeVariation = "InsetPanel";
         RenderUsageStatus();
     }
 
@@ -565,6 +665,7 @@ public partial class Main
         if (!selectedAgentModelScroll.Visible) return;
         selectedAgentModelScroll.Hide();
         cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
+        worldSettingsContent.MoveChild(cognitionSettingsPanel, usageLimitPanel.GetIndex());
         cognitionTargetChoice.Show();
         selectedAgentOverview.Show();
         cognitionApiKeyInput.Text = string.Empty;

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Saves and replay
@@ -18,6 +18,49 @@ World state includes its seed and generation options, clock, agents, accepted
 events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
+
+The October 1 terrain tuning changes deterministic generation for new worlds.
+Loading retains the saved map and current weather episode; it does not replace
+either with a freshly generated map or a new weather roll. Earlier alpha maps
+may fail the existing regeneration checks and are refused and preserved; no
+terrain migration is provided. New saves with default weather store a null
+profile list to select the reduced built-in preset. Explicit profile lists
+keep their configured weather weights.
+
+Private-world schema 31 records an agent's learned skills and each lesson's
+skill instead of a work role. Skills retain their first learning time and
+optional teacher ID, including in deceased profiles. Loading validates those
+references and times, and rejects null entries in living or deceased skill
+lists as damaged checkpoint data. Current lesson progress and skills survive pause,
+save/load and replay. Schema 32 adds saved household requests and recent refusals
+for adults without an authorized home. These states are validated and survive
+save/load and replay. Older alpha lesson records need not load; no migration is
+provided. Saved skills grant no ordinary action permissions or speed bonus.
+
+Private-world schema 34 adds household field tiles and their crop/work state.
+The saved inventory also records a ground position for physical harvest lots.
+Field ownership, work inputs, growth times and replanting reservations are
+validated together with inventory and map geometry. Current-format roundtrips
+retain intermediate work, carried deliveries and planting reserves. Fertility
+is derived from the seed and immutable map layers rather than saved per tile.
+Older alpha saves need not load; no field or orchard migration is provided.
+
+Schema 33 records a child's personal-model role at birth, provider endpoint, model
+ID, installation-local key-slot ID for a hosted model, and selection reason.
+Matching parent assignments are disclosed as agreement; when they differ, the
+parent who began the family plan is the tie-break. The provider store preserves that
+choice if its key is unavailable after moving a save or deleting a key, so the
+child idles on built-in choices until setup is restored rather than using a
+different paid model. A child without an explicit parental model remains
+unconfigured, and worlds without a saved birth choice do not acquire one by
+inference. An owner's later personal-model choice, including an explicit
+no-personal-model setting, is saved separately from the historical birth
+choice. That setting survives ticks and reloads; an explicitly unconfigured
+child uses built-in choices instead of the world default. Infants make no
+personal-model calls; normal presence, budget and admission checks still apply
+after infancy. Living and deceased profiles validate the descriptor against its
+recorded birth and schema. While provider storage is being recovered, the Model
+panel keeps showing the selected provider and model with a setup message.
 
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
@@ -79,11 +122,25 @@ that recorded events reproduce its expected results and digests.
   old-save handling is written only to keep one working. The rule above still
   applies: a save that cannot load is refused with a reason and kept. Finished
   releases promise forward migration later, as described in
-  [Saves](../game-design/saves.md). Old-save code already in the repository
-  stays until it is removed; [issue #487](https://github.com/compoodment/ClankerWorld/issues/487)
-  audits it.
+  [Saves](../game-design/saves.md). The cutoff and removal audit are recorded in
+  [issue #487](https://github.com/compoodment/ClankerWorld/issues/487).
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
+
+The private-world checkpoint stores the conversation cursor (revision, status,
+next speaker and consent/interruption state) together with the full admitted
+history: up to six accepted public turns and one accepted wrap-up, including
+the actual listener IDs for each. Each later speaker receives the committed
+public history so far, not an unaccepted reply; the wrap-up request receives
+the six public turns. Each participant's current-day allowance is saved too.
+A live provider request is never saved. On restore, an accepted unfinished
+conversation becomes suspended and cannot spend again until both participants
+make fresh resume choices, including when a saved suspension contained one
+person's earlier choice. A pending invitation keeps its original deadline and
+requires normal acceptance, which counts against the invitee's daily allowance.
+Conversation records use private-world schema 35, following schema 34's fields
+and ground harvest lots. No migration for older alpha saves is added solely to preserve
+compatibility.
 
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
@@ -134,10 +191,10 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
-Private checkpoint v2 stores verified 64×64 terrain-byte chunks. v1 per-tile JSON
-remains readable and migrates atomically on load. Historical generators and
-known package digests validate older generated maps without replacing their
-resource layout. Damaged chunks are rejected without replacing the save. Restore also removes
+Private checkpoint v2 stores verified 64×64 terrain-byte chunks. The old v1
+per-tile format is refused, and generated maps must match the current generator
+and package checks; there is no historical generator or package fallback.
+Damaged chunks are rejected without replacing the save. Restore also removes
 Road tiles inside validated saved building footprints, leaving other Roads and
 state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
@@ -153,6 +210,24 @@ bridge. Traffic evidence must be recent, within its per-agent bound, for real
 unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
+The alpha accepts only the current private-world checkpoint schema, currently
+`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+the same value, so older alpha checkpoints are refused with a reason and left
+unchanged; no private-world migration runs. The current schema also includes
+bounded model-attempt status and last accepted model choice per agent, plus
+building footprint revisions, reserved expansion jobs, House guest invitations,
+learned skills and skill-based lessons, birth-model choices, household fields
+with ground harvest lots, and bounded conversations with daily allowances.
+These fields retain their current validation and roundtrip behavior.
+
+The table records earlier schema changes. Its older-save behavior is historical;
+the current loader accepts only the current schema and does not run those
+migrations or backfills.
+Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
+for fields and ground lots, and schema 35 for conversations, record when those
+fields were introduced; they do not allow an earlier checkpoint schema past the
+current alpha cutoff.
+
 | Compatibility change | Meaning |
 | --- | --- |
 | Schema 18 | Removes persisted energy/sleep state. Legacy bedding can remain inert compatibility data; recipes cannot restart sleep gameplay. |
@@ -166,6 +241,14 @@ stands. A save that fails these checks is refused with a reason and kept.
 | Schema 26 | Optional regional weather episodes (world-systems schema 2). An older save imports its current weather on its first resumed tick. |
 | Schema 27 | Optional building entrances and trees planted on new tiles. An entrance must lie directly beside a footprint edge. Planted trees are saved as `planted-tree-{x}-{y}` map resources with their growth record and must be legal plantings (see [Trees and planting](how-it-works.md#trees-and-planting)). Invalid state is refused and the file is kept. Older builds refuse schema 27 saves. |
 | Schema 28 | Saved bridges and bounded bridge-traffic evidence, plus an optional pending first personality/aspiration choice for newly placed adults. An older save has no bridges; an older schema that carries bridges or pending identity choices is refused. Accepted personal replies consume the identity opportunity; missing or invalid fields keep the placeholders. The marker, selected text and ID-only choice event survive current-format save/reload. |
+| Schema 29 | Optional bounded model-attempt status and a separate last accepted model choice per agent. Current-format reload preserves failed/canceled attempts without replacing the last choice. Old builds may refuse these alpha checkpoints; no migration is added. |
+| Schema 30 | Building footprint revisions, reserved expansion jobs and saved House guest invitations. Expanded geometry is used by validation, Town assignment, construction and observation; building IDs and stock locations stay the same. Earlier builds refuse these checkpoints instead of losing expansion or invitation records. |
+| Schema 31 | Learned skills and skill-based lessons, including learning time and optional teacher in living and deceased profiles. Earlier formats cannot hold these records; older builds refuse these checkpoints instead of discarding skills. Model-attempt and building-expansion records remain distinct. |
+| Schema 32 | Optional per-adult housing state: a pending request to live in another household's House (the household asked, its recorded adult members, including adults who join or come of age while pending, their answers and the 120-tick expiry), recent refusals and the current housing blocker. Loading checks that the applicant has no household, that members and answers name known people, and that refusals name known households. An older schema that carries housing state is refused. |
+| Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
+| Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
+| Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
+| Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -227,6 +310,14 @@ Unpublished generations are retained; no cleanup policy is implied. Older
 binaries do not understand this pointer and must not load newly overwritten
 saves. Use a matching pre-upgrade backup for rollback.
 
+The world catalog keeps a small terrain thumbnail for each world, packed like
+the world's own terrain (`terrain-kind-v1`) and at most 96 pixels wide, so Load
+World can show it without reading the world's checkpoint. Worlds catalogued
+before thumbnails existed get one the first time they are listed, from the
+checkpoint that listing already reads. It is a convenience copy, not world
+state: an older host ignores it, and a missing or damaged thumbnail shows a globe
+while the rest of the world list stays available.
+
 A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.
@@ -273,9 +364,15 @@ The new code reads old saves; keep backups before testing.
 This prototype changes future weather/events, not past recorded history.
 
 Advanced generation saves optional forest, mountain and river presets. Missing
-fields mean Normal and preserve the historical default generator. New-world
-water defaults do not alter saved water values. Non-default maps require a
-build that understands their options and validates their generated identity.
+fields mean Normal. New-world water defaults do not alter saved water values.
+Non-default maps require a build that understands their options and validates
+their generated identity. Balanced Small/Medium worlds save the visibility
+algorithm version and, when trial targets apply, the selected candidate attempt.
+Restore regenerates that exact attempt, checks the saved map manifest, and does
+not rerun candidate selection or silently change the saved map. The attempt
+defaults to 0 for historical saves. A save whose map no longer matches
+deterministic regeneration is refused for load; restore leaves the source save
+file available for recovery or an explicit future migration.
 
 ## Explicit permanent deletion
 

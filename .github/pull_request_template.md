@@ -23,7 +23,7 @@ https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#link-issue
 - Agreed design or existing behavior this follows:
 - Other open PRs that overlap:
 - Work left for later, and where it is tracked:
-- Needs a hands-on check after merge (`status:needs-playtest` added to the issue):
+- Needs a hands-on check after merge (file added in `playtest/`):
 - If draft, unfinished work or decision needed before marking ready:
 
 ## Checks

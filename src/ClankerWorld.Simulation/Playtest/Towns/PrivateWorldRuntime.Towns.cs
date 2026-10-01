@@ -8,6 +8,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.AgentPlacement;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -114,32 +115,58 @@ public sealed partial class PrivateWorldRuntime
         gate.Wait();
         try
         {
-            ValidateAgentPlacementUnsafe(agentId, position);
-            var town = towns.SingleOrDefault(item => item.BorderTiles.Contains(position));
-            // The Town border gives residency, not household membership.
-            // Only recorded household property forces an existing household;
-            // outside every Town, the adult begins an independent one.
-            var householdId = HouseholdPropertyAt(position) ??
-                (town is null ? "household:" + agentId : null);
-            society.Apply(checkpoint => SocietyFixture.AddAdult(checkpoint, agentId, householdId));
-            inhabitants.Add(agentId, new PlaytestInhabitantState(agentId, position, 6_500, 0,
-                "undecided", "find a purpose", IdentityChoicePending: true));
-            if (town is not null) AddTownResident(town.Id, agentId, "agent_joined");
-            else AppendEvent("town_membership_evaluated", $"{agentId}:unaffiliated");
-            AppendEvent("agent_added", agentId);
-            return householdId;
+            var membership = ValidateAgentPlacementUnsafe(agentId, position);
+            EnsurePlacementIsUnambiguous(membership);
+            return AddAgentUnsafe(agentId, position, membership);
         }
         finally { gate.Release(); }
+    }
+
+    public string? AddAgent(string agentId, GridPoint position, string? expectedHouseholdId, string? expectedTownId)
+    {
+        gate.Wait();
+        try
+        {
+            var membership = ValidateAgentPlacementUnsafe(agentId, position);
+            EnsureExpectedPlacement(agentId, membership, expectedHouseholdId, expectedTownId);
+            return AddAgentUnsafe(agentId, position, membership);
+        }
+        finally { gate.Release(); }
+    }
+
+    private string? AddAgentUnsafe(string agentId, GridPoint position, AgentPlacementResolution membership)
+    {
+        var town = membership.TownId is null ? null : towns.Single(item => item.Id == membership.TownId);
+        var householdId = membership.HouseholdIdFor(agentId);
+        society.Apply(checkpoint => SocietyFixture.AddAdult(checkpoint, agentId, householdId));
+        inhabitants.Add(agentId, new PlaytestInhabitantState(agentId, position, 6_500, 0,
+            "undecided", "find a purpose", IdentityChoicePending: true));
+        if (town is not null) AddTownResident(town.Id, agentId, "agent_joined");
+        else AppendEvent("town_membership_evaluated", $"{agentId}:unaffiliated");
+        AppendEvent("agent_added", agentId);
+        return householdId;
     }
 
     public void ValidateAgentPlacement(string agentId, GridPoint position)
     {
         gate.Wait();
-        try { ValidateAgentPlacementUnsafe(agentId, position); }
+        try { EnsurePlacementIsUnambiguous(ValidateAgentPlacementUnsafe(agentId, position)); }
         finally { gate.Release(); }
     }
 
-    private void ValidateAgentPlacementUnsafe(string agentId, GridPoint position)
+    public void ValidateAgentPlacement(string agentId, GridPoint position,
+        string? expectedHouseholdId, string? expectedTownId)
+    {
+        gate.Wait();
+        try
+        {
+            var membership = ValidateAgentPlacementUnsafe(agentId, position);
+            EnsureExpectedPlacement(agentId, membership, expectedHouseholdId, expectedTownId);
+        }
+        finally { gate.Release(); }
+    }
+
+    private AgentPlacementResolution ValidateAgentPlacementUnsafe(string agentId, GridPoint position)
     {
         if (founderSetup is not { Started: true })
             throw new InvalidOperationException("Start the world with four founders before adding more agents.");
@@ -151,23 +178,29 @@ public sealed partial class PrivateWorldRuntime
             map.Resources.Any(item => item.Position == position) ||
             (inhabitants.Values.Any(person => person.Position == position) && !IsHouseAt(position)))
             throw new ArgumentException("Choose an empty passable tile for this agent.", nameof(position));
-        if (towns.Count(item => item.BorderTiles.Contains(position)) > 1)
-            throw new InvalidOperationException("Overlapping Town borders cannot determine starting membership.");
-        _ = HouseholdPropertyAt(position);
+
+        var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var householdOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
+                definitions.TryGetValue(building.DefinitionId, out var definition) &&
+                WorldContentSimulationRules.Footprint(definition, building).Contains(position))
+            .Select(building => building.HouseholdId)
+            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
+        var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
+        return AgentPlacementRules.Resolve(householdOwners, townIds);
     }
 
-    private string? HouseholdPropertyAt(GridPoint position)
+    private static void EnsurePlacementIsUnambiguous(AgentPlacementResolution membership)
     {
-        var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        var owners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
-                definitions.TryGetValue(building.DefinitionId, out var definition) &&
-                WorldContentSimulationRules.Footprint(definition, building.Position).Contains(position))
-            .Select(building => building.HouseholdId!)
-            .Distinct(StringComparer.Ordinal)
-            .Take(2).ToArray();
-        if (owners.Length > 1)
-            throw new InvalidOperationException("Overlapping household property cannot determine starting membership.");
-        return owners.FirstOrDefault();
+        if (membership.IsAmbiguous) throw new InvalidOperationException(membership.AmbiguityExplanation());
+    }
+
+    private static void EnsureExpectedPlacement(string agentId, AgentPlacementResolution membership,
+        string? expectedHouseholdId, string? expectedTownId)
+    {
+        if (membership.IsAmbiguous)
+            throw new AgentPlacementChangedException(membership.AmbiguityExplanation());
+        if (!membership.Matches(agentId, expectedHouseholdId, expectedTownId))
+            throw new AgentPlacementChangedException();
     }
 
     private bool IsHouseAt(GridPoint position)
@@ -176,7 +209,7 @@ public sealed partial class PrivateWorldRuntime
         return worldSimulation.Buildings.Any(building =>
             definitions.TryGetValue(building.DefinitionId, out var definition) &&
             definition.Tags.Contains("house", StringComparer.Ordinal) &&
-            WorldContentSimulationRules.Footprint(definition, building.Position).Contains(position));
+            WorldContentSimulationRules.Footprint(definition, building).Contains(position));
     }
 
     public bool RenameAgent(string agentId, string name)
@@ -279,18 +312,6 @@ public sealed partial class PrivateWorldRuntime
         if (index < 0) throw new InvalidOperationException("The Town identity does not exist.");
         towns[index] = updated;
         checkpointSchemaVersion = StateSchemaVersion;
-    }
-
-    private static IReadOnlyList<TownRuntimeState> MigrateTowns(PrivateWorldRuntimeState state)
-    {
-        if (state.FounderSetup is not { } setup) return [];
-        if (!setup.Started && setup.FounderIds.Count == 0 && state.Map.CampObjects.Count == 0)
-            return [];
-        var active = state.Society.Society.Inhabitants
-            .Where(person => person.Status == SocietyInhabitantStatus.Active)
-            .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        var residents = setup.FounderIds.Where(active.Contains).ToArray();
-        return [TownBorderRules.CreateFirstTown(state.Map, residents, founded: setup.Started)];
     }
 
 }

@@ -60,13 +60,8 @@ public partial class Main
         var hudTop = HudTop;
         PlaceHudPanels();
         PositionSelectedTilePanel();
-        var familySize = new Vector2(Math.Clamp(viewport.X - 28, 320, 840),
-            Math.Clamp(viewport.Y - 28, 280, 600));
-        familyTreePanel.Size = familySize;
-        familyTreePanel.Position = new Vector2(
-            Math.Max(14, (viewport.X - familySize.X) / 2),
-            Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
-        foreach (var reader in new[] { memoriesPanel, thoughtsPanel })
+        PositionFamilyTreePanel(viewport, hudTop);
+        foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
             PlaceReaderPanel(reader);
@@ -74,11 +69,40 @@ public partial class Main
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
+        FitMenuScrolls(viewport.Y);
 
         var toastSize = statusToast.GetCombinedMinimumSize();
         statusToast.Position = new Vector2(
             Math.Max(14, (viewport.X - toastSize.X) / 2),
             Math.Max(14, viewport.Y - toastSize.Y - 18));
+    }
+
+    private void PositionFamilyTreePanel(Vector2 viewport, float hudTop)
+    {
+        var panelWidth = Math.Max(1, Math.Min(840, viewport.X - 28));
+        familyTreePanel.CustomMinimumSize = Vector2.Zero;
+        familyTreeScroll.CustomMinimumSize = Vector2.Zero;
+
+        // Measure the heading, help text, frame padding and spacing without
+        // the tree viewport, then give the tree as much of the remaining
+        // screen height as its content needs. Long trees scroll inside this
+        // bounded area instead of making the panel run off-screen.
+        var panelChrome = Math.Max(0,
+            familyTreePanel.GetCombinedMinimumSize().Y - familyTreeScroll.GetCombinedMinimumSize().Y);
+        var topLimit = Math.Min(Math.Max(14, hudTop), Math.Max(14, viewport.Y - 14));
+        var availableHeight = Math.Max(1, viewport.Y - topLimit - 14);
+        var treeHeight = Math.Max(0, familyTreeView.GetCombinedMinimumSize().Y);
+        familyTreeScroll.CustomMinimumSize = new Vector2(0,
+            Math.Min(treeHeight, Math.Max(0, availableHeight - panelChrome)));
+        familyTreePanel.CustomMinimumSize = new Vector2(panelWidth, 0);
+
+        var panelHeight = Math.Min(availableHeight, familyTreePanel.GetCombinedMinimumSize().Y);
+        familyTreePanel.Size = new Vector2(panelWidth, panelHeight);
+        var maximumY = Math.Max(14, viewport.Y - panelHeight - 14);
+        var minimumY = Math.Min(topLimit, maximumY);
+        var centeredY = (viewport.Y - panelHeight) / 2;
+        familyTreePanel.Position = new Vector2((viewport.X - panelWidth) / 2,
+            Math.Clamp(centeredY, minimumY, maximumY));
     }
 
     private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
@@ -142,6 +166,27 @@ public partial class Main
             y = Math.Clamp(center.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
         }
         card.Position = new Vector2(x, y);
+    }
+
+    /// <summary>
+    /// Settings and Developer tools scroll inside the menu panel, as tall as
+    /// their contents but never taller than the screen leaves room for.
+    /// </summary>
+    private void FitMenuScrolls(float viewportHeight)
+    {
+        // Game and World share one width, so switching between them does not resize the menu.
+        settingsScroll.CustomMinimumSize = new Vector2(
+            Math.Max(gameSettingsContent.GetCombinedMinimumSize().X, worldSettingsContent.GetCombinedMinimumSize().X) +
+            SettingsScrollGap + settingsScroll.GetVScrollBar().GetCombinedMinimumSize().X, settingsScroll.CustomMinimumSize.Y);
+        foreach (var scroll in new[] { settingsScroll, developerScroll })
+        {
+            if (!scroll.IsVisibleInTree() || scroll.GetChildCount() == 0 || scroll.GetChild(0) is not Control content) continue;
+            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, 0);
+            var around = gameMenuPanel.GetCombinedMinimumSize().Y;
+            var height = Math.Clamp(content.GetCombinedMinimumSize().Y, 120, Math.Max(120, viewportHeight - 28 - around));
+            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, height);
+        }
+        gameMenuPanel.Size = gameMenuPanel.GetCombinedMinimumSize();
     }
 
     /// <summary>The agent card sits below the HUD when it fits, and slides up over it only when it is taller than the room left.</summary>

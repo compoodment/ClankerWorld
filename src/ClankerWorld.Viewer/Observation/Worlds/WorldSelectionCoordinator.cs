@@ -23,37 +23,71 @@ public sealed class WorldSelectionCoordinator(
     private readonly Dictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
-        string? HistoryArchiveHead, bool Restorable);
+        string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
 
     public WorldCatalogSnapshot List(CancellationToken cancellationToken = default)
     {
         var elapsed = Stopwatch.StartNew();
-        lock (gate)
+        var (worldCount, cacheHits, scans) = (0, 0, 0);
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = catalog.Capture();
-            var currentIds = snapshot.Worlds.Select(world => world.Id).ToHashSet(StringComparer.Ordinal);
-            foreach (var id in checkedCheckpoints.Keys.Where(id => !currentIds.Contains(id)).ToArray())
-                checkedCheckpoints.Remove(id);
-            var worlds = new CatalogWorld[snapshot.Worlds.Count];
-            var cacheHits = 0;
-            for (var index = 0; index < worlds.Length; index++)
+            lock (gate)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var world = snapshot.Worlds[index];
-                if (world.Id == snapshot.ActiveId)
-                    worlds[index] = world with { Compatibility = "compatible", CompatibilityReason = null };
-                else
+                var snapshot = catalog.Capture();
+                var currentIds = snapshot.Worlds.Select(world => world.Id).ToHashSet(StringComparer.Ordinal);
+                foreach (var id in checkedCheckpoints.Keys.Where(id => !currentIds.Contains(id)).ToArray())
+                    checkedCheckpoints.Remove(id);
+                var worlds = new CatalogWorld[snapshot.Worlds.Count];
+                worldCount = worlds.Length;
+                for (var index = 0; index < worlds.Length; index++)
                 {
-                    worlds[index] = Assess(world, out var cacheHit);
-                    if (cacheHit) cacheHits++;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var world = snapshot.Worlds[index];
+                    if (world.Id == snapshot.ActiveId)
+                        worlds[index] = WithThumbnail(world, () => runtime.ExportState().Map) with
+                        {
+                            Compatibility = "compatible",
+                            CompatibilityReason = null
+                        };
+                    else
+                    {
+                        worlds[index] = Assess(world, out var cacheHit);
+                        if (cacheHit) cacheHits++;
+                        else scans++;
+                    }
                 }
+                cancellationToken.ThrowIfCancellationRequested();
+                WorldSelectionTelemetry.Listed(logger, worldCount, cacheHits, scans, elapsed.ElapsedMilliseconds);
+                return snapshot with { Worlds = worlds };
             }
-            cancellationToken.ThrowIfCancellationRequested();
-            WorldSelectionTelemetry.Listed(logger, worlds.Length, cacheHits,
-                worlds.Length - 1 - cacheHits, elapsed.ElapsedMilliseconds);
-            return snapshot with { Worlds = worlds };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            WorldSelectionTelemetry.ListCanceled(logger, worldCount, cacheHits, scans, elapsed.ElapsedMilliseconds);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Worlds catalogued before thumbnails existed get one the first time they
+    /// are listed, from the map already at hand, and the catalog keeps it.
+    /// </summary>
+    private CatalogWorld WithThumbnail(CatalogWorld world, Func<SeededMap> map) =>
+        world.Thumbnail is not null ? world : WithThumbnail(world, WorldThumbnail.From(map()));
+
+    private CatalogWorld WithThumbnail(CatalogWorld world, WorldThumbnail? thumbnail)
+    {
+        if (world.Thumbnail is not null || thumbnail is null) return world;
+        try
+        {
+            catalog.RememberThumbnail(world.Id, thumbnail);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The list still shows it; the catalog can keep it next time.
+        }
+        return world with { Thumbnail = thumbnail };
     }
 
     private CatalogWorld Assess(CatalogWorld world, out bool cacheHit)
@@ -71,6 +105,7 @@ public sealed class WorldSelectionCoordinator(
                 checkedCheckpoints[world.Id] = checkedCheckpoint;
             }
             else cacheHit = true;
+            world = WithThumbnail(world, checkedCheckpoint.Thumbnail);
             if (!checkedCheckpoint.Restorable)
                 return Incompatible(world);
             // History files and provider credentials can change without a
@@ -101,21 +136,24 @@ public sealed class WorldSelectionCoordinator(
 
     private static CachedCheckpoint CheckCheckpoint(CatalogWorld world, byte[] bytes, string digest)
     {
+        WorldThumbnail? thumbnail = null;
         try
         {
             var checkpoint = PrivateWorldRuntimeCodec.Decode(bytes);
             if (checkpoint.Society.Society.WorldId != world.WorldId || checkpoint.WorldSeed != world.Seed)
                 throw new InvalidDataException("The selected world checkpoint does not match its catalog entry.");
+            // Keep the picture even if the restore below fails, as a full read did.
+            if (world.Thumbnail is null) thumbnail = WorldThumbnail.From(checkpoint.Map);
             // Structural validation is independent of the installation's mutable
             // provider routing. Credentials and assignments are checked in Assess.
             using var verified = PrivateWorldRuntime.Restore(checkpoint);
             return new CachedCheckpoint(world.WorldId, world.Seed, digest,
-                checkpoint.HistoryArchiveHead, true);
+                checkpoint.HistoryArchiveHead, true, thumbnail);
         }
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException or
             System.Text.Json.JsonException or FormatException or InvalidOperationException)
         {
-            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, false);
+            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, false, thumbnail);
         }
     }
 
@@ -135,7 +173,8 @@ public sealed class WorldSelectionCoordinator(
             // Preview is read-only. The title screen can preview a new map while
             // the currently selected world is running or waiting for a client;
             // Create and Select still require a confirmed pause.
-            var map = GeneratedCampMapGenerator.Generate(geography);
+            var selection = GeographyCandidateSelector.Select(geography);
+            var map = selection.Map;
             // The preview contract retains a suggested passable area for older
             // clients, but fresh maps have no placed camp or Town at this site.
             var camp = map.Resources.First(item => item.Id == "berry-patch").Position;
@@ -143,13 +182,16 @@ public sealed class WorldSelectionCoordinator(
             return new ViewerWorldPreview(OwnerWorldObservationStore.PackTerrain(map),
                 new ViewerPosition(camp.X, camp.Y), map.ManifestDigest, map.Resources.Count)
             {
-                PackedMapLayers = OwnerWorldObservationStore.PackMapLayers(map),
+                PackedMapLayers = OwnerWorldObservationStore.PackMapLayers(map, geography.Seed),
                 MapLayersDigest = MapLayerManifestCodec.Digest(map),
+                Coverage = selection.Selected,
+                Candidates = selection.Candidates,
             };
         }
     }
 
-    public CatalogWorld Create(string name, GeographyOptions geography)
+    public CatalogWorld Create(string name, GeographyOptions geography, int candidateAttempt,
+        string expectedManifestDigest, string expectedMapLayersDigest, bool acceptUnmetTargets)
     {
         ArgumentNullException.ThrowIfNull(geography);
         if (geography.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
@@ -157,8 +199,19 @@ public sealed class WorldSelectionCoordinator(
         lock (gate)
         {
             RequirePaused();
-            using var created = new PrivateWorldRuntime(geography.Seed, providerFactory,
-                startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+            // Regenerate the bounded selection once so the signed create action
+            // can be checked against the exact preview identity.
+            var selection = GeographyCandidateSelector.Select(geography with { CandidateAttempt = 0 });
+            if (candidateAttempt != selection.Map.GenerationAttempt ||
+                !string.Equals(expectedManifestDigest, selection.Map.ManifestDigest, StringComparison.Ordinal) ||
+                !string.Equals(expectedMapLayersDigest, MapLayerManifestCodec.Digest(selection.Map), StringComparison.Ordinal))
+                throw new InvalidOperationException("The preview is out of date. Preview the map again before creating it.");
+            if (!selection.Selected.MeetsTargets && !acceptUnmetTargets)
+                throw new InvalidOperationException("The selected map misses the displayed trial targets. Accept its coverage explicitly or choose a new seed.");
+
+            var chosenOptions = geography with { CandidateAttempt = candidateAttempt };
+            using var created = PrivateWorldRuntime.CreateFromGeneratedGeography(geography.Seed,
+                chosenOptions, selection.Map, providerFactory);
             created.InitializeFirstTownContent();
             var entry = catalog.Add(name, created.ExportState());
             SelectCore(entry, created.ExportState());

@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # What works today
@@ -29,11 +29,12 @@ test alone does not make it available in the game.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
-| Choose the first Town and place four founders before starting | Available in the game | Fixed five-building starter layout; suitability guidance and player-chosen supplies are unfinished. |
+| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
+| Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
+| Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
-| Display and interface settings | Available in the game | Themes, window/render sizes, UI Scale (Automatic, 100%, 200%, 300% or 400%, enlarging the whole interface), weather switches and date/time formats. Windows visual and keyboard acceptance is still being checked. |
+| Display and interface settings | Available in the game | Themes, window size, weather switches and date/time formats. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
@@ -44,6 +45,17 @@ and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.
+
+Default Balanced Small/Medium previews measure forests and mountains against
+dry land and try at most three deterministic maps for the Normal settings. The
+preview shows every candidate's coverage and creates the exact selected map.
+If a selected map misses a target, Create World stays unavailable until the
+player accepts the displayed result or changes the seed. Uniform Dry and
+polar-only settings do not use those trial bands; each band applies only while
+its own forest or mountain control is Normal. This is connected to the normal
+owner/server path; the current measurements are
+automated fixture evidence, not a Windows visual playtest or a final balance
+claim.
 
 World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
@@ -61,8 +73,22 @@ check and the listed model names have been tested against recorded sample
 replies, not yet against live provider accounts. Jev can be switched on or off
 for a paused world.
 When a personal model names a new agent, it gets a stable first-letter hint to
-encourage varied names. The hint does not prevent two agents choosing the same
-full name.
+encourage varied names. If the chosen full name matches another agent's name
+after Unicode normalization, case folding and whitespace cleanup, the game
+asks once more without showing the other name. Deceased agents still count.
+If the second answer is unavailable or also taken, the person keeps the
+placeholder name until the player changes it.
+
+A child's personal model is recorded at birth from the parents' explicit
+personal assignments. When those differ, the parent who began the family plan
+is the disclosed tie-break. Infants make no personal-model calls. After
+infancy, the child uses the saved model only when its original key is available
+and normal call checks allow it; if the key is missing, built-in choices keep
+the child safe and the game does not substitute another paid model. The child
+card shows the selected model or that it needs setup. Children whose parents
+have no explicit model remain unconfigured; world defaults are not inherited.
+The owner can later choose a different personal model or explicitly clear it;
+that setting is saved, and a cleared child continues with built-in choices.
 
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
@@ -77,10 +103,14 @@ people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
 
-One slow model can wait while other agents and the world continue. A failed or
-low-confidence response uses only the explicit safe fallback; it does not invent
-an important choice or complete a firm instruction. The paired Windows/model-wait
-check remains in [the playtest checklist](https://github.com/compoodment/ClankerWorld/issues/285).
+One slow model can wait while other agents and the world continue. A legal
+choice is accepted even when the model reports low confidence. A failed or
+unusable reply uses the safe fallback and finishes that attempt without another
+paid repair request. The agent card shows whether the model is ready, waiting,
+canceled, missing a key, out of allowed calls, unable to give a usable reply,
+timed out or unavailable. It shows the last accepted model choice separately.
+Those facts survive a refresh and save/reload. The paired Windows/model-wait
+check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. This is a basic version. The game understands only orders to gather
@@ -91,21 +121,29 @@ requests. The card does not yet show which orders are still waiting.
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
-rank existing memories during a normal call. Automatic capture of experiences,
-generated memory summaries and full conversations are unfinished.
+rank existing memories during a normal call. Agents can also start a nearby
+public conversation: each speaker uses their own assigned planning model,
+accepted speech is saved with the people who could hear it, and only those
+listeners receive a hearsay memory. A conversation can have up to six public
+turns and one wrap-up; both people must accept the same wrap-up before its
+structured effect applies. These conversation and daily-call limits are still
+provisional and need a Windows playtest. Private thoughts are never shared as
+conversation history. Other automatic experience capture and generated memory
+summaries remain unfinished.
 
 ## Life, work and society
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
-| Gathering and carrying | Basic version | Agents gather and eat food, keep a hearth burning, and collect the starter axe and pickaxe. They carry grain to the Farmhouse, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Work follows the buildings a household holds, not a role. The household holding the Farmhouse grows universal grain on fertile land and mills it into flour there; the household holding the Blacksmith makes wooden axes and pickaxes, and mines iron ore where an outcrop can be reached. Refining ore is offered once ore and wood are both at the Blacksmith, but in offline runs the household used its wood on tools first, so refining has not been seen. The household holding a Tailor Shop weaves plant fiber into cloth and sews cloth into clothing there, carrying fiber in from its own stock or gathering it; an adult without clothing collects a finished garment from the shop. Any household can cook in its own House. A communal workstation, which no household holds, serves any agent, but a normal game does not build one yet. Flour has no further use yet, and recipes, capacity, wear and logistics remain unfinished. |
-| Building new buildings | Basic version | A household plans only buildings it needs for itself: a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first; in offline runs the first household built a Blacksmith and the second a Farmhouse within two world days. Only the household holding a Farmhouse builds a Silo, within two tiles of it, and its harvests other than ready food are stored there. The Town's shared buildings, Warehouse expansion and Store are not offered yet. |
+| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
+| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. Quantities, work times, yields and farm planning remain provisional. |
+| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
+| Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
-| Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
-| Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores and shared-food council. Multiple Town founding, broader law, currencies and land disputes remain unfinished. |
+| Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
+| Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -119,12 +157,31 @@ remain unfinished. Memories do not automatically pass to children.
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
 building away from the Roads gets a new side street. Town borders and
-building-site ranking are provisional. Adults placed on an
-owned building join its household; unclaimed Town placement joins the Town
-without a household; outside a Town it starts an independent household. Finding
-existing suitable housing before proposing a new House is not finished. Agents
-without a household cannot build a House; in fresh worlds they rely on clothing
-and natural storm cover until housing is resolved. New Shelters, Storehouses,
+building-site ranking are provisional. Add Agent uses the recorded tile
+ownership: one household-owned building footprint sets the household, and one
+Town border also gives Town membership. Unclaimed land in one Town gives Town
+membership without a household; land outside a Town starts an independent
+household. Overlapping household footprints or Town borders are refused, and
+the server checks the preview against current records again when the adult is
+placed. Walking does not change membership. An adult with no household cannot
+build a House. Instead they can ask a household that holds a House in their
+Town to take them in. Every adult member of that household must agree within
+the same short window as other proposals; one refusal or no answer ends the
+request, and that household is not asked again for two world days. Standing
+beside a House grants nothing, and a pending request grants no access to the
+household's food, stock or shelter. Once every adult agrees, the newcomer is a
+member of that household. The agent's profile and its own model request say
+the real blocker: no household, a House still to plan, missing materials or no
+legal site. [Solo formation and departure](game-design/towns.md#household-membership),
+with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
+are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+The agreed [House resident limits and relocation rules](game-design/towns.md#house-resident-capacity-and-relocation)
+likewise await [#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+Until solo formation works, an adult nobody takes in relies on clothing and
+natural storm cover. This is a basic
+version: it has not been checked by hand in the Windows game yet. New Shelters,
+Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
@@ -224,14 +281,14 @@ been chosen. Multiplayer and public worlds are outside the current plan.
 ## Work and testing still to do
 
 [Issues](https://github.com/compoodment/ClankerWorld/issues) holds bugs, work,
-experiments and open decisions. [The Windows and paired-world checklist](https://github.com/compoodment/ClankerWorld/issues/285)
-records tests still needed for source fixes. Code, tests and exports are evidence
+experiments and open decisions. [The playtest list](../playtest/README.md)
+records hands-on checks still needed for merged changes. Code, tests and exports are evidence
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
 
-New World includes relative Advanced terrain controls and a resettable 50%-water
-preset for Small and Medium. All settings feed the matching preview and saved
-generation options. See [Advanced New World settings](playing.md#advanced-new-world-settings);
+New World includes Low/Normal/High terrain controls under More options and a
+resettable 50%-water preset for Small and Medium. All settings feed the matching
+preview and saved generation options. See [More New World options](playing.md#more-new-world-options);
 Windows interaction and real preview latency still need playtesting.
 
 ## Permanent deletion

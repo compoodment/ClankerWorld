@@ -53,6 +53,8 @@ public sealed partial class ViewerHttpTests
             using var canceled = new CancellationTokenSource();
             canceled.Cancel();
             Assert.Throws<OperationCanceledException>(() => selection.List(canceled.Token));
+            Assert.Contains(listLog.Messages, message => message.Contains(
+                "world_list outcome=canceled worlds=0 cache_hits=0 scans=0", StringComparison.Ordinal));
             Assert.Equal("compatible", selection.List().Worlds.Single(world => world.Id == entry.Id).Compatibility);
             selection.Select(entry.Id);
             Assert.Equal(entry.WorldId, runtime.Society.WorldId);

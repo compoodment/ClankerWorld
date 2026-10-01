@@ -5,4 +5,7 @@
          Godot desktop projects retain this .NET 8 script target. -->
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../ClankerWorld.Shared/AgentPlacementRules.cs" Link="Shared/AgentPlacementRules.cs" />
+  </ItemGroup>
 </Project>

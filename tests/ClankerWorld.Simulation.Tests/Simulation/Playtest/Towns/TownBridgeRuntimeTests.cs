@@ -19,8 +19,11 @@ public sealed class TownBridgeRuntimeTests
 {
     private const string GrowthSeed = "town-bridge-5";
     private static readonly GridPoint GrowthTownSite = new(86, 3);
-    private static readonly GridPoint GrowthBuildingSite = new(92, 2);
+    private static readonly GridPoint GrowthBuildingSite = new(89, 5);
     private const string GrowthBridgeId = "bridge-90-3-ew-2";
+    private static readonly GridPoint RunOnTownSite = new(85, 5);
+    private static readonly GridPoint RunOnBuildingSite = new(89, 4);
+    private const string RunOnBridgeId = "bridge-90-5-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -142,7 +145,7 @@ public sealed class TownBridgeRuntimeTests
         var town = Assert.Single(first.Towns);
         var farBank = bridges.Single().Entrances[1];
         var neighbor = map.Tiles.Select(tile => tile.Position)
-            .Where(point => point.X > farBank.X && map.FootDistance(point, GrowthBuildingSite) <= 3)
+            .Where(point => point.X >= farBank.X && map.FootDistance(point, GrowthBuildingSite) <= 3)
             .OrderBy(point => map.FootDistance(point, GrowthBuildingSite)).ThenBy(point => point.Y).ThenBy(point => point.X)
             .First(point => map.IsBuildable(point) && !occupied.Contains(point) && !roads.Contains(point) &&
                 TownBorderRules.IsWithinOrAdjacent(town, point, 1, 1));
@@ -156,16 +159,19 @@ public sealed class TownBridgeRuntimeTests
     {
         // The workshop faces an existing street, so no new side street is
         // needed; a nearby dead end then runs on and meets a two-tile river.
-        using var world = await GrowthWorldAsync();
+        using var world = await GrowthWorldAsync(townSite: RunOnTownSite);
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var roadsBefore = world.RoadTiles.ToHashSet();
         var eventsBefore = world.ExportState().Events.Count;
+        Assert.Contains(roadsBefore, tile => WorldContentSimulationRules.IsEntrance(workshop, RunOnBuildingSite, tile));
 
-        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(85, 2));
+        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, RunOnBuildingSite);
         Assert.True(placed.Applied, placed.Failure);
+        Assert.Contains(Assert.IsType<GridPoint>(world.WorldSimulation.Buildings.Single(
+            building => building.InstanceId == "bridge-run-on").Entrance), roadsBefore);
 
         var bridge = Assert.Single(world.Bridges);
-        Assert.Equal((GrowthBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
+        Assert.Equal((RunOnBridgeId, BridgeTriggers.Road, $"road:{TownBorderRules.FirstTownId}:bridge-run-on"),
             (bridge.Id, bridge.Trigger, bridge.RouteId));
         var events = world.ExportState().Events.Skip(eventsBefore).Select(item => item.Kind).ToArray();
         Assert.DoesNotContain("town_road_generated", events);
@@ -210,20 +216,21 @@ public sealed class TownBridgeRuntimeTests
         Assert.True(withoutBuilding.ExportState().Map.IsReachableOnFoot(bridge.Entrances[0], bridge.Entrances[1]));
 
         // A Road bridge whose Road ends were lost, a missing bridge list, an
-        // older schema carrying bridges, or a deck over dry land is refused.
+        // or a deck over dry land is refused.
         PrivateWorldRuntimeState[] damaged =
         [
             state with { RoadTiles = state.RoadTiles!.Where(tile => tile != bridge.Entrances[1]).ToArray() },
             state with { Bridges = null },
             state with { BridgeTraffic = null },
-            state with { SchemaVersion = 27 },
             state with { Bridges = [bridge with { Span = [bridge.Entrances[0], bridge.Span[1]] }] },
         ];
         foreach (var item in damaged)
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(item));
         var bytes = PrivateWorldRuntimeCodec.Encode(state);
-        var tampered = System.Text.Encoding.UTF8.GetString(bytes).Replace(GrowthBridgeId, "bridge-221-4-ew-1", StringComparison.Ordinal);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(tampered)));
+        var tampered = System.Text.Encoding.UTF8.GetString(bytes).Replace(bridge.Id, "bridge-221-4-ew-1", StringComparison.Ordinal);
+        var tamperedBytes = System.Text.Encoding.UTF8.GetBytes(tampered);
+        Assert.False(bytes.AsSpan().SequenceEqual(tamperedBytes));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(tamperedBytes));
     }
 
     [Fact]
@@ -340,7 +347,20 @@ public sealed class TownBridgeRuntimeTests
             geographyOptions: geography);
         setup.InitializeFirstTownContent();
         setup.AcceptFirstTownLayout(setup.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position);
-        var founders = new[] { new GridPoint(128, 60), new GridPoint(129, 60), new GridPoint(130, 60), new GridPoint(131, 60) };
+        var initialMap = setup.ExportState().Map;
+        var definitions = setup.WorldContent.Buildings.ToDictionary(item => item.CanonicalId);
+        var occupied = initialMap.Resources.Select(item => item.Position)
+            .Concat(initialMap.CampObjects.Select(item => item.Position))
+            .Concat(setup.RoadTiles)
+            .Concat(setup.WorldSimulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position)))
+            .ToHashSet();
+        var founders = initialMap.Tiles.Select(tile => tile.Position)
+            .Where(point => initialMap.IsBuildable(point) && !occupied.Contains(point))
+            .OrderBy(point => Math.Abs(point.X - 128) + Math.Abs(point.Y - 60))
+            .ThenBy(point => point.Y).ThenBy(point => point.X)
+            .Take(PrivateWorldRuntime.RequiredFounders).ToArray();
+        Assert.Equal(PrivateWorldRuntime.RequiredFounders, founders.Length);
         for (var index = 0; index < founders.Length; index++)
             setup.PlaceFounder($"founder:0000000000000000000000000000000{index + 1}", founders[index]);
         setup.StartWorld();

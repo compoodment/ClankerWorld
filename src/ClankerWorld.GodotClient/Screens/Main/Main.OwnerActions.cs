@@ -372,6 +372,7 @@ public partial class Main
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
         founderModelPicker.Editable = !actionDisabled;
+        founderModelSetupCheckButton.Disabled = actionDisabled;
         founderApiKeyInput.Editable = !actionDisabled;
         founderKeyLabelInput.Editable = !actionDisabled;
         var infantSelected = selected?.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant") == true;
@@ -404,6 +405,7 @@ public partial class Main
         cognitionProviderChoice.Disabled = actionDisabled;
         cognitionCredentialChoice.Disabled = actionDisabled;
         cognitionModelPicker.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        cognitionModelSetupCheckButton.Disabled = actionDisabled;
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionCredentialLabelInput.Editable = !actionDisabled;
         refreshCognitionProviderButton.Disabled = actionDisabled;
@@ -421,7 +423,8 @@ public partial class Main
         forgetCognitionCredentialButton.Disabled = actionDisabled || selectedProvider == "deterministic" ||
             selectedProviderStatus?.HasCredential != true;
         deleteCognitionCredentialSlotButton.Disabled = actionDisabled ||
-            providerConfiguration?.Assignments?.Any(item => item.CredentialSlotId == SelectedCredentialChoice()) == true;
+            providerConfiguration?.Assignments?.Any(item =>
+                item.CredentialSlotId == SelectedCredentialChoice() && item.SelectionReason is null) == true;
         // A public key can have only one pending server pairing. Keep the
         // visible comparison value stable until it expires or activates.
         pairButton.Disabled = isPairingOperation || deviceKey is null || pendingPairing is not null || registration is not null;

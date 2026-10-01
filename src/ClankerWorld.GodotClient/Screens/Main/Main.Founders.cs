@@ -1,4 +1,5 @@
 using ClankerWorld.GodotClient.UI;
+using ClankerWorld.AgentPlacement;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -97,34 +98,56 @@ public partial class Main
             CancelFirstTownSiteSelection();
             return;
         }
-        if (observationSession.Current?.Baseline.Snapshot.FounderSetup is not
-            { CanChooseTownSite: true }) return;
+        if (observationSession.Current?.Baseline.Snapshot is not
+            { FounderSetup: { CanChooseTownSite: true } } snapshot) return;
         choosingFirstTownSite = true;
-        townSiteButton.Text = TownSiteButtonText(observationSession.Current.Baseline.Snapshot.FounderSetup);
+        townSiteButton.Text = TownSiteButtonText(snapshot.FounderSetup);
         founderApiKeyInput.Text = string.Empty;
         founderSetupPanel.Hide();
-        SetStatus("Click buildable land to generate the first Town. Choose again to redo before placing founders.", good: true,
+        UpdateTownSiteGuidance(snapshot, force: true);
+        SetStatus("Town-site tips are guidance only: greener land has more nearby food, fertile ground, wood and stone, plus room for Roads. Layout fit is checked when chosen.", good: true,
             StatusToastKind.Sticky);
+        UpdateHoverReadout(snapshot, hoverReadoutTile);
     }
 
     private void CancelFirstTownSiteSelection()
     {
         choosingFirstTownSite = false;
         townSiteButton.Text = TownSiteButtonText(observationSession.Current?.Baseline.Snapshot.FounderSetup);
+        UpdateTownSiteGuidance(null);
+        UpdateHoverReadout(observationSession.Current?.Baseline.Snapshot, hoverReadoutTile);
         SetStatus("Town-site selection closed", good: true);
     }
 
+    private void UpdateTownSiteGuidance(OwnerWorldSnapshot? snapshot, bool force = false)
+    {
+        if (!choosingFirstTownSite || terrainMap is null ||
+            snapshot?.FounderSetup is not { CanChooseTownSite: true })
+        {
+            terrainLayer.SetTownSiteGuidance(null);
+            return;
+        }
+        if (force || terrainLayer.CurrentTownSiteGuidance is null)
+            terrainLayer.SetTownSiteGuidance(TownSiteGuidance.Create(terrainMap, snapshot));
+    }
+
+    private bool CanSubmitFirstTownSiteChoice(OwnerWorldSnapshot snapshot, Vector2I tile) =>
+        choosingFirstTownSite && snapshot.FounderSetup is { CanChooseTownSite: true } &&
+        MapContains(snapshot, tile.X, tile.Y);
+
     private async Task AcceptFirstTownSiteAtAsync(Vector2I tile)
     {
-        if (!choosingFirstTownSite || isOwnerAction ||
-            observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { CanChooseTownSite: true } } snapshot ||
-            !MapContains(snapshot, tile.X, tile.Y) ||
+        if (isOwnerAction ||
+            observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            !CanSubmitFirstTownSiteChoice(snapshot, tile) ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
             var result = await ownerApi.AcceptFirstTownLayoutAsync(ResolveWorldUri(), authority, deviceId,
                 new OwnerFirstTownLayoutAction(tile.X, tile.Y), signer, CancellationToken.None);
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            UpdateHoverReadout(snapshot, hoverReadoutTile);
             return $"Your Town is set: {result.Buildings} buildings and {result.RoadTiles} road tiles near {result.X}, {result.Y}. Add founders, or pick a different spot.";
         });
     }
@@ -143,6 +166,7 @@ public partial class Main
         founderProviderChoice.ItemSelected += _ =>
         {
             founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
+            ClearFounderModelSetupCheck();
             PopulateFounderCredentials();
         };
         body.AddChild(founderProviderChoice);
@@ -150,6 +174,7 @@ public partial class Main
         // The key comes before the model, since the key decides which models are offered.
         founderCredentialChoice.ItemSelected += _ =>
         {
+            ClearFounderModelSetupCheck();
             RenderFounderCredentialInputs();
             RequestFounderModels();
         };
@@ -163,7 +188,16 @@ public partial class Main
 
         founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
+        founderModelPicker.ModelChanged += ClearFounderModelSetupCheck;
         body.AddChild(founderModelPicker);
+        founderModelSetupCheckButton.Text = "Test model · 1 paid call";
+        founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(founderModelSetupCheckButton);
+        founderModelSetupCheckButton.Pressed += () => _ = RunFounderModelSetupCheckAsync();
+        body.AddChild(founderModelSetupCheckButton);
+        founderModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        founderModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(founderModelSetupCheckStatus);
         // Placement hints wrap differently as the pointer crosses the map.
         // Keep them after the fields so those click targets never move.
         body.AddChild(founderSetupHint);
@@ -188,6 +222,7 @@ public partial class Main
 
     private void PopulateFounderCredentials()
     {
+        ClearFounderModelSetupCheck();
         founderCredentialChoice.Clear();
         founderCredentialChoice.AddItem("Default key for this provider");
         founderCredentialChoice.SetItemMetadata(0, "default");
@@ -278,6 +313,12 @@ public partial class Main
             SetStatus("Click empty land or a House.", good: false);
             return;
         }
+        var membership = ResolveAgentPlacement(snapshot, tile);
+        if (membership.IsAmbiguous)
+        {
+            SetStatus(PlacementRefusalText(membership.Ambiguity), good: false);
+            return;
+        }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var provider = SelectedFounderProvider();
         var model = founderModelPicker.Model;
@@ -305,21 +346,21 @@ public partial class Main
             await RunOwnerActionAsync(async () =>
             {
                 var receipt = await ownerApi.PlaceAgentAsync(ResolveWorldUri(), authority, deviceId,
-                    new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition), signer, CancellationToken.None);
+                    new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition,
+                        membership.HouseholdIdFor(agentId), membership.TownId), signer, CancellationToken.None);
                 providerConfiguration = await ownerApi.GetProviderStatusAsync(
                     ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
                 placingAddedAgent = false;
                 founderSetupPanel.Hide();
                 if (receipt.HouseholdId is null)
                 {
-                    var townName = snapshot.Towns.FirstOrDefault(item =>
-                        item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y))?.Name ?? "a Town";
+                    var townName = snapshot.Towns.FirstOrDefault(item => item.Id == receipt.TownId)?.Name ?? "a Town";
                     return $"Agent joined {townName} without a household";
                 }
                 var newHousehold = receipt.HouseholdId == "household:" + agentId;
                 return newHousehold ? "Agent placed in a new independent household"
                     : $"Agent joined {GameUiText.PartyName(snapshot, receipt.HouseholdId)}";
-            });
+            }, conflictMessage: "The placement changed. Check the tile and try again.");
         }
         finally
         {
@@ -404,12 +445,21 @@ public partial class Main
         addAgentButton.Visible = setup is { Started: true };
         if (setup is not { Started: false })
         {
+            var wasChoosingTownSite = choosingFirstTownSite;
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
             movingFounderId = null;
             if (!placingAddedAgent) founderSetupPanel.Hide();
             return;
         }
-        if (!setup.CanChooseTownSite) choosingFirstTownSite = false;
+        if (!setup.CanChooseTownSite)
+        {
+            var wasChoosingTownSite = choosingFirstTownSite;
+            choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
+        }
         townSiteButton.Text = TownSiteButtonText(setup);
         if (movingFounderId is not null && !snapshot.Inhabitants.Any(person => person.Id == movingFounderId))
         {
@@ -429,7 +479,7 @@ public partial class Main
 
     private void ResetAddAgentPlacementHint()
     {
-        founderSetupHint.Text = "Pick a provider, model and key for this adult, then point at a tile. On a household's property they join that household. On other Town land they join the Town only. Outside the Town they start their own household. House tiles can be shared.";
+        founderSetupHint.Text = "Pick a provider, model and key, then point to a tile. The preview shows where the agent will belong; overlapping property or Town borders are refused, and House tiles can be shared.";
     }
 
     private void PreviewAddAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
@@ -445,16 +495,48 @@ public partial class Main
             founderSetupHint.Text = "Point at empty land or a House to see where this adult would belong.";
             return;
         }
-        var ownerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
-            tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
-        var town = snapshot.Towns.FirstOrDefault(item =>
-            item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
-        var home = ownerId is not null
+        var membership = ResolveAgentPlacement(snapshot, tile);
+        if (membership.IsAmbiguous)
+        {
+            founderSetupHint.Text = PlacementRefusalText(membership.Ambiguity);
+            return;
+        }
+        var town = membership.TownId is null
+            ? null
+            : snapshot.Towns.FirstOrDefault(item => item.Id == membership.TownId);
+        var home = membership.HouseholdPropertyOwnerId is { } ownerId
             ? GameUiText.PartyName(snapshot, ownerId)
             : town is null ? "new independent household" : "none";
         founderSetupHint.Text = $"Tile {tile.X}, {tile.Y} · Household: {home} · Town: {town?.Name ?? "no Town"}. " +
             "Placement requires a passable tile, no conflicting occupant outside a House, and server validation.";
+    }
+
+    private static AgentPlacementResolution ResolveAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
+    {
+        var householdOwners = snapshot.PlacedBuildings
+            .Where(item => item.HouseholdId is not null &&
+                tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
+                tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)
+            .Select(item => item.HouseholdId)
+            .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
+                .Select(item => (string?)item.HouseholdId));
+        var townIds = snapshot.Towns
+            .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y))
+            .Select(item => item.Id);
+        return AgentPlacementRules.Resolve(householdOwners, townIds);
+    }
+
+    private static string PlacementRefusalText(AgentPlacementAmbiguity ambiguity)
+    {
+        var household = (ambiguity & AgentPlacementAmbiguity.HouseholdProperty) != 0;
+        var town = (ambiguity & AgentPlacementAmbiguity.TownBorders) != 0;
+        return (household, town) switch
+        {
+            (true, true) => "Household property and Town borders overlap here. Choose another tile.",
+            (true, false) => "Household property overlaps here. Choose a tile with one clear household owner.",
+            (false, true) => "Town borders overlap here. Choose a tile inside only one Town.",
+            _ => "This tile cannot be used for Add Agent.",
+        };
     }
 
     private static bool IsHouseAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>

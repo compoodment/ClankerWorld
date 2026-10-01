@@ -16,6 +16,8 @@ public partial class Main : Control
     private const int DefaultTileSize = 96;
     private const int TileGap = 0;
     private const int RefreshSeconds = 1;
+    /// <summary>Space between the settings boxes and the scrollbar, in interface pixels.</summary>
+    private const int SettingsScrollGap = 10;
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
     private const string AppIconPath = "res://icon.ico";
@@ -53,6 +55,7 @@ public partial class Main : Control
     private readonly Button pairAgainButton = new();
     private readonly Label connectionStatusLabel = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
+    private readonly PanelContainer usageLimitPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
@@ -115,6 +118,7 @@ public partial class Main : Control
     private readonly Button familyTreeButton = new();
     private readonly PanelContainer familyTreePanel = new();
     private readonly FamilyTreeView familyTreeView = new();
+    private readonly ScrollContainer familyTreeScroll = new();
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
@@ -133,6 +137,7 @@ public partial class Main : Control
     private readonly RichTextLabel selectedTileText = new();
     private Vector2I? selectedTile;
     private readonly PanelContainer gameMenuPanel = new();
+    private readonly VBoxContainer menuActions = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
     private readonly ColorRect appBackdrop = new();
@@ -147,15 +152,12 @@ public partial class Main : Control
     private readonly ConfirmationDialog quitGameConfirmation = new();
     private readonly CheckButton fullscreenToggle = new();
     private readonly OptionButton windowSizeChoice = new();
-    private readonly OptionButton renderResolutionChoice = new();
-    private readonly OptionButton uiScaleChoice = new();
     private static readonly Vector2I[] DisplaySizePresets =
     [
         new(1280, 720),
         new(1600, 900),
         new(1920, 1080),
     ];
-    private readonly List<Vector2I> renderSizeOptions = [];
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
@@ -164,7 +166,7 @@ public partial class Main : Control
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
 
-    private readonly Button pauseButton = new();
+    private readonly BoldTextButton pauseButton = new() { Captions = ["Pause", "Paused"] };
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
     private readonly Label pendingSubmissionLabel = new();
@@ -261,9 +263,14 @@ public partial class Main : Control
         BuildLayout();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
-        ApplyUiScale(displayPreferences.UiScalePercent);
-        GetWindow().SizeChanged += RefreshAutomaticRenderResolution;
+        ApplyUiScale();
+        GetWindow().SizeChanged += RefreshRenderSize;
         ShowMainMenu();
+        if (OS.GetCmdlineUserArgs().Contains("--measure-map-draw", StringComparer.Ordinal))
+        {
+            _ = MeasureMapDrawAsync();
+            return;
+        }
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
             _ = VerifyMenuLayoutAsync();

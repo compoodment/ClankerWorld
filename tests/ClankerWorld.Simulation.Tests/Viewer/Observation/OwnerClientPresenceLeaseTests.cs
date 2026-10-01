@@ -81,16 +81,17 @@ public sealed class OwnerClientPresenceLeaseTests
                 new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence, logger);
             presence.RecordAuthenticatedReconnect("owner");
             Assert.True(await service.TryAdvanceOnceAsync());
-            await provider.Retried.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
             for (var attempt = 0; attempt < 50 &&
                  !logger.Messages.Any(message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
-                     message.Contains("provider_failure", StringComparison.Ordinal)); attempt++)
+                     message.Contains("model_unavailable", StringComparison.Ordinal)); attempt++)
             {
                 await service.TryAdvanceOnceAsync();
                 await Task.Delay(10);
             }
             Assert.Contains(logger.Messages, message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
-                message.Contains("provider_failure:HttpRequestException", StringComparison.Ordinal));
+                message.Contains("model_unavailable", StringComparison.Ordinal));
+            Assert.Equal(1, provider.Calls);
             Assert.All(logger.Messages.Where(message => message.Contains("hosted_decision tick=", StringComparison.Ordinal)),
                 message => Assert.Contains($"inhabitant={actorId} outcome=", message, StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("super-secret-api-key", StringComparison.Ordinal));
@@ -103,14 +104,15 @@ public sealed class OwnerClientPresenceLeaseTests
 
     private sealed class ThrowingHostedProvider : IDecisionProvider
     {
-        private int calls;
-        public TaskCompletionSource<bool> Retried { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Calls { get; private set; }
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public DecisionProviderKind Kind => DecisionProviderKind.Jev;
         public long ProviderEpoch => 1;
         public ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
-            if (Interlocked.Increment(ref calls) >= 2) Retried.TrySetResult(true);
+            Calls++;
+            Started.TrySetResult(true);
             throw new HttpRequestException("super-secret-api-key-must-not-appear");
         }
     }

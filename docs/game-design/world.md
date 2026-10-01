@@ -214,6 +214,27 @@ accounting details need design and playtesting.
 - **Hills at the base of mountains (September 30):** hills are added around
   mountain regions as a **visual layer only**. For now, a hill costs the same to
   walk as grass. Mountain and peak rules, described below, are unchanged.
+- **Agreed after the October 1 playtest:**
+  - **Fertility is a property of the land**, not an object. Every dry land
+    tile has a fertility, from its climate, rainfall and surface, and fertile
+    land is common. Meadow near water is usually rich; dry scrub is poor;
+    sand, rock, mountains and snow can't be farmed. An agent with a hoe tills
+    chosen tiles into visible field squares, and crops grow only on tilled
+    tiles, so a household's fields can be as small or as large as it makes
+    them. "Fertile soil" sites go away. Exact numbers, soil wear and fields
+    returning to grass are open
+    ([#579](https://github.com/compoodment/ClankerWorld/issues/579)).
+  - **Cacti come back** as plant cover on desert sand only. This replaces the
+    earlier tentative exclusion.
+  - **Beaches are patchy:** some stretches of coast have sand and others run
+    straight to grass, instead of sand along most of the shore.
+  - **Grass forests are denser:** many grass-forest tiles carry a tree, though
+    not every one; forest-floor tiles still always do. This needs a larger
+    per-area object budget, a performance trade-off to measure.
+  - **Desert sand must look like dry sand**, including where dry scrub grows
+    on it, and **snow** needs visible variation and a softer edge into
+    neighbouring land rather than flat white with a stark border. Hills and
+    mountains, and Roads and buildings standing on hills, are to be redrawn.
 - **Leaning toward (provisional, to tune in playtests):** one orchard fruit tree
   species, which fruits in autumn. The orchard tree itself is already accepted
   in [Planned game content](content-list.md); its yield and other details
@@ -251,26 +272,34 @@ equally often. A severe episode lasts **no more than three-quarters of a game
 day** and is followed by at least **half a game day without severe weather** in
 that region. When an episode changes, wet neighboring regions should make rain
 somewhat more likely, without forcing the same weather across the map. The
-strength of that influence and the overall rain frequency are still open for
-playtesting.
+strength of that influence is still open for playtesting. **After the
+October 1 playtest**, rain should come about **25% less often** than in the
+first generated worlds; the exact weights stay provisional.
 
 ### River crossings and visible forests and mountains
 
-At default settings, generated worlds should visibly include forests and
-mountain regions rather than relying on rare seeds to reveal them. For
-**Balanced Small and Medium**, use initial playtest targets of **20–40% forest**
-and **5–12% mountains**, measured against dry land. These are targets to test
-and tune, not a promise that every climate or world size has the same coverage.
-Uniform Dry and polar regions must not acquire inappropriate trees just to
-meet a forest target. Forest and mountain areas should form readable regions;
-their exact connected-patch minimum remains to be tuned.
+At the default **Balanced Small and Medium** settings, with forest cover and
+mountain relief both set to **Normal**, generated worlds should visibly include
+forests and mountain regions rather than relying on rare seeds to reveal them.
+The initial playtest targets are **20–40% forest** and **5–12% mountains**,
+measured against dry land. These are targets to test and tune, not a promise
+that every climate or world size has the same coverage. Uniform Dry and
+polar-only choices do not receive these targets. Low and High forest/mountain
+settings remain distinct choices and are not forced into the Normal bands.
 
-Try at most **three deterministic candidates** for the selected seed and
-settings. Identify the chosen candidate in the exact preview so Create World
-uses that same map. If none meets its eligible targets, show what was missed
-and let the player choose another seed or explicitly accept the result; do not
-silently substitute a different map. Larger-size targets and preview latency
-remain subject to measurement and playtesting.
+Try at most **three deterministic candidates** when at least one Normal trial
+target applies; otherwise use one map. Identify the chosen candidate in the
+exact preview so Create World uses that same map. If none meets its eligible
+targets, show the selected coverage and all candidate results, then let the
+player choose another seed or explicitly accept the misses; do not silently
+substitute a different map. Larger-size targets and preview latency remain
+subject to measurement and playtesting.
+
+Forest and mountain areas should form readable regions. The generator uses
+connected-region size only to break ties between equally good candidates; it
+does not impose a minimum patch size. Region measurement joins diagonal
+neighbors and wraps east/west only when the selected map wraps, never across
+the north or south map edge.
 
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. The world automatically adds bridges at sufficiently used
@@ -298,9 +327,16 @@ Boats belong to a **Town**, not a household. Town residents may use its communal
 boats; visitors need permission. Reserve each physical boat for only one
 journey at a time, and persist the boat, traveler and carried goods together
 across save/load. A blocked destination cannot teleport or duplicate any of
-them. Exact recipes, costs, travel speed, queueing and recovery when a Port
-becomes unavailable remain open for implementation and playtesting. Later
-transport inventions do not silently change this first-stage Port rule.
+them.
+
+**Agreed on October 1, 2026:** if the destination Port becomes blocked during
+a journey, return to the departure Port when it is usable. Otherwise the boat
+and traveler wait safely, keeping their carried goods together until a safe
+return or arrival becomes possible.
+
+Who grants a visitor permission remains to decide. Exact recipes, costs,
+travel speed and queueing remain open for implementation and playtesting.
+Later transport inventions do not silently change this first-stage Port rule.
 
 ### Still to decide
 

@@ -91,6 +91,7 @@ public partial class Main
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
             terrainLayer.SetHoveredTile(null);
+            UpdateTownSiteGuidance(null);
             return;
         }
 
@@ -115,6 +116,8 @@ public partial class Main
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
         terrainLayer.SetBridges(snapshot.Bridges);
+        terrainLayer.SetFields(snapshot.Fields);
+        worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
@@ -128,6 +131,7 @@ public partial class Main
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
         }
         UpdateMapGeometry(snapshot);
+        UpdateTownSiteGuidance(snapshot);
 
         foreach (var resource in snapshot.Resources)
         {
@@ -167,7 +171,12 @@ public partial class Main
             AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
-                (household is null ? "" : $"\nHousehold · {household.Name}\nStored here · {stored}"),
+                (household is null ? "" : $"\nHousehold · {household.Name}") +
+                (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
+                (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
+                (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
+                (building.ExpansionState == "running" ? "\nExpanding storage" : "") +
+                (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }
 
@@ -208,6 +217,7 @@ public partial class Main
                         else
                             SelectInhabitant(inhabitant.Id);
                     };
+                    actorMarker.ConversationActivated += () => OpenAgentConversation(inhabitant.Id);
                     actorMarker.MouseEntered += RefreshTileHoverAtMouse;
                     actorMarker.MouseExited += RefreshTileHoverAtMouse;
                     entityLayer.AddChild(actorMarker);
@@ -219,6 +229,12 @@ public partial class Main
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                var conversation = LatestConversationFor(snapshot, inhabitant.Id);
+                actorMarker.ConversationBadgeVisible = conversation is not null;
+                actorMarker.ConversationUnread = conversation is not null &&
+                    ConversationUnreadCount(snapshot.WorldId, conversation, inhabitant.Id) > 0;
+                if (conversation is not null)
+                    actorTooltip += "\n" + ConversationTooltipSummary(inhabitant.Id, conversation);
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;
                 actorMarker.Selected = string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal);
                 inhabitantCanonicalXs[inhabitant.Id] = targetPosition.X;
@@ -242,6 +258,7 @@ public partial class Main
         }
 
         RenderTileInspection(snapshot);
+        RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);
         PositionBuildingQuickCard(snapshot);
         RefreshTileHoverAtMouse();
