@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
     private bool FreeToMentor(string teacher, string? requestedStudent = null) =>
         ReadyForLesson(teacher) && ActiveStudent(teacher) is null &&
         inhabitants[teacher].Project is null or { Stage: "completed" or "cancelled" or "paused" } &&
-        !HasCouncilDecision(teacher) && !HasTradeResponse(teacher) && !HasFamilyDecision(teacher) &&
+        !HasCouncilDecision(teacher) && !HasHousingDecision(teacher) && !HasTradeResponse(teacher) && !HasFamilyDecision(teacher) &&
         !HasParenthoodDecision(teacher) && !HasDependentCareDecision(teacher) &&
         !inhabitants.Values.Any(item => item.InhabitantId != requestedStudent &&
             ActiveLesson(item.Lesson) && item.Lesson!.TeacherId == teacher);
@@ -34,15 +34,16 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanContinueLesson(string actor)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
         {
             return false;
         }
         if (inhabitants[actor].Lesson is { Stage: "accepted" or "training" } lesson)
         {
-            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId);
+            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
         }
-        return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) && ReadyForLesson(student.InhabitantId);
+        return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) &&
+            ReadyForLesson(student.InhabitantId) && !HasHousingDecision(student.InhabitantId);
     }
 
     private void MaintainLessons()
@@ -70,7 +71,7 @@ public sealed partial class PrivateWorldRuntime
         var person = inhabitants[actor];
         if (ActiveLesson(person.Lesson))
         {
-            if (person.Lesson!.Stage is "accepted" or "training" && ReadyForLesson(person.Lesson.TeacherId))
+            if (person.Lesson!.Stage is "accepted" or "training" && CanContinueLesson(actor))
             {
                 candidates.Add(new("lesson_attend", "Attend the agreed practical lesson.", 18));
             }
@@ -78,7 +79,7 @@ public sealed partial class PrivateWorldRuntime
         }
         else if (ActiveStudent(actor) is { } student)
         {
-            if (ReadyForLesson(student.InhabitantId))
+            if (CanContinueLesson(actor))
             {
                 candidates.Add(new("lesson_teach:" + student.InhabitantId, "Continue the agreed practical lesson.", 17));
             }

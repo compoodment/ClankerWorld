@@ -1,0 +1,3 @@
+- An adult with no household can ask a household that holds a House in their Town to take them in. Every adult member of that household must agree; one refusal or no answer ends the request, and that household is not asked again for two world days. Standing beside a House still grants nothing, and a pending request grants no access to the household's food, stock or shelter.
+- An adult without a home is told why on their card and in their own model request: no household, a House still to plan, missing materials or no legal site. The Event Log says when someone asks to move in, moves in, or is turned down.
+- Saves now carry pending housing requests and recent refusals. Saves from older builds that already carry them are refused and kept.
