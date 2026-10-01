@@ -327,9 +327,16 @@ Boats belong to a **Town**, not a household. Town residents may use its communal
 boats; visitors need permission. Reserve each physical boat for only one
 journey at a time, and persist the boat, traveler and carried goods together
 across save/load. A blocked destination cannot teleport or duplicate any of
-them. Exact recipes, costs, travel speed, queueing and recovery when a Port
-becomes unavailable remain open for implementation and playtesting. Later
-transport inventions do not silently change this first-stage Port rule.
+them.
+
+**Agreed on October 1, 2026:** if the destination Port becomes blocked during
+a journey, return to the departure Port when it is usable. Otherwise the boat
+and traveler wait safely, keeping their carried goods together until a safe
+return or arrival becomes possible.
+
+Who grants a visitor permission remains to decide. Exact recipes, costs,
+travel speed and queueing remain open for implementation and playtesting.
+Later transport inventions do not silently change this first-stage Port rule.
 
 ### Still to decide
 
