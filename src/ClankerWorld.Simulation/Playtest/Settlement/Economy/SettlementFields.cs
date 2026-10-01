@@ -30,25 +30,9 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(item => item.Position.Y).ThenBy(item => item.Position.X).ToArray(),
     };
 
-    private InventoryLot? FarmHoe(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null &&
-            lot.ItemKind is "wooden_hoe" or "iron_hoe" && AvailableLotQuantity(lot) > 0)
-        .OrderByDescending(lot => lot.ItemKind == "iron_hoe").ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+    private InventoryLot? FarmHoe(string actor) => CarriedTool(actor, ToolKind.Hoe);
 
-    private bool WearFarmTool(string actor)
-    {
-        if (FarmHoe(actor) is not { } hoe) return false;
-        ApplyInventoryTransition(inventory => inventory with
-        {
-            Lots = inventory.Lots.Select(lot => lot.Id == hoe.Id
-                ? lot with
-                {
-                    ConditionBasisPoints = Math.Max(0, lot.ConditionBasisPoints -
-                    (lot.ItemKind == "iron_hoe" ? 125 : 500))
-                } : lot).ToArray(),
-        });
-        return true;
-    }
+    private InventoryLot? HarvestTool(string actor) => CarriedTool(actor, ToolKind.Sickle) ?? FarmHoe(actor);
 
     private string? FieldPermissionFailure(string actor, GridPoint point, bool newTile)
     {
@@ -95,8 +79,8 @@ public sealed partial class PrivateWorldRuntime
         if (field.LastWorkedTick == WorldTick) return new(false, false, "This tile has already been worked this turn.");
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
             return new(false, false, "Illness slowed this turn's field work.");
-        var work = Math.Min(TillingWork, field.WorkDone + (hoe.ItemKind == "iron_hoe" ? 2 : 1));
-        WearFarmTool(actor);
+        var work = Math.Min(TillingWork, field.WorkDone + ToolCapabilities.ForItem(hoe.ItemKind)!.WorkQuantity);
+        UseTool(actor, ToolKind.Hoe);
         SetField(field with
         {
             WorkDone = work,
@@ -131,11 +115,12 @@ public sealed partial class PrivateWorldRuntime
         if (FarmFields.FirstOrDefault(item => item.Position == point) is not { Stage: FarmFieldStage.Ready, Harvest: not null } field)
             return new(false, false, "The crop is not ready to harvest.");
         if (field.LastWorkedTick == WorldTick) return new(false, false, "This field has already been worked this turn.");
-        if (FarmHoe(actor) is null) return new(false, false, "Carry a usable field tool to harvest the crop.");
+        if (HarvestTool(actor) is not { } harvestTool) return new(false, false, "Carry a usable hoe or sickle to harvest the crop.");
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
             return new(false, false, "Illness slowed this turn's field work.");
-        var work = Math.Min(HarvestWork, field.WorkDone + 1);
-        WearFarmTool(actor);
+        var capability = ToolCapabilities.ForItem(harvestTool.ItemKind)!;
+        var work = Math.Min(HarvestWork, field.WorkDone + (capability.Kind == ToolKind.Sickle ? capability.WorkQuantity : 1));
+        UseTool(actor, capability.Kind);
         if (work < HarvestWork)
         {
             SetField(field with { WorkDone = work, LastWorkedTick = WorldTick });
@@ -211,15 +196,30 @@ public sealed partial class PrivateWorldRuntime
             return new(false, false, "This crop does not need more tending now.");
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, inhabitants[actor].Survival?.IllnessBasisPoints ?? 0))
             return new(false, false, "Illness slowed this turn's field work.");
-        WearFarmTool(actor);
-        SetField(field with { TendingWork = field.TendingWork + 1, LastWorkedTick = WorldTick });
+        var capability = UseTool(actor, ToolKind.Hoe)!;
+        var tending = Math.Min(4, field.TendingWork + capability.WorkQuantity);
+        SetField(field with { TendingWork = tending, LastWorkedTick = WorldTick });
         worldSimulation = worldSimulation with
         {
             CropBuilds = (worldSimulation.CropBuilds ?? []).Select(job => job.JobId == field.JobId
-                ? job with { CompletionTick = Math.Max(WorldTick + 1, job.CompletionTick - 1) } : job).ToArray(),
+                ? job with { CompletionTick = Math.Max(WorldTick + 1, job.CompletionTick - (tending - field.TendingWork)) } : job).ToArray(),
         };
         AppendEvent("field_tended", $"{actor}:{point.X},{point.Y}");
-        return new(true, field.TendingWork + 1 == 4, null);
+        return new(true, tending == 4, null);
+    }
+
+    private bool CanAffordTending(string actor, string household)
+    {
+        if (FarmHoe(actor) is not { } hoe) return false;
+        var growing = FarmFields.Count(field => field.HouseholdId == household &&
+            field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready);
+        if (CarriedTool(actor, ToolKind.Sickle) is { } sickle)
+        {
+            var harvest = ToolCapabilities.ForItem(sickle.ItemKind)!;
+            if (sickle.ConditionBasisPoints >= (HarvestWork + harvest.WorkQuantity - 1) /
+                harvest.WorkQuantity * growing * harvest.WearPerUse) return true;
+        }
+        return hoe.ConditionBasisPoints >= (HarvestWork * growing + 1) * ToolCapabilities.ForItem(hoe.ItemKind)!.WearPerUse;
     }
 
     private void MaintainFields(long targetTick)
@@ -270,19 +270,21 @@ public sealed partial class PrivateWorldRuntime
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } household ||
             FarmhouseForHousehold(household) is not { } farmhouse || CarriedHouseDelivery(actor) is not null) return;
-        if (FarmHoe(actor) is null)
-        {
-            var kind = SharedItem("iron_hoe", actor) is not null ? "iron_hoe" : "wooden_hoe";
-            if (SharedItem(kind, actor) is not null)
-                candidates.Add(new("farm:hoe:" + kind, "Collect a hoe for household field work.", 23));
-            return;
-        }
         var ground = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
                 lot.GroundPosition is not null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
         if (ground is not null)
             candidates.Add(new("farm:collect", "Carry the household's harvested crop from its field into storage.", 16));
-        if (FarmFields.FirstOrDefault(field => field.HouseholdId == household &&
+        if (FarmHoe(actor) is null)
+        {
+            if (SharedTool(actor, ToolKind.Hoe) is { } sharedHoe)
+                candidates.Add(new("farm:hoe:" + sharedHoe.ItemKind, "Collect a hoe for household field work.", 23));
+            if (HarvestTool(actor) is not null && FarmFields.FirstOrDefault(field =>
+                field.HouseholdId == household && field.Stage == FarmFieldStage.Ready) is { } ready)
+                candidates.Add(new($"farm:harvest:{ready.Position.X},{ready.Position.Y}", "Harvest the ripe crop with a sickle.", 17));
+            return;
+        }
+        if (CanAffordTending(actor, household) && FarmFields.FirstOrDefault(field => field.HouseholdId == household &&
             field.Stage == FarmFieldStage.Growing && field.TendingWork < 4) is { } growing)
             candidates.Add(new($"farm:tend:{growing.Position.X},{growing.Position.Y}",
                 "Tend the growing household crop with a hoe.", 18));
@@ -309,8 +311,9 @@ public sealed partial class PrivateWorldRuntime
         var active = FarmFields.Count(item => item.HouseholdId == household &&
             item.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready);
         var hoe = FarmHoe(actor)!;
-        var requiredUses = (hoe.ItemKind == "iron_hoe" ? TillingWork / 2 : TillingWork) + HarvestWork * (active + 1);
-        var enoughTool = hoe.ConditionBasisPoints >= requiredUses * (hoe.ItemKind == "iron_hoe" ? 125 : 500);
+        var capability = ToolCapabilities.ForItem(hoe.ItemKind)!;
+        var requiredUses = (TillingWork + capability.WorkQuantity - 1) / capability.WorkQuantity + HarvestWork * (active + 1);
+        var enoughTool = hoe.ConditionBasisPoints >= requiredUses * capability.WearPerUse;
         if (enoughTool && prepared == 0 && stock + expected < Math.Max(6, population * 6) &&
             PlannedCrop(household) is not null && PlannedFieldTile(actor, farmhouse) is { } newTile)
             candidates.Add(new($"farm:till:{newTile.X},{newTile.Y}",
