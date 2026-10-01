@@ -118,6 +118,7 @@ public partial class Main : Control
     private readonly Button familyTreeButton = new();
     private readonly PanelContainer familyTreePanel = new();
     private readonly FamilyTreeView familyTreeView = new();
+    private readonly ScrollContainer familyTreeScroll = new();
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();

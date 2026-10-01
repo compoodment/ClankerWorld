@@ -55,9 +55,11 @@ public partial class Main
         BuildQuickCard();
         BuildAgentProfile();
         BuildThoughtsReader();
+        BuildConversationReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
         uiLayer.AddChild(thoughtsPanel);
+        uiLayer.AddChild(conversationPanel);
     }
 
     private void BuildQuickCard()
@@ -335,6 +337,7 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        conversationPanel.Hide();
         RenderThoughtsReader(snapshot, inhabitant);
         thoughtsPanel.Show();
         ApplyResponsiveLayout();

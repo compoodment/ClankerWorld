@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
             return new(false, "An adult from a household with a Farmhouse must do the work.");
         if (worker.Position != position) return new(false, "The worker must stand on the field tile.");
         if (!HasCarriedItem(workerId, FarmFieldRules.Hoe)) return new(false, "The worker needs a hoe.");
-        if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) ||
+        if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || IsConversationBusy(workerId) ||
             worker.Project is { Stage: not ("completed" or "cancelled") } || FarmWorkFor(workerId) is not null)
             return new(false, "The worker must finish other work or meet urgent needs first.");
         var field = fields.SingleOrDefault(item => item.Position == position);
@@ -131,6 +131,7 @@ public sealed partial class PrivateWorldRuntime
             CancelFarmWork(field);
             return false;
         }
+        if (IsConversationBusy(workerId)) return true;
         work = work with { RemainingTicks = work.RemainingTicks - 1, LastWorkedTick = WorldTick };
         if (work.RemainingTicks > 0) { SetFarmField(field with { Work = work }); return true; }
         switch (work.Kind)

@@ -139,6 +139,7 @@ public partial class Main
                 choiceBounds.Position.X < settingsViewport.Position.X - 1 ||
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
+            await VerifyAgentConversationReaderAt200PercentAsync();
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -205,6 +206,125 @@ public partial class Main
             displayWindow.ContentScaleAspect = originalScaleAspect;
             displayWindow.ContentScaleSize = originalRenderSize;
             ApplyUiScale();
+        }
+    }
+
+    private async Task VerifyAgentConversationReaderAt200PercentAsync()
+    {
+        if (uiLayer.Factor != 2)
+            throw new InvalidOperationException("Conversation history smoke must run at 200% UI Scale.");
+
+        var menuVisible = mainMenuOverlay.Visible;
+        var gameMenuVisible = gameMenuPanel.Visible;
+        var menuShadeVisible = menuShade.Visible;
+        var oldSelection = selectedInhabitantId;
+        var oldProfileRequested = agentProfileRequested;
+        var oldProfileVisible = agentProfilePanel.Visible;
+        var oldQuickCardVisible = selectedInhabitantCard.Visible;
+        var wasInWorld = isInWorld;
+        isInWorld = true;
+        mainMenuOverlay.Hide();
+        gameMenuPanel.Hide();
+        menuShade.Hide();
+        try
+        {
+            const string firstAgentId = "conversation-ui-a";
+            const string secondAgentId = "conversation-ui-b";
+            const string thirdAgentId = "conversation-ui-c";
+            const string fourthAgentId = "conversation-ui-d";
+            var firstPosition = new OwnerWorldPosition(1, 1);
+            var secondPosition = new OwnerWorldPosition(2, 1);
+            var thirdPosition = new OwnerWorldPosition(1, 3);
+            var fourthPosition = new OwnerWorldPosition(2, 3);
+            OwnerWorldInhabitant Agent(string id, string name, OwnerWorldPosition position) => new(
+                id, name, "active", position, 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(position, [position], [position]), false);
+            var publicText = string.Join(' ', Enumerable.Repeat("A public sentence with enough words to wrap comfortably on a large screen.", 6));
+            var closedTurns = Enumerable.Range(0, 7).Select(index =>
+            {
+                var speaker = index == 6 || index % 2 == 0 ? firstAgentId : secondAgentId;
+                var listener = speaker == firstAgentId ? secondAgentId : firstAgentId;
+                return new OwnerWorldConversationTurn(
+                    $"conversation:ui-closed:turn:{index + 1}", speaker,
+                    speaker == firstAgentId ? "Aster" : "Rowan", publicText, index + 1, [listener], index == 6);
+            }).ToArray();
+            var conversations = new OwnerWorldConversation[]
+            {
+                new("conversation:ui-closed", firstAgentId, "Aster", secondAgentId, "Rowan",
+                    "closed", null, "agreed", 0, 8, closedTurns),
+                new("conversation:ui-interrupted", thirdAgentId, "Mira", fourthAgentId, "Ilya",
+                    "suspended", "owner_paused", null, 0, 7,
+                    [new("conversation:ui-interrupted:turn:1", thirdAgentId, "Mira", publicText, 5,
+                        [fourthAgentId], false)]),
+            };
+            var conversationMap = new OwnerWorldSnapshot("conversation-ui-smoke", 8, "conversation-ui-map",
+                Enumerable.Range(0, 36).Select(index => new OwnerWorldTile(index % 6, index / 6, "meadow")).ToArray(),
+                [], [], null, 0)
+            {
+                PackedTerrain = new OwnerWorldPackedTerrain(6, 6, "terrain-kind-v1",
+                    Convert.ToBase64String(new byte[36])),
+                Inhabitants = [
+                    Agent(firstAgentId, "Aster", firstPosition), Agent(secondAgentId, "Rowan", secondPosition),
+                    Agent(thirdAgentId, "Mira", thirdPosition), Agent(fourthAgentId, "Ilya", fourthPosition)],
+                Conversations = conversations,
+            };
+            RenderMap(conversationMap);
+            selectedInhabitantId = secondAgentId;
+            RenderSelectedInhabitantCard(conversationMap);
+            OpenAgentProfile(speak: false);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            var marker = inhabitantVisuals[firstAgentId];
+            if (!marker.ConversationBadgeVisible || !marker.ConversationUnread || marker.TooltipText.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("A nearby public conversation must show a bounded unread bubble preview without placing its full history in the tooltip.");
+            marker._GuiInput(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = true,
+                Position = marker.ConversationBadgeBounds.GetCenter(),
+            });
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationPanel.Visible || !conversationReaderStatus.Text.StartsWith("Closed ·", StringComparison.Ordinal) ||
+                marker.ConversationUnread || selectedInhabitantId != secondAgentId || !agentProfilePanel.Visible ||
+                conversationReaderSummary.Text.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("Clicking the conversation bubble must open its closed-session summary, mark it read locally, and leave agent selection alone.");
+
+            conversationHistoryButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationHistoryText.Visible || !conversationHistoryText.ScrollActive ||
+                !conversationHistoryText.Text.Contains(publicText, StringComparison.Ordinal) ||
+                conversationHistoryText.GetContentHeight() <= conversationHistoryText.Size.Y ||
+                conversationPanel.Position.X < 0 || conversationPanel.Position.Y < HudTop - 1 ||
+                conversationPanel.Position.X + conversationPanel.Size.X > UiSize.X + 1 ||
+                conversationPanel.Position.Y + conversationPanel.Size.Y > UiSize.Y + 1)
+                throw new InvalidOperationException("Expanded long conversation history must scroll inside the 200% layout bounds.");
+
+            GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (conversationPanel.Visible || selectedInhabitantId != secondAgentId ||
+                !agentProfilePanel.Visible || gameMenuPanel.Visible)
+                throw new InvalidOperationException("Escape must close expanded conversation history before the selected agent's Profile, without clearing selection or opening the Pause Menu.");
+
+            OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
+            if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
+                throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+        }
+        finally
+        {
+            conversationPanel.Hide();
+            openConversationId = null;
+            openConversationAgentId = null;
+            selectedInhabitantId = oldSelection;
+            agentProfileRequested = oldProfileRequested;
+            agentProfilePanel.Visible = oldProfileVisible;
+            selectedInhabitantCard.Visible = oldQuickCardVisible;
+            isInWorld = wasInWorld;
+            mainMenuOverlay.Visible = menuVisible;
+            gameMenuPanel.Visible = gameMenuVisible;
+            menuShade.Visible = menuShadeVisible;
         }
     }
 
@@ -2791,16 +2911,69 @@ public partial class Main
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
-            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
-            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+            var family = new List<OwnerWorldInhabitant> { parent, child, partner };
+            var currentParent = parent;
+            for (var generation = 0; generation < 8; generation++)
+            {
+                var ancestor = parent with
+                {
+                    Id = $"ancestor:{generation}",
+                    DisplayName = $"Ancestor {generation + 1}",
+                    Relationships = [new OwnerWorldInhabitantRelationship($"birth:ancestor:{generation}", currentParent.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent")],
+                };
+                family.Add(ancestor);
+                currentParent = ancestor;
+            }
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = family.ToArray() }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 9 || familyTreeView.PartnerEdgeCount != 1 ||
                 !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
                 !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
-                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
+                family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
-            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var familyWindow = GetWindow();
+            var originalFamilySize = familyWindow.Size;
+            var originalFamilyRenderSize = familyWindow.ContentScaleSize;
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var expectedFactor = size == new Vector2I(1920, 1080) ? 2 : 1;
+                if (GetViewportRect().Size != new Vector2(size.X, size.Y) || uiLayer.Factor != expectedFactor)
+                    throw new InvalidOperationException($"Family tree smoke must exercise the requested viewport and interface size at {size}: viewport={GetViewportRect().Size}, factor={uiLayer.Factor}.");
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y <= 0 || familyTreeView.Size.Y <= 0 ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect))
+                    throw new InvalidOperationException($"Family tree must show its content in a screen-bounded scroll panel at {size}: panel={panelRect}, scroll={scrollRect}, tree={familyTreeView.Size}.");
+                if (size == new Vector2I(1024, 768) &&
+                    familyTreeScroll.GetVScrollBar().MaxValue <= familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A tall family tree must remain scrollable when the panel is capped to the screen.");
+            }
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                familyTreePanel.Hide();
+                ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y < familyTreeView.GetCombinedMinimumSize().Y ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect) ||
+                    !panelRect.Encloses(familyTreeStatus.GetGlobalRect()))
+                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and help text at {size}: panel={panelRect}, scroll={scrollRect}, help={familyTreeStatus.GetGlobalRect()}.");
+                if (familyTreeScroll.GetVScrollBar().MaxValue > familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A fitting short tree must not retain the long tree's vertical scroll range.");
+            }
+            familyWindow.Size = originalFamilySize;
+            familyWindow.ContentScaleSize = originalFamilyRenderSize;
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             ApplyResponsiveLayout();
-            if (!mapCanvas.GetGlobalRect().Encloses(familyTreePanel.GetGlobalRect()))
-                throw new InvalidOperationException("Family tree panel must fit within the world view.");
             familyTreeView.GetChildren().OfType<Button>().Single(button => button.Text.StartsWith(parent.DisplayName, StringComparison.Ordinal))
                 .EmitSignal(BaseButton.SignalName.Pressed);
             if (selectedInhabitantId != parent.Id || familyTreePanel.Visible)
