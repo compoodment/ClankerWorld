@@ -260,13 +260,13 @@ public sealed class FarmFieldTests
         Assert.Equal("carried-hoe", Assert.Single(wooden.Fields).Work!.HoeLotId);
         await Advance(wooden, 1);
         Assert.Equal(6, Assert.Single(wooden.Fields).Work!.RemainingTicks);
-        Assert.Equal(8_000, wooden.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+        Assert.Equal(9_000, wooden.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
         using var woodReload = Reload(wooden);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(wooden.ExportState()),
             PrivateWorldRuntimeCodec.Encode(woodReload.ExportState()));
         await Advance(woodReload, 3);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(woodReload.Fields).Stage);
-        Assert.Equal(2_000, woodReload.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+        Assert.Equal(6_000, woodReload.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
 
         var (ironState, ironActor, _, ironPoint) = PreparedFarmer("field-iron-hoe-speed");
         var inventory = ironState.Society.Society.Inventory with
@@ -283,6 +283,34 @@ public sealed class FarmFieldTests
         await Advance(iron, 2);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(iron.Fields).Stage);
         Assert.Equal(7_000, iron.Society.Inventory.GetLot("carried-iron-hoe").ConditionBasisPoints);
+    }
+
+    [Fact]
+    public async Task WoodenHoeCompletesAnOrdinaryTillAndTendCycleAcrossReload()
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-wood-hoe-till-tend");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "carried-planting", FarmFieldRules.GreensSeed, actor, 2);
+        using var tilling = Restore(WithInventory(state, inventory));
+        Assert.True(tilling.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        await Advance(tilling, 4);
+        using var prepared = Reload(tilling);
+        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(prepared.Fields).Stage);
+        Assert.Equal(6_000, prepared.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+
+        Assert.True(prepared.StartFieldWork(actor, point, FarmWorkKind.Plant,
+            FarmFieldRules.Greens, "carried-planting").Accepted);
+        await Advance(prepared, 4);
+        using var growing = Reload(prepared);
+        await Advance(growing, 1);
+        Assert.Equal(FarmFieldStage.Growing, Assert.Single(growing.Fields).Stage);
+        Assert.True(growing.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
+        await Advance(growing, 3);
+
+        var tended = Assert.Single(growing.Fields);
+        Assert.True(tended.Tended);
+        Assert.Null(tended.Work);
+        Assert.Equal(3_000, growing.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
     }
 
     [Fact]

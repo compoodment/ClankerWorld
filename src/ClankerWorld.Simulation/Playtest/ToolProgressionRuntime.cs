@@ -121,23 +121,32 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseholdBuildingWithTag(householdId, "blacksmith") is not { } blacksmith ||
-            !inhabitants.TryGetValue(actor, out var state) ||
-            !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
-            FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
+            !inhabitants.TryGetValue(actor, out var state))
             return;
 
         var inventory = society.Checkpoint.Inventory;
-        foreach (var tool in inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                     ToolProgressionRules.Find(lot.ItemKind) is not null &&
-                     lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0 &&
-                     MissingToolRepairInputUnits(actor, lot) <= FreeCarryCapacity(actor))
-                 .OrderBy(lot => lot.Id, StringComparer.Ordinal))
+        var candidateTools = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
+                ToolProgressionRules.Find(lot.ItemKind) is not null &&
+                lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+            .Select(tool => (Tool: tool, Materials: ToolProgressionRules.RepairMaterials(tool.ItemKind)))
+            .ToArray();
+
+        if (candidateTools.Length == 0)
+            return;
+        var freeCapacity = FreeCarryCapacity(actor);
+        var repairableTools = candidateTools.Where(item => item.Materials.Count > 0 &&
+                MissingToolRepairInputUnits(actor, item.Tool) <= freeCapacity &&
+                item.Materials.All(input => CanPrepareRepairInput(actor, input.ResourceId)))
+            .ToArray();
+        if (repairableTools.Length == 0 || !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
+            FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
+            return;
+
+        foreach (var item in repairableTools)
         {
-            var materials = ToolProgressionRules.RepairMaterials(tool.ItemKind);
-            if (materials.Count == 0 || materials.Any(input => !CanPrepareRepairInput(actor, input.ResourceId)))
-                continue;
-            candidates.Add(new CognitionCandidate(RepairToolPrefix + tool.Id,
-                $"Repair the worn {tool.ItemKind.Replace('_', ' ')} at the household Blacksmith.", 23,
+            candidates.Add(new CognitionCandidate(RepairToolPrefix + item.Tool.Id,
+                $"Repair the worn {item.Tool.ItemKind.Replace('_', ' ')} at the household Blacksmith.", 23,
                 blacksmith.InstanceId));
         }
     }

@@ -37,7 +37,7 @@ public static class ToolProgressionRules
         new("wooden_pickaxe", ToolFamily.Pickaxe, 1, 6, 1, 2_000),
         new("stone_pickaxe", ToolFamily.Pickaxe, 2, 7, 1, 1_250),
         new("iron_pickaxe", ToolFamily.Pickaxe, 3, 8, 1, 1_000),
-        new("wooden_hoe", ToolFamily.Hoe, 1, 0, 2, 2_000),
+        new("wooden_hoe", ToolFamily.Hoe, 1, 0, 2, 1_000),
         new("iron_hoe", ToolFamily.Hoe, 3, 0, 3, 1_000),
         new("wooden_hammer", ToolFamily.Hammer, 1, 0, 2, 2_000),
         new("stone_hammer", ToolFamily.Hammer, 2, 0, 3, 1_250),
