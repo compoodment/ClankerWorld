@@ -46,6 +46,8 @@ public partial class Main
                 var opening = OpenManualSavesAsync(false, token => { oldToken = token; return delayed.Task; });
                 if (!manualSaveOverlay.Visible || manualSaveCreateButton.Disabled || !manualSaveOverwriteButton.Disabled)
                     throw new InvalidOperationException("Creating a save must stay usable while its list is slow.");
+                if (!manualSaveNewBox.Visible || manualSaveName.Text != DisplayWorldClock(0) || manualSaveList.Placeholder != "Checking saves…")
+                    throw new InvalidOperationException($"A new save must open named after the world's date while the list loads: {manualSaveName.Text}.");
                 if (scenario == "create")
                 {
                     manualSaveName.Text = "New current save";
@@ -58,7 +60,7 @@ public partial class Main
                     throw new InvalidOperationException("Closing Save World must cancel its pending list.");
                 await OpenManualSavesAsync(false, _ => Task.FromResult(currentSaves));
                 manualSaveList.Select(0);
-                manualSaveList.EmitSignal(ItemList.SignalName.ItemSelected, 0L);
+                manualSaveList.EmitSignal(SlotList.SignalName.ItemSelected, 0L);
                 manualSaveOverwriteButton.EmitSignal(BaseButton.SignalName.Pressed);
                 if (!manualSaveOverwriteConfirmation.Visible || pendingOverwriteSaveId != "new-save")
                     throw new InvalidOperationException("The current selected save must open Overwrite confirmation.");
@@ -68,6 +70,7 @@ public partial class Main
                 else delayed.SetResult(oldSaves);
                 await opening;
                 if (manualSaveList.ItemCount != 2 || listedManualSaves[0].Id != "new-save" ||
+                    manualSaveList.GetItemTitle(0) != "New current save" ||
                     manualSaveList.GetSelectedItems() is not [0] || manualSaveOverwriteButton.Disabled ||
                     manualSaveDeleteButton.Disabled || manualSaveStatus.Text != currentStatus)
                     throw new InvalidOperationException("An earlier save-list reply must not replace the current rows, selection or status.");

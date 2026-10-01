@@ -135,7 +135,13 @@ public partial class SlotList : ScrollContainer
     {
         selected = index >= 0 && index < items.Count ? index : -1;
         Restyle();
-        if (selected >= 0) Callable.From(() => EnsureControlVisible(items[selected])).CallDeferred();
+        if (selected < 0) return;
+        // Scroll once the card is laid out; the list may have been refilled by then.
+        var card = items[selected];
+        Callable.From(() =>
+        {
+            if (IsInstanceValid(card) && card.IsInsideTree()) EnsureControlVisible(card);
+        }).CallDeferred();
     }
 
     public int[] GetSelectedItems() => selected >= 0 ? [selected] : [];
