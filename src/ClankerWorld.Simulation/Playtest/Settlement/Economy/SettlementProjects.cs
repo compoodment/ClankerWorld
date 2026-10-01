@@ -363,7 +363,7 @@ public sealed partial class PrivateWorldRuntime
                     return true;
 
                 if (candidate.Id == "haul_smith_input" && candidate.DestinationId == building.InstanceId &&
-                    BlacksmithInputForDelivery(householdId, building.InstanceId) is { } smithInput &&
+                    BlacksmithInputForDelivery(resident, householdId, building.InstanceId) is { } smithInput &&
                     missingKinds.Contains(smithInput.ItemKind))
                     return true;
 
@@ -695,7 +695,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        if (WarehouseForResident(inhabitantId) is { } warehouse &&
+        if (WarehouseWithAvailableStock(inhabitantId, input.ResourceId) is { } warehouse &&
             society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
                 lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
                 lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0) is { } communal)
@@ -706,6 +706,15 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(inhabitantId, inhabitants[inhabitantId], warehouse.Position, "warehouse_materials", 0);
                 return;
             }
+            if (!MayCollectWarehouseStock(inhabitantId, warehouse))
+            {
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "This Town Warehouse is no longer available to you." });
+                return;
+            }
+            communal = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
+                lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0);
+            if (communal is null) return;
             var quantity = Math.Min(WarehouseLoadQuantity,
                 Math.Min(input.Amount, AvailableLotQuantity(communal)));
             quantity = Math.Min(quantity, FreeCarryCapacity(inhabitantId));
@@ -882,10 +891,10 @@ public sealed partial class PrivateWorldRuntime
                 (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
                 map.IsReachableFromCampOnFoot(resource.Position))
             .Sum(resource => (long)resource.Quantity * 4);
-        var warehouse = residentId is null ? null : WarehouseForResident(residentId);
-        var communal = warehouse is null ? 0 : society.Checkpoint.Inventory.Lots.Where(lot =>
+        var communal = residentId is null ? 0 : WarehousesAccessibleTo(residentId)
+            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
                 lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.ItemKind == input.ResourceId)
+                lot.ItemKind == input.ResourceId))
             .Sum(lot => (long)AvailableLotQuantity(lot));
         return stored + harvestable + communal >= input.Amount;
     });
