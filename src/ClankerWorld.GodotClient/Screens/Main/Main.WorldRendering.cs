@@ -175,7 +175,11 @@ public partial class Main
                 (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
                 (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
                 (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
-                (building.ExpansionState == "running" ? "\nExpanding storage" : "") +
+                (building.ExpansionState == "running"
+                    ? building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                        ? "\nHouse expansion underway · resident places change on completion"
+                        : "\nExpanding storage"
+                    : "") +
                 (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }

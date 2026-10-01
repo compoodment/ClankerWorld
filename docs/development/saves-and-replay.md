@@ -124,6 +124,16 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 36 saves each inhabitant's explicit domestic family unit
+and primary caregiver, plus the caregiver, intended home and actual birth home
+for an agreed parenthood plan. Birth records retain the caregiver and actual
+household. House resident counts and limits are derived from active household
+members, recorded family units and the completed building footprint; they are
+not separately mutable counters. Current-format roundtrips preserve pending
+family decisions and births without inferring a family group from ancestry or
+household membership. Older alpha checkpoints need not load; no migration is
+provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. Compatibility
@@ -193,14 +203,15 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 35. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, and bounded conversations with daily allowances.
-These fields retain their current validation and roundtrip behavior.
+with ground harvest lots, bounded conversations with daily allowances, and
+explicit domestic family and caregiver/birth-home records. These fields retain
+their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -208,7 +219,8 @@ migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
 for fields and ground lots, and schema 35 for conversations, record when those
 fields were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+current alpha cutoff. Schema 36 adds explicit domestic family units and
+primary-caregiver/intended-home/birth-home records.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -230,6 +242,7 @@ current alpha cutoff.
 | Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
+| Schema 36 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

@@ -202,9 +202,16 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
-    public async Task HouseExpansionKeepsItsIdentityStockAndCookingJobAcrossReload()
+    public async Task FullHouseExpansionAddsPlacesWithoutChangingItsIdentityStockOrCookingJobAcrossReload()
     {
         using var world = PreparedWorld("first-town-house-a", out var actor, out var building);
+        var newResident = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(building.HouseholdId, world.AddAgent(newResident, building.Position));
+        var full = new OwnerWorldObservationStore(world).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(3, full.PermanentResidentCount);
+        Assert.Equal(3, full.ResidentLimit);
+        Assert.False(full.HasDominantFamily);
         var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "house-meal");
         var cooking = world.StartProduction(recipe.CanonicalId, building.InstanceId, actor);
         Assert.True(cooking.Applied, cooking.Failure);
@@ -212,6 +219,16 @@ public sealed class BuildingExpansionTests
         Assert.True(started.Applied, started.Failure);
         var initial = world.ExportState();
         var expansion = Assert.Single(initial.WorldSimulation!.BuildingExpansions!);
+        var initialHouseView = new OwnerWorldObservationStore(world).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(3, initialHouseView.ResidentLimit);
+        Assert.Equal(3, initialHouseView.PermanentResidentCount);
+        var stored = initial.Society.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+        Assert.True(stored * 100 < BuildingStorageRules.Capacity(
+            world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building) *
+            BuildingStorageRules.NearlyFullPercent,
+            "This House needs resident places while its storage is below the expansion threshold.");
         var initialWorker = initial.Inhabitants.Single(person => person.InhabitantId == actor);
         Assert.Empty(initialWorker.Skills ?? []);
         Assert.Equal(0, initialWorker.Proficiency?.Building ?? 0);
@@ -225,6 +242,10 @@ public sealed class BuildingExpansionTests
         Assert.DoesNotContain(working.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
         Assert.Equal(0, working.Proficiency?.Building ?? 0);
         Assert.Equal(WorldProductionJobState.Running, restored.WorldSimulation.BuildingExpansions!.Single().State);
+        var stillSmall = new OwnerWorldObservationStore(restored).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(3, stillSmall.ResidentLimit);
+        Assert.Equal(3, stillSmall.PermanentResidentCount);
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
 
         var after = restored.WorldSimulation.Buildings.Single(item => item.InstanceId == building.InstanceId);
@@ -235,6 +256,10 @@ public sealed class BuildingExpansionTests
         Assert.Equal(2, after.Footprint.Width * after.Footprint.Height);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.ProductionJobs.Single(item => item.JobId == cooking.JobId).State);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.BuildingExpansions!.Single().State);
+        var expandedCapacity = new OwnerWorldObservationStore(restored).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(6, expandedCapacity.ResidentLimit);
+        Assert.Equal(3, expandedCapacity.PermanentResidentCount);
         var worker = restored.Inhabitants.Single(person => person.InhabitantId == actor);
         var learned = Assert.Single(worker.Skills ?? [], skill => skill.Kind == SettlementSkillKind.Building);
         Assert.Equal(expansion.CompletionTick, learned.LearnedTick);
@@ -256,6 +281,8 @@ public sealed class BuildingExpansionTests
         Assert.Equal(worker.Proficiency, savedWorker.Proficiency);
         var visible = new OwnerWorldObservationStore(completed).GetSnapshot().PlacedBuildings.Single(item => item.InstanceId == building.InstanceId);
         Assert.Equal(128, visible.StorageCapacity);
+        Assert.Equal(6, visible.ResidentLimit);
+        Assert.Equal(3, visible.PermanentResidentCount);
         Assert.Equal(after.Footprint.Width, visible.Width);
         Assert.Equal(after.Footprint.Height, visible.Height);
         Assert.Equal(1, visible.FootprintRevision);
@@ -468,7 +495,7 @@ public sealed class BuildingExpansionTests
         var placed = building;
         var inventory = state.Society.Society.Inventory;
         inventory = InventoryFixture.AddLot(inventory, "expansion-wood", "wood", building.HouseholdId ?? building.TownId!,
-            building.HouseholdId is null ? 210 : 20, storageBuildingId: building.InstanceId);
+            building.HouseholdId is null ? 210 : 10, storageBuildingId: building.InstanceId);
         if (building.HouseholdId is null)
             inventory = InventoryFixture.AddLot(inventory, "expansion-stone", "stone", building.TownId!, 8, storageBuildingId: building.InstanceId);
         state = state with

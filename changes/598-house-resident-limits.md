@@ -1,0 +1,1 @@
+- Houses limit permanent residents by completed footprint and recorded family group, expand for more places, and place births with their primary caregiver even when that home is full.

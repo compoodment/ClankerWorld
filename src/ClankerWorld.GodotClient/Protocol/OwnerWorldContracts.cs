@@ -256,7 +256,11 @@ public sealed record OwnerWorldPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null,
+    int? ResidentLimit = null,
+    int PermanentResidentCount = 0,
+    bool HasDominantFamily = false,
+    bool IsOvercrowded = false);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,

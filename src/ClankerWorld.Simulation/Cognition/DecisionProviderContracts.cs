@@ -99,7 +99,7 @@ public sealed record CognitionKnowledgeFact(
 
 /// <summary>
 /// Actor-owned context only; absent survival data remains unknown, not invented.
-/// <paramref name="HousingNote"/> says why the actor has no home, or is null when it has one.
+/// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,

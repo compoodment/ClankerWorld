@@ -453,15 +453,26 @@ public sealed class OwnerWorldObservationStore
                 : null,
             PlacedBuildings = state.WorldSimulation?.Buildings
                 .OrderBy(item => item.InstanceId, StringComparer.Ordinal)
-                .Select(item => new ViewerPlacedBuilding(
+                .Select(item =>
+                {
+                    var definition = buildingDefinitions?.GetValueOrDefault(item.DefinitionId);
+                    var width = item.Footprint?.Width ?? definition?.Width ?? 1;
+                    var height = item.Footprint?.Height ?? definition?.Height ?? 1;
+                    var residentCapacity = item.HouseholdId is { } residentHousehold &&
+                        definition?.Tags.Contains("house", StringComparer.Ordinal) == true
+                            ? HouseResidentCapacityRules.Calculate(
+                                state.Society.Society.Inhabitants.Where(person => person.HouseholdId == residentHousehold),
+                                width, height)
+                            : null;
+                    return new ViewerPlacedBuilding(
                     item.InstanceId,
                     item.DefinitionId,
                     ToPosition(item.Position),
                     item.PlacedTick,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.DisplayName,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags,
-                    item.Footprint?.Width ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
-                    item.Footprint?.Height ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
+                    definition?.DisplayName,
+                    definition?.Tags,
+                    width,
+                    height,
                     item.TownId,
                     item.HouseholdId,
                     item.HouseholdId is { } householdId
@@ -477,7 +488,12 @@ public sealed class OwnerWorldObservationStore
                     (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
                         .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
                     (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
-                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure,
+                    residentCapacity?.Limit,
+                    residentCapacity?.ResidentCount ?? 0,
+                    residentCapacity?.HasDominantFamily ?? false,
+                    residentCapacity?.IsOvercrowded ?? false);
+                })
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)

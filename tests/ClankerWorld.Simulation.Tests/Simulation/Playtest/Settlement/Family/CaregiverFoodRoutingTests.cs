@@ -23,7 +23,8 @@ public sealed class CaregiverFoodRoutingTests
         society = SocietyFixture.AcceptRelationship(society, "named-care-parents", 1, partner).Checkpoint;
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{actor}:{society.WorldTick}", 1,
-            actor, partner, household, [actor, partner], [actor, partner], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
+            actor, partner, household, [actor, partner], [actor, partner], birthFood.Id, 4, society.WorldTick,
+            ChildName: "Ari", PrimaryCaregiverId: actor));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         var childPosition = state.Map.FootNeighbors(point).First(tile => state.Map.IsBuildable(tile) &&
@@ -90,7 +91,8 @@ public sealed class CaregiverFoodRoutingTests
         society = SocietyFixture.AcceptRelationship(society, "care-parents", 1, ids[1]).Checkpoint;
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
-            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
+            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick,
+            ChildName: "Ari", PrimaryCaregiverId: ids[0]));
         Assert.Equal("first-town-house-a", birthFood.StorageBuildingId);
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;

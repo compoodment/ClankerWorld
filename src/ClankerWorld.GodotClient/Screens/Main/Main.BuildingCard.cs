@@ -237,7 +237,13 @@ public partial class Main
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
         if (building.ExpansionState == "running")
-            buildingQuickStatus.AddChild(new Label { Text = "Expanding storage" });
+            buildingQuickStatus.AddChild(new Label
+            {
+                Text = building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                    ? "House expansion underway · places change on completion"
+                    : "Expanding storage",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
         else if (building.ExpansionFailure is { } failure)
             buildingQuickStatus.AddChild(new Label
             {
@@ -287,8 +293,18 @@ public partial class Main
         };
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
+        if (building.ResidentLimit is { } residentLimit)
+        {
+            facts.Add(("Permanent residents", $"{building.PermanentResidentCount} / {residentLimit} places"));
+            if (building.HasDominantFamily)
+                facts.Add(("Family limit", "Dominant family qualifies for four places per tile"));
+            if (building.IsOvercrowded)
+                facts.Add(("Crowding", "Overcrowded · voluntary admissions are blocked"));
+        }
         if (building.ExpansionState == "running")
-            facts.Add(("Expansion", "Work in progress"));
+            facts.Add(("Expansion", building.ResidentLimit is not null
+                ? "Work in progress · current resident places remain until completion"
+                : "Work in progress"));
         else if (building.ExpansionFailure is { } failure)
             facts.Add(("Expansion", failure));
         if (building.InvitedGuests is { Count: > 0 } guests)
@@ -318,7 +334,7 @@ public partial class Main
         buildingPeopleSummary.Text = inside.Length == 0 ? "Nobody inside" : $"{inside.Length} inside";
         var people = new List<string>();
         if (inside.Length > 0) people.Add("Inside: " + string.Join(", ", inside));
-        if (residents.Length > 0) people.Add($"Home of {household}: {string.Join(", ", residents)}");
+        if (residents.Length > 0) people.Add($"Permanent residents (including travelers): {string.Join(", ", residents)}");
         buildingPeopleText.Text = string.Join('\n', people);
         buildingPeopleText.Visible = people.Count > 0;
     }

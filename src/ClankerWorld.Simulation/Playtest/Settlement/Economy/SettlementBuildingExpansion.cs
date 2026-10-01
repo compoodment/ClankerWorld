@@ -117,21 +117,29 @@ public sealed partial class PrivateWorldRuntime
         failure = "Only an adult household member or a current Town resident can expand this building.";
         if (!AdultResident(actor)) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        var nearlyFull = StoredQuantity(building.InstanceId) * 100 >=
+            BuildingStorageRules.Capacity(definition, building) * BuildingStorageRules.NearlyFullPercent;
         if (definition.Tags.Contains("house", StringComparer.Ordinal))
         {
             if (building.HouseholdId != society.Checkpoint.GetInhabitant(actor).HouseholdId) return false;
+            var residentNeed = building.HouseholdId is { } householdId &&
+                HouseResidentCapacity(householdId) is { } capacity && capacity.ResidentCount >= capacity.Limit;
+            if (!nearlyFull && !residentNeed)
+            {
+                failure = "The House needs more resident places or must be nearly full before storage can be expanded.";
+                return false;
+            }
         }
         else if (definition.Tags.Contains("warehouse", StringComparer.Ordinal))
         {
             if (building.TownId is null || TownForResident(actor) != building.TownId) return false;
+            if (!nearlyFull)
+            {
+                failure = "The building needs to be nearly full before its storage can be expanded.";
+                return false;
+            }
         }
         else return false;
-        if (StoredQuantity(building.InstanceId) * 100 < BuildingStorageRules.Capacity(definition, building) *
-                BuildingStorageRules.NearlyFullPercent)
-        {
-            failure = "The building needs to be nearly full before its storage can be expanded.";
-            return false;
-        }
         if ((worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == building.InstanceId &&
                 job.State == WorldProductionJobState.Running))
         {
@@ -208,8 +216,13 @@ public sealed partial class PrivateWorldRuntime
             var shape = ExpansionShapes(building).First();
             if (!CanAcquireProjectInputs(BuildingStorageRules.ExpansionCosts(definition, building, shape.Footprint),
                     HouseholdFor(actor), actor)) continue;
+            var reason = definition.Tags.Contains("house", StringComparer.Ordinal) &&
+                building.HouseholdId is { } householdId &&
+                HouseResidentCapacity(householdId) is { } capacity && capacity.ResidentCount >= capacity.Limit
+                    ? "to make more resident places"
+                    : "to add storage";
             candidates.Add(new(ExpandBuildingPrefix + building.InstanceId,
-                $"Expand the nearly full {definition.DisplayName} without moving or sharing its stock.", 24, building.InstanceId));
+                $"Expand the {definition.DisplayName} {reason}, without moving or sharing its stock.", 24, building.InstanceId));
         }
     }
 

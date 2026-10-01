@@ -63,6 +63,23 @@ public sealed partial class PrivateWorldRuntime
     private bool HasHome(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId && HouseForHousehold(householdId) is not null;
 
+    private HouseResidentCapacityRules.Capacity? HouseResidentCapacity(string householdId,
+        SocietyInhabitant? proposedResident = null)
+    {
+        if (HouseForHousehold(householdId) is not { } house)
+            return null;
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var effective = BuildingStorageRules.EffectiveDefinition(definition, house);
+        var residents = society.Checkpoint.Inhabitants.Where(person =>
+            person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active);
+        if (proposedResident is not null && !residents.Any(person => person.Id == proposedResident.Id))
+            residents = residents.Append(proposedResident with { HouseholdId = householdId });
+        return HouseResidentCapacityRules.Calculate(residents, effective.Width, effective.Height);
+    }
+
+    private bool CanFitHouseResident(string householdId, SocietyInhabitant proposedResident) =>
+        HouseResidentCapacity(householdId, proposedResident) is { IsOvercrowded: false };
+
     /// <summary>
     /// Households this adult may ask now: they hold a House in the adult's
     /// Town, have an adult who can answer, and did not refuse recently. Only
@@ -80,6 +97,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var household in society.Checkpoint.Households.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             if (HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
+                !CanFitHouseResident(household.Id, society.Checkpoint.GetInhabitant(actor)) ||
                 HouseholdAdults(household.Id).Length == 0 ||
                 housing?.Refusals?.Any(refusal => refusal.HouseholdId == household.Id &&
                     WorldTick - refusal.Tick < HousingRefusalCooldownTicks) == true)
@@ -205,6 +223,11 @@ public sealed partial class PrivateWorldRuntime
         {
             EndHousingRequest(actor, request, "housing_request_refused", remember: true);
         }
+        else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)) &&
+            !CanFitHouseResident(request.HouseholdId, society.Checkpoint.GetInhabitant(actor)))
+        {
+            EndHousingRequest(actor, request, "housing_request_blocked_capacity", remember: true);
+        }
         else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)))
         {
             society.Apply(checkpoint => SocietyFixture.JoinHousehold(checkpoint, actor, request.HouseholdId));
@@ -275,6 +298,24 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>What the agent's own model is told about its housing; null when it has a home.</summary>
     private string? HousingNote(string actor)
     {
+        var person = society.Checkpoint.GetInhabitant(actor);
+        if (person.HouseholdId is { } householdId && HouseForHousehold(householdId) is { } house &&
+            HouseResidentCapacity(householdId) is { } capacity)
+        {
+            var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+            var footprint = WorldContentSimulationRules.Footprint(definition, house).ToHashSet();
+            var inside = inhabitants.Values.Count(physical =>
+                society.Checkpoint.GetInhabitant(physical.InhabitantId).Status == SocietyInhabitantStatus.Active &&
+                footprint.Contains(physical.Position));
+            var state = capacity.IsOvercrowded ? "overcrowded" :
+                capacity.HasFreePlace ? "has room" : "is full";
+            var family = capacity.HasDominantFamily ? "; the dominant family limit applies" : string.Empty;
+            var expansion = (worldSimulation.BuildingExpansions ?? []).Any(job =>
+                job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Running)
+                ? "; an unfinished expansion adds no places yet" : string.Empty;
+            return $"Your House has {capacity.ResidentCount} of {capacity.Limit} permanent resident places and {state}{family}{expansion}. " +
+                $"There are {inside} people physically inside now; people away still count as residents.";
+        }
         if (inhabitants[actor].Housing is not { Blocker: { } blocker } housing)
             return null;
         return blocker switch
