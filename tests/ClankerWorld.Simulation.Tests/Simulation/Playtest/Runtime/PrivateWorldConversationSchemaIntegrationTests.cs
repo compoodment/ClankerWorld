@@ -59,7 +59,7 @@ public sealed partial class PrivateWorldConversationTests
 
             File.WriteAllBytes(path, currentBytes);
             using var restored = file.LoadOrCreate(state.WorldSeed);
-            Assert.Equal(PrivateWorldRuntime.ConversationSchemaVersion, restored.ExportState().SchemaVersion);
+            Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, restored.ExportState().SchemaVersion);
             Assert.Equal(FarmFieldStage.Prepared, Assert.Single(restored.Fields).Stage);
             Assert.Equal(new InventoryGroundPosition(point.X, point.Y),
                 restored.Society.Inventory.GetLot("conversation-ground-harvest").GroundPosition);

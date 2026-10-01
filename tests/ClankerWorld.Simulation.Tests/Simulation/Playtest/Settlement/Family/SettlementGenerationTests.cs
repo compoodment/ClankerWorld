@@ -72,6 +72,13 @@ public sealed partial class SettlementParenthoodTests
             // than relying on the retired zero-input crop job.
             world.Pause();
             var adultState = world.ExportState();
+            // Keep this finite paid-input task independent of unstarted
+            // building plans left over from the preceding years of family life.
+            adultState = adultState with
+            {
+                Inhabitants = adultState.Inhabitants.Select(person => person.InhabitantId != childId &&
+                    person.Project?.JobId is null ? person with { Project = null, LastDecisionContext = null } : person).ToArray(),
+            };
             var household = grown.HouseholdId!;
             var inventory = InventoryFixture.AddLot(adultState.Society.Society.Inventory,
                 "adult-work-wood", "wood", household, 13);
@@ -89,11 +96,14 @@ public sealed partial class SettlementParenthoodTests
             }
             var savedWhileWorking = false;
             world.Resume();
-            for (var tick = 0; tick < 300 && world.Inhabitants.Single(person => person.InhabitantId == childId).Project?.Stage != "completed"; tick++)
+            for (var tick = 0; tick < 300 && !world.WorldSimulation.ProductionJobs.Any(job => job.WorkerId == childId &&
+                     job.RecipeId == tools.CanonicalId && job.StartedTick >= adultState.Society.Society.WorldTick &&
+                     job.State == WorldProductionJobState.Completed); tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (!savedWhileWorking && world.WorldSimulation.ProductionJobs.Any(job => job.WorkerId == childId &&
-                        job.RecipeId == tools.CanonicalId && job.State == WorldProductionJobState.Running))
+                        job.RecipeId == tools.CanonicalId && job.StartedTick >= adultState.Society.Society.WorldTick &&
+                        job.State == WorldProductionJobState.Running))
                 {
                     world.Pause();
                     workFile.Save(world);
@@ -107,10 +117,14 @@ public sealed partial class SettlementParenthoodTests
                 $"Role={grown.CurrentRole}; Choices={observations.GetValueOrDefault(childId)}; " +
                 "Physical=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Single(person => person.InhabitantId == childId)) + "; " +
                 "Stock=" + string.Join(',', world.Society.Inventory.Lots.GroupBy(lot => lot.ItemKind).Select(group => group.Key + "=" + group.Sum(lot => lot.Quantity))) +
+                "; Owners=" + string.Join(',', world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood")
+                    .Select(lot => lot.OwnerId + "=" + lot.Quantity + "@" + lot.StorageBuildingId)) +
+                "; Projects=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new { person.InhabitantId, person.Project })) +
                 "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)));
             Assert.True(savedWhileWorking);
             var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.WorkerId == childId &&
-                job.RecipeId == tools.CanonicalId && job.State == WorldProductionJobState.Completed);
+                job.RecipeId == tools.CanonicalId && job.StartedTick >= adultState.Society.Society.WorldTick &&
+                job.State == WorldProductionJobState.Completed);
             var consumed = world.Society.Inventory.Reservations.Where(reservation => completed.InputReservationIds.Contains(reservation.Id)).ToArray();
             Assert.All(consumed, reservation => Assert.Equal(InventoryReservationState.Completed, reservation.State));
             Assert.Equal(3, consumed.Sum(reservation => reservation.Quantity));

@@ -451,6 +451,113 @@ public sealed class PersonalEquipmentTests
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
     }
 
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(4, true)]
+    public async Task HelpingAProjectOffersGatheringOnlyWhenTheWholeLoadFits(int cargo, bool fits)
+    {
+        using var initial = new PrivateWorldRuntime("settlement-acquisition", _ => new Choices([]));
+        initial.StageStarterContent();
+        for (var tick = 0; tick < 6; tick++) Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var requester = state.Inhabitants[0].InhabitantId;
+        var helper = state.Inhabitants[1].InhabitantId;
+        var source = state.Map.Resources.First(item => item.Kind == "construction" && item.TreeKind is null);
+        var house = initial.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var site = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsBuildable(point) &&
+            !state.Map.CampObjects.Any(item => item.Position == point) &&
+            !state.Map.Resources.Any(item => item.Position == point) &&
+            !state.Inhabitants.Any(person => person.Position == point));
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != helper && lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "helper-unrelated-cargo", "fiber", helper, cargo);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
+                ? person with { Position = source.Position, HungerBasisPoints = 9_500, Equipment = null, LastDecisionContext = null }
+                : person.InhabitantId == requester ? person with
+                {
+                    HungerBasisPoints = 9_500,
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, site),
+                        house.DisplayName, initial.WorldTick, "acquiring", LastTransitionTick: initial.WorldTick),
+                } : person).ToArray(),
+        };
+        var provider = new Choices(["assist:wood"]);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == helper ? provider : new Choices([]));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.InRange(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, helper, null), 0, 8);
+            if (world.ExportState().Events.Any(item => item.Kind == "material_gathered" &&
+                item.Detail.StartsWith(helper + ":wood:", StringComparison.Ordinal))) break;
+        }
+        if (fits) Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("assist:wood", StringComparer.Ordinal));
+        else Assert.All(provider.Offers, offer => Assert.DoesNotContain("assist:wood", offer.Split(',')));
+        Assert.Equal(fits ? 1 : 0, world.ExportState().Events.Count(item => item.Kind == "material_gathered" &&
+            item.Detail.StartsWith(helper + ":wood:4", StringComparison.Ordinal)));
+        Assert.Equal(cargo, world.Society.Inventory.GetLot("helper-unrelated-cargo").Quantity);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == helper);
+        world.Validate();
+    }
+
+    [Fact]
+    public async Task FirstHouseHelperStagesMaterialsAtCampEvenWhenTheBuilderCannotCarryMoreAcrossReload()
+    {
+        using var initial = new PrivateWorldRuntime("settlement-acquisition", _ => new Choices([]));
+        initial.StageStarterContent();
+        for (var tick = 0; tick < 6; tick++) Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
+        var state = initial.ExportState();
+        var requester = state.Inhabitants[0].InhabitantId;
+        var helper = state.Inhabitants[1].InhabitantId;
+        var household = state.Society.Society.GetInhabitant(requester).HouseholdId!;
+        var camp = state.Map.GetObject("storage").Position;
+        var house = initial.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var site = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsBuildable(point) &&
+            !state.Map.CampObjects.Any(item => item.Position == point) &&
+            !state.Map.Resources.Any(item => item.Position == point) &&
+            !state.Inhabitants.Any(person => person.Position == point));
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != helper &&
+                lot.OwnerId != requester && lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "full-builders-stone", "stone", requester, 8);
+        inventory = InventoryFixture.AddLot(inventory, "helper-house-wood", "wood", helper, 4);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
+                ? person with { HungerBasisPoints = 9_500, Equipment = null, LastDecisionContext = null }
+                : person.InhabitantId == requester ? person with
+                {
+                    HungerBasisPoints = 9_500,
+                    Equipment = null,
+                    Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, site),
+                        house.DisplayName, initial.WorldTick, "acquiring", LastTransitionTick: initial.WorldTick),
+                } : person).ToArray(),
+        };
+        var provider = new Choices(["assist:wood"]);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == helper ? provider : new Choices([]));
+        for (var tick = 0; tick < 30 && !world.ExportState().Events.Any(item => item.Kind == "project_request_fulfilled"); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
+            item.Detail == helper + ":" + requester + ":wood:4");
+        var staged = world.Society.Inventory.GetLot("helper-house-wood");
+        Assert.Equal(household, staged.OwnerId);
+        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), staged.GroundPosition);
+        Assert.Null(staged.StorageBuildingId);
+        Assert.Null(staged.DeliveryBuildingId);
+        Assert.Equal(4, staged.Quantity);
+        Assert.Equal(8, world.Society.Inventory.GetLot("full-builders-stone").Quantity);
+        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, requester, null));
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(staged, restored.Society.Inventory.GetLot(staged.Id));
+        restored.Validate();
+    }
+
     private static PrivateWorldRuntimeState WithWeather(PrivateWorldRuntimeState state, WeatherKind weather)
     {
         var systems = state.WorldSystems!;
