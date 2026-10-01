@@ -446,13 +446,22 @@ public static class UiTheme
         return theme;
     }
 
-    private static int tooltipScale = 1;
+    private static float tooltipScale = 1;
+
+    /// <summary>
+    /// The whole number of screen pixels one pixel of a drawn frame or icon
+    /// covers at a UI Scale. Medium's 1.5 rounds up to 2, so frames stay crisp.
+    /// </summary>
+    public static int PixelScale(float factor) => Math.Max(1, (int)MathF.Ceiling(factor));
+
+    /// <summary>A font size grown with UI Scale. At Medium the pixel letters are slightly uneven.</summary>
+    public static int ScaledFontSize(int size, float factor) => (int)MathF.Round(size * factor);
 
     /// <summary>
     /// Tooltips are windows the engine creates on demand, so their text and
     /// frame follow UI Scale through the theme instead.
     /// </summary>
-    public static void ScaleTooltips(int factor)
+    public static void ScaleTooltips(float factor)
     {
         tooltipScale = Math.Max(1, factor);
         SetTooltip(Theme, Current);
@@ -460,15 +469,15 @@ public static class UiTheme
 
     private static void SetTooltip(Theme theme, UiPalette p)
     {
-        theme.SetStylebox("panel", "TooltipPanel", Box(p.Paper, p.Ink, 1, 8, 5, tooltipScale));
-        theme.SetFontSize("font_size", "TooltipLabel", UiFonts.Body * tooltipScale);
+        theme.SetStylebox("panel", "TooltipPanel", Box(p.Paper, p.Ink, 1, 8, 5, PixelScale(tooltipScale)));
+        theme.SetFontSize("font_size", "TooltipLabel", ScaledFontSize(UiFonts.Body, tooltipScale));
     }
 
     /// <summary>
     /// Magnifies a separate window's contents, such as a drop-down list, by UI
     /// Scale. The main interface scales as one layer; windows need their own.
     /// </summary>
-    public static void ScaleWindow(Window window, int factor)
+    public static void ScaleWindow(Window window, float factor)
     {
         ArgumentNullException.ThrowIfNull(window);
         window.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
@@ -478,20 +487,21 @@ public static class UiTheme
     }
 
     /// <summary>Scales a dialog's contents and the frame, title and close button drawn around it.</summary>
-    public static void ScaleDialog(Window dialog, int factor)
+    public static void ScaleDialog(Window dialog, float factor)
     {
         ArgumentNullException.ThrowIfNull(dialog);
         ScaleWindow(dialog, factor);
-        var frame = WindowFrame(Current, factor);
+        var pixels = PixelScale(factor);
+        var frame = WindowFrame(Current, pixels);
         dialog.AddThemeStyleboxOverride("embedded_border", frame);
         dialog.AddThemeStyleboxOverride("embedded_unfocused_border", frame);
-        dialog.AddThemeConstantOverride("title_height", TitleHeight * factor);
+        dialog.AddThemeConstantOverride("title_height", (int)MathF.Round(TitleHeight * factor));
         // Set on the dialog itself: a window keeps the title font it looked up
         // before the game's theme was applied.
         dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
-        dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading * factor);
-        dialog.AddThemeIconOverride("close", PixelIcons.Texture(PixelGlyph.Close, Current.Ink, Current.Ink, factor));
-        dialog.AddThemeIconOverride("close_pressed", PixelIcons.Texture(PixelGlyph.Close, Current.InkMuted, Current.InkMuted, factor));
+        dialog.AddThemeFontSizeOverride("title_font_size", ScaledFontSize(UiFonts.Heading, factor));
+        dialog.AddThemeIconOverride("close", PixelIcons.Texture(PixelGlyph.Close, Current.Ink, Current.Ink, pixels));
+        dialog.AddThemeIconOverride("close_pressed", PixelIcons.Texture(PixelGlyph.Close, Current.InkMuted, Current.InkMuted, pixels));
     }
 
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,

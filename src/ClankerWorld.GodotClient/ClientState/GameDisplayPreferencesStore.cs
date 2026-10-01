@@ -11,9 +11,6 @@ public sealed record GameDisplayPreferences(
     string DateFormat = "dmy",
     int WindowWidth = 1280,
     int WindowHeight = 720,
-    int RenderWidth = 1280,
-    int RenderHeight = 720,
-    bool? AutoRenderResolution = null,
     int UiScalePercent = DisplayUiScalePolicy.Automatic,
     bool? Fullscreen = null,
     string Theme = "light",
@@ -23,16 +20,13 @@ public sealed record GameDisplayPreferences(
     // Older settings did not record window mode. Default those installations
     // to fullscreen, while honoring an explicit windowed choice thereafter.
     public bool UsesFullscreen => Fullscreen ?? true;
-    // Older settings have no mode flag. Their default 720p value was not a
-    // useful indication of the monitor's native resolution, so migrate it to
-    // Automatic while preserving explicit non-default render choices.
-    public bool UsesAutomaticRenderResolution => AutoRenderResolution ??
-        RenderWidth == 1280 && RenderHeight == 720;
 }
 
 /// <summary>
-/// UI Scale magnifies the whole interface by a whole number, so pixel fonts,
-/// frames and icons stay crisp.
+/// UI Scale offers named sizes that magnify the whole interface. Small and
+/// Large are whole multiples and perfectly crisp; Medium (150%) and Extra
+/// large (300% at 4K) fill the gaps, with Medium's pixel letters slightly
+/// uneven. Sizes that would leave too little room are not offered.
 /// </summary>
 public static class DisplayUiScalePolicy
 {
@@ -43,42 +37,53 @@ public static class DisplayUiScalePolicy
     public const int MinimumWidth = 960;
     public const int MinimumHeight = 540;
 
-    private static readonly ReadOnlyCollection<int> SupportedValues = Array.AsReadOnly(new[] { Automatic, 100, 200, 300, 400 });
+    /// <summary>Automatic aims to leave the interface about this many pixels tall.</summary>
+    private const float AutomaticHeight = 720;
+
+    private static readonly ReadOnlyCollection<int> SupportedValues = Array.AsReadOnly(new[] { Automatic, 100, 150, 200, 300 });
 
     public static IReadOnlyList<int> SupportedPercentages => SupportedValues;
 
+    /// <summary>What a size is called in Settings.</summary>
+    public static string Name(int percent) => NormalizePercent(percent) switch
+    {
+        100 => "Small",
+        150 => "Medium",
+        200 => "Large",
+        300 => "Extra large",
+        _ => "Automatic",
+    };
+
     /// <summary>
-    /// Keeps a supported choice, moves an older in-between step such as 150%
-    /// to the nearest whole one, and treats anything else as Automatic.
+    /// Keeps a supported choice, moves an older step such as 400% to the
+    /// nearest size, and treats anything else as Automatic.
     /// </summary>
     public static int NormalizePercent(int percent) =>
         SupportedValues.Contains(percent) ? percent :
-        percent is > 100 and < 400 ? (int)Math.Round(percent / 100.0, MidpointRounding.AwayFromZero) * 100 : Automatic;
-
-    public static int IndexOfPercent(int percent)
-    {
-        var normalizedPercent = NormalizePercent(percent);
-        for (var index = 0; index < SupportedValues.Count; index++)
-            if (SupportedValues[index] == normalizedPercent) return index;
-        return 0;
-    }
+        percent is > 100 and <= 400 ? SupportedValues.Skip(1).MinBy(value => Math.Abs(value - percent)) : Automatic;
 
     /// <summary>
-    /// The whole-number scale for a choice on a screen this size. Automatic
-    /// keeps the interface near 720 pixels tall: 100% on small screens, 200% at
-    /// 1080p and 1440p, 300% at 4K. Any choice is lowered until the interface
-    /// keeps at least the minimum area.
+    /// How many screen pixels each interface pixel covers for a choice on a
+    /// screen this size. Automatic picks the size that leaves the interface
+    /// closest to 720 pixels tall: Small at 720p, Medium at 1080p, Large at
+    /// 1440p and Extra large at 4K. Any choice drops to the next smaller size
+    /// until the interface keeps at least the minimum area.
     /// </summary>
-    public static int FittingFactor(int percent, float width, float height)
+    public static float FittingFactor(int percent, float width, float height)
     {
         var choice = NormalizePercent(percent);
+        var steps = SupportedValues.Skip(1).Select(value => value / 100f).ToArray();
         var factor = choice == Automatic
-            ? Math.Max(1, (int)Math.Round(height / 720.0, MidpointRounding.AwayFromZero))
-            : choice / 100;
+            ? steps.MinBy(step => Math.Abs(height / step - AutomaticHeight))
+            : choice / 100f;
         while (factor > 1 && (width / factor < MinimumWidth || height / factor < MinimumHeight))
-            factor--;
+            factor = steps.Where(step => step < factor).Max();
         return factor;
     }
+
+    /// <summary>Whether a size has room on a screen this size, so Settings lists it.</summary>
+    public static bool Fits(int percent, float width, float height) =>
+        percent == Automatic || Math.Abs(FittingFactor(percent, width, height) * 100 - percent) < 0.5f;
 }
 
 public readonly record struct DisplayDimensions(int Width, int Height)
@@ -86,36 +91,14 @@ public readonly record struct DisplayDimensions(int Width, int Height)
     public bool IsReasonable => Width is >= 640 and <= 8192 && Height is >= 360 and <= 8192;
 }
 
+/// <summary>The game always draws at the screen's own resolution.</summary>
 public static class DisplayResolutionPolicy
 {
-    private static readonly DisplayDimensions[] StandardRenderSizes =
-    [
-        new(1280, 720),
-        new(1600, 900),
-        new(1920, 1080),
-        new(2560, 1440),
-        new(3840, 2160),
-    ];
-
     public static DisplayDimensions AutomaticRenderSize(
         DisplayDimensions monitor, DisplayDimensions window, bool fullscreen) =>
         fullscreen && monitor.IsReasonable ? monitor :
         window.IsReasonable ? window :
         monitor.IsReasonable ? monitor : new DisplayDimensions(1280, 720);
-
-    public static IReadOnlyList<DisplayDimensions> FixedRenderSizes(
-        DisplayDimensions monitor, DisplayDimensions? saved = null)
-    {
-        var ceiling = monitor.IsReasonable ? monitor : new DisplayDimensions(1920, 1080);
-        return StandardRenderSizes
-            .Where(size => size.Width <= ceiling.Width && size.Height <= ceiling.Height)
-            .Append(ceiling)
-            .Concat(saved is { IsReasonable: true } ? [saved.Value] : [])
-            .Distinct()
-            .OrderBy(size => (long)size.Width * size.Height)
-            .ThenBy(size => size.Width)
-            .ToArray();
-    }
 }
 
 public sealed class GameDisplayPreferencesStore(string path)

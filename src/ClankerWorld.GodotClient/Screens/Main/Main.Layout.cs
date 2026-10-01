@@ -77,8 +77,6 @@ public partial class Main
         settingsScroll.ScrollVertical = 0;
         gameSettingsContent.Visible = !worldSpecific;
         worldSettingsContent.Visible = worldSpecific;
-        if (!worldSpecific && renderResolutionChoice.ItemCount > 0)
-            RefreshRenderResolutionOptions();
         SelectSettingsCategory(worldSpecific ? worldSettingsCategoryButton : gameSettingsCategoryButton);
         settingsScroll.Show();
         developerScroll.Hide();
@@ -358,10 +356,8 @@ public partial class Main
         themeChoice.TooltipText = "Light parchment or dark wood panels. Match system follows your computer's setting.";
         themeChoice.ItemSelected += SetUiTheme;
 
-        foreach (var percentage in DisplayUiScalePolicy.SupportedPercentages)
-            uiScaleChoice.AddItem(percentage == DisplayUiScalePolicy.Automatic ? "Automatic" : $"{percentage}%");
-        uiScaleChoice.Selected = DisplayUiScalePolicy.IndexOfPercent(displayPreferences.UiScalePercent);
-        uiScaleChoice.TooltipText = "Makes all menus, panels and text bigger or smaller. Automatic picks a size for your screen. Bigger sizes need a bigger window.";
+        // ApplyUiScale lists the sizes that fit the screen.
+        uiScaleChoice.TooltipText = "Makes menus, panels and text bigger or smaller. Automatic picks a size for your screen. Only sizes that fit are listed.";
         uiScaleChoice.ItemSelected += SetUiScale;
         gameSettingsContent.AddChild(SettingsBox("Interface",
             DisplaySettingRow("Theme", themeChoice), DisplaySettingRow("UI Scale", uiScaleChoice)));
@@ -457,7 +453,7 @@ public partial class Main
         settingsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
         // Keep the scrollbar clear of the boxes' edges and drop-downs.
         var scrollGap = new MarginContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        scrollGap.AddThemeConstantOverride("margin_right", 10);
+        scrollGap.AddThemeConstantOverride("margin_right", SettingsScrollGap);
         scrollGap.AddChild(settingsPages);
         settingsScroll.AddChild(scrollGap);
         var settingsCategories = new VBoxContainer { CustomMinimumSize = new Vector2(130, 0) };

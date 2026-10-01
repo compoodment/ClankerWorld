@@ -42,6 +42,8 @@ public partial class Main
         apiKeysStatus.Text = "Connect and pair this device to save keys.";
         body.AddChild(apiKeysStatus);
         savedApiKeys.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // Shown once the host has said which keys are saved, so it leaves no blank line before then.
+        savedApiKeys.Hide();
         body.AddChild(savedApiKeys);
         AddPanelContents(apiKeysPanel, "API keys", body);
         apiKeysPanel.ThemeTypeVariation = "InsetPanel";
@@ -60,9 +62,9 @@ public partial class Main
         var read = ++apiKeysRead;
         var owner = registration;
         savedApiKeys.Text = string.Empty;
+        savedApiKeys.Hide();
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
-            savedApiKeys.Text = string.Empty;
             apiKeysStatus.Text = "Connect and pair this device to save keys.";
             return;
         }
@@ -83,9 +85,13 @@ public partial class Main
         }
     }
 
-    private void RenderSavedApiKeys() => savedApiKeys.Text = providerConfiguration?.CredentialSlots is { Count: > 0 } slots
-        ? "Saved keys:\n" + string.Join('\n', slots.Select(slot => $"{ProviderDisplayName(slot.Provider)} · {slot.Label}"))
-        : "No named keys saved yet.";
+    private void RenderSavedApiKeys()
+    {
+        savedApiKeys.Text = providerConfiguration?.CredentialSlots is { Count: > 0 } slots
+            ? "Saved keys:\n" + string.Join('\n', slots.Select(slot => $"{ProviderDisplayName(slot.Provider)} · {slot.Label}"))
+            : "No named keys saved yet.";
+        savedApiKeys.Show();
+    }
 
     private async Task SaveApiKeyAsync()
     {

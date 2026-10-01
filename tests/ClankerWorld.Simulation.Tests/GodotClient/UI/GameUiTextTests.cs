@@ -31,7 +31,7 @@ public sealed class GameUiTextTests
         Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));
     }
 
-    private static readonly int[] UiScalePercentages = [DisplayUiScalePolicy.Automatic, 100, 200, 300, 400];
+    private static readonly int[] UiScalePercentages = [DisplayUiScalePolicy.Automatic, 100, 150, 200, 300];
 
     [Theory]
     [InlineData("  Alexandria   Smith  ", "Alexandria")]
@@ -162,20 +162,16 @@ public sealed class GameUiTextTests
             var store = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json"));
             Assert.False(store.Load().UseTwelveHourClock);
             store.Save(new GameDisplayPreferences(UseTwelveHourClock: true,
-                WindowWidth: 1600, WindowHeight: 900, RenderWidth: 1920, RenderHeight: 1080,
-                UiScalePercent: 200, Fullscreen: false));
+                WindowWidth: 1600, WindowHeight: 900, UiScalePercent: 150, Fullscreen: false));
             var restored = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load();
             Assert.True(restored.UseTwelveHourClock);
             Assert.Equal((1600, 900), (restored.WindowWidth, restored.WindowHeight));
-            Assert.Equal((1920, 1080), (restored.RenderWidth, restored.RenderHeight));
-            Assert.False(restored.UsesAutomaticRenderResolution);
-            Assert.Equal(200, restored.UiScalePercent);
+            Assert.Equal(150, restored.UiScalePercent);
             Assert.False(restored.UsesFullscreen);
             store.Save(restored with { DateFormat = "ymd" });
             Assert.Equal("ymd", store.Load().DateFormat);
             Assert.Equal((1600, 900), (store.Load().WindowWidth, store.Load().WindowHeight));
-            Assert.Equal((1920, 1080), (store.Load().RenderWidth, store.Load().RenderHeight));
-            Assert.Equal(200, store.Load().UiScalePercent);
+            Assert.Equal(150, store.Load().UiScalePercent);
             Assert.False(store.Load().UsesFullscreen);
         }
         finally
@@ -185,12 +181,15 @@ public sealed class GameUiTextTests
     }
 
     [Fact]
-    public void UiScaleOffersWholeStepsAndMovesOlderSavedValuesToThem()
+    public void UiScaleOffersNamedSizesAndMovesOlderSavedValuesToThem()
     {
         Assert.Equal(UiScalePercentages, DisplayUiScalePolicy.SupportedPercentages);
+        Assert.Equal(["Automatic", "Small", "Medium", "Large", "Extra large"],
+            DisplayUiScalePolicy.SupportedPercentages.Select(DisplayUiScalePolicy.Name));
         Assert.Equal(100, DisplayUiScalePolicy.NormalizePercent(123));
-        Assert.Equal(200, DisplayUiScalePolicy.NormalizePercent(150));
-        Assert.Equal(200, DisplayUiScalePolicy.NormalizePercent(175));
+        Assert.Equal(150, DisplayUiScalePolicy.NormalizePercent(150));
+        Assert.Equal(150, DisplayUiScalePolicy.NormalizePercent(170));
+        Assert.Equal(300, DisplayUiScalePolicy.NormalizePercent(400));
         Assert.Equal(DisplayUiScalePolicy.Automatic, DisplayUiScalePolicy.NormalizePercent(500));
         Assert.Equal(DisplayUiScalePolicy.Automatic, new GameDisplayPreferences().UiScalePercent);
         Assert.True(new GameDisplayPreferences().UsesFullscreen);
@@ -199,9 +198,9 @@ public sealed class GameUiTextTests
         try
         {
             var path = Path.Combine(directory.FullName, "game-settings.json");
-            File.WriteAllText(path, "{\"UiScalePercent\":150}");
+            File.WriteAllText(path, "{\"UiScalePercent\":400,\"RenderWidth\":1920,\"RenderHeight\":1080}");
             var store = new GameDisplayPreferencesStore(path);
-            Assert.Equal(200, store.Load().UiScalePercent);
+            Assert.Equal(300, store.Load().UiScalePercent);
             File.WriteAllText(path, "{\"UiScalePercent\":500}");
             Assert.Equal(DisplayUiScalePolicy.Automatic, store.Load().UiScalePercent);
 
@@ -215,59 +214,41 @@ public sealed class GameUiTextTests
     }
 
     [Theory]
-    [InlineData(1280, 720, 1)]
-    [InlineData(1920, 1080, 2)]
-    [InlineData(2560, 1440, 2)]
-    [InlineData(3840, 2160, 3)]
-    public void AutomaticUiScaleKeepsTheInterfaceNear720PixelsTall(int width, int height, int factor) =>
+    [InlineData(1280, 720, 1f)]
+    [InlineData(1600, 900, 1.5f)]
+    [InlineData(1920, 1080, 1.5f)]
+    [InlineData(2560, 1440, 2f)]
+    [InlineData(3840, 2160, 3f)]
+    public void AutomaticUiScaleKeepsTheInterfaceNear720PixelsTall(int width, int height, float factor) =>
         Assert.Equal(factor, DisplayUiScalePolicy.FittingFactor(DisplayUiScalePolicy.Automatic, width, height));
 
     [Fact]
-    public void ChosenUiScaleDropsToTheLargestStepThatLeavesTheMenusRoom()
+    public void ChosenUiScaleDropsToTheLargestSizeThatLeavesTheMenusRoom()
     {
-        Assert.Equal(2, DisplayUiScalePolicy.FittingFactor(200, 1920, 1080));
-        Assert.Equal(1, DisplayUiScalePolicy.FittingFactor(200, 1280, 720));
-        Assert.Equal(2, DisplayUiScalePolicy.FittingFactor(400, 2560, 1440));
-        Assert.Equal(4, DisplayUiScalePolicy.FittingFactor(400, 3840, 2160));
-        Assert.Equal(1, DisplayUiScalePolicy.FittingFactor(100, 3840, 2160));
+        Assert.Equal(2f, DisplayUiScalePolicy.FittingFactor(200, 1920, 1080));
+        Assert.Equal(2f, DisplayUiScalePolicy.FittingFactor(300, 1920, 1080));
+        Assert.Equal(1f, DisplayUiScalePolicy.FittingFactor(150, 1280, 720));
+        Assert.Equal(2f, DisplayUiScalePolicy.FittingFactor(300, 2560, 1440));
+        Assert.Equal(3f, DisplayUiScalePolicy.FittingFactor(300, 3840, 2160));
+        Assert.Equal(1f, DisplayUiScalePolicy.FittingFactor(100, 3840, 2160));
     }
 
+    [Theory]
+    [InlineData(1280, 720, new[] { 0, 100 })]
+    [InlineData(1920, 1080, new[] { 0, 100, 150, 200 })]
+    [InlineData(2560, 1440, new[] { 0, 100, 150, 200 })]
+    [InlineData(3840, 2160, new[] { 0, 100, 150, 200, 300 })]
+    public void SettingsListsOnlyTheUiSizesThatFit(int width, int height, int[] listed) =>
+        Assert.Equal(listed, DisplayUiScalePolicy.SupportedPercentages.Where(percent => DisplayUiScalePolicy.Fits(percent, width, height)));
+
     [Fact]
-    public void AutomaticRenderResolutionFollowsA1440pDisplayAndWindowWithoutHidingExplicitChoices()
+    public void ThePictureFollowsTheScreenInFullscreenAndTheWindowOtherwise()
     {
         var monitor = new DisplayDimensions(2560, 1440);
         Assert.Equal(monitor, DisplayResolutionPolicy.AutomaticRenderSize(
             monitor, new DisplayDimensions(1600, 900), fullscreen: true));
         Assert.Equal(new DisplayDimensions(1600, 900), DisplayResolutionPolicy.AutomaticRenderSize(
             monitor, new DisplayDimensions(1600, 900), fullscreen: false));
-        Assert.Contains(monitor, DisplayResolutionPolicy.FixedRenderSizes(monitor));
-        Assert.DoesNotContain(monitor, DisplayResolutionPolicy.FixedRenderSizes(new DisplayDimensions(1920, 1080)));
-        Assert.Contains(monitor, DisplayResolutionPolicy.FixedRenderSizes(
-            new DisplayDimensions(1920, 1080), saved: monitor));
-        Assert.Contains(new DisplayDimensions(1920, 1080), DisplayResolutionPolicy.FixedRenderSizes(
-            new DisplayDimensions(1920, 1080), saved: monitor));
-    }
-
-    [Fact]
-    public void OldDefaultRenderChoiceMigratesToAutomaticWhileExplicitLegacyChoiceStaysFixed()
-    {
-        var directory = Directory.CreateTempSubdirectory("clanker-display-migration-");
-        try
-        {
-            var path = Path.Combine(directory.FullName, "game-settings.json");
-            File.WriteAllText(path, "{\"RenderWidth\":1280,\"RenderHeight\":720}");
-            var store = new GameDisplayPreferencesStore(path);
-            Assert.True(store.Load().UsesAutomaticRenderResolution);
-            store.Save(store.Load() with { AutoRenderResolution = false });
-            Assert.False(store.Load().UsesAutomaticRenderResolution);
-
-            File.WriteAllText(path, "{\"RenderWidth\":1920,\"RenderHeight\":1080}");
-            Assert.False(store.Load().UsesAutomaticRenderResolution);
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
     }
 
     [Theory]

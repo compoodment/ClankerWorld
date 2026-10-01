@@ -505,7 +505,6 @@ public partial class Main
         AddPanelContents(cognitionSettingsPanel, "Agent model", body);
         cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
         RenderProviderConfiguration();
-        RenderUsageStatus();
     }
 
     /// <summary>
@@ -540,6 +539,7 @@ public partial class Main
         body.AddChild(usageButtons);
         AddPanelContents(usageLimitPanel, "Model calls", body);
         usageLimitPanel.ThemeTypeVariation = "InsetPanel";
+        RenderUsageStatus();
     }
 
     private void OpenAgentModelEditor()
