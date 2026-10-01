@@ -386,7 +386,6 @@ public sealed partial class PrivateWorldRuntime
             CancelUnavailableWorkers();
             ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
-            ProcessCropBuilds(targetTick);
             MaintainFarmFields();
 
             AdvanceSettlementSurvival();

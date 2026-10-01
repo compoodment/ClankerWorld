@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -164,10 +165,17 @@ public sealed partial class PrivateWorldRuntime
         var plantingItem = FarmFieldRules.PlantingItem(crop);
         var plantingLotId = plantingItem == crop ? prefix + ":crop" : prefix + ":seed";
         var replantId = prefix + ":replant";
+        var quantity = FarmFieldRules.HarvestQuantity(crop, fertility.At(field.Position));
+        var weather = WeatherAt(field.Position);
+        var moisture = WeatherRules.SoilMoistureAt(worldSystems, field.Position, map.Height,
+            WeatherRules.RegionClimate(map, field.Position));
+        if (weather == WeatherKind.Snow) quantity = Math.Max(1, quantity / 2);
+        else if (weather == WeatherKind.Storm || moisture < 15) quantity = Math.Max(1, quantity * 3 / 4);
+        else if (moisture >= 50) quantity += Math.Max(1, quantity / 4);
         ApplyInventoryTransition(inventory =>
         {
             var next = InventoryFixture.AddLot(inventory, prefix + ":crop", crop, field.HouseholdId,
-                FarmFieldRules.HarvestQuantity(crop, fertility.At(field.Position)), WorldTick,
+                quantity, WorldTick,
                 groundPosition: new(field.Position.X, field.Position.Y));
             if (plantingItem != crop)
                 next = InventoryFixture.AddLot(next, plantingLotId, plantingItem, field.HouseholdId, 2, WorldTick,
@@ -175,5 +183,9 @@ public sealed partial class PrivateWorldRuntime
             return InventoryFixture.Reserve(next, replantId, field.HouseholdId, plantingLotId, 1, "field_replanting", long.MaxValue);
         });
         SetFarmField(field with { Stage = FarmFieldStage.Harvested, Cycle = cycle, Work = null, ReplantingReservationId = replantId });
+        if (weather is WeatherKind.Snow or WeatherKind.Storm)
+            AppendEvent("crop_weather_loss", $"{prefix}:{weather.ToString().ToLowerInvariant()}");
+        else if (moisture < 15 || moisture >= 50)
+            AppendEvent("crop_moisture_effect", $"{prefix}:{(moisture < 15 ? "dry" : "wet")}:{moisture}");
     }
 }

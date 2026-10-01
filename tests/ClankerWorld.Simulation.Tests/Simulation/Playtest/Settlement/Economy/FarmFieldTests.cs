@@ -3,12 +3,190 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class FarmFieldTests
 {
+    [Fact]
+    public async Task OrdinaryChooserExpandsAndReplantsGeneratedFieldsThroughARealFoodShortageAndReload()
+    {
+        var (state, _, household, _) = PreparedFarmer("field-normal-cycle");
+        // The household has eaten its starter rations. Keep all real planting
+        // stock and let ordinary choices arrange every field operation.
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var initialSeeds = state.Society.Society.Inventory.Lots
+            .Where(lot => lot.ItemKind == "cultivated_green_seed").Sum(lot => lot.Quantity);
+        using var first = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
+        for (var tick = 0; tick < 1_800 && !first.Fields.Any(field => field.HouseholdId == household && field.Cycle > 0); tick++)
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(first.Fields, field => field.HouseholdId == household && field.Cycle > 0);
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_prepared");
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_tended");
+        // Eating the available produce creates a real inventory shortage. The
+        // separately reserved planting stock must remain available for recovery.
+        state = FeedHouseholdFromAvailableStock(first.ExportState(), household);
+        using var second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new DeterministicDecisionProvider());
+        for (var tick = 0; tick < 1_800 && !second.Fields.Any(field => field.HouseholdId == household && field.Cycle >= 2); tick++)
+            Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+        var repeated = second.Fields.First(field => field.HouseholdId == household && field.Cycle >= 2);
+        Assert.Equal(FarmFieldStage.Harvested, repeated.Stage);
+        Assert.NotNull(repeated.ReplantingReservationId);
+        Assert.Contains(second.Society.Inventory.Reservations, reservation => reservation.Id == repeated.ReplantingReservationId &&
+            reservation.Quantity == 1 && reservation.State == InventoryReservationState.Reserved);
+        var events = second.ExportState().Events;
+        var plantedGreens = events.Count(item => item.Kind == "field_planted" && item.Detail.EndsWith(":cultivated_greens", StringComparison.Ordinal));
+        var harvestedGreens = events.Count(item => item.Kind == "field_harvested" && item.Detail.EndsWith(":cultivated_greens", StringComparison.Ordinal));
+        Assert.True(plantedGreens >= 2);
+        Assert.Equal(initialSeeds + harvestedGreens * 2 - plantedGreens,
+            second.Society.Inventory.Lots.Where(lot => lot.ItemKind == "cultivated_green_seed").Sum(lot => lot.Quantity));
+        Assert.Contains(second.Fields, field => field.HouseholdId == household && field.Position != repeated.Position);
+        var snapshot = new OwnerWorldObservationStore(second).GetSnapshot();
+        Assert.Contains(snapshot.Fields!, field => field.HouseholdId == household);
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(second.ExportState())));
+        Assert.Equal(second.Fields, restored.Fields);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(second.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    private static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
+    {
+        var inventory = state.Society.Society.Inventory;
+        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
+        {
+            var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
+                .Where(reservation => reservation.LotId == lot.Id && reservation.State is
+                    InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
+                .Sum(reservation => reservation.Quantity);
+            if (available == 0) continue;
+            var reservationId = $"test-household-meal:{inventory.WorldTick}:{lot.Id}";
+            inventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(inventory, reservationId, household,
+                lot.Id, available, "household_meals", checked(inventory.WorldTick + 1)), reservationId);
+        }
+        return WithInventory(state, inventory);
+    }
+
+    [Theory]
+    [InlineData(SocietyAgeBand.Infant, false)]
+    [InlineData(SocietyAgeBand.Child, false)]
+    [InlineData(SocietyAgeBand.Adult, true)]
+    [InlineData(SocietyAgeBand.Elder, true)]
+    public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-age");
+        var society = state.Society.Society;
+        var years = age switch
+        {
+            SocietyAgeBand.Infant => 0,
+            SocietyAgeBand.Child => society.Config.DayLifecycle?.ChildStartDay ?? society.Config.InfantYears,
+            SocietyAgeBand.Adult => society.Config.DayLifecycle?.AdultStartDay ?? society.Config.AdultYears,
+            _ => society.Config.DayLifecycle?.ElderStartDay ?? society.Config.ElderYears,
+        };
+        var birth = society.LifeTickAt(society.WorldTick) - years * society.Config.TicksPerLifecycleAge;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        AgeBand = age, BirthTick = birth, BirthLifeTick = society.LifeClock is null ? null : birth,
+                        LastLifecycleYearChecked = years, CurrentRole = SocietyWorkRole.Unassigned,
+                    } : person).ToArray(),
+                },
+            },
+        };
+        using var world = Restore(state);
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.Equal(allowed, world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        if (!allowed)
+        {
+            Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+            using var reloaded = Reload(world);
+            Assert.False(reloaded.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+            Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        }
+        else
+        {
+            await Advance(world, 3);
+            using var reloaded = Reload(world);
+            await Advance(reloaded, 5);
+            Assert.Equal(FarmFieldStage.Prepared, Assert.Single(reloaded.Fields).Stage);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DeathCancelsUnfinishedFieldWorkBeforeItCompletesAndKeepsCompletedHarvest(bool harvest, bool completed)
+    {
+        var (state, actor, household, point) = await ReadyFarmer("field-death");
+        if (!harvest) state = state with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "death-planting", "grain_seed", actor, 2));
+        using var working = Restore(state);
+        Assert.True(working.StartFieldWork(actor, point, harvest ? FarmWorkKind.Harvest : FarmWorkKind.Plant,
+            harvest ? null : "grain", harvest ? null : "death-planting").Accepted);
+        await Advance(working, completed ? 4 : 3);
+        var saved = working.ExportState();
+        var outputs = saved.Society.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith("field-", StringComparison.Ordinal))
+            .Select(lot => (lot.Id, lot.OwnerId, lot.Quantity, lot.GroundPosition)).ToArray();
+        var plantingTotal = saved.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity);
+        saved = DyingWorker(saved, actor);
+        using var dying = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
+        await Advance(dying, 1);
+        Assert.Equal(SocietyInhabitantStatus.Dead, dying.Society.GetInhabitant(actor).Status);
+        var field = Assert.Single(dying.Fields);
+        Assert.Null(field.Work);
+        Assert.Equal(completed ? FarmFieldStage.Harvested : harvest ? FarmFieldStage.Ready : FarmFieldStage.Prepared, field.Stage);
+        Assert.Equal(completed ? 1 : 0, field.Cycle);
+        Assert.Equal(outputs, dying.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith("field-", StringComparison.Ordinal))
+            .Select(lot => (lot.Id, lot.OwnerId, lot.Quantity, lot.GroundPosition)).ToArray());
+        Assert.Equal(plantingTotal, dying.Society.Inventory.Lots.Where(lot => lot.ItemKind == "grain_seed").Sum(lot => lot.Quantity));
+        if (!harvest)
+            Assert.DoesNotContain(dying.Society.Inventory.Reservations, reservation => reservation.LotId == "death-planting" &&
+                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed);
+        using var reloaded = Reload(dying);
+        await Advance(reloaded, 2);
+        Assert.Equal(field, Assert.Single(reloaded.Fields));
+    }
+
+    private static PrivateWorldRuntimeState DyingWorker(PrivateWorldRuntimeState state, string actor)
+    {
+        var society = state.Society.Society;
+        var nextLifeTick = society.Config.TicksPerLifecycleAge - 1;
+        var delta = nextLifeTick - society.LifeTickAt(society.WorldTick);
+        var years = society.Config.DayLifecycle!.MaximumDay - 1;
+        return state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    LifeClock = new SocietyLifeClock(society.LifeClock?.Rate ?? 1, society.WorldTick, nextLifeTick),
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        BirthLifeTick = nextLifeTick + 1 - (years + 1) * society.Config.TicksPerLifecycleAge,
+                        AgeBand = SocietyAgeBand.Elder, LastLifecycleYearChecked = years,
+                    } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
+                },
+            },
+        };
+    }
+
+    internal static async Task<(PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point)> ReadyFarmer(string seed)
+    {
+        var (state, actor, household, point) = PreparedFarmer(seed);
+        using var world = Restore(state);
+        await Advance(world, 1);
+        return (world.ExportState() with { Fields = [new(point, household, FarmFieldStage.Ready, "grain", ReadyTick: 1, Tended: true)] },
+            actor, household, point);
+    }
+
     [Theory]
     [InlineData("grain", "grain_seed")]
     [InlineData("potatoes", "potatoes")]
@@ -55,7 +233,7 @@ public sealed class FarmFieldTests
             Assert.Null(lot.StorageBuildingId);
             Assert.Null(lot.DeliveryBuildingId);
         });
-        Assert.InRange(Assert.Single(lots, lot => lot.ItemKind == crop).Quantity, 4, 9);
+        Assert.InRange(Assert.Single(lots, lot => lot.ItemKind == crop).Quantity, 2, 11);
         var reserve = Assert.Single(harvested.Society.Inventory.Reservations, item => item.Id == field.ReplantingReservationId);
         Assert.Equal(InventoryReservationState.Reserved, reserve.State);
         Assert.Equal(1, reserve.Quantity);
@@ -176,6 +354,7 @@ public sealed class FarmFieldTests
         Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
     };
     internal static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state) => PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+    internal static IDecisionProvider HaulProvider() => new ChooseProvider("haul_farm_grain", "haul_household_stock");
     private static PrivateWorldRuntime Reload(PrivateWorldRuntime world) => Restore(PrivateWorldRuntimeCodec.Decode(
         PrivateWorldRuntimeCodec.Encode(world.ExportState())));
     private static async Task Advance(PrivateWorldRuntime world, int count)
@@ -193,14 +372,14 @@ public sealed class FarmFieldTests
                 Observation = request.Observation with { Candidates = [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")] },
             }, cancellationToken);
     }
-    private sealed class ChooseProvider(string id) : IDecisionProvider
+    private sealed class ChooseProvider(params string[] ids) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
             new DeterministicDecisionProvider().DecideAsync(request with
             {
-                Observation = request.Observation with { Candidates = [request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == id)
+                Observation = request.Observation with { Candidates = [ids.Select(id => request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == id)).FirstOrDefault(candidate => candidate is not null)
                     ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")] },
             }, cancellationToken);
     }

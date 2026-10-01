@@ -26,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
             if (!CanReachField(actor, state.Position, field.Position)) continue;
-            if (field.Stage == FarmFieldStage.Ready && FarmStoredQuantity(householdId) < FarmFieldRules.FarmStorageCapacity)
+            if (field.Stage == FarmFieldStage.Ready && FarmStorageFor(householdId, field.Crop!) is not null)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
             else if (field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
@@ -45,7 +45,8 @@ public sealed partial class PrivateWorldRuntime
         if (!FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(FarmableFreeTile)
-            .OrderByDescending(point => fertility.At(point) - map.FootDistance(farmhouse.Position, point) * 2)
+            .OrderByDescending(point => fields.Any(field => field.HouseholdId == householdId && map.FootDistance(field.Position, point) == 1))
+            .ThenByDescending(point => fertility.At(point) - map.FootDistance(farmhouse.Position, point) * 2)
             .ThenBy(point => point.Y).ThenBy(point => point.X)
             .Cast<GridPoint?>().FirstOrDefault(point => CanReachField(actor, state.Position, point!.Value));
         if (site is { } chosen)
@@ -67,10 +68,6 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanReachField(string actor, GridPoint from, GridPoint destination) => from == destination ||
         FindUnoccupiedRoute(actor, from, destination, 0).Count > 0;
-
-    private int FarmStoredQuantity(string householdId) => society.Checkpoint.Inventory.Lots.Where(lot =>
-        lot.OwnerId == householdId && lot.StorageBuildingId is not null && FarmFieldRules.IsFarmStock(lot.ItemKind))
-        .Sum(lot => lot.Quantity);
 
     private bool FarmNeedsFood(string householdId)
     {

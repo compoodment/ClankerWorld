@@ -129,30 +129,6 @@ public sealed partial class PrivateWorldRuntime
         out GridPoint position,
         string? actorId = null)
     {
-        if (recipe.IsCrop)
-        {
-            foreach (var resource in map.Resources
-                         .Where(item => item.Id == SeededMapGenerator.FertileLandResourceId &&
-                             item.Kind == "fertile_land")
-                         .OrderBy(item => item.Id, StringComparer.Ordinal))
-            {
-                if (resources.TryGetValue(resource.Id, out var resourceState) &&
-                    resourceState == ResourceState.Available &&
-                    !(worldSimulation.CropBuilds ?? []).Any(job =>
-                        job.State == WorldProductionJobState.Running &&
-                        job.BuildingInstanceId == WorldBuildSiteRules.FertileLandSiteId(resource.Position)))
-                {
-                    siteId = WorldBuildSiteRules.FertileLandSiteId(resource.Position);
-                    position = resource.Position;
-                    return true;
-                }
-            }
-
-            siteId = string.Empty;
-            position = default;
-            return false;
-        }
-
         if (recipe.WorkstationBuildingId is null)
         {
             siteId = string.Empty;
@@ -450,41 +426,6 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void ProcessCropBuilds(long targetTick)
-    {
-        var due = (worldSimulation.CropBuilds ?? [])
-            .Where(job => job.State == WorldProductionJobState.Running && job.CompletionTick <= targetTick)
-            .OrderBy(job => job.CompletionTick)
-            .ThenBy(job => job.JobId, StringComparer.Ordinal)
-            .ToArray();
-        foreach (var job in due)
-        {
-            var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == job.RecipeId);
-            if (recipe is null || !recipe.IsCrop)
-            {
-                throw new InvalidDataException($"Crop build '{job.JobId}' references a recipe that is no longer active.");
-            }
-
-            var completed = CompleteProductionJob(job, recipe, targetTick);
-            worldSimulation = new WorldContentSimulationState(
-                worldSimulation.Buildings,
-                worldSimulation.ProductionJobs,
-                worldSimulation.NextProductionJobSequence,
-                (worldSimulation.CropBuilds ?? [])
-                    .Select(candidate => candidate.JobId == job.JobId
-                        ? candidate with { State = completed ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled }
-                        : candidate)
-                    .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
-                    .ToArray(), worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
-            AppendEvent(completed ? "build_completed" : "build_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-        }
-    }
-
-    private GridPoint CropSite(WorldProductionJob job) =>
-        WorldBuildSiteRules.TryGetFertileLandPosition(job.BuildingInstanceId, out var position)
-            ? position
-            : worldSimulation.Buildings.Single(building => building.InstanceId == job.BuildingInstanceId).Position;
-
     private bool CompleteProductionJob(
         WorldProductionJob job,
         RecipeDefinition recipe,
@@ -506,18 +447,9 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("production_input_unusable", job.JobId);
             return false;
         }
-        var cropSite = recipe.IsCrop && survivalState is not null ? CropSite(job) : default;
-        var cropWeather = recipe.IsCrop && survivalState is not null ? WeatherAt(cropSite) : WeatherKind.Clear;
-        var soilMoisture = recipe.IsCrop && survivalState is not null
-            ? WeatherRules.SoilMoistureAt(worldSystems, cropSite, map.Height,
-                WeatherRules.RegionClimate(map, cropSite))
-            : 35;
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
         var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
-        // A household's harvest goes into its own Silo when it holds one;
-        // ready-to-eat food still goes home to the House.
-        var silo = recipe.IsCrop ? HouseholdBuildingWithTag(productionOwner, "silo")?.InstanceId : null;
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -534,26 +466,15 @@ public sealed partial class PrivateWorldRuntime
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
                     productionOwner,
-                    CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
+                    output.Amount,
                     targetTick,
                     storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
-                        : IsEdibleFood(output.ResourceId) ? null : silo);
+                        : null);
             }
 
             return current;
         });
-        if (recipe.IsCrop && survivalState is not null && cropWeather is WeatherKind.Snow or WeatherKind.Storm)
-        {
-            AppendEvent("crop_weather_loss", $"{job.JobId}:{cropWeather.ToString().ToLowerInvariant()}");
-        }
-        if (recipe.IsCrop && survivalState is not null &&
-            recipe.Outputs.Any(output => output.ResourceId == "food") &&
-            cropWeather is not (WeatherKind.Snow or WeatherKind.Storm) &&
-            (soilMoisture < 15 || soilMoisture >= 50))
-        {
-            AppendEvent("crop_moisture_effect", $"{job.JobId}:{(soilMoisture < 15 ? "dry" : "wet")}:{soilMoisture}");
-        }
-        CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting");
+        CreditCompletedWork(job.WorkerId, "crafting");
         return true;
     }
 

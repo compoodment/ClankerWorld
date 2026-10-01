@@ -38,9 +38,8 @@ public sealed class HouseholdBuildingUseCoverageTests
         Assert.Contains("explore", families);
         // A household may build a Farmhouse during the run; one that never
         // holds one is never offered a crop.
-        var cropRecipes = world.WorldContent.Recipes.Where(item => item.IsCrop).Select(item => "recipe:" + item.LocalId).ToArray();
         foreach (var household in world.Society.Households.Where(household => !Holds(world, household.Id, "farmhouse")))
-            Assert.DoesNotContain(FamiliesForHousehold(world, recorder, household.Id), cropRecipes.Contains);
+            Assert.DoesNotContain("farm", FamiliesForHousehold(world, recorder, household.Id));
     }
 
     [Theory]
@@ -63,7 +62,7 @@ public sealed class HouseholdBuildingUseCoverageTests
 
         var farmFamilies = FamiliesForHousehold(world, recorder, farmhouse.HouseholdId!);
         var smithFamilies = FamiliesForHousehold(world, recorder, blacksmith.HouseholdId!);
-        Assert.Contains("recipe:universal-grain-field", farmFamilies);
+        Assert.Contains("farm", farmFamilies);
         Assert.Contains("recipe:mill-grain", farmFamilies);
         Assert.Contains("recipe:wooden-axe", smithFamilies);
         Assert.Contains("recipe:wooden-pickaxe", smithFamilies);

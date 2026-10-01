@@ -24,8 +24,6 @@ public static class FarmContent
         var digest = farmhouse.PackageDigest;
         RecipeDefinition[] recipes =
         [
-            new(digest, "universal-grain-field", version, "Grow universal grain",
-                [new("grain_seed", 1)], [new("grain", 6), new("grain_seed", 2)], 60, null, ["crop", "grain"]),
             new(digest, "mill-grain", version, "Mill grain into flour",
                 [new("grain", 1)], [new("flour", 1)], 20, farmhouse.CanonicalId, ["grain-processing"]),
         ];

@@ -192,7 +192,7 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>
+    private static IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>
         Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
             Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
                 new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)));

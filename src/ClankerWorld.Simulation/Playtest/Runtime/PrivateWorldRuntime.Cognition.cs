@@ -439,9 +439,9 @@ public sealed partial class PrivateWorldRuntime
             ReplantTree(inhabitantId, state);
             return;
         }
-        if (candidateId == "plant_tree")
+        if (candidateId is "plant_tree" or "plant_orchard")
         {
-            PlantTreeNearby(inhabitantId, state);
+            PlantTreeNearby(inhabitantId, state, candidateId == "plant_orchard");
             return;
         }
 
@@ -587,8 +587,7 @@ public sealed partial class PrivateWorldRuntime
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
-        var hasFood = society.Checkpoint.Inventory.Lots.Any(item =>
-            item.OwnerId == inhabitantId && IsEdibleFood(item.ItemKind) && AvailableLotQuantity(item) > 0);
+        var hasFood = PreferredFood(inhabitantId, inhabitantId).Any();
         if (hasFood && state.HungerBasisPoints < ComfortableFullness)
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));

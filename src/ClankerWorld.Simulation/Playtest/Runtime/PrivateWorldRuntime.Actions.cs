@@ -187,7 +187,14 @@ public sealed partial class PrivateWorldRuntime
 
         AppendEvent("food_harvested", $"{inhabitantId}:{harvestYield}");
         if (source.TreeKind == TreeGrowthRules.Orchard)
+        {
+            var lotId = $"orchard-seed:{WorldTick:D10}:{inhabitantId}";
+            ApplyInventoryTransition(inventory => InventoryFixture.Reserve(
+                InventoryFixture.AddLot(inventory, lotId, TreeGrowthRules.OrchardSeedItem, inhabitantId,
+                    TreeGrowthRules.OrchardSeedsPerPick, WorldTick), OrchardReplantingPrefix + lotId,
+                inhabitantId, lotId, 1, "orchard_replanting", long.MaxValue));
             AppendEvent("fruit_harvested", $"{inhabitantId}:{source.Id}:{harvestYield}:picked");
+        }
     }
 
     private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? actor;

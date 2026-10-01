@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
                 field.Stage is not (FarmFieldStage.Preparing or FarmFieldStage.Prepared) &&
                     (!FarmFieldRules.IsCrop(field.Crop) || field.PlantedTick < 0 || field.PlantedTick > society.WorldTick ||
                      field.ReadyTick <= field.PlantedTick) ||
-                field.Stage is FarmFieldStage.Ready or FarmFieldStage.Harvested && !field.Tended ||
+                field.Stage is FarmFieldStage.Ready or FarmFieldStage.Harvested && (!field.Tended || field.ReadyTick > society.WorldTick) ||
                 field.Stage == FarmFieldStage.Preparing && field.Work?.Kind != FarmWorkKind.Till)
                 throw new InvalidDataException("A field has invalid land, ownership or crop state.");
             if (field.Work is { } work)

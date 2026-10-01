@@ -186,7 +186,8 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings)
+    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
+        IReadOnlyList<OwnerWorldFarmField>? fieldTiles = null)
     {
         ArgumentNullException.ThrowIfNull(buildings);
         var next = new Dictionary<Vector2I, string>();
@@ -194,6 +195,8 @@ public partial class WorldTerrainLayer : Control
             for (var y = 0; y < building.Height; y++)
                 for (var x = 0; x < building.Width; x++)
                     next[new Vector2I(building.Position.X + x, building.Position.Y + y)] = building.HouseholdId!;
+        foreach (var field in fieldTiles ?? [])
+            next[new Vector2I(field.Position.X, field.Position.Y)] = field.HouseholdId;
         if (next.Count == householdPropertyTiles.Count && next.All(entry =>
                 householdPropertyTiles.TryGetValue(entry.Key, out var owner) && owner == entry.Value)) return;
         householdPropertyTiles.Clear();

@@ -148,21 +148,6 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("settlement_content_staged", manifest.PackageId);
     }
 
-    private void StageForestryContent()
-    {
-        var packages = contentRegistry.ExportState().Packages;
-        if (packages.Any(package => package.Manifest.PackageId == ForestryContent.PackageId) ||
-            !packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
-            return;
-        var manifest = ForestryContent.Create();
-        var resolution = ContentPackageResolver.Resolve(packages.Select(package => package.Manifest).Append(manifest), [manifest.PackageId]);
-        contentRegistry.Propose(manifest, WorldTick);
-        contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
-        contentRegistry.Approve(manifest.PackageId, WorldTick);
-        contentRegistry.Stage(manifest.PackageId, WorldTick);
-        AppendEvent("forestry_content_staged", manifest.PackageId);
-    }
-
     private void StageHouseContent()
     {
         var packages = contentRegistry.ExportState().Packages;
