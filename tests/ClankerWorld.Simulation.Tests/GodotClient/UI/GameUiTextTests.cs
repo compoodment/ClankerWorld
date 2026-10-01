@@ -205,6 +205,20 @@ public sealed class GameUiTextTests
         }
     }
 
+    [Fact]
+    public void SavedTimesReadTheWayAPersonWouldSayThem()
+    {
+        var now = new DateTimeOffset(2026, 10, 1, 15, 0, 0, TimeSpan.Zero);
+        Assert.Equal("just now", GameUiText.SavedAgo(now.AddSeconds(-20), now));
+        Assert.Equal("1 minute ago", GameUiText.SavedAgo(now.AddMinutes(-1), now));
+        Assert.Equal("12 minutes ago", GameUiText.SavedAgo(now.AddMinutes(-12), now));
+        Assert.Equal("3 days ago", GameUiText.SavedAgo(now.AddDays(-3), now));
+        Assert.Equal("1 Sep 2026", GameUiText.SavedAgo(now.AddDays(-30), now));
+        var localNow = new DateTimeOffset(now.ToLocalTime().Date.AddHours(12), now.ToLocalTime().Offset);
+        Assert.Equal("2 hours ago", GameUiText.SavedAgo(localNow.AddHours(-2), localNow));
+        Assert.Equal("yesterday", GameUiText.SavedAgo(localNow.AddDays(-1), localNow));
+    }
+
     [Theory]
     [InlineData(1280, 720, 1)]
     [InlineData(1600, 900, 1)]

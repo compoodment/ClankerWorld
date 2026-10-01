@@ -1,0 +1,7 @@
+# New, Load and Save World screens
+
+Pending for the world screens pull request, a direct owner request. No Windows playtest is claimed.
+
+- Open Load World with a few worlds. Each is a card with its name, when it was saved and its seed; the current world is tagged, a world that can't open is faded and tagged, and Delete World sits on the left. Click a card, use the arrow keys, then double-click one to open it.
+- Open New World. Name, seed and size sit in one box; + More options shows the Land and Climate boxes with the water slider and Low, Normal and High buttons. Changing any of them updates the preview, and Reset these options puts them back.
+- In a paused world open Save World. The name already shows the world's date and Save works straight away. Choose a save card, then Overwrite: it asks first. In Load Save, autosaves are tagged and double-clicking a card asks to load it.
