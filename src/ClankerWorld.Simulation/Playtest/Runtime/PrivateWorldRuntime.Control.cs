@@ -171,6 +171,8 @@ public sealed partial class PrivateWorldRuntime
         new(StringComparer.Ordinal) { "eat", "eats", "eating", "food", "hungry" };
     private static readonly HashSet<string> TravelInstructionWords =
         new(StringComparer.Ordinal) { "go", "goes", "going", "travel", "travels", "traveling", "travelling", "move", "moves", "moving" };
+    private static readonly HashSet<string> GuardianInstructionWords =
+        new(StringComparer.Ordinal) { "guardian", "guardianship", "caregiver" };
 
     private static string? InstructionCandidate(string text)
     {
@@ -194,6 +196,11 @@ public sealed partial class PrivateWorldRuntime
         if (words.Overlaps(TravelInstructionWords))
         {
             return "seek_food";
+        }
+
+        if (words.Overlaps(GuardianInstructionWords) || words.Contains("take") && words.Contains("in"))
+        {
+            return "guardian_accept";
         }
 
         return null;
@@ -229,7 +236,8 @@ public sealed partial class PrivateWorldRuntime
                      .Where(item => item.TargetInhabitantId == inhabitantId &&
                          item.Kind == OwnerInstructionKind.MustDo &&
                          !completedInstructionIds.Contains(item.InstructionId) &&
-                         InstructionCandidate(item.Text) is null)
+                         (InstructionCandidate(item.Text) is null ||
+                          InstructionCandidate(item.Text) == "guardian_accept" && GuardianTargetForInstruction(item.Text) is null))
                      .OrderBy(item => item.SubmissionSequence)
                      .ToArray())
         {

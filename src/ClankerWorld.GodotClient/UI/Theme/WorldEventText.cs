@@ -52,6 +52,8 @@ public static class WorldEventText
             "partnership_accepted" => "Two agents formed a partnership.",
             "partnership_ended" => "A partnership ended.",
             "caregiver_assigned" => "A child has a new caregiver.",
+            "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
+            "guardian_assigned" => "An adult accepted care for a child.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",

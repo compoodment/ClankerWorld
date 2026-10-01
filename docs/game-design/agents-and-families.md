@@ -156,6 +156,17 @@ everything that is available in the current build. See [what works today](../wha
   available, an explicit care assignment may make an already accepted caregiver
   the new primary; the child then follows that caregiver's current domestic
   family group for housing counts without changing residence or parentage.
+  If a dependent's last active primary caregiver dies, the game asks living
+  biological relatives first, then adults in the dependent's household, then
+  adult residents of their Town. The first adult who explicitly accepts becomes
+  the current primary caregiver. A child moves to that adult's household only
+  when its completed House has a free resident place and both belong to the
+  same Town; Town membership and birth parentage remain unchanged. A cross-Town
+  acceptance records care but leaves the child's household in place until Town
+  admission rules allow a move. Until acceptance, the child stays where they
+  are, nearby adults may still feed them, and the player can see and order care
+  for the unmet guardian need. The one-day interval for each group is
+  provisional.
 
 ### Agreed starter Town and remaining choices
 

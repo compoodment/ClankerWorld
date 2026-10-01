@@ -330,6 +330,9 @@ public sealed partial class PrivateWorldRuntime
         var forcedCandidate = !decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo
             ? InstructionCandidate(pendingInstruction.Text)
             : null;
+        if (forcedCandidate == "guardian_accept" && pendingInstruction is not null &&
+            GuardianTargetForInstruction(pendingInstruction.Text) is { } guardianTarget)
+            forcedCandidate = "guardian_accept:" + guardianTarget;
         if (forcedCandidate is not null && CreateCandidates(decision.InhabitantId, state)
             .Any(candidate => candidate.Id == forcedCandidate))
         {
@@ -345,6 +348,8 @@ public sealed partial class PrivateWorldRuntime
             "consume_food" => inhabitants[decision.InhabitantId].HungerBasisPoints > state.HungerBasisPoints,
             "harvest_food" => society.Checkpoint.Inventory.Lots.Where(lot =>
                 lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity) > carriedFoodBefore,
+            _ when candidateId.StartsWith("guardian_accept:", StringComparison.Ordinal) =>
+                society.Checkpoint.GetInhabitant(candidateId["guardian_accept:".Length..]).PrimaryCaregiverId == decision.InhabitantId,
             _ => false,
         });
 
@@ -687,6 +692,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
+        AddOrderedGuardianCandidate(candidates, inhabitantId, instruction?.Text);
 
         var hasFood = PreferredFood(inhabitantId, inhabitantId).Any();
         if (hasFood && state.HungerBasisPoints < ComfortableFullness)
@@ -753,6 +759,7 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
+        AddOrderedGuardianCandidate(candidates, inhabitantId, instruction?.Text);
         if (AdultResident(inhabitantId))
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);

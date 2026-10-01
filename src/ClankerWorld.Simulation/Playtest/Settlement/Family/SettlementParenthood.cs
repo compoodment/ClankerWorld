@@ -30,12 +30,14 @@ public sealed partial class PrivateWorldRuntime
          ChildrenNeedingCare(actor).Any());
 
     private IEnumerable<PlaytestInhabitantState> ChildrenNeedingCare(string actor) => inhabitants.Values.Where(person =>
-        society.Checkpoint.GetInhabitant(person.InhabitantId).AgeBand == SocietyAgeBand.Infant &&
+        society.Checkpoint.GetInhabitant(person.InhabitantId).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
         (person.HungerBasisPoints < 7_000 || person.Survival is { WarmthBasisPoints: < 6_000 } ||
          person.Survival is { IllnessBasisPoints: >= 2_500 } && !RecentlyCaredForIllness(person.InhabitantId)) &&
-        society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver &&
-            item.State == SocietyRelationshipState.Accepted && item.EffectiveTick <= WorldTick &&
-            item.ProposerId == actor && item.TargetId == person.InhabitantId));
+        (society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver &&
+             item.State == SocietyRelationshipState.Accepted && item.EffectiveTick <= WorldTick &&
+             item.ProposerId == actor && item.TargetId == person.InhabitantId) ||
+         NeedsCaregiver(person.InhabitantId) && inhabitants.TryGetValue(actor, out var caregiver) &&
+             IsWithinInteractionRange(caregiver.Position, person.Position, ResourceInteractionRange)));
 
     private bool FamilyResourcesReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
