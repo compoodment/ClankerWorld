@@ -111,7 +111,17 @@ public sealed record OwnerWorldKnowledgeArtifact(
     long CreatedTick,
     string CreatorName,
     IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
-public sealed record OwnerWorldCalendarPace(int TicksPerDay, int DaysPerYear);
+/// <summary>
+/// The world's saved calendar. Season lengths come from the same saved values
+/// the world uses for its seasons; an older host leaves them at zero.
+/// </summary>
+public sealed record OwnerWorldCalendarPace(
+    int TicksPerDay,
+    int DaysPerYear,
+    int SpringDays = 0,
+    int SummerDays = 0,
+    int AutumnDays = 0,
+    int WinterDays = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
     public bool CanChooseTownSite { get; init; }

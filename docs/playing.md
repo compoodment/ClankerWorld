@@ -135,6 +135,12 @@ Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
 Game Settings controls the window, theme, weather effects and date/time format.
+Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
+world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
+top bar then shows only the weather beside the date. **Date display** can show numbers
+instead (DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD), and the top bar then names the
+season beside the weather. **Time display** offers a 24-hour or 12-hour clock.
+Both apply at once.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,

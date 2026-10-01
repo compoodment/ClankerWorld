@@ -366,7 +366,9 @@ public sealed class OwnerWorldObservationStore
                 : [],
             WeatherRegionSize = WeatherRules.RegionSize,
             CalendarPace = state.WorldSystems is { } worldSystems
-                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
+                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
+                    worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,

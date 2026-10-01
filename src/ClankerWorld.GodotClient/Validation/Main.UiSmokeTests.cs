@@ -1234,15 +1234,20 @@ public partial class Main
             var installedClockPreferences = displayPreferences;
             try
             {
-                foreach (var (twelveHour, expectedClock) in new[]
-                         { (false, "01-02-0001 · 00:00"), (true, "01-02-0001 · 12:00 AM") })
+                foreach (var (twelveHour, dateStyle, expectedClock) in new[]
+                         {
+                             (false, GameUiText.SeasonDates, "Summer 1, Year 1 · 00:00"),
+                             (true, GameUiText.SeasonDates, "Summer 1, Year 1 · 12:00 AM"),
+                             (false, "dmy", "01-02-0001 · 00:00"),
+                             (true, "dmy", "01-02-0001 · 12:00 AM"),
+                         })
                 {
                     displayPreferences = installedClockPreferences with
                     {
                         UseTwelveHourClock = twelveHour,
-                        DateFormat = "dmy",
+                        DateStyle = dateStyle,
                     };
-                    Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
+                    Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40, 10, 10, 10, 10) }, []);
                     if (clockLabel.Text != expectedClock ||
                         !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
                         !TownListText().Contains("First Town", StringComparison.Ordinal) ||
@@ -1254,6 +1259,7 @@ public partial class Main
             {
                 displayPreferences = installedClockPreferences;
             }
+            await VerifySeasonDatesAsync(sample);
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();

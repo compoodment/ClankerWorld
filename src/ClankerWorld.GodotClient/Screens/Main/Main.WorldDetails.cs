@@ -14,7 +14,7 @@ public partial class Main
         var lines = new List<TownLine>();
         if (authoring is not null)
             lines.Add(new(TownStyle.Note, $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)} · " +
-                $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))} here"));
+                (DatesShowSeason ? "" : $"{Pretty(authoring.Season)} · ") + $"{Pretty(WeatherAtCamera(snapshot))} here"));
         lines.Add(new(TownStyle.Heading, "Shared stores"));
         if (snapshot.Stockpiles.Count == 0) lines.Add(new(TownStyle.Note, "No shared stores yet."));
         foreach (var stockpile in snapshot.Stockpiles)
