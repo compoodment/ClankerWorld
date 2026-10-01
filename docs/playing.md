@@ -84,14 +84,23 @@ agent, the map shows both without turning Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
-of the screen: diet, belongings, work, private thoughts, relationships and the
-Memories, Family and Model buttons. Click their thoughts, or **Read all**, to
-read every recent thought in a larger panel beside the Profile. The pencil
-beside their name renames them, and **Speak** goes straight to the message box,
-where you choose **Suggest** or **Order**. The crosshair centers the camera on
-them, and back (or **Escape**) returns from the Profile to the small card.
-Inspection does not pause time, and reading private thoughts does not tell
-other agents.
+of the screen: diet, belongings, work, their newest private thought, the people
+in their life and the Memories, Family and Model buttons. The Model line names
+the provider whose model made their latest choice, such as OpenAI; when Jev or
+the built-in rules made it, the Profile says so instead. Click their thought,
+or **Read all**, to read every recent thought in a larger panel beside the
+Profile. The pencil beside their name renames them, and **Speak** goes straight
+to the message box, where you choose **Suggest** or **Order**. The crosshair
+centers the camera on them, and back (or **Escape**) returns from the Profile
+to the small card. Inspection does not pause time, and reading private thoughts
+does not tell other agents.
+
+**Memories** shows what the agent remembers, believes and has mapped as cards,
+newest first, with a tab for each kind. A belief shows how sure they are and
+whether they saw it or heard it from someone; a map record shows each place
+with a picture of its ground. **Family** opens their family tree beside the
+Profile, with a portrait for each person and a heart between partners. Click
+someone to open their Profile.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is

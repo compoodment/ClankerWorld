@@ -210,6 +210,7 @@ public partial class Main
         ScaleWindows(uiLayer.Factor);
         menuShade.Color = palette.Shade;
         familyTreeView.QueueRedraw();
+        FillFamilyLegend();
         RefreshHudIcons();
         renderedTownList = null;
         renderedTownPanel = null;

@@ -200,7 +200,13 @@ public partial class Main
         readThoughtsButton.Pressed += OpenThoughtsReader;
         thoughtsRow.AddChild(readThoughtsButton);
         selectedAgentOverview.AddChild(thoughtsRow);
-        ConfigureTextPanel(privateThoughtHistory, 180);
+        // The newest thought in two lines; clicking it, or Read all, opens the rest.
+        privateThoughtHistory.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        privateThoughtHistory.MaxLinesVisible = 2;
+        // A long thought stops at a whole word; the body font draws every
+        // ellipsis character at mid-height, so none is added.
+        privateThoughtHistory.TextOverrunBehavior = TextServer.OverrunBehavior.TrimWord;
+        privateThoughtHistory.MouseFilter = Control.MouseFilterEnum.Stop;
         privateThoughtHistory.TooltipText = "Click to read all of their thoughts. Only you can see these; other agents don't know them unless they are told.";
         privateThoughtHistory.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
         privateThoughtHistory.GuiInput += input =>
@@ -214,8 +220,7 @@ public partial class Main
         selectedAgentOverview.AddChild(thoughtsInset);
 
         selectedAgentOverview.AddChild(new Label { Text = "PEOPLE", ThemeTypeVariation = "SectionLabel" });
-        ConfigureTextPanel(inhabitantSocialDetails, 90);
-        selectedAgentOverview.AddChild(inhabitantSocialDetails);
+        BuildProfilePeople(selectedAgentOverview);
 
         var profileActions = new HBoxContainer();
         profileActions.AddThemeConstantOverride("separation", 4);
@@ -247,6 +252,11 @@ public partial class Main
             VerticalAlignment = VerticalAlignment.Center,
         });
         var kind = new ButtonGroup();
+        // One joined switch, like the other two-way choices.
+        var speakSwitch = new PanelContainer { ThemeTypeVariation = "SegmentedPanel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        var speakSwitchRow = new HBoxContainer();
+        speakSwitchRow.AddThemeConstantOverride("separation", 0);
+        speakSwitch.AddChild(speakSwitchRow);
         foreach (var (button, text, tip) in new[]
         {
             (instructionSuggestButton, "Suggest", "They weigh it against their own plans."),
@@ -258,13 +268,14 @@ public partial class Main
             button.ToggleMode = true;
             button.ButtonGroup = kind;
             StyleCompactToggle(button);
-            speakHeading.AddChild(button);
+            speakSwitchRow.AddChild(button);
         }
+        speakHeading.AddChild(speakSwitch);
         instructionSuggestButton.ButtonPressed = true;
         speakSection.AddChild(speakHeading);
         var speakRow = new HBoxContainer();
         speakRow.AddThemeConstantOverride("separation", 4);
-        instructionText.PlaceholderText = "Say something…";
+        instructionText.PlaceholderText = "Say something...";
         instructionText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         instructionText.TextSubmitted += submitted => _ = SubmitInstructionAsync();
         speakRow.AddChild(instructionText);
@@ -287,6 +298,9 @@ public partial class Main
         agentProfilePanel.ZIndex = 75;
         agentProfilePanel.Hide();
     }
+
+    /// <summary>Whether a decision came from an agent's own model rather than Jev or the built-in rules.</summary>
+    private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
     private static void StyleCompactToggle(Button button)
@@ -410,6 +424,9 @@ public partial class Main
         memoriesButton.Icon = PixelIcons.Themed(PixelGlyph.Book, wood, 1);
         familyTreeButton.Icon = PixelIcons.Themed(PixelGlyph.Tree, green, 1);
         modelSettingsButton.Icon = PixelIcons.Themed(PixelGlyph.Key, gold, 1);
+        // Compact toggles copy the theme's tab styles, so copy them again for the new palette.
+        foreach (var toggle in new[] { readThoughtsButton, instructionSuggestButton, instructionOrderButton, conversationHistoryButton })
+            StyleCompactToggle(toggle);
         agentPortraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = dark ? new Color("3E5A2E") : new Color("8FB06A"),
@@ -511,9 +528,7 @@ public partial class Main
             selectedActorSummaryLabel.Text = string.Empty;
             selectedActorConditionLabel.Text = string.Empty;
             SetPanelText(inhabitantDetails, string.Empty);
-            SetPanelText(inhabitantSocialDetails, string.Empty);
-            SetPanelText(privateThoughtHistory, string.Empty);
-            SetPanelText(memoryHistory, string.Empty);
+            privateThoughtHistory.Text = string.Empty;
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
             selectedInhabitantCard.Hide();
@@ -561,8 +576,10 @@ public partial class Main
             : waitingForDecision
             ? "Deciding what to do next"
             : Sentence(GameUiText.ActivityPhrase(inhabitant.PublicIntention?.CandidateId, inhabitant.PublicIntention?.Summary));
+        // The Model line names whose model made their latest choice, such as OpenAI.
         var modelStatus = GameUiText.ModelStatus(Factor("model-status"));
-        quickCardActivityLabel.Text = isDeceased ? activity : activity + "\nModel: " + modelStatus;
+        var modelProvider = decision is { } latest && IsModelProvider(latest.Provider) ? ProviderDisplayName(latest.Provider) + " · " : string.Empty;
+        quickCardActivityLabel.Text = isDeceased ? activity : $"{activity}\nModel: {modelProvider}{modelStatus}";
         profileActivityLabel.Text = quickCardActivityLabel.Text;
 
         // How they are: bars where the host reports a value, and plain facts beside them.
@@ -631,9 +648,10 @@ public partial class Main
         }
         else if (!waitingForDecision)
         {
-            details.Add(decision is null ? "No decision yet"
-                : decision.FellBack ? "The model gave no usable choice, so built-in rules chose this."
-                : $"Chosen by {ProviderDisplayName(decision.Provider)}");
+            // A choice their own model made is named on the Model line; say so when something else made it.
+            if (decision is null) details.Add("No decision yet");
+            else if (decision.FellBack) details.Add("The model gave no usable choice, so built-in rules chose this.");
+            else if (!IsModelProvider(decision.Provider)) details.Add($"{ProviderDisplayName(decision.Provider)} made their latest choice.");
         }
         SetPanelText(inhabitantDetails, string.Join("\n", details));
         inhabitantDetails.Visible = details.Count > 0;
@@ -646,18 +664,11 @@ public partial class Main
                 "Practice: each completed project earns one point in its domain, up to 30. Every 10 points adds one work per preparation step. Materials, permissions and crop growth time are unchanged.";
 
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
-        SetPanelText(privateThoughtHistory, inhabitant.RecentPrivateThoughts.Count == 0
+        privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
-                .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
-
-        var people = inhabitant.Relationships.Select(relationship => GameUiText.RelationshipSummary(
-                relationship.Type, relationship.State, GameUiText.PartyName(snapshot, relationship.OtherPartyId), relationship.Direction))
-            .Concat(inhabitant.SocialStanding.Select(item => $"Trusts {item.SubjectName} · {item.Trust} of 10"))
-            .Concat(inhabitant.SocialNotes)
-            .ToArray();
-        SetPanelText(inhabitantSocialDetails, people.Length == 0 ? "No close relationships yet." : string.Join("\n", people));
-        RenderMemoryHistory(snapshot, inhabitant);
+            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {inhabitant.RecentPrivateThoughts[^1].Text}";
+        RenderProfilePeople(snapshot, inhabitant);
+        RenderMemoryCards(snapshot, inhabitant);
         RenderThoughtsReader(snapshot, inhabitant);
 
         modelSettingsButton.Disabled = isDeceased || registration is null;
@@ -672,57 +683,6 @@ public partial class Main
         selectedInhabitantCard.Visible = !showProfile;
         PositionSelectedInhabitantCard(snapshot);
         PositionAgentProfile();
-    }
-
-    /// <summary>What this agent remembers, believes and has mapped, newest first, for the Memories panel.</summary>
-    private void RenderMemoryHistory(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
-    {
-        var memoryRows = new List<(long WorldTick, int Kind, string Text)>();
-        memoryRows.AddRange(inhabitant.RecentBeliefs.Select(belief =>
-        {
-            var evidence = belief.Provenance switch
-            {
-                "firsthand" => "witnessed",
-                "hearsay" when belief.SourceAgentName is { } source => $"heard from {source}",
-                "hearsay" => "heard from someone",
-                _ => "inferred",
-            };
-            var subject = belief.AboutInhabitantId is { } subjectId
-                ? snapshot.Inhabitants.FirstOrDefault(person => person.Id == subjectId)?.DisplayName
-                : null;
-            var context = $"Belief · {evidence} · {belief.ConfidenceBasisPoints / 100}% sure" +
-                (subject is null ? "" : $" · about {subject}") +
-                (belief.IsCorrected
-                    ? $" · corrected{(belief.CorrectedTick is { } correctedTick ? $" at {DisplayWorldClock(correctedTick)}" : "")}" : "");
-            return (belief.WorldTick, 0,
-                $"{DisplayWorldClock(belief.WorldTick)} · {context}\n{belief.Statement}");
-        }));
-        memoryRows.AddRange(inhabitant.RecentMemories.Select(memory =>
-            (memory.WorldTick, 1,
-                $"{DisplayWorldClock(memory.WorldTick)} · {Pretty(memory.Visibility)} · about {memory.SubjectName}\n{memory.Summary}")));
-        memoryRows.AddRange(inhabitant.RecentKnowledgeFacts.Select(fact =>
-        {
-            var acquisition = fact.Acquisition == "firsthand"
-                ? $"discovered by {fact.DiscovererName}"
-                : $"{Pretty(fact.Acquisition)} from {fact.SourceAgentName ?? "another agent"}; discovered by {fact.DiscovererName}";
-            var resources = fact.ResourceKinds.Count == 0 ? "no recorded resource site" :
-                "resources · " + string.Join(", ", fact.ResourceKinds.Select(Pretty));
-            return (fact.WorldTick, 2,
-                $"{DisplayWorldClock(fact.WorldTick)} · Map fact · {acquisition}\n" +
-                $"{Pretty(fact.Terrain)} at ({fact.X}, {fact.Y}) · {resources}");
-        }));
-        memoryRows.AddRange(inhabitant.KnowledgeArtifacts.Select(artifact =>
-        {
-            var sites = string.Join("\n", artifact.Sites.Select(site =>
-                $"  {Pretty(site.Terrain)} at ({site.X}, {site.Y})" +
-                (site.ResourceKinds.Count == 0 ? "" : " · " + string.Join(", ", site.ResourceKinds.Select(Pretty)))));
-            return (artifact.CreatedTick, 3,
-                $"{DisplayWorldClock(artifact.CreatedTick)} · {Pretty(artifact.Kind)} · {artifact.Title} · by {artifact.CreatorName}\n{sites}");
-        }));
-        SetPanelText(memoryHistory, memoryRows.Count == 0
-            ? "No saved memories, beliefs, or map records for this agent yet."
-            : string.Join("\n\n", memoryRows.OrderByDescending(item => item.WorldTick)
-                .ThenBy(item => item.Kind).Select(item => item.Text)));
     }
 
     /// <summary>The Profile docks on the left, just below the top bar, and fits its contents.</summary>
