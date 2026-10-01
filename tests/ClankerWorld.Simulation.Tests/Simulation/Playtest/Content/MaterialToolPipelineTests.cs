@@ -75,7 +75,7 @@ public sealed class MaterialToolPipelineTests
             definition.CanonicalId == building.DefinitionId && definition.Tags.Contains("house")));
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == house.HouseholdId).Id;
         var stock = InventoryFixture.AddLot(state.Society.Society.Inventory, "preparation-knife", "knife", actor, 1);
-        stock = InventoryFixture.AddLot(stock, "preparation-food", "food", house.HouseholdId!, 2, storageBuildingId: house.InstanceId);
+        stock = InventoryFixture.AddLot(stock, "preparation-potatoes", "potatoes", house.HouseholdId!, 2, storageBuildingId: house.InstanceId);
         stock = InventoryFixture.AddLot(stock, "preparation-wood", "wood", house.HouseholdId!, 1, storageBuildingId: house.InstanceId);
         state = state with
         {
@@ -95,6 +95,13 @@ public sealed class MaterialToolPipelineTests
         for (var tick = 0; tick < recipe.DurationTicks / 2; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(WorldProductionJobState.Completed, restored.WorldSimulation.ProductionJobs.Single(item => item.JobId == result.JobId).State);
         Assert.All(job.InputReservationIds, id => Assert.Equal(InventoryReservationState.Completed, restored.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(3, job.InputReservationIds.Sum(id => restored.Society.Inventory.GetReservation(id).Quantity));
+        Assert.Contains(job.InputReservationIds, id => restored.Society.Inventory.GetReservation(id) is
+        { LotId: "preparation-potatoes", Quantity: 2 });
+        Assert.DoesNotContain(restored.Society.Inventory.Lots, lot => lot.Id == "preparation-potatoes");
+        var meal = restored.Society.Inventory.GetLot(job.JobId + ":output:00");
+        Assert.Equal(("simple_meal", 2, house.HouseholdId, house.InstanceId),
+            (meal.ItemKind, meal.Quantity, meal.OwnerId, meal.StorageBuildingId));
         Assert.Equal(9_875, restored.Society.Inventory.GetLot("preparation-knife").ConditionBasisPoints);
     }
 
