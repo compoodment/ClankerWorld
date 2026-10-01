@@ -291,6 +291,7 @@ public sealed partial class PrivateWorldRuntime
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
         });
+        SynchronizeBusinessListingStock();
     }
 
     private static InventoryCheckpoint ConsumeQuantities(

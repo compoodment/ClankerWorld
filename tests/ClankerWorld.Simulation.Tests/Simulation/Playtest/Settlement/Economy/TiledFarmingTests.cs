@@ -37,10 +37,18 @@ public sealed class TiledFarmingTests
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => recorder);
         var household = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse").HouseholdId!;
         using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(setup.ExportState(), household), _ => recorder);
-        // Canonical growth is measured in generated days. Allow two real 360-tick days
-        // for the ordinary chooser's tool collection, field work, growth and pickup.
+        // Two generated days prove the real bootstrap and ripening. The farmer
+        // may still be finishing a valid 30-tick hauling intention, then must
+        // physically return to harvest and carry the crop within the existing
+        // 1,800-tick ordinary farming bound.
         for (var tick = 0; tick < world.WorldSystems.Config.TicksPerDay * 2 &&
             !world.ExportState().Events.Any(item => item.Kind == "field_harvest_collected"); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_prepared");
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_planted");
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_tended");
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "field_ready");
+        while (world.WorldTick < 1_800 && !world.ExportState().Events.Any(item => item.Kind == "field_harvest_collected"))
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var state = world.ExportState();
         Assert.Contains(state.Events, item => item.Kind == "field_prepared");
@@ -49,6 +57,11 @@ public sealed class TiledFarmingTests
         Assert.Contains(state.Events, item => item.Kind == "field_harvest_collected");
         Assert.NotEmpty(world.Fields);
         Assert.Contains(world.Society.Inventory.Lots, lot => lot.ItemKind is "grain" or "potatoes" or "cultivated_greens");
+        Assert.Contains(world.Society.Inventory.Lots, lot => lot.DeliveryBuildingId is { } destination &&
+            world.Fields.Any(field => (lot.ProvenanceLotId ?? lot.Id).StartsWith(
+                    FarmFieldRules.FieldId(field.Position) + ":harvest:", StringComparison.Ordinal) &&
+                world.Society.Inhabitants.Any(person => person.Id == lot.OwnerId && person.HouseholdId == field.HouseholdId) &&
+                world.WorldSimulation.Buildings.Any(building => building.InstanceId == destination && building.HouseholdId == field.HouseholdId)));
         Assert.DoesNotContain(recorder.Chosen.Keys, key => key.Contains("fertile_land", StringComparison.Ordinal));
         var bytes = PrivateWorldRuntimeCodec.Encode(state);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new ActionCoverageRecorder());
@@ -66,22 +79,32 @@ public sealed class TiledFarmingTests
         using var first = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(setup.ExportState(), household), _ => new ActionCoverageRecorder());
         for (var tick = 0; tick < first.WorldSystems.Config.TicksPerDay * 2 && !first.Fields.Any(field => field.Cycle > 0); tick++)
             Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_prepared");
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_planted");
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_tended");
+        Assert.Contains(first.ExportState().Events, item => item.Kind == "field_ready");
+        while (first.WorldTick < 1_800 && !first.Fields.Any(field => field.Cycle > 0))
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(first.Fields, field => field.Cycle > 0);
         var initialHarvest = first.Fields.First(field => field.Cycle > 0);
         var initialReserve = first.Society.Inventory.GetReservation(initialHarvest.ReplantingReservationId!);
         Assert.Equal(1, initialReserve.Quantity);
         Assert.Equal(InventoryReservationState.Reserved, initialReserve.State);
-        var next = FarmFieldTests.FeedHouseholdFromAvailableStock(first.ExportState(), household);
+        // The ordinary chooser can farm either household. Account for the
+        // harvested household's real produce when creating its next shortage.
+        var next = FarmFieldTests.FeedHouseholdFromAvailableStock(first.ExportState(), initialHarvest.HouseholdId);
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(next)), _ => new ActionCoverageRecorder());
-        for (var tick = 0; tick < world.WorldSystems.Config.TicksPerDay * 2 && !world.Fields.Any(field => field.Cycle >= 2); tick++)
+        for (var tick = 0; tick < world.WorldSystems.Config.TicksPerDay * 2 &&
+            !world.Fields.Any(field => field.Position == initialHarvest.Position && field.Cycle >= 2); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True(world.Fields.Any(field => field.Cycle >= 2), string.Join("\n", world.Fields));
-        var repeated = world.Fields.First(field => field.Cycle >= 2);
+        Assert.True(world.Fields.Any(field => field.Position == initialHarvest.Position && field.Cycle >= 2), string.Join("\n", world.Fields));
+        var repeated = world.Fields.Single(field => field.Position == initialHarvest.Position);
+        Assert.Equal(initialHarvest.HouseholdId, repeated.HouseholdId);
         var reserve = world.Society.Inventory.GetReservation(repeated.ReplantingReservationId!);
         Assert.Equal(1, reserve.Quantity);
         Assert.Equal(InventoryReservationState.Reserved, reserve.State);
         var seed = world.Society.Inventory.GetLot(reserve.LotId);
-        Assert.Equal(household, seed.OwnerId);
+        Assert.Equal(repeated.HouseholdId, seed.OwnerId);
         Assert.Equal(FarmFieldRules.PlantingItem(repeated.Crop!), seed.ItemKind);
         Assert.Equal(new InventoryGroundPosition(repeated.Position.X, repeated.Position.Y), seed.GroundPosition);
         Assert.True(world.ExportState().Events.Count(item => item.Kind == "field_planted") >= 2);

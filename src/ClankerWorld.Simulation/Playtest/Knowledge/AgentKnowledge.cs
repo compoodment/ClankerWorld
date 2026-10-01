@@ -101,9 +101,9 @@ internal static class AgentKnowledgeRules
         var inventoryLots = society.Inventory.Lots.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var artifact in knowledge.Artifacts)
         {
-            if (schemaVersion < 36 && (artifact.Kind == "book" || artifact.WritingBuildingId is not null ||
+            if (schemaVersion < 37 && (artifact.Kind == "book" || artifact.WritingBuildingId is not null ||
                 artifact.InputReservationIds is not null || artifact.CopiedFromArtifactId is not null))
-                throw new InvalidDataException("Physical paper writing and books require private-world schema 36.");
+                throw new InvalidDataException("Physical paper writing and books require private-world schema 37.");
             if (artifact is null || string.IsNullOrWhiteSpace(artifact.Id) || artifact.Id.Length > 128 ||
                 !knownAgents.Contains(artifact.CreatorId) || string.IsNullOrWhiteSpace(artifact.LotId) ||
                 artifact.Kind is not ("field_map" or "field_record" or "book") || string.IsNullOrWhiteSpace(artifact.Title) ||

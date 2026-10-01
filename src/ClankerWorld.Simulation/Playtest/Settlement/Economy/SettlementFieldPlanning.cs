@@ -32,7 +32,8 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
             else if (FarmHoe(actor) is not null && field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
-            else if (FarmHoe(actor) is not null && field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
+            else if (FarmHoe(actor) is not null && field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested &&
+                FarmNeedsFood(householdId) && HasFarmCycleToolBudget(actor, householdId, till: false))
             {
                 var priority = 14;
                 foreach (var crop in PlantableCrops(actor, field))
@@ -44,7 +45,8 @@ public sealed partial class PrivateWorldRuntime
             person.Status == SocietyInhabitantStatus.Active);
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
         var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
-        if (FarmHoe(actor) is null || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        if (FarmHoe(actor) is null || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields ||
+            !HasFarmCycleToolBudget(actor, householdId, till: true)) return;
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(point => FarmableFreeTile(point) && FarmTownPermits(householdId, point))
             .OrderByDescending(point => fields.Any(field => field.HouseholdId == householdId && map.FootDistance(field.Position, point) == 1))
@@ -54,6 +56,60 @@ public sealed partial class PrivateWorldRuntime
         if (site is { } chosen)
             candidates.Add(new(FarmCandidate(FarmWorkKind.Till, chosen),
                 $"Prepare {World.LandFertility.Description(fertility.At(chosen)).ToLowerInvariant()} land for another household field.", 17));
+    }
+
+    private bool HasFarmCycleToolBudget(string actor, string householdId, bool till) =>
+        HasFarmToolBudget(actor, householdId, till ? FarmWorkKind.Till : FarmWorkKind.Plant);
+
+    private bool HasFarmToolBudget(string actor, string householdId, FarmWorkKind? proposed)
+    {
+        if (FarmHoe(actor) is not { } hoe) return false;
+        var capability = ToolCapabilities.ForItem(hoe.ItemKind)!;
+        int HoeUses(int work) => (work + capability.WorkQuantity - 1) / capability.WorkQuantity;
+        var hoeUses = proposed == FarmWorkKind.Till ? HoeUses(FarmFieldRules.WorkTicks(FarmWorkKind.Till)) :
+            proposed == FarmWorkKind.Plant ? FarmFieldRules.WorkTicks(FarmWorkKind.Plant) + HoeUses(FarmFieldRules.WorkTicks(FarmWorkKind.Tend)) : 0;
+        var harvestJobs = new List<int>();
+        foreach (var crop in fields.Where(field => field.HouseholdId == householdId &&
+            field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready))
+        {
+            if (!crop.Tended && crop.Stage != FarmFieldStage.Ready)
+                hoeUses += HoeUses(crop.Work is { Kind: FarmWorkKind.Tend } tending
+                    ? tending.RemainingTicks : FarmFieldRules.WorkTicks(FarmWorkKind.Tend));
+            harvestJobs.Add(crop.Work is { Kind: FarmWorkKind.Harvest } harvesting
+                ? harvesting.RemainingTicks : FarmFieldRules.WorkTicks(FarmWorkKind.Harvest));
+        }
+        if (proposed == FarmWorkKind.Plant) harvestJobs.Add(FarmFieldRules.WorkTicks(FarmWorkKind.Harvest));
+        var sickle = CarriedTool(actor, ToolKind.Sickle);
+        var cutting = sickle is null ? null : ToolCapabilities.ForItem(sickle.ItemKind)!;
+        var sickleUses = cutting is null ? 0 : (sickle!.ConditionBasisPoints + cutting.WearPerUse - 1) / cutting.WearPerUse;
+        foreach (var work in harvestJobs)
+        {
+            // A sickle stroke belongs to one field; spare work from its last
+            // stroke cannot finish a different partially harvested crop.
+            var used = cutting is null ? 0 : Math.Min(sickleUses, (work + cutting.WorkQuantity - 1) / cutting.WorkQuantity);
+            sickleUses -= used;
+            hoeUses += cutting is null ? work : Math.Max(0, work - used * cutting.WorkQuantity);
+        }
+        // Harvest strokes with a hoe always advance one unit. A tool's last
+        // positive-condition stroke can finish work before it breaks.
+        var availableUses = (hoe.ConditionBasisPoints + capability.WearPerUse - 1) / capability.WearPerUse;
+        return availableUses >= hoeUses;
+    }
+
+    private bool NeedsFarmHoeRepair(string actor, InventoryLot lot)
+    {
+        var state = inhabitants[actor];
+        if (HouseholdFor(actor) is not { } household || FarmhouseForHousehold(household) is null ||
+            FarmHoe(actor)?.Id != lot.Id || NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
+            state.Project is { Stage: not ("completed" or "cancelled") } || CarriedHouseDelivery(actor) is not null)
+            return false;
+        var reachable = fields.Where(field => field.HouseholdId == household &&
+            CanReachField(actor, state.Position, field.Position)).ToArray();
+        if (reachable.Any(field => field.Stage is FarmFieldStage.Planted or FarmFieldStage.Growing or FarmFieldStage.Ready) &&
+            !HasFarmToolBudget(actor, household, proposed: null)) return true;
+        return FarmNeedsFood(household) && reachable.Any(field => field.Work is null &&
+                field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && PlantableCrops(actor, field).Any()) &&
+            !HasFarmCycleToolBudget(actor, household, till: false);
     }
 
     private IEnumerable<GridPoint> NearbyFarmTiles(GridPoint origin)

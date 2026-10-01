@@ -489,12 +489,12 @@ public sealed partial class PrivateWorldRuntime
             // actual stock passes into an estate. Check the format here, without
             // reapplying a living actor's current lot ownership or permissions.
             var physical = person.LastPhysical;
-            if (schemaVersion < 36 && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
+            if (schemaVersion < 37 && (person.BoatIdAtDeath is not null || physical.WaterWork is not null ||
                 physical.MedicalTreatment is not null || physical.MedicalCaregiverIds is not null ||
                 physical.Equipment is { } equipment && (equipment.WornClothingLotId is not null ||
                     equipment.CarryAidLotId is not null || equipment.WeaponLotId is not null || equipment.ShieldLotId is not null ||
                     equipment.ArmorLotId is not null || equipment.OrnamentLotId is not null)))
-                throw new InvalidDataException("Archived physical content requires private-world schema 36.");
+                throw new InvalidDataException("Archived physical content requires private-world schema 37.");
             if (schemaVersion < HousingSchemaVersion && physical.Housing is not null)
                 throw new InvalidDataException($"Archived housing state requires private-world schema {HousingSchemaVersion}.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);

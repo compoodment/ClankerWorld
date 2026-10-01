@@ -308,7 +308,7 @@ public sealed partial class PrivateWorldRuntime
                 !lots.Any(lot => lot.Id == work.JugLotId && lot.OwnerId == person.InhabitantId &&
                     lot.ItemKind == "water_jug" && lot.StorageBuildingId is null && lot.ConditionBasisPoints > 0)))
                 throw new InvalidDataException("Saved water collection does not match a present collector and jug.");
-        if (state.SchemaVersion < 36 && (lots.Any(lot => lot.ContainerCapacity > 0 || lot.ContainerLotId is not null) ||
+        if (state.SchemaVersion < 37 && (lots.Any(lot => lot.ContainerCapacity > 0 || lot.ContainerLotId is not null) ||
             state.Inhabitants.Any(person => person.WaterWork is not null)))
             throw new InvalidDataException("Pottery and collected water require the current private-world save schema.");
     }

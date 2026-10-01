@@ -37,6 +37,14 @@ events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+The October 1 terrain tuning changes deterministic generation for new worlds.
+Loading retains the saved map and current weather episode; it does not replace
+either with a freshly generated map or a new weather roll. Earlier alpha maps
+may fail the existing regeneration checks and are refused and preserved; no
+terrain migration is provided. New saves with default weather store a null
+profile list to select the reduced built-in preset. Explicit profile lists
+keep their configured weather weights.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
@@ -82,6 +90,16 @@ without preventing the healthy active world from starting. Unverified files and
 the deletion intent are preserved; later recovery can finish after the file is repaired.
 The paired authority identity belongs to the installation, not the selected
 simulation world.
+
+Load World checks each inactive checkpoint against the current runtime before
+marking it compatible. The host keeps only a process-local structural verdict
+and history head for each catalog identity, keyed by a SHA-256 hash of the
+checkpoint bytes. File replacement, catalog-identity changes and a host restart
+force a new structural check. Every list still verifies the referenced history
+chain and current model credentials;
+selection reads and restores the checkpoint again before changing worlds.
+Checking a changed checkpoint can therefore still be slow, especially on a
+large generated map, while repeated unchanged lists avoid rebuilding worlds.
 
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
@@ -227,7 +245,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -242,8 +260,9 @@ The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, schema 35 for conversations, and schema 36 for
-remaining physical records record when those fields were introduced; they do not allow an earlier checkpoint schema past the
+for fields and ground lots, schema 35 for conversations, and schema 37 for
+physical content and Town councils record when those fields were introduced;
+they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
 | Compatibility change | Meaning |
@@ -266,7 +285,8 @@ current alpha cutoff.
 | Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
-| Schema 36 | Containers, equipment, carts, gradual medical care, Port boats and journeys, business stock promises, livestock, physical knowledge goods and Town Hall councils. Current-format replay preserves ownership, consent, elections and underway travel together with fields, birth-model choices, housing, saved skills and expansion records. Earlier checkpoint schemas are refused under the current alpha cutoff; feature thresholds do not bypass that cutoff. |
+| Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
+| Schema 37 | Containers, equipment, carts, gradual medical care, Port boats and journeys, business stock promises, livestock, physical knowledge goods and Town Hall councils. Current-format replay preserves ownership, consent, elections and underway travel together with fields, birth-model choices, housing, saved skills, expansion records and schema 36's terrain/weather rules. Earlier checkpoint schemas are refused under the current alpha cutoff; feature thresholds do not bypass that cutoff. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -420,15 +440,19 @@ erasure, and does not remove copies in external backups.
 
 ## Material and tool content
 
-Town councils save their own membership, food policy, social laws, pending
-rule ballot, election electorate and named votes. Representative terms last
-one year under the saved world calendar, independently of biological life
-pace. Save validation requires real adult Town residents and the physical
-shared Hall for ballots and representative terms. A tie retains the existing
-rule. Food policy never changes formal inventory ownership. Current-format
-Townless worlds may have an empty Town council collection; that does not admit
-an older checkpoint schema past the alpha cutoff. New built-in Hall content
-also follows the alpha content compatibility policy.
+Town councils save membership, food policy, social laws, pending proposals,
+the continuing candidate register, fixed election electorates and named votes.
+Representative terms last ten unpaused world days; regular voting opens one
+day before the term ends. Saves retain main-election results, runoff votes,
+the fair draw that resolves a remaining cutoff tie, and replacement elections
+for the current term's remainder. Validation requires actual adult Town
+residents and the physical shared Hall, and checks the saved timing and results
+without rerolling a draw. Proposal votes remain final; election ballots can be
+revised until their deadline. Food policy never changes inventory ownership.
+A started Town must retain its council. A Townless world may have an empty
+council collection; that does not admit an older checkpoint past the alpha
+cutoff. Built-in Hall content also follows the alpha content compatibility
+policy. The current election rules are recorded in [the Town design](../game-design/towns.md).
 
 The expanded Blacksmith recipes change its package digest. Fallen wood also
 changes deterministic generated map identity. Worlds from earlier content may

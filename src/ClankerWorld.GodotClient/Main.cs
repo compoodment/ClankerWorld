@@ -266,6 +266,11 @@ public partial class Main : Control
         ApplyUiScale();
         GetWindow().SizeChanged += RefreshRenderSize;
         ShowMainMenu();
+        if (OS.GetCmdlineUserArgs().Contains("--measure-map-draw", StringComparer.Ordinal))
+        {
+            _ = MeasureMapDrawAsync();
+            return;
+        }
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
             _ = VerifyMenuLayoutAsync();

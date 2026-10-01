@@ -236,6 +236,23 @@ public sealed partial class PrivateWorldRuntime
             BusinessLotCanMove(lot) && BusinessSaleAllowance(site, lot) >= listing.GoodsQuantity &&
             BusinessCatalogAccepts(site, lot.ItemKind));
 
+    private void SynchronizeBusinessListingStock()
+    {
+        if (businessTrade.Listings.Count == 0) return;
+        // An accepted offer reserves its goods before publishing the offer.
+        // Check physical stock here, rather than availability or offer state;
+        // the inventory reservation still protects every pending exchange.
+        businessTrade = businessTrade with
+        {
+            Listings = businessTrade.Listings.Where(listing =>
+                BusinessSite(listing.BuildingId) is { } site && site.HouseholdId == listing.HouseholdId &&
+                society.Checkpoint.Inventory.Lots.Any(lot => lot.Id == listing.GoodsLotId &&
+                    lot.OwnerId == listing.HouseholdId && lot.StorageBuildingId == listing.BuildingId &&
+                    lot.ContainerLotId is null && lot.GroundPosition is null && lot.Quantity >= listing.GoodsQuantity &&
+                    lot.ItemKind != listing.PaymentKind && BusinessCatalogAccepts(site, lot.ItemKind))).ToArray(),
+        };
+    }
+
     private string? OfferInvalidReason(BusinessOffer offer)
     {
         if (offer.ExpiryTick < WorldTick) return "The exchange expired.";

@@ -12,8 +12,8 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException("A started Town must retain its saved council.");
             return;
         }
-        if (state.SchemaVersion < 36 && councils.Count > 0)
-            throw new InvalidDataException("Physical Town councils require private-world schema 36.");
+        if (state.SchemaVersion < 37 && councils.Count > 0)
+            throw new InvalidDataException("Physical Town councils require private-world schema 37.");
         var tick = state.Society.Society.WorldTick;
         var towns = (state.Towns ?? []).ToDictionary(town => town.Id, StringComparer.Ordinal);
         var people = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);

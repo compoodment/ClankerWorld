@@ -5,9 +5,9 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    // Stock at a workstation is available to move only above its next needed
-    // batch. Physical House writing uses the same rule as recipe production.
-    private int HouseholdSupplySpareQuantity(InventoryLot lot, string destinationId)
+    // Stock at a workstation is available to move only above the requested
+    // number of needed batches. Physical House writing keeps its own costs.
+    private int HouseholdSupplySpareQuantity(InventoryLot lot, string? destinationId, int supplyBatches = 1)
     {
         if (lot.ContainerLotId is not null || lot.GroundPosition is not null || lot.DeliveryBuildingId is not null ||
             lot.CartId is not null || lot.AnimalId is not null) return 0;
@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntime
         if (source?.HouseholdId != lot.OwnerId) return 0;
         var reserve = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == source.DefinitionId &&
                 NeedsRecipeOutput(recipe, lot.OwnerId)).SelectMany(recipe => recipe.Inputs)
-            .Where(input => input.ResourceId == lot.ItemKind).Select(input => input.Amount).DefaultIfEmpty(0).Max();
+            .Where(input => input.ResourceId == lot.ItemKind).Select(input => input.Amount * supplyBatches).DefaultIfEmpty(0).Max();
         if (worldContent.Buildings.Any(definition => definition.CanonicalId == source.DefinitionId &&
                 definition.Tags.Contains("house", StringComparer.Ordinal)))
             foreach (var actor in inhabitants.Keys.Where(actor => HouseholdFor(actor) == lot.OwnerId && AdultResident(actor)))

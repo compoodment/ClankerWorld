@@ -259,7 +259,7 @@ public sealed class FarmFieldTests
         {
             // The day model moves directly from Child to Adult. Retain the
             // independent adolescent refusal using the supported legacy clock.
-            var config = society.Config with { DayLifecycle = null };
+            var config = society.Config with { ContractVersion = 2, DayLifecycle = null };
             var adultBirth = society.LifeTickAt(society.WorldTick) - config.AdultYears * config.TicksPerLifecycleAge;
             society = society with
             {
@@ -298,6 +298,18 @@ public sealed class FarmFieldTests
                     } : person).ToArray(),
                 },
             },
+        };
+        // Keep every recorded Town's collective council, with only its actual
+        // adult and elder residents after this fixture's age change.
+        var adults = state.Society.Society.Inhabitants.Where(person => person.AgeBand is
+            SocietyAgeBand.Adult or SocietyAgeBand.Elder).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        state = state with
+        {
+            TownCouncils = state.TownCouncils!.Select(council => council with
+            {
+                MemberIds = state.Towns!.Single(town => town.Id == council.TownId).ResidentIds
+                    .Where(adults.Contains).ToArray(),
+            }).ToArray(),
         };
         using var world = Restore(state);
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());

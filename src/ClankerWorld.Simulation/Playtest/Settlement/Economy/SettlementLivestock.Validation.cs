@@ -13,7 +13,7 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("A horse rider cannot also board a boat.");
         var tick = state.Society.Society.WorldTick;
         var people = state.Society.Society.Inhabitants;
-        if (animals.Count > 4096 || state.SchemaVersion < 36 &&
+        if (animals.Count > 4096 || state.SchemaVersion < 37 &&
             (animals.Count > 0 || state.Society.Society.Inventory.Lots.Any(lot => lot.AnimalId is not null)) ||
             animals.Select(animal => animal.Id).Distinct(StringComparer.Ordinal).Count() != animals.Count)
             throw new InvalidDataException("The saved livestock list has duplicate identities or an unsupported schema.");

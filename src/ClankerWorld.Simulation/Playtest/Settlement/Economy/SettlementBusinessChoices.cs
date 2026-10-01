@@ -49,7 +49,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("business_clear:" + site.InstanceId,
                     "Move rejected business stock onto adjacent ground, preserving the goods and freeing storage.", 24, site.InstanceId));
             if (BusinessReceipt(site.InstanceId) is { } receipt &&
-                BusinessTransferQuantity(receipt, 4, BusinessCarryingRoom(actor)) > 0)
+                BusinessTransferQuantity(receipt, BusinessReceiptQuantity(receipt), BusinessCarryingRoom(actor)) > 0)
                 candidates.Add(new("business_receipts:" + site.InstanceId, "Collect the household's barter receipts from its business.", 22, site.InstanceId));
             if (BusinessGoodsToList(site) is { } goods)
                 candidates.Add(new("business_list:" + site.InstanceId,
@@ -133,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
             if (site is null || BusinessReceipt(site.InstanceId) is not { } receipt) return true;
             if (state.Position != site.Position) MoveToward(actor, state, site.Position, "business_receipts", 0);
             else WithdrawBusinessStockCore(actor, site.InstanceId, receipt.Id,
-                BusinessTransferQuantity(receipt, 4, BusinessCarryingRoom(actor)));
+                BusinessTransferQuantity(receipt, BusinessReceiptQuantity(receipt), BusinessCarryingRoom(actor)));
             return true;
         }
         if (candidate.StartsWith("market_withdraw:", StringComparison.Ordinal))
@@ -240,8 +240,17 @@ public sealed partial class PrivateWorldRuntime
         (lot.Id == offer.PaymentLotId || lot.ProvenanceLotId == offer.PaymentLotId));
 
     private InventoryLot? BusinessReceipt(string buildingId) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.StorageBuildingId == buildingId && IsBusinessReceipt(lot) && BusinessLotCanMove(lot) && AvailableLotQuantity(lot) > 0)
+        .Where(lot => lot.StorageBuildingId == buildingId && IsBusinessReceipt(lot) && BusinessLotCanMove(lot) && BusinessReceiptQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+
+    // Automatic collection leaves the actual workstation's supply target in
+    // place. The holding household can still explicitly withdraw its stock.
+    private int BusinessReceiptQuantity(InventoryLot lot) => Math.Min(4,
+        HouseholdSupplySpareQuantity(lot, null, SupplyBatches));
+
+    private int BusinessStockQuantity(InventoryLot lot, string destinationId) => Math.Min(4,
+        Math.Min(Math.Max(0, AvailableLotQuantity(lot) - 1),
+            HouseholdSupplySpareQuantity(lot, destinationId, SupplyBatches)));
 
     private InventoryLot? MarketUnsoldStock(string actor, PlacedBuilding site) =>
         site.HouseholdId == HouseholdFor(actor) && worldContent.Buildings.Single(definition =>
@@ -286,16 +295,16 @@ public sealed partial class PrivateWorldRuntime
             if (BusinessStorageRoom(site.InstanceId) < 1 || !BusinessSiteReachable(actor, site, 0)) continue;
             var carried = PersonalBusinessSurplus(actor);
             if (carried is not null && BusinessTransferQuantity(carried,
-                Math.Min(4, AvailableLotQuantity(carried) - 1), BusinessStorageRoom(site.InstanceId)) > 0) return (site, carried);
+                BusinessStockQuantity(carried, site.InstanceId), BusinessStorageRoom(site.InstanceId)) > 0) return (site, carried);
             var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                     lot.StorageBuildingId != site.InstanceId && BusinessLotCanMove(lot) &&
-                    AvailableLotQuantity(lot) > (FoodItems.IsEdible(lot.ItemKind) ? 4 : 1) &&
+                    AvailableLotQuantity(lot) > (FoodItems.IsEdible(lot.ItemKind) ? 4 : 1) && BusinessStockQuantity(lot, site.InstanceId) > 0 &&
                     FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                         HouseholdStockInteractionRange(lot)).Count > 0 &&
                     FindUnoccupiedRoute(actor, HouseholdStockPosition(lot), site.Position, 0).Count > 0 &&
                     !businessTrade.Offers.Any(offer => offer.State == BusinessOfferState.Open && offer.GoodsLotId == lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-            if (stock is not null && BusinessTransferQuantity(stock, Math.Min(4, AvailableLotQuantity(stock) - 1),
+            if (stock is not null && BusinessTransferQuantity(stock, BusinessStockQuantity(stock, site.InstanceId),
                 Math.Min(BusinessCarryingRoom(actor), BusinessStorageRoom(site.InstanceId))) > 0) return (site, stock);
         }
         return null;
@@ -310,7 +319,7 @@ public sealed partial class PrivateWorldRuntime
             if (state.Position != site.Position) MoveToward(actor, state, site.Position, "store_stock", 0);
             else
             {
-                var quantity = BusinessTransferQuantity(stock, Math.Min(4, AvailableLotQuantity(stock) - 1),
+                var quantity = BusinessTransferQuantity(stock, BusinessStockQuantity(stock, site.InstanceId),
                     BusinessStorageRoom(site.InstanceId));
                 if (quantity > 0) ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                     $"store-stock:{WorldTick}:{actor}", actor, site.HouseholdId!, stock.Id, quantity, "store_stock_delivered", site.InstanceId));
@@ -322,7 +331,7 @@ public sealed partial class PrivateWorldRuntime
         if (!IsWithinInteractionRange(state.Position, position, range)) MoveToward(actor, state, position, "store_stock", range);
         else
         {
-            var quantity = BusinessTransferQuantity(stock, Math.Min(4, AvailableLotQuantity(stock) - 1),
+            var quantity = BusinessTransferQuantity(stock, BusinessStockQuantity(stock, site.InstanceId),
                 Math.Min(BusinessStorageRoom(site.InstanceId), BusinessCarryingRoom(actor)));
             if (quantity > 0) ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"store-stock-pickup:{WorldTick}:{actor}", site.HouseholdId!, actor, stock.Id, quantity,

@@ -121,7 +121,9 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(household) is not { } smith) return null;
         foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                      lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-                     lot.Quantity == 1 && lot.ConditionBasisPoints is > 0 and <= 4_000 && AvailableLotQuantity(lot) > 0)
+                     lot.ContainerLotId is null && lot.GroundPosition is null && lot.CartId is null && lot.AnimalId is null &&
+                     lot.Quantity == 1 && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints is > 0 and < 10_000 &&
+                     (lot.ConditionBasisPoints <= 4_000 || NeedsFarmHoeRepair(actor, lot)) && AvailableLotQuantity(lot) > 0)
                      .OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
             var tool = ToolCapabilities.ForItem(lot.ItemKind);

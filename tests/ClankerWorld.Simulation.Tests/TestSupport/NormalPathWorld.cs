@@ -19,7 +19,7 @@ internal static class NormalPathWorld
         var world = new PrivateWorldRuntime(options.Seed, providerFactory,
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = world.ExportState().Map;
-        var anchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var anchor = FindStartingTownSite(map);
         world.InitializeFirstTownContent();
         world.AcceptFirstTownLayout(anchor);
         var buildings = world.WorldSimulation.Buildings.SelectMany(building =>
@@ -29,12 +29,37 @@ internal static class NormalPathWorld
         var placements = map.Tiles.Where(tile => Math.Abs(tile.Position.X - anchor.X) <= 5 &&
                 Math.Abs(tile.Position.Y - anchor.Y) <= 5 && map.IsBuildable(tile.Position) &&
                 !buildings.Contains(tile.Position) && !roads.Contains(tile.Position) &&
+                !map.CampObjects.Any(item => item.Position == tile.Position) &&
                 !map.Resources.Any(item => item.Position == tile.Position))
             .Take(PrivateWorldRuntime.RequiredFounders).Select(tile => tile.Position).ToArray();
         for (var index = 0; index < placements.Length; index++)
             world.PlaceFounder($"founder:{index + 1:D32}", placements[index]);
         world.StartWorld();
         return world;
+    }
+
+    /// <summary>Choose a feasible site near the camp without changing generated terrain or resources.</summary>
+    internal static GridPoint FindStartingTownSite(SeededMap map)
+    {
+        var camp = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var occupied = map.Resources.Select(item => item.Position)
+            .Concat(map.CampObjects.Select(item => item.Position)).ToHashSet();
+        foreach (var point in map.Tiles.Select(tile => tile.Position)
+            .Where(point => map.IsBuildable(point) && !occupied.Contains(point))
+            .OrderBy(point => Math.Abs(point.X - camp.X) + Math.Abs(point.Y - camp.Y))
+            .ThenBy(point => point.Y).ThenBy(point => point.X).Prepend(camp))
+        {
+            if (FirstTownLayoutPlanner.Plan(map, point) is not { } layout) continue;
+            var taken = occupied.Concat(layout.RoadTiles).Concat(layout.Buildings.SelectMany(building =>
+                Enumerable.Range(0, building.Height).SelectMany(y => Enumerable.Range(0, building.Width)
+                    .Select(x => new GridPoint(building.Position.X + x, building.Position.Y + y)))))
+                .ToHashSet();
+            if (map.Tiles.Count(tile => Math.Abs(tile.Position.X - point.X) <= 5 &&
+                    Math.Abs(tile.Position.Y - point.Y) <= 5 && map.IsBuildable(tile.Position) &&
+                    !taken.Contains(tile.Position)) >= PrivateWorldRuntime.RequiredFounders)
+                return point;
+        }
+        throw new InvalidOperationException("The generated map has no feasible first Town site with room for its founders.");
     }
 
     /// <summary>A stable action family for a candidate, e.g. <c>recipe:mill-grain</c>.</summary>

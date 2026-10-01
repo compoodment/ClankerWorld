@@ -14,6 +14,8 @@ public sealed class EquipmentSchemaTests
     [InlineData("spear", 33)]
     [InlineData("clothing", 34)]
     [InlineData("spear", 34)]
+    [InlineData("clothing", 36)]
+    [InlineData("spear", 36)]
     public void CurrentEquipmentRoundTripsWhileOlderAlphaFormatsAreRefused(string kind, int schema)
     {
         using var initial = new PrivateWorldRuntime("equipment-version");

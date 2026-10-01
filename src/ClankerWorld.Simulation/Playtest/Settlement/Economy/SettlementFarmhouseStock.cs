@@ -37,9 +37,25 @@ public sealed partial class PrivateWorldRuntime
                 (lot.ItemKind == "grain" ? lot.StorageBuildingId != farmhouseId : lot.StorageBuildingId is null) &&
                 !(lot.ItemKind == "grain" && IsOwnedFieldHarvest(lot, householdId) && HouseholdBuildingWithTag(householdId, "silo") is not null) &&
                 AvailableLotQuantity(lot) > 0 && FarmDeliveryStorage(householdId, lot) is { } destination &&
-                destination.InstanceId != lot.StorageBuildingId)
+                destination.InstanceId != lot.StorageBuildingId && FarmGrainDeliveryQuantity(lot) > 0)
             .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+
+    private int FarmGrainDeliveryQuantity(InventoryLot lot)
+    {
+        var available = AvailableLotQuantity(lot);
+        if (lot.ItemKind != FarmFieldRules.Grain || lot.StorageBuildingId is not { } sourceId) return available;
+        var source = worldSimulation.Buildings.Single(building => building.InstanceId == sourceId);
+        // Keep the same two-batch cooking supply that ordinary delivery seeks.
+        // Reserving only one batch would shuttle the second unit back and forth
+        // while the House waits for its other real ingredients.
+        var target = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == source.DefinitionId &&
+                NeedsRecipeOutput(recipe, lot.OwnerId)).SelectMany(recipe => recipe.Inputs)
+            .Where(input => input.ResourceId == lot.ItemKind).Select(input => input.Amount * SupplyBatches).DefaultIfEmpty(0).Max();
+        var stocked = society.Checkpoint.Inventory.Lots.Where(stock => stock.OwnerId == lot.OwnerId &&
+            stock.StorageBuildingId == sourceId && stock.ItemKind == lot.ItemKind).Sum(AvailableLotQuantity);
+        return Math.Min(available, Math.Max(0, stocked - target));
+    }
 
     private int FarmhouseGrainDeliveryRoom(string farmhouseId) => Math.Max(0,
         StorageRoom(farmhouseId) - society.Checkpoint.Inventory.Lots
@@ -80,7 +96,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var quantity = Math.Min(FarmhouseGrainDeliveryRoom(farmhouse.InstanceId),
-            Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain))));
+            Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, FarmGrainDeliveryQuantity(grain))));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-grain-pickup:{WorldTick}:{actor}", householdId, actor, grain.Id,
