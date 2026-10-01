@@ -125,6 +125,82 @@ public sealed class BlacksmithContentTests
             .Single(item => item.InstanceId == placed.InstanceId).StoredItems!,
             item => item.Kind == "wooden_axe" && item.Quantity == 1);
 
+        var directDeliveryState = delivering.ExportState();
+        var woodBeforeDirectDelivery = directDeliveryState.Society.Society.Inventory.Lots
+            .Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        var personalWood = InventoryFixture.AddLot(directDeliveryState.Society.Society.Inventory,
+            "personal-blacksmith-wood", "wood", alpha, 2);
+        var smithBuilding = delivering.WorldSimulation.Buildings.Single(item => item.InstanceId == placed.InstanceId);
+        var smithDefinition = delivering.WorldContent.Buildings.Single(item => item.CanonicalId == smithBuilding.DefinitionId);
+        var smithPosition = smithBuilding.Position;
+        var buildingTiles = delivering.WorldSimulation.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(
+                delivering.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building));
+        var otherOccupied = directDeliveryState.Map.CampObjects.Select(item => item.Position)
+            .Concat(directDeliveryState.Map.Resources.Select(item => item.Position))
+            .Concat(directDeliveryState.Inhabitants.Where(person => person.InhabitantId != alpha)
+                .Select(person => person.Position))
+            .Concat(buildingTiles).ToHashSet();
+        var remoteStart = directDeliveryState.Map.Tiles.Select(tile => tile.Position)
+            .Where(point => directDeliveryState.Map.IsBuildable(point) && !otherOccupied.Contains(point) &&
+                !WorldContentSimulationRules.Footprint(smithDefinition, smithBuilding).Contains(point) &&
+                directDeliveryState.Map.IsReachableOnFoot(point, smithPosition) &&
+                directDeliveryState.Map.FootDistance(point, smithPosition) >= 4)
+            .OrderByDescending(point => directDeliveryState.Map.FootDistance(point, smithPosition))
+            .ThenBy(point => point.Y).ThenBy(point => point.X).First();
+        directDeliveryState = directDeliveryState with
+        {
+            Society = directDeliveryState.Society with
+            {
+                Society = directDeliveryState.Society.Society with { Inventory = personalWood },
+            },
+            Inhabitants = directDeliveryState.Inhabitants.Select(person => person.InhabitantId == alpha
+                ? person with
+                {
+                    Position = remoteStart,
+                    HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                    Project = null,
+                } : person).ToArray(),
+        };
+        var directProvider = new CandidateProvider("haul_smith_input", requireCandidate: true);
+        using var direct = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(directDeliveryState)),
+            id => id == alpha ? directProvider : new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 20 && directProvider.SelectedCandidates.Count == 0; tick++)
+            Assert.True((await direct.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains("haul_smith_input", directProvider.SelectedCandidates);
+        var inTransitWood = direct.Society.Inventory.GetLot("personal-blacksmith-wood");
+        Assert.Equal(alpha, inTransitWood.OwnerId);
+        Assert.Null(inTransitWood.StorageBuildingId);
+        Assert.Null(inTransitWood.DeliveryBuildingId);
+        Assert.Null(inTransitWood.GroundPosition);
+        Assert.NotEqual(smithPosition, direct.Inhabitants.Single(person => person.InhabitantId == alpha).Position);
+        Assert.DoesNotContain(direct.ExportState().Events, item => item.Kind == "smith_input_delivered" &&
+            item.Detail.Contains("personal-blacksmith-wood", StringComparison.Ordinal));
+        var inTransitBytes = PrivateWorldRuntimeCodec.Encode(direct.ExportState());
+        using var directReloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(inTransitBytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.NotEqual(remoteStart, directReloaded.Inhabitants.Single(person => person.InhabitantId == alpha).Position);
+        Assert.Equal(inTransitBytes, PrivateWorldRuntimeCodec.Encode(directReloaded.ExportState()));
+        for (var tick = 0; tick < 30 && directReloaded.Society.Inventory.GetLot("personal-blacksmith-wood").StorageBuildingId != placed.InstanceId; tick++)
+            Assert.True((await directReloaded.AdvanceOneTickAsync()).Advanced);
+        var directlyStoredWood = directReloaded.Society.Inventory.GetLot("personal-blacksmith-wood");
+        Assert.Equal(("household:camp-alpha", placed.InstanceId, (string?)null, 2),
+            (directlyStoredWood.OwnerId, directlyStoredWood.StorageBuildingId,
+                directlyStoredWood.DeliveryBuildingId, directlyStoredWood.Quantity));
+        Assert.Equal(woodBeforeDirectDelivery + 2,
+            directReloaded.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Contains(directReloaded.ExportState().Events, item => item.Kind == "smith_input_delivered" &&
+            item.Detail == $"{alpha}:personal-blacksmith-wood:2:{placed.InstanceId}");
+        var directBytes = PrivateWorldRuntimeCodec.Encode(directReloaded.ExportState());
+        using var directStoredReloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(directBytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(directBytes, PrivateWorldRuntimeCodec.Encode(directStoredReloaded.ExportState()));
+
+        // Keep the original ore-delivery scenario isolated from the separate
+        // direct-carried-input route exercised above.
         var collectingState = delivering.ExportState();
         var brokenAxe = InventoryFixture.AddLot(collectingState.Society.Society.Inventory,
             "owner-broken-axe", "wooden_axe", alpha, 1, conditionBasisPoints: 0);
@@ -163,14 +239,28 @@ public sealed class BlacksmithContentTests
                         "smith-test-ore", "iron_ore", alpha, 2),
                 },
             },
+            Inhabitants = oreState.Inhabitants.Select(person => person.InhabitantId == alpha
+                ? person with
+                {
+                    Position = collecting.WorldSimulation.Buildings.Single(item => item.InstanceId == placed.InstanceId).Position,
+                    HungerBasisPoints = 9_000,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                }
+                : person).ToArray(),
         };
+        var oreProvider = new CandidateProvider("deliver_smith_ore", requireCandidate: true);
         using var deliveringOre = PrivateWorldRuntime.Restore(oreState,
-            id => new CandidateProvider(id == alpha ? "deliver_smith_ore" : "safe_idle"));
+            id => id == alpha ? oreProvider : new CandidateProvider("safe_idle"));
         for (var tick = 0; tick < 20 && deliveringOre.Society.Inventory.Lots.All(lot =>
                  lot.ItemKind != "iron_ore" || lot.StorageBuildingId != placed.InstanceId); tick++)
             Assert.True((await deliveringOre.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(deliveringOre.Society.Inventory.Lots, lot => lot.OwnerId == "household:camp-alpha" &&
-            lot.ItemKind == "iron_ore" && lot.StorageBuildingId == placed.InstanceId && lot.Quantity == 2);
+        Assert.True(deliveringOre.Society.Inventory.Lots.Any(lot => lot.OwnerId == "household:camp-alpha" &&
+            lot.ItemKind == "iron_ore" && lot.StorageBuildingId == placed.InstanceId && lot.Quantity == 2),
+            $"position={deliveringOre.Inhabitants.Single(person => person.InhabitantId == alpha).Position}; " +
+            $"selected={string.Join(',', oreProvider.SelectedCandidates)}; " +
+            $"ore={string.Join(';', deliveringOre.Society.Inventory.Lots.Where(lot => lot.ItemKind == "iron_ore"))}; " +
+            $"events={string.Join(';', deliveringOre.ExportState().Events.Where(item => item.Kind.Contains("smith", StringComparison.Ordinal)))}");
         using var refining = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(deliveringOre.ExportState())),
             _ => new CandidateProvider("safe_idle"));
@@ -367,15 +457,19 @@ public sealed class BlacksmithContentTests
         Assert.Equal(repaired.ConditionBasisPoints, reloaded.Society.Inventory.GetLot(repaired.Id).ConditionBasisPoints);
     }
 
-    private sealed class CandidateProvider(string candidateId) : IDecisionProvider
+    private sealed class CandidateProvider(string candidateId, bool requireCandidate = false) : IDecisionProvider
     {
+        public List<string> SelectedCandidates { get; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
             var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == candidateId) ??
-                request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+                (requireCandidate
+                    ? throw new InvalidOperationException($"Expected candidate '{candidateId}' was unavailable.")
+                    : request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle"));
+            SelectedCandidates.Add(selected.Id);
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId,
                 request.Observation.InhabitantId, Kind, ProviderEpoch, request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration, request.Observation.ObservationDigest, selected.Id, 1,

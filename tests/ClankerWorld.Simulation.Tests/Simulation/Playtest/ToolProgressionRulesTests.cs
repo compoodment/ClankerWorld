@@ -74,6 +74,19 @@ public sealed class ToolProgressionRulesTests
     }
 
     [Fact]
+    public void GenericConstructionToolDoesNotUnlockTreeFellingOrStoneMining()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [new("generic-tool", "tool", "actor", 4, 10_000, 10_000, 0)]);
+        var tree = new MapResource("tree", "construction", new GridPoint(4, 5), true, "broadleaf");
+        var stone = new MapResource("stone", "stone", new GridPoint(5, 5), false,
+            NaturalObjectKind: "stone_outcrop");
+
+        Assert.Null(ToolProgressionRules.PlanGather("wood", tree, inventory, "actor", 1));
+        Assert.Null(ToolProgressionRules.PlanGather("stone", stone, inventory, "actor", 3));
+    }
+
+    [Fact]
     public void StoredDeliveryAndBrokenToolsNeverSatisfyAGatheringGate()
     {
         var inventory = InventoryFixture.CreateGenesis(

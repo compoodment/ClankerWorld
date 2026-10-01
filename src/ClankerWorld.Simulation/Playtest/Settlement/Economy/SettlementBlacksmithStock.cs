@@ -255,8 +255,8 @@ public sealed partial class PrivateWorldRuntime
             if (personalQuantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, input.Id,
-                personalQuantity, "smith_input_delivered", destinationDeliveryBuildingId: blacksmith.InstanceId));
-            AppendEvent("smith_input_picked_up", $"{actor}:{input.Id}:{personalQuantity}:{blacksmith.InstanceId}");
+                personalQuantity, "smith_input_delivered", destinationStorageBuildingId: blacksmith.InstanceId));
+            AppendEvent("smith_input_delivered", $"{actor}:{input.Id}:{personalQuantity}:{blacksmith.InstanceId}");
             return;
         }
         var source = HouseholdStockPosition(input);
