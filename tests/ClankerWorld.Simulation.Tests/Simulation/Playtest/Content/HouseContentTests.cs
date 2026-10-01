@@ -175,8 +175,9 @@ public sealed class HouseContentTests
                 Assert.Equal("household:camp-beta", world.Society.Inventory.GetReservation(reservationId).OwnerId));
 
         var activeWithKnife = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.ToolProgressionSchemaVersion, activeWithKnife.SchemaVersion);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(
-            activeWithKnife with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }, _ => new IdleProvider()));
+            activeWithKnife with { SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1 }, _ => new IdleProvider()));
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(activeWithKnife));
         using var resumed = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
         Assert.Equal(10_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
@@ -410,12 +411,25 @@ public sealed class HouseContentTests
 
         var beforeAlphaWood = HouseholdWood(world, "household:camp-alpha");
         var beforeBetaWood = HouseholdWood(world, "household:camp-beta");
-        var map = world.ExportState().Map;
+        var secondState = world.ExportState();
+        var map = secondState.Map;
+        var definitions = world.WorldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var simulation = secondState.WorldSimulation!;
+        var occupied = map.CampObjects.Select(item => item.Position)
+            .Concat(map.Resources.Select(item => item.Position))
+            .Concat(secondState.Inhabitants.Select(item => item.Position))
+            .Concat(secondState.RoadTiles ?? [])
+            .Concat((secondState.Bridges ?? []).SelectMany(item => item.Entrances))
+            .Concat((secondState.Fields ?? []).Select(item => item.Position))
+            .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running)
+                .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
+                    Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
+                        new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)))))
+            .Concat(simulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
+            .ToHashSet();
         var secondSite = map.Tiles.Select(tile => tile.Position).First(point =>
-            map.IsBuildable(point) &&
-            !map.CampObjects.Any(item => item.Position == point) &&
-            !map.Resources.Any(item => item.Position == point) &&
-            !world.WorldSimulation.Buildings.Any(building => building.Position == point));
+            map.IsBuildable(point) && !occupied.Contains(point));
         var betaPlacement = world.PlaceBuilding("refuge-beta", house.CanonicalId, secondSite,
             "household:camp-beta");
         Assert.True(betaPlacement.Applied, betaPlacement.Failure);

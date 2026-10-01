@@ -21,6 +21,128 @@ public static class ItemIcons
     /// <summary>Each row is one line of pixels; '.' is empty and every other letter is a palette colour.</summary>
     private sealed record Icon(string Palette, string[] Rows);
 
+    private static readonly string[] AxeRows =
+    [
+        "................",
+        "..E......HD.....",
+        ".EGGGGGGGHDk....",
+        ".EGgggggGHDk....",
+        ".EGgggggkHDk....",
+        ".EGggggkkHDk....",
+        ".EGgggkkkHDk....",
+        "..Ekkkkk.HD.....",
+        ".........HD.....",
+        ".........HD.....",
+        ".........HD.....",
+        ".........HD.....",
+        ".........HD.....",
+        ".........DD.....",
+        "................",
+        "................",
+    ];
+
+    private static readonly string[] PickaxeRows =
+    [
+        "................",
+        "................",
+        "....GGGHDGGG....",
+        "..GGgggHDgggkk..",
+        ".Ggk...HD...kgk.",
+        ".gk....HD....kk.",
+        ".k.....HD.....k.",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......DD.......",
+        "................",
+        "................",
+    ];
+
+    private static readonly string[] HoeRows =
+    [
+        ".......HH.......",
+        ".......HD.......",
+        "......HDD.......",
+        "......HD........",
+        ".....HD.........",
+        ".....HD.........",
+        "....HD..........",
+        "....HD..........",
+        "...HD...........",
+        "...HD...........",
+        "..HD............",
+        ".HD.............",
+        "HDDGGgggggggggkk.",
+        ".kkGGGGGGGGGGGkk.",
+        "................",
+        "................",
+    ];
+
+    private static readonly string[] HammerRows =
+    [
+        "................",
+        "....GGGGGGGG....",
+        "...GggGGGGggG...",
+        "..kGGGGGGGGGGk..",
+        "...kkkkkkkkkk...",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......HD.......",
+        ".......DD.......",
+        "................",
+        "................",
+    ];
+
+    private static readonly string[] SickleRows =
+    [
+        "................",
+        "...........GGk..",
+        ".........GGGgk..",
+        ".......GGGgk....",
+        ".....GGGgk......",
+        "....GGgk........",
+        "...GGk..........",
+        "...k............",
+        "....HD..........",
+        "....HD..........",
+        "....HD..........",
+        "....HD..........",
+        "....HD..........",
+        "....DD..........",
+        "................",
+        "................",
+    ];
+
+    private static readonly string[] KnifeRows =
+    [
+        "................",
+        "...........EE...",
+        "..........EGgk..",
+        ".........EGgk...",
+        "........EGgk....",
+        ".......EGgk.....",
+        "......EGgk......",
+        ".....EGgk.......",
+        "....EGgk........",
+        "...EGgk.........",
+        "..EHHk..........",
+        "...HD...........",
+        "...DD...........",
+        "................",
+        "................",
+        "................",
+    ];
+
+    private static Icon ToolIcon(string palette, string[] rows) => new(palette, rows);
+
     private static readonly Dictionary<string, Icon> Icons = new(StringComparer.Ordinal)
     {
         ["wood"] = new("b6B4423 m8E5C30 lB07A42 fE6C48E rC0925A c9C6A3A",
@@ -424,6 +546,17 @@ public static class ItemIcons
             "................",
             "................",
         ]),
+        ["stone_axe"] = ToolIcon("H9A673F D684B2B G555A60 g969DA3 k282D32 EDBE2E6", AxeRows),
+        ["iron_axe"] = ToolIcon("H9A673F D684B2B G7A858E gD7DDE1 k343D45 EF8FBFC", AxeRows),
+        ["stone_pickaxe"] = ToolIcon("H9A673F D684B2B G555A60 g969DA3 k282D32 EDBE2E6", PickaxeRows),
+        ["iron_pickaxe"] = ToolIcon("H9A673F D684B2B G7A858E gD7DDE1 k343D45 EF8FBFC", PickaxeRows),
+        ["wooden_hoe"] = ToolIcon("HBA7640 D70441F G5B4636 g8E6846 k493421 ECA9A53", HoeRows),
+        ["iron_hoe"] = ToolIcon("H9A673F D684B2B G7A858E gD7DDE1 k343D45 EF8FBFC", HoeRows),
+        ["wooden_hammer"] = ToolIcon("HBA7640 D70441F G65492B gB07A42 k3C291A EDCB8B1", HammerRows),
+        ["stone_hammer"] = ToolIcon("H9A673F D684B2B G555A60 g969DA3 k282D32 EDBE2E6", HammerRows),
+        ["wooden_sickle"] = ToolIcon("HBA7640 D70441F G65492B gB07A42 k3C291A EDCB8B1", SickleRows),
+        ["iron_sickle"] = ToolIcon("H9A673F D684B2B G7A858E gD7DDE1 k343D45 EF8FBFC", SickleRows),
+        ["iron_knife"] = ToolIcon("H9A673F D684B2B G7A858E gD7DDE1 k343D45 EF8FBFC", KnifeRows),
         ["tool"] = new("HC08448 D7A4E26 g8C8984 GB8B5AE k5E5C57",
         [
             "................",

@@ -114,8 +114,12 @@ public sealed class FarmFieldTests
         using var world = Restore(state);
         Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
         var active = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.ToolProgressionSchemaVersion, active.SchemaVersion);
         Assert.NotNull(Assert.Single(active.Fields!).Work!.HoeLotId);
-        Assert.Throws<InvalidDataException>(() => Restore(active with { SchemaVersion = 34 }));
+        Assert.Throws<InvalidDataException>(() => Restore(active with
+        {
+            SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1,
+        }));
         using var restored = Restore(active);
         Assert.Equal(active.Fields, restored.Fields);
     }
@@ -282,24 +286,35 @@ public sealed class FarmFieldTests
     }
 
     [Fact]
-    public async Task SickleSpeedsHarvestAndWearsOnlyAsSavedFieldWorkProgresses()
+    public async Task SickleTiersSpeedHarvestAndWearOnlyAsSavedFieldWorkProgresses()
     {
         var (state, actor, household, point) = await ReadyFarmer("field-sickle-speed");
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "carried-sickle", "sickle", actor, 1);
-        using var world = Restore(WithInventory(state, inventory));
-        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
-        Assert.Equal("carried-sickle", Assert.Single(world.Fields).Work!.SickleLotId);
-        await Advance(world, 1);
-        Assert.Equal(2, Assert.Single(world.Fields).Work!.RemainingTicks);
-        Assert.Equal(9_000, world.Society.Inventory.GetLot("carried-sickle").ConditionBasisPoints);
-        using var reloaded = Reload(world);
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
-            PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
-        await Advance(reloaded, 1);
-        Assert.Equal(FarmFieldStage.Harvested, Assert.Single(reloaded.Fields).Stage);
-        Assert.Equal(8_000, reloaded.Society.Inventory.GetLot("carried-sickle").ConditionBasisPoints);
-        Assert.Contains(reloaded.Society.Inventory.Lots, lot => lot.OwnerId == household && lot.ItemKind == "grain" &&
+        var woodenInventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "carried-wooden-sickle", "wooden_sickle", actor, 1);
+        using var wooden = Restore(WithInventory(state, woodenInventory));
+        Assert.True(wooden.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
+        Assert.Equal("carried-wooden-sickle", Assert.Single(wooden.Fields).Work!.SickleLotId);
+        await Advance(wooden, 1);
+        Assert.Equal(2, Assert.Single(wooden.Fields).Work!.RemainingTicks);
+        Assert.Equal(8_000, wooden.Society.Inventory.GetLot("carried-wooden-sickle").ConditionBasisPoints);
+        using var resumedWooden = Reload(wooden);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(wooden.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(resumedWooden.ExportState()));
+        await Advance(resumedWooden, 1);
+        Assert.Equal(FarmFieldStage.Harvested, Assert.Single(resumedWooden.Fields).Stage);
+        Assert.Equal(6_000, resumedWooden.Society.Inventory.GetLot("carried-wooden-sickle").ConditionBasisPoints);
+        Assert.Contains(resumedWooden.Society.Inventory.Lots, lot => lot.OwnerId == household && lot.ItemKind == "grain" &&
             lot.GroundPosition == new InventoryGroundPosition(point.X, point.Y));
+
+        var (ironState, ironActor, _, ironPoint) = await ReadyFarmer("field-iron-sickle-speed");
+        var ironInventory = InventoryFixture.AddLot(ironState.Society.Society.Inventory,
+            "carried-iron-sickle", "iron_sickle", ironActor, 1);
+        using var iron = Restore(WithInventory(ironState, ironInventory));
+        Assert.True(iron.StartFieldWork(ironActor, ironPoint, FarmWorkKind.Harvest).Accepted);
+        Assert.Equal("carried-iron-sickle", Assert.Single(iron.Fields).Work!.SickleLotId);
+        await Advance(iron, 1);
+        Assert.Equal(FarmFieldStage.Harvested, Assert.Single(iron.Fields).Stage);
+        Assert.Equal(9_000, iron.Society.Inventory.GetLot("carried-iron-sickle").ConditionBasisPoints);
     }
 
     [Theory]

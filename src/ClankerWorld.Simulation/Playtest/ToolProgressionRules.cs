@@ -41,7 +41,8 @@ public static class ToolProgressionRules
         new("iron_hoe", ToolFamily.Hoe, 3, 0, 3, 1_000),
         new("wooden_hammer", ToolFamily.Hammer, 1, 0, 2, 2_000),
         new("stone_hammer", ToolFamily.Hammer, 2, 0, 3, 1_250),
-        new("sickle", ToolFamily.Sickle, 3, 0, 2, 1_000),
+        new("wooden_sickle", ToolFamily.Sickle, 1, 0, 2, 2_000),
+        new("iron_sickle", ToolFamily.Sickle, 3, 0, 4, 1_000),
         new("iron_knife", ToolFamily.Knife, 3, 0, 2, 1_000),
     ];
 
@@ -50,8 +51,8 @@ public static class ToolProgressionRules
     public static ToolDefinition? Find(string itemKind) =>
         Definitions.SingleOrDefault(tool => tool.ItemKind == itemKind);
 
-    /// <summary>Direct work requires an unreserved, top-level carried unit; container contents must be retrieved first.</summary>
-    public static bool IsTopLevelCarriedTool(InventoryLot lot, string actorId) =>
+    /// <summary>Direct actions require a top-level carried lot; container contents must be retrieved first.</summary>
+    public static bool IsTopLevelCarriedLot(InventoryLot lot, string actorId) =>
         PersonalEquipmentRules.IsCarried(lot, actorId) && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null;
 
@@ -71,7 +72,7 @@ public static class ToolProgressionRules
             throw new ArgumentOutOfRangeException(nameof(family));
 
         return inventory.Lots
-            .Where(lot => IsTopLevelCarriedTool(lot, actorId) && lot.ConditionBasisPoints > 0 &&
+            .Where(lot => IsTopLevelCarriedLot(lot, actorId) && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == family)
@@ -100,7 +101,7 @@ public static class ToolProgressionRules
         if (string.IsNullOrWhiteSpace(toolLotId)) return null;
 
         var lot = inventory.Lots.FirstOrDefault(item => item.Id == toolLotId &&
-            IsTopLevelCarriedTool(item, actorId) &&
+            IsTopLevelCarriedLot(item, actorId) &&
             item.ConditionBasisPoints > 0 && item.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, item) > 0);
         var definition = lot is null ? null : Find(lot.ItemKind);
         return definition is null || definition.Family != family
@@ -146,7 +147,7 @@ public static class ToolProgressionRules
             return new ToolGatheringPlan(4, null, 0, 0, false);
 
         var toolLot = inventory.Lots
-            .Where(lot => IsTopLevelCarriedTool(lot, actorId) && lot.ConditionBasisPoints > 0 &&
+            .Where(lot => IsTopLevelCarriedLot(lot, actorId) && lot.ConditionBasisPoints > 0 &&
                 lot.FreshnessBasisPoints > 0 && AvailableQuantity(inventory, lot) > 0)
             .Select(lot => (Lot: lot, Definition: Find(lot.ItemKind)))
             .Where(item => item.Definition is { } definition && definition.Family == required.Family &&
@@ -170,7 +171,8 @@ public static class ToolProgressionRules
     {
         "wooden_axe" or "wooden_pickaxe" or "wooden_hoe" or "wooden_hammer" => [new("wood", 1)],
         "stone_axe" or "stone_pickaxe" or "stone_hammer" => [new("wood", 1), new("stone", 1)],
-        "iron_axe" or "iron_pickaxe" or "iron_hoe" or "sickle" => [new("wood", 1), new("iron", 1)],
+        "iron_axe" or "iron_pickaxe" or "iron_hoe" or "iron_sickle" => [new("wood", 1), new("iron", 1)],
+        "wooden_sickle" => [new("wood", 1)],
         "iron_knife" => [new("iron", 1)],
         _ => [],
     };

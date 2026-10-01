@@ -23,7 +23,8 @@ public sealed class BlacksmithContentTests
         foreach (var kind in new[]
                  {
                      "wooden_axe", "stone_axe", "iron_axe", "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe",
-                     "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "sickle", "iron_knife", "iron",
+                     "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "wooden_sickle", "iron_sickle",
+                     "iron_knife", "iron",
                  })
             Assert.Contains(outputs, output => output.ResourceId == kind);
 

@@ -1824,6 +1824,13 @@ public partial class Main
                     !itemLooks.Add(Convert.ToBase64String(icon.GetData())))
                     throw new InvalidOperationException($"The {item} icon must sit on a clear square and look different from every other item.");
             }
+            var toolKinds = new[]
+            {
+                "wooden_axe", "stone_axe", "iron_axe", "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe",
+                "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "wooden_sickle", "iron_sickle", "iron_knife",
+            };
+            if (toolKinds.Any(kind => !ItemIcons.Has(kind)))
+                throw new InvalidOperationException("Every Blacksmith tool tier must have its own item icon.");
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");

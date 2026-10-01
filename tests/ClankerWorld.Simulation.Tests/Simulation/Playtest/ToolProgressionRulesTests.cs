@@ -89,6 +89,26 @@ public sealed class ToolProgressionRulesTests
     }
 
     [Fact]
+    public void NestedToolLotsAreNotDirectlyUsableOrSelectedForExtraction()
+    {
+        // Validated current containers do not accept tools. Keep this direct
+        // filter coverage so future container types cannot make stored child
+        // lots usable before the actor retrieves them.
+        var nestedStonePick = new InventoryLot("nested-stone-pick", "stone_pickaxe", "actor", 1,
+            10_000, 10_000, 0, ContainerLotId: "container");
+        var carriedWoodenPick = new InventoryLot("wooden-pick", "wooden_pickaxe", "actor", 1,
+            10_000, 10_000, 0);
+        var inventory = new InventoryCheckpoint(0, [nestedStonePick, carriedWoodenPick], [], [], []);
+        var iron = new MapResource("iron", "iron_ore", new GridPoint(4, 5), false,
+            NaturalObjectKind: "iron_outcrop");
+
+        Assert.Equal("wooden-pick", ToolProgressionRules.BestUsableTool(inventory, "actor", ToolFamily.Pickaxe)!.Id);
+        Assert.Null(ToolProgressionRules.PlanWorkForLot(inventory, "actor", ToolFamily.Pickaxe,
+            nestedStonePick.Id));
+        Assert.Null(ToolProgressionRules.PlanGather("iron_ore", iron, inventory, "actor", 3));
+    }
+
+    [Fact]
     public void WorkUsesBestCarriedHammerAndHoeWithTierSpecificPaceAndWear()
     {
         var inventory = InventoryFixture.CreateGenesis(
@@ -112,7 +132,8 @@ public sealed class ToolProgressionRulesTests
     [InlineData("wooden_axe", "wood")]
     [InlineData("stone_pickaxe", "wood,stone")]
     [InlineData("iron_knife", "iron")]
-    [InlineData("sickle", "wood,iron")]
+    [InlineData("wooden_sickle", "wood")]
+    [InlineData("iron_sickle", "wood,iron")]
     public void EachTierNamesActualRepairMaterials(string itemKind, string expected)
     {
         Assert.Equal(expected, string.Join(',', ToolProgressionRules.RepairMaterials(itemKind)

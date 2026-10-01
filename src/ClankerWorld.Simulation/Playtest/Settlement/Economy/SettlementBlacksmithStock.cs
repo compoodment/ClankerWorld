@@ -35,6 +35,9 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(candidateId,
                 $"Collect an accessible {bestShared.ItemKind.Replace('_', ' ')} for work.", 18));
         }
+        if (!HasCarriedItem(actor, "tool") && SharedItem("tool", actor) is { ContainerLotId: null })
+            candidates.Add(new CognitionCandidate(CollectToolPrefix + "tool",
+                "Collect an accessible work tool for construction.", 18));
         AddToolRepairCandidates(candidates, actor);
     }
 

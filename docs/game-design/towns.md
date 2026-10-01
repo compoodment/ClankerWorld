@@ -815,7 +815,8 @@ recipe until a real consumer is added.
 | Wooden hoe | Wood; prepares and tends fields. |
 | Iron hoe | Wood and iron; performs field work faster. |
 | Hammer | Wood and stone; helps construction and repairs. |
-| Sickle | Wood and iron; speeds crop harvesting. |
+| Wooden sickle | Wood; speeds crop harvesting. |
+| Iron sickle | Wood and iron; harvests faster than the wooden sickle. |
 | Knife | Iron; speeds food preparation and suitable crafting work. |
 
 Tools wear through use. The Blacksmith repairs worn tools with some of their

@@ -201,15 +201,16 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
-equipment with timed repairs and exact reservations, and reusable container
-lots with their contents, locations, owners and reservations. These fields
+equipment with timed repairs and exact reservations, reusable container lots
+with their contents, locations, owners and reservations, and tool-lot links for
+saved field and recipe work. These fields
 retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
@@ -217,9 +218,9 @@ the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 36 for personal
-equipment, and schema 37 for reusable containers, record when those fields were
-introduced; they do not allow an earlier checkpoint schema past the current
-alpha cutoff.
+equipment, schema 37 for reusable containers, and schema 38 for selected tools
+on saved field and recipe work, record when those fields were introduced; they
+do not allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -242,6 +243,8 @@ alpha cutoff.
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 37 | Pottery container lots, their contents and ownership, physical locations, and saved reservations. Earlier schemas cannot represent stored contents or container transfers. |
+| Schema 38 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; completion wears the tool only when the work commits. Older checkpoints cannot contain these links. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

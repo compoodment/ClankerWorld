@@ -12,7 +12,7 @@ public static class BlacksmithContent
     // All rates and trial costs are provisional. The digest changes because
     // the immutable package now contains the complete agreed tool roster.
     private const string ContentRevision =
-        "clankerworld-blacksmith-v1:1.1.0:axes-pickaxes-hoes-hammers-sickle-knife-refined-iron";
+        "clankerworld-blacksmith-v1:1.1.0:axes-pickaxes-hoes-hammers-wooden-iron-sickles-knife-refined-iron";
 
     public static BuildingDefinition Blacksmith1x2()
     {
@@ -56,8 +56,11 @@ public static class BlacksmithContent
             new(digest, "stone-hammer", version, "Make stone hammer",
                 [new("wood", 1), new("stone", 2)], [new("stone_hammer", 1)], 24,
                 blacksmith.CanonicalId, ["tool", "building"]),
-            new(digest, "sickle", version, "Make sickle",
-                [new("wood", 1), new("iron", 1)], [new("sickle", 1)], 30,
+            new(digest, "wooden-sickle", version, "Make wooden sickle",
+                [new("wood", 2)], [new("wooden_sickle", 1)], 20,
+                blacksmith.CanonicalId, ["tool", "harvesting"]),
+            new(digest, "iron-sickle", version, "Make iron sickle",
+                [new("wood", 1), new("iron", 1)], [new("iron_sickle", 1)], 30,
                 blacksmith.CanonicalId, ["tool", "harvesting"]),
             new(digest, "iron-knife", version, "Make iron knife",
                 [new("iron", 1)], [new("iron_knife", 1)], 30,
