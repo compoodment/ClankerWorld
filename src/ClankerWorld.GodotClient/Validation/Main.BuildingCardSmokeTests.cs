@@ -70,12 +70,22 @@ public partial class Main
         RenderBuildingCard(buildingMap with
         {
             PlacedBuildings = [.. buildingMap.PlacedBuildings.Where(item => item.InstanceId != house.InstanceId),
-                house with { StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)] }],
+                house with
+                {
+                    StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)],
+                    Width = 2, Height = 2, StorageCapacity = 256, StoredQuantity = 11, FootprintRevision = 2,
+                    InvitedGuests = ["Lina"], ExpansionState = "completed",
+                }],
             ProductionJobs = [],
         });
         if (buildingDetailsStorage.Summary != "4 kinds · 11 items" || buildingDetailsStorage.SlotCount != 4 ||
             buildingWorkSection.Visible)
             throw new InvalidOperationException("Building Details must follow the building's latest storage and work.");
+        facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+        if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
+            !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
+            !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
+            throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
         ApplyResponsiveLayout();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))

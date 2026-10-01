@@ -130,7 +130,6 @@ public sealed partial class PrivateWorldRuntime
                             response.RunEpoch == pending.Request.Observation.RunEpoch &&
                             response.DecisionGeneration == pending.Request.Observation.DecisionGeneration &&
                             response.ObservationDigest == pending.Request.Observation.ObservationDigest &&
-                            response.Confidence >= minimumCognitionConfidence &&
                             pending.CandidateIds.Contains(response.SelectedCandidateId);
                     }
                     catch (Exception exception) when (exception is not OutOfMemoryException) { }

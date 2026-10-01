@@ -558,8 +558,9 @@ public partial class Main
             : waitingForDecision
             ? "Deciding what to do next"
             : Sentence(GameUiText.ActivityPhrase(inhabitant.PublicIntention?.CandidateId, inhabitant.PublicIntention?.Summary));
-        quickCardActivityLabel.Text = activity;
-        profileActivityLabel.Text = activity;
+        var modelStatus = GameUiText.ModelStatus(Factor("model-status"));
+        quickCardActivityLabel.Text = isDeceased ? activity : activity + "\nModel: " + modelStatus;
+        profileActivityLabel.Text = quickCardActivityLabel.Text;
 
         // How they are: bars where the host reports a value, and plain facts beside them.
         var fullness = NeedPercent(inhabitant.HungerBasisPoints);
@@ -587,6 +588,10 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
+            details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
+        if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")
+            details.Add("This model rejected the request format. Choose a compatible model in Model settings.");
         if (inhabitant.Project is { } project)
         {
             details.Add($"{project.Label} · {Pretty(project.Stage)} · {project.WorkDone}/{project.WorkRequired}");
