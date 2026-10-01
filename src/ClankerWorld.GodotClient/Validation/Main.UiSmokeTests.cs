@@ -718,6 +718,11 @@ public partial class Main
             modLibraryButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!modLibraryPanel.Visible || settingsPanel.Visible)
                 throw new InvalidOperationException("Mod Library action must open the in-world package view.");
+            if (menuActions.Visible || menuHeadingLabel.Text != "Mod Library" || !ShowsGlyph(menuCloseButton, PixelGlyph.Back))
+                throw new InvalidOperationException("A Pause Menu page must replace the menu's buttons and offer a way back.");
+            if (!HandleEscape() || !menuActions.Visible || modLibraryPanel.Visible || !gameMenuPanel.Visible ||
+                menuHeadingLabel.Text != "Paused")
+                throw new InvalidOperationException("Escape on a Pause Menu page must return to the menu's buttons, not close the menu.");
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (modLibraryPanel.Visible || !settingsPanel.Visible || !worldSettingsCategoryButton.Visible)
                 throw new InvalidOperationException("Settings action must open the in-world Game/World category view.");
@@ -733,7 +738,10 @@ public partial class Main
             gameSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (developerScroll.Visible || !settingsScroll.Visible || !gameSettingsContent.Visible)
                 throw new InvalidOperationException("Game Settings must replace Developer tools in the same panel.");
-            settingsPanel.Hide();
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
+                throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
+            ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
                 throw new InvalidOperationException("Quit to Menu must request confirmation.");
@@ -860,12 +868,31 @@ public partial class Main
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
             };
-            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
-            if (clockLabel.Text != "01-02-0001 · 00:00" ||
-                !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
-                !TownListText().Contains("First Town", StringComparison.Ordinal) ||
-                !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
-                throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+            // A smoke run may load an existing installation's 12-hour or date
+            // preference. Check explicit formats without saving over that choice.
+            var installedClockPreferences = displayPreferences;
+            try
+            {
+                foreach (var (twelveHour, expectedClock) in new[]
+                         { (false, "01-02-0001 · 00:00"), (true, "01-02-0001 · 12:00 AM") })
+                {
+                    displayPreferences = installedClockPreferences with
+                    {
+                        UseTwelveHourClock = twelveHour,
+                        DateFormat = "dmy",
+                    };
+                    Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
+                    if (clockLabel.Text != expectedClock ||
+                        !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
+                        !TownListText().Contains("First Town", StringComparison.Ordinal) ||
+                        !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
+                        throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+                }
+            }
+            finally
+            {
+                displayPreferences = installedClockPreferences;
+            }
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
@@ -1091,6 +1118,25 @@ public partial class Main
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+
+            var overlappingProperties = ownedMap with
+            {
+                PlacedBuildings = [.. ownedMap.PlacedBuildings,
+                    new("other-house", "house", new(2, 2), 0, "Other House", ["house"], 1, 1,
+                        HouseholdId: "household:two")],
+            };
+            PreviewAddAgentPlacement(overlappingProperties, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household property overlaps", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a footprint claimed by two households.");
+
+            var secondTown = sample.Towns[0] with { Id = "town:second", Name = "Second Town" };
+            PreviewAddAgentPlacement(sample with { Towns = [.. sample.Towns, secondTown] }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Town borders overlap", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a tile inside two Town borders.");
+
+            PreviewAddAgentPlacement(ownedMap, new Vector2I(2, 2));
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (placementFields.Where((field, index) => field.GetGlobalRect() != placementFieldRects[index]).Any())
@@ -1852,7 +1898,7 @@ public partial class Main
             knownEvents[102] = new OwnerWorldEvent(102, 3, "food_consumed", "founder-scout", null);
             RenderEventLog();
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
-                eventsBadgeLabel.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
+                eventsBadge.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
                 throw new InvalidOperationException($"A new event must show an unread count on the Event Log button: {unreadEvents} after {readBefore}.");
             if (eventsBadge.ZIndex < 1 || !eventsBadge.ZAsRelative)
                 throw new InvalidOperationException("The unread count must draw over the HUD button next to Events instead of being covered by it.");
@@ -2038,13 +2084,16 @@ public partial class Main
             // weather holds still until time runs again.
             var frozenAt = weatherLayer.AnimationTime;
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (pauseButton.ThemeTypeVariation != "EmberButton" || pauseButton.Text != "Paused" ||
+            var pausedWidth = pauseButton.Size.X;
+            if (pauseButton.ThemeTypeVariation != "EmberButton" || pauseButton.Caption != "Paused" ||
                 !weatherLayer.Paused || weatherLayer.AnimationTime != frozenAt)
-                throw new InvalidOperationException($"A paused world must show Paused on its pause control and freeze its weather: {pauseButton.Text}, {weatherLayer.AnimationTime - frozenAt}s.");
+                throw new InvalidOperationException($"A paused world must show Paused on its pause control and freeze its weather: {pauseButton.Caption}, {weatherLayer.AnimationTime - frozenAt}s.");
             RenderWorldHud(startedMap with { Authoring = startedMap.Authoring! with { IsPaused = false } });
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (pauseButton.ThemeTypeVariation == "EmberButton" || weatherLayer.Paused || weatherLayer.AnimationTime <= frozenAt)
                 throw new InvalidOperationException("Weather must move again, and the pause control return to normal, once time runs.");
+            if (pauseButton.Caption != "Pause" || !Mathf.IsEqualApprox(pauseButton.Size.X, pausedWidth))
+                throw new InvalidOperationException($"The pause control must keep its width when its word changes: {pausedWidth} then {pauseButton.Size.X}.");
             RenderWorldHud(largeMap);
             UpdateTileHover(mapCanvas.Size / 2);
             var hoveredCenter = TileAtCanvas(mapCanvas.Size / 2, largeMap);
