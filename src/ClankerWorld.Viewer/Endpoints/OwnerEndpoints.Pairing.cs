@@ -182,7 +182,11 @@ internal static partial class OwnerEndpoints
 
             return Results.Ok(result.Value! with
             {
-                SupportedActionPayloads = [OwnerHttpBinding.WorldCreationPayloadDomain],
+                SupportedActionPayloads =
+                [
+                    OwnerHttpBinding.WorldCreationPayloadDomain,
+                    OwnerHttpBinding.AgentPlacementPayloadDomain,
+                ],
             });
         });
     }

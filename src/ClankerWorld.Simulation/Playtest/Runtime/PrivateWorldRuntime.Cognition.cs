@@ -15,8 +15,14 @@ public sealed partial class PrivateWorldRuntime
 {
     private void EnqueueDueCognition()
     {
-        var runtimes = society.Capture().Cognition.Runtimes
+        var cognitionState = society.Capture().Cognition;
+        var runtimes = cognitionState.Runtimes
             .ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var namingRetries = cognitionState.Queue
+            .Where(entry => entry.TriggerIds.Contains(
+                SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal))
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
@@ -39,7 +45,8 @@ public sealed partial class PrivateWorldRuntime
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
-            if (!NeedsCognition(inhabitant.Id, current, candidates))
+            if (!namingRetries.Contains(inhabitant.Id) &&
+                !NeedsCognition(inhabitant.Id, current, candidates))
             {
                 continue;
             }

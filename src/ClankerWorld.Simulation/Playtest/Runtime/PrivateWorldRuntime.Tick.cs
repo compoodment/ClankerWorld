@@ -406,7 +406,8 @@ public sealed partial class PrivateWorldRuntime
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
             {
-                foreach (var item in completed)
+                foreach (var item in completed.OrderBy(
+                             item => item.Request.Observation.InhabitantId, StringComparer.Ordinal))
                 {
                     var id = item.Request.Observation.InhabitantId;
                     if (!inhabitants.TryGetValue(id, out var physical)) continue;
@@ -433,16 +434,9 @@ public sealed partial class PrivateWorldRuntime
                             };
                             checkpointSchemaVersion = StateSchemaVersion;
                         }
-                        if (decision.Admission.Accepted && !decision.Admission.FellBack &&
-                            outcome.Response is
-                            {
-                                Provider: DecisionProviderKind.LargeLanguageModel,
-                                ChosenName: { } chosenName
-                            } && society.Checkpoint.GetInhabitant(id).NeedsName)
-                        {
-                            society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, id, chosenName));
-                            AppendEvent("agent_named", id);
-                        }
+                        if (outcome.Response is { } response)
+                            ApplyChosenNameOutcome(item.Request, response, decision.Admission);
+                        CloseUnresolvedNameRetry(item.Request);
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
