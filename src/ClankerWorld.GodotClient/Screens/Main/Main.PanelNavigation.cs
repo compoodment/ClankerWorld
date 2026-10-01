@@ -67,9 +67,10 @@ public partial class Main
 
     private void UpdateFamilyTreeStatus()
     {
-        familyTreeStatus.Text = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0
-            ? "No family links recorded yet. Housemates are not automatically relatives."
-            : "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        var empty = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0;
+        familyTreeStatus.Visible = empty;
+        familyLegend.Visible = !empty;
+        familyTreeScroll.Visible = !empty;
     }
 
     private void SelectFromFamilyTree(string id)

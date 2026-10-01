@@ -302,6 +302,7 @@ public partial class Main
         if (BridgeAt(snapshot, tile) is { } bridge)
             lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
+        RenderTileCard(snapshot, tile, region?.Weather ?? snapshot.Authoring?.Weather, region?.SoilMoisture);
         SetPanelText(selectedTileText, string.Join('\n', lines));
         PositionSelectedTilePanel();
     }

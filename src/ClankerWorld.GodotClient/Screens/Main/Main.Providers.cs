@@ -382,17 +382,21 @@ public partial class Main
         cognitionCredentialHint.Text = newCredential
             ? "A new key is stored privately on the host and can be reused for other agents."
             : agentCredential && SelectedCredentialChoice() != "default"
-            ? "Named key saved on host"
+            ? "This key is saved on the host."
             : agentCredential && option?.HasCredential != true
             ? "No provider default key. Select Add another API key to give this agent one."
             : option?.HasCredential == true
-            ? "Key saved on host"
+            ? "The key is saved on the host."
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
             ? "Loading…"
             : SelectedTargetWasBornHere()
             ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
+        // An agent's own page needs no summary of the world's defaults.
+        cognitionConfigurationStatus.Visible = SelectedCognitionTarget() is null || SelectedTargetWasBornHere() && SelectedAssignment() is null;
+        // An agent's page loads fresh each time it opens, so it needs no Refresh.
+        refreshCognitionProviderButton.Visible = SelectedCognitionTarget() is null;
         RefreshControlAvailability();
     }
 
@@ -494,8 +498,18 @@ public partial class Main
         _ => string.Empty,
     };
 
+    /// <summary>A small caption above a field that hides and shows with it.</summary>
+    private static Label FieldCaption(string text, Control field)
+    {
+        var caption = new Label { Text = text, ThemeTypeVariation = "DimLabel", Visible = field.Visible };
+        field.VisibilityChanged += () => caption.Visible = field.Visible;
+        return caption;
+    }
+
     private void BuildCognitionSettingsPanel()
     {
+        foreach (var choice in new[] { cognitionProviderChoice, cognitionCredentialChoice, cognitionRoleChoice })
+            choice.ClipText = true;
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
 
@@ -535,6 +549,7 @@ public partial class Main
             RenderProviderConfiguration();
         };
         providerRow.AddChild(cognitionProviderChoice);
+        body.AddChild(FieldCaption("Who decides", providerRow));
         body.AddChild(providerRow);
 
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
@@ -544,6 +559,7 @@ public partial class Main
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
+        body.AddChild(FieldCaption("API key", cognitionCredentialChoice));
         body.AddChild(cognitionCredentialChoice);
 
         cognitionCredentialLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
@@ -556,6 +572,7 @@ public partial class Main
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
         cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
+        body.AddChild(FieldCaption("Model", cognitionModelPicker));
         body.AddChild(cognitionModelPicker);
         cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
         cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
@@ -575,8 +592,10 @@ public partial class Main
         cognitionConfigurationStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(cognitionConfigurationStatus);
 
-        var buttons = new HBoxContainer();
-        buttons.AddThemeConstantOverride("separation", 6);
+        // The buttons wrap rather than push the box wider than an agent's Profile.
+        var buttons = new HFlowContainer();
+        buttons.AddThemeConstantOverride("h_separation", 6);
+        buttons.AddThemeConstantOverride("v_separation", 6);
         saveCognitionProviderButton.Text = "Apply";
         StyleButton(saveCognitionProviderButton, primary: true);
         saveCognitionProviderButton.Pressed += () => _ = SaveProviderConfigurationAsync();
@@ -585,7 +604,7 @@ public partial class Main
         StyleButton(forgetCognitionCredentialButton);
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
-        deleteCognitionCredentialSlotButton.Text = "Delete named key";
+        deleteCognitionCredentialSlotButton.Text = "Delete this key";
         deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();

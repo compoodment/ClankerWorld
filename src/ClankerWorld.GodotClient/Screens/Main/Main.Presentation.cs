@@ -18,6 +18,22 @@ public partial class Main
 
         statusLabel.Text = text;
         statusLabel.ThemeTypeVariation = good ? "GoodLabel" : "BadLabel";
+        // The icon carries good or bad; the words stay in ink so they read easily.
+        statusLabel.AddThemeColorOverride("font_color", UiTheme.Current.Ink);
+        statusIcon.Texture = good
+            ? PixelIcons.Texture(PixelGlyph.Check, UiTheme.Current.Good, UiTheme.Current.Good, 1)
+            : PixelIcons.Texture(PixelGlyph.Warning, UiTheme.Current.Ink, UiTheme.Current.Name == "dark" ? new Color("E8B04A") : new Color("D9822B"), 1);
+        // As wide as the message, wrapping only long ones.
+        var width = statusLabel.GetThemeFont("font").GetStringSize(text, HorizontalAlignment.Left, -1, statusLabel.GetThemeFontSize("font_size")).X;
+        statusLabel.AutowrapMode = width > 460 ? TextServer.AutowrapMode.WordSmart : TextServer.AutowrapMode.Off;
+        statusLabel.CustomMinimumSize = new Vector2(width > 460 ? 460 : 0, 0);
+        statusToast.ResetSize();
+        // The box keeps its earlier size until the new text is measured, so fit it again next frame.
+        Callable.From(() =>
+        {
+            statusToast.ResetSize();
+            ApplyResponsiveLayout();
+        }).CallDeferred();
         statusToastKind = kind;
         statusToastShownAtMsec = (long)Time.GetTicksMsec();
         statusToast.Show();

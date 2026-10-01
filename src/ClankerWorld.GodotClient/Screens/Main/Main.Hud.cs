@@ -385,6 +385,7 @@ public partial class Main
         body.AddChild(townsPage);
         ConfigureTextPanel(worldInfoText, 300);
         body.AddChild(worldInfoText);
+        BuildWorldInfoPages(body);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
         worldInfoPanel.CustomMinimumSize = new Vector2(420, 0);
         worldInfoPanel.ZIndex = 80;
@@ -398,10 +399,11 @@ public partial class Main
     private void ShowWorldInfoPage(bool towns)
     {
         townsPage.Visible = towns;
-        worldInfoText.Visible = !towns;
+        worldStatsPage.Visible = !towns;
         worldInfoTownsTab.SetPressedNoSignal(towns);
         worldInfoWorldTab.SetPressedNoSignal(!towns);
-        worldInfoPanel.ResetSize();
+        if (towns) FitTownExtras();
+        else worldInfoPanel.ResetSize();
     }
 
     /// <summary>T opens World Info on its Towns page; pressing it again there closes it.</summary>
@@ -466,12 +468,13 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
+            text.AddChild(ResidentPortraits(snapshot, town));
             line.AddChild(text);
             var show = new Button
             {
                 Text = "Show",
                 TooltipText = $"Move the map to {town.Name}.",
-                Icon = PixelIcons.Themed(PixelGlyph.Map, UiTheme.Current.Primary, 2),
+                Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                 Disabled = town.BorderTiles.Count == 0,
             };
             StyleButton(show);
@@ -482,7 +485,7 @@ public partial class Main
             townList.AddChild(row);
         }
         // Shrink back to fit when the list gets shorter.
-        worldInfoPanel.ResetSize();
+        FitTownExtras();
     }
 
     /// <summary>Every label in the Towns list, for checks and assistive reading.</summary>

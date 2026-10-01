@@ -8,10 +8,10 @@ namespace ClankerWorld.GodotClient.UI;
 /// </summary>
 public partial class FamilyTreeView : Control
 {
-    private const float NodeWidth = 156;
-    private const float NodeHeight = 62;
-    private const float ColumnWidth = 190;
-    private const float RowHeight = 120;
+    private const float NodeWidth = 132;
+    private const float NodeHeight = 36;
+    private const float ColumnWidth = 150;
+    private const float RowHeight = 76;
     private readonly Dictionary<string, Button> buttons = new(StringComparer.Ordinal);
     private readonly List<(string Parent, string Child)> parentEdges = [];
     private readonly List<(string First, string Second)> partnerEdges = [];
@@ -98,8 +98,8 @@ public partial class FamilyTreeView : Control
         }
 
         var rows = generation.GroupBy(item => item.Value).OrderBy(group => group.Key).ToArray();
-        var width = Math.Max(500, rows.Max(group => group.Count()) * ColumnWidth + 40);
-        CustomMinimumSize = new Vector2(width, rows.Length * RowHeight + 40);
+        var width = Math.Max(ColumnWidth + 16, rows.Max(group => group.Count()) * ColumnWidth + 16);
+        CustomMinimumSize = new Vector2(width, rows.Length * RowHeight - (RowHeight - NodeHeight) + 16);
         for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
         {
             var row = rows[rowIndex].Select(item => byId[item.Key])
@@ -112,8 +112,10 @@ public partial class FamilyTreeView : Control
                 var deceased = person.Lifecycle.Equals("dead", StringComparison.OrdinalIgnoreCase);
                 var button = new Button
                 {
-                    Text = person.DisplayName + (deceased ? "\nDeceased" : "\nLiving"),
-                    Position = new Vector2(left + column * ColumnWidth, 24 + rowIndex * RowHeight),
+                    Text = deceased ? person.DisplayName + " · died" : person.DisplayName,
+                    Icon = Portrait(person, deceased),
+                    Alignment = HorizontalAlignment.Left,
+                    Position = new Vector2(left + column * ColumnWidth, 8 + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
                     TooltipText = "Open " + person.DisplayName + "'s profile",
                     // The person whose tree this is stands out; the deceased are faded.
@@ -134,6 +136,20 @@ public partial class FamilyTreeView : Control
         QueueRedraw();
     }
 
+    /// <summary>The person's own map sprite on green in a small frame.</summary>
+    private static ImageTexture Portrait(OwnerWorldInhabitant person, bool deceased)
+    {
+        var age = person.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
+        var sprite = AgentSprites.Sprite(AgentSprites.VariantFor(person.Id), AgentSprites.StageIndex(age), 16);
+        sprite.Convert(Image.Format.Rgba8);
+        var image = Image.CreateEmpty(20, 20, false, Image.Format.Rgba8);
+        image.Fill(UiTheme.Current.WoodEdge);
+        image.FillRect(new Rect2I(1, 1, 18, 18), deceased ? UiTheme.Current.InkFaint
+            : UiTheme.Current.Name == "dark" ? new Color("3E5A2E") : new Color("8FB06A"));
+        image.BlendRect(sprite, new Rect2I(0, 0, 16, 16), new Vector2I(2, 2));
+        return ImageTexture.CreateFromImage(image);
+    }
+
     public override void _Draw()
     {
         foreach (var (parent, child) in parentEdges)
@@ -151,6 +167,11 @@ public partial class FamilyTreeView : Control
             var a = buttons[first].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
             var b = buttons[second].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
             DrawLine(a, b, UiTheme.Current.Partner, 2);
+            // A heart where the line shows between the two names.
+            var gapLeft = Math.Min(a.X, b.X) + NodeWidth / 2;
+            var gapRight = Math.Max(a.X, b.X) - NodeWidth / 2;
+            var middle = new Vector2(Mathf.Floor((gapLeft + gapRight) / 2), Mathf.Floor(a.Y));
+            DrawTexture(PixelIcons.Texture(PixelGlyph.Heart, UiTheme.Current.Partner, UiTheme.Current.Partner, 1), middle - new Vector2(6, 6));
         }
     }
 }

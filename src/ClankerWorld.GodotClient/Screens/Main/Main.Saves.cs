@@ -368,7 +368,7 @@ public partial class Main
             listedManualSaves[selected[0]].IsAutosave) return;
         var save = listedManualSaves[selected[0]];
         pendingOverwriteSaveId = save.Id;
-        manualSaveOverwriteConfirmation.DialogText = $"Replace ‘{save.Name}’ with the current world? The old version is kept as ‘Before overwriting: {save.Name}’.";
+        manualSaveOverwriteConfirmation.DialogText = $"Replace \"{save.Name}\" with the current world? The old version is kept as \"Before overwriting: {save.Name}\".";
         PopupDialog(manualSaveOverwriteConfirmation);
     }
 
@@ -390,7 +390,7 @@ public partial class Main
     {
         if (!manualSaveLoadMode || manualSaveList.GetSelectedItems() is not { Length: 1 } selected ||
             selected[0] < 0 || selected[0] >= listedManualSaves.Length) return;
-        manualSaveLoadConfirmation.DialogText = $"Load ‘{listedManualSaves[selected[0]].Name}’? Your current world is saved first, and the loaded world starts paused.";
+        manualSaveLoadConfirmation.DialogText = $"Load \"{listedManualSaves[selected[0]].Name}\"? Your current world is saved first, and the loaded world starts paused.";
         PopupDialog(manualSaveLoadConfirmation);
     }
 
@@ -428,7 +428,7 @@ public partial class Main
             selected[0] < 0 || selected[0] >= listedManualSaves.Length || listedSaveWorldId is null) return;
         var save = listedManualSaves[selected[0]];
         pendingDeletion = new OwnerDeletionAction("save", save.Id, listedSaveWorldId, save.CreatedUtc);
-        deletionConfirmation.DialogText = $"Permanently delete ‘{save.Name}’ (saved {save.CreatedUtc.ToLocalTime():g})? This removes only this snapshot, not the world or its other saves. There is no undo.";
+        deletionConfirmation.DialogText = $"Permanently delete \"{save.Name}\" (saved {save.CreatedUtc.ToLocalTime():g})? This removes only this snapshot, not the world or its other saves. There is no undo.";
         PopupDialog(deletionConfirmation);
     }
 
@@ -443,7 +443,7 @@ public partial class Main
             return;
         }
         pendingDeletion = new OwnerDeletionAction("world", world.Id, world.WorldId);
-        deletionConfirmation.DialogText = $"Permanently delete ‘{world.Name}’ and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
+        deletionConfirmation.DialogText = $"Permanently delete \"{world.Name}\" and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
         PopupDialog(deletionConfirmation);
     }
 

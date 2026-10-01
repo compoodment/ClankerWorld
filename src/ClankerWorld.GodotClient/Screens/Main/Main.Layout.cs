@@ -165,7 +165,11 @@ public partial class Main
         BuildBuildingCards();
 
         worldOverview.CenterRequested += CenterCameraAt;
-        AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
+        var overviewBody = new VBoxContainer();
+        overviewBody.AddThemeConstantOverride("separation", 6);
+        overviewBody.AddChild(worldOverview);
+        overviewBody.AddChild(OverviewLegend());
+        AddClosablePanelContents(worldOverviewPanel, "World Map", overviewBody);
         worldOverviewPanel.Position = new Vector2(14, 14);
         worldOverviewPanel.ZIndex = 80;
         worldOverviewPanel.Hide();
@@ -194,6 +198,7 @@ public partial class Main
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
         inhabitantList.TooltipText = "Choose someone to find them in the world.";
         rosterBody.AddChild(inhabitantList);
+        BuildRosterCards(rosterBody);
         AddClosablePanelContents(rosterPanel, "Agents", rosterBody);
         rosterPanel.CustomMinimumSize = new Vector2(410, 0);
         rosterPanel.ZIndex = 80;
@@ -203,13 +208,18 @@ public partial class Main
         ConfigureTextPanel(eventLog, 300);
         eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
-        AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
-        eventsPanel.CustomMinimumSize = new Vector2(390, 0);
+        var eventsBody = new VBoxContainer();
+        eventLog.Hide();
+        eventsBody.AddChild(eventLog);
+        BuildEventRows(eventsBody);
+        AddClosablePanelContents(eventsPanel, "Event Log", eventsBody);
+        eventsPanel.CustomMinimumSize = new Vector2(430, 0);
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
 
         var familyBody = new VBoxContainer();
+        familyBody.AddThemeConstantOverride("separation", 8);
         var familyHeading = new HBoxContainer();
         var familyTitle = new Label { Text = "Family Tree", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         familyHeading.AddChild(familyTitle);
@@ -217,8 +227,12 @@ public partial class Main
         closeFamily.Pressed += () => familyTreePanel.Hide();
         familyHeading.AddChild(closeFamily);
         familyBody.AddChild(familyHeading);
-        familyTreeStatus.Text = "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        familyTreeStatus.Text = "No family links recorded yet. Housemates are not automatically relatives.";
+        familyTreeStatus.ThemeTypeVariation = "DimLabel";
+        familyTreeStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        familyTreeStatus.CustomMinimumSize = new Vector2(300, 0);
         familyBody.AddChild(familyTreeStatus);
+        familyBody.AddChild(FamilyLegend());
         familyTreeScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         familyTreeScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         familyTreeScroll.AddChild(familyTreeView);
@@ -240,6 +254,7 @@ public partial class Main
         ConfigureTextPanel(memoryHistory, 360);
         memoryHistory.TooltipText = "What this agent remembers and believes, plus the maps they know. This is their view, not the full world log.";
         memoriesBody.AddChild(memoryHistory);
+        BuildMemoryCards(memoriesBody);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
         memoriesPanel.Resized += () => PlaceReaderPanel(memoriesPanel);
@@ -249,21 +264,7 @@ public partial class Main
         BuildWorldInfoPanel(content);
         BuildControlsPanel(content);
 
-        var tileBody = new VBoxContainer();
-        var tileHeading = new HBoxContainer();
-        tileHeading.AddChild(new Label { Text = "Selected tile", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-        var closeTile = CloseButton("Close tile inspection");
-        closeTile.Pressed += ClearTileSelection;
-        tileHeading.AddChild(closeTile);
-        tileBody.AddChild(tileHeading);
-        ConfigureTextPanel(selectedTileText, float.MaxValue);
-        tileBody.AddChild(selectedTileText);
-        AddPanelContents(selectedTilePanel, tileBody);
-        selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
-        selectedTilePanel.Resized += PositionSelectedTilePanel;
-        selectedTilePanel.ZIndex = 80;
-        selectedTilePanel.Hide();
-        content.AddChild(selectedTilePanel);
+        BuildTileCard(content);
         BuildMapHud(content);
     }
 
@@ -563,13 +564,20 @@ public partial class Main
         UpdateAuthoringHint();
     }
 
+    private readonly TextureRect statusIcon = new();
+
     private void BuildStatusToast(Control content)
     {
         statusLabel.Text = "Connecting…";
         statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        statusLabel.CustomMinimumSize = new Vector2(320, 0);
-        AddPanelContents(statusToast, statusLabel);
+        statusLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        statusIcon.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        statusIcon.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        row.AddChild(statusIcon);
+        row.AddChild(statusLabel);
+        AddPanelContents(statusToast, row);
         // Above the title backdrop and menus, so connection and pairing
         // results remain visible from Main Menu Settings.
         statusToast.ZIndex = 250;

@@ -44,6 +44,7 @@ public partial class Main
         if (notes.Length == 0) lines.Add(new(TownStyle.Note, "Nothing to report yet."));
         lines.AddRange(notes.Select(note => new TownLine(TownStyle.Body, note)));
         WriteTownPanel(lines);
+        RenderTownExtras(snapshot);
     }
 
     private void RenderEventLog()
@@ -63,6 +64,7 @@ public partial class Main
             string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
         if (renderedEventLog == content) return;
         renderedEventLog = content;
+        RenderEventRows(entries);
         eventLog.Clear();
         if (entries.Length == 0)
         {

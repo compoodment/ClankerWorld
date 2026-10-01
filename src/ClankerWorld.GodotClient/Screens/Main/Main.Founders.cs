@@ -169,6 +169,7 @@ public partial class Main
             ClearFounderModelSetupCheck();
             PopulateFounderCredentials();
         };
+        body.AddChild(FieldCaption("Who decides", founderProviderChoice));
         body.AddChild(founderProviderChoice);
 
         // The key comes before the model, since the key decides which models are offered.
@@ -178,6 +179,7 @@ public partial class Main
             RenderFounderCredentialInputs();
             RequestFounderModels();
         };
+        body.AddChild(FieldCaption("API key", founderCredentialChoice));
         body.AddChild(founderCredentialChoice);
         founderKeyLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
         body.AddChild(founderKeyLabelInput);
@@ -189,6 +191,7 @@ public partial class Main
         founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
         founderModelPicker.RetryRequested += RequestFounderModels;
         founderModelPicker.ModelChanged += ClearFounderModelSetupCheck;
+        body.AddChild(FieldCaption("Model", founderModelPicker));
         body.AddChild(founderModelPicker);
         founderModelSetupCheckButton.Text = "Test model · 1 paid call";
         founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
@@ -200,7 +203,19 @@ public partial class Main
         body.AddChild(founderModelSetupCheckStatus);
         // Placement hints wrap differently as the pointer crosses the map.
         // Keep them after the fields so those click targets never move.
-        body.AddChild(founderSetupHint);
+        body.AddChild(new HSeparator());
+        var next = new HBoxContainer();
+        next.AddThemeConstantOverride("separation", 8);
+        next.AddChild(new TextureRect
+        {
+            Texture = PixelIcons.Texture(PixelGlyph.Mouse, UiTheme.Current.Ink, UiTheme.Current.Primary, 1),
+            StretchMode = TextureRect.StretchModeEnum.KeepCentered,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkBegin,
+        });
+        founderSetupHint.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        founderSetupHint.CustomMinimumSize = new Vector2(280, 0);
+        next.AddChild(founderSetupHint);
+        body.AddChild(next);
 
         AddClosablePanelContents(founderSetupPanel, "Add an agent", body, () =>
         {
@@ -479,7 +494,7 @@ public partial class Main
 
     private void ResetAddAgentPlacementHint()
     {
-        founderSetupHint.Text = "Pick a provider, model and key, then point to a tile. The preview shows where the agent will belong; overlapping property or Town borders are refused, and House tiles can be shared.";
+        founderSetupHint.Text = "Then click on land to place them. Point first to see which household and Town they would join.";
     }
 
     private void PreviewAddAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
@@ -492,7 +507,7 @@ public partial class Main
             snapshot.Objects.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Resources.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
-            founderSetupHint.Text = "Point at empty land or a House to see where this adult would belong.";
+            founderSetupHint.Text = "Point at empty land or a House to see where they would belong.";
             return;
         }
         var membership = ResolveAgentPlacement(snapshot, tile);
@@ -507,8 +522,9 @@ public partial class Main
         var home = membership.HouseholdPropertyOwnerId is { } ownerId
             ? GameUiText.PartyName(snapshot, ownerId)
             : town is null ? "new independent household" : "none";
-        founderSetupHint.Text = $"Tile {tile.X}, {tile.Y} · Household: {home} · Town: {town?.Name ?? "no Town"}. " +
-            "Placement requires a passable tile, no conflicting occupant outside a House, and server validation.";
+        founderSetupHint.Text = town is null
+            ? $"Click to place them here. They would join {home}, outside any Town."
+            : $"Click to place them here. They would join {home} in {town.Name}.";
     }
 
     private static AgentPlacementResolution ResolveAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)

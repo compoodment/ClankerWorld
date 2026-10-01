@@ -200,7 +200,11 @@ public partial class Main
         readThoughtsButton.Pressed += OpenThoughtsReader;
         thoughtsRow.AddChild(readThoughtsButton);
         selectedAgentOverview.AddChild(thoughtsRow);
-        ConfigureTextPanel(privateThoughtHistory, 180);
+        // The newest thought in two whole lines; Read all opens the rest.
+        privateThoughtHistory.BbcodeEnabled = false;
+        privateThoughtHistory.FitContent = false;
+        privateThoughtHistory.ScrollActive = false;
+        privateThoughtHistory.CustomMinimumSize = new Vector2(0, 2 * (UiFonts.Body + 6));
         privateThoughtHistory.TooltipText = "Click to read all of their thoughts. Only you can see these; other agents don't know them unless they are told.";
         privateThoughtHistory.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
         privateThoughtHistory.GuiInput += input =>
@@ -215,7 +219,11 @@ public partial class Main
 
         selectedAgentOverview.AddChild(new Label { Text = "PEOPLE", ThemeTypeVariation = "SectionLabel" });
         ConfigureTextPanel(inhabitantSocialDetails, 90);
+        inhabitantSocialDetails.Hide();
         selectedAgentOverview.AddChild(inhabitantSocialDetails);
+        profilePeople.AddThemeConstantOverride("h_separation", 6);
+        profilePeople.AddThemeConstantOverride("v_separation", 3);
+        selectedAgentOverview.AddChild(profilePeople);
 
         var profileActions = new HBoxContainer();
         profileActions.AddThemeConstantOverride("separation", 4);
@@ -247,6 +255,10 @@ public partial class Main
             VerticalAlignment = VerticalAlignment.Center,
         });
         var kind = new ButtonGroup();
+        var speakSwitch = new PanelContainer { ThemeTypeVariation = "SegmentedPanel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        var speakSwitchRow = new HBoxContainer();
+        speakSwitchRow.AddThemeConstantOverride("separation", 0);
+        speakSwitch.AddChild(speakSwitchRow);
         foreach (var (button, text, tip) in new[]
         {
             (instructionSuggestButton, "Suggest", "They weigh it against their own plans."),
@@ -258,8 +270,9 @@ public partial class Main
             button.ToggleMode = true;
             button.ButtonGroup = kind;
             StyleCompactToggle(button);
-            speakHeading.AddChild(button);
+            speakSwitchRow.AddChild(button);
         }
+        speakHeading.AddChild(speakSwitch);
         instructionSuggestButton.ButtonPressed = true;
         speakSection.AddChild(speakHeading);
         var speakRow = new HBoxContainer();
@@ -277,6 +290,11 @@ public partial class Main
         body.AddChild(selectedAgentOverview);
 
         selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
+        selectedAgentModelScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+        selectedAgentModelContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        // As tall as the model settings, up to the bottom of the screen.
+        selectedAgentModelContent.MinimumSizeChanged += () => selectedAgentModelScroll.CustomMinimumSize = new Vector2(0,
+            Math.Min(selectedAgentModelContent.GetCombinedMinimumSize().Y, Math.Max(120, UiSize.Y - HudTop - 150)));
         selectedAgentModelScroll.AddChild(selectedAgentModelContent);
         selectedAgentModelScroll.Hide();
         body.AddChild(selectedAgentModelScroll);
@@ -620,9 +638,9 @@ public partial class Main
         }
         else if (!waitingForDecision)
         {
-            details.Add(decision is null ? "No decision yet"
-                : decision.FellBack ? "The model gave no usable choice, so built-in rules chose this."
-                : $"Chosen by {ProviderDisplayName(decision.Provider)}");
+            // Who chose it shares the Model line, so the Profile stays short enough for its thoughts.
+            if (decision is { FellBack: true }) details.Add("The model gave no usable choice, so built-in rules chose this.");
+            else profileActivityLabel.Text += decision is null ? " · no decision yet" : $" · chosen by {ProviderDisplayName(decision.Provider)}";
         }
         SetPanelText(inhabitantDetails, string.Join("\n", details));
         inhabitantDetails.Visible = details.Count > 0;
@@ -637,8 +655,8 @@ public partial class Main
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
         SetPanelText(privateThoughtHistory, inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
-                .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
+            : inhabitant.RecentPrivateThoughts.Reverse().Take(1)
+                .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}").Single());
 
         var people = inhabitant.Relationships.Select(relationship => GameUiText.RelationshipSummary(
                 relationship.Type, relationship.State, GameUiText.PartyName(snapshot, relationship.OtherPartyId), relationship.Direction))
@@ -646,6 +664,7 @@ public partial class Main
             .Concat(inhabitant.SocialNotes)
             .ToArray();
         SetPanelText(inhabitantSocialDetails, people.Length == 0 ? "No close relationships yet." : string.Join("\n", people));
+        RenderProfilePeople(snapshot, inhabitant);
         RenderMemoryHistory(snapshot, inhabitant);
         RenderThoughtsReader(snapshot, inhabitant);
 
@@ -708,6 +727,7 @@ public partial class Main
             return (artifact.CreatedTick, 3,
                 $"{DisplayWorldClock(artifact.CreatedTick)} · {Pretty(artifact.Kind)} · {artifact.Title} · by {artifact.CreatorName}\n{sites}");
         }));
+        RenderMemoryCards(snapshot, inhabitant);
         SetPanelText(memoryHistory, memoryRows.Count == 0
             ? "No saved memories, beliefs, or map records for this agent yet."
             : string.Join("\n\n", memoryRows.OrderByDescending(item => item.WorldTick)

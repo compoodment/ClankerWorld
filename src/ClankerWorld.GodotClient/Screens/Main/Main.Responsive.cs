@@ -79,25 +79,31 @@ public partial class Main
 
     private void PositionFamilyTreePanel(Vector2 viewport, float hudTop)
     {
-        var panelWidth = Math.Max(1, Math.Min(840, viewport.X - 28));
         familyTreePanel.CustomMinimumSize = Vector2.Zero;
         familyTreeScroll.CustomMinimumSize = Vector2.Zero;
 
         // Measure the heading, help text, frame padding and spacing without
         // the tree viewport, then give the tree as much of the remaining
-        // screen height as its content needs. Long trees scroll inside this
+        // screen as its content needs. Long trees scroll inside this
         // bounded area instead of making the panel run off-screen.
-        var panelChrome = Math.Max(0,
-            familyTreePanel.GetCombinedMinimumSize().Y - familyTreeScroll.GetCombinedMinimumSize().Y);
+        var chrome = familyTreePanel.GetCombinedMinimumSize() - familyTreeScroll.GetCombinedMinimumSize();
         var topLimit = Math.Min(Math.Max(14, hudTop), Math.Max(14, viewport.Y - 14));
         var availableHeight = Math.Max(1, viewport.Y - topLimit - 14);
-        var treeHeight = Math.Max(0, familyTreeView.GetCombinedMinimumSize().Y);
+        var tree = familyTreeView.GetCombinedMinimumSize();
+        var panelWidth = Math.Max(1, Math.Min(Math.Max(320, tree.X + chrome.X), viewport.X - 28));
         familyTreeScroll.CustomMinimumSize = new Vector2(0,
-            Math.Min(treeHeight, Math.Max(0, availableHeight - panelChrome)));
+            Math.Min(Math.Max(0, tree.Y), Math.Max(0, availableHeight - Math.Max(0, chrome.Y))));
         familyTreePanel.CustomMinimumSize = new Vector2(panelWidth, 0);
 
         var panelHeight = Math.Min(availableHeight, familyTreePanel.GetCombinedMinimumSize().Y);
         familyTreePanel.Size = new Vector2(panelWidth, panelHeight);
+        // Beside the Profile it was opened from when there is room, so both stay readable.
+        var beside = agentProfilePanel.Position.X + agentProfilePanel.Size.X + 12;
+        if (agentProfilePanel.Visible && beside + panelWidth <= viewport.X - 14)
+        {
+            familyTreePanel.Position = new Vector2(beside, topLimit);
+            return;
+        }
         var maximumY = Math.Max(14, viewport.Y - panelHeight - 14);
         var minimumY = Math.Min(topLimit, maximumY);
         var centeredY = (viewport.Y - panelHeight) / 2;
