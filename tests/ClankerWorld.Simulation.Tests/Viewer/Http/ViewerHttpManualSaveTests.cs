@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
@@ -359,6 +360,10 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.JevEnabled);
                 var providers = host.Services.GetRequiredService<ProviderConfigurationStore>();
                 var slotId = Guid.NewGuid().ToString("N");
+                providers.Configure(new OwnerProviderConfigurationAction("routine", "deterministic", null,
+                    null, false));
+                providers.Configure(new OwnerProviderConfigurationAction("planning", "ollama-cloud", "world-model",
+                    "test-world-key", false));
                 providers.Configure(new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini",
                     "test-secret-key", false, "founder:checkpoint", slotId, "Test account"));
                 var create = new OwnerManualSaveAction("create", "Before changing Jev");
@@ -381,6 +386,10 @@ public sealed partial class ViewerHttpTests
                     host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".meta.json")));
                 Assert.DoesNotContain("test-secret-key", File.ReadAllText(Path.Combine(
                     host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".save")));
+                Assert.DoesNotContain("test-world-key", File.ReadAllText(Path.Combine(
+                    host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".meta.json")));
+                Assert.DoesNotContain("test-world-key", File.ReadAllText(Path.Combine(
+                    host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".save")));
 
                 var change = new OwnerJevAssistanceAction(false);
                 using var changed = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -390,7 +399,31 @@ public sealed partial class ViewerHttpTests
                 Assert.False(runtime.JevEnabled);
                 providers.Configure(new OwnerProviderConfigurationAction("personal", "inherit", null,
                     null, false, "founder:checkpoint"));
-                Assert.Empty(providers.CaptureRuntimeConfiguration().Assignments ?? []);
+                var inheritedConfiguration = providers.CaptureStatus();
+                Assert.Equal(PlayerDecisionProviders.Deterministic, inheritedConfiguration.RoutineProvider);
+                Assert.Equal(PlayerDecisionProviders.OllamaCloud, inheritedConfiguration.PlanningProvider);
+                var inheritedRoutes = inheritedConfiguration.Assignments!
+                    .Where(item => item.InhabitantId == "founder:checkpoint").ToArray();
+                Assert.Equal(2, inheritedRoutes.Length);
+                Assert.Equal(new[] { PlayerDecisionProviders.PlanningRole, PlayerDecisionProviders.RoutineRole },
+                    inheritedRoutes.Select(item => item.Role).Order(StringComparer.Ordinal));
+                Assert.All(inheritedRoutes, assignment =>
+                {
+                    Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
+                    Assert.Null(assignment.Model);
+                    Assert.Null(assignment.CredentialSlotId);
+                    Assert.Null(assignment.SelectionReason);
+                });
+                var decisionProvider = host.Services.GetRequiredService<ConfigurableDecisionProvider>();
+                var routineObservation = new InhabitantObservation("founder:checkpoint", runtime.WorldTick, 0, 0,
+                    "sha256:inheritance-fallback", 5_000,
+                    [new CognitionCandidate("safe_idle", "Wait safely.")]);
+                var planningObservation = routineObservation with
+                {
+                    Candidates = [new CognitionCandidate("build:building:shelter", "Build a shelter.")],
+                };
+                Assert.Equal(DecisionProviderKind.Deterministic, decisionProvider.KindFor(routineObservation));
+                Assert.Equal(DecisionProviderKind.LargeLanguageModel, decisionProvider.KindFor(planningObservation));
                 host.Services.GetRequiredService<WorldAutosaveStore>().Configure(false, 1, 0);
 
                 var list = new OwnerControlAction("list-saves");
@@ -437,6 +470,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(saveLog.Messages, message => message.Contains("manual_save outcome=loaded", StringComparison.Ordinal));
                 Assert.Contains(saveLog.Messages, message => message.Contains("autosave_settings outcome=changed", StringComparison.Ordinal));
                 Assert.DoesNotContain(saveLog.Messages, message => message.Contains("test-secret-key", StringComparison.Ordinal));
+                Assert.DoesNotContain(saveLog.Messages, message => message.Contains("test-world-key", StringComparison.Ordinal));
             }
 
             using var restarted = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true,
