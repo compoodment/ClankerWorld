@@ -27,7 +27,7 @@ lists as damaged checkpoint data. Current lesson progress and skills survive pau
 save/load and replay. Old alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
-Private-world schema 32 adds household field tiles and their crop/work state.
+Private-world schema 33 adds household field tiles and their crop/work state.
 The saved inventory also records a ground position for physical harvest lots.
 Field ownership, work inputs, growth times and replanting reservations are
 validated together with inventory and map geometry. Current-format roundtrips
