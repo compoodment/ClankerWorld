@@ -10,3 +10,6 @@ From the October 1 art review, on the branch `claude/exciting-carson-u13ktz`.
 - Find a mountain range and pan across it at full and mid zoom. It should read as one mass with a snowy crest and soft foothills, with no visible seams between areas. The earlier per-tile art may show for a moment before the range appears.
 - Watch a household till, plant, tend and harvest a field. The field should show tilled soil, then seeds, sprouts, the ripe crop and stubble, and grain, potatoes and greens should look different.
 - Open the Main Menu in the Light and Dark themes. The mountains behind it should look detailed by day and at dusk.
+- Find a hot desert. A few of its brush tiles should carry a cactus (barrel, tall saguaro or prickly pear), not every tile, and none should stand on a Road or field. At overview zoom the desert should show only its ground colour.
+- Look where snow meets grass or rock at full and mid zoom. The snow should thin into clumps and pale frost, with no flat white band and no seams where edges meet.
+- Check the Map, Play and agent card rename and speak buttons, and the weather icon in the top bar for sun, cloud, rain, snow and storm. Each should read clearly in the Light and Dark themes.

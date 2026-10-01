@@ -5,3 +5,5 @@
 - Farm fields show tilled soil with grain, potatoes or greens drawn at each stage, from seed to harvest. Scrub, dry brush, desert brush and tundra snow ground are redrawn to match the rest of the map.
 - The Farmhouse shows grain sheaves and sacks, and the Workshop is redrawn. Every item has its own icon, and a few interface icons are clearer.
 - The Main Menu valley has more detailed snowy mountains, by day and at dusk.
+- Desert cactus cover now shows barrel, saguaro and prickly-pear cacti on some of its tiles, and snow thins into clumps and frost at its edges instead of ending in a flat white band.
+- The map, pencil, play, speech and weather icons are clearer.

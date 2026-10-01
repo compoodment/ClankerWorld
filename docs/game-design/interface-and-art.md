@@ -508,6 +508,19 @@ The recent history should persist with the world save but remain bounded.
   and crop states; 43 more item icons; and part of the interface icon set.
   Animals, handcarts and boats face all eight directions, like agents. How
   mountains generate stays open in [#628](https://github.com/compoodment/ClankerWorld/issues/628).
+- **Agreed after the third round of the art review (October 1):** computment
+  approved 99 pictures; the others were the icon options not chosen, the old
+  snow edge shown for comparison, and the Market plaza. Approved: the Market
+  as a timber hall with no stalls inside; a Port where six boats moor bow-in,
+  three along each side of the pier; chickens, sheep, cows, the horse with and
+  without a rider, handcarts and boats drawn in all eight directions; the
+  redrawn Hammer, Map, Pencil and Play icons, the Sun and Speech icons kept
+  close to today's, the Rain, Snow and Storm icons built on the new cloud, and
+  the solid-headed Arrow; three desert cacti, a barrel cactus, a saguaro and a
+  prickly pear, standing on some of the desert's cactus cover; and a soft snow
+  edge that thins into clumps and frost, shaded like a low drift, instead of
+  ending in a flat white band. The plaza was "a bit too big for the eight
+  stalls", so a smaller one is in review.
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.

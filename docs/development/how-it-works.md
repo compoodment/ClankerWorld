@@ -396,7 +396,11 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand follow the dry climate; cacti additionally need hot desert
-   sand, never dry scrub, ordinary beaches, water or rock.
+   sand, never dry scrub, ordinary beaches, water or rock. The client draws
+   cactus cover as desert brush and puts a cactus sprite on about one cover
+   tile in five, chosen from the tile's position, skipping Roads, bridges,
+   doorsteps, fields and buildings (`WorldTerrainLayer.CactusAt`). The cacti
+   are decoration only; the server does not track them.
 4. **Object placement.** The starter berry patch, tree and grain seed patch must
    stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant

@@ -166,6 +166,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
   flat facets and short cracks. Scrub keeps the bush motif. Tundra has
   lichen patches in the light step.
 - T7 The base colour of every style stays within 4% of today's value.
+- T8 **Snow edges** thin out instead of stopping: a ragged rim, a few loose
+  clumps, then half-transparent frost on the neighbouring ground, never
+  further than a quarter of the tile. Rims facing north or west take the
+  light step; lee rims facing south or east take the shade step, two pixels
+  deep at 32 px. The ends of each edge piece keep the ordinary corner
+  reaches so long boundaries join. Only snow and tundra snow edges do this
+  (`UI/Map/SnowEdges.cs`); every other surface keeps its plain soft rim.
 
 ## 6. Water, shores and fords
 
@@ -213,6 +220,12 @@ black overlay; the ramps already shift hue toward blue in the shade.
   Cloth highlight veins).
 - N6 Orchard trees share the broadleaf silhouette with the orchard canopy
   ramp; fruiting adds five fruit discs; the sapling is a small lumpy disc.
+- N7 Cacti use the Canopy ramp of the conifer, a cool blue-green that stands
+  out on warm sand, with Cloth light spines, Gold flowers and Berry fruit.
+  The barrel cactus and the saguaro are ribbed domes seen from above; the
+  saguaro's longer shadow shows its height. The prickly pear is a clump of
+  overlapping oval pads. They stand only on desert cactus cover, about one
+  tile in five (`UI/Graphics/CactusSprites.cs`).
 
 ## 9. Buildings
 
@@ -229,7 +242,9 @@ black overlay; the ramps already shift hue toward blue in the shade.
   Port timber planks on piles over water; Restaurant clay tiles with a
   pot sign; Clinic shingles with a cross-and-herb sign. The Market is a
   timber hall without stalls; its 1×1 stalls stand on a plaza of packed earth
-  around it, drawn as an area of the Road's surface.
+  in front of it, drawn as an area of the Road's surface. The plaza fits its
+  stalls: two back-to-back rows, each facing an aisle, and a path from the
+  hall's door; the 5 × 4 plaza for eight stalls is in review.
 - B4 The ridge runs along the long side as a one-pixel light line; the
   north or west half is lit and the south or east half shaded. Square roofs
   are hipped.
@@ -284,6 +299,9 @@ black overlay; the ramps already shift hue toward blue in the shade.
 
 - G1 12 × 12, two colours, two-pixel strokes, nothing in the outer pixel.
 - G2 New glyphs match the weight and corner style of the existing ones.
+- G3 The weather icons share one two-bump cloud with a flat base; what falls
+  from it sits below the cloud, and the storm's bolt starts inside it. The
+  sun is an eight-sided disc with a ring of short rays.
 
 ## 13. Main Menu valley
 

@@ -244,15 +244,16 @@ between regions yet.
 
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one
-landform spanning many tiles; water; Roads and plank bridges, with streets
-running up to each bridge; trees and natural sites; farm fields as tilled soil
-with each crop shown at its stage; every current building; and item icons.
+landform spanning many tiles, and snow that thins into frost at its edges;
+water; Roads and plank bridges, with streets running up to each bridge; trees
+and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
+desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
+its stage; every current building; item icons; and the interface icons.
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
 them. A mountain range near the camera can show the earlier per-tile art for
 a moment while its relief is drawn. Picked, harvested and per-site depleted
-states are drawn but need the game to track them, and a few interface icons
-are still being redrawn. The interface uses wooden
+states are drawn but need the game to track them. The interface uses wooden
 frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
 the ClankerWorld logo over an animated pixel-art valley with snowy mountains
