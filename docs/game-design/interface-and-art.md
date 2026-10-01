@@ -161,8 +161,10 @@ everything that is available in the current build. See [what works today](../wha
   **Extra large**, instead of percentages, and lists only the sizes that fit
   the screen. At 1440p, Small is today's 100%, Medium about 150% and Large
   today's 200%. Medium accepts slightly uneven pixel letters in exchange for
-  a size between the two; nothing goes below Small, because the pixel font
-  can't. **Render Resolution is removed**: the game always draws at the
+  a size between the two: computment chose this sharp look over a smoothed
+  one. Nothing goes below Small, because the pixel font can't. **Automatic**
+  picks the size that leaves the interface about 720 pixels tall, which is
+  Medium on a 1080p screen. **Render Resolution is removed**: the game always draws at the
   screen's own resolution. Settings is titled simply **Settings**, with its
   sections in their own boxes.
 - **Agreed on October 1:** agents inside a building are not drawn shrunk onto
