@@ -54,7 +54,7 @@ public sealed partial class ViewerHttpTests
     }
 
     [Fact]
-    public void WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
+    public async Task WarmUpLeavesTheWorldMutationGateFreeWhileCheckingWorlds()
     {
         var directory = Directory.CreateTempSubdirectory("world-list-warmup-gate-");
         try
@@ -78,28 +78,21 @@ public sealed partial class ViewerHttpTests
                 catalog.Add("Medium " + n, other.ExportState());
             }
 
-            // The warm-up and the probes run on their own threads: on a busy thread
-            // pool, an awaited delay can resume only after the warm-up has finished.
-            Exception? warmUpFailure = null;
-            var warmUp = new Thread(() =>
-            {
-                try { selection.WarmUp(CancellationToken.None); }
-                catch (Exception exception) { warmUpFailure = exception; }
-            })
-            { IsBackground = true };
-            warmUp.Start();
+            // Keep the warm-up and probes independent of thread-pool saturation
+            // during the full suite; probe delay must not consume the whole check.
+            var warmUp = Task.Factory.StartNew(() => selection.WarmUp(CancellationToken.None),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             var probes = 0;
-            while (warmUp.IsAlive)
+            while (!warmUp.IsCompleted)
             {
                 // Ticks, saves and owner actions take this gate; they must not wait for a restore.
                 Assert.True(Monitor.TryEnter(gate, TimeSpan.FromMilliseconds(100)));
                 Monitor.Exit(gate);
                 probes++;
-                Thread.Sleep(10);
+                Thread.Sleep(20);
             }
-            warmUp.Join();
+            await warmUp;
 
-            Assert.Null(warmUpFailure);
             Assert.True(probes > 1);
             Assert.Contains(log.Messages, message => message.Contains(
                 "world_list_warmup outcome=finished checked=2 unrestorable=0 skipped=0 failed=0", StringComparison.Ordinal));
