@@ -127,6 +127,7 @@ public sealed partial class PrivateWorldRuntime
     private void RememberTownRule(string actor, string townId, string key, long learnedVersion, string proposer, string summary)
     {
         var id = $"town-rule:{townId}:{key}:{learnedVersion}:{actor}";
+        id += ":" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(summary)))[..12];
         if (!society.Checkpoint.Memories.Any(memory => memory.Id == id))
             society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(id, actor, proposer, summary, "public", WorldTick)));
     }
@@ -241,8 +242,13 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownCouncilCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!HasTownCouncilDecision(actor) || NeedsUrgentWarmth(inhabitants[actor])) return;
-        var current = townCouncils.Single(item => item.TownId == TownForResident(actor));
+        if (NeedsUrgentWarmth(inhabitants[actor])) return;
+        var current = townCouncils.FirstOrDefault(item => item.TownId == TownForResident(actor));
+        if (current is null) return;
+        if (current.MemberIds.Contains(actor, StringComparer.Ordinal) && current.Ballot is null && current.Election is null &&
+            AtTownHall(actor, current.TownId) && WorldTick - current.LastResolutionTick >= 300)
+            candidates.Add(new("council_town_author", "Propose a useful named Town social rule at this Hall; the council must vote before it changes anything.", 110));
+        if (!HasTownCouncilDecision(actor)) return;
         if (current.Election is { } election && election.Electorate.Contains(actor, StringComparer.Ordinal) && !election.Votes.Any(vote => vote.VoterId == actor))
             candidates.Add(new("council_town_elect", "Attend the Town Hall and vote for three adult representatives for one game year.", 13));
         if (ProposedTownFoodPolicy(actor) is { } policy)

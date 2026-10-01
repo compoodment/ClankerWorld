@@ -405,6 +405,11 @@ Town returns to its all-adult council. These election details are provisional.
 Departed or deceased residents lose eligibility. Proposals to change or repeal
 a social rule use the same majority vote. Shared-food policy can restrict
 existing collection access, but cannot seize or reassign private stock.
+Model-backed councillors can propose a named social rule only when physically
+at their Town's Hall and no vote is pending. Proposals contain bounded plain
+text; the model cannot attach one to another action, change fixed world rules
+or assign somebody else's property. Agents learn the text of existing rules
+when they read or discuss them at the Hall.
 
 ### Still to decide
 

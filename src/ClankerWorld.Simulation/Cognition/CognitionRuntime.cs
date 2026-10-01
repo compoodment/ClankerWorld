@@ -63,7 +63,8 @@ public sealed record CognitionAdmissionResult(
     bool FellBack,
     string Outcome,
     CognitionIntention? Intention,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionTownLawProposal? TownLawProposal = null);
 
 /// <summary>
 /// The first Phase 3 cognition boundary. It owns request admission and
@@ -251,7 +252,8 @@ public sealed class CognitionRuntime
                 false,
                 "provider_decision",
                 intention,
-                response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null);
+                response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
+                response.Provider == DecisionProviderKind.LargeLanguageModel ? response.TownLawProposal : null);
         }
     }
 
@@ -479,6 +481,11 @@ public sealed class CognitionRuntime
                     return "memory_compaction_source";
             }
         }
+
+        if (response.TownLawProposal is not null && (response.Provider != DecisionProviderKind.LargeLanguageModel ||
+            response.SelectedCandidateId != "council_town_author") ||
+            response.SelectedCandidateId == "council_town_author" && response.TownLawProposal is null)
+            return "town_law_not_requested";
 
         return null;
     }

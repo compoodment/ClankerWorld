@@ -255,6 +255,17 @@ public sealed record CognitionDecisionRequest(
 /// evidence; the selected ID is still checked against the request's legal
 /// candidate set before it can become an intention.
 /// </summary>
+public sealed record CognitionTownLawProposal(string Key, string Text, bool Repeal = false)
+{
+    public void Validate()
+    {
+        if (string.IsNullOrWhiteSpace(Key) || Key.Length > 64 || Key == "shared_food" ||
+            !Key.All(character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '_') ||
+            string.IsNullOrWhiteSpace(Text) || Text.Length > 280 || Text != Text.Trim() || Text.Any(char.IsControl))
+            throw new ArgumentException("A proposed social rule needs a bounded key and plain text.");
+    }
+}
+
 public sealed record CognitionDecisionResponse(
     string RequestId,
     string InhabitantId,
@@ -271,7 +282,8 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenName = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenPersonality = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenAspiration = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenAspiration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionTownLawProposal? TownLawProposal = null)
 {
     public const int MaximumPrivateThoughtLength = 160;
     public const int MaximumChosenNameLength = 48;
@@ -351,6 +363,7 @@ public sealed record CognitionDecisionResponse(
         }
 
         Usage?.Validate();
+        TownLawProposal?.Validate();
     }
 }
 
@@ -787,6 +800,11 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "When needs_personality or needs_aspiration is true, you may also include " +
                         "chosen_personality and chosen_aspiration respectively, in your own words, " +
                         "each at most 256 characters with no control characters. This is a one-time choice. " +
+                        "Only when selecting the legal council_town_author candidate, include town_law " +
+                        "with key (1..64 lowercase letters, digits or underscores, never shared_food), " +
+                        "text (1..280 plain characters) and optional repeal (boolean). It proposes a social rule " +
+                        "at your Town Hall; it cannot create goods, change ownership or bypass physical rules. " +
+                        "Propose something useful from your own knowledge; never include town_law for another choice. " +
                         (request.Observation.NeedsName
                             ? $"When naming this agent, prefer a given name starting with {NameInitial(request.Observation.InhabitantId)}; use a natural full name. "
                             : string.Empty) +
@@ -923,6 +941,17 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     ? CognitionDecisionResponse.NormalizeIdentityText(aspirationProperty.GetString()) : null;
 
             var usage = TryParseUsage(root, modelId);
+            CognitionTownLawProposal? townLaw = null;
+            if (answerRoot.TryGetProperty("town_law", out var lawProperty) && lawProperty.ValueKind != JsonValueKind.Null)
+            {
+                if (lawProperty.ValueKind != JsonValueKind.Object ||
+                    !lawProperty.TryGetProperty("key", out var lawKey) || lawKey.ValueKind != JsonValueKind.String ||
+                    !lawProperty.TryGetProperty("text", out var lawText) || lawText.ValueKind != JsonValueKind.String ||
+                    lawProperty.TryGetProperty("repeal", out var repealProperty) && repealProperty.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    throw new InvalidDataException("The provider returned a malformed Town rule proposal.");
+                townLaw = new(lawKey.GetString()!, lawText.GetString()!.Trim(),
+                    lawProperty.TryGetProperty("repeal", out repealProperty) && repealProperty.GetBoolean());
+            }
             return new CognitionDecisionResponse(
                 request.RequestId,
                 request.Observation.InhabitantId,
@@ -937,7 +966,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 usage,
                 privateThought,
                 chosenName,
-                ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration);
+                ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, TownLawProposal: townLaw);
         }
         catch (JsonException exception)
         {

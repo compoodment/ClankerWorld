@@ -275,6 +275,13 @@ public sealed partial class PrivateWorldRuntime
 
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
+        if (candidateId == "council_town_author")
+        {
+            if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel &&
+                decision.Admission.TownLawProposal is { } law && TownForResident(decision.InhabitantId) is { } townId)
+                ProposeTownLawCore(decision.InhabitantId, townId, law.Key, law.Text, null, law.Repeal);
+            return;
+        }
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
         {
