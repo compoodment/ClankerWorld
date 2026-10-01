@@ -8,6 +8,16 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void SkillEventsShowLearnerAndTeacherWithoutSplittingTheirIds()
+    {
+        var snapshot = Snapshot(Person(ChildId, "Aster"), Person(FounderId, "Mira", "dead"));
+        Assert.Equal("Aster learned farming from Mira.", WorldEventText.Describe(
+            new(1, 1, "skill_learned", $"{ChildId}|farming|{FounderId}"), snapshot));
+        Assert.Equal("Aster learned smithing by doing the work.", WorldEventText.Describe(
+            new(2, 2, "skill_learned", $"{ChildId}|smithing|work"), snapshot));
+    }
+
     [Theory]
     [InlineData(ChildId)]
     [InlineData("founder-scout")]
@@ -67,6 +77,27 @@ public sealed class WorldEventTextTests
             new(3, 0, "inhabitant_building_proposed", "legacy-parent:child:house"), snapshot));
         Assert.Equal("Child joined the first Town.", WorldEventText.Describe(
             new(4, 0, "town_resident_joined", "town:first:legacy-parent:child:child_joined:residents:1"), snapshot));
+    }
+
+    [Fact]
+    public void HousingEventsNameTheAdultAndTheHouseholdAsThePlayerSeesThem()
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster")) with
+        {
+            Stockpiles = [new("household:camp-alpha", "Alpha stores", [])],
+        };
+        Assert.Equal("Aster asked Alpha stores for a place to live in their House.", WorldEventText.Describe(
+            new(1, 0, "housing_request_made", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Aster now lives with Alpha stores.", WorldEventText.Describe(
+            new(2, 0, "household_joined", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("Alpha stores did not agree to let Aster move in.", WorldEventText.Describe(
+            new(3, 0, "housing_request_refused", AgentId + ":household:camp-alpha"), snapshot));
+        Assert.Equal("a household did not answer Aster's request to move in.", WorldEventText.Describe(
+            new(4, 0, "housing_request_expired", AgentId + ":household:camp-beta"), snapshot));
+        Assert.Equal("Aster has no home: they belong to no household, so no House can be planned for them.",
+            WorldEventText.Describe(new(5, 0, "housing_blocked", AgentId + ":no_household"), snapshot));
+        Assert.Equal("Aster has no home: their household has no legal site for a House.",
+            WorldEventText.Describe(new(6, 0, "housing_blocked", AgentId + ":no_legal_site"), snapshot));
     }
 
     [Fact]

@@ -156,6 +156,23 @@ everything that is available in the current build. See [what works today](../wha
   1080p and 1440p and 300% at 4K. computment found 100% far too small at
   1440p. A step that would leave less than 960 × 540 interface pixels is
   unavailable, and on a narrow layout the top bar shows icons only.
+- **Agreed after the October 1 playtest** (replacing the UI Scale choices
+  above): **there is no UI Scale setting.** The interface grows with the
+  screen in whole steps, so pixel letters always stay crisp: 100% on small
+  screens, 200% at 1080p and 1440p and 300% at 4K, one step lower whenever
+  the menus would have less than 960 × 540 interface pixels. computment
+  tried a 150% size and found its pixel letters too uneven, and found 100%
+  too small and anything above 200% unnecessary at 1440p. **Render
+  Resolution is removed**: the game always draws at the screen's own
+  resolution. Settings is titled simply **Settings**, with its sections in
+  their own boxes.
+- **Agreed on October 1:** agents inside a building are not drawn shrunk onto
+  its tile. They are hidden from the map while inside, the building shows a
+  small badge with how many people are in it, and its card names them.
+- **Agreed on October 1:** Developer tools leave the pause menu for their own
+  panel on a key, and become genuinely useful: for example tile coordinates,
+  a performance readout, jumping to any agent and showing an agent's planned
+  path. The exact set is open.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -299,7 +316,9 @@ outside both starts an independent agent. Location establishes **starting
 social membership**, not biological ancestry or permanent membership based on
 where the agent later walks. A player-added adult could be a new unrelated
 family line even when placed inside an existing household. Other
-invalid-placement rules and later voluntary household changes remain open.
+invalid-placement rules remain open. A later voluntary move by an adult who
+has no household into a household's House needs every adult member's
+agreement, as agreed in [Towns](towns.md#buildings-land-towns-and-animals).
 This forced Add Agent membership is distinct from inviting a nonmember to
 visit a House. The agreed first-Town household setup in
 [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices)

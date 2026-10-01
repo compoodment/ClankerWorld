@@ -3,7 +3,7 @@ using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-public sealed record SettlementLesson(string TeacherId, SocietyWorkRole Role, string Stage,
+public sealed record SettlementLesson(string TeacherId, SettlementSkillKind Skill, string Stage,
     int Progress, long RequestedTick, long LastTransitionTick);
 
 public sealed partial class PrivateWorldRuntime
@@ -15,10 +15,16 @@ public sealed partial class PrivateWorldRuntime
     private bool ReadyForLesson(string actor) => inhabitants.TryGetValue(actor, out var person) &&
         !NeedsUrgentFood(person) && !NeedsUrgentWarmth(person);
 
-    private bool CanMentor(string teacher, SocietyWorkRole role) =>
-        inhabitants.ContainsKey(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) &&
-        society.Checkpoint.GetInhabitant(teacher) is { AgeBand: SocietyAgeBand.Adult or SocietyAgeBand.Elder } person &&
-        (person.CurrentRole == role || person.CurrentRole == SocietyWorkRole.Teacher);
+    private bool CanMentor(string teacher, SettlementSkillKind skill) =>
+        AdultResident(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) && HasSkill(teacher, skill);
+
+    private bool FreeToMentor(string teacher, string? requestedStudent = null) =>
+        ReadyForLesson(teacher) && ActiveStudent(teacher) is null &&
+        inhabitants[teacher].Project is null or { Stage: "completed" or "cancelled" or "paused" } &&
+        !HasCouncilDecision(teacher) && !HasHousingDecision(teacher) && !HasTradeResponse(teacher) && !HasFamilyDecision(teacher) &&
+        !HasParenthoodDecision(teacher) && !HasDependentCareDecision(teacher) &&
+        !inhabitants.Values.Any(item => item.InhabitantId != requestedStudent &&
+            ActiveLesson(item.Lesson) && item.Lesson!.TeacherId == teacher);
 
     private PlaytestInhabitantState? ActiveStudent(string teacher) => inhabitants.Values.FirstOrDefault(person =>
         person.Lesson is { Stage: "accepted" or "training" } lesson && lesson.TeacherId == teacher);
@@ -28,15 +34,16 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanContinueLesson(string actor)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
         {
             return false;
         }
         if (inhabitants[actor].Lesson is { Stage: "accepted" or "training" } lesson)
         {
-            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId);
+            return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
         }
-        return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) && ReadyForLesson(student.InhabitantId);
+        return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) &&
+            ReadyForLesson(student.InhabitantId) && !HasHousingDecision(student.InhabitantId);
     }
 
     private void MaintainLessons()
@@ -47,7 +54,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            if (!AdultResident(person.InhabitantId) || !CanMentor(lesson.TeacherId, lesson.Role) ||
+            if (!AdultResident(person.InhabitantId) || !CanMentor(lesson.TeacherId, lesson.Skill) ||
                 WorldTick - lesson.RequestedTick > (lesson.Stage == "requested" ? 120 : 600))
             {
                 SetLesson(person.InhabitantId, lesson with { Stage = "cancelled" });
@@ -64,7 +71,7 @@ public sealed partial class PrivateWorldRuntime
         var person = inhabitants[actor];
         if (ActiveLesson(person.Lesson))
         {
-            if (person.Lesson!.Stage is "accepted" or "training" && ReadyForLesson(person.Lesson.TeacherId))
+            if (person.Lesson!.Stage is "accepted" or "training" && CanContinueLesson(actor))
             {
                 candidates.Add(new("lesson_attend", "Attend the agreed practical lesson.", 18));
             }
@@ -72,33 +79,32 @@ public sealed partial class PrivateWorldRuntime
         }
         else if (ActiveStudent(actor) is { } student)
         {
-            if (ReadyForLesson(student.InhabitantId))
+            if (CanContinueLesson(actor))
             {
                 candidates.Add(new("lesson_teach:" + student.InhabitantId, "Continue the agreed practical lesson.", 17));
             }
-            candidates.Add(new("lesson_decline:" + student.InhabitantId, "Stop the lesson without changing the learner's role.", 110));
+            candidates.Add(new("lesson_decline:" + student.InhabitantId, "Stop the lesson without granting the skill.", 110));
         }
         else
         {
             foreach (var request in inhabitants.Values.Where(item => item.Lesson is { Stage: "requested" } lesson && lesson.TeacherId == actor))
             {
-                candidates.Add(new("lesson_accept:" + request.InhabitantId,
-                    $"Teach {society.Checkpoint.GetInhabitant(request.InhabitantId).Name} the requested {request.Lesson!.Role} role.", 17));
+                if (CanMentor(actor, request.Lesson!.Skill) && FreeToMentor(actor, request.InhabitantId))
+                    candidates.Add(new("lesson_accept:" + request.InhabitantId,
+                        $"Teach {society.Checkpoint.GetInhabitant(request.InhabitantId).Name} the requested {request.Lesson.Skill.ToString().ToLowerInvariant()} skill.", 17));
                 candidates.Add(new("lesson_decline:" + request.InhabitantId, "Decline this teaching request.", 70));
             }
-            var identity = society.Checkpoint.GetInhabitant(actor);
-            if (identity.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder &&
-                identity.CurrentRole is SocietyWorkRole.Unassigned or SocietyWorkRole.Trader &&
+            if (AdultResident(actor) &&
                 (person.Lesson is null || WorldTick - person.Lesson.LastTransitionTick >= 300))
             {
-                foreach (var role in new[] { SocietyWorkRole.Builder, SocietyWorkRole.Farmer })
+                foreach (var skill in Enum.GetValues<SettlementSkillKind>().Where(skill => !HasSkill(actor, skill)))
                 {
-                    var mentor = inhabitants.Keys.Order(StringComparer.Ordinal).FirstOrDefault(id => id != actor && CanMentor(id, role) &&
-                        !inhabitants.Values.Any(item => ActiveLesson(item.Lesson) && item.Lesson!.TeacherId == id));
+                    var mentor = inhabitants.Keys.Order(StringComparer.Ordinal).FirstOrDefault(id => id != actor &&
+                        CanMentor(id, skill) && FreeToMentor(id));
                     if (mentor is not null)
                     {
-                        candidates.Add(new($"learn:{role.ToString().ToLowerInvariant()}:{mentor}",
-                            $"Ask {society.Checkpoint.GetInhabitant(mentor).Name} to teach the {role} role; they may refuse.", 35));
+                        candidates.Add(new($"learn:{skill.ToString().ToLowerInvariant()}:{mentor}",
+                            $"Ask {society.Checkpoint.GetInhabitant(mentor).Name} to teach {skill.ToString().ToLowerInvariant()}; they may refuse.", 35));
                     }
                 }
             }
@@ -112,14 +118,13 @@ public sealed partial class PrivateWorldRuntime
         if (candidate.StartsWith("learn:", StringComparison.Ordinal))
         {
             var parts = candidate.Split(':', 3);
-            if (parts.Length != 3 || !Enum.TryParse<SocietyWorkRole>(parts[1], true, out var role) ||
-                role is not (SocietyWorkRole.Builder or SocietyWorkRole.Farmer) || parts[2] == actor ||
-                ActiveLesson(person.Lesson) || !CanMentor(parts[2], role) ||
-                inhabitants.Values.Any(item => ActiveLesson(item.Lesson) && item.Lesson!.TeacherId == parts[2]))
+            if (parts.Length != 3 || !Enum.TryParse<SettlementSkillKind>(parts[1], true, out var skill) ||
+                !Enum.IsDefined(skill) || parts[2] == actor || HasSkill(actor, skill) || !ReadyForLesson(actor) ||
+                ActiveLesson(person.Lesson) || !CanMentor(parts[2], skill) || !FreeToMentor(parts[2]))
             {
                 return;
             }
-            SetLesson(actor, new(parts[2], role, "requested", 0, WorldTick, WorldTick));
+            SetLesson(actor, new(parts[2], skill, "requested", 0, WorldTick, WorldTick));
             checkpointSchemaVersion = StateSchemaVersion;
             return;
         }
@@ -146,7 +151,8 @@ public sealed partial class PrivateWorldRuntime
         {
             SetLesson(studentId, lesson with { Stage = "declined" });
         }
-        else if (lesson.Stage == "requested" && CanMentor(actor, lesson.Role) && ActiveStudent(actor) is null)
+        else if (lesson.Stage == "requested" && ReadyForLesson(studentId) &&
+            CanMentor(actor, lesson.Skill) && FreeToMentor(actor, studentId))
         {
             SetLesson(studentId, lesson with { Stage = "accepted" });
             foreach (var participant in new[] { actor, studentId })
@@ -181,13 +187,13 @@ public sealed partial class PrivateWorldRuntime
         if (lesson.Progress >= LessonWorkRequired)
         {
             lesson = lesson with { Stage = "completed" };
-            society.Apply(checkpoint => SocietyFixture.AssignRole(checkpoint, student.InhabitantId, lesson.Role));
+            GainSkill(student.InhabitantId, lesson.Skill, actor);
             IncreaseTrust(student.InhabitantId, actor, 2, "teaching_completed");
-            var memoryId = $"lesson-gratitude:{student.InhabitantId}:{actor}:{lesson.Role}";
+            var memoryId = $"lesson-gratitude:{student.InhabitantId}:{actor}:{lesson.Skill}";
             if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
             {
                 society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(memoryId, student.InhabitantId, actor,
-                    $"Learned the {lesson.Role} role with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)));
+                    $"Learned {lesson.Skill.ToString().ToLowerInvariant()} with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)));
             }
         }
         SetLesson(student.InhabitantId, lesson);
@@ -214,8 +220,9 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var person in state.Inhabitants)
         {
-            if (person.Lesson is { } lesson && (state.SchemaVersion < 8 || !known.Contains(lesson.TeacherId) ||
-                lesson.TeacherId == person.InhabitantId || lesson.Role is not (SocietyWorkRole.Builder or SocietyWorkRole.Farmer) ||
+            ValidateSkills(person, state.SchemaVersion, state.Society.Society.WorldTick, known);
+            if (person.Lesson is { } lesson && (state.SchemaVersion < SkillsSchemaVersion || !known.Contains(lesson.TeacherId) ||
+                lesson.TeacherId == person.InhabitantId || !Enum.IsDefined(lesson.Skill) ||
                 lesson.Stage is not ("requested" or "accepted" or "training" or "completed" or "cancelled" or "declined") ||
                 lesson.Progress is < 0 or > LessonWorkRequired || lesson.RequestedTick < 0 ||
                 lesson.Stage is "requested" or "accepted" && lesson.Progress != 0 ||

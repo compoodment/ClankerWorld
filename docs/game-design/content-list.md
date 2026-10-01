@@ -51,8 +51,10 @@ perspective; no parallel isometric art set is planned.
 
 The surface list is a **small art vocabulary**, not a rigid list of
 natural biomes. Forests and mountain regions should visibly appear in default
-worlds. Grass, stone and snow should suit their generated climate; cacti were
-previously an example but are now disfavored, pending a final exclusion.
+worlds. Grass, stone and snow should suit their generated climate. Cacti are
+back as desert-only plant cover (October 1), and fertility is a property of
+the land, with fields tilled by agents rather than placed as objects (see
+[The world](world.md#maps-plants-and-weather)).
 Forest-floor art should correspond to a visible tree or plant, mostly trees;
 grass-surfaced forest art can carry scattered trees. Hills at mountain bases
 are agreed as a visual layer only; for now a hill costs the same to walk as

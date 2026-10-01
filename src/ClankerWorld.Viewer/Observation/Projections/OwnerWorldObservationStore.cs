@@ -587,6 +587,8 @@ public sealed class OwnerWorldObservationStore
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
+        if (HousingDetail(state, physical.Housing) is { } housingDetail)
+            decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         var modelStatus = physical.LastModelAttempt?.Status ?? "ready";
@@ -634,10 +636,11 @@ public sealed class OwnerWorldObservationStore
                     inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
-                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
+                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
             Proficiency = physical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(physical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, physical),
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
@@ -654,9 +657,53 @@ public sealed class OwnerWorldObservationStore
                         edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
                         state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
                     ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
+                .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
     }
+
+    /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>
+    private static string? HousingDetail(PrivateWorldRuntimeState state, SettlementHousing? housing)
+    {
+        if (housing?.Blocker is not { } blocker)
+            return null;
+        var asked = housing.Request is { } request
+            ? state.Society.Society.Households.FirstOrDefault(item => item.Id == request.HouseholdId)?.Name ?? "another"
+            : "another";
+        return blocker switch
+        {
+            HousingBlockers.AwaitingAnswer => $"No home yet. Asked the {asked} household to live in their House; every adult member must agree.",
+            HousingBlockers.NoHousehold => "No home. Belongs to no household, so no House can be planned. A household with a House may agree to take them in.",
+            HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
+            HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
+            HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            _ => null,
+        };
+    }
+
+    /// <summary>Requests to live in this adult's House that they must answer, or have answered.</summary>
+    private static IEnumerable<string> HousingRequestNotes(PrivateWorldRuntimeState state, SocietyInhabitant member)
+    {
+        if (member.HouseholdId is null)
+            yield break;
+        foreach (var applicant in state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal))
+        {
+            if (applicant.Housing?.Request is not { } request || request.HouseholdId != member.HouseholdId ||
+                !request.Members.Contains(member.Id, StringComparer.Ordinal))
+                continue;
+            var name = state.Society.Society.GetInhabitant(applicant.InhabitantId).Name;
+            yield return request.Approvals.Contains(member.Id, StringComparer.Ordinal)
+                ? $"Agreed to let {name} live in the House; waiting for the other adults."
+                : request.Rejections.Contains(member.Id, StringComparer.Ordinal)
+                    ? $"Refused {name}'s request to live in the House."
+                    : $"{name} asked to live in the household's House. Every adult member must answer.";
+        }
+    }
+
+    private static ViewerSkill[] ProjectSkills(PlaytestInhabitantState physical, SocietyCheckpoint society) =>
+        (physical.Skills ?? []).Select(skill => new ViewerSkill(skill.Kind.ToString().ToLowerInvariant(),
+            skill.LearnedTick, skill.TeacherId,
+            skill.TeacherId is { } teacher ? society.GetInhabitant(teacher).Name : null)).ToArray();
 
     private static ViewerInhabitant ToDeceasedInhabitant(
         PrivateWorldRuntimeState state,
@@ -700,6 +747,7 @@ public sealed class OwnerWorldObservationStore
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
         };
     }

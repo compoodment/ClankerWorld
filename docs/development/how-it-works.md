@@ -456,6 +456,40 @@ it follows the same rules once its content exists.
 A crop's outputs other than ready-to-eat food go into its household's Silo when
 it holds one; ready food stays unlocated until it is carried to the House.
 
+**Housing requests** (`SettlementHousing`). An adult whose household holds no
+House has a saved `Housing` record on their physical state: a pending request,
+recent refusals and the current blocker. Each tick `MaintainHousing` resolves
+requests, then recomputes the blocker and appends `housing_blocked` when it
+changes. The blocker codes are `no_household`, `no_authorized_home` (the
+household can plan or is building a House), `missing_materials`,
+`no_legal_site` (the household has the build costs but `TownLayoutService`
+ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+card and sent to the agent's own model as a `housing` line in its self context.
+An adult with no household is offered `household_ask:{household}` for each
+household that holds a House in the same Town, has an adult who can answer and
+has not refused within the last two world days. Asking records that household's
+adult members in the request, which expires after 120 ticks like other
+proposals. Adults who join the household or reach adulthood while it is pending
+must also answer; existing answers are retained and adults who die or leave no
+longer need to answer. Each current adult is offered `household_admit:{applicant}` and
+`household_refuse:{applicant}` and cannot continue a project or lesson until
+they answer. An ongoing lesson waits while either participant owes a housing
+answer, retaining its progress and already learned skills.
+One refusal by a living member ends the request; when every living
+member has agreed, `SocietyFixture.JoinHousehold` records the membership and
+`household_joined` is appended. A refusal or an unanswered request is remembered
+as a refusal for the cooldown. The request grants nothing while pending: stock,
+shelter and route rules still check household membership. Adults who already
+have a household are never offered a request in the current implementation.
+[Household departure and solo formation](../game-design/towns.md#household-membership),
+including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
+are agreed but remain implementation work in
+[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
+and overcrowding relocation are follow-ups in
+[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
 A recipe project that finds its work site busy waits with the blocker "Waiting
 for a free work site". While anyone waits, no one else is offered a new recipe
 for the same kind of site (fertile land for crops, or the same workstation
@@ -710,6 +744,25 @@ Owner world-creation signing uses payload v2 to bind all settings. Preview and
 Create use the same validated options and digest; old clients need an update.
 Small and Medium remain the only playable sizes; no continent-count control
 is exposed for them. Existing saved water settings are not rewritten.
+
+## Skills and practical lessons
+
+Agents start with no skills, including added adults and newborn children.
+Finishing construction first records building; finishing a Farmhouse recipe
+records farming, a Blacksmith recipe records smithing, and other production
+records crafting. The record keeps the first learning time. Learning by work
+has no teacher; completing an accepted lesson records the teacher's agent ID.
+
+Lesson candidates use saved skills and the existing food/warmth readiness
+rules, independently of work roles. A mentor cannot be working on an active
+project, handling another social decision, or reserved for another lesson.
+Request, refusal, acceptance, cancellation and pause/reload retain their normal
+flow. A completed lesson changes neither the agent's role nor work proficiency.
+Stored skills currently affect only teaching availability, never ordinary
+action access or work speed. The agent card and Event Log describe the record.
+The owner observation keeps its existing JSON `role` field for the lesson's
+skill name so older clients can still display it; new code calls it `Skill`.
+This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
 

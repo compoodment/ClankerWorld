@@ -79,6 +79,9 @@ everything that is available in the current build. See [what works today](../wha
   project only if none is suitable. Joining, leaving and starting a household
   follow the [agreed membership rules](#household-membership) and
   [House resident limits](#house-resident-capacity-and-relocation).
+  Only a household can plan a House. The adult is told
+  the real blocker: no household, no House their household holds yet, missing
+  materials or no legal site.
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
@@ -163,6 +166,10 @@ everything that is available in the current build. See [what works today](../wha
   placing an agent on household property joins that household without a
   consent step. It still needs a valid free resident place under the agreed
   capacity checks; consent and room are separate requirements.
+  An ordinary request is bounded: one refusal, or no answer within the usual
+  proposal window, ends it, and that household is not asked again for a while.
+  Standing nearby grants nothing; a pending request grants no membership or
+  access to the household's stock or shelter.
 - An adult may **leave voluntarily without the household's permission**.
   Personal goods, shared stock, access and dependent care follow the
   [agreed departure rules](#household-goods-and-departure).
