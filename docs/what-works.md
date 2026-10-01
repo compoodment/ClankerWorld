@@ -62,6 +62,18 @@ period. Returning makes no offline progress; a manually paused world stays
 paused. New worlds use six-minute days and a 40-day year as the current playtest
 pace, subject to model/server load.
 
+Every world day has a night covering 40% of it, the same all year: 19:12 to
+04:48 on the clock, about 2 min 24 s of a six-minute day, with an hour-long
+dusk and dawn fade (15 seconds each at that pace). A new world starts at
+midnight, so founder setup happens at night. At night the map darkens with a
+gentle blue wash at every zoom, under map names, agents and weather, and it is
+colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+adds no rules of its own: agents need no sleep or energy, and nothing limits
+their choices or travel at night; they only react to the cold. The night chill
+is a provisional amount for playtesting, and night has not been checked by hand
+in the Windows game yet. Night effects on weather and night length that changes
+with the seasons are not built.
+
 ## Agents and their models
 
 Each starting agent has a provider, model and key assignment. Stored keys can
@@ -135,7 +147,7 @@ summaries remain unfinished.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
+| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Quantities, work times, yields and farm planning remain provisional. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
@@ -267,7 +279,7 @@ storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
 Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes. Drifting visual edges do not mean weather fronts actually move
+haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
 Ground, buildings, agents and natural objects use provisional code-drawn pixel
