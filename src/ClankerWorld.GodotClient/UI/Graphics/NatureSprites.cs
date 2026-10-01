@@ -28,6 +28,9 @@ public enum NatureSprite : byte
     Depleted,
     Regrowing,
     WoodPile,
+    Cactus,
+    CactusTall,
+    CactusPad,
 }
 
 /// <summary>
@@ -38,7 +41,8 @@ public enum NatureSprite : byte
 /// reviews (see <see cref="IsApproved"/>) are lit from the north-west and carry
 /// a one-pixel outline in their darkest colour (the fibre plant's blades and
 /// the reeds take a dark south-east edge instead); the others keep their
-/// earlier provisional drawing with a darker disc behind the shape.
+/// earlier provisional drawing with a darker disc behind the shape. The desert
+/// cacti from the third review are drawn by <see cref="CactusSprites"/>.
 /// </summary>
 public static class NatureSprites
 {
@@ -110,7 +114,8 @@ public static class NatureSprites
         foreach (var sprite in Enum.GetValues<NatureSprite>())
         {
             var cell = new Rect2I((int)sprite * size, 0, size, size);
-            if (IsApproved(sprite)) PaintApproved(new Layers(image, cell), sprite);
+            if (CactusSprites.Draws(sprite)) CactusSprites.Paint(image, cell, sprite);
+            else if (IsApproved(sprite)) PaintApproved(new Layers(image, cell), sprite);
             else Paint(new PixelCanvas(image, cell, size / 32f), sprite);
         }
         Images[size] = image;

@@ -6,6 +6,12 @@ it instead of flat white with a stark border. This proposal draws both in
 the approved round-1 style. The snow tiles themselves are the approved
 round-1 tiles and are not changed.
 
+**Approved in round 3, and now in the game:** all three cacti and the soft
+snow edge. The game draws a cactus on about one in five of the tiles the world
+marks as cactus cover, and never on a Road, field or building. You rejected
+`snow.edge.before`, which was the game's old edge shown for comparison; it is
+no longer drawn anywhere, so it is gone from this proposal.
+
 ## Cacti
 
 Three cacti, each at 32 px and at 16 px. The sheet shows each one on the
@@ -39,9 +45,9 @@ Rules followed from the style guide:
 
 ## Softer snow edges
 
-`snow.edge.before` and `snow.edge.after` show the same 6 × 4 tile patch,
-where snow meets grass and rock, drawn with today's edges and with the new
-ones. The `.16` versions show the 16 px atlas.
+`snow.edge.after` shows a 6 × 4 tile patch where snow meets grass and rock,
+drawn with the new edges. Round 3 also showed the same patch with the old
+edges (`snow.edge.before`). The `.16` version shows the 16 px atlas.
 
 - **The snow thins out instead of stopping.** Near its edge the snow breaks
   into a ragged rim, then a few loose clumps, then pale half-transparent

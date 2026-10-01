@@ -83,16 +83,15 @@ public sealed class DesertProposal : IArtProposal, IArtSetProvider
             "A 6 x 5 tile stretch of sand and desert brush with a few cacti, to judge how sparse cover reads.");
         yield return new Entry(Family, "desert.patch.16", DesertPatch(16), "The same stretch in the 16 px mid-zoom atlas.");
 
-        var current = new ArtSet();
+        // Round 3 also showed the flat snow edge the game had then
+        // ("snow.edge.before"); the owner approved the soft edge, the game now
+        // draws it (UI/Map/SnowEdges.cs), so only the approved picture is left.
         var proposed = new ArtSet();
         Apply(proposed);
         var spec = SnowPatch();
-        yield return new Entry(Family, "snow.edge.before", SceneComposer.Render(spec, current, 32),
-            "Today: snow reaches into grass and rock as a flat white band with a crisp rim.");
         yield return new Entry(Family, "snow.edge.after", SceneComposer.Render(spec, proposed, 32),
-            "Proposed: the same pieces shaded like a low drift, thinning into clumps and dust; rock and grass edges unchanged.");
-        yield return new Entry(Family, "snow.edge.before.16", SceneComposer.Render(spec, current, 16), "Today, 16 px atlas.");
-        yield return new Entry(Family, "snow.edge.after.16", SceneComposer.Render(spec, proposed, 16), "Proposed, 16 px atlas.");
+            "Approved: snow shaded like a low drift, thinning into clumps and frost; rock and grass edges unchanged.");
+        yield return new Entry(Family, "snow.edge.after.16", SceneComposer.Render(spec, proposed, 16), "Approved, 16 px atlas.");
     }
 
     /// <summary>

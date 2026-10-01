@@ -240,9 +240,17 @@ public static class TerrainTransitions
         return image;
     }
 
-    private static void PaintPiece(byte[] data, int stride, int left, int top, int size, TerrainStyle style, int piece) =>
+    private static void PaintPiece(byte[] data, int stride, int left, int top, int size, TerrainStyle style, int piece)
+    {
+        // Snow thins into clumps and frost like a low drift instead of ending in a flat band.
+        if (SnowEdges.Applies(style))
+        {
+            SnowEdges.Write(data, stride, left, top, size, style, piece);
+            return;
+        }
         WriteMask(data, stride, left, top, size, Mask(piece, size, PixelArt.Hash((int)style + 1, piece + 1, size), gaps: true),
             TerrainTextures.BaseColor(style), softRim: true);
+    }
 
     /// <summary>
     /// Covered pixels of one piece in tile coordinates. The same piece index

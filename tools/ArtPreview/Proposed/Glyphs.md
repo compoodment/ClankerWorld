@@ -1,5 +1,11 @@
 # Interface glyphs: round 3 proposal
 
+**Your round-3 picks:** Sun **a**, Rain **b**, Snow **b**, Storm **b**,
+Speech **a** and Arrow **b**, plus the redrawn Hammer, Map, Pencil and Play.
+The game now draws Map, Pencil, Play, Sun, Rain, Snow, Storm and Speech that
+way, and the round-2 Cloud the b weather icons share. Hammer, Arrow and the
+other new glyphs wait here until a screen uses them.
+
 ## Round 3
 
 Every icon you approved in round 2, and every icon left unchanged, is kept

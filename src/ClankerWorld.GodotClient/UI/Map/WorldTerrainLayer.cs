@@ -35,6 +35,7 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    private readonly HashSet<Vector2I> buildingTiles = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
     private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
@@ -283,6 +284,11 @@ public partial class WorldTerrainLayer : Control
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
+        buildingTiles.Clear();
+        foreach (var (footprint, _, _) in buildings)
+            for (var y = footprint.Position.Y; y < footprint.End.Y; y++)
+                for (var x = footprint.Position.X; x < footprint.End.X; x++)
+                    buildingTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
         doorsteps.Clear();
         foreach (var (footprint, _, door) in buildings)
         {
@@ -461,6 +467,23 @@ public partial class WorldTerrainLayer : Control
 
     public int CampResourceSpriteCount => campResources.Count;
 
+    /// <summary>Cacti drawn in the last frame; zero below sprite zoom.</summary>
+    public int CactusSpriteCount { get; private set; }
+
+    /// <summary>
+    /// The cactus drawn on a tile: only on cactus cover, and never under a
+    /// Road, bridge, doorstep, field or building.
+    /// </summary>
+    public NatureSprite? CactusAt(int x, int y)
+    {
+        if (world is null || !world.IsCactusCoverAt(x, y)) return null;
+        var tile = new Vector2I(x, y);
+        if (roadTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
+            fields.ContainsKey(tile) || buildingTiles.Contains(tile))
+            return null;
+        return CactusSprites.ForTile(x, y);
+    }
+
     public void SetHoveredTile(Vector2I? tile)
     {
         if (hoveredTile == tile) return;
@@ -578,6 +601,7 @@ public partial class WorldTerrainLayer : Control
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
+        var cacti = 0;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
@@ -589,7 +613,13 @@ public partial class WorldTerrainLayer : Control
                     DrawNaturalObject(new Vector2(x * stride, y * stride), naturalObjects[index], naturalStages[index]);
                 else if (campResources.TryGetValue(index, out var campSprite))
                     DrawCampResource(new Vector2(x * stride, y * stride), campSprite);
+                else if (tree == 0 && tileSize >= SpriteTileMinimum && CactusAt(mapX, y) is { } cactus)
+                {
+                    DrawNatureSprite(new Vector2(x * stride, y * stride), cactus);
+                    cacti++;
+                }
             }
+        CactusSpriteCount = cacti;
         DrawHouseholdProperties(bounds, stride);
         DrawTownBorders(bounds, stride);
         if (hoveredTile is { } hover && tileSize > 0 &&
