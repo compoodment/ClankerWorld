@@ -354,6 +354,7 @@ public sealed class SettlementSurvivalTests
         var clothed = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = clothedInventory } } };
         using var exposedWorld = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         using var clothedWorld = PrivateWorldRuntime.Restore(clothed, _ => new IdleProvider());
+        Assert.True(clothedWorld.EquipItem(actor, "test-clothing").Applied);
         for (var tick = 0; tick < 80; tick++)
         {
             await exposedWorld.AdvanceOneTickAsync();

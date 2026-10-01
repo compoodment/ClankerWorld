@@ -46,7 +46,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, source, "farm_grain", range);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain));
+        var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(grain)));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-grain-pickup:{WorldTick}:{actor}", householdId, actor, grain.Id,
             quantity, "farm_grain_picked_up", destinationDeliveryBuildingId: farmhouse.InstanceId));
@@ -89,7 +90,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, farmhouse.Position, "farm_flour", 0);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(flour));
+        var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(flour)));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"farm-flour-pickup:{WorldTick}:{actor}", householdId, actor, flour.Id,
             quantity, "farm_flour_picked_up", destinationDeliveryBuildingId: house.InstanceId));

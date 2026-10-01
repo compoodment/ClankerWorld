@@ -503,6 +503,14 @@ object that an agent pulls, parks, repairs and transfers ownership of. Worn
 clothing still does not change the agent's map sprite. Exact carrying amounts,
 cart movement costs, protection and repair quantities are tuned in playtests.
 
+The first carrying trial is 32 item units without an aid, 48 with a basket and
+64 with a sack, including goods inside carried vessels. Existing oversized
+loads are retained and can be reduced; new pickups need room. A smaller aid or
+removing the aid requires delivering enough cargo first. Clothing loses one
+condition point per world step, and a basket or sack loses one per travel step.
+House or Tailor Shop repairs use one cloth for a garment or sack, or one fiber
+for a basket. These amounts and rates are provisional.
+
 #### Care and later goods
 
 | Product | Complete path |

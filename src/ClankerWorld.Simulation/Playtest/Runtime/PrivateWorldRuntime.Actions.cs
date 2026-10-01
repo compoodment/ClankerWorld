@@ -47,6 +47,7 @@ public sealed partial class PrivateWorldRuntime
             TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
+        WearCarryAid(inhabitantId);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
     }
@@ -149,6 +150,13 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        var harvestYield = Math.Min(CarryingRoom(inhabitantId), source.TreeKind == TreeGrowthRules.Orchard
+            ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield);
+        if (harvestYield == 0)
+        {
+            AppendEvent("carrying_full", inhabitantId);
+            return;
+        }
         var ecologyResource = worldSystems.Ecology.GetResource(source.Id);
         var harvest = EcologyRules.Harvest(ecologyResource, 1);
         if (!harvest.IsValid || harvest.Resource is null)
@@ -175,7 +183,6 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var harvestYield = source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield;
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
             inventory,
             $"food:harvest:{WorldTick:D10}:{inhabitantId}",
@@ -235,6 +242,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (CarryingRoom(inhabitantId) == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(
             inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdFor(inhabitantId), inhabitantId,
             lot.Id, 1, "household_food_share"));

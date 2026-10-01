@@ -147,11 +147,13 @@ public sealed class TailorContentTests
     [Fact]
     public async Task WithoutATailorShopNoClothIsMadeAndNothingPretendsToBe()
     {
-        var recorder = new ActionCoverageRecorder();
+        var recorder = new ActionCoverageRecorder(chooseIdle: true);
         using var world = NormalPathWorld.CreateGenerated("tailor-none", _ => recorder);
         for (var tick = 0; tick < 240; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var families = recorder.FamiliesOffered(world.WorldContent);
+        Assert.DoesNotContain(world.WorldSimulation.Buildings, building =>
+            world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("tailor"));
         Assert.DoesNotContain("recipe:weave-cloth", families);
         Assert.DoesNotContain("recipe:sew-clothing", families);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.ItemKind == "cloth");

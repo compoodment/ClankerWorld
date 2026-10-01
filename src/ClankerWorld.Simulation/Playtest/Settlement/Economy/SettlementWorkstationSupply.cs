@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
         string ItemKind, int Missing, InventoryLot? Carried, InventoryLot? HouseholdStock, MapResource? Source);
 
     private static bool HasDedicatedSupply(BuildingDefinition definition) =>
-        definition.Tags.Any(tag => tag is "house" or "farmhouse" or "blacksmith");
+        definition.Tags.Any(tag => tag is "farmhouse" or "blacksmith");
 
     private IEnumerable<WorkstationSupplyNeed> WorkstationSupplyNeeds(string actor)
     {
@@ -114,7 +114,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, position, "supply_workstation", range);
                 return;
             }
-            var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock)));
+            var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(stock))));
+            if (quantity == 0) return;
             // The existing delivery step carries the picked-up load into the building.
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-pickup:{WorldTick}:{actor}", householdId, actor, stock.Id, quantity,

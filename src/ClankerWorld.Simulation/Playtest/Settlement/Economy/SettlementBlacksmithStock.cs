@@ -166,7 +166,8 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, state, source, "smith_input", range);
                 return;
             }
-            var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(input)));
+            var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, Math.Min(need.Missing, AvailableLotQuantity(input))));
+            if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,
                 quantity, "smith_input_picked_up", destinationDeliveryBuildingId: smith.InstanceId));

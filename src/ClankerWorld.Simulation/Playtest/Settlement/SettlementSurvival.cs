@@ -78,7 +78,7 @@ public sealed partial class PrivateWorldRuntime
     private int WarmthChange(PlaytestInhabitantState person)
     {
         var naturalCover = WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position);
-        var protection = (HasCarriedItem(person.InhabitantId, "clothing") ? 35 : 0) +
+        var protection = CarryEquipmentRules.Protection(EquippedClothing(person.InhabitantId), WeatherAt(person.Position)) +
             (NearShelter(person.InhabitantId, person.Position) || naturalCover ? 45 : 0);
         var heat = AccessibleHeatingBuildings(person.InhabitantId).Any(building => IsFireLit(building) &&
             IsWithinInteractionRange(person.Position, building.Position,
@@ -94,7 +94,7 @@ public sealed partial class PrivateWorldRuntime
             ? worldContent.Buildings.Any(building => selection.DefinitionId == building.CanonicalId &&
                 building.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
             : worldContent.Recipes.Any(recipe => selection.DefinitionId == recipe.CanonicalId &&
-                recipe.Outputs.Any(output => output.ResourceId == "clothing")));
+                recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId))));
 
     private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height,
         WeatherRules.RegionClimate(map, position));
@@ -238,10 +238,6 @@ public sealed partial class PrivateWorldRuntime
         {
             return;
         }
-        if (WeatherExposure(person.Position) > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing", actor) is not null)
-        {
-            candidates.Add(new CognitionCandidate("wear_clothing", "Collect clothing to reduce exposure to the weather.", 3));
-        }
         var losingWarmth = WarmthChange(person) < 0;
         if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && AccessibleHeatingBuildings(actor).Any(building => !IsFireLit(building)) &&
             (SharedItem("wood", actor) is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood", actor) is not null))
@@ -273,6 +269,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, storage, "equipment", interactionRange);
             return;
         }
+        if (CarryingRoom(actor) == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
             item.OwnerId, actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
@@ -349,7 +346,9 @@ public sealed partial class PrivateWorldRuntime
         if (output.ResourceId == "iron" && ownerId is not null)
             return NeedsSmithIron(ownerId);
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
-                (ownerId is null || lot.OwnerId == ownerId))
+                (ownerId is null || lot.OwnerId == ownerId ||
+                 (CarryEquipmentRules.IsClothing(output.ResourceId) || CarryEquipmentRules.IsCarryAid(output.ResourceId)) &&
+                 inhabitants.ContainsKey(lot.OwnerId) && HouseholdFor(lot.OwnerId) == ownerId))
             .Sum(AvailableLotQuantity);
         if (ownerId is not null && VesselRules.IsVessel(output.ResourceId))
             return HouseholdVesselQuantity(ownerId, output.ResourceId) < (output.ResourceId == "water_jug" ? 2 : 1);

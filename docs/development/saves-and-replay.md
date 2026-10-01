@@ -66,6 +66,14 @@ rest, not protection against software already running as the same user.
 Canonical state is the accepted state used by the simulation. A replay checks
 that recorded events reproduce its expected results and digests.
 
+An agent's equipment record points to individual personally carried inventory
+lots. A garment and a basket or sack each occupy one saved slot. The decoder
+refuses another owner's stock, a stored or in-transit item, or an item in the
+wrong slot. Broken gear keeps its identity and cargo; its carrying or weather
+benefit stops. A load already over its capacity can be delivered or consumed,
+but cannot receive more goods until room is available. A carrying aid cannot
+be removed or replaced with a smaller one while that would overload the agent.
+
 - Stage tick changes before accepting them; rejected work leaves no partial state.
 - Version and atomically replace saves after committed changes.
 - Validate externally loaded state and map identity before accepting it.

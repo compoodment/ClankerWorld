@@ -169,6 +169,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool TradeQuantityAvailable(InventoryLot lot) =>
+        (!inhabitants.ContainsKey(lot.OwnerId) || !IsEquippedLot(lot.OwnerId, lot.Id)) &&
         AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ? 1 : 2);
 
     private void MaintainSettlementTrades()

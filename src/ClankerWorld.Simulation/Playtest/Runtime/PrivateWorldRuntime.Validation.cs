@@ -285,6 +285,7 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick, state.SchemaVersion);
         ValidateSurvival(state);
+        ValidateEquipment(state);
         ValidateCouncil(state);
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)

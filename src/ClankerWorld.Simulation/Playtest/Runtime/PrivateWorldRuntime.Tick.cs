@@ -318,6 +318,7 @@ public sealed partial class PrivateWorldRuntime
             StageFarmContent();
             StageBlacksmithContent();
             StageHouseCookingContent();
+            StageHouseCraftingContent();
             StageForestryContent();
             StageSiloContent();
             StageTailorContent();
@@ -393,6 +394,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 
+            WearClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
             DrainNeeds();

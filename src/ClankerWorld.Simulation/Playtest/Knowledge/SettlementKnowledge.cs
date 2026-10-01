@@ -55,6 +55,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (CarryingRoom(actor) == 0) return;
         var sequence = knowledge.Artifacts.Count + 1;
         var kind = facts.Length == 1 ? "field_record" : "field_map";
         var artifactId = $"knowledge-artifact-{sequence:D6}";

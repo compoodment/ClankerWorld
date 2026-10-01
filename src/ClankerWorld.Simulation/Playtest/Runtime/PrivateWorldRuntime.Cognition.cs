@@ -339,6 +339,21 @@ public sealed partial class PrivateWorldRuntime
             }
             return;
         }
+        if (candidateId.StartsWith("equip_carry:", StringComparison.Ordinal))
+        {
+            EquipCarryAid(inhabitantId, state, candidateId[12..]);
+            return;
+        }
+        if (candidateId.StartsWith("repair_gear:", StringComparison.Ordinal))
+        {
+            RepairGear(inhabitantId, state, candidateId[12..]);
+            return;
+        }
+        if (candidateId == "store_carried_goods")
+        {
+            StoreCarriedGoods(inhabitantId, state);
+            return;
+        }
         if (candidateId.StartsWith("trade_", StringComparison.Ordinal))
         {
             ApplyTradeCandidate(inhabitantId, state, candidateId);
@@ -447,7 +462,7 @@ public sealed partial class PrivateWorldRuntime
                 Explore(inhabitantId, state);
                 break;
             case "wear_clothing":
-                CollectEquipment(inhabitantId, state, "clothing");
+                WearBestClothing(inhabitantId, state);
                 break;
             case "tend_fire":
                 TendFire(inhabitantId, state);
@@ -597,8 +612,8 @@ public sealed partial class PrivateWorldRuntime
 
         var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
         // An optional reserve remains selectable without outranking ordinary activities.
-        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
-        var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
+        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000 && CarryingRoom(inhabitantId) > 0;
+        var foodSource = shouldGatherFood || instructionCandidate == "seek_food" || instructionCandidate == "harvest_food" && CarryingRoom(inhabitantId) > 0
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
@@ -641,6 +656,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
+        AddEquipmentCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {
@@ -696,7 +712,7 @@ public sealed partial class PrivateWorldRuntime
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
                      (!item.IsCrop || canGrow)))
         {
-            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
+            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)))
             {
                 continue;
             }
@@ -716,7 +732,7 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
+                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => CarryEquipmentRules.IsClothing(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

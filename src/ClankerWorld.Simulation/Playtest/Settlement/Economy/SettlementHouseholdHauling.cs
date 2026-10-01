@@ -102,7 +102,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, camp, "household_stock", ResourceInteractionRange);
             return;
         }
-        var quantity = Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock));
+        var quantity = Math.Min(CarryingRoom(actor), Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(stock)));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"house-haul-pickup:{WorldTick}:{actor}", householdId, actor,
             stock.Id, quantity, "household_stock_picked_up",

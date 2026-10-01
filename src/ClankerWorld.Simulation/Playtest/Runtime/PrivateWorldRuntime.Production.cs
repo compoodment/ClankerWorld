@@ -258,10 +258,12 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyInventoryTransition(Func<InventoryCheckpoint, InventoryCheckpoint> transition)
     {
         ArgumentNullException.ThrowIfNull(transition);
-        society.Apply(checkpoint => new SocietyOperationResult(
-            checkpoint with { Inventory = transition(checkpoint.Inventory) },
-            null,
-            []));
+        society.Apply(checkpoint =>
+        {
+            var updated = transition(checkpoint.Inventory);
+            ValidateCarryingTransition(checkpoint.Inventory, updated);
+            return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
+        });
     }
 
     private static InventoryCheckpoint ConsumeQuantities(

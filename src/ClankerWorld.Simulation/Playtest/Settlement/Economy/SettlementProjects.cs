@@ -251,6 +251,9 @@ public sealed partial class PrivateWorldRuntime
     private void StageSiloContent() =>
         StageBuiltInContent(SiloContent.PackageId, FarmContent.PackageId, SiloContent.Create, "silo_content_staged");
 
+    private void StageHouseCraftingContent() =>
+        StageBuiltInContent(HouseCraftingContent.PackageId, HouseContent.PackageId, HouseCraftingContent.Create, "house_crafting_content_staged");
+
     private void StageTailorContent() =>
         StageBuiltInContent(TailorContent.PackageId, HouseContent.PackageId, TailorContent.Create, "tailor_content_staged");
 
@@ -361,6 +364,7 @@ public sealed partial class PrivateWorldRuntime
     private bool CanContinueProject(PlaytestInhabitantState state) =>
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
+        !(CarryingRoom(state.InhabitantId) <= 1 && PersonalGoodsForStorage(state.InhabitantId) is not null) &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
         !NeedsUrgentFood(state) &&
         !HasTradeResponse(state.InhabitantId) &&
@@ -705,6 +709,11 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("material_gathering_blocked", $"{inhabitantId}:{itemKind}:required_tool_tier_{Math.Max(1, miningTier)}");
             return;
         }
+        if (CarryingRoom(inhabitantId) <= (TreeGrowthRules.IsWoodTree(source.TreeKind) ? TreeGrowthRules.TreeSeedsPerFelledTree : 0))
+        {
+            AppendEvent("carrying_full", inhabitantId);
+            return;
+        }
         var ecology = worldSystems.Ecology.GetResource(source.Id);
         var harvest = EcologyRules.Harvest(ecology, 1);
         if (!harvest.IsValid || harvest.Resource is null)
@@ -728,14 +737,15 @@ public sealed partial class PrivateWorldRuntime
         SyncEcologyResourceStates();
         var tool = requiresTool ? UseTool(inhabitantId, neededTool, Math.Max(1, miningTier))
             : itemKind == "wood" ? UseTool(inhabitantId, ToolKind.Axe) : null;
-        var quantity = tool?.WorkQuantity ?? 4;
+        var seedRoom = TreeGrowthRules.IsWoodTree(source.TreeKind) && harvested.Quantity == 0 ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
+        var quantity = Math.Min(CarryingRoom(inhabitantId) - seedRoom, tool?.WorkQuantity ?? 4);
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, $"material:{WorldTick}:{inhabitantId}",
             itemKind, inhabitantId, quantity, WorldTick));
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
         if (source.TreeKind is not null)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
         if (TreeGrowthRules.IsWoodTree(source.TreeKind) && harvested.Quantity == 0 &&
-            TreeGrowthRules.TreeSeedsPerFelledTree > 0)
+            TreeGrowthRules.TreeSeedsPerFelledTree > 0 && CarryingRoom(inhabitantId) > 0)
         {
             // A felled tree also gives a seed that can replant a stump or
             // start a new tree elsewhere.
