@@ -94,8 +94,62 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("child-model", handler.LastModel);
             Assert.Equal("Bearer child-secret", handler.LastAuthorization);
 
-            _ = restoredStore.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Equal(DecisionProviderKind.Deterministic, restored.KindFor(planning));
+            _ = restoredStore.Configure(new("personal", PlayerDecisionProviders.Inherit, null, null, false, "inhabitant-test"));
+            var inheritedAssignments = restoredStore.CaptureStatus().Assignments!;
+            Assert.Equal(2, inheritedAssignments.Count);
+            Assert.All(inheritedAssignments, assignment =>
+            {
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
+                Assert.Null(assignment.Model);
+                Assert.Null(assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
+
+            var afterOwnerChoice = new ProviderConfigurationStore(path, EmptySeed());
+            var afterOwnerChoiceHandler = new ProviderResponseHandler();
+            var afterOwnerChoiceRouter = new ConfigurableDecisionProvider(
+                afterOwnerChoice, new FixedHttpClientFactory(afterOwnerChoiceHandler));
+            Assert.Equal(DecisionProviderKind.Deterministic, afterOwnerChoiceRouter.KindFor(planning));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel,
+                afterOwnerChoiceRouter.KindFor(RequestObservation(strategic: true)));
+            Assert.Null(afterOwnerChoiceHandler.LastUri);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void OwnerCanChangeOneRoleWithoutOverwritingTheOtherBirthRoute()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-child-role-override-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("planning", "openai", "world-model", "world-key", false));
+            var selection = new ChildPersonalModelSelection("personal", "openai",
+                PrivateWorldRuntime.OpenAiModelEndpointIdentity, "birth-model", null,
+                PrivateWorldRuntime.ChildModelChoiceParentsAgreed);
+            var bound = store.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, static _ => { });
+
+            _ = store.Configure(new(PlayerDecisionProviders.PlanningRole, PlayerDecisionProviders.Deterministic,
+                null, null, false, "inhabitant-test"));
+
+            var reloaded = new ProviderConfigurationStore(path, EmptySeed());
+            var assignments = reloaded.CaptureStatus().Assignments!;
+            var routine = Assert.Single(assignments, item => item.Role == PlayerDecisionProviders.RoutineRole);
+            var planning = Assert.Single(assignments, item => item.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("openai", routine.Provider);
+            Assert.Equal("birth-model", routine.Model);
+            Assert.Equal(bound.CredentialSlotId, routine.CredentialSlotId);
+            Assert.Equal(PrivateWorldRuntime.ChildModelChoiceParentsAgreed, routine.SelectionReason);
+            Assert.Equal(PlayerDecisionProviders.Deterministic, planning.Provider);
+            Assert.Null(planning.SelectionReason);
+
+            var router = new ConfigurableDecisionProvider(reloaded, new FixedHttpClientFactory(new ProviderResponseHandler()));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel,
+                router.KindFor(RequestObservation(strategic: false) with { RequiresPersonalProvider = true }));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                router.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -121,7 +175,6 @@ public sealed class ProviderConfigurationStoreTests
                 Assert.Equal(slotId, assignment.CredentialSlotId);
                 Assert.Equal(PrivateWorldRuntime.ChildModelChoiceInitiatingParent, assignment.SelectionReason);
             });
-
             var selectedHandler = new ProviderResponseHandler();
             var selectedRouter = new ConfigurableDecisionProvider(original, new FixedHttpClientFactory(selectedHandler));
             var selectedRequest = Request(selectedRouter.ProviderEpoch, strategic: true) with

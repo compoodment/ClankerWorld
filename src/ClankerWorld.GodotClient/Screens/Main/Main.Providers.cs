@@ -398,9 +398,19 @@ public partial class Main
 
     private string SelectedChildModelStatus()
     {
-        var assignment = SelectedAssignment();
-        if (assignment is null)
+        var childId = SelectedCognitionTarget();
+        var assignments = providerConfiguration?.Assignments ?? [];
+        var routine = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "routine");
+        var planning = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "planning");
+        if (IsUnconfiguredChildRoute(routine) && IsUnconfiguredChildRoute(planning))
             return "No personal model selected for this child. Safe local decisions continue until a model is assigned; world defaults are not used.";
+
+        if (!SameChildProviderRoute(routine, planning))
+        {
+            return $"Routine: {ChildModelRouteSummary(routine)} · Planning: {ChildModelRouteSummary(planning)}.";
+        }
+
+        var assignment = planning ?? routine!;
 
         var provider = ProviderDisplayName(assignment.Provider);
         var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
@@ -416,6 +426,30 @@ public partial class Main
             _ => $"Personal model: {modelName}.",
         };
     }
+
+    private string ChildModelRouteSummary(InhabitantProviderAssignment? assignment)
+    {
+        if (IsUnconfiguredChildRoute(assignment))
+            return "no personal model (safe local; world defaults are not used)";
+
+        var provider = ProviderDisplayName(assignment!.Provider);
+        var model = assignment.Model ?? providerConfiguration!.Providers.FirstOrDefault(item =>
+            item.Provider == assignment.Provider)?.Model;
+        var modelName = string.IsNullOrWhiteSpace(model) ? provider : $"{provider} · {model}";
+        return ChildModelNeedsSetup(assignment)
+            ? $"{modelName} needs setup; built-in choices continue until a key is available"
+            : modelName;
+    }
+
+    private static bool IsUnconfiguredChildRoute(InhabitantProviderAssignment? assignment) =>
+        assignment is null || assignment.Provider is "deterministic" or "inherit";
+
+    private static bool SameChildProviderRoute(
+        InhabitantProviderAssignment? left,
+        InhabitantProviderAssignment? right) =>
+        IsUnconfiguredChildRoute(left) && IsUnconfiguredChildRoute(right) ||
+        left is not null && right is not null && left.Provider == right.Provider &&
+        left.Model == right.Model && left.CredentialSlotId == right.CredentialSlotId;
 
     private bool ChildModelNeedsSetup(InhabitantProviderAssignment assignment)
     {

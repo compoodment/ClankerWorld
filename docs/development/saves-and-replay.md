@@ -27,8 +27,12 @@ choice if its key is unavailable after moving a save or deleting a key, so the
 child idles on built-in choices until setup is restored rather than using a
 different paid model. A child without an explicit parental model remains
 unconfigured, and worlds without a saved birth choice do not acquire one by
-inference. Infants make no personal-model calls; normal presence, budget and
-admission checks still apply after infancy.
+inference. An owner's later personal-model choice, including an explicit
+no-personal-model setting, is saved separately from the historical birth
+choice. That setting survives ticks and reloads; an explicitly unconfigured
+child uses built-in choices instead of the world default. Infants make no
+personal-model calls; normal presence, budget and admission checks still apply
+after infancy.
 
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.

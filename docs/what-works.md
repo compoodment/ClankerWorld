@@ -75,6 +75,8 @@ and normal call checks allow it; if the key is missing, built-in choices keep
 the child safe and the game does not substitute another paid model. The child
 card shows the selected model or that it needs setup. Children whose parents
 have no explicit model remain unconfigured; world defaults are not inherited.
+The owner can later choose a different personal model or explicitly clear it;
+that setting is saved, and a cleared child continues with built-in choices.
 
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and

@@ -383,6 +383,28 @@ public partial class Main
             if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
                 !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
                 throw new InvalidOperationException("A child without a birth-time choice must remain explicitly unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model choice must survive as a safe local child route.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "openai", "gpt-6.1-sol", slotId), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · gpt-6.1-sol needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child with a role-specific override must see both saved routes and setup state.");
         }
         finally
         {

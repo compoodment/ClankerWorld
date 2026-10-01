@@ -11,6 +11,7 @@ public static class PlayerDecisionProviders
     public const string RoutineRole = "routine";
     public const string PlanningRole = "planning";
     public const string PersonalRole = "personal";
+    public const string Inherit = "inherit";
     public const string Deterministic = "deterministic";
     public const string Jev = "jev";
     public const string OpenAi = "openai";
@@ -479,13 +480,15 @@ public sealed class ProviderConfigurationStore
         var assignments = (state.Assignments ?? [])
             .Where(item => item.InhabitantId != id || !roles.Contains(item.Role, StringComparer.Ordinal)).ToList();
         var next = state;
-        if (action.Provider == "inherit")
+        if (action.Provider == PlayerDecisionProviders.Inherit)
         {
             if (action.Model is not null || action.ApiKey is not null ||
                 action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
             {
                 throw new ArgumentException("Inheritance does not accept a model or key.", nameof(action));
             }
+            foreach (var assignedRole in roles)
+                assignments.Add(new InhabitantProviderAssignment(id, assignedRole, PlayerDecisionProviders.Inherit));
         }
         else
         {
@@ -768,6 +771,13 @@ public sealed class ProviderConfigurationStore
             {
                 throw new InvalidDataException("Provider assignments must have unique inhabitant/role identities.");
             }
+            if (assignment.Provider == PlayerDecisionProviders.Inherit)
+            {
+                if (assignment.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) ||
+                    assignment.Model is not null || assignment.CredentialSlotId is not null || assignment.SelectionReason is not null)
+                    throw new InvalidDataException("An inherited assignment cannot carry a model or credential.");
+                continue;
+            }
             PlayerDecisionProviders.ValidateRoleProvider(assignment.Role, assignment.Provider);
             if (assignment.SelectionReason is not null &&
                 (assignment.SelectionReason is not (PrivateWorldRuntime.ChildModelChoiceParentsAgreed or
@@ -790,14 +800,23 @@ public sealed class ProviderConfigurationStore
                 _ = NormalizeModel(assignment.Model, string.Empty);
             }
         }
-        foreach (var group in (state.Assignments ?? []).Where(item => item.SelectionReason is not null)
+        var assignments = state.Assignments ?? [];
+        foreach (var group in assignments.Where(item => item.SelectionReason is not null)
                      .GroupBy(item => item.InhabitantId, StringComparer.Ordinal))
         {
             var rows = group.ToArray();
-            if (rows.Length != 2 || !rows.Any(item => item.Role == PlayerDecisionProviders.RoutineRole) ||
-                !rows.Any(item => item.Role == PlayerDecisionProviders.PlanningRole) ||
-                rows.Select(item => (item.Provider, item.Model, item.CredentialSlotId, item.SelectionReason)).Distinct().Count() != 1)
-                throw new InvalidDataException("A child personal model must have matching routine and planning assignments.");
+            var pairedBirthChoice = rows.Length == 2 &&
+                rows.Any(item => item.Role == PlayerDecisionProviders.RoutineRole) &&
+                rows.Any(item => item.Role == PlayerDecisionProviders.PlanningRole) &&
+                rows.Select(item => (item.Provider, item.Model, item.CredentialSlotId, item.SelectionReason)).Distinct().Count() == 1;
+            var preservedBirthChoiceWithOwnerOverride = rows.Length == 1 &&
+                rows[0].Role is (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) &&
+                assignments.Any(item => item.InhabitantId == group.Key &&
+                    item.Role == (rows[0].Role == PlayerDecisionProviders.RoutineRole
+                        ? PlayerDecisionProviders.PlanningRole : PlayerDecisionProviders.RoutineRole) &&
+                    item.SelectionReason is null);
+            if (!pairedBirthChoice && !preservedBirthChoiceWithOwnerOverride)
+                throw new InvalidDataException("A child birth model must retain both routine and planning assignments.");
         }
         if ((routine != PlayerDecisionProviders.Deterministic &&
                 string.IsNullOrWhiteSpace(CredentialFor(state, routine)?.ApiKey)) ||
@@ -1122,6 +1141,12 @@ public sealed partial class ConfigurableDecisionProvider(
         var routine = IsRoutine(observation);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
+        if (assigned?.Provider == PlayerDecisionProviders.Inherit)
+        {
+            if (observation.RequiresPersonalProvider)
+                return (PlayerDecisionProviders.Deterministic, assigned);
+            assigned = null;
+        }
         // Children born in this world never inherit a potentially billable
         // world default. Their own explicit assignment is the only route to a
         // personal model after infancy; until then they use local safe choices.
@@ -1139,7 +1164,9 @@ public sealed partial class ConfigurableDecisionProvider(
             // continue. Prefer this agent's personal planner, then the world
             // planner, and finally local safe decisions when no model is set.
             assigned = AssignmentFor(configuration, observation.InhabitantId, PlayerDecisionProviders.PlanningRole);
-            provider = assigned?.Provider ?? configuration.PlanningProvider;
+            provider = assigned?.Provider == PlayerDecisionProviders.Inherit
+                ? configuration.PlanningProvider
+                : assigned?.Provider ?? configuration.PlanningProvider;
         }
         return (provider, assigned);
     }
