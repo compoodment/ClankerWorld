@@ -1308,9 +1308,11 @@ The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
 
-A storage pot slows spoilage for the food within its limited capacity. A water
-jug holds a limited quantity of water. Both remain after their contents are
-used; filling, emptying and carrying them must preserve the vessel and its goods.
+A storage pot slows spoilage for the food within its limited capacity, a trial
+8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
+Both remain after their contents are used; filling, emptying and carrying them
+must preserve the vessel and its goods. Adults dig clay from a finite clay bank
+and make either vessel at a household House.
 
 #### Tools, clothing and transport
 

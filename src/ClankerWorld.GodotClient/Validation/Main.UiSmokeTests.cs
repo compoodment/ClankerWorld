@@ -1924,6 +1924,15 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
+            if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
+                GameUiText.ItemName("water_jug") != "Water jug" ||
+                GameUiText.ItemName("fresh_water") != "Fresh water")
+                throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
+            string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            if (!ItemIcons.Has("storage_pot") || !ItemIcons.Has("fresh_water") ||
+                IconData("storage_pot") != IconData("clay_pot") || IconData("fresh_water") != IconData("water") ||
+                IconData("storage_pot") == IconData("water_jug"))
+                throw new InvalidOperationException("The storage pot and fresh water must show their approved, distinct icons.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
