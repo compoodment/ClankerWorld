@@ -84,7 +84,7 @@ public partial class Main
             .Select(row => $"{row.Provider} / {row.Model}: {row.Attempts} calls");
         usageMeterStatus.Text = usageStatus.AttemptLimit is { } limit
             ? $"{usageStatus.Attempts} of {limit} model calls used on this installation."
-            : $"{usageStatus.Attempts} model calls used on this installation. No limit set.";
+            : $"{usageStatus.Attempts} model calls used on this installation.";
         if (usageStatus.LimitReached)
             usageMeterStatus.Text += " Time is paused. Raise the limit to allow more calls, then resume.";
         if (usageStatus.Rows.Count > 0)
@@ -583,19 +583,27 @@ public partial class Main
         buttons.AddChild(refreshCognitionProviderButton);
         body.AddChild(buttons);
 
-        body.AddChild(new Label { Text = "Model calls" });
+        AddPanelContents(cognitionSettingsPanel, "Agent model", body);
+        cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
+        RenderProviderConfiguration();
+    }
+
+    /// <summary>
+    /// The installation's model-call count and optional limit. It stays on the
+    /// World page when the Agent model box moves into an agent's card.
+    /// </summary>
+    private void BuildUsageLimitPanel()
+    {
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
         usageMeterStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(usageMeterStatus);
-        body.AddChild(new Label
-        {
-            Text = "Optional cap on paid model calls. The game pauses when you reach it. Leave blank for no cap.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        });
-        usageAttemptLimitInput.PlaceholderText = "Maximum model calls (blank = no limit)";
-        usageAttemptLimitInput.TooltipText = "Every call counts, even ones that fail or are retried. This counts calls, not money.";
-        body.AddChild(usageAttemptLimitInput);
+        usageAttemptLimitInput.PlaceholderText = "No limit";
+        usageAttemptLimitInput.TooltipText = "Time pauses when this many calls have been made. Every call counts, even ones that fail or are retried. This counts calls, not money.";
+        body.AddChild(DisplaySettingRow("Limit", usageAttemptLimitInput));
         var usageButtons = new HBoxContainer();
-        applyUsageLimitButton.Text = "Apply limit";
+        usageButtons.AddThemeConstantOverride("separation", 6);
+        applyUsageLimitButton.Text = "Set limit";
         StyleButton(applyUsageLimitButton);
         applyUsageLimitButton.Pressed += () => _ = ConfigureUsageAsync(grant: false);
         usageButtons.AddChild(applyUsageLimitButton);
@@ -605,15 +613,13 @@ public partial class Main
         grantUsageCallsButton.Pressed += () => _ = ConfigureUsageAsync(grant: true);
         grantUsageCallsButton.Visible = false;
         usageButtons.AddChild(grantUsageCallsButton);
-        refreshUsageButton.Text = "Refresh usage";
+        refreshUsageButton.Text = "Refresh";
         StyleButton(refreshUsageButton);
         refreshUsageButton.Pressed += () => _ = RefreshUsageAsync();
         usageButtons.AddChild(refreshUsageButton);
         body.AddChild(usageButtons);
-
-        AddPanelContents(cognitionSettingsPanel, "Agent model", body);
-        cognitionSettingsPanel.ThemeTypeVariation = "InsetPanel";
-        RenderProviderConfiguration();
+        AddPanelContents(usageLimitPanel, "Model calls", body);
+        usageLimitPanel.ThemeTypeVariation = "InsetPanel";
         RenderUsageStatus();
     }
 
@@ -646,6 +652,7 @@ public partial class Main
         if (!selectedAgentModelScroll.Visible) return;
         selectedAgentModelScroll.Hide();
         cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
+        worldSettingsContent.MoveChild(cognitionSettingsPanel, usageLimitPanel.GetIndex());
         cognitionTargetChoice.Show();
         selectedAgentOverview.Show();
         cognitionApiKeyInput.Text = string.Empty;
