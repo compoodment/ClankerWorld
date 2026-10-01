@@ -828,7 +828,7 @@ stalls, trade with agents from any Town and carry remaining goods away.
 
 **Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
 it until they leave. The Town does not assign stalls. Leaving frees the stall
-for another seller; goods still belong to the seller's household and must be
+for another seller; goods keep their recorded owner and must be
 carried away or transferred through an actual trade.
 
 Initial trade uses barter offers naming exact goods and quantities. Both sides
