@@ -298,8 +298,9 @@ switch or an older world save cannot cross the same mark again, and a changed
 cap sets a new mark that only later reservations can cross. In private-world
 mode the host then appends a player-facing `model_call_warning` event
 (`used:<count>:limit:<cap>`) to the active world under the world mutation gate
-and saves it, like the cap's pause event. It does this on another task because
-conversation turns reserve while the runtime gate is held. The world save
+and saves it, like the cap's pause event. The reserving thread takes only
+gates that are free, because a conversation turn reserves while holding the
+runtime gate; otherwise another task waits for them. The world save
 records only that the player was told; the count and cap stay in the usage
 file, and no checkpoint schema changed. Telemetry logs `provider_usage_warning`
 with its outcome.

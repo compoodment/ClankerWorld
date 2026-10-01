@@ -162,6 +162,28 @@ public sealed class ProviderUsageStoreTests
     }
 
     [Fact]
+    public void ModelCallWarningIsASavedWorldEventAndNeverWaitsOnABusyRuntime()
+    {
+        using var world = new PrivateWorldRuntime("usage-warning-event", _ => new DeterministicDecisionProvider());
+        // Persisting holds the runtime gate, as a conversation turn does when it reserves a call.
+        world.PersistCheckpoint(state =>
+        {
+            Assert.False(world.TryRecordModelCallWarning(4, 5, TimeSpan.Zero));
+            return state;
+        });
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "model_call_warning");
+        Assert.Throws<ArgumentOutOfRangeException>(() => world.TryRecordModelCallWarning(6, 5, TimeSpan.Zero));
+
+        Assert.True(world.TryRecordModelCallWarning(800, 1_000, TimeSpan.Zero));
+        var warning = Assert.Single(world.ExportState().Events, item => item.Kind == "model_call_warning");
+        Assert.Equal("used:800:limit:1000", warning.Detail);
+        Assert.Null(warning.Position);
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.Equal(warning, Assert.Single(restored.ExportState().Events, item => item.Kind == "model_call_warning"));
+    }
+
+    [Fact]
     public void UsagePayloadMatchesGodotAndNeverContainsProviderSecrets()
     {
         var server = new ProviderUsageLimitAction(30, 0);

@@ -139,16 +139,19 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>
     /// Writes the installation's 80% model-call warning into this world's
     /// Event Log. The count and limit stay in installation accounting; the
-    /// event only records what the player was told, like a pause.
+    /// event only records what the player was told, like a pause. Returns
+    /// false, recording nothing, when the runtime stays busy for
+    /// <paramref name="wait"/>.
     /// </summary>
-    public void RecordModelCallWarning(long attempts, long attemptLimit)
+    public bool TryRecordModelCallWarning(long attempts, long attemptLimit, TimeSpan wait)
     {
         if (attemptLimit < 1 || attempts < 1 || attempts > attemptLimit)
             throw new ArgumentOutOfRangeException(nameof(attempts), "A model-call warning needs a used count within a positive limit.");
-        gate.Wait();
+        if (!gate.Wait(wait)) return false;
         try
         {
             AppendEvent("model_call_warning", FormattableString.Invariant($"used:{attempts}:limit:{attemptLimit}"));
+            return true;
         }
         finally
         {
