@@ -222,7 +222,9 @@ everything that is available in the current build. See [what works today](../wha
   player can change. The comparison covers every agent in the world, including
   those who have died; similar but distinct names are allowed (see
   [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages)).
-  Player renaming collisions and cultural naming context remain open.
+  Player renaming follows the same full-name check, as recorded in
+  [Player guidance and orders](#player-guidance-and-orders). Cultural naming
+  context remains open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
   household and which Town the new agent will belong to. One shared rule
   decides this, checked in this order: household property first, then
@@ -307,6 +309,28 @@ everything that is available in the current build. See [what works today](../wha
   new order done afterward instead. Pending and ongoing orders can be
   cancelled. For example, "Make two sacks" replaces "Keep gathering food"
   unless the player chooses Queue.
+- The agent's own model sees an order's **original words and the task the
+  game understood** in its next ordinary request. The wording supplies
+  context, such as why the household needs food; it does not let the model
+  refuse an otherwise valid order merely because it prefers another plan.
+  Sending an order does not trigger a separate paid request.
+- The agent card shows orders and their status: **waiting, doing,
+  interrupted, blocked with a reason, finished, cancelled or not understood**.
+  For example, "Waiting for cloth: needs two pieces" explains a blocked job.
+  A brief natural reply may accompany the agent's ordinary model response;
+  the game does not generate an extra paid reply just to acknowledge a click.
+- Normal direct agent edits are **names and model/key settings**, alongside
+  the existing Add Agent and Suggest/Order controls. Needs, skills, goods,
+  memories, relationships and world objects change through simulation actions.
+  Direct manipulation of those fields belongs in developer tools, whose
+  exact tool set has not been chosen. This preserves the separately agreed
+  founder setup, world settings and Mod Library controls.
+- **Player renaming uses the same full-name check as model naming**, against
+  every other living or deceased agent in the world. A taken full name is
+  rejected; the player supplies another name, without a model retry. Similar
+  but distinct full names remain allowed. Renaming keeps the same person,
+  relationships and memories; old conversation text remains as originally
+  spoken rather than being rewritten to use the new name.
 
 **Existing agreed order handling, from September 30:** the agent card's
 **Speak to them** box sends a message as **Suggest** or **Order**. An order
@@ -318,11 +342,11 @@ that cannot be carried out yet, such as "eat" while the agent carries no food,
 keeps waiting, including across saves. It is checked again only when the agent
 next makes one of its usual decisions, never on every tick.
 
-**Still to decide in this design session:** message delivery and replies,
-including whether the agent's own model reads the words of an order; the
-remaining normal-player edit controls; and player-name collision rules. These
-are intended rules, not a claim that the current prototype reads suggestions
-or supports the full catalogue.
+These are intended rules, not a claim that the current prototype reads
+suggestions or supports the full catalogue. Supported actions expand as the
+normal game implements each system; this section does not settle those
+systems' remaining game rules or authorize their development ahead of their
+agreed stage.
 
 ### Leaning toward
 
@@ -374,9 +398,9 @@ Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
 which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
 categories, filter UI, event retention, and handling of events without a single map location; custom
-month/season names and date presentation; and the remaining player-control
-details in [Player guidance and orders](#player-guidance-and-orders), beyond
-the agreed observer role, suggestions and order authority. Computment may
+month/season names and date presentation. The player's role, direct edits,
+suggestions and order rules are agreed in
+[Player guidance and orders](#player-guidance-and-orders). Computment may
 provide a UI drawing.
 
 The agent info popup's exact layout, pin/expand behavior, thought-history
