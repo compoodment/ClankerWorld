@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const labelPullRequest = require('./pr-labels.js');
 
 function scenario({ live = {}, event = {}, action = 'edited', changes, files = ['src/ClankerWorld.Simulation/Kernel/InventoryFixture.cs'],
-  issueLabels = ['priority:p2', 'status:needs-pr', 'status:in-progress'], otherPrs = [] } = {}) {
+  issueLabels = ['priority:p2', 'status:needs-pr', 'status:in-progress'], otherPrs = [], beforeRemove = () => {} } = {}) {
   const pr = {
     number: 25, state: 'open', draft: false, merged: false,
     body: '- [x] Bug fix\nCloses #4', labels: ['status:reviewing'], ...live,
@@ -29,6 +29,7 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
         },
         removeLabel: async ({ issue_number, name }) => {
           const record = records.get(issue_number);
+          beforeRemove({ issue_number, name, record, otherPrs });
           record.labels = record.labels.filter(label => label !== name);
         },
       },
@@ -116,4 +117,20 @@ test('dropping a closing reference in the current body releases the issue even i
   });
   await state.run();
   assert.deepEqual(state.issue.labels, ['priority:p2', 'status:needs-pr']);
+});
+
+test('cleanup restores an issue link acquired by another PR after the initial check', async () => {
+  const state = scenario({
+    action: 'closed', live: { state: 'closed' },
+    issueLabels: ['priority:p2', 'status:has-pr', 'status:in-progress'],
+    beforeRemove({ issue_number, name, record, otherPrs }) {
+      if (issue_number === 4 && name === 'status:has-pr') {
+        otherPrs.push({ number: 26, body: 'Closes #4', draft: true });
+        record.labels = [...new Set([...record.labels, 'status:has-pr'])];
+      }
+    },
+  });
+  await state.run();
+  assert.deepEqual(state.pr.labels, []);
+  assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:in-progress']));
 });

@@ -230,6 +230,12 @@ async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
     await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [Ready] });
     core.info(`Put #${number} back to ${Ready}.`);
   }
+  // Another PR can acquire this issue while cleanup is in progress. Recheck
+  // after the writes so this cleanup cannot finish by erasing its link.
+  if (await otherOpenPrLinks(github, repo, number, prNumber)) {
+    await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [HasPr] });
+    await removeLabel(github, repo, number, Ready);
+  }
 }
 
 async function labelPullRequest({ github, context, core }) {
