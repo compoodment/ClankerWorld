@@ -33,6 +33,20 @@ public partial class WorldOverview : Control
         Resized += QueueRedraw;
     }
 
+    /// <summary>
+    /// A small picture of a world, one pixel per tile, in the overview's colors.
+    /// Load World uses it for a world's thumbnail.
+    /// </summary>
+    public static ImageTexture Thumbnail(WorldTerrainMap world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        var image = Image.CreateEmpty(world.Width, world.Height, false, Image.Format.Rgba8);
+        for (var y = 0; y < world.Height; y++)
+            for (var x = 0; x < world.Width; x++)
+                image.SetPixel(x, y, world.DisplayColorAt(x, y));
+        return ImageTexture.CreateFromImage(image);
+    }
+
     public void SetWorld(WorldTerrainMap world)
     {
         mapWidth = world.Width;

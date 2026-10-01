@@ -372,7 +372,9 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
 public sealed record CatalogWorld(string Id, string Name, string WorldId, string Seed,
     DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings, string Compatibility = "unknown",
-    string? CompatibilityReason = null);
+    string? CompatibilityReason = null, WorldThumbnail? Thumbnail = null);
+/// <summary>A small picture of a world's terrain for the Load World list, packed like the world's own terrain.</summary>
+public sealed record WorldThumbnail(int Width, int Height, string Encoding, string Data);
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
 public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWorldPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
