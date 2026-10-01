@@ -48,12 +48,23 @@ internal static partial class OwnerEndpoints
             !Enum.TryParse<GenerationAmount>(action.ForestCover, true, out var forest) || !Enum.IsDefined(forest) ||
             !Enum.TryParse<GenerationAmount>(action.MountainRelief, true, out var mountain) || !Enum.IsDefined(mountain) ||
             !Enum.TryParse<GenerationAmount>(action.RiverAbundance, true, out var river) || !Enum.IsDefined(river) ||
-            action.WaterPercent is < 20 or > 80)
+            action.WaterPercent is < 20 or > 80 ||
+            action.CandidateAttempt is < 0 or >= GeographyGenerator.MaximumCandidateAttempts)
             return false;
         options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent,
-            climateMode, selectedClimate, action.LatitudeCooling, abundance, GeographyGenerator.CurrentHydrologyVersion, forest, mountain, river);
+            climateMode, selectedClimate, action.LatitudeCooling, abundance, GeographyGenerator.CurrentHydrologyVersion,
+            forest, mountain, river, action.CandidateAttempt ?? 0);
         return true;
     }
+
+    private static bool HasNoPreviewIdentity(OwnerWorldCreationAction action) =>
+        action.CandidateAttempt is null && action.ExpectedManifestDigest is null &&
+        action.ExpectedMapLayersDigest is null && !action.AcceptUnmetTargets;
+
+    private static bool HasCreateIdentity(OwnerWorldCreationAction action) =>
+        action.CandidateAttempt is >= 0 and < GeographyGenerator.MaximumCandidateAttempts &&
+        !string.IsNullOrWhiteSpace(action.ExpectedManifestDigest) &&
+        !string.IsNullOrWhiteSpace(action.ExpectedMapLayersDigest);
 
     private static bool TryParseInstructionKind(string? value, out OwnerInstructionKind kind)
     {

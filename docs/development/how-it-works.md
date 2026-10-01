@@ -827,17 +827,38 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
 controls forest cover, mountain relief and river abundance independently;
-Normal is zero and omitted from saved JSON, preserving historical default
-settings. Low/High adjust the forest rainfall threshold (175/125), upper
-elevation relief, and river catchment threshold (288/72). Normal keeps
-150 and 144 respectively. These are relative presets, not promises of exact
-forest or mountain percentages. Resource abundance retains its existing
-Sparse/Normal/Abundant saved values; the UI labels them Low/Normal/High.
+Normal is zero and omitted from saved JSON. Low/High use forest rainfall
+thresholds 175/125 and river catchment thresholds 288/72. Low mountain relief
+subtracts half the elevation above 130; High adds that full amount for Balanced
+Small/Medium worlds and half elsewhere. Outside the visibility trial, Normal
+keeps a 150 rainfall threshold, zero relief shift and river threshold 144.
+Resource abundance retains its existing Sparse/Normal/Abundant saved values;
+the UI labels them Low/Normal/High.
 
-Owner world-creation signing uses payload v2 to bind all settings. Preview and
-Create use the same validated options and digest; old clients need an update.
-Small and Medium remain the only playable sizes; no continent-count control
-is exposed for them. Existing saved water settings are not rewritten.
+For Balanced Small/Medium worlds, each feature's target applies only while its
+own control is Normal. The versioned Normal trial uses a 135 rainfall threshold
+and adds one third of upper elevation as mountain relief. Low and High remain
+separate controls. `GeographyCandidateSelector` tries at most three candidates
+derived from the requested seed. It selects by unmet target count, normalized
+distance from the 20–40% forest and 5–12% mountain dry-land bands, then largest
+connected-region share as a tie-break; attempt number is the final stable
+tie-break. Connected regions use diagonal neighbors, east/west wrapping when
+enabled, and no north/south wrapping. The tie-break has no minimum region-size
+threshold. Incompatible climate modes have no trial target and use one
+candidate. Coverage is measured and returned for all settings.
+
+Owner world-creation signing uses payload v3 to bind all settings and, for
+Create, the candidate attempt, terrain and map-layer digests, and explicit
+acceptance of unmet trial targets. Preview reports the selected candidate and
+coverage for each attempt. Create reruns the bounded selector, checks those
+signed identities, and builds the world from its selected map. It refuses a
+changed preview or an unaccepted miss. The selected attempt is saved in
+`GeographyOptions` with the visibility algorithm version and in the map
+manifest; restore regenerates that attempt without searching again. Unsupported
+Balanced Small/Medium visibility versions are refused rather than replayed with
+different terrain rules. Small and Medium remain the only playable sizes; no
+continent-count control is exposed for them. Existing saved water settings are
+not rewritten.
 
 ## Skills and practical lessons
 

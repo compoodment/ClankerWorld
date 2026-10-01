@@ -209,13 +209,14 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 35. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, and bounded conversations with daily allowances.
+with ground harvest lots, bounded conversations with daily allowances, and
+selected garments/carry aids with timed equipment repairs and exact reservations.
 These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
@@ -363,9 +364,15 @@ The new code reads old saves; keep backups before testing.
 This prototype changes future weather/events, not past recorded history.
 
 Advanced generation saves optional forest, mountain and river presets. Missing
-fields mean Normal and preserve the historical default generator. New-world
-water defaults do not alter saved water values. Non-default maps require a
-build that understands their options and validates their generated identity.
+fields mean Normal. New-world water defaults do not alter saved water values.
+Non-default maps require a build that understands their options and validates
+their generated identity. Balanced Small/Medium worlds save the visibility
+algorithm version and, when trial targets apply, the selected candidate attempt.
+Restore regenerates that exact attempt, checks the saved map manifest, and does
+not rerun candidate selection or silently change the saved map. The attempt
+defaults to 0 for historical saves. A save whose map no longer matches
+deterministic regeneration is refused for load; restore leaves the source save
+file available for recovery or an explicit future migration.
 
 ## Explicit permanent deletion
 
