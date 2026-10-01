@@ -879,7 +879,7 @@ public partial class Main
                 var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
                 if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains("15.0% forest and 10.0% mountains", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains($"{15d:F1}% forest and {10d:F1}% mountains", StringComparison.Ordinal) ||
                     worldAcceptUnmetTargets.Visible)
                     throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
                 InvalidateWorldPreview(refresh: false);

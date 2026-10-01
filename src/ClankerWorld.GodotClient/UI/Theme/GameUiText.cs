@@ -9,6 +9,9 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    public static string TownElectionSummary(OwnerWorldTownCouncil council) =>
+        $"{(council.ElectionIsRunoff ? "Runoff" : "Election")}: {council.ElectionVotes}/{council.ElectionVoters} ballots · {council.ElectionAvailableSeats} {(council.ElectionAvailableSeats == 1 ? "seat" : "seats")} available";
+
     public static string ModelStatus(string? status) => status switch
     {
         "waiting" => "Waiting for the model",
@@ -174,7 +177,8 @@ public static class GameUiText
             "business_goods_listed" or "business_offer_accepted" or "business_exchange_completed" or "business_offer_cancelled" or
             "business_stock_withdrawn" or "business_stock_cleared" or "business_tool_requested" or "market_plot_reserved" or
             "market_stall_stocked" or "market_stall_released" or "town_election_started" or "town_council_elected" or
-            "town_law_proposed" or "town_law_adopted" or "town_law_rejected" or
+            "town_election_runoff_started" or "town_candidacy_changed" or "town_election_vote_recorded" or
+            "town_law_proposed" or "town_law_adopted" or "town_law_rejected" or "town_law_cancelled" or
             "equipment_worn" or "equipment_repaired" or "carry_aid_removed" or "carrying_full" or
             "cart_deployed" or "cart_loaded" or "cart_unloaded" or "cart_repaired" or "cart_given" or "cart_cargo_put_down" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or "medical_care_allowed" or "medical_care_revoked" or
@@ -298,7 +302,12 @@ public static class GameUiText
         }
         if (normalized.StartsWith("council_", StringComparison.Ordinal))
         {
-            if (normalized == "council_town_elect") return "vote in the Town election";
+            if (normalized == "council_town_visit") return "visit the Town Hall";
+            if (normalized == "council_town_volunteer") return "volunteer for the Town council";
+            if (normalized == "council_town_withdraw") return "withdraw your council candidacy";
+            if (normalized == "council_town_abstain") return "abstain in the Town election";
+            if (normalized.StartsWith("council_town_support:", StringComparison.Ordinal)) return "support a willing council candidate";
+            if (normalized.StartsWith("council_town_unsupport:", StringComparison.Ordinal)) return "withdraw support for a council candidate";
             if (normalized == "council_town_author") return "propose a Town rule";
             if (normalized.StartsWith("council_town_propose:", StringComparison.Ordinal)) return "propose a Town food rule";
             if (normalized == "council_town_vote_yes") return "support the proposed Town rule";

@@ -99,7 +99,7 @@ public sealed partial class TownHallTests
     [Fact]
     public async Task EightAdultsAttendTheHallAndElectThreeForOneCalendarYearAcrossReload()
     {
-        var state = WithHall(AddAdults(Initial(), 4));
+        var state = CivicCalendar(WithHall(AddAdults(Initial(), 4)), 100);
         var world = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, true));
         try
         {
@@ -121,7 +121,10 @@ public sealed partial class TownHallTests
             Assert.Null(elected.Election);
             Assert.Equal((long)world.WorldSystems.Config.TicksPerDay * world.WorldSystems.Config.DaysPerYear,
                 elected.TermExpiryTick - elected.TermStartedTick);
-            Assert.Equal(8, world.ExportState().Events.Count(item => item.Kind == "town_election_vote_recorded"));
+            Assert.Equal(8, world.ExportState().Events.Where(item => item.Kind == "town_election_vote_recorded")
+                .Select(item => item.Detail.Split('|')[1]).Distinct().Count());
+            Assert.Equal(101, elected.TermStartedTick);
+            Assert.Equal(8, world.ExportState().Events.Count(item => item.Kind == "town_candidacy_changed"));
             Assert.All(elected.MemberIds, id => Assert.Contains(id, world.Towns.Single().ResidentIds));
             world.Validate();
         }
@@ -156,61 +159,42 @@ public sealed partial class TownHallTests
     public async Task AnnualElectionUsesWorldCalendarAndPreservesIncumbentsUntilItsVotesFinish()
     {
         var state = AtHall(WithHall(AddAdults(Initial(), 4)));
-        var config = state.WorldSystems!.Config with
-        {
-            TicksPerDay = 24,
-            DaysPerYear = 4,
-            SpringDays = 1,
-            SummerDays = 1,
-            AutumnDays = 1,
-            WinterDays = 1
-        };
-        var societyConfig = state.Society.Society.Config with { TicksPerWorldDay = 24, DaysPerWorldYear = 4 };
-        var birth = -societyConfig.TicksPerLifecycleAge * societyConfig.FounderStartingAge;
-        state = state with
-        {
-            WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems with { Config = config, RegionalWeather = null }, state.Map),
-            Society = state.Society with
-            {
-                Society = state.Society.Society with
-                {
-                    Config = societyConfig,
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
-                    {
-                        BirthTick = birth,
-                        BirthLifeTick = state.Society.Society.LifeClock is null ? null : birth,
-                        LastLifecycleYearChecked = societyConfig.FounderStartingAge
-                    }).ToArray()
-                }
-            }
-        };
+        state = CivicCalendar(state);
         var adults = state.Towns!.Single().ResidentIds.ToArray();
         var selected = adults.Take(3).ToArray();
         using var world = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false));
+        foreach (var nominee in selected) Assert.True(world.VolunteerTownCouncil(nominee, Town).Applied);
         foreach (var actor in adults) Assert.True(world.VoteTownElection(actor, Town, selected).Applied);
-        Assert.Equal(96, world.TownCouncils.Single().TermExpiryTick);
-        for (var tick = 0; tick < 97; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Null(world.TownCouncils.Single().TermExpiryTick);
+        await AdvanceTo(world, 24);
+        Assert.Equal(120, world.TownCouncils.Single().TermExpiryTick);
+        await AdvanceTo(world, 120);
         var current = world.TownCouncils.Single();
         Assert.NotNull(current.Election);
         Assert.Equal(selected, current.MemberIds);
-        Assert.Equal(0, current.TermStartedTick);
-        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.Equal(24, current.TermStartedTick);
+        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new CivicChooser(false, false));
         var next = adults.Skip(3).Take(3).ToArray();
+        foreach (var nominee in next) Assert.True(loaded.VolunteerTownCouncil(nominee, Town).Applied);
         foreach (var actor in adults) Assert.True(loaded.VoteTownElection(actor, Town, next).Applied);
+        Assert.Equal(selected, loaded.TownCouncils.Single().MemberIds);
+        await AdvanceTo(loaded, 144);
         Assert.Equal(next, loaded.TownCouncils.Single().MemberIds);
-        Assert.Equal(loaded.WorldTick + 96, loaded.TownCouncils.Single().TermExpiryTick);
+        Assert.Equal(240, loaded.TownCouncils.Single().TermExpiryTick);
         loaded.Validate();
     }
 
     [Fact]
-    public async Task ARealCouncillorDeathStartsAnElectionAndFallingBelowEightRestoresAdultCouncil()
+    public async Task ARealCouncillorDeathLeavesAVacancyAndFallingBelowEightRestoresAdultCouncil()
     {
-        var state = AtHall(WithHall(AddAdults(Initial(), 5)));
+        var state = CivicCalendar(AtHall(WithHall(AddAdults(Initial(), 5))));
         var adults = state.Towns!.Single().ResidentIds.ToArray();
         var selected = adults.Take(3).ToArray();
-        using (var setup = PrivateWorldRuntime.Restore(state))
+        using (var setup = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false)))
         {
+            foreach (var nominee in selected) Assert.True(setup.VolunteerTownCouncil(nominee, Town).Applied);
             foreach (var actor in adults) Assert.True(setup.VoteTownElection(actor, Town, selected).Applied);
+            await AdvanceTo(setup, 24);
             state = setup.ExportState();
         }
         state = DiesNextTick(state, selected[0]);
@@ -218,9 +202,10 @@ public sealed partial class TownHallTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(SocietyInhabitantStatus.Dead, world.Society.GetInhabitant(selected[0]).Status);
         Assert.Equal(8, world.Towns.Single().ResidentIds.Count);
-        Assert.NotNull(world.TownCouncils.Single().Election);
+        Assert.Null(world.TownCouncils.Single().Election);
+        Assert.Equal(2, world.TownCouncils.Single().MemberIds.Count);
         Assert.DoesNotContain(selected[0], world.TownCouncils.Single().MemberIds);
-        Assert.DoesNotContain(selected[0], world.TownCouncils.Single().Election!.Electorate);
+        Assert.Equal(120, world.TownCouncils.Single().TermExpiryTick);
         state = DiesNextTick(world.ExportState(), selected[1]);
         using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new CivicChooser(false, false));
         Assert.True((await loaded.AdvanceOneTickAsync()).Advanced);
@@ -270,23 +255,76 @@ public sealed partial class TownHallTests
     }
 
     [Fact]
-    public void RemoteOrDuplicateElectionVotesAndForgedTermsAreRefused()
+    public async Task RemoteOrRepeatedCandidateVotesAndForgedTermsAreRefusedWhileBallotsCanBeRevised()
     {
-        var state = WithHall(AddAdults(Initial(), 4));
+        var state = CivicCalendar(AtHall(WithHall(AddAdults(Initial(), 4))));
         var adults = state.Towns!.Single().ResidentIds.ToArray();
-        using (var remote = PrivateWorldRuntime.Restore(state))
+        using (var nominations = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false)))
+        {
+            foreach (var nominee in adults.Take(3)) Assert.True(nominations.VolunteerTownCouncil(nominee, Town).Applied);
+            state = nominations.ExportState();
+        }
+        var hall = state.WorldSimulation!.Buildings.Single(building => building.DefinitionId == TownHallContent.TownHall().CanonicalId);
+        var footprint = WorldContentSimulationRules.Footprint(TownHallContent.TownHall(), hall).ToArray();
+        var occupied = state.Inhabitants.Where(person => person.InhabitantId != adults[0])
+            .Select(person => person.Position).ToHashSet();
+        var remotePosition = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsPassable(point) &&
+            footprint.All(tile => state.Map.FootDistance(point, tile) > 1) && !occupied.Contains(point) &&
+            !state.Map.Resources.Any(resource => resource.Position == point) &&
+            !state.Map.CampObjects.Any(item => item.Position == point));
+        Assert.All(footprint, tile => Assert.True(state.Map.FootDistance(remotePosition, tile) > 1));
+        var remoteState = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == adults[0]
+                ? person with { Position = remotePosition } : person).ToArray()
+        };
+        using (var remote = PrivateWorldRuntime.Restore(remoteState))
             Assert.False(remote.VoteTownElection(adults[0], Town, adults.Take(3).ToArray()).Applied);
-        using var world = PrivateWorldRuntime.Restore(AtHall(state));
+        using var world = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false));
         Assert.True(world.VoteTownElection(adults[0], Town, adults.Take(3).ToArray()).Applied);
-        Assert.False(world.VoteTownElection(adults[0], Town, adults.Take(3).ToArray()).Applied);
+        Assert.True(world.VoteTownElection(adults[0], Town, adults.Take(2).ToArray()).Applied);
+        Assert.Equal(adults.Take(2), world.TownCouncils.Single().Election!.Votes.Single(vote => vote.VoterId == adults[0]).CandidateIds);
+        Assert.True(world.VoteTownElection(adults[0], Town, adults.Take(3).ToArray()).Applied);
         Assert.False(world.VoteTownElection(adults[1], Town, [adults[0], adults[0]]).Applied);
         foreach (var actor in adults.Skip(1)) Assert.True(world.VoteTownElection(actor, Town, adults.Take(3).ToArray()).Applied);
+        Assert.NotNull(world.TownCouncils.Single().Election);
+        await AdvanceTo(world, 24);
         state = world.ExportState();
         var elected = state.TownCouncils!.Single();
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with
         { TownCouncils = [elected with { TermExpiryTick = elected.TermExpiryTick + 1 }] }));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with
         { TownCouncils = [elected with { MemberIds = elected.MemberIds.Append("absent-person").ToArray() }] }));
+    }
+
+    private static async Task AdvanceTo(PrivateWorldRuntime world, long tick)
+    {
+        while (world.WorldTick < tick) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+    }
+
+    private static PrivateWorldRuntimeState CivicCalendar(PrivateWorldRuntimeState state, int day = 24)
+    {
+        var config = state.WorldSystems!.Config with
+        { TicksPerDay = day, DaysPerYear = 4, SpringDays = 1, SummerDays = 1, AutumnDays = 1, WinterDays = 1 };
+        var societyConfig = state.Society.Society.Config with { TicksPerWorldDay = day, DaysPerWorldYear = 4 };
+        var birth = -societyConfig.TicksPerLifecycleAge * societyConfig.FounderStartingAge;
+        return state with
+        {
+            WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems with { Config = config, RegionalWeather = null }, state.Map),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Config = societyConfig,
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        BirthTick = birth,
+                        BirthLifeTick = state.Society.Society.LifeClock is null ? null : birth,
+                        LastLifecycleYearChecked = societyConfig.FounderStartingAge
+                    }).ToArray()
+                }
+            }
+        };
     }
 
     private static PrivateWorldRuntimeState Initial()
@@ -367,7 +405,8 @@ public sealed partial class TownHallTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var selected = vote ? request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("council_town_", StringComparison.Ordinal) &&
-                candidate.Id != "council_town_author") : null;
+                candidate.Id is not ("council_town_author" or "council_town_withdraw" or "council_town_abstain") &&
+                !candidate.Id.StartsWith("council_town_unsupport:", StringComparison.Ordinal)) : null;
             selected ??= build ? request.Observation.Candidates.FirstOrDefault(candidate => TownConstructionCandidateIds.TryParse(candidate.Id, out var selection) &&
                 selection.IsBuilding && selection.DefinitionId == TownHallContent.TownHall().CanonicalId) : null;
             selected ??= request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");

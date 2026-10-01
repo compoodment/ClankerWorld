@@ -362,8 +362,8 @@ and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorl
   separate decision: an accepting household alone cannot grant Town membership,
   communal stock access or a vote. A homeless newcomer may request Town
   membership before finding a House. A request or model claim is not approval;
-  walking into the border does not register a resident. The council's voting
-  procedure remains a separate governance choice.
+  walking into the border does not register a resident. The council's procedure
+  for admitting newcomers remains a separate governance choice.
 - **Dependent children follow their primary caregiver.** A newborn joins that
   caregiver's Town without a separate admission vote; the other parent's Town
   membership is unchanged. Approval for a caregiver moving Towns with dependent
@@ -427,8 +427,8 @@ election procedures follow separately in
   cannot collect new stock after the Town is occupied unless it now has normal
   resident access.
 - **The Town's existing laws survive abandonment.** The restored council may
-  amend or repeal them through the agreed governing process once that process
-  is defined. Old councillors or offices are not resurrected automatically.
+  amend or repeal them through the agreed governing process. Old councillors
+  or offices are not resurrected automatically.
   The laws remain social rules that can be broken; their persistence does not
   rewrite fixed world facts or grant agents knowledge they have not learned.
 
@@ -691,20 +691,18 @@ give visitors access to private household goods. The 3×4 Hall costs **24 wood
 and 12 stone provisionally**, funded through normal physical construction.
 
 The initial law-proposal window is one unpaused game day, with earlier
-resolution when the result is settled. The three-seat election uses distinct
-willing candidates; the detailed election and roster procedures still need the
-follow-up choices below. The one-year term is agreed. Below eight adult
-residents the Town uses its all-adult council again. Departed or deceased
-residents lose eligibility. Shared-food policy can restrict existing collection
-access, but cannot seize or reassign private stock.
+resolution when the strict-majority result is settled. Town food policies apply
+to communal Town-owned supplies. They do not restrict a household member's
+access to their own household's private food or disclose another household's
+stock. The one-year representative term uses the world calendar.
 Any adult Town resident may bring a named social-rule proposal at their Town's
 Hall, including after representatives are elected. Model proposals contain
 bounded plain text; the model cannot attach one to another action, change fixed
 world rules or assign somebody else's property. Agents learn the text of
-existing rules when they read or discuss them at the Hall. Proposal delivery,
-repeal details and overlapping votes follow the still-open procedure work in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601), rather than
-silently acquiring a permanent rule from trial implementation details.
+existing rules, pending proposals and willing candidacies by attending the
+actual Hall. A visit choice alone does not announce an unseen proposal or
+candidate to the whole Town. Broader governing procedures remain in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
 
 ### Council proposals and election ballots
 
@@ -724,8 +722,10 @@ silently acquiring a permanent rule from trial implementation details.
   when the result is settled; otherwise close at the deadline. Without sufficient
   approval then, the proposal does not pass. Paused time does not consume the
   window. Agents vote through their ordinary personal-model turns; make no extra
-  paid calls merely to poll for votes. How proposals reach eligible agents and
-  how changes in the voter roster affect an open vote still need decisions.
+  paid calls merely to poll for votes. Proposals are read at the actual Hall.
+  If the council's membership changes, cancel a pending law ballot; residents
+  may submit it again to the new council. Starting an annual election alone
+  does not cancel a ballot while the incumbent councillors remain the same.
 - **The first elected council has three seats.** Use the already agreed
   eight-adult trial threshold to begin representation. A Town may later change
   its governing arrangement through the agreed in-world process; three seats
@@ -734,24 +734,46 @@ silently acquiring a permanent rule from trial implementation details.
   per available seat.** In a three-seat election a voter may choose up to three
   distinct willing candidates, or fewer. No repeated vote for one candidate on
   the same ballot. Candidates with the highest totals win the available seats.
-  Ties, too few candidates, turnout, candidate eligibility, self-voting and
-  ballot revision remain in the follow-up interview; do not choose them in code.
+  Only willing nominees with at least one vote can take a seat.
 
 Use recorded Town adult residents for civic eligibility, including homeless
 residents and travelers, under the agreed membership work in
 [#602](https://github.com/compoodment/ClankerWorld/issues/602).
 These proposal, voting-window, seat-count and ballot choices are settled.
-Remaining election/roster and governing procedures are tracked in
+Broader governing procedures remain in
 [#601](https://github.com/compoodment/ClankerWorld/issues/601).
+
+**Further election and roster choices approved by the owner on October 1:**
+
+- Any adult resident may voluntarily stand at the Hall. They may support
+  themselves, withdraw their candidacy, and revise their ballot while voting
+  remains open. Each ballot contains distinct willing candidates, with at
+  most one support per available seat; an empty ballot abstains.
+- Keep the election open for one unpaused game day, even after everybody has
+  voted. Fix the voter list when the election begins. Remove departing or
+  deceased residents, including their candidacies and votes; adults who arrive
+  afterwards vote in the next election.
+- Highest vote totals take seats. A tie for the final available seats keeps
+  the non-tied selections and starts one further game day of voting among
+  the tied candidates. The same remaining starting voters may revise their
+  runoff ballots. An unresolved tie at that cutoff leaves those seats vacant.
+- Too few willing nominees or nominees with no votes leave vacant seats.
+  A deceased or departed representative also leaves a vacancy until the annual
+  election; their death does not appoint a replacement or start an election.
+  Below eight adult residents, all current adults form the council again.
+- Incumbents remain while an annual election runs. The elected term begins
+  when voting closes and lasts one game year. Save nominations, ballots,
+  deadlines, runoff selections and terms so loading does not restart voting.
+- Agents read nominations and proposals at the Hall and choose named willing
+  candidates through ordinary model turns. No automatic slate is picked for a
+  model, and no additional paid calls poll for a ballot.
 
 ### Still to decide
 
 Town residency and newcomer approval are agreed in [Town membership](#town-membership).
-The first elected council size, one-year term and strict-majority proposal
-procedure are agreed above. Still open: election timing and term transitions,
-ties, vacancies, population changes, turnout, candidate eligibility and
-self-voting, ballot revision, proposal delivery and changes to voter eligibility
-during an open vote; repeal details; how governments may change; which other
+The initial council, elections, one-year term and strict-majority law procedure
+are agreed above. Still open: broader repeal and admission procedures; how
+governments may change; which other
 laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;

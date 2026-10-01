@@ -413,7 +413,13 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerTownCouncil(string TownId, string? HallId, string FoodPolicy,
     IReadOnlyList<string> MemberIds, IReadOnlyList<string> MemberNames, long? TermStartedTick, long? TermExpiryTick,
     long? ElectionExpiryTick, int ElectionVotes, int ElectionVoters, string? ProposedRule,
-    int Approvals, int Rejections, int Voters, IReadOnlyList<ViewerTownLaw> Laws);
+    int Approvals, int Rejections, int Voters, IReadOnlyList<ViewerTownLaw> Laws)
+{
+    public bool ElectionIsRunoff { get; init; }
+    public int ElectionAvailableSeats { get; init; }
+    public IReadOnlyList<string> ElectionCandidateNames { get; init; } = [];
+    public IReadOnlyList<string> ElectionSelectedMemberNames { get; init; } = [];
+}
 public sealed record ViewerTownLaw(string Key, string Text, long AdoptedTick);
 public sealed record ViewerBusinessListing(string Id, string SellerId, string BuildingId, string HouseholdId,
     string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, long ExpiryTick,

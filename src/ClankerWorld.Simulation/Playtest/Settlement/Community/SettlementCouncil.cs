@@ -48,9 +48,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool MayCollectSharedFood(string actor)
     {
-        if (TownForResident(actor) is { } townId)
-            return townCouncils.FirstOrDefault(item => item.TownId == townId)?.FoodPolicy != "essential_first" ||
-                inhabitants[actor].HungerBasisPoints < 4_500 || TownSharedFoodQuantity(townId) > towns.Single(item => item.Id == townId).ResidentIds.Count;
+        // Town laws govern communal stock. Household access remains a private household decision.
+        if (TownForResident(actor) is not null) return true;
         return council?.FoodPolicy != "essential_first" || inhabitants[actor].HungerBasisPoints < 4_500 || SharedFoodQuantity() > inhabitants.Count;
     }
 

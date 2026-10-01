@@ -9,12 +9,17 @@ public partial class Main
         foreach (var council in snapshot.TownCouncils)
         {
             lines.Add(new(TownStyle.Heading, GameUiText.PartyName(snapshot, council.TownId) + " council"));
-            lines.Add(new(TownStyle.Body, council.MemberNames.Count == 0 ? "No adult residents yet." : string.Join(", ", council.MemberNames)));
-            lines.Add(new(TownStyle.Body, council.FoodPolicy == "essential_first" ? "Shared food: hungry residents first" : "Shared food: open access"));
+            lines.Add(new(TownStyle.Body, council.MemberNames.Count == 0 ? "No councillors seated; representative seats may be vacant." : string.Join(", ", council.MemberNames)));
+            lines.Add(new(TownStyle.Body, council.FoodPolicy == "essential_first" ? "Communal food: hungry residents first" : "Communal food: open access"));
             if (council.HallId is null) lines.Add(new(TownStyle.Note, "Build a Town Hall so residents can meet and vote."));
             if (council.TermExpiryTick is { } expiry) lines.Add(new(TownStyle.Detail, "Representative term ends " + DisplayWorldClock(expiry)));
             if (council.ElectionExpiryTick is { } electionExpiry)
-                lines.Add(new(TownStyle.Body, $"Election: {council.ElectionVotes}/{council.ElectionVoters} ballots · closes {DisplayWorldClock(electionExpiry)}"));
+            {
+                lines.Add(new(TownStyle.Body, GameUiText.TownElectionSummary(council) + " · closes " + DisplayWorldClock(electionExpiry)));
+                lines.Add(new(TownStyle.Detail, council.ElectionCandidateNames.Count == 0 ? "No willing candidates yet." : "Willing candidates: " + string.Join(", ", council.ElectionCandidateNames)));
+                if (council.ElectionSelectedMemberNames.Count > 0)
+                    lines.Add(new(TownStyle.Detail, "Already selected: " + string.Join(", ", council.ElectionSelectedMemberNames)));
+            }
             if (council.ProposedRule is { } rule)
                 lines.Add(new(TownStyle.Body, $"Proposed: {rule} · {council.Approvals} yes / {council.Rejections} no / {council.Voters} eligible voters"));
             foreach (var law in council.Laws) lines.Add(new(TownStyle.Detail, law.Text));

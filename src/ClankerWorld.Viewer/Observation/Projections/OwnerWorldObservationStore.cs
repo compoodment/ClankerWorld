@@ -364,7 +364,13 @@ public sealed partial class OwnerWorldObservationStore
                 current.TermStartedTick, current.TermExpiryTick, current.Election?.ExpiryTick,
                 current.Election?.Votes.Count ?? 0, current.Election?.Electorate.Count ?? 0, current.Ballot?.Text,
                 current.Ballot?.Approvals.Count ?? 0, current.Ballot?.Rejections.Count ?? 0, current.Ballot?.Electorate.Count ?? 0,
-                (current.Laws ?? []).Select(law => new ViewerTownLaw(law.Key, law.Text, law.AdoptedTick)).ToArray())).ToArray(),
+                (current.Laws ?? []).Select(law => new ViewerTownLaw(law.Key, law.Text, law.AdoptedTick)).ToArray())
+            {
+                ElectionIsRunoff = current.Election?.IsRunoff ?? false,
+                ElectionAvailableSeats = current.Election?.AvailableSeats ?? 0,
+                ElectionCandidateNames = (current.Election?.Candidates ?? []).Select(id => state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray(),
+                ElectionSelectedMemberNames = (current.Election?.SelectedMemberIds ?? []).Select(id => state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray()
+            }).ToArray(),
             BusinessTrade = BusinessSnapshot(state),
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
             JevEnabled = state.JevEnabled ?? true,
