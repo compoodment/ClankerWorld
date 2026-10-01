@@ -47,6 +47,8 @@ public static class GameUiText
 
     public static string FriendlyFailure(Exception exception) => exception switch
     {
+        Pairing.OwnerAgentNameTakenException =>
+            "that full name belongs to another agent. Choose a different name",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
