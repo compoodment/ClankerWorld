@@ -91,6 +91,7 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetRelief();
         townSiteGuidanceTexture = null;
         currentTownSiteGuidance = null;
         // At overview scale, thousands of individual draw commands are much
@@ -492,6 +493,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        BeginReliefDraw();
         if (world is null) return;
         var bounds = VisibleBounds();
         var stride = tileSize + tileGap;
@@ -519,6 +521,7 @@ public partial class WorldTerrainLayer : Control
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
             var hills = TerrainTextures.HillAtlas(atlasSize);
+            var hillOverlays = 0;
             for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             {
                 for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
@@ -545,11 +548,20 @@ public partial class WorldTerrainLayer : Control
                         DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
                     // Hills are relief over the tile's own ground, not a
                     // separate surface, so grass or snow still shows through.
-                    if (world.IsHillAt(mapX, y))
+                    // The relief layer shades them once its chunk is ready;
+                    // until then the per-tile overlay stands in.
+                    if (world.IsHillAt(mapX, y) && !ReliefCovers(mapX, y, atlasSize))
+                    {
                         DrawTextureRectRegion(hills, tile, TerrainTextures.HillRegion(
                             (int)(PixelArt.Hash(mapX, y, 61) % TerrainTextures.VariantCount), atlasSize));
+                        hillOverlays++;
+                    }
                 }
             }
+            HillOverlayTileCount = hillOverlays;
+            // Mountains, peaks and hills as one landform over the ground and
+            // its edges, under fields, Roads and everything standing on them.
+            DrawRelief(bounds, stride, atlasSize);
         }
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
