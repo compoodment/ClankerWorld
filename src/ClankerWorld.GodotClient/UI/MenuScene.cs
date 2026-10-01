@@ -140,6 +140,13 @@ public sealed class MenuScene
 
     private bool WaterAt(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height && water[y * Width + x];
 
+    /// <summary>
+    /// River that is still visible: not under the bridge, its railing or
+    /// anyone crossing it. Animated sparkles and glints only go here.
+    /// </summary>
+    private bool OpenWaterAt(int x, int y) => WaterAt(x, y) &&
+        color[y * Width + x] is var painted && (painted == River || painted == Scale(River, 0.84f));
+
     /// <summary>Stepped sky gradient with a thin checker between bands, as pixel-art skies are painted.</summary>
     private static Color[] SkyRows(bool night)
     {
@@ -796,7 +803,8 @@ public sealed class MenuScene
         for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
             {
-                if (!WaterAt(x, y) || !WaterAt(x - 1, y) || !WaterAt(x + 1, y) || !WaterAt(x, y - 1) || !WaterAt(x, y + 1)) continue;
+                if (!OpenWaterAt(x, y) || !OpenWaterAt(x - 1, y) || !OpenWaterAt(x + 1, y) ||
+                    !OpenWaterAt(x, y - 1) || !OpenWaterAt(x, y + 1)) continue;
                 var value = Graded(new Color("A9D2EA"), DepthAt(x, y), y, skyRows);
                 sparkles.Add(new Sparkle(new Vector2I(x, y), value, (int)(PixelArt.Hash(x / 2, y, 97) % 24)));
             }
@@ -812,7 +820,7 @@ public sealed class MenuScene
             if (row.Length == 0) continue;
             var middle = (row.Min() + row.Max()) / 2f;
             for (var x = (int)(middle - 1); x < (int)(middle + 2 + (y - 150) / 12f); x++)
-                if (WaterAt(x, y) && !emissive[y * Width + x]) points.Add(new Vector2I(x, y));
+                if (OpenWaterAt(x, y) && !emissive[y * Width + x]) points.Add(new Vector2I(x, y));
         }
         return points;
     }

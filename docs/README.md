@@ -2,7 +2,7 @@
 title: Documentation
 type: documentation-index
 status: active
-updated: 2026-09-29
+updated: 2026-10-01
 ---
 
 # Documentation
@@ -17,6 +17,7 @@ pages to understand the game or give feedback.
 | Understand the game we are making | [Game design](game-design/README.md) |
 | Browse planned items, buildings and art | [Planned game content](game-design/content-list.md) |
 | Report a problem or see unfinished work | [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues) |
+| See what still needs trying in the game | [Playtest list](../playtest/README.md) |
 | Help with the project | [Contributing](../CONTRIBUTING.md) |
 | Build, test or run the server | [Developer guide](development/README.md) |
 
@@ -36,6 +37,9 @@ must preserve. They do not redefine the intended game.
 **Issues** are the place for problems, requests, work and design discussions.
 There is no separate maintained bug list or roadmap in the docs. When a design
 choice is agreed, record it in its game-design chapter and link the issue.
+
+The **playtest list** holds merged changes still waiting for a hands-on check.
+It is not a bug list: a check that fails becomes an issue.
 
 Each subject has one main page. Update that page and link to it from elsewhere
 rather than keeping several copies of the same changing information.

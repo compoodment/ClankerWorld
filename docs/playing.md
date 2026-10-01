@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Playing the current game
@@ -113,6 +113,8 @@ to choose again if they changed. Walking later does not change membership.
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
 the world paused. Opening ordinary inspection panels leaves time running.
+Settings and the Mod Library open inside the Pause Menu window; its back arrow
+or **Escape** returns to the menu's buttons.
 
 Game Settings controls the display, interface scale, theme, weather effects and
 date/time format. World Settings contains that world's autosaves, Jev and the
@@ -155,7 +157,8 @@ Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choos
 for a bug or playtest report. Rough notes are welcome: what you did, what happened,
 what you expected and the build you used.
 [Contributing](../CONTRIBUTING.md#issues-and-design-questions) explains the report options.
-Some fixes still need a Windows playtest; include failures as well as successes.
+Some fixes still need a Windows playtest; the [playtest list](../playtest/README.md)
+says what to try. Include failures as well as successes.
 
 ## Advanced New World settings
 

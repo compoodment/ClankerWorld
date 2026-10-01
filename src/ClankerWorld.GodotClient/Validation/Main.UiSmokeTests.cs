@@ -718,6 +718,11 @@ public partial class Main
             modLibraryButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!modLibraryPanel.Visible || settingsPanel.Visible)
                 throw new InvalidOperationException("Mod Library action must open the in-world package view.");
+            if (menuActions.Visible || menuHeadingLabel.Text != "Mod Library" || !ShowsGlyph(menuCloseButton, PixelGlyph.Back))
+                throw new InvalidOperationException("A Pause Menu page must replace the menu's buttons and offer a way back.");
+            if (!HandleEscape() || !menuActions.Visible || modLibraryPanel.Visible || !gameMenuPanel.Visible ||
+                menuHeadingLabel.Text != "Paused")
+                throw new InvalidOperationException("Escape on a Pause Menu page must return to the menu's buttons, not close the menu.");
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (modLibraryPanel.Visible || !settingsPanel.Visible || !worldSettingsCategoryButton.Visible)
                 throw new InvalidOperationException("Settings action must open the in-world Game/World category view.");
@@ -733,7 +738,10 @@ public partial class Main
             gameSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (developerScroll.Visible || !settingsScroll.Visible || !gameSettingsContent.Visible)
                 throw new InvalidOperationException("Game Settings must replace Developer tools in the same panel.");
-            settingsPanel.Hide();
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
+                throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
+            ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
                 throw new InvalidOperationException("Quit to Menu must request confirmation.");
@@ -1871,7 +1879,7 @@ public partial class Main
             knownEvents[102] = new OwnerWorldEvent(102, 3, "food_consumed", "founder-scout", null);
             RenderEventLog();
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
-                eventsBadgeLabel.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
+                eventsBadge.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
                 throw new InvalidOperationException($"A new event must show an unread count on the Event Log button: {unreadEvents} after {readBefore}.");
             if (eventsBadge.ZIndex < 1 || !eventsBadge.ZAsRelative)
                 throw new InvalidOperationException("The unread count must draw over the HUD button next to Events instead of being covered by it.");
@@ -1985,13 +1993,16 @@ public partial class Main
             // weather holds still until time runs again.
             var frozenAt = weatherLayer.AnimationTime;
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (pauseButton.ThemeTypeVariation != "EmberButton" || pauseButton.Text != "Paused" ||
+            var pausedWidth = pauseButton.Size.X;
+            if (pauseButton.ThemeTypeVariation != "EmberButton" || pauseButton.Caption != "Paused" ||
                 !weatherLayer.Paused || weatherLayer.AnimationTime != frozenAt)
-                throw new InvalidOperationException($"A paused world must show Paused on its pause control and freeze its weather: {pauseButton.Text}, {weatherLayer.AnimationTime - frozenAt}s.");
+                throw new InvalidOperationException($"A paused world must show Paused on its pause control and freeze its weather: {pauseButton.Caption}, {weatherLayer.AnimationTime - frozenAt}s.");
             RenderWorldHud(startedMap with { Authoring = startedMap.Authoring! with { IsPaused = false } });
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (pauseButton.ThemeTypeVariation == "EmberButton" || weatherLayer.Paused || weatherLayer.AnimationTime <= frozenAt)
                 throw new InvalidOperationException("Weather must move again, and the pause control return to normal, once time runs.");
+            if (pauseButton.Caption != "Pause" || !Mathf.IsEqualApprox(pauseButton.Size.X, pausedWidth))
+                throw new InvalidOperationException($"The pause control must keep its width when its word changes: {pausedWidth} then {pauseButton.Size.X}.");
             RenderWorldHud(largeMap);
             UpdateTileHover(mapCanvas.Size / 2);
             var hoveredCenter = TileAtCanvas(mapCanvas.Size / 2, largeMap);
