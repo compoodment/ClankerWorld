@@ -242,6 +242,7 @@ public sealed partial class PrivateWorldRuntime
                 SetTown(firstTown with { FoundingState = "founded" });
                 AppendEvent("town_founded", $"{firstTown.Id}:residents:{firstTown.ResidentIds.Count}");
             }
+            AdvanceTownCouncils();
             if (resume) society.Resume();
             AppendEvent("world_started", "four_founders_ready");
         }
@@ -262,6 +263,7 @@ public sealed partial class PrivateWorldRuntime
         });
         var updated = towns.Single(item => item.Id == townId);
         AppendEvent("town_resident_joined", $"{updated.Id}:{residentId}:{reason}:residents:{updated.ResidentIds.Count}");
+        if (founderSetup is { Started: true }) AdvanceTownCouncils();
     }
 
     private void RemoveTownResident(string residentId)
@@ -271,6 +273,7 @@ public sealed partial class PrivateWorldRuntime
         var residents = town.ResidentIds.Where(id => id != residentId).ToArray();
         SetTown(town with { ResidentIds = residents });
         AppendEvent("town_resident_left", $"{town.Id}:{residentId}:residents:{residents.Length}");
+        if (founderSetup is { Started: true }) AdvanceTownCouncils();
     }
 
     private string? TownForResident(string residentId) => towns

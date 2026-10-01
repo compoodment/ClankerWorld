@@ -80,7 +80,8 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                var eligibleMembers = current.MemberIds.Intersect(adults, StringComparer.Ordinal).ToArray();
+                var eligibleMembers = current.TermStartedTick is null ? adults :
+                    current.MemberIds.Intersect(adults, StringComparer.Ordinal).ToArray();
                 var needsElection = current.TermExpiryTick is null || WorldTick >= current.TermExpiryTick || eligibleMembers.Length < 3;
                 current = current with { MemberIds = eligibleMembers };
                 if (needsElection && current.Election is null && TownHallFor(town.Id) is not null)
