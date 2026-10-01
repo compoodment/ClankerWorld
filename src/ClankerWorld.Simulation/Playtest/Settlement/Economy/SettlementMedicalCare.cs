@@ -24,30 +24,39 @@ public sealed partial class PrivateWorldRuntime
     private static string MedicalDosePurpose(string caregiver, string patient, string kind) =>
         $"medical_treatment:{caregiver}:{patient}:{kind}";
 
+    private bool LivingMedicalAdult(string actor) => AdultResident(actor) &&
+        society.Checkpoint.GetInhabitant(actor).Status == SocietyInhabitantStatus.Active;
+
     public MedicalCareResult AllowMedicalCare(string patient, string caregiver, bool allowed)
     {
         gate.Wait();
-        try
-        {
-            if (!AdultResident(patient) || patient == caregiver || !AdultResident(caregiver))
-                return new(false, "A living adult patient chooses a named adult caregiver.");
-            var person = inhabitants[patient];
-            var ids = (person.MedicalCaregiverIds ?? []).Where(id => id != caregiver).ToList();
-            if (allowed)
-            {
-                if (ids.Count >= 16) return new(false, "Revoke an earlier care permission first.");
-                ids.Add(caregiver);
-            }
-            inhabitants[patient] = person with
-            {
-                MedicalCaregiverIds = ids.Count == 0 ? null : ids.Order(StringComparer.Ordinal).ToArray(),
-                MedicalTreatment = !allowed && person.MedicalTreatment?.CaregiverId == caregiver ? null : person.MedicalTreatment,
-            };
-            checkpointSchemaVersion = StateSchemaVersion;
-            AppendEvent(allowed ? "medical_care_allowed" : "medical_care_revoked", $"{patient}|{caregiver}");
-            return new(true);
-        }
+        try { return AllowMedicalCareCore(patient, caregiver, allowed); }
         finally { gate.Release(); }
+    }
+
+    private MedicalCareResult AllowMedicalCareCore(string patient, string caregiver, bool allowed)
+    {
+        if (!LivingMedicalAdult(patient) || patient == caregiver)
+            return new(false, "A living adult patient chooses a named adult caregiver.");
+        var person = inhabitants[patient];
+        var existingPermission = person.MedicalCaregiverIds?.Contains(caregiver, StringComparer.Ordinal) == true;
+        if (!LivingMedicalAdult(caregiver) && (allowed || !existingPermission))
+            return new(false, "Grant care to a living adult, or revoke an existing permission.");
+        var ids = (person.MedicalCaregiverIds ?? []).Where(id => id != caregiver &&
+            (!allowed || LivingMedicalAdult(id))).ToList();
+        if (allowed)
+        {
+            if (ids.Count >= 16) return new(false, "Revoke an earlier care permission first.");
+            ids.Add(caregiver);
+        }
+        inhabitants[patient] = person with
+        {
+            MedicalCaregiverIds = ids.Count == 0 ? null : ids.Order(StringComparer.Ordinal).ToArray(),
+            MedicalTreatment = !allowed && person.MedicalTreatment?.CaregiverId == caregiver ? null : person.MedicalTreatment,
+        };
+        checkpointSchemaVersion = StateSchemaVersion;
+        AppendEvent(allowed ? "medical_care_allowed" : "medical_care_revoked", $"{patient}|{caregiver}");
+        return new(true);
     }
 
     public MedicalCareResult TreatPatient(string caregiver, string patient, string kind)
@@ -69,7 +78,7 @@ public sealed partial class PrivateWorldRuntime
     private MedicalCareResult TreatPatientCore(string caregiver, string patient, string kind)
     {
         if (kind is not ("bandage" or "medicine")) return new(false, "Choose a bandage for an injury or medicine for illness.");
-        if (!AdultResident(caregiver) || !inhabitants.TryGetValue(patient, out var person))
+        if (!LivingMedicalAdult(caregiver) || !inhabitants.TryGetValue(patient, out var person))
             return new(false, "A living adult must provide care to a living patient.");
         if (!HasMedicalPermission(caregiver, patient)) return new(false, "The patient has not accepted this caregiver.");
         if (!IsWithinInteractionRange(inhabitants[caregiver].Position, person.Position, 1))
@@ -102,7 +111,7 @@ public sealed partial class PrivateWorldRuntime
                 inhabitants[person.InhabitantId] = person with { MedicalTreatment = null };
                 continue;
             }
-            if (!AdultResident(treatment.CaregiverId) || !HasMedicalPermission(treatment.CaregiverId, person.InhabitantId))
+            if (!LivingMedicalAdult(treatment.CaregiverId) || !HasMedicalPermission(treatment.CaregiverId, person.InhabitantId))
             {
                 inhabitants[person.InhabitantId] = person with { MedicalTreatment = null };
                 AppendEvent("medical_treatment_interrupted", person.InhabitantId);
@@ -136,7 +145,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddMedicalCareCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!LivingMedicalAdult(actor)) return;
         foreach (var caregiver in inhabitants[actor].MedicalCaregiverIds ?? [])
             candidates.Add(new("medical_revoke:" + caregiver, "Withdraw this person's permission to provide medical care.", 110));
         if (ClinicBandageStockNeed(actor) is { } stockNeed)
@@ -151,9 +160,10 @@ public sealed partial class PrivateWorldRuntime
                     $"Visit household care stock and collect a {need.Kind} for the patient.", 8, supply.StorageBuildingId));
         }
         var patient = inhabitants[actor];
-        if (patient.MedicalTreatment is null && ((patient.Survival?.IllnessBasisPoints ?? 0) >= 2_500 ||
+        if (patient.MedicalTreatment is null && (patient.MedicalCaregiverIds ?? []).Count(LivingMedicalAdult) < 16 &&
+            ((patient.Survival?.IllnessBasisPoints ?? 0) >= 2_500 ||
             society.Checkpoint.GetInhabitant(actor).HealthBasisPoints < 8_000))
-            foreach (var other in inhabitants.Values.Where(person => person.InhabitantId != actor && AdultResident(person.InhabitantId) &&
+            foreach (var other in inhabitants.Values.Where(person => person.InhabitantId != actor && LivingMedicalAdult(person.InhabitantId) &&
                          HouseholdFor(person.InhabitantId) == HouseholdFor(actor) && !HasMedicalPermission(person.InhabitantId, actor)))
                 candidates.Add(new("medical_allow:" + other.InhabitantId, "Ask this household adult to provide medical care.", 32, other.InhabitantId));
     }
@@ -167,22 +177,14 @@ public sealed partial class PrivateWorldRuntime
         else if (candidate.StartsWith("medical_revoke:", StringComparison.Ordinal))
         {
             var caregiver = candidate[15..];
-            inhabitants[actor] = person with
-            {
-                MedicalCaregiverIds = person.MedicalCaregiverIds?.Where(id => id != caregiver).ToArray(),
-                MedicalTreatment = person.MedicalTreatment?.CaregiverId == caregiver ? null : person.MedicalTreatment,
-            };
-            AppendEvent("medical_care_revoked", $"{actor}|{caregiver}");
+            _ = AllowMedicalCareCore(actor, caregiver, false);
         }
         else if (candidate.StartsWith("medical_allow:", StringComparison.Ordinal))
         {
             // This action is the patient's own ordinary decision, not a caregiver granting themselves access.
             var caregiver = candidate[14..];
-            if (!AdultResident(caregiver) || HouseholdFor(caregiver) != HouseholdFor(actor)) return;
-            var ids = (person.MedicalCaregiverIds ?? []).Append(caregiver).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Take(16).ToArray();
-            inhabitants[actor] = person with { MedicalCaregiverIds = ids };
-            checkpointSchemaVersion = StateSchemaVersion;
-            AppendEvent("medical_care_allowed", $"{actor}|{caregiver}");
+            if (HouseholdFor(caregiver) != HouseholdFor(actor)) return;
+            _ = AllowMedicalCareCore(actor, caregiver, true);
         }
         else if (candidate.StartsWith("medical_collect:", StringComparison.Ordinal))
             CollectEquipment(actor, person, candidate[16..]);
