@@ -143,15 +143,23 @@ public sealed class SettlementTradeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RecipientIndependentlyAcceptsOrDeclinesAcrossPauseAndRestart(bool decline)
+    [InlineData(false, "food")]
+    [InlineData(true, "food")]
+    [InlineData(false, "berries")]
+    [InlineData(true, "berries")]
+    [InlineData(false, "wild_greens")]
+    [InlineData(true, "wild_greens")]
+    [InlineData(false, "cultivated_greens")]
+    [InlineData(true, "cultivated_greens")]
+    [InlineData(false, "fruit")]
+    [InlineData(true, "fruit")]
+    public async Task RecipientIndependentlyAcceptsOrDeclinesAcrossPauseAndRestart(bool decline, string foodKind)
     {
         using var seed = new PrivateWorldRuntime("settlement-trade-test");
         var state = seed.ExportState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
-        state = WithTradeGoods(state, first, second);
+        state = WithTradeGoods(state, first, second, foodKind);
         IDecisionProvider Provider(string id) => new TradeProvider(id == first ? "trade_propose:" : id == second
             ? decline ? "trade_decline:" : "trade_accept:" : "safe_idle");
         using var world = PrivateWorldRuntime.Restore(state, Provider);
@@ -177,14 +185,14 @@ public sealed class SettlementTradeTests
         Assert.All(inventory.Reservations, reservation => Assert.Equal(decline ? InventoryReservationState.Released : InventoryReservationState.Completed, reservation.State));
         if (decline)
         {
-            Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food");
+            Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == foodKind);
             Assert.Empty(final.Society.Society.Memories);
             Assert.All(final.Inhabitants, person => Assert.True(person.SocialStanding is null or []));
             Assert.Contains(final.Events, item => item.Kind == "settlement_trade_declined");
         }
         else
         {
-            Assert.Contains(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food" && lot.Quantity == 1);
+            Assert.Contains(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == foodKind && lot.Quantity == 1);
             Assert.Contains(inventory.Lots, lot => lot.OwnerId == first && lot.ItemKind == "clothing" && lot.Quantity == 1);
             Assert.Equal(2, final.Society.Society.Memories.Count);
             Assert.Equal(1, final.Inhabitants.Single(person => person.InhabitantId == first).SocialStanding!
@@ -313,7 +321,7 @@ public sealed class SettlementTradeTests
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
     }
 
-    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second) => state with
+    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second, string foodKind = "food") => state with
     {
         Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 7_500 }).ToArray(),
         Society = state.Society with
@@ -321,7 +329,7 @@ public sealed class SettlementTradeTests
             Society = state.Society.Society with
             {
                 Inventory = InventoryFixture.AddLot(
-                    InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", "food", first, 4),
+                    InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", foodKind, first, 4),
                     "trade-clothes", "clothing", second, 2),
             },
         },

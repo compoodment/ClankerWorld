@@ -19,7 +19,13 @@ public sealed record ViewerTile(int X, int Y, string Terrain);
 public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding, string Data);
 /// <summary>Independent row-major byte layers; terrain remains a compatibility projection.</summary>
 public sealed record ViewerPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation)
+{
+    public string? Fertility { get; init; }
+}
+public sealed record ViewerFarmField(ViewerPosition Position, string HouseholdId, string Stage, string? Crop,
+    int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
 {
@@ -311,6 +317,8 @@ public sealed record ViewerWorldSnapshot(
     public ViewerPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
+    public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

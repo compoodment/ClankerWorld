@@ -183,7 +183,8 @@ public sealed partial class PrivateWorldRuntime
         var householdOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
                 WorldContentSimulationRules.Footprint(definition, building).Contains(position))
-            .Select(building => building.HouseholdId);
+            .Select(building => building.HouseholdId)
+            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
         return AgentPlacementRules.Resolve(householdOwners, townIds);
     }
