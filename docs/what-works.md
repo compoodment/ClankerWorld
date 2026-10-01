@@ -219,9 +219,13 @@ Choosing a conversation interrupts a repair and releases its unspent materials.
 
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
-diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. Town streets take
-diagonals where the land allows.
+diagonal steps and slower mountain travel. Agents wade straight across rivers
+one or two tiles wide, from bank to bank: a one-tile river at half walking
+speed, and a two-tile river at a provisional third of walking speed. Wider
+rivers, lakes and the sea cannot be crossed on foot, and there are no boats
+yet. Wading two-tile rivers has not been checked in hands-on Windows play.
+Peaks are impassable; mountains and peaks cannot hold construction. Town
+streets take diagonals where the land allows.
 
 In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
@@ -235,10 +239,10 @@ maps, and they have not been checked by hand in the Windows game yet
 generated before this change no longer load; they are refused and their saves
 are kept.
 
-Bridges are a basic version. Where agents often wade across the same one-tile
-river (six crossings by at least two agents within two world days), a bridge
-appears. It is drawn on the map, named on the tile card and hover readout, and
-walked at dry-ground speed. When a Town grows, a new side street or a street
+Bridges are a basic version. Where agents often wade across the same river
+crossing, one or two tiles wide (six crossings by at least two agents within
+two world days), a bridge appears across it. It is drawn on the map, named on
+the tile card and hover readout, and walked at dry-ground speed. When a Town grows, a new side street or a street
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river

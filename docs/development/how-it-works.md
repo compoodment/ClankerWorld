@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # How the game works
@@ -319,11 +319,18 @@ deterministic options and retain their original resource layout.
 
 Movement reads water and elevation; build eligibility also reads surface.
 Diagonal foot steps cost 141% of cardinal entry and require both shoulder tiles
-to be passable, including clear occupancy during a move. One-tile rivers allow
-bank-to-bank crossing at half dry-ground speed, not travel along the river.
-A built bridge makes its river tiles walkable at dry-ground speed, end to end
-along the bridge only (see [Roads and bridges](#roads-and-bridges)).
-Mountains are slower to cross and cannot be built on; peaks are impassable.
+to be passable, including clear occupancy during a move. A river is waded in a
+straight cardinal line from one dry bank to the opposite one, across one or two
+river tiles: never along the river and never diagonally into, through or out of
+the water. A river tile costs what its narrowest crossing costs: 200, half
+dry-ground speed, where one tile of water separates dry banks, and
+`SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
+takes two. The two-tile speed is provisional. A third water tile in the line,
+or any lake or ocean tile, means there is no crossing there: wider rivers,
+lakes and the sea need boats. A built bridge makes its river tiles walkable at
+dry-ground speed, end to end along the bridge only (see
+[Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
+cannot be built on; peaks are impassable.
 
 Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
@@ -745,8 +752,9 @@ tiles wide on a new bridge, in two places:
 - A new side street is found by `RoadRoutePlanner`, which applies the side-street
   rules above and searches at most 32,768 tiles. Besides ground steps it may
   cross an existing bridge, or a new crossing, in a straight cardinal line. A
-  new crossing costs 200 per river tile, like wading, so an existing bridge is
-  cheaper. Ties break by cost, then row, then column, then discovery order.
+  new crossing costs 200 per river tile, like wading a one-tile river, so an
+  existing bridge is cheaper. Ties break by cost, then row, then column, then
+  discovery order.
 - A street running on past a door (`TownStreets.Wander`) that heads straight at
   a river may cross it. The far bank must be clear, and it counts as one step
   of the run-on. The first Town's starting layout does not use this rule and
@@ -774,15 +782,24 @@ existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
 
 **Traffic bridges.** Only a committed foot step counts. Stepping from a bank
-onto an unbridged one-tile crossing starts a wade; the next step onto the
-opposite bank completes a crossing. Route previews, blocked moves, waiting and
-turning back add nothing, and walking on Roads or bridges is not wading. The
-evidence is saved: open wades, and completed crossings from the last two world
-days, at most five per agent per crossing, which is enough to decide the rule
-exactly. At the end of each tick, a crossing with six completed crossings by at
-least two agents gets a `traffic` bridge. It is not built, and its evidence is
-cleared, if a bank holds a building, resource or camp object, or an existing
-bridge already joins the same banks. A traffic bridge adds no Road tiles.
+onto an unbridged crossing of one or two river tiles starts a wade. On a
+two-tile crossing, stepping onto its other water tile keeps the same wade
+open; a step out of the water onto the opposite bank completes a crossing.
+Route previews, blocked moves, waiting and turning back add nothing, and
+walking on Roads or bridges is not wading. Both widths use the same rule and
+the same saved evidence, keyed by the crossing's bridge ID (such as
+`bridge-124-62-ew-2`): open wades, and completed crossings from the last two
+world days, at most five per agent per crossing, which is enough to decide the
+rule exactly. A crossing with a bank that is not buildable, such as a
+mountain, can be waded but gives no evidence, since no bridge could land there.
+At the end of each tick, a crossing with six completed crossings by at least two
+agents gets a `traffic` bridge across its whole width (`plank_span_1` or
+`plank_span_2`). It is not built, and its evidence is cleared, if a bank holds
+a building, resource or camp object, or an existing bridge already joins the
+same banks. A traffic bridge adds no Road tiles. Wading only reads terrain, so
+a bridge laid across one tile of a two-tile crossing from the other direction
+leaves the other tile wadeable back to its own bank, but the deck cannot be
+entered from the side.
 
 Events are `bridge_built` (`road:<bridge>:<route>` or `traffic:<bridge>`),
 `traffic_bridge_not_built`, `town_road_unconnected` and, if a run-on fails its
