@@ -21,18 +21,20 @@ public sealed class ArtSet
     public Func<NatureSprite, int, Image> Nature = NatureSprites.Sprite;
     public Func<BuildingKind, int, int, int, BuildingDoor, Image> Building = BuildingSprites.Render;
     /// <summary>variant, life stage, facing (0 S, 1 SW, 2 W, 3 NW, 4 N, 5 NE, 6 E, 7 SE), frame, size.</summary>
-    public Func<int, int, int, int, int, Image> Agent = (variant, stage, facing, frame, size) => AgentSprites.Sprite(variant, stage, size);
-    /// <summary>Bridge deck over one tile; null keeps the game's current plank drawing.</summary>
-    public Func<bool, int, Image>? Bridge;
+    public Func<int, int, int, int, int, Image> Agent = (variant, stage, facing, frame, size) =>
+        AgentSprites.Sprite(variant, stage, facing, (AgentFrame)frame, size);
+    /// <summary>Bridge deck over one tile; null selects the earlier overhanging drawing for comparison.</summary>
+    public Func<bool, int, Image>? Bridge = RoadSprites.BridgeDeck;
     /// <summary>
     /// Optional relief drawn over the whole ground pass, before roads: given
     /// the map and the tile size it returns an image of the full map
     /// (map.Width × tileSize by map.Height × tileSize) to blend on top, so
     /// mountains, peaks and hills can be drawn as landforms spanning many
     /// tiles from the map's elevation instead of one tile at a time. Null
-    /// keeps today's per-tile mountain tiles and hill overlays.
+    /// selects the earlier per-tile mountain tiles and hill overlays for comparison.
     /// </summary>
-    public Func<WorldTerrainMap, int, Image>? Relief;
+    public Func<WorldTerrainMap, int, Image?>? Relief = (map, size) =>
+        ReliefRenderer.Render(map, new Rect2I(0, 0, map.Width, map.Height), size);
 }
 
 /// <summary>A proposal that also wants the reference scene drawn with its art.</summary>
@@ -260,8 +262,8 @@ public static class SceneComposer
                 if (art.Relief is null && map.IsHillAt(x, y))
                     Place(image, art.Hill((int)(PixelArt.Hash(x, y, 61) % TerrainTextures.VariantCount), atlasSize), px, py, tileSize);
             }
-        if (art.Relief is { } relief)
-            Sheet.Blend(image, relief(map, tileSize), 0, 0);
+        if (art.Relief?.Invoke(map, tileSize) is { } relief)
+            Sheet.Blend(image, relief, 0, 0);
 
         // Roads, with doorstep paths toward each building's door.
         var doorsteps = new Dictionary<Vector2I, RoadLinks>();
@@ -279,27 +281,13 @@ public static class SceneComposer
             };
             doorsteps[tile] = doorsteps.GetValueOrDefault(tile) | toward;
         }
-        // The proposed bridge deck stays inside its tile, so a Road beside it
-        // treats the deck as Road and runs up to it (the rule the roads
-        // proposal recommends). The current deck overhangs the banks instead.
+        // The approved deck stays inside its tile. Only a Road in line with
+        // the deck joins it, matching WorldTerrainLayer.RoadLinksAt.
         var deckJoins = art.Bridge is not null;
-        bool IsRoad(int x, int y) => spec.Roads.Contains(new(x, y)) || (deckJoins && spec.Bridges.ContainsKey(new(x, y)));
         for (var y = 0; y < spec.Height; y++)
             for (var x = 0; x < spec.Width; x++)
             {
-                var links = RoadLinks.None;
-                if (IsRoad(x, y)) links |= RoadLinks.Road;
-                if (IsRoad(x, y - 1)) links |= RoadLinks.North;
-                if (IsRoad(x + 1, y)) links |= RoadLinks.East;
-                if (IsRoad(x, y + 1)) links |= RoadLinks.South;
-                if (IsRoad(x - 1, y)) links |= RoadLinks.West;
-                if (links.HasFlag(RoadLinks.Road) || System.Numerics.BitOperations.PopCount((uint)links) >= 2)
-                {
-                    if (IsRoad(x + 1, y - 1)) links |= RoadLinks.NorthEast;
-                    if (IsRoad(x + 1, y + 1)) links |= RoadLinks.SouthEast;
-                    if (IsRoad(x - 1, y + 1)) links |= RoadLinks.SouthWest;
-                    if (IsRoad(x - 1, y - 1)) links |= RoadLinks.NorthWest;
-                }
+                var links = RoadLinksAt(spec, x, y, deckJoins);
                 if (!RoadSprites.Draws(links) || spec.Bridges.ContainsKey(new(x, y))) continue;
                 if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(x, y));
                 var variant = (int)(PixelArt.Hash(x, y, 7) % RoadSprites.VariantCount);
@@ -338,6 +326,27 @@ public static class SceneComposer
         return image;
     }
 
+    /// <summary>The current client's Road-to-Road and aligned Road-to-deck links.</summary>
+    internal static RoadLinks RoadLinksAt(SceneSpec spec, int x, int y, bool deckJoins)
+    {
+        bool IsRoad(int px, int py) => spec.Roads.Contains(new(px, py));
+        bool IsDeck(int px, int py, bool eastWest) => deckJoins &&
+            spec.Bridges.TryGetValue(new(px, py), out var axis) && axis == eastWest;
+        var links = RoadLinks.None;
+        var road = IsRoad(x, y);
+        if (road) links |= RoadLinks.Road;
+        if (IsRoad(x, y - 1) || (road && IsDeck(x, y - 1, false))) links |= RoadLinks.North;
+        if (IsRoad(x + 1, y) || (road && IsDeck(x + 1, y, true))) links |= RoadLinks.East;
+        if (IsRoad(x, y + 1) || (road && IsDeck(x, y + 1, false))) links |= RoadLinks.South;
+        if (IsRoad(x - 1, y) || (road && IsDeck(x - 1, y, true))) links |= RoadLinks.West;
+        if (!road && System.Numerics.BitOperations.PopCount((uint)links) < 2) return links;
+        if (IsRoad(x + 1, y - 1)) links |= RoadLinks.NorthEast;
+        if (IsRoad(x + 1, y + 1)) links |= RoadLinks.SouthEast;
+        if (IsRoad(x - 1, y + 1)) links |= RoadLinks.SouthWest;
+        if (IsRoad(x - 1, y - 1)) links |= RoadLinks.NorthWest;
+        return links;
+    }
+
     /// <summary>Draws a sprite scaled to a square of <paramref name="size"/> px, nearest neighbour.</summary>
     private static void Place(Image target, Image sprite, int x, int y, int size) => Place(target, sprite, x, y, size, size);
 
@@ -366,7 +375,7 @@ public static class SceneComposer
         return result;
     }
 
-    /// <summary>The map layer's plank deck: a deck reaching onto each bank, cross planks and dark rails.</summary>
+    /// <summary>The earlier plank deck, retained for explicit comparisons.</summary>
     private static void DrawCurrentBridge(Image image, Vector2I tile, bool eastWest, int tileSize)
     {
         var deck = new Color("A47A4C");

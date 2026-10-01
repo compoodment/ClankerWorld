@@ -16,8 +16,11 @@ switch (command)
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
         break;
+    case "check":
+        ArtContractChecks.Run();
+        break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir>");
+        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> | check");
         return 2;
 }
 return 0;
@@ -287,8 +290,8 @@ static class SceneRunner
             if (set.Road != defaults.Road) combined.Road = set.Road;
             if (set.Building != defaults.Building) combined.Building = set.Building;
             if (set.Agent != defaults.Agent) combined.Agent = set.Agent;
-            if (set.Bridge is not null) combined.Bridge = set.Bridge;
-            if (set.Relief is not null) combined.Relief = set.Relief;
+            if (set.Bridge != defaults.Bridge) combined.Bridge = set.Bridge;
+            if (set.Relief != defaults.Relief) combined.Relief = set.Relief;
             if (set.Nature != defaults.Nature)
             {
                 if (set.Name == "crops") cropsNature = set.Nature;

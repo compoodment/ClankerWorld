@@ -877,10 +877,9 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   [saves and replay](saves-and-replay.md#current-formats-and-older-worlds).
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
-  status. The map reads its sprites and stage names from it. Broadleaf mature,
-  sapling and stump, conifer mature and the three orchard stages are approved
-  art from the October 1 review; conifer saplings and stumps are still
-  provisional, and the tree-seed item has no art yet. The
+  status. The map reads its sprites and stage names from it. Broadleaf and
+  conifer mature, sapling and stump sprites and the three orchard stages are
+  approved art from the October 1 review; the tree-seed item has no art yet. The
   [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
