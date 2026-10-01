@@ -26,6 +26,13 @@ public sealed class GameUiTextTests
     [InlineData("paused", true)]
     [InlineData("instruction_not_understood", true)]
     [InlineData("instruction_applied", false)]
+    [InlineData("housing_request_made", true)]
+    [InlineData("household_joined", true)]
+    [InlineData("housing_request_refused", true)]
+    [InlineData("housing_request_expired", true)]
+    [InlineData("housing_blocked", true)]
+    [InlineData("housing_answer_recorded", false)]
+    [InlineData("housing_request_cancelled", false)]
     public void EventLogSelectsKnownPlayerEventsInsteadOfPublishingUnknownDiagnostics(string kind, bool visible)
     {
         Assert.Equal(visible, GameUiText.IsPlayerFacingEvent(kind));
