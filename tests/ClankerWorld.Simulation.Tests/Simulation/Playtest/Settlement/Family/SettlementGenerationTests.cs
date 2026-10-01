@@ -34,8 +34,9 @@ public sealed partial class SettlementParenthoodTests
                     var child = world.Society.GetInhabitant(childId);
                     Assert.True(child.Status == SocietyInhabitantStatus.Active,
                         $"Child died at tick {world.WorldTick}, age {world.Society.AgeAt(child, world.WorldTick)}, cause {child.DeathCause}.");
-                    if (child.AgeBand == SocietyAgeBand.Adult && child.CurrentRole is SocietyWorkRole.Builder or SocietyWorkRole.Farmer &&
-                        world.Inhabitants.Single(person => person.InhabitantId == childId).Project is { Stage: "completed" })
+                    var physical = world.Inhabitants.Single(person => person.InhabitantId == childId);
+                    if (child.AgeBand == SocietyAgeBand.Adult && physical.Skills?.Count > 0 &&
+                        physical.Project is { Stage: "completed" })
                         break;
                 }
                 if (tick % 256 == 0) file.Save(world);
@@ -53,11 +54,13 @@ public sealed partial class SettlementParenthoodTests
             Assert.NotNull(childId);
             var grown = world.Society.GetInhabitant(childId);
             Assert.Equal(SocietyAgeBand.Adult, grown.AgeBand);
-            Assert.True(grown.CurrentRole is SocietyWorkRole.Builder or SocietyWorkRole.Farmer,
+            Assert.Equal(SocietyWorkRole.Unassigned, grown.CurrentRole);
+            Assert.True(world.Inhabitants.Single(person => person.InhabitantId == childId).Skills?.Count > 0,
                 "Teaching state=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new
                 {
                     person.InhabitantId,
                     person.Lesson,
+                    person.Skills,
                     person.Position,
                     person.HungerBasisPoints,
                     person.Survival,

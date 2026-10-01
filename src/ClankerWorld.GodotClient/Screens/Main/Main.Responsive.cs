@@ -151,6 +151,10 @@ public partial class Main
     /// </summary>
     private void FitMenuScrolls(float viewportHeight)
     {
+        // Game and World share one width, so switching between them does not resize the menu.
+        settingsScroll.CustomMinimumSize = new Vector2(
+            Math.Max(gameSettingsContent.GetCombinedMinimumSize().X, worldSettingsContent.GetCombinedMinimumSize().X) +
+            SettingsScrollGap + settingsScroll.GetVScrollBar().GetCombinedMinimumSize().X, settingsScroll.CustomMinimumSize.Y);
         foreach (var scroll in new[] { settingsScroll, developerScroll })
         {
             if (!scroll.IsVisibleInTree() || scroll.GetChildCount() == 0 || scroll.GetChild(0) is not Control content) continue;

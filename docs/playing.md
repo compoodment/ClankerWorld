@@ -41,8 +41,11 @@ that version mismatch. You can still reconnect to the existing world.
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
 3. Create the world. It opens paused. Choose a rough site for its first Town;
-   the game places two Houses, a Warehouse, Farmhouse, Blacksmith and Roads.
-   You can choose another site before placing the founders.
+   greener shading and the hovered tips show nearby food, fertile ground, wood,
+   stone and open space for Roads. These are suggestions only: the game checks
+   whether the starter layout fits after you choose a site. It then places two
+   Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
+   site before placing the founders.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -131,9 +134,12 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
-Game Settings controls the display, interface scale, theme, weather effects and
-date/time format. World Settings contains that world's autosaves, Jev and the
-current model-usage controls. Main Menu Settings exposes Game Settings only.
+Game Settings controls the window, theme, weather effects and date/time format.
+Menus, panels and text grow with your screen in whole steps, so pixel letters
+stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
+There is no setting for this. World Settings contains that world's autosaves,
+Jev and the current model-usage controls. Main Menu Settings exposes Game
+Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list. With no menu or text field

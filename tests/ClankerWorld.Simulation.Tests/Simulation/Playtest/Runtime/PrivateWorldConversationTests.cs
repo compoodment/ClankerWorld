@@ -271,12 +271,12 @@ public sealed class PrivateWorldConversationTests
         Assert.Equal(turn, Assert.Single(provider.TurnRequests[1].PublicHistory));
 
         var saved = world.ExportState();
-        Assert.Equal(31, saved.SchemaVersion);
+        Assert.Equal(32, saved.SchemaVersion);
         Assert.Equal(2, saved.Conversations!.Single().Turns.Count);
         var budgets = saved.ConversationBudgets!;
         Assert.Equal(1, budgets.Single(item => item.AgentId == InitiatorId).Count);
         Assert.Equal(1, budgets.Single(item => item.AgentId == InviteeId).Count);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 30 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { SchemaVersion = 31 }));
         foreach (var heardTurn in conversation.Turns.Take(2))
         {
             foreach (var ownerId in heardTurn.ListenerIds.Where(ownerId => ownerId != heardTurn.SpeakerId))
@@ -369,7 +369,7 @@ public sealed class PrivateWorldConversationTests
         Assert.Single(provider.TurnRequests);
         var saved = world.ExportState();
         Assert.DoesNotContain(saved.Events, item => item.Detail.Contains("secret provider payload", StringComparison.Ordinal));
-        Assert.Equal(31, saved.SchemaVersion);
+        Assert.Equal(32, saved.SchemaVersion);
     }
 
     private static PrivateWorldRuntime NewWorld(string seed, ConversationProvider provider) =>
