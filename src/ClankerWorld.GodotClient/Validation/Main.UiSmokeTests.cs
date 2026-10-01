@@ -1769,6 +1769,8 @@ public partial class Main
                 {
                     Survival = null,
                     PublicIntention = new OwnerWorldPublicIntention("safe_idle", "keeping a safe routine", "deterministic", 1),
+                    Lesson = new("Mira", "farming", "training", 3, 20),
+                    Skills = [new("building", 0, "teacher-id", "Mira"), new("crafting", 0, null, null)],
                     Relationships = [new OwnerWorldInhabitantRelationship("home:test", "household:one",
                         "household_membership", "accepted", "household", 1)],
                 }],
@@ -1778,6 +1780,10 @@ public partial class Main
                 !inhabitantSocialDetails.Text.Contains("Member of Founder's household", StringComparison.Ordinal) ||
                 inhabitantSocialDetails.Text.Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
                 inhabitantDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Building skill · taught by Mira", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Crafting skill · learned by doing", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Learning Farming with Mira", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("teacher-id", StringComparison.Ordinal) ||
                 !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal))
                 throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {inhabitantSocialDetails.Text}");
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
