@@ -19,14 +19,20 @@ public sealed partial class PrivateWorldRuntime
         return required is null || FindReachableSharedGatheringTool(actor, required) is not null;
     }
 
-    private int AvailableGatherQuantity(string actor, string itemKind, MapResource source)
+    private int AvailableGatherQuantity(string actor, string itemKind, MapResource source,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>? reachableToolCache = null)
     {
         var inventory = society.Checkpoint.Inventory;
         var quantity = worldSystems.Ecology.GetResource(source.Id).Quantity;
         var plan = ToolProgressionRules.PlanGather(itemKind, source, inventory, actor, quantity);
         if (plan is not null) return plan.Quantity;
         if (RequiredGatheringTool(itemKind, source) is not { } required) return 0;
-        return FindReachableSharedGatheringTool(actor, required) is { } tool ? tool.GatherQuantity : 0;
+        var key = (required.Family, required.Tier);
+        if (reachableToolCache is not null && reachableToolCache.TryGetValue(key, out var cached))
+            return cached?.GatherQuantity ?? 0;
+        var available = FindReachableSharedGatheringTool(actor, required);
+        reachableToolCache?.Add(key, available);
+        return available?.GatherQuantity ?? 0;
     }
 
     private static ToolDefinition? RequiredGatheringTool(string itemKind, MapResource source) =>

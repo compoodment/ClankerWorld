@@ -813,26 +813,51 @@ public sealed partial class PrivateWorldRuntime
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0);
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
-        string? residentId = null) => inputs.All(input =>
+        string? residentId = null)
     {
-        var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
-                (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
-                    (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
-            .Sum(lot => (long)AvailableLotQuantity(lot));
-        var harvestable = residentId is null ? 0 : map.Resources.Where(resource =>
-                resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-                (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
-                CanGatherFromSource(residentId, input.ResourceId, resource) &&
-                map.IsReachableOnFoot(inhabitants[residentId].Position, resource.Position))
-            .Sum(resource => (long)worldSystems.Ecology.GetResource(resource.Id).Quantity *
-                AvailableGatherQuantity(residentId, input.ResourceId, resource));
-        var warehouse = residentId is null ? null : WarehouseForResident(residentId);
-        var communal = warehouse is null ? 0 : society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.ItemKind == input.ResourceId)
-            .Sum(lot => (long)AvailableLotQuantity(lot));
-        return stored + harvestable + communal >= input.Amount;
-    });
+        // Candidate evaluation is a read-only snapshot. Reuse a shared tool's route
+        // result only within this one input check; actions revalidate before gathering.
+        var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        return inputs.All(input =>
+        {
+            var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
+                    (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
+                        (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            var warehouse = residentId is null ? null : WarehouseForResident(residentId);
+            var communal = warehouse is null ? 0 : society.Checkpoint.Inventory.Lots.Where(lot =>
+                    lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
+                    lot.ItemKind == input.ResourceId)
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            var remaining = input.Amount - stored - communal;
+            if (remaining <= 0)
+                return true;
+            if (residentId is null)
+                return false;
+
+            var position = inhabitants[residentId].Position;
+            foreach (var resource in map.Resources)
+            {
+                if (resources.GetValueOrDefault(resource.Id) != ResourceState.Available ||
+                    resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction"))
+                    continue;
+
+                var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
+                if (sourceQuantity <= 0 || !map.IsReachableOnFoot(position, resource.Position))
+                    continue;
+
+                var gatherQuantity = AvailableGatherQuantity(residentId, input.ResourceId, resource, reachableToolCache);
+                if (gatherQuantity <= 0)
+                    continue;
+
+                remaining -= (long)sourceQuantity * gatherQuantity;
+                if (remaining <= 0)
+                    return true;
+            }
+
+            return false;
+        });
+    }
 
     private void AddProjectAssistanceCandidates(List<CognitionCandidate> candidates, string helperId)
     {
