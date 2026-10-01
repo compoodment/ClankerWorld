@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
         var stock = source with
         {
             Lots = source.Lots.Select(lot => foodLocations.TryGetValue(lot.Id, out var location)
-                ? lot with { StorageBuildingId = location.BuildingId }
+                ? lot with { Quantity = 8, StorageBuildingId = location.BuildingId }
                 : garmentLocations.TryGetValue(lot.Id, out var house) && lot.ItemKind == "clothing"
                     ? lot with { StorageBuildingId = house }
                     : lot).ToArray(),
