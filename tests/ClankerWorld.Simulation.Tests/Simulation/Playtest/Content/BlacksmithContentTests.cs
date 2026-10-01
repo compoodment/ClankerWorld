@@ -276,7 +276,7 @@ public sealed class BlacksmithContentTests
     [Theory]
     [InlineData("wooden_axe", "wood", "house-1x1")]
     [InlineData("wooden_pickaxe", "stone", "farmhouse-1x1")]
-    public async Task MatchingWoodenToolImprovesMaterialGathering(
+    public async Task CarriedWoodenToolExtractionCommitsWholeOutputAndSingleUnitWear(
         string tool, string material, string buildingLocalId)
     {
         using var seed = new PrivateWorldRuntime("gather-with-" + tool, _ => new CandidateProvider("safe_idle"));

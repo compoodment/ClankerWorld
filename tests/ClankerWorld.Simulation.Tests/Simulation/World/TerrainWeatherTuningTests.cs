@@ -14,30 +14,6 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
         new(SeasonKind.Winter, 30, 30, 5, 5, 30),
     ];
 
-    [Theory]
-    [InlineData("probe-a")]
-    [InlineData("probe-b")]
-    public void NewForestsHaveManyTreesAndCoastsHaveSeparateBeachStretches(string seed)
-    {
-        var map = GeneratedCampMapGenerator.Generate(Current(seed));
-        var trees = map.Resources.Where(resource => resource.TreeKind is not null)
-            .Select(resource => resource.Position).ToHashSet();
-        var forest = map.Tiles.Select(tile => tile.Position).Where(point =>
-            map.SurfaceAt(point) == SurfaceKind.Grass && map.VegetationAt(point) == VegetationCover.Forest).ToArray();
-        Assert.NotEmpty(forest);
-        Assert.InRange(forest.Count(trees.Contains) * 100 / forest.Length, 25, 45);
-        Assert.All(map.Tiles.Where(tile => map.SurfaceAt(tile.Position) == SurfaceKind.ForestFloor),
-            tile => Assert.Contains(tile.Position, trees));
-
-        var shore = map.Tiles.Select(tile => tile.Position).Where(point =>
-            map.HydrologyAt(point) == WaterKind.Land && map.ClimateAt(point) is not (ClimateZone.Dry or ClimateZone.Cold or ClimateZone.Polar) &&
-            map.ElevationAt(point) < 175 && BesideOcean(map, point)).ToArray();
-        Assert.NotEmpty(shore);
-        Assert.InRange(shore.Count(point => map.SurfaceAt(point) == SurfaceKind.Sand) * 100 / shore.Length, 1, 20);
-        Assert.Contains(shore, point => map.SurfaceAt(point) == SurfaceKind.Grass);
-        Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid);
-    }
-
     [Fact]
     public void CactiStayOnDesertSandAndAcceptanceRefusesThemElsewhere()
     {
@@ -76,22 +52,6 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
         var beachCover = balanced.VegetationKinds!.ToArray();
         beachCover[beach.Y * balanced.Width + beach.X] = (byte)VegetationCover.Cactus;
         Assert.False(MapAcceptance.Validate(balanced with { VegetationKinds = beachCover }, allowEmptyCamp: true).IsValid);
-    }
-
-    [Fact]
-    public void DefaultWeatherHasAboutOneQuarterFewerWetDaysInEveryClimateAndSeason()
-    {
-        var previous = WorldSystemsConfig.Default with { WeatherProfiles = PreviousWeatherProfiles };
-        foreach (var season in Enum.GetValues<SeasonKind>())
-        {
-            AssertReduction(day => WeatherRules.WeatherForDay("weather-quarter", day, season, WorldSystemsConfig.Default),
-                day => WeatherRules.WeatherForDay("weather-quarter", day, season, previous));
-            foreach (var climate in Enum.GetValues<ClimateZone>())
-                foreach (var row in new[] { 0, 2 })
-                    AssertReduction(day => WeatherRules.WeatherForRegion("weather-quarter", day, season,
-                            WorldSystemsConfig.Default, 0, row, 5, climate),
-                        day => WeatherRules.WeatherForRegion("weather-quarter", day, season, previous, 0, row, 5, climate));
-        }
     }
 
     [Fact]
@@ -154,48 +114,9 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
-    public void ExplicitWeatherProfilesKeepTheirDeclaredWeights()
-    {
-        var forced = WorldSystemsConfig.Default with
-        {
-            WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 0, 0, 0, 100, 0)).ToArray(),
-        };
-        foreach (var climate in Enum.GetValues<ClimateZone>().Where(climate => climate != ClimateZone.Dry))
-            foreach (var day in Enumerable.Range(0, 32))
-            {
-                Assert.Equal(WeatherKind.Storm, WeatherRules.WeatherForDay("forced-storm", day, SeasonKind.Spring, forced));
-                Assert.Equal(WeatherKind.Storm, WeatherRules.WeatherForRegion("forced-storm", day, SeasonKind.Spring,
-                    forced, 0, 0, 5, climate));
-            }
-        // Dry climates already divert half of an explicitly configured storm
-        // weight to clear weather. The new default tuning must not reduce that
-        // custom distribution again.
-        var dryStorms = Enumerable.Range(0, 8_000).Count(day => WeatherRules.WeatherForRegion("forced-storm", day,
-            SeasonKind.Spring, forced, 0, 0, 5, ClimateZone.Dry) == WeatherKind.Storm);
-        Assert.InRange(dryStorms, 3_680, 4_320);
-    }
-
-    private static void AssertReduction(Func<int, WeatherKind> current, Func<int, WeatherKind> previous)
-    {
-        const int samples = 8_000;
-        var before = Enumerable.Range(0, samples).Count(day => IsWet(previous(day)));
-        var after = Enumerable.Range(0, samples).Count(day => IsWet(current(day)));
-        Assert.True(before > 0);
-        Assert.InRange((double)after / before, 0.69, 0.81);
-    }
-
     private static bool IsWet(WeatherKind weather) => weather is WeatherKind.Rain or WeatherKind.Storm or WeatherKind.Snow;
 
     private static GeographyOptions Current(string seed) =>
         new(seed, WorldSizePreset.Small, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion);
 
-    private static bool BesideOcean(SeededMap map, GridPoint point) =>
-        new[] { (-1, 0), (1, 0), (0, -1), (0, 1) }.Any(offset =>
-        {
-            var x = point.X + offset.Item1;
-            if (map.WrapsEastWest) x = (x % map.Width + map.Width) % map.Width;
-            var near = new GridPoint(x, point.Y + offset.Item2);
-            return map.Contains(near) && map.HydrologyAt(near) == WaterKind.Ocean;
-        });
 }

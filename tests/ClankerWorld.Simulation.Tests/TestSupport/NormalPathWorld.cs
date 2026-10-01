@@ -89,6 +89,8 @@ internal sealed class ActionCoverageRecorder(bool chooseIdle = false) : IDecisio
 
     public ConcurrentDictionary<string, int> Chosen { get; } = new(StringComparer.Ordinal);
 
+    public ConcurrentDictionary<(string AgentId, string DestinationId), byte> WorkstationSupplyOffers { get; } = new();
+
     /// <summary>The world tick at which each agent was first offered each candidate.</summary>
     public ConcurrentDictionary<(string AgentId, string CandidateId), long> FirstOfferedTick { get; } = new();
 
@@ -105,6 +107,9 @@ internal sealed class ActionCoverageRecorder(bool chooseIdle = false) : IDecisio
         {
             offered.AddOrUpdate(candidate.Id, 1, (_, count) => count + 1);
             FirstOfferedTick.TryAdd((request.Observation.InhabitantId, candidate.Id), request.Observation.WorldTick);
+            if (candidate.Id.StartsWith("supply_workstation:", StringComparison.Ordinal) &&
+                candidate.DestinationId is { } destination)
+                WorkstationSupplyOffers.TryAdd((request.Observation.InhabitantId, destination), 0);
         }
         var choice = chooseIdle
             ? request with
