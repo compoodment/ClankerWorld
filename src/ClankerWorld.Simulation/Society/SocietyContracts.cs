@@ -267,7 +267,8 @@ public sealed record SocietyAgentBelief(
     string? AboutInhabitantId = null,
     string? SupersedesBeliefId = null,
     string? SupersededByBeliefId = null,
-    long? SupersededTick = null);
+    long? SupersededTick = null,
+    string? SourceTurnId = null);
 
 /// <summary>Identifies an agent-private source without turning it into a world fact.</summary>
 public enum SocietyMemorySourceKind

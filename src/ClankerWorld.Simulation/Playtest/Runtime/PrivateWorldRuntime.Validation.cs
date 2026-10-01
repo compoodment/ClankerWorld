@@ -240,6 +240,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Generated Roads require private-world schema 24.");
         if (state.SchemaVersion < 28 && (state.Bridges is { Count: > 0 } || state.BridgeTraffic is { IsEmpty: false }))
             throw new InvalidDataException("Bridges and bridge traffic require private-world schema 28.");
+        if (state.SchemaVersion < 29 &&
+            (state.Conversations is { Count: > 0 } || state.ConversationBudgets is { Count: > 0 }))
+            throw new InvalidDataException("Conversation history and daily budgets require private-world schema 29.");
         if (state.SchemaVersion < PlantedTreeSchemaVersion && state.Map.Resources.Any(IsPlantedTree))
             throw new InvalidDataException(
                 $"Trees planted on new tiles require private-world schema {PlantedTreeSchemaVersion}.");
@@ -261,6 +264,8 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Private-world schema 24 requires authoritative Road state.");
         if (state.SchemaVersion >= 28 && (state.Bridges is null || state.BridgeTraffic is null))
             throw new InvalidDataException("Private-world schema 28 requires authoritative bridge state.");
+        if (state.SchemaVersion >= 29 && (state.Conversations is null || state.ConversationBudgets is null))
+            throw new InvalidDataException("Private-world schema 29 requires conversation state and daily budgets.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
@@ -281,6 +286,7 @@ public sealed partial class PrivateWorldRuntime
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
+        ValidateConversationState(state, society.Checkpoint);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick, state.SchemaVersion);
         ValidateSurvival(state);
@@ -373,6 +379,48 @@ public sealed partial class PrivateWorldRuntime
                 }
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
+        }
+    }
+
+    private static void ValidateConversationState(PrivateWorldRuntimeState state, SocietyCheckpoint checkpoint)
+    {
+        var conversations = state.Conversations ?? [];
+        var budgets = state.ConversationBudgets ?? [];
+        var knownAgents = checkpoint.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var worldDay = checkpoint.Config.TicksPerWorldDay <= 0
+            ? 0
+            : checkpoint.WorldTick / checkpoint.Config.TicksPerWorldDay;
+        if (conversations.Count > AgentConversationRules.MaximumSavedConversations ||
+            conversations.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != conversations.Count ||
+            budgets.Count > knownAgents.Count ||
+            budgets.Select(item => item.AgentId).Distinct(StringComparer.Ordinal).Count() != budgets.Count ||
+            budgets.Any(item => !knownAgents.Contains(item.AgentId) || item.WorldDay < 0 || item.WorldDay > worldDay ||
+                item.Count is < 1 or > AgentConversationRules.MaximumConversationsPerWorldDay))
+            throw new InvalidDataException("The saved conversation list or daily budgets are invalid.");
+
+        foreach (var conversation in conversations)
+        {
+            AgentConversationRules.Validate(conversation, checkpoint.WorldTick);
+            if (!knownAgents.Contains(conversation.InitiatorId) || !knownAgents.Contains(conversation.InviteeId) ||
+                conversation.Turns.Any(turn => turn.ListenerIds.Any(id => !knownAgents.Contains(id))))
+                throw new InvalidDataException("A saved conversation references an unknown agent.");
+        }
+
+        var activeParticipants = conversations
+            .Where(item => item.Status != AgentConversationStatus.Closed)
+            .SelectMany(item => new[] { item.InitiatorId, item.InviteeId });
+        if (activeParticipants.Distinct(StringComparer.Ordinal).Count() != activeParticipants.Count())
+            throw new InvalidDataException("An agent cannot take part in overlapping conversations.");
+
+        var turns = conversations.SelectMany(item => item.Turns).ToDictionary(item => item.Id, StringComparer.Ordinal);
+        foreach (var belief in checkpoint.Beliefs ?? [])
+        {
+            if (belief.SourceTurnId is not { } sourceTurnId) continue;
+            if (!turns.TryGetValue(sourceTurnId, out var turn) ||
+                !turn.ListenerIds.Contains(belief.OwnerId, StringComparer.Ordinal) ||
+                turn.SpeakerId != belief.SourceAgentId || belief.Provenance != SocietyBeliefProvenance.Hearsay ||
+                belief.FormedTick != turn.WorldTick || belief.Statement != turn.Text)
+                throw new InvalidDataException("An agent belief references a conversation turn it did not hear.");
         }
     }
 

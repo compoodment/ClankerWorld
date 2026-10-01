@@ -41,6 +41,8 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
                 physical = inhabitants[inhabitant.Id];
             }
+            if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
+                continue;
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
@@ -201,6 +203,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            if (IsConversationBusy(inhabitant.Id))
+            {
+                continue;
+            }
             if (inhabitant.AgeBand == SocietyAgeBand.Infant)
             {
                 continue;
@@ -299,6 +305,13 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
+            candidateId.StartsWith("conversation_", StringComparison.Ordinal))
+        {
+            if (!ApplyConversationCandidate(inhabitantId, candidateId))
+                AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
+            return;
+        }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
@@ -559,7 +572,18 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId,
         PlaytestInhabitantState state)
     {
-        var candidates = new List<CognitionCandidate>();
+        var currentConversation = ConversationFor(inhabitantId);
+        var candidates = currentConversation is null
+            ? new List<CognitionCandidate>()
+            : ConversationCandidates(inhabitantId).ToList();
+        if (currentConversation is not null &&
+            (currentConversation.Status is AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker or AgentConversationStatus.WrapUp ||
+             currentConversation.Status == AgentConversationStatus.Proposed && currentConversation.InitiatorId == inhabitantId))
+        {
+            if (candidates.Count == 0)
+                candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
+            return candidates;
+        }
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
@@ -652,6 +676,8 @@ public sealed partial class PrivateWorldRuntime
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
+        if (currentConversation is null)
+            candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
         return candidates;
     }
