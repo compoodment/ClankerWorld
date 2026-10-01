@@ -107,6 +107,60 @@ public sealed class ProviderUsageStoreTests
         finally { Directory.Delete(directory, recursive: true); }
     }
 
+    [Theory]
+    [InlineData(1_000, 800)]
+    [InlineData(10, 8)]
+    [InlineData(7, 6)]
+    [InlineData(5, 4)]
+    [InlineData(1, 1)]
+    public void WarningMarkIsEightyPercentRoundedUp(long limit, long mark) =>
+        Assert.Equal(mark, ProviderUsageStore.WarningMark(limit));
+
+    [Fact]
+    public async Task EightyPercentWarningIsRaisedOncePerCrossingAcrossRestartsAndLimitChanges()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-usage-warning-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "usage.json");
+            var store = new ProviderUsageStore(path);
+            var warnings = new System.Collections.Concurrent.ConcurrentQueue<ProviderUsageWarning>();
+            store.WarningReached += warnings.Enqueue;
+            store.Finish(store.Begin("openai", "test-model", "planning"), "completed");
+            Assert.Empty(warnings);
+
+            // Concurrent reservations cross 8 of 10 exactly once, not once per call.
+            _ = store.Configure(new ProviderUsageLimitAction(10));
+            var tickets = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(() =>
+            {
+                try { return store.Begin("openai", "test-model", "planning"); }
+                catch (ProviderUsageLimitReachedException) { return null; }
+            })));
+            Assert.Equal(9, tickets.Count(ticket => ticket is not null));
+            Assert.Equal(new ProviderUsageWarning(8, 10), Assert.Single(warnings));
+            foreach (var ticket in tickets.OfType<string>()) store.Finish(ticket, "failed");
+            Assert.True(store.Capture().LimitReached);
+
+            // A restart, a grant at the limit and a limit below the count make no new crossing.
+            var restarted = new ProviderUsageStore(path);
+            restarted.WarningReached += warnings.Enqueue;
+            Assert.Equal(10, restarted.Capture().Attempts);
+            _ = restarted.Configure(new ProviderUsageLimitAction(null, AdditionalCalls: 2));
+            restarted.Finish(restarted.Begin("openai", "test-model", "planning"), "completed");
+            _ = restarted.Configure(new ProviderUsageLimitAction(5));
+            Assert.Throws<ProviderUsageLimitReachedException>(() => restarted.Begin("openai", "test-model", "planning"));
+            Assert.Single(warnings);
+
+            // Raising the limit sets a new mark (16 of 20) that later calls cross once.
+            _ = restarted.Configure(new ProviderUsageLimitAction(20));
+            while (restarted.Capture().Attempts < 19)
+                restarted.Finish(restarted.Begin("openai", "test-model", "planning"), "completed");
+            Assert.Equal(new[] { new ProviderUsageWarning(8, 10), new ProviderUsageWarning(16, 20) }, warnings);
+            Assert.False(restarted.Capture().LimitReached);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public void UsagePayloadMatchesGodotAndNeverContainsProviderSecrets()
     {

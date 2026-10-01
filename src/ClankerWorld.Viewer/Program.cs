@@ -236,6 +236,40 @@ app.Services.GetRequiredService<ProviderUsageStore>().LimitReached += () =>
         ProviderUsageTelemetry.LimitReached(app.Logger, 0);
     }
 };
+app.Services.GetRequiredService<ProviderUsageStore>().WarningReached += warning =>
+{
+    if (!isPrivateWorld)
+    {
+        ProviderUsageTelemetry.WarningReached(app.Logger, "logged_only", warning.Attempts, warning.AttemptLimit, 0);
+        return;
+    }
+    // A conversation turn reserves its call while the world's runtime gate is
+    // held, so the Event Log line is written from another task, not inline.
+    _ = Task.Run(() =>
+    {
+        var runtime = app.Services.GetRequiredService<PrivateWorldRuntime>();
+        var outcome = "failed";
+        try
+        {
+            // Load and world selection hold this gate, so the line lands in
+            // one whole world rather than between a checkpoint and its save.
+            lock (app.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate)
+            {
+                runtime.RecordModelCallWarning(warning.Attempts, warning.AttemptLimit);
+                // A running world saves on its next tick anyway; a paused one
+                // must not lose the only warning it will get.
+                outcome = "event_log_unsaved";
+                app.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+                outcome = "event_log";
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Logged below; an unsaved line is written by the world's next save.
+        }
+        ProviderUsageTelemetry.WarningReached(app.Logger, outcome, warning.Attempts, warning.AttemptLimit, runtime.WorldTick);
+    });
+};
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

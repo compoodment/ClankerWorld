@@ -1,0 +1,2 @@
+- The model-call limit moved from World Settings to Game Settings, where the Main Menu can open it too, and says that one count covers every world and every call attempt.
+- The Event Log warns once when model calls reach 80% of the limit, before the limit pauses the world.

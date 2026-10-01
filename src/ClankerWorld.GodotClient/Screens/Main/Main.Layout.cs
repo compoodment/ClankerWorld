@@ -85,7 +85,11 @@ public partial class Main
         {
             _ = RefreshWorldSettingsAsync();
         }
-        if (!worldSpecific) _ = RefreshApiKeysAsync();
+        if (!worldSpecific)
+        {
+            _ = RefreshApiKeysAsync();
+            _ = RefreshUsageAsync();
+        }
 
         ShowPauseMenuPage("Settings");
         ApplyResponsiveLayout();
@@ -95,7 +99,6 @@ public partial class Main
     {
         await RefreshAutosaveSettingsAsync();
         await RefreshProviderConfigurationAsync();
-        await RefreshUsageAsync();
     }
 
     private void BuildPairingPanel()
@@ -428,10 +431,11 @@ public partial class Main
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
-        BuildUsageLimitPanel();
-        worldSettingsContent.AddChild(usageLimitPanel);
 
         BuildApiKeysPanel();
+        // One call count and limit covers every world, so it is a Game setting.
+        BuildUsageLimitPanel();
+        gameSettingsContent.AddChild(usageLimitPanel);
         BuildConnectionPanel();
         gameSettingsContent.AddChild(connectionPanel);
         BuildPairingPanel();

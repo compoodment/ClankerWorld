@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # How the game works
@@ -290,6 +290,19 @@ Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
+
+The reservation that brings the total to 80% of the cap, rounded up
+(`ProviderUsageStore.WarningMark`), raises `WarningReached` once. No extra state
+is saved: totals only grow, one per reservation, so a host restart, a world
+switch or an older world save cannot cross the same mark again, and a changed
+cap sets a new mark that only later reservations can cross. In private-world
+mode the host then appends a player-facing `model_call_warning` event
+(`used:<count>:limit:<cap>`) to the active world under the world mutation gate
+and saves it, like the cap's pause event. It does this on another task because
+conversation turns reserve while the runtime gate is held. The world save
+records only that the player was told; the count and cap stay in the usage
+file, and no checkpoint schema changed. Telemetry logs `provider_usage_warning`
+with its outcome.
 
 Unreadable or inconsistent accounting leaves the host reachable with paid work
 blocked. Preserve the damaged file; changing the cap cannot bypass it. Writes
