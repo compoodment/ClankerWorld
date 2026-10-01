@@ -2,8 +2,6 @@
 
 Pending Windows hands-on playtest. Costs, production time and effects are provisional.
 
-Start a generated world. Give one household a reason to build a Clinic and let adults gather medicinal herbs and clay, craft a jug, fill it at fresh water, carry fuel and the whole jug into the Clinic, and make medicine. Confirm the building card shows actual herbs, vessel contents and completed medicine. Make bandages from cloth at the House or Tailor Shop.
-
-Watch an ill adult acquire a real medicine dose and recover gradually. For another adult's injury, accept a named caregiver, bring a bandage beside the patient, then revoke permission partway through treatment. The consumed dose must remain consumed, further treatment must stop, and another household's Clinic stock must require an agreed purchase. Save and reload during treatment; observe the remaining ticks and health/illness values.
-
-Automated checks cover physical inputs, one consumed dose, gradual progress, permissions and intermediate save validation. They do not replace this hands-on check.
+- On the paired world: let a household build a Clinic, gather medicinal herbs, make a jug and fill it at fresh water. Carry fuel and the whole jug into the Clinic and make medicine. The building card should show the actual supplies, vessel contents and finished doses. Make bandages from cloth at the House or Tailor Shop. ([#565](https://github.com/compoodment/ClankerWorld/issues/565))
+- On the paired world: watch an ill adult acquire a real dose and recover gradually. For another adult's injury, accept a named caregiver, bring a bandage beside the patient, then revoke permission partway through. The dose stays consumed and further treatment stops. Another household's Clinic stock requires an agreed purchase. ([#565](https://github.com/compoodment/ClankerWorld/issues/565))
+- On the paired world: save and reload during treatment. The remaining time and health or illness values should continue from the saved progress, with no second dose or extra healing. ([#565](https://github.com/compoodment/ClankerWorld/issues/565))
