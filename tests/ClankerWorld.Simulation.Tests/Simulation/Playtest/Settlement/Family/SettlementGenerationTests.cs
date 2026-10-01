@@ -15,7 +15,7 @@ public sealed partial class SettlementParenthoodTests
         try
         {
             var observations = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-            var state = await PreparedState();
+            var state = await PreparedGenerationState();
             world = PrivateWorldRuntime.Restore(state, _ => new GenerationProvider(observations));
             world.Pause();
             world.SetLifePace(1_460);
@@ -27,6 +27,7 @@ public sealed partial class SettlementParenthoodTests
             for (var tick = 0; tick < 12_000; tick++)
             {
                 var step = await world.AdvanceOneTickAsync();
+                Assert.True(step.Advanced, step.Outcome);
                 careSeen |= step.Events.Any(item => item.Kind == "child_cared_for");
                 if (childId is null && world.Society.Births.Count > 0) childId = world.Society.Births[0].ChildId;
                 if (childId is not null)
@@ -81,6 +82,26 @@ public sealed partial class SettlementParenthoodTests
             world?.Dispose();
             directory.Delete(recursive: true);
         }
+    }
+
+    private static async Task<PrivateWorldRuntimeState> PreparedGenerationState()
+    {
+        var state = await PreparedState();
+        // Six real bush harvests replenish 24 berries (43,200 fullness) daily.
+        // Daily regrowth of six fits within the bush's capacity of twelve harvests.
+        // Six adults drain 6 * 1,440 * 4 = 34,560 fullness. The compatibility
+        // camp's two harvests cannot support even its four founders long term.
+        return state with
+        {
+            WorldSystems = state.WorldSystems! with
+            {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource =>
+                        resource.Id == "berry-patch" ? resource with { RegenerationAmount = 6 } : resource).ToArray(),
+                },
+            },
+        };
     }
 
     private sealed class GenerationProvider(System.Collections.Concurrent.ConcurrentDictionary<string, string> observations) : IDecisionProvider
