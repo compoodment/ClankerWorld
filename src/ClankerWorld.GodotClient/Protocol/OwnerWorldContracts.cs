@@ -343,6 +343,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
+    /// <summary>How dark the host says the world is: 0 in daylight, 10,000 at full night.</summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];

@@ -351,6 +351,12 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    /// <summary>
+    /// How dark the world is now, decided by the host from the world clock:
+    /// 0 in daylight, 10,000 at full night, between them at dusk and dawn.
+    /// Absent for a world without a calendar.
+    /// </summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];

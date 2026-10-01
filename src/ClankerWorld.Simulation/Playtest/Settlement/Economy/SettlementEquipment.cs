@@ -91,8 +91,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddEquipmentCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState person)
     {
-        if (WeatherExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
-            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} for this weather.", 3));
+        if (OutdoorExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
+            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} to keep warm outdoors.", 3));
         if (!AdultResident(actor)) return;
         if (BetterCarryAid(actor) is { } aid)
             candidates.Add(new("equip_carry_aid", $"Equip a {aid.ItemKind} to carry more supplies.", 14));
@@ -251,7 +251,7 @@ public sealed partial class PrivateWorldRuntime
             if (person.Equipment?.Repair is not null && !CanContinueEquipmentRepair(person.InhabitantId))
                 CancelEquipmentRepair(person.InhabitantId);
             if (person.Equipment?.Repair?.LotId == person.Equipment?.ClothingLotId ||
-                WeatherExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
+                OutdoorExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
             ApplyInventoryTransition(inventory => InventoryFixture.WearSingleUnit(inventory, garment.Id, 10));
         }
     }

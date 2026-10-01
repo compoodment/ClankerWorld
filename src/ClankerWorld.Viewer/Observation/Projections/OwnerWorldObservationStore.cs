@@ -368,6 +368,9 @@ public sealed class OwnerWorldObservationStore
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
                 : null,
+            DarknessBasisPoints = state.WorldSystems is { } daylightSystems
+                ? DaylightRules.DarknessBasisPoints(daylightSystems)
+                : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
                 state.Society.Society.RunEpoch,

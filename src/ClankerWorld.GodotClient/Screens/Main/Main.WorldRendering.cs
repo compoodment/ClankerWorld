@@ -124,11 +124,13 @@ public partial class Main
         var mapWidth = terrainMap.Width;
         var mapHeight = terrainMap.Height;
         worldOverview.WrapsEastWest = snapshot.WrapsEastWest;
+        nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
+            nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
         UpdateTownSiteGuidance(snapshot);
