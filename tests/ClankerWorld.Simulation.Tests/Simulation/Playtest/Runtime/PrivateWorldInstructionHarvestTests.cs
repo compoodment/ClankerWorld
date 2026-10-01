@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 
@@ -66,10 +67,32 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("go to the Blacksmith")]
     [InlineData("gather berries and build a House")]
     [InlineData("gather berries from berry-patch-unknown")]
+    [InlineData("eat 3 wood")]
+    [InlineData("eat 3 stones")]
     [InlineData("gather -3 berries")]
     public async Task UnsupportedInstructionsDoNotSubstituteARealFoodAction(string text)
     {
-        using var world = CreateHarvestInstructionWorld(orchard: false,
+        var setup = CreateHarvestInstructionWorld(orchard: false,
+            new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        var initialState = setup.ExportState();
+        setup.Dispose();
+        if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase))
+        {
+            initialState = initialState with
+            {
+                Inhabitants = initialState.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
+                    ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
+                Society = initialState.Society with
+                {
+                    Society = initialState.Society.Society with
+                    {
+                        Inventory = InventoryFixture.AddLot(initialState.Society.Society.Inventory,
+                            "unsupported-order-bait-berries", "berries", HarvestInstructionActor, 1),
+                    },
+                },
+            };
+        }
+        using var world = PrivateWorldRuntime.Restore(initialState, _ =>
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var before = world.ExportState();
         var actorBefore = before.Inhabitants.Single(person => person.InhabitantId == HarvestInstructionActor);
@@ -141,6 +164,47 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.DoesNotContain(harvest.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
         Assert.DoesNotContain(restored.ExportState().Events, item => item.Kind == "food_harvested");
         restored.Validate();
+    }
+
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(3, true)]
+    public async Task OrchardHarvestNeedsRoomForFruitAndItsProtectedSeed(int cargo, bool fits)
+    {
+        using var initial = CreateHarvestInstructionWorld(orchard: true);
+        var state = initial.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        inventory = inventory with { Lots = inventory.Lots.Where(lot => lot.OwnerId != HarvestInstructionActor).ToArray() };
+        inventory = InventoryFixture.AddLot(inventory, "orchard-cargo", "wood", HarvestInstructionActor, cargo);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
+                ? person with { HungerBasisPoints = 6_000, LastDecisionContext = null } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ =>
+            new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        var instruction = world.SubmitInstruction(new OwnerInstructionRequest("orchard-capacity", "owner:test",
+            HarvestInstructionActor, OwnerInstructionKind.MustDo, "harvest food"));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var saved = world.ExportState();
+        Assert.Equal(fits, (saved.CompletedInstructionIds ?? []).Contains(instruction.InstructionId));
+        Assert.Equal(fits ? 4 : 0, world.Society.Inventory.Lots.Where(lot =>
+            lot.OwnerId == HarvestInstructionActor && lot.ItemKind == "fruit").Sum(lot => lot.Quantity));
+        var seeds = world.Society.Inventory.Lots.Where(lot => lot.OwnerId == HarvestInstructionActor &&
+            lot.ItemKind == "orchard_seed" && lot.Quantity > 0).ToArray();
+        if (fits)
+        {
+            var seed = Assert.Single(seeds);
+            Assert.Equal(1, seed.Quantity);
+            Assert.Contains(world.Society.Inventory.Reservations, item => item.LotId == seed.Id &&
+                item.State == InventoryReservationState.Reserved && item.Quantity == 1);
+        }
+        else Assert.Empty(seeds);
+        Assert.Equal(cargo + (fits ? 5 : 0), PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, HarvestInstructionActor, null));
+        Assert.Equal(cargo, world.Society.Inventory.GetLot("orchard-cargo").Quantity);
+        world.Validate();
+        _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved));
     }
 
     private static PrivateWorldRuntime CreateHarvestInstructionWorld(bool orchard, IDecisionProvider? provider = null)

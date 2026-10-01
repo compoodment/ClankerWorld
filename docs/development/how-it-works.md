@@ -74,17 +74,18 @@ normal planning assignment or inherited world planning provider. A child
 without an explicit personal-model choice and an agent whose planning model is
 set to deterministic stay local; neither receives a forced hosted call.
 
-`InstructionCandidate` reads whole words only: *harvest* or *gather* means
-`harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
-`consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel
-always heads toward food. A few plain inflections such as *gathering* and
-*berries* also count. A recognized order includes that understood task beside
-the original wording, but the host still checks current legal choices and
-whether the physical action actually succeeds. Text about a place or resource
-does not create map knowledge. A personal model can return a short optional
-reply tied to one exact message ID; that reply is saved separately from private
-thoughts and conversation speech. A local deterministic choice does not mark a
-message as heard.
+`InstructionCandidate` recognizes only a bounded food-task set: eating food,
+seeking a food source, and harvesting food. Harvest and travel orders must name
+food (or a supported food resource); explicit resource names must match a
+complete identifier, and food kinds must match that resource. Unsupported
+objects or operations, mixed tasks, unknown explicit targets, and invalid
+quantities are rejected as not understood rather than mapped to a nearby
+candidate. A recognized order retains the player's original text and the
+understood action, but the simulation still checks legal choices and requires
+the requested physical effect before recording progress. Names in the prompt
+do not create map knowledge. Optional observer replies are tied to the exact
+message ID and stored separately from private thoughts and conversation
+speech. Local deterministic decisions do not mark messages as heard.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -636,6 +637,13 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+If an unpaid household recipe remains blocked for 60 ticks and no household
+member has an actionable way to supply its missing ingredients, the runtime
+pauses its saved plan and stops trying to continue it automatically. The adult
+can choose other work. After ingredients return to the building, choosing the
+recipe again resumes the saved plan. This does not interrupt a running
+production job.
 
 Barter choices and offer creation require both agents to be adults or elders.
 Infants, children and adolescents cannot receive an offer that reserves their

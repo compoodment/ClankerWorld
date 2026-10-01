@@ -405,7 +405,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool HasUnsupportedEatObject(string text)
     {
         var match = Regex.Match(text,
-            @"\b(?:eat|eats|eating)\s+(?:(?:the|a|an|some|one|two|three|four|five|six|seven|eight|nine|ten|all|any)\s+)*(?<object>[\p{L}]+)\b",
+            @"\b(?:eat|eats|eating)\s+(?:(?:the|a|an|some|one|two|three|four|five|six|seven|eight|nine|ten|all|any|\d+)\s+)*(?<object>[\p{L}]+)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return match.Success && !SupportedFoodObjectInstructionWords.Contains(match.Groups["object"].Value.ToLowerInvariant());
     }

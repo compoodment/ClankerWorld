@@ -19,6 +19,9 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("go to the Blacksmith", false)]
     [InlineData("gather berries and build a House", false)]
     [InlineData("eat wood", false)]
+    [InlineData("eat 3 wood", false)]
+    [InlineData("eat 3 stones", false)]
+    [InlineData("eat 3 berries", true)]
     [InlineData("gather -3 berries", false)]
     [InlineData("Eat!", true)]
     [InlineData("gathering berries", true)]
@@ -271,24 +274,50 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task DirectOrderQueuedBeforeCurrentMatchingIsClosedOnTheNextTick()
+    public async Task UnsupportedWholeWordOrderClosesAtSubmitAndDoesNotBlockLaterOrderAfterReload()
     {
+        const string foodLotId = "unsupported-then-valid-order-berries";
+        using var genesis = new PrivateWorldRuntime("unsupported-then-valid-order");
+        var initialState = genesis.ExportState() with
+        {
+            Inhabitants = genesis.ExportState().Inhabitants.Select(person =>
+                person.InhabitantId == OrderedAgent ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+            Society = genesis.ExportState().Society with
+            {
+                Society = genesis.ExportState().Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(genesis.ExportState().Society.Society.Inventory,
+                        foodLotId, "berries", OrderedAgent, 1),
+                },
+            },
+        };
         var provider = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = new PrivateWorldRuntime("earlier-order", _ => provider);
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("heat", "owner:test",
-            OrderedAgent, OwnerInstructionKind.MustDo, "heat the house"));
-        // Earlier substring matching read "heat" as "eat" and left this pending.
-        var queuedEarlier = world.ExportState() with { CompletedInstructionIds = [] };
+        using var world = PrivateWorldRuntime.Restore(initialState, _ => provider);
 
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(queuedEarlier)), _ => provider);
+        var unsupported = world.SubmitInstruction(new OwnerInstructionRequest("heat", "owner:test",
+            OrderedAgent, OwnerInstructionKind.MustDo, "heat the house"));
+        var closed = world.ExportState();
+        Assert.Contains(unsupported.InstructionId, closed.CompletedInstructionIds ?? []);
+        Assert.Equal("not_understood", Assert.Single(closed.Instructions!,
+            item => item.InstructionId == unsupported.InstructionId).Order!.Status);
+        Assert.Single(closed.Events, item => item.Kind == "instruction_not_understood" &&
+            item.Detail == OrderedAgent + ":" + unsupported.InstructionId);
+
+        var valid = world.SubmitInstruction(new OwnerInstructionRequest("eat", "owner:test",
+            OrderedAgent, OwnerInstructionKind.MustDo, "eat berries"));
+        var encoded = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(encoded), _ => provider);
+        Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
 
-        var state = restored.ExportState();
-        Assert.Contains(order.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.Equal(2, state.Events.Count(item => item.Kind == "instruction_not_understood" &&
-            item.Detail == OrderedAgent + ":" + order.InstructionId));
-        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied");
+        var after = restored.ExportState();
+        Assert.Contains(unsupported.InstructionId, after.CompletedInstructionIds ?? []);
+        Assert.Contains(valid.InstructionId, after.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(after.Society.Society.Inventory.Lots, lot => lot.Id == foodLotId);
+        Assert.Single(after.Events, item => item.Kind == "instruction_not_understood" &&
+            item.Detail == OrderedAgent + ":" + unsupported.InstructionId);
+        Assert.Single(after.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail == valid.InstructionId + ":consume_food");
         restored.Validate();
     }
 

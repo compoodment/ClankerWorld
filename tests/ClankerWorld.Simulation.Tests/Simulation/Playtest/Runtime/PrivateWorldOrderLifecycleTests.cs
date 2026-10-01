@@ -60,6 +60,8 @@ public sealed partial class PrivateWorldRuntimeTests
         using var world = new PrivateWorldRuntime("bounded-order-quantity");
         var quantity = world.SubmitInstruction(new OwnerInstructionRequest(
             "two-berries", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo, "gather two berries"));
+        var eatingQuantity = world.SubmitInstruction(new OwnerInstructionRequest(
+            "eat-three-berries", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo, "eat 3 berries"));
         var location = world.SubmitInstruction(new OwnerInstructionRequest(
             "food-location", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo, "go to berries at 12,4"));
         var defaultHarvestAtLocation = world.SubmitInstruction(new OwnerInstructionRequest(
@@ -90,6 +92,11 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Equal(2, quantityOrder.RequestedUnits);
         Assert.Equal("food_items", quantityOrder.ProgressUnit);
         Assert.True(quantityOrder.QuantityIsExplicit);
+        var eatingQuantityOrder = Assert.Single(state.Instructions!, item => item.InstructionId == eatingQuantity.InstructionId).Order!;
+        Assert.Equal("consume_food", eatingQuantityOrder.Action);
+        Assert.Equal(3, eatingQuantityOrder.RequestedUnits);
+        Assert.Equal("food_items", eatingQuantityOrder.ProgressUnit);
+        Assert.True(eatingQuantityOrder.QuantityIsExplicit);
 
         var locationOrder = Assert.Single(state.Instructions!, item => item.InstructionId == location.InstructionId).Order!;
         Assert.Equal(1, locationOrder.RequestedUnits);

@@ -1,0 +1,1 @@
+- The supported food orders now keep their task and target through waiting, queuing, and cancellation.

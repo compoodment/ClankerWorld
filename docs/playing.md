@@ -101,10 +101,16 @@ thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
 
-**Suggest** opens a **Suggestion** and **Order** opens a **Direct order**. Their
-model does not read your words yet. A direct order works only when it asks them to gather
-or harvest food, eat, or go somewhere, and "go" currently means walking toward
-food. [What works today](what-works.md#agents-and-their-models) has the details.
+**Suggest** shares an idea for the agent's next ordinary request to its own
+planning model. **Order** gives it a task; sending either does not make a
+separate model request. The current order choices are limited to eating carried
+food, finding or walking toward food, and gathering berries, fruit or wild greens
+from a matching food source. A new order replaces the current one unless you
+turn on **Queue**. Use **Cancel task** to stop a waiting or active order.
+Unsupported requests, such as "build a house" or "gather wood," close as not
+understood and appear in the Event Log. Recognized orders still follow normal
+access, carrying and survival rules. [What works today](what-works.md#agents-and-their-models)
+has the details.
 
 Click a building to outline it and open a small card beside it: who owns it,
 what is being made there or who is inside, and what it stores, shown as item
