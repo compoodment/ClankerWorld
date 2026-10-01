@@ -729,9 +729,9 @@ These proposal, voting-window, seat-count and ballot choices are settled.
 The remaining ordinary council-process rules are agreed in
 [Council changes and election scheduling](#council-changes-and-election-scheduling).
 The completed voting and election decision is tracked in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601). Approval authority
-for broader changes to the governing arrangement is agreed below; the detailed
-change process remains a separate interview topic.
+[#601](https://github.com/compoodment/ClankerWorld/issues/601). The authority and procedure
+for broader changes to the governing arrangement are agreed in
+[Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
 
 ### Election terms and council continuity
 
