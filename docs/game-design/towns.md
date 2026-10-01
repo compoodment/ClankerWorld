@@ -693,8 +693,9 @@ adult residents should retain a vote in those elections.
   when the result is settled; otherwise close at the deadline. Without sufficient
   approval then, the proposal does not pass. Paused time does not consume the
   window. Agents vote through their ordinary personal-model turns; make no extra
-  paid calls merely to poll for votes. How proposals reach eligible agents and
-  how changes in the voter roster affect an open vote still need decisions.
+  paid calls merely to poll for votes. Proposal delivery follows the agreed
+  [notice rules](#election-eligibility-ballots-and-notices). How changes in the
+  council roster affect an open proposal still needs a decision.
 - **The first elected council has three seats.** Use the already agreed
   eight-adult trial threshold to begin representation. A Town may later change
   its governing arrangement through the agreed in-world process; three seats
@@ -705,8 +706,8 @@ adult residents should retain a vote in those elections.
   the same ballot. Candidates with the highest totals win the available seats.
   Ties and too few candidates follow the agreed
   [council continuity rules](#election-terms-and-council-continuity).
-  Turnout, candidate eligibility, self-voting and ballot revision remain in
-  the follow-up interview; do not choose them in code.
+  Turnout, candidate eligibility, self-voting and ballot revision follow the
+  agreed [ballot rules](#election-eligibility-ballots-and-notices).
 
 Use recorded Town adult residents for civic eligibility, including homeless
 residents and travelers, under the agreed membership work in
@@ -745,19 +746,66 @@ Remaining election/roster and governing procedures are tracked in
   population rules above supply the all-adult fallback when needed. Election
   windows and terms are initial values to try, not immutable world laws.
 
-Candidate and voter eligibility, turnout, ballot handling and the treatment of
-pending proposals when the council changes still need answers in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601). These agreed
-term, tie, replacement and population rules do not silently decide those details.
+Candidate and voter eligibility, turnout and ballot handling follow the
+[agreed rules below](#election-eligibility-ballots-and-notices). Vacancy proposal
+majorities, election retries and the treatment of pending proposals when the
+council changes still need answers in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
+
+### Election eligibility, ballots and notices
+
+**Agreed with the owner on October 1, answers 34A–39A:**
+
+- **Any willing adult Town resident may stand for election and vote for
+  themselves.** Homeless residents and travelers qualify through recorded
+  membership. Standing requires the candidate's recorded agreement; another
+  agent cannot make them a willing candidate by merely naming them. The
+  nomination process and its timing remain to be decided.
+- **There is no minimum election turnout, including for a runoff.** Each
+  winner must have received at least one vote in the main election. If a full
+  council of three eligible, willing, supported representatives cannot be
+  formed, use the all-adult fallback. One voter can therefore elect three
+  willing candidates, but a zero-vote candidate cannot gain a seat through
+  a draw. A runoff with no new ballots can still end with the agreed fair draw
+  among the previously supported, tied candidates.
+- **Fix the eligible voter and candidate lists when voting opens.** Later
+  arrivals, newly grown adults and late volunteers wait for a later election.
+  If an agent dies or leaves recorded Town membership before that window
+  closes, remove their eligibility, their ballot and any candidacy. Travel alone
+  does not remove eligibility. A runoff starts with a fresh eligible voter
+  list, but its candidates remain limited to the original, still-eligible tied
+  candidates; it is not a new opportunity to nominate someone else.
+- **Election ballots may change until the deadline; a council proposal vote
+  is final once cast.** Count only the latest election ballot from each voter.
+  Final proposal votes preserve early resolution once a result is settled;
+  election ballots do not become final merely because a candidate leads
+  before closing.
+- **Agents learn about proposals and candidates through actual Town notices
+  or another agent relaying information.** What they read or hear enters their
+  ordinary personal-model context. Do not automatically inject unseen civic
+  information into every resident's knowledge or invent candidate positions.
+  A traveler can miss an election. Relayed claims remain what was communicated,
+  rather than automatically becoming verified world facts.
+- **When a selected candidate withdraws, remove that choice and keep the
+  ballot's other choices.** The voter may revise the ballot during the
+  remaining window. Withdrawal does not reset the deadline or require every
+  affected voter to submit again. A ballot for Mira, Sol and Ash becomes a
+  ballot for Sol and Ash if Mira withdraws.
+
+These eligibility, ballot and delivery rules are settled. Nomination timing,
+vacancy majority counting, pending proposals, repeated requests and retry
+timing are the remaining ordinary council-process choices in
+[#601](https://github.com/compoodment/ClankerWorld/issues/601).
 
 ### Still to decide
 
 Town residency and newcomer approval are agreed in [Town membership](#town-membership).
 Election terms, ties, replacements and population transitions are agreed in
 [Election terms and council continuity](#election-terms-and-council-continuity).
-Still open: turnout, candidate eligibility and self-voting, ballot revision,
-proposal delivery, changes to voter eligibility during an open vote,
-proposal majorities during vacancies, retry timing after too few candidates,
+Eligibility, ballots, election roster changes and delivery are agreed in
+[Election eligibility, ballots and notices](#election-eligibility-ballots-and-notices).
+Still open: nominations and their timing, proposal majorities during vacancies,
+retry timing after too few candidates or an invalid result,
 repeated requests and pending proposals when the council changes; repeal details;
 how governments may change; which laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
