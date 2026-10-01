@@ -17,6 +17,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         rosterPanel.Visible = show;
+        if (show) QueueHudListsFit();
     }
 
     private void ToggleEvents()
@@ -28,6 +29,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+        if (show) QueueHudListsFit();
         if (show) MarkEventsSeen();
     }
 

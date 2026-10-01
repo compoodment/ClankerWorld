@@ -61,6 +61,7 @@ public partial class Main
         PlaceHudPanels();
         PositionSelectedTilePanel();
         PositionFamilyTreePanel(viewport, hudTop);
+        FitHudLists();
         foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
@@ -82,17 +83,20 @@ public partial class Main
         familyTreePanel.CustomMinimumSize = Vector2.Zero;
         familyTreeScroll.CustomMinimumSize = Vector2.Zero;
 
-        // Measure the heading, help text, frame padding and spacing without
-        // the tree viewport, then give the tree as much of the remaining
-        // screen as its content needs. Long trees scroll inside this
-        // bounded area instead of making the panel run off-screen.
-        var chrome = familyTreePanel.GetCombinedMinimumSize() - familyTreeScroll.GetCombinedMinimumSize();
+        // Measure the panel with the whole tree in view, then cap it to the
+        // screen. Long or wide trees scroll inside this bounded area instead
+        // of making the panel run off-screen.
+        var tree = familyTreeView.GetCombinedMinimumSize();
+        familyTreeScroll.CustomMinimumSize = new Vector2(Math.Max(0, tree.X), 0);
+        var wanted = familyTreePanel.GetCombinedMinimumSize();
         var topLimit = Math.Min(Math.Max(14, hudTop), Math.Max(14, viewport.Y - 14));
         var availableHeight = Math.Max(1, viewport.Y - topLimit - 14);
-        var tree = familyTreeView.GetCombinedMinimumSize();
-        var panelWidth = Math.Max(1, Math.Min(Math.Max(320, tree.X + chrome.X), viewport.X - 28));
-        familyTreeScroll.CustomMinimumSize = new Vector2(0,
-            Math.Min(Math.Max(0, tree.Y), Math.Max(0, availableHeight - Math.Max(0, chrome.Y))));
+        var panelWidth = Math.Max(1, Math.Min(Math.Max(320, wanted.X), viewport.X - 28));
+        // A tree wider than the screen scrolls sideways inside the panel.
+        var otherWidth = Math.Max(0, wanted.X - tree.X);
+        familyTreeScroll.CustomMinimumSize = new Vector2(
+            Math.Max(0, Math.Min(tree.X, panelWidth - otherWidth)),
+            Math.Min(Math.Max(0, tree.Y), Math.Max(0, availableHeight - wanted.Y)));
         familyTreePanel.CustomMinimumSize = new Vector2(panelWidth, 0);
 
         var panelHeight = Math.Min(availableHeight, familyTreePanel.GetCombinedMinimumSize().Y);

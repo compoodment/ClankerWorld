@@ -31,6 +31,8 @@ public partial class Main
 
     private void BuildRosterCards(Control body)
     {
+        // The text list stays for selection and checks, but never shows.
+        inhabitantList.Hide();
         rosterCards.Compact = true;
         rosterCards.CustomMinimumSize = new Vector2(380, 60);
         rosterCards.ItemSelected += index =>
@@ -75,8 +77,9 @@ public partial class Main
             if (person.Id == selectedInhabitantId) rosterCards.Select(rosterCardIds.Count - 1);
         }
         var rows = Math.Max(1, inhabitants.Length);
-        rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rows * 50, 460));
-        inhabitantList.Hide();
+        rosterWantedHeight = rows * 50;
+        FitHudLists();
+        QueueHudListsFit();
     }
 
     private static string Capitalize(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -134,7 +137,8 @@ public partial class Main
         if (entries.Length == 0)
         {
             eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
-            eventScroll.CustomMinimumSize = new Vector2(400, 30);
+            eventsWantedHeight = 30;
+            FitHudLists();
             return;
         }
         string? day = null;
@@ -196,7 +200,50 @@ public partial class Main
             eventRows.AddChild(row);
             height += 26;
         }
-        eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(height, 560));
+        eventsWantedHeight = height;
+        FitHudLists();
+        QueueHudListsFit();
+    }
+
+    private float rosterWantedHeight = 60;
+    private float eventsWantedHeight = 120;
+    private bool hudListsRefitQueued;
+
+    /// <summary>
+    /// The Agents list and Event Log grow with their rows until they would pass
+    /// the bottom of the screen, then scroll. Called again when the window changes.
+    /// </summary>
+    private void FitHudLists()
+    {
+        rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rosterWantedHeight, ListRoom(rosterPanel, rosterCards)));
+        eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
+        rosterPanel.ResetSize();
+        eventsPanel.ResetSize();
+    }
+
+    /// <summary>
+    /// Fits the lists again on the next frame. Wrapped text reports its real
+    /// height only once its panel has a width, so the first fit can be short.
+    /// </summary>
+    private void QueueHudListsFit()
+    {
+        if (hudListsRefitQueued || !IsInsideTree()) return;
+        hudListsRefitQueued = true;
+        GetTree().Connect(SceneTree.SignalName.ProcessFrame, Callable.From(() =>
+        {
+            hudListsRefitQueued = false;
+            FitHudLists();
+        }), (uint)ConnectFlags.OneShot);
+    }
+
+    /// <summary>
+    /// How tall a panel's list may grow before it scrolls: what is left of the
+    /// screen below the top bar after the panel's heading and frame.
+    /// </summary>
+    private float ListRoom(Control panel, Control list)
+    {
+        var chrome = panel.GetCombinedMinimumSize().Y - list.CustomMinimumSize.Y;
+        return Math.Max(120, UiSize.Y - HudTop - 16 - chrome);
     }
 
     private static readonly (string Section, bool Right, (string[] Keys, string Action)[] Rows)[] ControlGroups =
@@ -249,7 +296,7 @@ public partial class Main
         var cap = new PanelContainer { SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         cap.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = p.ButtonLight,
+            BgColor = p.Button,
             BorderColor = p.ButtonEdge,
             BorderWidthLeft = 1,
             BorderWidthTop = 1,
@@ -264,10 +311,31 @@ public partial class Main
         return cap;
     }
 
+    private readonly HBoxContainer controlsColumns = new();
+    private string? renderedControlsTheme;
+
     private void BuildControlsGroups(Control content)
     {
-        var columns = new HBoxContainer();
-        columns.AddThemeConstantOverride("separation", 24);
+        controlsColumns.AddThemeConstantOverride("separation", 24);
+        FillControlsGroups();
+        AddClosablePanelContents(controlsPanel, "Controls", controlsColumns);
+        controlsPanel.ZIndex = 85;
+        controlsPanel.Resized += PositionControlsPanel;
+        controlsPanel.Hide();
+        content.AddChild(controlsPanel);
+    }
+
+    /// <summary>The keycaps carry the theme's button colours, so the list is redrawn when the theme changes.</summary>
+    private void FillControlsGroups()
+    {
+        if (renderedControlsTheme == UiTheme.Current.Name) return;
+        renderedControlsTheme = UiTheme.Current.Name;
+        foreach (var child in controlsColumns.GetChildren())
+        {
+            controlsColumns.RemoveChild(child);
+            child.QueueFree();
+        }
+        var columns = controlsColumns;
         VBoxContainer Column()
         {
             var column = new VBoxContainer { SizeFlagsVertical = Control.SizeFlags.ShrinkBegin };
@@ -300,10 +368,5 @@ public partial class Main
             }
             column.AddChild(grid);
         }
-        AddClosablePanelContents(controlsPanel, "Controls", columns);
-        controlsPanel.ZIndex = 85;
-        controlsPanel.Resized += PositionControlsPanel;
-        controlsPanel.Hide();
-        content.AddChild(controlsPanel);
     }
 }
