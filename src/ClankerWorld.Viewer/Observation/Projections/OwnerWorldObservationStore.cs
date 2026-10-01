@@ -480,6 +480,8 @@ public sealed class OwnerWorldObservationStore
                     (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure)
                 {
                     Trades = BusinessTradesAt(state, item.InstanceId),
+                    AllowsHouseholdOwner = buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags
+                        .Any(HouseholdBuildingKinds.IsKindTag) == true,
                 })
                 .ToArray() ?? [],
             ProductionJobs = jobs

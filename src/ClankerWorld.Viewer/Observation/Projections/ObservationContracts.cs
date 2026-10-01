@@ -257,6 +257,7 @@ public sealed record ViewerPlacedBuilding(
     string? ExpansionFailure = null)
 {
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
+    public bool AllowsHouseholdOwner { get; init; }
 }
 
 public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,

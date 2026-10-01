@@ -263,6 +263,7 @@ public sealed record OwnerWorldPlacedBuilding(
     string? ExpansionFailure = null)
 {
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
+    public bool AllowsHouseholdOwner { get; init; }
 }
 
 public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
