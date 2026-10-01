@@ -26,8 +26,10 @@ Otherwise use the matching template:
 
 - One topic per issue, with a title in ordinary words. Link related issues
   instead of copying progress notes between them.
-- Prefer fewer, clearer issues. Something normal playtesting will show anyway
-  does not need its own issue; add it to the [playtest list](playtest/README.md).
+- Prefer fewer, clearer issues. A problem you found, in the game or in code or
+  tests, gets its own Bug issue. A merged change that still needs a hands-on
+  check does not: its pull request adds a [playtest list](playtest/README.md)
+  file instead ([how](#close-issues-when-the-work-merges)).
 - computment reads chat, not GitHub comments. An agent that needs their answer
   asks in its chat reply and records the answer afterwards
   ([how](AGENTS.md#ask-the-owner-in-chat)).
@@ -35,60 +37,96 @@ Otherwise use the matching template:
   would settle an open game choice needs a Decision issue or an explicit owner
   decision. An open pull request, draft or not, does not make a suggestion
   agreed or a feature available.
-- Never include keys, pairing codes, private saves or raw model-service payloads.
+- Never include keys, pairing codes, private saves or raw model-service
+  payloads. Never describe a security problem publicly
+  ([Security problems](#priorities)).
 
 ### Labels
 
 Every open issue has **one type**, **one or two areas**, **a priority** and,
-while it waits on something, **a status**. Whoever changes an issue's situation updates its
-labels in the same step. Labels are defined in
-[`.github/labels.json`](.github/labels.json); edit that file to add or rename
-one, and a workflow updates the repository.
+while someone works on it or it waits on something, **a status**. Whoever
+changes an issue's situation updates its labels in the same step. Use only the
+labels in [`.github/labels.json`](.github/labels.json): to add or rename one,
+edit that file and a workflow updates the repository. Never create a label by
+hand; retired ones, such as `status:needs-playtest`, are deleted again every
+six hours.
 
 | Kind | Labels |
 | --- | --- |
-| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs` |
-| Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build) |
+| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs`, `type:tooling` (CI, tests, build, refactors and how-we-work changes) |
+| Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build, workflow) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
-| Status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr`, `status:needs-review`, `status:reviewing` ([claimed by a reviewer](#review-and-merge)), `status:needs-decision`, `status:blocked` (say by what), `status:parked` (closed for a later stage) |
+| Issue status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr` (a pull request closes it), `status:parked` (closed for a later stage) |
+| Pull request status | `status:needs-review` (ready for review), `status:reviewing` ([claimed by a reviewer](#review-and-merge)), `status:merging` ([taking its turn to merge](#review-and-merge)) |
+| Either | `status:needs-decision` (waiting on the owner), `status:blocked` (waiting on something its description names, such as `Blocked by #123`) |
 | Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
 
-- **Automatic:** the templates set the type and `priority:p2`. A pull request
-  gets the highest priority of the issues it closes, and P0 if it
-  changes [how we work](#priorities); at most two areas from the code it
-  changes, set when it opens and again when it is marked ready (fix them by
-  hand if they are wrong); one type, from the first ticked **Type of change**
-  box; and `status:needs-review` while it is ready. `status:reviewing` comes off
-  when it closes or goes back to draft. Quiet claims are
-  [released every hour](#claim-an-issue). An issue it closes
-  (`Closes`, `Fixes` or `Resolves`) gets `status:has-pr`; once the pull request
-  is ready for review, the issue's `status:in-progress` claim is removed.
-  `status:has-pr` is removed when the last such pull request closes; if none
-  merged, the issue goes back to `status:needs-pr`. `Refs` changes no labels.
-- **By hand:** areas, a priority and a status on new issues; `status:needs-pr`
-  only when nothing is left to decide; the other statuses when they become
-  true; and `status:parked` when closing agreed work for later.
+`status:in-progress` stays next to `status:has-pr` while the claimed pull
+request is a draft, and next to `status:needs-decision` while the claim waits
+on the owner.
+
+- **Automatic on issues:** issue forms filed on GitHub's website set the type
+  and `priority:p2`, and the Decision form also adds `status:needs-decision`.
+  An issue created through the API or an agent's GitHub tools gets no labels,
+  so add them by hand. An issue a pull request closes (`Closes`, `Fixes` or
+  `Resolves` directly before its number) gets `status:has-pr` in place of
+  `status:needs-pr`, and loses `status:in-progress` when that pull request is
+  marked ready. If the pull request goes back to draft and nobody holds the
+  issue, it gets `status:needs-pr` back next to `status:has-pr`. When the last
+  such pull request closes, `status:has-pr` comes off; if none merged, the
+  issue goes back to `status:needs-pr`, unless it has another status or is a
+  decision or owner task. `Refs` changes no labels. Quiet claims are
+  [released automatically](#claim-an-issue).
+- **Automatic on pull requests:** a priority (the highest of the open issues it
+  closes; if none has one, of the open issues it refers to; otherwise P2; P0 if
+  it changes [how we work](#priorities)); one type, from the first ticked
+  **Type of change** box, or `type:docs` when none is ticked and only
+  documentation changes; at most two areas from the files it changes, set when
+  it opens and when it is marked ready, unless someone has changed its areas by
+  hand; and `status:needs-review` while it is ready. `status:needs-review`,
+  `status:reviewing` and `status:merging` come off when it closes or goes back
+  to draft. A pull request stacked on another's branch is judged by what it
+  would change on main.
+- **By hand:** all labels on issues created without a form; on other new
+  issues, areas, a priority if it is not P2 and any status that applies;
+  `status:needs-pr` only when nothing is left to decide; the other statuses
+  when they become true; and `status:parked` when closing agreed work for
+  later.
 
 ### Priorities
 
-| Priority | Means | Agents |
+| Priority | Means | Fixing agents |
 | --- | --- | --- |
-| `priority:p0` | Broken now: a crash, lost or damaged saves or keys, a security problem, or the game can't be played or playtested. Also every change to how we work | Drop other work and fix it first |
+| `priority:p0` | Broken now: a crash, lost or damaged saves or keys, a security problem, or the game can't be played or playtested. Also every change to how we work | Take it before any other issue. If you hold another claim, push that work and hand the claim back first |
 | `priority:p1` | Next up: hurts normal play, or needed for the next playtest | Take before any P2 or P3 |
 | `priority:p2` | Normal: agreed features and ordinary bugs. The default | In order, oldest first |
-| `priority:p3` | Polish: cosmetic issues, edge cases, nice-to-haves | Only when nothing higher is ready |
+| `priority:p3` | Polish: cosmetic issues, edge cases, nice-to-haves | Only when no higher issue is waiting |
 
+- **Priorities decide what to pick up next.** They never hold back finished
+  work ([Review and merge](#review-and-merge)), and other jobs don't switch: a
+  bug finder files a P0 and tells the owner in chat but fixes it only if asked,
+  and a reviewer finishes its current review and takes P0 pull requests next.
 - **Bugs:** a crash, data loss or unplayable game is P0; wrong in normal play
   is P1; an edge case is P2; cosmetic is P3. A `regression`, something that
   used to work, goes one level higher.
+- **Security problems:** a problem someone could exploit now, such as reading
+  keys or private saves, getting past pairing or controlling a host, is P0.
+  The repository is public, so never describe it in an issue, pull request or
+  comment. Agents tell the owner in chat ([how](AGENTS.md#ask-the-owner-in-chat))
+  and open an issue titled `Security report waiting for the owner`, with only
+  `type:bug`, `owner-task`, `priority:p0` and one area, and no details. The
+  owner decides in chat how it is fixed. Hardening ideas with no working
+  exploit are ordinary issues.
 - **Features, experiments and decisions** start at P2, and move to P1 when the
   next playtest needs them.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
   are P0.
-- **At most 5 open P0 and 10 open P1 issues.** When a level is full, the least
-  urgent issue there, counting the new one, goes down a level; between equals,
-  the newest goes down.
+- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+  requests. When a level is full, the least urgent issue there that the owner
+  did not pick, counting the new one, goes down a level; between equals, the
+  newest goes down. If the owner picked every other issue at that level, the
+  new one goes down, and you say so in your chat reply.
 - **Anyone may set or change a priority by these rules without asking the
   owner.** Change one only when the rules call for it, and add a one-line
   comment saying why. When the owner picks a priority, say so in that comment;
@@ -105,65 +143,96 @@ when their work lands.
 Ready work is agreed, unblocked, unclaimed and not waiting on the owner:
 
 ```text
-is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision"
+is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" sort:created-asc
 ```
 
 Take the highest priority first: add `label:"priority:p0"` to the search, then
-p1, p2 and p3, and within a level take the oldest issue. Read the issue's
-comments and **Development** panel first. If main already
-fixes it, name the commit and close the issue. If the issue also has
-`status:has-pr`, an earlier draft was abandoned: continue that pull request's
-branch rather than starting again.
+p1, p2 and p3, and take the first result, which is the oldest issue at that
+level. Before you claim it, read its comments and look for pull requests that
+name it, open or merged (search `is:pr <number>`): an open one may already be
+doing the work, and a merged one may mean main already fixes it. If main
+already fixes it, name the commit and close the issue.
+
+If the issue also has `status:has-pr`, an earlier draft was abandoned: continue
+that pull request's branch rather than starting again. Say on the pull request
+that you are taking it over, fetch its latest head before each push, and never
+force-push. If a push is rejected because the branch moved, find out who pushed
+and merge their work in before you continue.
 
 ### Claim an issue
 
 Before you start, replace `status:needs-pr` with `status:in-progress` and
-comment with who is working on it and the branch name in backticks, such as
-`codex/123-fix`. Assignment alone does not show which agent took it, and the
-cleanup below finds your pushes through that branch name. Agents sign the
-comment with a session ID ([how](AGENTS.md#sign-your-comments)).
+comment with who is working on it and your branch name in backticks, such as
+`codex/123-fix`. The cleanup below finds your pushes through that name. Agents
+sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
 
-- **Show your work.** Push your branch and open a draft pull request within the
-  first hour, then push at least every 2 hours while you work. Pushed commits
-  are how everyone, including the owner, can see the claim is alive, so only
-  pushes keep it; comments do not. If you are waiting on the owner, add
-  `status:needs-decision`, which keeps the claim. If you are waiting on
-  something else, add `status:blocked` and say what it is waiting on.
-- **Quiet claims are released automatically.** Every hour a workflow releases
-  any claim with nothing pushed for 4 hours. Work counts as a push to a linked
-  draft pull request's branch or to a branch named in the issue's comments, or
-  opening a linked draft; a push counts from when it reached GitHub, even if
-  its commits are older. Comments, edits, label changes and pushes to ready
-  pull requests, which belong to their reviewers, do not count. The issue goes
-  back to `status:needs-pr` with a comment naming the draft or branch to
-  continue from; a blocked issue stays out of the queue.
-  Claims waiting on the owner (`status:needs-decision` on the issue or pull
-  request) are kept. New claims still count. The cleanup checks current claims
-  and handoffs again before and after changing labels.
-- An abandoned draft keeps `status:has-pr` alongside `status:needs-pr` until
-  someone claims its issue or a closing pull request becomes ready. Routine
-  draft edits and pushes do not hide that unclaimed work from the search.
-  The cleanup workflow can be previewed from Actions with its dry-run option;
-  select `main`, since it runs only main's checked-in script.
-- Do not start a second fix for a claimed issue. If you think the approach is
+- **One claim at a time.** Claim an issue when you start on it, not to line up
+  your next job. Each session holds one issue claim; a session's subagents
+  share it. The exception is combined work: when one pull request, or one stack
+  of pull requests built on each other, will cover several related issues,
+  claim them together and name on each the branch that will close it. Your
+  claim ends when your pull request is marked ready, so you are then free to
+  claim the next issue.
+- **Only pushes keep a claim.** Push your branch and open a draft pull request
+  within the first hour, even before the work builds, then push at least every
+  hour. A draft is where unfinished work belongs. Work that exists only on your
+  machine is invisible to everyone else and is lost if the claim passes on.
+- **Quiet claims are released automatically.** Every 30 minutes a workflow
+  releases any claim with nothing pushed for 1.5 hours. What counts: adding
+  `status:in-progress`, opening a linked draft, and pushes to a linked draft's
+  branch or to a branch named in the issue's comments. A draft that only refers
+  to the issue (`Refs`) counts when its branch is named in the issue's comments
+  or starts with the issue number, such as `codex/123-fix`. A push counts from
+  when it reached GitHub, even if its commits are older. Comments, edits, other
+  label changes and pushes to ready pull requests, which belong to their
+  reviewers, do not count. The released issue goes back to `status:needs-pr`,
+  unless it is blocked, with a comment naming the draft or branch to continue
+  from. GitHub sometimes starts scheduled runs late, so a release can come a
+  little after 1.5 hours.
+- **A claim lasts while its label is on.** `status:in-progress` means someone
+  holds the issue, however long ago they last pushed. Only the claimant, the
+  release workflow or an owner request ends a claim, so don't decide on your
+  own clock that one has lapsed. Don't remove and re-add the label to restart
+  the clock; add it again only when you claim the issue afresh. Another
+  session's claim is taken over only when the owner asks
+  ([how](AGENTS.md#take-over-work-only-when-the-owner-asks)).
+- **Waiting on the owner:** add `status:needs-decision` to the issue, or to
+  your own draft, and ask in chat. That keeps the claim.
+- **Waiting on anything else:** if you can keep working, keep pushing.
+  Otherwise add `status:blocked`, name each blocker in the issue description
+  as `Blocked by #123` or describe the outside event, push what you have and
+  remove `status:in-progress`. A blocked issue stays out of the queue until
+  whoever finishes the blocker unblocks it.
+- **Stopping:** push your branch, put `status:needs-pr` back in place of
+  `status:in-progress` (or `status:blocked`, as above), and comment with what
+  you learned and the branch name.
+- **When your pull request is marked ready**, each issue it closes loses
+  `status:in-progress` automatically and keeps `status:has-pr`. Issues it only
+  refers to (`Refs`) keep your label, so end those claims yourself: comment
+  with what remains, then replace `status:in-progress` with `status:needs-pr`,
+  or with `status:blocked` naming your pull request if the rest must wait for
+  it to merge.
+- Do not start a second fix for a claimed issue. If you think its approach is
   wrong, say so on the issue.
-- If you stop, push your branch, put `status:needs-pr` back in place of
-  `status:in-progress` (or `status:blocked` if it now waits on something), and
-  comment with what you learned and the branch name.
-- You don't remove it when you open the pull request: once a pull request that
-  closes the issue is ready for review, the issue switches to `status:has-pr`
-  automatically. A `Refs` pull request leaves the claim alone.
+
+An abandoned draft keeps `status:has-pr` next to `status:needs-pr` until
+someone claims its issue or a closing pull request is ready. To preview the
+cleanup, run **Release stale claims** from Actions on `main` with its dry-run
+option; it runs only main's copy of the script.
 
 ### Link issues from the pull request
 
 GitHub closes an issue when a merged pull request's description names it with a
 closing keyword, and only exact wording works.
 
-- `Closes #123` for each issue the pull request completes, one keyword per
-  issue: `Closes #12, closes #13`. `Fixes` and `Resolves` work the same way.
+- `Closes #123` for each issue the pull request completes, one keyword directly
+  before each number: `Closes #12, closes #13`. `Fixes` and `Resolves` work the
+  same way. A draft closes nothing, so write `Closes` from the start rather
+  than `Refs` as a placeholder.
 - `Refs #123` for an issue it relates to or only partly completes.
 - Other words close nothing: `Implements #123`, `Addresses #123` and
-  `Part of #123` only mention the issue. `Fixes #12 and #13` closes only #12.
+  `Part of #123` only mention the issue. `Fixes #12 and #13` closes only #12,
+  and a bare number on the template's Closes line closes nothing.
 - A keyword in a negative sentence still counts: "this does not fix #123"
   closes #123. Write `Refs #123` instead.
 
@@ -184,16 +253,18 @@ was not checked.
   as a duplicate of the new one.
 - **Decisions:** the pull request that records the owner's answer in the game
   design closes the Decision issue and links or opens the implementation issues.
-- **Not needed:** close as *not planned* with a one-line reason.
+- **Not needed:** close as *not planned* with a one-line reason. Check the open
+  `status:blocked` issues that name it: park them too if they cannot happen
+  without it, or comment with what they now wait on.
 
 ## Organize the work
 
 For work with several steps, keep a short plan and update it as you learn
 more. If you cannot finish, push your branch and say what remains where the
-next person will look. Keep related code, docs and checks together. Do not mix unrelated changes,
-start a competing fix (see [Claim an issue](#claim-an-issue)) or leave scratch
-files in the repository. Record progress, decisions and what remains on the
-issue and pull request, not in a second tracker.
+next person will look. Keep related code, docs and checks together. Do not mix
+unrelated changes, start a competing fix (see [Claim an issue](#claim-an-issue))
+or leave scratch files in the repository. Record progress, decisions and what
+remains on the issue and pull request, not in a second tracker.
 
 ## Prepare a pull request
 
@@ -201,46 +272,20 @@ issue and pull request, not in a second tracker.
    ([how](#link-issues-from-the-pull-request)). If no issue is needed, such as
    for a direct owner request, say so.
 2. Read the relevant game-design, current-feature and developer pages.
-3. Check open pull requests for overlap. Name any overlap and agree an
-   integration order before stacking on an unmerged branch.
+3. Check open pull requests for overlap and name any you find. To build on an
+   unmerged pull request #A, branch from its branch, set your pull request's
+   base to that branch and fill in the template's **Stacked on** line. While
+   stacked, bring in newer main only by merging your base branch. When #A
+   merges, GitHub moves your pull request to main, and main then needs merging
+   in. If your pull request needs another one's code but is not stacked on it,
+   write `Merge after #A` on the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
-   someone who has not read the conversation. Mark sections that do not apply.
+   someone who has not read the conversation, including the **Author** line.
+   Mark sections that do not apply.
 
 Use a short title about the effect, such as
 `Show fullness instead of hunger on the agent panel`.
-
-### Drafts and readiness
-
-Open a pull request as a **draft** and keep it there while you are working on
-it. Mark it **ready for review** only when it is finished: every change pushed,
-the checks passing, the description final and nothing left to ask the owner.
-
-- **Waiting on the owner means draft.** If the pull request needs an owner
-  decision, add `status:needs-decision`, ask in chat, and keep it a draft until
-  every answer is in; don't mark it ready between batches of answers.
-- **Ready means handed over.** From then on a reviewer owns the branch: they
-  merge main in and fix CI failures and review findings themselves
-  ([Review and merge](#review-and-merge)). The author stops pushing. Before a
-  reviewer has claimed it (no `status:reviewing`), the author may still convert
-  it back to draft to fix something they missed; once it is claimed, comment
-  instead, and the reviewer includes the change or hands the pull request back.
-- **Only a hand-back sends a claimed pull request to draft.** A reviewer who
-  needs something they can't do, such as an owner decision or a redesign,
-  converts it to draft and comments with what is needed; the author, or any
-  fixing agent, then picks it up again.
-
-Once the work is finished, waiting for review or for a prerequisite pull request
-to merge is not a reason to stay in draft.
-
-Routine playtesting by computment can happen after merge during the alpha, so a
-missing Windows playtest, tuning session or latency measurement does not by
-itself block a merge. Record what was and was not checked, add a
-[playtest list](playtest/README.md) file when a hands-on check is still wanted,
-and never claim an unperformed check passed. This does not waive green CI,
-independent review, safety checks, a check the owner or reviewer asked for, or
-fixing correctness, security or data-loss problems the change introduces.
-Release gates stay separate.
 
 ### Change and verification rules
 
@@ -272,76 +317,188 @@ Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
 
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
-[CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Name
-the file after the issue number and the change, such as
-`431-orchard-harvest.md`, or after your branch when there is no issue.
-`scripts/collect-changes.sh` moves the entries into CHANGELOG.md when a release
-is prepared, or whenever the changelog should catch up.
+[CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
+the file with a `- ` bullet. Name the file after the issue number and the
+change, such as `431-orchard-harvest.md`, or after your branch when there is no
+issue. `scripts/collect-changes.sh` moves the entries into CHANGELOG.md when a
+release is prepared, or whenever the changelog should catch up.
+
+### Drafts and readiness
+
+Open a pull request as a **draft** and keep it there while you are working on
+it. Mark it **ready for review** only when it is finished: every change pushed,
+the checks passing, the description final with `Closes` for every issue it
+completes, and nothing left to ask the owner.
+
+- **Waiting on the owner means draft.** If the pull request needs an owner
+  decision, add `status:needs-decision`, ask in chat, and keep it a draft until
+  every answer is in; don't mark it ready between batches of answers.
+- **The owner may ask for a draft.** If computment asks for a pull request to
+  stay a draft, keep it one. Say at the top of its description that the owner
+  asked and what it waits for, add `status:blocked` or `status:needs-decision`
+  to it and to the issues it closes, and end your claim. Whoever continues it
+  marks it ready only when the owner says so.
+- **Ready means handed over.** From then on a reviewer owns the branch: they
+  merge main in and fix conflicts, CI failures and review findings themselves
+  ([Review and merge](#review-and-merge)). The author stops pushing. Main
+  moving on is never a reason to take a pull request back. Before a reviewer
+  has claimed it (no `status:reviewing`), the author may convert it back to
+  draft to fix a mistake in their own change, if they hold no other claim. Read
+  the comments right after converting: if a review claim landed, mark it ready
+  again without pushing and comment instead. Otherwise put `status:in-progress`
+  back on its issues, with a signed comment naming the branch, before you push.
+  Once it is claimed, comment instead, and the reviewer includes the change or
+  hands the pull request back.
+- **Only a hand-back sends a claimed pull request to draft.** A reviewer who
+  needs something they can't do, such as an owner decision or a redesign,
+  converts it to draft and comments with what is needed. Its issues go back to
+  the queue, and the author, or any fixing agent, picks it up again.
+
+Once the work is finished, waiting for review or for a prerequisite pull
+request to merge is not a reason to stay in draft. If it must wait for a pull
+request it is not stacked on, write `Waits on #A` in its description and add
+`status:blocked`. A stacked pull request needs no label: it stays out of the
+review search until GitHub moves it to main.
+
+Routine playtesting by computment can happen after merge during the alpha, so a
+missing Windows playtest, tuning session or latency measurement does not by
+itself block a merge. Record what was and was not checked, add a
+[playtest list](playtest/README.md) file when a hands-on check is still wanted,
+and never claim an unperformed check passed. This does not waive green CI,
+independent review, safety checks, a check the owner or reviewer asked for, or
+fixing correctness, security or data-loss problems the change introduces.
+Release gates stay separate.
 
 ### Review and merge
 
-Review and merge higher-priority pull requests first. The reviewer is not the
-pull request's author and normally merges. An author
-merges only when the owner explicitly asks and someone else has already
-reviewed the current head.
+Here a **session** is one top-level Claude Code or Codex conversation together
+with every subagent or worker it starts. A pull request's **author** is the
+session that wrote it and marked it ready. The **reviewer** is a different
+session and normally merges. An author merges only when the owner explicitly
+asks and a different session has already reviewed the current head, or to
+revert a commit that broke main (below).
 
-More than one reviewer may be merging at the same time, so:
+Several reviewers may be merging at the same time, so:
 
-- **Claim a pull request when you start reviewing it.** Take the
-  highest-priority one from `is:pr is:open draft:false -label:"status:reviewing"`,
-  add `status:reviewing`, and comment with who is reviewing and the commit you
-  started from. Then read the comments again: if someone else's claim came
-  first, leave the label alone and pick another pull request.
+- **Claim a pull request when you start reviewing it.** Search
+  `is:pr is:open draft:false base:main -label:"status:reviewing" -label:"status:blocked" sort:created-asc`
+  and take the first one at the highest priority; one with no priority label
+  counts as P2. Add `status:reviewing` and comment with who is reviewing and
+  the commit you started from. Then read the comments again: if someone else
+  claimed it before you and their claim has not been released since, leave the
+  label alone and pick another. Pull requests missing from that search are
+  stacked or wait on another pull request; if that one is ready and unclaimed,
+  review it instead.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
-  second pull request only while the first waits on CI or a prerequisite pull
-  request.
-- **Quiet review claims are released automatically.** A review claim with
-  nothing pushed for 2 hours is released; as with issue claims, comments do
-  not count. Merging main in or pushing a fix counts. The label also comes off
-  when the pull request closes or goes back to draft; remove it yourself if
-  you stop without merging.
-- **Never use draft as a hold.** Your `status:reviewing` claim already keeps
-  others away while you merge main in, add a fix or wait for a prerequisite
-  pull request; if you are waiting, say which pull request in a comment. A
-  wait longer than 2 hours lets the claim lapse, and anyone may claim the pull
-  request again once it can move. Convert to draft only to hand a pull request
-  back ([Drafts and readiness](#drafts-and-readiness)).
-- **Merge only on top of current main.** Two pull requests can each pass on
-  their own and still break main together, for example by both raising the
-  save format to the same new version. Just before merging, check whether main
-  has changed since the pull request's last CI run. If it has, merge main in,
-  fix any clash and wait for CI to pass again. Pull requests that change only
-  documentation may skip this.
+  second pull request only while the first waits on CI.
+- **Priority decides what you claim, not when you merge.** Once your pull
+  request passes the checks below, merge it. Don't hold it back for
+  higher-priority pull requests that are still in review. Wait only for a pull
+  request its description says it must follow (check 5).
+- **Only pushes keep a review claim.** Push each fix and each merge of main as
+  soon as it builds. A claim is released 1.5 hours after you add
+  `status:reviewing` or last push, whichever is later; comments don't count,
+  and don't remove and re-add the label to restart the clock. If your claim
+  lapses while you are still reviewing and nobody else has claimed it, claim
+  it again. Waiting on the owner does not keep a review claim: hand the pull
+  request back instead. If you stop without merging, remove the label and
+  comment with the head you leave and what is still unchecked. The label also
+  comes off when the pull request closes or goes back to draft.
+- **Never use draft as a hold.** Your claim keeps others away while you merge
+  main in, add a fix or wait for CI. If you find the pull request must wait for
+  another one, add `status:blocked`, comment `Waits on #A` and remove your
+  claim. Convert to draft only to hand a pull request back
+  ([Drafts and readiness](#drafts-and-readiness)).
+- **Fix what you find.** Fix problems on the pull request's branch rather than
+  handing it back, small or large: merge main in, resolve conflicts, repair
+  tests or change code. Merging main in, resolving a conflict by keeping either
+  side unchanged, test repairs and wording need no second look. Any other fix,
+  such as a change under `src/` or to the save format, needs a review of just
+  that diff before you merge, by a fresh subagent that did not write it; name
+  it in the review record.
+- **Merge only on top of current main.** GitHub's Protect main ruleset refuses
+  a merge unless the branch includes the latest main and `verify`,
+  `windows-documentation` and `windows-provider-storage` have passed on its
+  head, and it allows only squash merges. Two pull requests can each pass
+  alone and still break main together, so after merging main in, look for
+  clashes git cannot see.
+- **Take turns for the final run.** Only one pull request at a time may be in
+  its final run: merging main in for the last time, waiting for CI on that head
+  and merging. Get CI green and conflicts resolved first, so the final run is
+  only a catch-up. Before you start, search
+  `is:pr is:open label:"status:merging"`. If another pull request has the
+  label, keep reviewing and wait. Otherwise add `status:merging` to yours,
+  comment, and search again; if another pull request got the label first,
+  remove yours and wait. Remove the label when you merge, when CI fails or when
+  you stop. A turn taken more than 30 minutes ago has lapsed, and anyone may
+  remove the label with a comment.
+- **Version numbers go to whoever merges first.** A save-format, schema or
+  other version number in an unmerged pull request is provisional, and nobody
+  reserves one, in a comment or anywhere else. Git merges two identical number
+  changes without a conflict, so a clean merge does not prove the number is
+  still free. If main has taken yours, move this pull request to the next free
+  number (above its base's number if it is stacked), update its replay checks,
+  save docs and description, and run CI again.
 
 Before merging, check that:
 
-1. The pull request is ready for review, not a draft, and nobody has pushed to
-   it since it was marked ready, other than you.
-2. CI is green on the current head and, unless the pull request changes only
-   documentation, that head includes the latest main. If main was merged in or
-   the branch changed after review, review and check the new head.
-3. Someone other than the author reviewed that exact head. Record who reviewed
-   which commit and what they checked, in the squash commit body or a comment.
+1. The pull request is ready for review, not a draft. Since it was last marked
+   ready, only reviewers who claimed it have pushed: you, or an earlier
+   reviewer whose claim has ended. Review their commits as part of the head. If
+   the author pushed after marking it ready, review those commits too and say
+   so in your review.
+2. CI is green on the current head, and that head includes the latest main. If
+   main was merged in or the branch changed after review, review and check the
+   new head.
+3. A different session from the author reviewed that exact head. The author's
+   own subagents may check the work, but they are not this review, and commits
+   a reviewer adds do not make the reviewer an author.
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
-5. Any integration order named by this or another pull request is respected.
+5. If the description says this pull request must follow another, that one has
+   merged. Only a pull request that needs another's code sets such an order,
+   in its own description; an order stated only in a comment binds nobody.
 
-The reviewer fixes what they find on the pull request's branch rather than
-handing it back, small or large: merge main in, resolve conflicts, repair tests
-or change code. List each fix in the squash commit body, and check CI again on
-the new head.
+Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
+yourself, never GitHub's list of branch commit messages: what changed and why;
+the pull request's own `Closes` and `Refs` lines, or "Direct owner request; no
+issue"; `Author: <tool> session <id>`; `Review: <tool> session <id> reviewed
+<sha>; checked <what>`; and each reviewer fix, or "none". Use no other closing
+keywords. GitHub then deletes the branch and moves pull requests stacked on it
+to main. Never delete a branch by hand while open pull requests target it:
+GitHub closes them. If that happens, restore the branch from the merged pull
+request's page, reopen those pull requests and change their base to main.
 
-Squash-merge with the PR title as the commit subject, delete the branch, then:
+After merging:
 
-- Fetch main and confirm the squash commit is there, then check that main's
-  CI passes on it. If it fails, whoever merged last fixes or reverts it before
-  anything else, as a P0.
+- Fetch main and confirm the squash commit is there. Wait for main's CI on it
+  before you merge anything else; you may start your next review meanwhile. If
+  it fails:
+  - **Known flaky test:** if only one test failed and it has an open Bug issue
+    for intermittent failures, add the run link to that issue and carry on. If
+    you think a test is flaky but it has no such issue, re-run the failed job
+    if you can and open a P1 Bug with both runs; if you can't re-run it, treat
+    it as a real break.
+  - **Real break:** whoever merged the first failing commit owns it as a P0,
+    even if others have merged since. Comment on that pull request, then open
+    a pull request that reverts its squash commit, or a fix if that is quicker,
+    with `priority:p0` and the failing run's link. A pure revert may be merged
+    by its author once its CI passes. Until main is green, nobody merges main
+    into other pull requests or copies the pending fix: wait for it to merge.
 - Check every `Closes` issue closed. The
   [Close fixed issues](.github/workflows/close-fixed-issues.yml) workflow closes
   any GitHub missed; if one is still open, close it with a comment naming the
   pull request and commit.
-- For each `Refs` issue, check a comment says what remains, and remove
-  `status:in-progress` if nobody is still working on it.
+- For each `Refs` issue, check a comment says what remains. If it still has
+  its author's `status:in-progress`, or is `status:blocked` waiting on this
+  pull request, replace that with `status:needs-pr`, or close it if nothing
+  remains.
+- Unblock what waited on this work. Search
+  `is:open label:"status:blocked" <number>` for this pull request and each
+  issue it closed. Remove `status:blocked` from pull requests that waited only
+  on it, and from issues whose named blockers have all merged or closed as
+  completed; give those issues `status:needs-pr` unless someone claims them or
+  a ready pull request closes them, and comment naming the merge commit.
 
 A merged change does not need a release; see the
 [release policy](docs/development/releasing.md).
@@ -383,6 +540,8 @@ the player can do.
 Use an imperative commit summary of about 70 characters, with the reason in the
 body when needed. A closing keyword in a commit that reaches main also closes
 the issue, so do not write one for an issue the change does not complete.
-Report vulnerabilities privately to the repository owner, without credentials,
-pairing material or private saves. Be respectful, assume good faith, and argue
-with evidence about the design rather than the person.
+Report vulnerabilities privately, never in an issue, pull request or comment
+([Security problems](#priorities)): agents tell the owner in chat, and people
+contact the repository owner directly, without credentials, pairing material or
+private saves. Be respectful, assume good faith, and argue with evidence about
+the design rather than the person.
