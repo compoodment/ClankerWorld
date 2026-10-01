@@ -382,10 +382,10 @@ public sealed class PrivateWorldConversationTests
         var blocked = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position)).ToHashSet();
         var available = (from y in Enumerable.Range(0, map.Height)
-            from x in Enumerable.Range(0, map.Width)
-            let point = new GridPoint(x, y)
-            where map.IsBuildable(point) && !blocked.Contains(point)
-            select point).ToArray();
+                         from x in Enumerable.Range(0, map.Width)
+                         let point = new GridPoint(x, y)
+                         where map.IsBuildable(point) && !blocked.Contains(point)
+                         select point).ToArray();
 
         GridPoint[]? placements = null;
         foreach (var initiator in available)

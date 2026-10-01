@@ -651,7 +651,7 @@ public sealed partial class PrivateWorldRuntime
         pending.Cancellation.Cancel();
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
         if (suspendCurrent && conversations.FirstOrDefault(item => item.Id == conversationId) is
-                { Status: AgentConversationStatus.AwaitingSpeaker } current &&
+            { Status: AgentConversationStatus.AwaitingSpeaker } current &&
             current.Revision == pending.Request.Revision)
             SuspendConversation(conversationId, interruption);
     }
