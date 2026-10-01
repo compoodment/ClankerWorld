@@ -241,7 +241,9 @@ public static class WorldContentSimulationRules
         ContentPackageRules.ValidateDigest(packageDigest, nameof(packageDigest));
         if (state.Buildings.Any(item => item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
             state.ProductionJobs.Concat(state.CropBuilds ?? []).Any(item =>
-                item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
+                item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
+            (state.BuildingExpansions ?? []).Any(item =>
+                item.DefinitionId?.StartsWith($"{packageDigest}/", StringComparison.Ordinal) == true))
         {
             throw new InvalidOperationException("Content with committed buildings or production history requires an explicit migration before removal.");
         }

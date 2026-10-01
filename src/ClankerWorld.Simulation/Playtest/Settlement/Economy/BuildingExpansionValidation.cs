@@ -30,7 +30,8 @@ public sealed partial class PrivateWorldRuntime
                 string.IsNullOrWhiteSpace(job.OwnerId) ||
                 job.State == WorldProductionJobState.Running && (!hasBuilding || job.OwnerId != (building!.HouseholdId ?? building.TownId)) ||
                 !hasBuilding && (job.State == WorldProductionJobState.Running || schemaVersion < 35 || string.IsNullOrWhiteSpace(job.DefinitionId)) ||
-                hasBuilding && job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
+                job.State == WorldProductionJobState.Running && hasBuilding &&
+                    job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
                 definitionId is null || !definitions.TryGetValue(definitionId, out var definition) ||
                 job.TargetFootprint is null || !BuildingStorageRules.IsSupported(definition, job.TargetFootprint) ||
                 job.ExpectedRevision != job.TargetFootprint.Revision - 1 ||
