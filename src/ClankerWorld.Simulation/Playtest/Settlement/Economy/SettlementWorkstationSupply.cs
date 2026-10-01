@@ -54,11 +54,11 @@ public sealed partial class PrivateWorldRuntime
                     continue;
                 var inventory = society.Checkpoint.Inventory;
                 var carried = inventory.Lots
-                    .Where(lot => lot.OwnerId == actor && lot.ItemKind == input.Key &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         AvailableLotQuantity(lot) > 0)
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
-                    .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null &&
+                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
                         lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          !HasActiveContainerReservation(inventory, lot.Id)))

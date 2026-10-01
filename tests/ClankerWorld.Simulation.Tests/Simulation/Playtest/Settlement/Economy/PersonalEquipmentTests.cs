@@ -175,7 +175,7 @@ public sealed class PersonalEquipmentTests
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot =>
                 lot.OwnerId == Alpha && lot.ItemKind == "cloth" && lot.Quantity > 0);
             Assert.Contains(world.ExportState().Events, item => item.Kind == "workstation_input_picked_up");
-            if (kind == "sack") Assert.Equal(0, world.Society.Inventory.GetLot("sack-rope").Quantity);
+            if (kind == "sack") Assert.Equal(0, world.Society.Inventory.Lots.Where(lot => lot.Id == "sack-rope").Sum(lot => lot.Quantity));
             Assert.All(world.WorldSimulation.ProductionJobs, job => Assert.Equal(shopId, job.BuildingInstanceId));
             using var savedWorld = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
                 PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
@@ -304,8 +304,11 @@ public sealed class PersonalEquipmentTests
         // This controlled provider changes its choice after the declined
         // actions, so ask for a fresh decision without changing physical stock.
         var deliveryState = full.ExportState();
-        deliveryState = deliveryState with { Inhabitants = deliveryState.Inhabitants.Select(person =>
-            person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray() };
+        deliveryState = deliveryState with
+        {
+            Inhabitants = deliveryState.Inhabitants.Select(person =>
+            person.InhabitantId == actor ? person with { LastDecisionContext = null } : person).ToArray()
+        };
         using var delivery = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(deliveryState)), id => new Choices(id == actor ? ["haul_household_stock"] : []));
         Assert.True((await delivery.AdvanceOneTickAsync()).Advanced);
@@ -361,10 +364,13 @@ public sealed class PersonalEquipmentTests
             WorldSystems = systems with
             {
                 RegionalWeather = null,
-                Config = systems.Config with { WeatherProfiles = Enum.GetValues<SeasonKind>()
+                Config = systems.Config with
+                {
+                    WeatherProfiles = Enum.GetValues<SeasonKind>()
                     .Select(season => new WeatherProfile(season, ClearWeight: weather == WeatherKind.Clear ? 1 : 0,
                         CloudyWeight: 0, RainWeight: weather == WeatherKind.Rain ? 1 : 0,
-                        StormWeight: 0, SnowWeight: weather == WeatherKind.Snow ? 1 : 0)).ToArray() },
+                        StormWeight: 0, SnowWeight: weather == WeatherKind.Snow ? 1 : 0)).ToArray()
+                },
                 Climate = systems.Climate with { Weather = weather },
             },
         };
