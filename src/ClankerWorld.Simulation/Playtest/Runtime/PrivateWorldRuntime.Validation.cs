@@ -35,6 +35,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBusinessTrade(CaptureState());
         ValidateMedicalCare(CaptureState());
         ValidateCarts(CaptureState());
+        ValidateTownCouncils(CaptureState());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -315,6 +316,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBusinessTrade(state);
         ValidatePersonalGear(state);
         ValidateCouncil(state);
+        ValidateTownCouncils(state);
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)
         {

@@ -330,6 +330,15 @@ erasure, and does not remove copies in external backups.
 
 ## Material and tool content
 
+Town councils save their own membership, food policy, social laws, pending
+rule ballot, election electorate and named votes. Representative terms last
+one year under the saved world calendar, independently of biological life
+pace. Save validation requires real adult Town residents and the physical
+shared Hall for ballots and representative terms. A tie retains the existing
+rule. Food policy never changes formal inventory ownership. The optional Town
+council collection leaves legacy Townless council checkpoints readable; new
+built-in Hall content still follows the alpha content compatibility policy.
+
 The expanded Blacksmith recipes change its package digest. Fallen wood also
 changes deterministic generated map identity. Worlds from earlier content may
 be refused under the alpha policy; their files are preserved. This change adds

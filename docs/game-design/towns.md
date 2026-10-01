@@ -377,20 +377,36 @@ economics; and later livestock/wildlife detail.
   change their governing arrangement through in-world decisions; the council
   is the starting form, not a universal permanent government.
 
-### Election threshold to try
+### Council size and terms approved on October 1
 
 Once a Town reaches **eight adult residents**—double the four-agent
 starting population—it begins electing a smaller representative council
-instead of keeping every adult as a council member. Count adults in that
+of **three representatives for one game year**, instead of keeping every adult as a council member. Count adults in that
 Town, not across the world. Eight is an initial threshold to playtest,
 not a claim that every Town must forever follow this exact rule. All
-adult residents should retain a vote in those elections.
+adult residents retain a vote in those elections. Below eight adults, every
+adult resident sits on the council again. Adults are active adult or elder
+agents listed as residents of that Town. Membership in another Town gives no vote.
+
+Proposals pass with a majority of current council members. A tie or a proposal
+that cannot reach that majority keeps the current rule. Residents attend their
+actual Town Hall to propose or vote; the Hall belongs to the Town and does not
+give visitors access to private household goods. The 3×4 Hall costs **24 wood
+and 12 stone provisionally**, funded through normal physical construction.
+
+The first version holds an election and each rule ballot open for one game
+day. Each adult may name up to three current adult residents once per election.
+The three with most votes win; tied counts retain existing representatives
+before comparing stable agent identities. Representatives serve until the next
+annual election finishes. A vacant seat starts a new election, and a smaller
+Town returns to its all-adult council. These election details are provisional.
+Departed or deceased residents lose eligibility. Proposals to change or repeal
+a social rule use the same majority vote. Shared-food policy can restrict
+existing collection access, but cannot seize or reassign private stock.
 
 ### Still to decide
 
-What qualifies an adult as a Town resident, elected council size,
-election timing/terms, vote threshold/quorum, proposal/repeal procedure, and
-how governments may change; which laws apply to whom and where; how a
+How governments may change; which other laws apply to whom and where; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents

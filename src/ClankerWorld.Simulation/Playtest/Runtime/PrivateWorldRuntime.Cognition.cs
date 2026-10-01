@@ -798,6 +798,7 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
         AddBusinessBuildingPlans(candidates, inhabitant.Id);
+        AddTownHallBuildingPlans(candidates, inhabitant.Id);
 
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the

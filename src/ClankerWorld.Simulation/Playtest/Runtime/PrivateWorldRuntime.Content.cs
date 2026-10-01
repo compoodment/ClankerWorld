@@ -101,7 +101,7 @@ public sealed partial class PrivateWorldRuntime
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), HouseCraftingContent.Create(), SiloContent.Create(), TailorContent.Create(), PotteryContent.Create(),
                 OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(), CartContent.Create(), BusinessContent.Create(),
-                PortContent.Create(),
+                PortContent.Create(), TownHallContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -259,6 +259,10 @@ public sealed partial class PrivateWorldRuntime
                     placementFailure);
             }
             GridPoint? marketPlot = null;
+            if (definition.Tags.Contains("town_hall", StringComparer.Ordinal) &&
+                (assignedTownId is null || householdId is not null || TownHallFor(assignedTownId) is not null))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "A shared Town Hall must join a Town that does not already have one.");
             if (definition.Tags.Contains("market", StringComparer.Ordinal))
             {
                 if (assignedTownId is null || householdId is not null || worldSimulation.Buildings.Any(building =>

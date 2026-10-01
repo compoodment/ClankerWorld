@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
     private SettlementCouncil? council;
 
     private string[] CouncilMembers() => society.Checkpoint.Inhabitants.Where(person =>
-            person.Status == SocietyInhabitantStatus.Active && person.HouseholdId is not null &&
+            person.Status == SocietyInhabitantStatus.Active && person.HouseholdId is not null && TownForResident(person.Id) is null &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
         .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
 
@@ -29,6 +29,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string? ProposedFoodPolicy(string actor)
     {
+        if (TownForResident(actor) is not null) return null;
         if (council is null || council.StewardId != actor || !CouncilMembers().Contains(actor, StringComparer.Ordinal) ||
             council.Ballot is not null || WorldTick - council.LastResolutionTick < 300)
         {
@@ -39,16 +40,23 @@ public sealed partial class PrivateWorldRuntime
             : council.FoodPolicy == "essential_first" && quantity >= inhabitants.Count * 4 ? "open" : null;
     }
 
-    private bool HasCouncilDecision(string actor) => !NeedsUrgentWarmth(inhabitants[actor]) && (
+    private bool HasCouncilDecision(string actor) => !NeedsUrgentWarmth(inhabitants[actor]) && (TownForResident(actor) is not null
+        ? HasTownCouncilDecision(actor) : (
         council?.Ballot is { } ballot && ballot.Electorate.Contains(actor, StringComparer.Ordinal) &&
         !ballot.Approvals.Contains(actor, StringComparer.Ordinal) && !ballot.Rejections.Contains(actor, StringComparer.Ordinal) ||
-        ProposedFoodPolicy(actor) is not null);
+        ProposedFoodPolicy(actor) is not null));
 
-    private bool MayCollectSharedFood(string actor) => council?.FoodPolicy != "essential_first" ||
-        inhabitants[actor].HungerBasisPoints < 4_500 || SharedFoodQuantity() > inhabitants.Count;
+    private bool MayCollectSharedFood(string actor)
+    {
+        if (TownForResident(actor) is { } townId)
+            return townCouncils.FirstOrDefault(item => item.TownId == townId)?.FoodPolicy != "essential_first" ||
+                inhabitants[actor].HungerBasisPoints < 4_500 || TownSharedFoodQuantity(townId) > towns.Single(item => item.Id == townId).ResidentIds.Count;
+        return council?.FoodPolicy != "essential_first" || inhabitants[actor].HungerBasisPoints < 4_500 || SharedFoodQuantity() > inhabitants.Count;
+    }
 
     private void AdvanceSettlementCouncil()
     {
+        AdvanceTownCouncils();
         if (survivalState is null && council is null)
         {
             return;
@@ -96,6 +104,11 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddCouncilCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        if (TownForResident(actor) is not null)
+        {
+            AddTownCouncilCandidates(candidates, actor);
+            return;
+        }
         if (NeedsUrgentWarmth(inhabitants[actor]))
         {
             return;
@@ -118,6 +131,11 @@ public sealed partial class PrivateWorldRuntime
 
     private void ApplyCouncilCandidate(string actor, string candidate)
     {
+        if (TownForResident(actor) is not null)
+        {
+            ApplyTownCouncilCandidate(actor, candidate);
+            return;
+        }
         if (candidate.StartsWith("council_propose:", StringComparison.Ordinal))
         {
             var policy = candidate[16..];

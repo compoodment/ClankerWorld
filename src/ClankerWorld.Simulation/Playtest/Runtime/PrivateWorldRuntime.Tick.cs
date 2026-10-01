@@ -226,6 +226,7 @@ public sealed partial class PrivateWorldRuntime
         resources = proposed.resources;
         knowledge = proposed.knowledge;
         businessTrade = proposed.businessTrade;
+        townCouncils = proposed.townCouncils;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
         completedInstructionIds = proposed.completedInstructionIds;
@@ -325,6 +326,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageBusinessContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StagePotteryContent();
             StageBuiltInContent(CartContent.PackageId, BlacksmithContent.PackageId, CartContent.Create, "cart_content_staged");
             StageBuiltInContent(CareContent.PackageId, TailorContent.PackageId, CareContent.Create, "care_content_staged");

@@ -210,7 +210,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
-        if (definition.Tags.Contains("market", StringComparer.Ordinal)) return household;
+        if (definition.Tags.Contains("market", StringComparer.Ordinal) || definition.Tags.Contains("town_hall", StringComparer.Ordinal)) return household;
         if (!definition.Tags.Any(IsHouseholdBuildingTag) && !PortNavigationRules.IsPort(definition)) return HouseholdId;
         // Existing household supplies remain usable; new supplies stay personally
         // carried until a household has a physical House to receive them.

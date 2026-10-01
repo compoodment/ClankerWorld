@@ -512,6 +512,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var inputs = building?.BuildCosts ?? recipe!.Inputs;
+        if (building?.Tags.Contains("town_hall", StringComparer.Ordinal) == true &&
+            (TownForResident(inhabitantId) is not { } hallTownId || TownHallFor(hallTownId) is not null))
+        {
+            SetProject(inhabitantId, project with { Stage = "cancelled", Blocker = "This Town already has a Hall, or the builder is no longer a resident." });
+            return;
+        }
         PlacedBuilding? recipeBuilding = null;
         if (recipe is not null)
         {

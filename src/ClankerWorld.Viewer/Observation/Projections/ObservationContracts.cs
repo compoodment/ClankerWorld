@@ -333,6 +333,7 @@ public sealed record ViewerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
+    public IReadOnlyList<ViewerTownCouncil> TownCouncils { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public IReadOnlyList<ViewerCart> Carts { get; init; } = [];
@@ -368,6 +369,11 @@ public sealed record ViewerWorldSnapshot(
 }
 
 public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
+public sealed record ViewerTownCouncil(string TownId, string? HallId, string FoodPolicy,
+    IReadOnlyList<string> MemberIds, IReadOnlyList<string> MemberNames, long? TermStartedTick, long? TermExpiryTick,
+    long? ElectionExpiryTick, int ElectionVotes, int ElectionVoters, string? ProposedRule,
+    int Approvals, int Rejections, int Voters, IReadOnlyList<ViewerTownLaw> Laws);
+public sealed record ViewerTownLaw(string Key, string Text, long AdoptedTick);
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);

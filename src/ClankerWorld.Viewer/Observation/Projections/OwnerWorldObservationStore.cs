@@ -314,6 +314,16 @@ public sealed class OwnerWorldObservationStore
                 state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == council.StewardId)?.Name,
                 council.FoodPolicy, council.Ballot?.Policy, council.Ballot?.Approvals.Count ?? 0,
                 council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
+            TownCouncils = (state.TownCouncils ?? []).Select(current => new ViewerTownCouncil(current.TownId,
+                (state.WorldSimulation?.Buildings ?? []).FirstOrDefault(building => building.TownId == current.TownId &&
+                    (state.WorldContent?.Buildings ?? []).Any(definition => definition.CanonicalId == building.DefinitionId &&
+                        definition.Tags.Contains("town_hall", StringComparer.Ordinal)))?.InstanceId,
+                current.FoodPolicy, current.MemberIds.ToArray(), current.MemberIds.Select(id =>
+                    state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray(),
+                current.TermStartedTick, current.TermExpiryTick, current.Election?.ExpiryTick,
+                current.Election?.Votes.Count ?? 0, current.Election?.Electorate.Count ?? 0, current.Ballot?.Text,
+                current.Ballot?.Approvals.Count ?? 0, current.Ballot?.Rejections.Count ?? 0, current.Ballot?.Electorate.Count ?? 0,
+                (current.Laws ?? []).Select(law => new ViewerTownLaw(law.Key, law.Text, law.AdoptedTick)).ToArray())).ToArray(),
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
             JevEnabled = state.JevEnabled ?? true,
             FounderSetup = state.FounderSetup is { } setup
