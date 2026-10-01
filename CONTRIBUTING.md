@@ -74,22 +74,23 @@ on the owner.
   so add them by hand. An issue a pull request closes (`Closes`, `Fixes` or
   `Resolves` directly before its number) gets `status:has-pr` in place of
   `status:needs-pr`, and loses `status:in-progress` when that pull request is
-  marked ready. If the pull request goes back to draft and nobody holds the
-  issue, it gets `status:needs-pr` back next to `status:has-pr`. When the last
-  such pull request closes, `status:has-pr` comes off; if none merged, the
-  issue goes back to `status:needs-pr`, unless it is claimed, blocked, waiting
-  on the owner or parked, or is a decision or owner task. `Refs` changes no issue labels. Quiet claims are
-  [released automatically](#claim-an-issue).
+  marked ready. If the pull request goes back to draft, nobody holds the issue
+  and the pull request has no `status:needs-decision` or `status:blocked`, the
+  issue gets `status:needs-pr` back next to `status:has-pr`. When the last such
+  pull request closes, `status:has-pr` comes off; if none merged, the issue goes
+  back to `status:needs-pr`, unless it is claimed, blocked, waiting on the owner
+  or parked, or is a decision or owner task. `Refs` changes no issue labels.
+  Quiet claims are [released automatically](#claim-an-issue).
 - **Automatic on pull requests:** a priority (the highest of the open issues it
   closes; if none has one, of the open issues it refers to; otherwise P2; P0 if
   it changes [how we work](#priorities)); one type, from the first ticked
   **Type of change** box, or `type:docs` when none is ticked and only
   documentation changes; at most two areas from the files it changes, set when
-  it opens, reopens, is marked ready or changes base, unless someone has
-  changed its areas by hand; and `status:needs-review` while it is ready. A
-  priority added by hand is never removed, and wins when it is higher. `status:needs-review`,
-  `status:reviewing` and `status:merging` come off when it closes or goes back
-  to draft. A pull request stacked on another's branch is judged by what it
+  it opens, reopens, is marked ready, is pushed to or changes base, unless
+  someone has changed its areas by hand; and `status:needs-review` while it is
+  ready. A priority added by hand is never removed, and wins when it is higher.
+  `status:needs-review`, `status:reviewing` and `status:merging` come off when
+  it closes or goes back to draft. A pull request stacked on another's branch is judged by what it
   would change on main.
 - **By hand:** all labels on issues created without a form; on other new
   issues, areas, a priority if it is not P2 and any status that applies;
@@ -210,7 +211,7 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   ([how](AGENTS.md#take-over-work-only-when-the-owner-asks)).
 - **Waiting on the owner:** add `status:needs-decision` to the issue, or to
   your own draft, and ask in chat. That keeps the claim, and the 1.5 hours
-  start again when the label comes off.
+  start again when the label comes off the issue.
 - **Waiting on anything else:** if you can keep working, keep pushing.
   Otherwise add `status:blocked`, name each blocker in the issue description
   as `Blocked by #123` or describe the outside event, push what you have and
@@ -374,7 +375,9 @@ completes, and nothing left to ask the owner.
   hands the pull request back.
 - **Only a hand-back sends a claimed pull request to draft.** A reviewer who
   needs something they can't do, such as an owner decision or a redesign,
-  converts it to draft and comments with what is needed. The issues it closes
+  converts it to draft and comments with what is needed. For an owner decision,
+  add `status:needs-decision` before converting, so its issues wait instead of
+  rejoining the queue. The issues it closes
   go back to the queue automatically, and the author, or any fixing agent,
   picks it up again. If it closes none, the reviewer also replaces
   `status:blocked` on its `Refs` issues with `status:needs-pr`, naming the draft

@@ -6,7 +6,8 @@
 // A claim lasts while its label is on. Only the claimant, this script or an
 // owner request ends it; nobody else decides on their own clock that it lapsed.
 // Each claim's clock starts when its label was last added, so claiming again
-// after a release, a stop or a hand-back starts a fresh claim.
+// after a release, a stop or a hand-back starts a fresh claim. For an issue,
+// removing status:needs-decision from it also restarts the clock.
 //
 // - An issue's status:in-progress claim is released after 1.5 hours without
 //   pushed work. Only these count: adding the claim label, opening the
@@ -94,9 +95,12 @@ async function commentsFor(github, repo, number) {
   return comments.filter(comment => !(comment.body ?? '').includes(Marker));
 }
 
-async function lastLabeled(github, repo, number, name) {
+async function lastLabeled(github, repo, number, name, removed = null) {
   const events = await github.paginate(github.rest.issues.listEvents, { ...repo, issue_number: number, per_page: 100 });
-  return newest(events.filter(event => event.event === 'labeled' && event.label?.name === name).map(event => event.created_at));
+  const times = (kind, label) => events.filter(event => event.event === kind && event.label?.name === label).map(event => event.created_at);
+  // Ending a wait (removing `removed`) restarts the clock like a new claim, so
+  // a claim that waited on the owner is not released the moment the wait ends.
+  return newest([...times('labeled', name), ...(removed ? times('unlabeled', removed) : [])]);
 }
 
 async function commitActivity(github, repo, ref) {
@@ -170,7 +174,7 @@ async function issueSnapshot(github, repo, repoName, number, now = null) {
   // another agent's draft that only mentions the issue is not this claim's.
   const own = linked.filter(pr => pr.draft && (closing.includes(pr) || ownRefsBranch(pr.head.ref, number, named)));
   const keep = labels.includes(NeedsDecision) || own.some(pr => labelNames(pr.labels).includes(NeedsDecision));
-  const claim = await lastLabeled(github, repo, number, InProgress);
+  const claim = await lastLabeled(github, repo, number, InProgress, NeedsDecision);
   const activities = [];
   for (const pr of own) activities.push(await prActivity(github, repo, pr));
   const prBranches = new Set(linked.map(pr => pr.head.ref));
@@ -256,8 +260,8 @@ async function releaseIssueClaims({ github, core, repo, repoName, now, dryRun })
     const ready = checked.linked.filter(pr => !pr.draft);
     const list = ready.map(pr => `#${pr.number}`).join(', ');
     const underReview = ready.length === 0 ? null : ready.length === 1
-      ? `Ready pull request ${list} refers to this issue and is with its reviewer: read what it leaves before starting, and don't push to its branch.`
-      : `Ready pull requests ${list} refer to this issue and are with their reviewers: read what they leave before starting, and don't push to their branches.`;
+      ? `Ready pull request ${list} refers to this issue and is with its reviewer: read what it says remains before starting, and don't push to its branch.`
+      : `Ready pull requests ${list} refer to this issue and are with their reviewers: read what they say remains before starting, and don't push to their branches.`;
     const resume = [
       draft ? `Continue draft #${draft.number} (\`${draft.head.ref}\`) rather than starting again.`
         : branch ? `Check \`${branch}\` for earlier work before starting again.`
@@ -329,7 +333,7 @@ async function releaseReviewClaims({ github, core, repo, now, dryRun }) {
     if (await restoreActiveReview(github, repo, pr.number, checked, now)) continue;
     await github.rest.issues.createComment({
       ...repo, issue_number: pr.number,
-      body: `${Marker}\nReview claim released: nothing was pushed for ${ReviewHours} hours (head ${checked.pr.head.sha.slice(0, 8)}). Another reviewer may claim it when they start reviewing.`,
+      body: `${Marker}\nReview claim released: nothing was pushed for ${ReviewHours} hours (head ${checked.pr.head.sha.slice(0, 8)}). Anyone may claim it when they start reviewing, including the reviewer whose claim lapsed.`,
     });
     await restoreActiveReview(github, repo, pr.number, checked, now);
   }

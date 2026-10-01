@@ -246,7 +246,7 @@ test('the review release note names the head the claim left', async () => {
   await state.run();
   assert.equal(state.posted.find(note => note.number === 9).body,
     '<!-- claim-check -->\nReview claim released: nothing was pushed for 1.5 hours (head 01234567). ' +
-    'Another reviewer may claim it when they start reviewing.');
+    'Anyone may claim it when they start reviewing, including the reviewer whose claim lapsed.');
 });
 
 test("an owner wait keeps an issue claim only from the issue or the claimant's own draft", async () => {
@@ -364,7 +364,7 @@ test('the release note names a ready pull request that refers to the issue, not 
     assert.deepEqual(new Set(state.records.get(1).labels),
       new Set(withDraft ? ['status:needs-pr', 'status:has-pr'] : ['status:needs-pr']), `with draft: ${withDraft}`);
     const note = state.posted.find(c => c.number === 1).body;
-    assert.match(note, /Ready pull request #9 refers to this issue and is with its reviewer: read what it leaves before starting, and don't push to its branch\./);
+    assert.match(note, /Ready pull request #9 refers to this issue and is with its reviewer: read what it says remains before starting, and don't push to its branch\./);
     assert.doesNotMatch(note, /Check `codex\/1-work`/);
     assert.doesNotMatch(note, /No pushed work was found/);
     assert.equal(/Continue draft #10/.test(note), withDraft, `with draft: ${withDraft}`);
@@ -571,6 +571,20 @@ test('every branch of a stack named in the claim comment keeps each claim of the
   await state.run();
   assert.ok(state.records.get(1).labels.includes('status:in-progress'));
   assert.ok(state.records.get(2).labels.includes('status:in-progress'));
+});
+
+test('ending an owner wait restarts the clock instead of releasing the claim at once', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    events: { 1: [
+      { event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(4) },
+      { event: 'labeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(3) },
+      { event: 'unlabeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(0.05) },
+    ] },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
 });
 
 test('adding the claim label again after a release starts a fresh claim', async () => {
