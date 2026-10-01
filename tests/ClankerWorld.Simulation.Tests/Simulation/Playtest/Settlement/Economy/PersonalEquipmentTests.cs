@@ -970,6 +970,9 @@ public sealed class PersonalEquipmentTests
             Inhabitants = fullRequesterState.Inhabitants.Select(person => person.InhabitantId == helper
                 ? person with { LastDecisionContext = null } : person).ToArray(),
         };
+        var capacityEventFloor = capacityState.Events.Select(item => item.EventId).DefaultIfEmpty(0).Max();
+        var woodBeforeCapacityResume = capacityState.Society.Society.Inventory.Lots
+            .Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
         var capacitySave = PrivateWorldRuntimeCodec.Encode(capacityState);
         var capacityProvider = new Choices(["assist:wood"]);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(capacitySave),
@@ -984,15 +987,21 @@ public sealed class PersonalEquipmentTests
         Assert.Contains(restored.ExportState().Events, item => item.Kind == "project_request_fulfilled" &&
             item.Detail == helper + ":" + requester + ":wood:1");
 
-        Assert.Contains(restored.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
+        var directHandoff = Assert.Single(restored.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
             item.Detail.Contains($":{helper}:{requester}:helper-house-wood:1:project_request_fulfilled", StringComparison.Ordinal));
+        var stagedContribution = Assert.Single(restored.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
+            item.Detail.Contains($":{requester}:{household}:helper-house-wood#transfer:project-share:", StringComparison.Ordinal) &&
+            item.Detail.EndsWith(":1:project_contribution", StringComparison.Ordinal));
+        Assert.Equal(directHandoff.WorldTick, stagedContribution.WorldTick);
         var helperRemainder = restored.Society.Inventory.GetLot("helper-house-wood");
         Assert.Equal(helper, helperRemainder.OwnerId);
         Assert.Equal(3, helperRemainder.Quantity);
         var delivered = Assert.Single(restored.Society.Inventory.Lots,
             lot => lot.ProvenanceLotId == "helper-house-wood");
-        Assert.Equal(requester, delivered.OwnerId);
-        Assert.Null(delivered.GroundPosition);
+        // The requester receives the helper's single unit, then stages it at camp
+        // for the active project during the same tick; prove both transfers above.
+        Assert.Equal(household, delivered.OwnerId);
+        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), delivered.GroundPosition);
         Assert.Null(delivered.StorageBuildingId);
         Assert.Null(delivered.DeliveryBuildingId);
         Assert.Equal(1, delivered.Quantity);
@@ -1001,8 +1010,14 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), stagedStone.GroundPosition);
         Assert.Equal(1, stagedStone.Quantity);
         Assert.Equal(7, restored.Society.Inventory.GetLot("full-builders-stone").Quantity);
-        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null));
-        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(7, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null));
+        var resumedWoodGathered = restored.ExportState().Events
+            .Where(item => item.EventId > capacityEventFloor && item.Kind == "material_gathered")
+            .Select(item => item.Detail.Split(':'))
+            .Where(parts => parts.Length == 3 && parts[1] == "wood")
+            .Sum(parts => int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(woodBeforeCapacityResume + resumedWoodGathered,
+            restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
         var saved = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
