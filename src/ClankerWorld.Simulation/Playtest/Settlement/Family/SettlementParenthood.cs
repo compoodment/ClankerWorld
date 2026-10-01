@@ -223,7 +223,7 @@ public sealed partial class PrivateWorldRuntime
         if (child.HungerBasisPoints < 7_000 && PreferredFood(actor, actor).FirstOrDefault() is { } serving)
         {
             society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, actor, serving.Id, 1));
-            child = child with { HungerBasisPoints = Math.Min(10_000, child.HungerBasisPoints + 3_000), Survival = AfterMeal(child, serving) };
+            child = child with { HungerBasisPoints = Math.Min(10_000, child.HungerBasisPoints + FoodNourishment(serving.ItemKind)), Survival = AfterMeal(child, serving) };
         }
         child = child with
         {
@@ -254,7 +254,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in state.Inhabitants)
         {
             if (person.Parenthood is not { } plan) continue;
-            if (state.SchemaVersion < 9 || !known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
+            if (!known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
                 plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled") || plan.RequestedTick < 0 ||
                 plan.LastTransitionTick < plan.RequestedTick || plan.LastTransitionTick > state.Society.Society.WorldTick ||
                 plan.Stage == "completed" && (plan.ChildId is null || !known.Contains(plan.ChildId) ||

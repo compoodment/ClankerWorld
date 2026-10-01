@@ -59,9 +59,11 @@ everything that is available in the current build. See [what works today](../wha
 **Agreed development playtest policy:** computment does not require old
 playtest worlds to remain loadable as the New World flow and save format change;
 they expect to create fresh worlds to test new features. No migration code is
-written only to keep an alpha save loading. A save that cannot load is still
-refused with a reason and kept; this is not permission to delete or overwrite a
-save. Finished stable releases follow the migration rule above.
+written only to keep an alpha save loading. An alpha build opens private-world
+saves only when they use its current checkpoint schema; an older schema is
+refused with a reason and its file is kept unchanged. This is not permission to
+delete or overwrite a save. Finished stable releases follow the migration rule
+above.
 
 ### Explicit deletion
 

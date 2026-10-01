@@ -116,10 +116,9 @@ public sealed class SettlementCouncilTests
     }
 
     [Fact]
-    public async Task ForgedBallotsAndOldSchemaCouncilStateFailClosed()
+    public async Task ForgedBallotsFailClosed()
     {
         var state = await PreparedState();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 6 }));
         var actor = state.Inhabitants[0].InhabitantId;
         var invalid = state with
         {

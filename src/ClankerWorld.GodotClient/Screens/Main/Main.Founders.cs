@@ -517,7 +517,9 @@ public partial class Main
             .Where(item => item.HouseholdId is not null &&
                 tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
                 tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)
-            .Select(item => item.HouseholdId);
+            .Select(item => item.HouseholdId)
+            .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
+                .Select(item => (string?)item.HouseholdId));
         var townIds = snapshot.Towns
             .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y))
             .Select(item => item.Id);

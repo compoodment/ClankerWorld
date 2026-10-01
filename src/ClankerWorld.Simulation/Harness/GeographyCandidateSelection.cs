@@ -108,16 +108,13 @@ public static class GeographyCandidateSelector
     }
 
     /// <summary>Recreates one saved candidate without searching or changing its identity.</summary>
-    public static SeededMap GenerateCandidate(GeographyOptions options, bool retainLegacyCamp = false,
-        bool includeLegacyBedroll = false)
+    public static SeededMap GenerateCandidate(GeographyOptions options, bool includeLegacyBedroll = false)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.CandidateAttempt is < 0 or >= GeographyGenerator.MaximumCandidateAttempts)
             throw new ArgumentOutOfRangeException(nameof(options), "The selected geography candidate is invalid.");
 
-        var map = retainLegacyCamp
-            ? GeneratedCampMapGenerator.GenerateWithLegacyCamp(options, includeLegacyBedroll)
-            : GeneratedCampMapGenerator.Generate(options, includeLegacyBedroll);
+        var map = GeneratedCampMapGenerator.Generate(options, includeLegacyBedroll);
         var withAttempt = map with { GenerationAttempt = options.CandidateAttempt, ManifestDigest = string.Empty };
         return withAttempt with { ManifestDigest = MapManifestCodec.Digest(withAttempt) };
     }

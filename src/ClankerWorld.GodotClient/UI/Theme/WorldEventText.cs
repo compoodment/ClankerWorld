@@ -6,7 +6,7 @@ public static class WorldEventText
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        string ThingAt(int index) => index < parts.Length
+        string ThingAt(int index) => index >= 0 && index < parts.Length
             ? GameUiText.HumanizeIdentifier(parts[index])
             : "something new";
         var buildingName = snapshot?.PlacedBuildings.FirstOrDefault(building =>
@@ -29,7 +29,15 @@ public static class WorldEventText
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
             "recipe_completed" => $"{ThingAt(1)} was finished.",
-            "crop_moisture_effect" when parts.Length >= 3 => parts[1] == "wet"
+            "field_work_started" => $"{LeadingName(snapshot, worldEvent.Detail)} started work on a field.",
+            "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} prepared a field.",
+            "field_planted" => $"{LeadingName(snapshot, worldEvent.Detail)} planted {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
+            "field_tended" => $"{LeadingName(snapshot, worldEvent.Detail)} tended {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
+            "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
+            "field_ready" => "A field is ready to harvest.",
+            "field_work_interrupted" => "Work on a field stopped.",
+            "crop_weather_loss" => $"{ThingAt(parts.Length - 1)} reduced a crop harvest.",
+            "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Moist soil improved a crop harvest."
                 : "Dry soil reduced a crop harvest.",
             "food_harvested" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} gathered food.",

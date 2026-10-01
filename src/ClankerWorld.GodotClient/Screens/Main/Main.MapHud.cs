@@ -77,6 +77,10 @@ public partial class Main
         if (WorldTerrainMap.VegetationName(terrain.VegetationAt(tile.X, tile.Y)) is { } vegetation and not "None")
             parts.Add(vegetation);
         if (terrain.IsHillAt(tile.X, tile.Y)) parts.Add("Hills");
+        if (terrain.FertilityAt(tile.X, tile.Y) is { } fertility && fertility > 0)
+            parts.Add($"{WorldTerrainMap.FertilityName(fertility)} soil");
+        if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
+            parts.Add($"{Pretty(field.Stage)} field" + (field.Crop is null ? "" : $" · {Pretty(field.Crop)}"));
         var building = snapshot.PlacedBuildings.FirstOrDefault(item =>
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
             tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height);

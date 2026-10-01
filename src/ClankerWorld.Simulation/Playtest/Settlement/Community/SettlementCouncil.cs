@@ -150,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var tick = state.Society.Society.WorldTick;
         var known = state.Society.Society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        if (state.SchemaVersion < 7 || saved.FoodPolicy is not ("open" or "essential_first") ||
+        if (saved.FoodPolicy is not ("open" or "essential_first") ||
             saved.LastResolutionTick < 0 || saved.LastResolutionTick > tick ||
             saved.StewardId is not null && !known.Contains(saved.StewardId))
         {

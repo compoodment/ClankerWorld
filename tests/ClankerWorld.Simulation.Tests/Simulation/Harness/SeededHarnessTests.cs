@@ -8,23 +8,44 @@ public sealed class SeededHarnessTests
 {
     public static IEnumerable<object[]> SeedCorpus =>
     [
-        ["camp-alpha", "249b2930ffe84b64271803eae490bc28d25b7e00f3969f6ffa064727c50e299c"],
-        ["camp-beta", "bdc5341c4244ed1dfa2ec5dd4c3a359a8b0ae3e168b14934a34ec2701d048d37"],
-        ["camp-gamma", "aa516f4770adda5d1eeded2764ebe8fced8c643cb86c0d05ec0c3276faa977d6"],
+        // Digests include the named grain-seed and wild-greens starter roster;
+        // the earlier fertile-land resource was intentionally removed.
+        ["camp-alpha", "38e6b29b7ffb88a05f5ad02b85a886870c02310aaf524bb0df9d8ac3970f39ab",
+            "832fd6fd13ec067e8dd701202404386f3cf5578b7ee6f2a7ea096f02d7cd8f91"],
+        ["camp-beta", "ec4a4154ae52135d75578abd5f8f73c91485d419095696f2baa8e5cee85ec756",
+            "5d092afce379cf930bbc32da7b36813a0276625c7e9873b1079dcd9f26ea2fec"],
+        ["camp-gamma", "b986e0278085a50956090a3f67fcfc5c11ee1ee199d4d3e12759289501002c67",
+            "9c57833d83b33bdc7a689384123c6a3eefe4a45c6e4d26a09a475aae2c5c0c50"],
     ];
 
     [Theory]
     [MemberData(nameof(SeedCorpus))]
-    public void FixedSeedCorpusProducesValidCanonicalMapManifest(string seed, string expectedManifestDigest)
+    public void FixedSeedCorpusProducesValidCanonicalMapManifest(
+        string seed, string expectedManifestDigest, string expectedLegacyBedrollDigest)
     {
         var first = SeededMapGenerator.Generate(seed);
         var second = SeededMapGenerator.Generate(seed);
+        var withLegacyBedroll = SeededMapGenerator.Generate(seed, includeLegacyBedroll: true);
+        var repeatedLegacyBedroll = SeededMapGenerator.Generate(seed, includeLegacyBedroll: true);
 
         Assert.True(MapAcceptance.Validate(first).IsValid);
-        Assert.Equal(expectedManifestDigest, SeededMapGenerator.Generate(seed, includeLegacyBedroll: true).ManifestDigest);
+        Assert.True(MapAcceptance.Validate(withLegacyBedroll).IsValid);
+        Assert.Equal(expectedManifestDigest, first.ManifestDigest);
+        Assert.Equal(expectedLegacyBedrollDigest, withLegacyBedroll.ManifestDigest);
+        Assert.Equal(MapManifestCodec.Digest(first), first.ManifestDigest);
+        Assert.Equal(MapManifestCodec.Digest(withLegacyBedroll), withLegacyBedroll.ManifestDigest);
         Assert.Equal(first.ManifestDigest, second.ManifestDigest);
+        Assert.Equal(withLegacyBedroll.ManifestDigest, repeatedLegacyBedroll.ManifestDigest);
+        Assert.NotEqual(first.ManifestDigest, withLegacyBedroll.ManifestDigest);
         Assert.DoesNotContain(first.CampObjects, item => item.Kind == "bedroll");
+        Assert.Contains(withLegacyBedroll.CampObjects, item => item.Kind == "bedroll");
+        Assert.Contains(first.Resources, item => item.Id == "grain-seed-patch" &&
+            item.Kind == "grain_seed" && item.NaturalObjectKind == "wild_seed_patch");
+        Assert.Contains(first.Resources, item => item.Id == "wild-greens-patch" &&
+            item.Kind == "food" && item.NaturalObjectKind == "wild_greens");
+        Assert.DoesNotContain(first.Resources, item => item.Id == "fertile-land");
         Assert.True(MapManifestCodec.Encode(first).SequenceEqual(MapManifestCodec.Encode(second)));
+        Assert.True(MapManifestCodec.Encode(withLegacyBedroll).SequenceEqual(MapManifestCodec.Encode(repeatedLegacyBedroll)));
     }
 
     [Fact]

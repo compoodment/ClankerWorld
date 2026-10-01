@@ -11,7 +11,7 @@ public sealed partial class PrivateWorldRuntimeTests
     private const string HarvestInstructionActor = "agent:00000000000000000000000000000099";
 
     [Theory]
-    [InlineData(false, "food")]
+    [InlineData(false, "berries")]
     [InlineData(true, "fruit")]
     public async Task MustDoHarvestCompletesForBerriesAndFruitAndAdvancesQueueAfterReload(bool orchard, string itemKind)
     {
