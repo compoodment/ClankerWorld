@@ -1257,6 +1257,7 @@ public partial class Main
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
+            VerifyPanelParts();
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();

@@ -174,6 +174,33 @@ everything that is available in the current build. See [what works today](../wha
   panel on a key, and become genuinely useful: for example tile coordinates,
   a performance readout, jumping to any agent and showing an agent's planned
   path. The exact set is open.
+- **Agreed after the October 2 panel review:** computment accepted redesigns
+  of the panels that had not been touched yet, shown as before-and-after game
+  screenshots, with these changes of their own:
+  - The selected-tile card is headed by the ground (Meadow, Forest) with a
+    picture of the tile. **Climate** is its own labelled row, so it cannot be
+    read as describing the whole world.
+  - The Agents list shows a portrait row per agent with **Hungry**, **Cold**
+    and **Ill** tags. The Event Log has an icon per kind of event, a heading
+    per day and a **Find** button kept clear of the scrollbar. The controls
+    list draws keys as keycaps with the letter centred on the key.
+  - World Info's World page is a "today" card and a grid of counts with icons.
+    Its Towns page shows residents' portraits, stores as item slots and
+    projects with progress bars, without the note about Town borders.
+  - Memories has tabs and a card per entry with a five-step sureness meter.
+    The Family Tree uses small portrait boxes and opens beside the Profile.
+  - The Profile's model line names the model's provider plainly instead of
+    "chosen by". Model choices are labelled **Provider**, **API key** and
+    **Model**, and an agent's model settings link to the main model settings
+    instead of offering to delete a key. Add an agent says **Click on land to
+    place them**.
+  - The Mod Library lists mods as cards with a status tag. Confirmation
+    dialogs centre their text and have a framed close button inside the frame.
+    Status messages show a tick or a warning sign.
+  - Load Save draws a world's save branches as a large timeline with the
+    chosen save described underneath and the list behind a **Timeline / List**
+    switch (option C of three, for #680). computment wants its drawing
+    improved further before it is built.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
