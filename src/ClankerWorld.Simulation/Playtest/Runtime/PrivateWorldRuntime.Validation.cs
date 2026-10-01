@@ -77,6 +77,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
+        ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -287,6 +288,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
+        ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
@@ -303,8 +305,8 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidDataException("Pending personal identity choices require private-world schema 28.");
             if (person.ChildModelSelection is { } childModelSelection)
             {
-                if (state.SchemaVersion < 32 || !state.Society.Society.Births.Any(item => item.ChildId == person.InhabitantId))
-                    throw new InvalidDataException("A saved child model choice requires schema 32 and a recorded birth.");
+                if (state.SchemaVersion < 33 || !state.Society.Society.Births.Any(item => item.ChildId == person.InhabitantId))
+                    throw new InvalidDataException("A saved child model choice requires schema 33 and a recorded birth.");
                 ValidateChildModelSelection(childModelSelection);
             }
             ValidateProficiency(person, state.SchemaVersion);

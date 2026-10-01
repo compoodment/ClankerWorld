@@ -132,6 +132,8 @@ public sealed partial class SettlementParenthoodTests
                 item => item.InhabitantId == childId && item.Role == "planning").Model);
 
             var saved = restored.ExportState();
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
+                saved with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }));
             var hungryChildState = saved with
             {
                 Inhabitants = saved.Inhabitants.Select(item => item.InhabitantId == childId
