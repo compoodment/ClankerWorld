@@ -164,7 +164,7 @@ public partial class Main
             var assignedTown = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
             var household = snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == building.HouseholdId);
             var stored = building.StoredItems is { Count: > 0 }
-                ? string.Join(" · ", building.StoredItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))
+                ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
             // The terrain layer draws the roof. Buildings show no name on the map;
             // the marker keeps the hover help that names them.
