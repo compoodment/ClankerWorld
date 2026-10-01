@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # What works today
@@ -84,7 +84,7 @@ paid repair request. The agent card shows whether the model is ready, waiting,
 canceled, missing a key, out of allowed calls, unable to give a usable reply,
 timed out or unavailable. It shows the last accepted model choice separately.
 Those facts survive a refresh and save/reload. The paired Windows/model-wait
-check remains in [the playtest checklist](https://github.com/compoodment/ClankerWorld/issues/285).
+check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. This is a basic version. The game understands only orders to gather
@@ -228,8 +228,8 @@ been chosen. Multiplayer and public worlds are outside the current plan.
 ## Work and testing still to do
 
 [Issues](https://github.com/compoodment/ClankerWorld/issues) holds bugs, work,
-experiments and open decisions. [The Windows and paired-world checklist](https://github.com/compoodment/ClankerWorld/issues/285)
-records tests still needed for source fixes. Code, tests and exports are evidence
+experiments and open decisions. [The playtest list](../playtest/README.md)
+records hands-on checks still needed for merged changes. Code, tests and exports are evidence
 for the build; an export alone is not a Windows playtest or proof of the running
 server. This documentation pass did not inspect that server.
 
