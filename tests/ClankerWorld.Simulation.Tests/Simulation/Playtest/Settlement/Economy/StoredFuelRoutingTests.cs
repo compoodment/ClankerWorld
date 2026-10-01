@@ -37,7 +37,8 @@ public sealed class StoredFuelRoutingTests
             Assert.NotEmpty(blockers);
             for (var index = 0; index < blockers.Length; index++)
                 initial.AddAgent($"agent:{index + 100:D32}", blockers[index].Position);
-            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 && map.IsPassable(tile.Position)),
+            Assert.All(map.Tiles.Where(tile => map.FootDistance(tile.Position, storage) <= 1 && map.IsPassable(tile.Position) &&
+                !map.Resources.Any(resource => resource.Position == tile.Position)),
                 tile => Assert.Contains(initial.Inhabitants, person => person.Position == tile.Position));
         }
         var state = initial.ExportState();

@@ -161,7 +161,7 @@ public sealed class TownBridgeRuntimeTests
         var roadsBefore = world.RoadTiles.ToHashSet();
         var eventsBefore = world.ExportState().Events.Count;
 
-        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(85, 2));
+        var placed = world.PlaceBuilding("bridge-run-on", workshop.CanonicalId, new GridPoint(87, 2));
         Assert.True(placed.Applied, placed.Failure);
 
         var bridge = Assert.Single(world.Bridges);

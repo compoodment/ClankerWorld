@@ -720,19 +720,21 @@ public sealed partial class PrivateWorldRuntime
 
     private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind, MapResource source)
     {
+        var miningTier = ToolCapabilities.RequiredMiningTier(itemKind);
+        var neededTool = itemKind == "wood" && source.TreeKind is not null ? ToolKind.Axe : ToolKind.Pickaxe;
+        var requiresTool = miningTier > 0 || itemKind == "wood" && source.TreeKind is not null;
+        if (requiresTool && CarriedTool(inhabitantId, neededTool, Math.Max(1, miningTier)) is null &&
+            CollectGatheringTool(inhabitantId, state, itemKind)) return;
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             MoveToward(inhabitantId, inhabitants[inhabitantId], source.Position, "materials", ResourceInteractionRange);
             return;
         }
-        var miningTier = ToolCapabilities.RequiredMiningTier(itemKind);
         if (FoodItems.IsEdible(itemKind))
         {
             HarvestFoodAtSource(inhabitantId, state, source);
             return;
         }
-        var neededTool = itemKind == "wood" && source.TreeKind is not null ? ToolKind.Axe : ToolKind.Pickaxe;
-        var requiresTool = miningTier > 0 || itemKind == "wood" && source.TreeKind is not null;
         if (requiresTool && CarriedTool(inhabitantId, neededTool, Math.Max(1, miningTier)) is null)
         {
             AppendEvent("material_gathering_blocked", $"{inhabitantId}:{itemKind}:required_tool_tier_{Math.Max(1, miningTier)}");
