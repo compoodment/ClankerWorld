@@ -91,8 +91,8 @@ public history so far, not an unaccepted reply; the wrap-up request receives
 the six public turns. Each participant's current-day allowance is saved too.
 A live provider request is never saved. On restore, any unfinished conversation
 becomes suspended and cannot spend again until both participants choose to
-resume. New conversation state requires the next private-world schema version;
-as with other alpha state, no migration for older saves is added solely to
+resume. Conversation records use private-world schema 32, following schema
+31's learned skills. No migration for older alpha saves is added solely to
 preserve compatibility.
 
 Checkpoint decoding enforces declared non-null members and required constructor
