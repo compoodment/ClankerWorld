@@ -31,7 +31,7 @@ public partial class Main
         body.AddChild(townBorderFilter);
 
         householdPropertyFilter.Text = "Household property";
-        householdPropertyFilter.TooltipText = "Tint buildings that belong to a household.";
+        householdPropertyFilter.TooltipText = "Tint buildings and fields that belong to a household.";
         householdPropertyFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
         body.AddChild(householdPropertyFilter);
 
@@ -78,6 +78,7 @@ public partial class Main
     {
         terrainLayer.SetTownBorders(townBorderFilter.ButtonPressed || ShowsPlacementOverlays ? snapshot.Towns : []);
         terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
-            ? snapshot.PlacedBuildings : []);
+            ? snapshot.PlacedBuildings : [], householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.Fields : []);
     }
 }

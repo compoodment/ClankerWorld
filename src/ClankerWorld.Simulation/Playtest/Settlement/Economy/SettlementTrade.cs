@@ -31,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
 
         var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
             .Sum(AvailableLotQuantity);
-        if (kind == "food")
+        if (IsEdibleFood(kind))
         {
             // Keeping a small trade reserve is different from taking a food errand.
             return owned < 2 && state.HungerBasisPoints < 8_500;
@@ -67,11 +67,11 @@ public sealed partial class PrivateWorldRuntime
         var lots = society.Checkpoint.Inventory.Lots;
         foreach (var give in lots.Where(lot => lot.OwnerId == actor && TradeQuantityAvailable(lot) &&
                      !WantsTradeItem(actor, lot) && WantsTradeItem(other, lot) &&
-                     (lot.ItemKind != "food" || inhabitants[actor].HungerBasisPoints >= 6_500)))
+                     (!IsEdibleFood(lot.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500)))
         {
             var take = lots.FirstOrDefault(lot => lot.OwnerId == other && lot.ItemKind != give.ItemKind &&
                 TradeQuantityAvailable(lot) && !WantsTradeItem(other, lot) && WantsTradeItem(actor, lot) &&
-                (lot.ItemKind != "food" || inhabitants[other].HungerBasisPoints >= 6_500));
+                (!IsEdibleFood(lot.ItemKind) || inhabitants[other].HungerBasisPoints >= 6_500));
             if (take is not null)
             {
                 return (give, take);
@@ -99,7 +99,7 @@ public sealed partial class PrivateWorldRuntime
             var takeId = offer.FirstPartyId == actor ? offer.SecondLotId : offer.FirstLotId;
             var give = society.Checkpoint.Inventory.GetLot(giveId);
             var take = society.Checkpoint.Inventory.GetLot(takeId);
-            var useful = WantsTradeItem(actor, take) && (give.ItemKind != "food" || inhabitants[actor].HungerBasisPoints >= 6_500);
+            var useful = WantsTradeItem(actor, take) && (!IsEdibleFood(give.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500);
             candidates.Add(new("trade_accept:" + offer.Id, $"Accept exchange: give one {give.ItemKind}, receive one {take.ItemKind}.", useful ? 12 : 60));
             candidates.Add(new("trade_decline:" + offer.Id, "Decline this exchange and release both reserved items.", useful ? 60 : 12));
         }

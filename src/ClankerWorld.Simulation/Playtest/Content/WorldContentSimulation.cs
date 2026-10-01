@@ -37,45 +37,6 @@ public sealed record WorldProductionJob(
     WorldProductionJobState State,
     IReadOnlyList<string> InputReservationIds);
 
-/// <summary>
-/// A production job can use a generated fertile-land site when its recipe is
-/// tagged <c>crop</c>. The existing BuildingInstanceId field on
-/// <see cref="WorldProductionJob"/> stores the canonical site ID for that
-/// case, so the same deterministic completion and inventory path handles
-/// both workstation production and cultivation.
-/// </summary>
-public static class WorldBuildSiteRules
-{
-    public static string FertileLandSiteId(GridPoint position) =>
-        $"{SeededMapGenerator.FertileLandResourceId}:{position.X},{position.Y}";
-
-    public static bool TryGetFertileLandPosition(string siteId, out GridPoint position)
-    {
-        position = default;
-        if (string.IsNullOrWhiteSpace(siteId))
-        {
-            return false;
-        }
-
-        var prefix = SeededMapGenerator.FertileLandResourceId + ":";
-        if (!siteId.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var coordinates = siteId[prefix.Length..].Split(',', StringSplitOptions.None);
-        if (coordinates.Length != 2 ||
-            !int.TryParse(coordinates[0], out var x) ||
-            !int.TryParse(coordinates[1], out var y))
-        {
-            return false;
-        }
-
-        position = new GridPoint(x, y);
-        return string.Equals(siteId, FertileLandSiteId(position), StringComparison.Ordinal);
-    }
-}
-
 public sealed record WorldContentSimulationState(
     IReadOnlyList<PlacedBuilding> Buildings,
     IReadOnlyList<WorldProductionJob> ProductionJobs,
@@ -186,10 +147,10 @@ public static class WorldContentSimulationRules
         {
             ArgumentNullException.ThrowIfNull(job);
             ContentPackageRules.ValidateLocalId(job.JobId);
+            ContentPackageRules.ValidateLocalId(job.BuildingInstanceId);
             if (!jobIds.Add(job.JobId) || !recipeDefinitions.TryGetValue(job.RecipeId, out var recipe) ||
-                (!buildingIds.Contains(job.BuildingInstanceId) &&
-                    !IsValidFertileLandJobSite(recipe, job.BuildingInstanceId, map) &&
-                    job.State == WorldProductionJobState.Running))
+                recipe.IsCrop ||
+                job.State == WorldProductionJobState.Running && !buildingIds.Contains(job.BuildingInstanceId))
             {
                 throw new InvalidDataException("Production jobs must have unique IDs and registered references.");
             }
@@ -204,40 +165,13 @@ public static class WorldContentSimulationRules
             }
         }
 
-        var cropBuilds = state.CropBuilds ?? [];
-        var cropJobIds = new HashSet<string>(StringComparer.Ordinal);
-        var activeCropSites = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var cropBuild in cropBuilds)
-        {
-            ArgumentNullException.ThrowIfNull(cropBuild);
-            ContentPackageRules.ValidateLocalId(cropBuild.JobId);
-            if (!cropJobIds.Add(cropBuild.JobId) ||
-                jobIds.Contains(cropBuild.JobId) ||
-                !recipeDefinitions.TryGetValue(cropBuild.RecipeId, out var recipe) ||
-                !recipe.IsCrop ||
-                cropBuild.State is not (WorldProductionJobState.Running or
-                    WorldProductionJobState.Completed or WorldProductionJobState.Cancelled) ||
-                string.IsNullOrWhiteSpace(cropBuild.WorkerId) ||
-                cropBuild.StartedTick < 0 ||
-                cropBuild.CompletionTick <= cropBuild.StartedTick ||
-                cropBuild.CompletionTick < worldTick && cropBuild.State == WorldProductionJobState.Running ||
-                cropBuild.InputReservationIds is null ||
-                cropBuild.InputReservationIds.Count != cropBuild.InputReservationIds.Distinct(StringComparer.Ordinal).Count() ||
-                !WorldBuildSiteRules.TryGetFertileLandPosition(cropBuild.BuildingInstanceId, out var cropPosition) ||
-                !IsFertileLandPosition(map, cropPosition) ||
-                cropBuild.State == WorldProductionJobState.Running &&
-                    !activeCropSites.Add(cropBuild.BuildingInstanceId))
-            {
-                throw new InvalidDataException($"Crop build '{cropBuild.JobId}' is malformed.");
-            }
-        }
+        if ((state.CropBuilds?.Count ?? 0) != 0)
+            throw new InvalidDataException("Crop work must belong to a tilled field.");
 
         if (!state.Buildings.Select(item => item.InstanceId).SequenceEqual(
                 state.Buildings.Select(item => item.InstanceId).Order(StringComparer.Ordinal), StringComparer.Ordinal) ||
             !state.ProductionJobs.Select(item => item.JobId).SequenceEqual(
-                state.ProductionJobs.Select(item => item.JobId).Order(StringComparer.Ordinal), StringComparer.Ordinal) ||
-            !cropBuilds.Select(item => item.JobId).SequenceEqual(
-                cropBuilds.Select(item => item.JobId).Order(StringComparer.Ordinal), StringComparer.Ordinal))
+                state.ProductionJobs.Select(item => item.JobId).Order(StringComparer.Ordinal), StringComparer.Ordinal))
         {
             throw new InvalidDataException("World content simulation state is not in canonical order.");
         }
@@ -315,18 +249,4 @@ public static class WorldContentSimulationRules
         return state;
     }
 
-    public static bool IsFertileLandPosition(SeededMap map, GridPoint position) =>
-        map.IsBuildable(position) && map.Resources.Any(resource =>
-            resource.Id == SeededMapGenerator.FertileLandResourceId &&
-            resource.Kind == "fertile_land" &&
-            resource.Position == position);
-
-    private static bool IsValidFertileLandJobSite(
-        RecipeDefinition recipe,
-        string siteId,
-        SeededMap map) =>
-        recipe.IsCrop &&
-        recipe.WorkstationBuildingId is null &&
-        WorldBuildSiteRules.TryGetFertileLandPosition(siteId, out var position) &&
-        IsFertileLandPosition(map, position);
 }
