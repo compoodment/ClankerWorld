@@ -23,6 +23,7 @@ public sealed partial class PrivateWorldRuntime
     private const int ProjectWorkTicks = 10;
     private const string WaitingForWorkSiteBlocker = "Waiting for a free work site";
     private const int BlockedProjectRetryDelayTicks = 60;
+    private static readonly (int X, int Y)[] ClayBankOffsets = [(0, -1), (1, 0), (0, 1), (-1, 0)];
     private static bool IsCompatibleSavedMap(SeededMap generated, PrivateWorldRuntimeState state)
     {
         if (MapManifestCodec.Digest(state.Map) != state.Map.ManifestDigest)
@@ -43,8 +44,8 @@ public sealed partial class PrivateWorldRuntime
             return true;
         var baseIds = baseline.Resources.Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         var added = state.Map.Resources.Where(resource => !baseIds.Contains(resource.Id)).ToArray();
-        // A saved map may add the settlement's staged sites and trees planted
-        // on new tiles. Everything else must match deterministic regeneration.
+        // A saved map may add the settlement's staged sites, its clay bank and
+        // trees planted on new tiles. Everything else must match regeneration.
         var planted = added.Where(IsPlantedTree).ToArray();
         var staged = added.Where(resource => !IsPlantedTree(resource)).ToArray();
         if (added.Length == 0 ||
@@ -52,14 +53,20 @@ public sealed partial class PrivateWorldRuntime
             added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
                 baseline.Resources.Any(item => item.Position == resource.Position)))
             return false;
-        if (staged.Length > 0 && (staged.Length > 3 ||
+        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 4 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
                 package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest &&
                 package.ActivationTick is not null) != true ||
-            staged.Any(resource => resource.Id != "settlement-" + resource.Kind ||
-                resource.Kind is not ("stone" or "fiber" or "grain_seed") ||
-                resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed") ||
-                !baseline.IsBuildable(resource.Position))))
+            staged.Any(resource =>
+            {
+                if (resource.Id != "settlement-" + resource.Kind ||
+                    resource.Kind is not ("stone" or "fiber" or "grain_seed" or "clay") ||
+                    resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed"))
+                    return true;
+                return resource.Kind == "clay"
+                    ? !IsReachableClayBank(baseline, resource.Position)
+                    : !baseline.IsBuildable(resource.Position);
+            })))
             return false;
         if (planted.Length > 0 && planted.Any(tree => !TreeGrowthRules.IsValidPlantedTree(baseline, tree)))
             return false;
@@ -69,6 +76,15 @@ public sealed partial class PrivateWorldRuntime
         };
         return MapManifestCodec.Digest(original) == baseline.ManifestDigest;
     }
+
+    private static bool IsReachableClayBank(SeededMap baseline, GridPoint point) =>
+        baseline.HydrologyAt(point) == WaterKind.Land && baseline.IsPassable(point) &&
+        baseline.IsReachableFromCampOnFoot(point) && ClayBankOffsets.Any(offset =>
+        {
+            var neighbor = baseline.WrapColumn(new GridPoint(point.X + offset.X, point.Y + offset.Y));
+            return baseline.Contains(neighbor) &&
+                baseline.HydrologyAt(neighbor) is WaterKind.River or WaterKind.Lake;
+        });
 
     private void StageSettlementContent()
     {
@@ -172,6 +188,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("house_cooking_content_staged", manifest.PackageId);
     }
 
+    private void StagePotteryContent() =>
+        StageBuiltInContent(PotteryContent.PackageId, HouseContent.PackageId, PotteryContent.Create,
+            "pottery_content_staged");
+
     private void StageSiloContent() =>
         StageBuiltInContent(SiloContent.PackageId, FarmContent.PackageId, SiloContent.Create, "silo_content_staged");
 
@@ -214,6 +234,19 @@ public sealed partial class PrivateWorldRuntime
         var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
             ChunkRules.ToChunkCoordinate(townStorage, chunk.ChunkSize));
         var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
+        if (!map.Resources.Any(resource => resource.Id == "settlement-clay"))
+        {
+            var bank = FreshWaterClayBank(townStorage, occupied);
+            if (bank is null)
+            {
+                AppendEvent("settlement_resource_blocked", "clay");
+            }
+            else
+            {
+                additions.Add(new MapResource("settlement-clay", "clay", bank.Value, false));
+                occupied.Add(bank.Value);
+            }
+        }
         foreach (var kind in new[] { "stone", "fiber", "grain_seed" })
         {
             var id = "settlement-" + kind;
@@ -241,6 +274,9 @@ public sealed partial class PrivateWorldRuntime
         }
         map = map with { Resources = map.Resources.Concat(additions).OrderBy(resource => resource.Id, StringComparer.Ordinal).ToArray() };
         map = map with { ManifestDigest = MapManifestCodec.Digest(map) };
+        var changedChunkCoordinates = additions.Select(resource =>
+                ChunkRules.ToChunkCoordinate(resource.Position, campChunk.ChunkSize))
+            .ToHashSet();
         worldSystems = worldSystems with
         {
             Ecology = worldSystems.Ecology with
@@ -251,23 +287,48 @@ public sealed partial class PrivateWorldRuntime
                     WorldCalendarRules.FromTick(WorldTick, worldSystems.Config).DayIndex + 1, EcologyResourceState.Available)))
                     .OrderBy(resource => resource.Id, StringComparer.Ordinal).ToArray(),
             },
-            Chunks = worldSystems.Chunks.Select(chunk => chunk.Coordinate != campChunk.Coordinate
-                ? chunk
-                : ChunkManifestCodec.WithDigest(chunk with
+            Chunks = worldSystems.Chunks.Select(chunk =>
+            {
+                if (!changedChunkCoordinates.Contains(chunk.Coordinate))
+                    return chunk;
+                var origin = chunk.Coordinate.Origin(chunk.ChunkSize);
+                return ChunkManifestCodec.WithDigest(chunk with
                 {
                     Resources = map.Resources.Where(resource =>
-                            resource.Position.X >= campOrigin.X && resource.Position.X < campOrigin.X + chunk.Width &&
-                            resource.Position.Y >= campOrigin.Y && resource.Position.Y < campOrigin.Y + chunk.Height)
+                            resource.Position.X >= origin.X && resource.Position.X < origin.X + chunk.Width &&
+                            resource.Position.Y >= origin.Y && resource.Position.Y < origin.Y + chunk.Height)
                         .Select(resource => new ChunkResourceMetadata(
                             resource.Id, resource.Kind,
-                            new GridPoint(resource.Position.X - campOrigin.X,
-                                resource.Position.Y - campOrigin.Y),
+                            new GridPoint(resource.Position.X - origin.X, resource.Position.Y - origin.Y),
                             resource.IsRenewable)).ToArray(),
-                })).ToArray(),
+                });
+            }).ToArray(),
         };
         SyncEcologyResourceStates();
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("settlement_resources_added", string.Join(',', additions.Select(resource => resource.Kind)));
+    }
+
+    private GridPoint? FreshWaterClayBank(GridPoint origin, HashSet<GridPoint> occupied)
+    {
+        var water = map.Tiles.Select(tile => tile.Position)
+            .Where(point => map.HydrologyAt(point) is WaterKind.River or WaterKind.Lake)
+            .ToHashSet();
+        var banks = new HashSet<GridPoint>();
+        foreach (var point in water)
+        {
+            foreach (var (dx, dy) in ClayBankOffsets)
+            {
+                var bank = map.WrapColumn(new GridPoint(point.X + dx, point.Y + dy));
+                if (map.Contains(bank) && map.HydrologyAt(bank) == WaterKind.Land && map.IsPassable(bank) &&
+                    !occupied.Contains(bank) && map.IsReachableFromCampOnFoot(bank))
+                    banks.Add(bank);
+            }
+        }
+        if (banks.Count == 0)
+            return null;
+        return banks.OrderBy(point => map.FootDistance(origin, point))
+            .ThenBy(point => point.Y).ThenBy(point => point.X).First();
     }
 
     private static void ValidateProject(SettlementProject project, long worldTick)
@@ -562,7 +623,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var project = state.Project!;
         var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
-            lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
+            lot.ContainerLotId is null && lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null &&
+            AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
         {
             var house = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId == constructionOwner
@@ -797,7 +859,8 @@ public sealed partial class PrivateWorldRuntime
                 house is null && !stagesAtCamp && FreeCarryCapacity(request.Requester) == 0)
                 continue;
             var hasCarriedMaterial = society.Checkpoint.Inventory.Lots.Any(lot =>
-                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
+                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
+                    lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0);
             if (hasCarriedMaterial || MaterialSource(itemKind, helperId) is { } source &&
                 FreeCarryCapacity(helperId) >= ProjectMaterialCarryUnits(helperId, itemKind, source))
@@ -817,7 +880,8 @@ public sealed partial class PrivateWorldRuntime
         }
         // A load already on its way into a household building is not spare.
         var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, helperId) &&
-            lot.ItemKind == itemKind && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0);
+            lot.ContainerLotId is null && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
+            AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
             if (MaterialSource(itemKind, helperId) is { } source)

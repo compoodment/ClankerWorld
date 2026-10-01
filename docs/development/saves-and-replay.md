@@ -201,23 +201,25 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 36. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, bounded conversations with daily allowances, and
-selected garments/carry aids with timed equipment repairs and exact reservations.
-These fields retain their current validation and roundtrip behavior.
+with ground harvest lots, bounded conversations with daily allowances, personal
+equipment with timed repairs and exact reservations, and reusable container
+lots with their contents, locations, owners and reservations. These fields
+retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
-Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, and schema 35 for conversations, record when those
-fields were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
+for fields and ground lots, schema 35 for conversations, schema 36 for personal
+equipment, and schema 37 for reusable containers, record when those fields were
+introduced; they do not allow an earlier checkpoint schema past the current
+alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |

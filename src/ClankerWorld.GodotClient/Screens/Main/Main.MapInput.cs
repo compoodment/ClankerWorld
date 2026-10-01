@@ -286,7 +286,7 @@ public partial class Main
             if (field.WorkerId is { } worker) lines.Add($"Worker: {snapshot.Inhabitants.FirstOrDefault(person => person.Id == worker)?.DisplayName ?? worker}");
         }
         foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
-            lines.Add($"On the ground: {stock.Quantity} {Pretty(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
+            lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
         if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");

@@ -38,13 +38,15 @@ public sealed partial class PrivateWorldRuntime
     private bool FamilyResourcesReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
         AccessibleShelters(actor).Any() &&
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind))
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) &&
+            lot.ContainerLotId is null && IsEdibleFood(lot.ItemKind))
             .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
                 person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
         BirthFood(actor) is not null;
 
     private InventoryLot? BirthFood(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+        lot.OwnerId == HouseholdFor(actor) && lot.ContainerLotId is null &&
+        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
 
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
