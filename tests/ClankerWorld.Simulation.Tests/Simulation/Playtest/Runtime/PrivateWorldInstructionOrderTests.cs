@@ -306,6 +306,39 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.InRange(hostedCalls, 1, 10);
     }
 
+    [Theory]
+    [InlineData("long idempotency key")]
+    [InlineData("idempotency key with a control character")]
+    [InlineData("long issuer ID")]
+    [InlineData("issuer ID with a control character")]
+    [InlineData("unknown kind")]
+    public void MalformedInstructionIsRefusedBeforeTheWorldOrItsSaveChanges(string malformation)
+    {
+        var request = new OwnerInstructionRequest("malformed-message", "owner:test", OrderedAgent,
+            OwnerInstructionKind.Suggestive, "Rest when you can.");
+        request = malformation switch
+        {
+            "long idempotency key" => request with { IdempotencyKey = new string('k', 129) },
+            "idempotency key with a control character" => request with { IdempotencyKey = "malformed\u0001message" },
+            "long issuer ID" => request with { IssuerId = new string('o', 129) },
+            "issuer ID with a control character" => request with { IssuerId = "owner:\u0007test" },
+            "unknown kind" => request with { Kind = (OwnerInstructionKind)99 },
+            _ => throw new ArgumentOutOfRangeException(nameof(malformation)),
+        };
+        using var world = new PrivateWorldRuntime("malformed-instruction");
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+
+        Assert.ThrowsAny<ArgumentException>(() => world.SubmitInstruction(request));
+
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        // The refusal used no message number, so the next valid message is still the first.
+        var accepted = world.SubmitInstruction(new OwnerInstructionRequest("valid-after-refusal", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Rest when you can."));
+        Assert.Equal("private-instruction-0000000001", accepted.InstructionId);
+        Assert.Equal(accepted.InstructionId, Assert.Single(world.ExportState().Instructions!).InstructionId);
+        world.Validate();
+    }
+
     private sealed class GuidanceRecordingProvider : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;

@@ -74,6 +74,14 @@ normal planning assignment or inherited world planning provider. A child
 without an explicit personal-model choice and an agent whose planning model is
 set to deterministic stay local; neither receives a forced hosted call.
 
+A submitted message is checked before it changes the world. Its idempotency key
+and issuer ID must each be at most 128 characters with no control characters,
+its kind must be a suggestion or an order, and its text must be at most 512
+characters. A request that fails these checks is refused with a validation
+error; the world, its message numbering and its save stay unchanged. These are
+the same limits a save applies, so an accepted message cannot leave the world
+unable to save.
+
 `InstructionCandidate` reads whole words only: *harvest* or *gather* means
 `harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
 `consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel

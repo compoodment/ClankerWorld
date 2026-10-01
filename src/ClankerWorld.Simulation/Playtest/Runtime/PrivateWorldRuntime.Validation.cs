@@ -382,10 +382,9 @@ public sealed partial class PrivateWorldRuntime
                 instruction.InstructionId.Length > 128 ||
                 instruction.InstructionId != $"private-instruction-{instruction.SubmissionSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}" ||
                 !instructionIds.Add(instruction.InstructionId) ||
-                string.IsNullOrWhiteSpace(instruction.IdempotencyKey) || instruction.IdempotencyKey.Length > 128 ||
-                instruction.IdempotencyKey.Any(char.IsControl) || !idempotencyKeys.Add(instruction.IdempotencyKey) ||
-                string.IsNullOrWhiteSpace(instruction.IssuerId) || instruction.IssuerId.Length > 128 ||
-                instruction.IssuerId.Any(char.IsControl) ||
+                !IsValidInstructionIdentifier(instruction.IdempotencyKey) ||
+                !idempotencyKeys.Add(instruction.IdempotencyKey) ||
+                !IsValidInstructionIdentifier(instruction.IssuerId) ||
                 !people.Contains(instruction.TargetInhabitantId) ||
                 instruction.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo) ||
                 instruction.State != OwnerInstructionState.Queued ||

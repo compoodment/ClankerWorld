@@ -57,6 +57,7 @@ public sealed record OwnerQueuedInstruction(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? GuidancePromptedTick = null)
 {
     public const int MaximumTextLength = 512;
+    public const int MaximumIdentifierLength = 128;
 }
 
 /// <summary>
