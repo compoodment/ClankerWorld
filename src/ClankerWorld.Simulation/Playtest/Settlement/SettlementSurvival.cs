@@ -116,10 +116,12 @@ public sealed partial class PrivateWorldRuntime
 
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>
         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+        lot.GroundPosition is null && lot.ContainerLotId is null &&
         lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && lot.ContainerLotId is null &&
+        AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
         (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
@@ -388,7 +390,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                IsEdibleFood(lot.ItemKind) && (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
+                lot.ContainerLotId is null && IsEdibleFood(lot.ItemKind) &&
+                (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);
