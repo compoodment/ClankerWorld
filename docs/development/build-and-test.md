@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Build and test
@@ -59,7 +59,8 @@ local checks should fit the change. List checks you could not run and why.
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
 [Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
-playtests explicit; do not equate a passing automated check with actual play.
+playtests explicit in the [playtest list](#windows-playtests); do not equate a
+passing automated check with actual play.
 The separate release gates still apply when preparing a release.
 
 ## Full build and test commands
@@ -102,58 +103,19 @@ headings. The documentation test reads each page with both LF and CRLF line
 endings, and CI also runs it on a Windows checkout. That job is separate from a
 Windows game playtest and from the native provider-storage checks.
 
-## Windows paired-world verification record
+## Windows playtests
 
-Use this protocol for [#285](https://github.com/compoodment/ClankerWorld/issues/285).
-It is a checklist for collecting evidence, **not a report of completed playtests**.
-Source and headless checks do not fill the Windows result column. Do not deploy,
-repair accounting, alter credentials or modify the active playtest save merely
-to run this checklist: obtain the separate operational authorization first.
-Use a disposable world for setup, placement and damaged-save cases.
+The [playtest list](../../playtest/README.md) holds the merged changes that
+still need trying by hand in the Windows game. Automated checks, including the
+Windows CI jobs and a passing export, do not count as a playtest.
 
-Record client commit/export digest, host commit, Windows build, date, viewport,
-and the interface size it picked. For each case record Pass/Fail/Blocked, exact
-steps, observed result, and a screenshot or bounded diagnostic reference with
-private keys, pairing codes, thoughts and raw provider payloads excluded. Keep
-failures linked to their focused issue; a successful unrelated case cannot close
-an entire multi-case report. Keep live operational evidence separate from client
-presentation evidence when the deployed server predates the client.
+When you record a playtest result, note the client and host commits, the
+Windows build, the date, the screen resolution and the interface size it
+picked. Say whether each check passed, failed or could not be run, with what
+you did and saw. Leave out private keys, pairing codes, agent thoughts and raw
+model replies. Link each failure to its own issue; one passing check does not
+close a report with several problems.
 
-| Case | Reproduction and pass condition |
-| --- | --- |
-| Hosted decisions and accounting | After the separately authorized meter migration, explicitly resume with an authenticated client. Confirm each configured founder can receive an accepted model choice and a new private thought; note waiting, limit or provider errors without claiming every idle action is a failure. Pause afterward. Reconcile the known phantom reservations separately; do not count them as paid calls or erase them as part of this UI check. |
-| Fresh Town, no legacy camp | Create a disposable fresh world, inspect before site choice, accept a Town site and inspect again. No legacy camp objects or camp-derived border should appear; exactly the accepted generated layout should remain. |
-| Stable Town and agent text | Pause, open World Info's Towns page (T), wait across several refreshes, switch agents and reselect the first. Contents, relationships and existing thought/memory text stay visible; an unchanged refresh must not clear them. |
-| Agent card and Profile at 720p | Select and Find agents near every screen edge at 1280×720. The selected marker remains visible; Suggest, Order, Profile and Send stay reachable, with scrolling where needed and no controls extending off-screen. |
-| Status lifetime | Enter Town-site and founder-move modes and wait through refreshes. Instructions remain while the mode is active; submit a refused request and confirm its explanation remains readable without a false disconnect. |
-| Initial camera | Open a new unset world and a saved Town near a wrapping seam. The initial view shows relevant dry land/Town/agents, not an arbitrary open-sea center or the wrong side of a seam. |
-| Tile card and short labels | Select ground near the bottom edge; inspect at several zooms. The complete card fits, absent facts are omitted, and tiny marker labels disappear rather than render fragments. |
-| Modal input | Open Pause Menu and try top-bar Start/Pause/founder actions. The modal blocks them. In Town-site mode confirm Cancel is visible; inspect pairing/back controls and Settings caption alignment. |
-| Keyboard focus | Click a top-bar button, then pan with arrow keys and use Space. Arrows pan rather than cycle focus, Space toggles pause once, Tab/Enter still reach controls. Evaluate diagonal movement while held, and compare the F1 list with actual shortcuts. |
-| Disconnected land | In a disposable world add an adult on land without a food route to the Town, then reconnect. Observation remains available and reports the missing route; Main Menu still accepts pause even if a later refresh fails. |
-| Preview while running | With a disposable current world running, request New World preview. Preview succeeds without changing current-world identity/state; Create still performs its separate pause/switch flow. |
-| Main Menu Settings pointer | From Main Menu open Settings and change an installation preference with the mouse. The overlay must not swallow input. Restore the preference after recording the result. |
-| Hover and marker priority | At several zooms hover bare ground and multiple same-tile agents. Ground outline is visible, each agent is individually selectable, and nearby tiles do not activate its marker. |
-| No Main Menu World Settings | With no loaded world, open Main Menu Settings. No World Settings category or hidden navigation path enters a world. |
-| Terrain seams | Inspect contiguous terrain at representative zooms. No black tile-gap grid appears; this does not approve provisional textures as final art. |
-| Sand, groves and hills | In a new Small and Medium world, wrapped and unwrapped, sand shows only as deserts and stretches of ocean beach, not along rivers or lakes, and no tree or plant stands on sand. Each darker forest-floor grove tile carries a tree. A band of hills rings each mountain area at close and overview zoom, tile inspection shows "Landform: Hills", and an agent crosses hills as quickly as grass. Note whether the beach share, grove size and hill width look right; the numbers are provisional (#461). |
-| Hover and condition stability | Hold the pointer over an agent through several observations while its card is open. Tooltip and warmth/illness/diet/equipment stay visible without per-refresh flicker. |
-| Slow provider | Using a separately authorized controlled delay or an unavailable test endpoint, keep the client connected while a model remains pending. Other agents/world systems continue; pause and reload must reject the old reply. Never prolong real paid calls solely to create this test. |
-| Delete while opening worlds | In Load World with disposable worlds, start deleting an inactive world. Open and Delete stay disabled until it finishes and the list refreshes; then opening a chosen world opens that same world (#445). |
-| Event Log names | Let agents gather food, join or leave the Town and, if practical, die. Entries show agent names, never "Agent" or "Founder"; after a rename, older entries show the new name (#448). |
-| Connect result | From Settings, press Connect with the paired host up, then down, then with an invalid address. Each case shows a checking message and then a clear result (#452). |
-| Lakes and rivers | In the New World preview for Small and Medium, wrapped and unwrapped, inland lakes look clearly smaller than seas, rivers end where they meet a lake instead of running along its shore, and Create World shows the same map (#391, #392). |
-| Harvest order, then the next | Give an adult next to a fruiting orchard (orchards fruit only in autumn) or a berry bush a Direct order to harvest food, then queue a second instruction. After the food is gathered the first shows as done and the second becomes current, also after Save and Load (#431). |
-| Tree stages and planting | Let an agent fell a tree for fuel and then plant its seed. At several zooms, the stump, the new sapling and, 3 days later, the grown tree each draw on their own single tile, never over a building or Road, and tile inspection names the same stage. An orchard shows growing before autumn, fruiting in autumn, picked after picking and growing again in winter. Stages survive Save and Load (#462). |
-| Zoom limits | On Small and Medium maps, full zoom-out shows no black space beyond the north or south edge, and full zoom-in shows about 14 rows at both 1280×720 and 2560×1440 (#127). |
-| Roads | In a fresh world, the first Town's Roads draw on the map as one joined packed-dirt track (no crosshatch where Road tiles meet) and on the overview, reach each building's door with a doorstep path without crossing footprints, stay visible on sand and snow, show in tile inspection and remain after save and reload (#158, #524). |
-| Map filters | Toggle the Town border and household property filters. Unclaimed land stays uncolored, a Town border is never shown as household property, overlays update after a border or ownership change, and nothing stale remains after a world switch or reconnect (#143, #467). |
-| House and Warehouse stock | Inspect a starter House: it shows only the stock stored there. A household member cooks with it and shelters there in a storm. Inspect the Warehouse: the starter axe and pickaxe show, a resident can collect one, and both buildings' stock survives save and reload (#161, #162). A household that has a House is not offered a second one (#163). |
-| Add Agent preview | Place adults on a House footprint, on unclaimed Town land and outside any Town. The preview matches the household and Town the agent actually gets, also after save and reload (#195, #467). Move from those tiles into the panel and wait through a refresh: model/key controls stay in place and the preview does not describe land hidden behind the panel (#529). |
-| Stalled refresh and Pause | With a disposable world running, delay or block the host connection for more than four seconds, without paid calls. Within about four seconds the client keeps the last view and says the connection was lost; Pause and Quit to Menu stay usable and retry instead of freezing; when the connection returns, an older snapshot never overwrites a newer action (#263). |
-| Map names and captions | At several zooms, hover and select agents with short, long (over 12 letters) and non-English names. Names are readable on every terrain and very long first names show an initial. Resource captions appear only at 32 px tiles or larger and every resource glyph renders (#268). |
-| Interface size and fullscreen | At 1920×1080 or 2560×1440 the interface shows at 200%, enlarging buttons, panels and click targets, not just text, across Settings, Add Agent, Filters, World Info and agent inspection; content that does not fit scrolls inside its panel and no bottom action is unreachable. At 1280×720 it shows at 100%, and resizing the window between the two switches cleanly. Note whether the text-field right-click menu is usable at 200%. A new installation starts fullscreen; a saved windowed choice stays windowed across restart, save and load (#281, #467). |
-
-**Exit criterion:** each applicable row has evidence against the stated builds.
-Blocked live migration or missing Windows access remains Blocked, not Pass. The
-owner's review of this protocol does not approve a deployment or certify the build.
+Do not deploy, change credentials or modify the active playtest save just to
+run a check; that needs the owner's separate go-ahead. Use a disposable world
+for setup, placement and damaged-save cases.

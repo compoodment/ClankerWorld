@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Playing the current game
@@ -157,7 +157,8 @@ Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choos
 for a bug or playtest report. Rough notes are welcome: what you did, what happened,
 what you expected and the build you used.
 [Contributing](../CONTRIBUTING.md#issues-and-design-questions) explains the report options.
-Some fixes still need a Windows playtest; include failures as well as successes.
+Some fixes still need a Windows playtest; the [playtest list](../playtest/README.md)
+says what to try. Include failures as well as successes.
 
 ## Advanced New World settings
 

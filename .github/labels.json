@@ -16,7 +16,6 @@
     { "name": "area:tooling", "color": "ededed", "description": "CI, tests, build scripts and repository setup.", "aliases": [] },
 
     { "name": "status:needs-decision", "color": "d876e3", "description": "Waiting on the owner's answer.", "aliases": [] },
-    { "name": "status:needs-playtest", "color": "006b75", "description": "Built; waiting for the owner's hands-on check.", "aliases": [] },
     { "name": "status:blocked", "color": "6e7781", "description": "Waiting on another issue or pull request.", "aliases": [] },
     { "name": "status:needs-pr", "color": "2cbe4e", "description": "Agreed and unblocked; needs someone to pick it up and open a pull request.", "aliases": ["status:ready"] },
     { "name": "status:in-progress", "color": "fbca04", "description": "Claimed by someone working on an issue or pull request.", "aliases": [] },
@@ -32,5 +31,5 @@
     { "name": "regression", "color": "e11d21", "description": "Something that used to work broke.", "aliases": [] },
     { "name": "from:playtest", "color": "5ebeff", "description": "Found while playing the game.", "aliases": [] }
   ],
-  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel"]
+  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel", "status:needs-playtest"]
 }
