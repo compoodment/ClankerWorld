@@ -16,6 +16,9 @@ public sealed class ExpiredBlockedHouseholdBuildTests
     public async Task ExpiredUnfillableHouseholdRecipePausesForFreshChoiceAndResumesAfterInputsReturn(bool fullCarriers)
     {
         using var setup = NormalPathWorld.CreateGenerated("expired-household-recipe-inputs", _ => new IdleProvider());
+        // Establish the finite settlement material piles before exhausting
+        // every wood source; the first world tick otherwise adds fresh wood.
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         var state = setup.ExportState();
         var blacksmith = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
         var household = blacksmith.HouseholdId!;
