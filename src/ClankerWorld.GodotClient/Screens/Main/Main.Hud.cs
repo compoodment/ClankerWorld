@@ -32,7 +32,6 @@ public partial class Main
     private readonly Button worldInfoWorldTab = new();
     private readonly VBoxContainer townsPage = new();
     private readonly VBoxContainer townList = new();
-    private readonly Label townBorderHint = new();
     private string? renderedTownList;
     private string? eventsWorldId;
     private long lastSeenEventId = long.MinValue;
@@ -378,13 +377,8 @@ public partial class Main
         townList.AddThemeConstantOverride("separation", 6);
         townsPage.AddThemeConstantOverride("separation", 8);
         townsPage.AddChild(townList);
-        townBorderHint.ThemeTypeVariation = "DimLabel";
-        townsPage.AddChild(townBorderHint);
-        ConfigureTextPanel(worldDetails, 240);
-        townsPage.AddChild(worldDetails);
         body.AddChild(townsPage);
-        ConfigureTextPanel(worldInfoText, 300);
-        body.AddChild(worldInfoText);
+        BuildWorldInfoPages(body);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
         worldInfoPanel.CustomMinimumSize = new Vector2(420, 0);
         worldInfoPanel.ZIndex = 80;
@@ -398,10 +392,11 @@ public partial class Main
     private void ShowWorldInfoPage(bool towns)
     {
         townsPage.Visible = towns;
-        worldInfoText.Visible = !towns;
+        worldStatsPage.Visible = !towns;
         worldInfoTownsTab.SetPressedNoSignal(towns);
         worldInfoWorldTab.SetPressedNoSignal(!towns);
-        worldInfoPanel.ResetSize();
+        if (towns) FitTownExtras();
+        else worldInfoPanel.ResetSize();
     }
 
     /// <summary>T opens World Info on its Towns page; pressing it again there closes it.</summary>
@@ -421,12 +416,8 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}")) +
             "|" + displayPreferences.DateFormat + "|" + UiTheme.Current.Name;
-        townBorderHint.Visible = snapshot.Towns.Count > 0;
-        townBorderHint.Text = townBorderFilter.ButtonPressed
-            ? "Town borders show as a dashed line on the map."
-            : "Town borders are hidden. Turn them on in Filters.";
         if (renderedTownList == signature) return;
         renderedTownList = signature;
         foreach (var child in townList.GetChildren())
@@ -441,7 +432,7 @@ public partial class Main
                 Text = "No Town yet. The first Town appears once its site is chosen.",
                 ThemeTypeVariation = "DimLabel",
             });
-            worldInfoPanel.ResetSize();
+            FitTownExtras();
             return;
         }
         foreach (var town in snapshot.Towns)
@@ -466,13 +457,15 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
+            text.AddChild(ResidentPortraits(snapshot, town));
             line.AddChild(text);
             var show = new Button
             {
                 Text = "Show",
                 TooltipText = $"Move the map to {town.Name}.",
-                Icon = PixelIcons.Themed(PixelGlyph.Map, UiTheme.Current.Primary, 2),
+                Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                 Disabled = town.BorderTiles.Count == 0,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
             };
             StyleButton(show);
             var townId = town.Id;
@@ -482,7 +475,7 @@ public partial class Main
             townList.AddChild(row);
         }
         // Shrink back to fit when the list gets shorter.
-        worldInfoPanel.ResetSize();
+        FitTownExtras();
     }
 
     /// <summary>Every label in the Towns list, for checks and assistive reading.</summary>

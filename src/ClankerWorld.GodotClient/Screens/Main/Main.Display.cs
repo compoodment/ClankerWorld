@@ -212,7 +212,6 @@ public partial class Main
         familyTreeView.QueueRedraw();
         RefreshHudIcons();
         renderedTownList = null;
-        renderedTownPanel = null;
         renderedEventLog = null;
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);

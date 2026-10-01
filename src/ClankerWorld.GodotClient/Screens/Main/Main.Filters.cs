@@ -61,10 +61,7 @@ public partial class Main
     private void ApplyMapFiltersFromCurrentSnapshot()
     {
         if (renderedMapSnapshot is { } snapshot)
-        {
             ApplyMapFilters(snapshot);
-            RenderWorldInfo(snapshot);
-        }
     }
 
     /// <summary>

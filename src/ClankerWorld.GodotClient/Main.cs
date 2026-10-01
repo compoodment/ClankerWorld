@@ -127,8 +127,6 @@ public partial class Main : Control
     private readonly Button memoriesButton = new();
     private readonly PanelContainer memoriesPanel = new();
     private readonly RichTextLabel memoryHistory = new();
-    private readonly RichTextLabel worldDetails = new();
-    private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();

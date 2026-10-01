@@ -127,6 +127,14 @@ choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
 
+**World Info** has two pages. **Towns** lists each Town with its residents'
+portraits and a **Show** button that moves the map there. Below the list are
+each household's stores, the projects under way and how far they have got, the
+household council and recent social activity; long lists scroll. **World**
+shows today's date, the season and weather where you are looking and the year
+length, then counts of agents, Towns, households, buildings, road tiles,
+bridges, resource sites and the map size.
+
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
