@@ -284,6 +284,15 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
 
+            if (intention.CandidateId.StartsWith("civic|", StringComparison.Ordinal))
+            {
+                // Formal civic acts require a fresh admitted personal choice. Only the physical trip
+                // toward the notice place continues locally between ordinary model turns.
+                var civic = intention.CandidateId.Split('|');
+                if (civic.Length == 5 && civic[2] == "visit" && intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ApplyTownCivicCandidate(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
     }
@@ -339,7 +348,10 @@ public sealed partial class PrivateWorldRuntime
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
         if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
-            ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+        {
+            if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+        }
         else
             ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
@@ -422,7 +434,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
         {
-            ApplyTownCivicCandidate(inhabitantId, candidateId);
+            // Civic choices execute only through the personal admission path above.
             return;
         }
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))

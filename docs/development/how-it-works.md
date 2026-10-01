@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-01
 ---
 
 # How the game works
@@ -514,6 +514,11 @@ through admitted choices. Missing, stale or malformed responses cannot supply
 votes. A generic private thought or another actor naming a candidate supplies
 neither agreement nor approval. No polling provider calls are added, and Jev is
 optional.
+
+Formal civic acts require an admitted personal-model choice. Built-in decisions,
+failed replies and continued intentions supply no votes or candidate agreement.
+An explicitly chosen visit can continue moving locally; ballots may be revised
+on the agent's ordinary decision cadence.
 
 Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a

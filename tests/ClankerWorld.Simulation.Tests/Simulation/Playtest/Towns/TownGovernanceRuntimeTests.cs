@@ -19,6 +19,59 @@ public sealed class TownGovernanceRuntimeTests
     private const string FirstText = "Publish harvest dates for our Town.";
     private const string SecondText = "Share notices about storms in our Town.";
 
+    [Theory]
+    [InlineData("built_in")]
+    [InlineData("built_in_yes")]
+    [InlineData("built_in_register")]
+    [InlineData("failed_personal")]
+    [InlineData("silent_personal")]
+    public async Task CivicKnowledgeNeverTurnsBuiltInRulesFailureOrSilenceIntoConsent(string mode)
+    {
+        var provider = new CivicBoundaryProvider(mode);
+        using var source = NormalPathWorld.CreateGenerated("council-personal-consent-boundary", _ => provider);
+        var initial = source.ExportState();
+        var town = initial.Towns![0];
+        var governance = TownGovernanceRules.SubmitProposal(town.Governance!, town.Id, FirstAuthor, "law", null,
+            FirstText, "same", town.ResidentIds, 0, initial.WorldSystems!.Config.TicksPerDay);
+        // These controlled readers are at the actual notice place and have recorded reading this notice.
+        foreach (var actor in town.ResidentIds)
+            foreach (var notice in governance.Notices)
+                governance = TownGovernanceRules.LearnNotice(governance, actor, notice.Id, 0);
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Towns = [town with { Governance = governance }],
+            Inhabitants = initial.Inhabitants.Select(actor => actor with { Position = town.OriginSite!.Value }).ToArray(),
+        }, _ => provider);
+        var fellBack = false;
+        for (var tick = 0; tick < 4; tick++)
+        {
+            var result = await world.AdvanceOneTickAsync();
+            fellBack |= result.Decisions.Any(decision => decision.Admission.FellBack);
+        }
+        Assert.NotEmpty(provider.Observations);
+        Assert.Contains(provider.Observations, observation => observation.Candidates.Any(candidate => candidate.Id.Contains("|yes|", StringComparison.Ordinal)));
+        Assert.Empty(world.Towns[0].Governance!.Candidates);
+        var proposal = Assert.Single(world.Towns[0].Governance!.Proposals);
+        Assert.Empty(proposal.Votes);
+        Assert.Equal("pending", proposal.Status);
+        Assert.Equal(mode == "failed_personal", fellBack);
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData("Discuss tick 999999999999999999999999999999.")]
+    [InlineData("Discuss tick 9223372036854775807.")]
+    public async Task OrdinaryProposalTextWithLargeNumbersDoesNotStopLaterCivicObservations(string text)
+    {
+        var provider = new CivicProvider(FirstAuthor, proposalOverride: text);
+        using var world = NormalPathWorld.CreateGenerated("council-large-proposal-number", id =>
+            id == FirstAuthor ? provider : new ActionCoverageRecorder(chooseIdle: true));
+        for (var tick = 0; tick < 40; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(text, Assert.Single(world.Towns[0].Governance!.Proposals).Text);
+        Assert.Contains(provider.Observations, observation => observation.Self?.CivicNote?.Contains("Discuss", StringComparison.Ordinal) == true);
+        world.Validate();
+    }
+
     [Fact]
     public async Task TwoGeneratedTownsUseOrdinaryPersonalTurnsAndClientProjectionAndRoundtripIndependently()
     {
@@ -308,6 +361,27 @@ public sealed class TownGovernanceRuntimeTests
         }
     }
 
+    private sealed class CivicBoundaryProvider(string mode) : IDecisionProvider
+    {
+        public ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
+        public DecisionProviderKind Kind => mode.StartsWith("built_in", StringComparison.Ordinal)
+            ? DecisionProviderKind.Deterministic : DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            Observations.Enqueue(observation);
+            if (mode == "failed_personal") throw new HttpRequestException("Recorded provider outage.");
+            if (mode == "built_in") return new DeterministicDecisionProvider().DecideAsync(request, cancellationToken);
+            var action = mode == "built_in_yes" ? "|yes|" : mode == "built_in_register" ? "|register|" : null;
+            var selected = observation.Candidates.FirstOrDefault(candidate => action is not null && candidate.Id.Contains(action, StringComparison.Ordinal)) ??
+                observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+                observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected.Id, 1,
+                observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal)));
+        }
+    }
+
     private sealed class BallotHandler(string ballot) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -320,7 +394,7 @@ public sealed class TownGovernanceRuntimeTests
         }
     }
 
-    private sealed class CivicProvider(string actor, bool holdVote = false) : IDecisionProvider
+    private sealed class CivicProvider(string actor, bool holdVote = false, string? proposalOverride = null) : IDecisionProvider
     {
         public ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
         public TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -333,7 +407,7 @@ public sealed class TownGovernanceRuntimeTests
             Observations.Enqueue(observation);
             var ownTown = actor is FirstAuthor or "founder:00000000000000000000000000000002" ? "town:first" : "town:second";
             var legal = observation.Candidates.Where(c => c.Id.StartsWith("civic|" + ownTown + "|", StringComparison.Ordinal)).ToArray();
-            var text = ownTown == "town:first" ? FirstText : SecondText;
+            var text = proposalOverride ?? (ownTown == "town:first" ? FirstText : SecondText);
             var author = actor is FirstAuthor or SecondAuthor;
             var selected = legal.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) ??
                 legal.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal)) ??

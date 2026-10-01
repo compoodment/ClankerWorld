@@ -33,8 +33,10 @@ public sealed partial class PrivateWorldRuntime
     {
         foreach (var person in society.Checkpoint.Inhabitants.OrderByDescending(p => p.Id.Length))
             text = text.Replace(person.Id, person.Name, StringComparison.Ordinal);
-        text = CivicTickText().Replace(text, match => "world day " +
-            (long.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) / CivicDay + 1).ToString(CultureInfo.InvariantCulture));
+        text = CivicTickText().Replace(text, match =>
+            long.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var tick) && tick / CivicDay < long.MaxValue
+                ? "world day " + (tick / CivicDay + 1).ToString(CultureInfo.InvariantCulture)
+                : match.Value);
         return text.Length > 270 ? text[..270] : text;
     }
 
@@ -73,6 +75,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        // Civic agreement and votes are explicit personal choices, never a built-in idle alternative.
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
         foreach (var town in towns.Where(t => t.Governance is not null))
         {
@@ -81,20 +84,20 @@ public sealed partial class PrivateWorldRuntime
             var resident = adults.Contains(actor, StringComparer.Ordinal);
             if (NearCivicBoard(actor, town) && state.Notices.Any(n =>
                 !state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == n.Id)))
-                candidates.Add(new(CivicAction(town.Id, "read"), $"Read the actual civic notices posted at {town.Name}.", 55));
+                candidates.Add(new(CivicAction(town.Id, "read"), $"Read the actual civic notices posted at {town.Name}.", 155));
             var known = state.Notices.Where(n => state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == n.Id)).ToArray();
             if (resident)
             {
                 if (!NearCivicBoard(actor, town) && CivicBoard(town) is not null)
-                    candidates.Add(new(CivicAction(town.Id, "visit"), $"Visit {town.Name}\'s public notice place to see what has been posted.", 75));
+                    candidates.Add(new(CivicAction(town.Id, "visit"), $"Visit {town.Name}\'s public notice place to see what has been posted.", 175));
                 if (!state.Candidates.Any(c => c.AgentId == actor && c.FullTerm))
-                    candidates.Add(new(CivicAction(town.Id, "register"), $"Personally agree to stand for full council terms in {town.Name}.", 85));
+                    candidates.Add(new(CivicAction(town.Id, "register"), $"Personally agree to stand for full council terms in {town.Name}.", 185));
                 if (state.Form == "representative" && state.TermEndTick is { } end &&
                     !state.Candidates.Any(c => c.AgentId == actor && c.RemainderTermEndTick == end))
                     candidates.Add(new(CivicAction(town.Id, "remainder", end.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                        $"Agree only to fill a vacancy until this council term ends in {town.Name}; this does not enter the next full-term contest.", 86));
+                        $"Agree only to fill a vacancy until this council term ends in {town.Name}; this does not enter the next full-term contest.", 186));
                 if (state.Candidates.Any(c => c.AgentId == actor))
-                    candidates.Add(new(CivicAction(town.Id, "withdraw_candidate"), $"Withdraw your willingness to stand in {town.Name}.", 90));
+                    candidates.Add(new(CivicAction(town.Id, "withdraw_candidate"), $"Withdraw your willingness to stand in {town.Name}.", 190));
                 foreach (var nearby in inhabitants.Values.Where(p => p.InhabitantId != actor && AdultResident(p.InhabitantId) &&
                     IsWithinInteractionRange(p.Position, inhabitants[actor].Position, ResourceInteractionRange)))
                 {
@@ -103,38 +106,38 @@ public sealed partial class PrivateWorldRuntime
                         !state.Candidates.Any(c => c.AgentId == nominee && c.FullTerm) &&
                         !state.Notices.Any(n => n.Kind == "nomination" && n.SubjectId == "nomination:" + actor + "->" + nominee))
                         candidates.Add(new(CivicAction(town.Id, "nominate", nominee),
-                            $"Nominate {society.Checkpoint.GetInhabitant(nominee).Name} for full council terms in {town.Name}; they must personally agree before becoming a candidate.", 88));
+                            $"Nominate {society.Checkpoint.GetInhabitant(nominee).Name} for full council terms in {town.Name}; they must personally agree before becoming a candidate.", 188));
                     if (TownForResident(nominee) is null)
                         candidates.Add(new(CivicAction(town.Id, "request_admission", nominee),
-                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 88));
+                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 188));
                 }
-                candidates.Add(new(CivicAction(town.Id, "propose"), $"Submit an ordinary social-law proposal to {town.Name}; include civic_proposal text. It needs the current council's votes and changes no physical rights.", 90));
+                candidates.Add(new(CivicAction(town.Id, "propose"), $"Submit an ordinary social-law proposal to {town.Name}; include civic_proposal text. It needs the current council's votes and changes no physical rights.", 190));
             }
             else if (!towns.Any(t => t.ResidentIds.Contains(actor, StringComparer.Ordinal)) && AdultResident(actor) && NearCivicBoard(actor, town))
-                candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 70));
+                candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && known.Any(n => n.SubjectId == p.Id)))
             {
                 if (proposal.AuthorId == actor)
-                    candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {proposal.Text}", 90));
+                    candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {proposal.Text}", 190));
                 if (!proposal.Voters.Contains(actor, StringComparer.Ordinal) || proposal.Votes.Any(v => v.AgentId == actor) ||
                     proposal.Kind == "admission" && proposal.SubjectId == actor) continue;
-                candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {proposal.Text} in {town.Name}. {proposal.RequiredYes} yes votes required.", 65));
-                candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {proposal.Text} in {town.Name}.", 66));
+                candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {proposal.Text} in {town.Name}. {proposal.RequiredYes} yes votes required.", 165));
+                candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {proposal.Text} in {town.Name}.", 166));
             }
             if (state.Election is { Stage: "main" or "runoff" } election && election.Voters.Contains(actor, StringComparer.Ordinal) &&
                 known.Any(n => n.SubjectId == election.Id && n.Kind == (election.Stage == "main" ? "election" : "runoff")))
             {
                 candidates.Add(new(CivicAction(town.Id, "ballot", election.Id), $"Submit or revise your {election.Stage} ballot in {town.Name}; choose up to {election.Seats} distinct IDs via civic_ballot. " +
                     $"Willing candidates: {string.Join(", ", election.Candidates.Select(id => society.Checkpoint.GetInhabitant(id).Name + " (" + CivicAgentToken(id) + ")"))}. Self-voting is allowed. " +
-                    $"Voting closes on world day {election.DeadlineTick / CivicDay + 1}.", 65));
+                    $"Voting closes on world day {election.DeadlineTick / CivicDay + 1}.", 165));
                 foreach (var id in election.Candidates)
-                    candidates.Add(new(CivicAction(town.Id, "single", election.Id, id), $"Submit or revise your ballot to support only {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}. Other previous choices are replaced.", 67));
+                    candidates.Add(new(CivicAction(town.Id, "single", election.Id, id), $"Submit or revise your ballot to support only {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}. Other previous choices are replaced.", 167));
             }
             foreach (var recipient in inhabitants.Values.Where(p => p.InhabitantId != actor &&
                 IsWithinInteractionRange(p.Position, inhabitants[actor].Position, ResourceInteractionRange)))
             {
                 if (!known.Any(n => !state.Knowledge.Any(k => k.AgentId == recipient.InhabitantId && k.NoticeId == n.Id))) continue;
-                candidates.Add(new(CivicAction(town.Id, "relay", recipient.InhabitantId), $"Relay the civic notices you actually learned in {town.Name} to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} nearby.", 80));
+                candidates.Add(new(CivicAction(town.Id, "relay", recipient.InhabitantId), $"Relay the civic notices you actually learned in {town.Name} to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} nearby.", 180));
             }
         }
     }
