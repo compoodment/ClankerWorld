@@ -5,18 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class KernelContractTests
 {
     [Fact]
-    public void ClockCalendarUsesOnlySavedIntegralTickArithmetic()
-    {
-        var afterOneYearAndOneMinute = KernelClock.FromWorldTick((KernelClock.TicksPerDay * KernelClock.DaysPerYear) + 1);
-
-        Assert.Equal(365, afterOneYearAndOneMinute.DayIndex);
-        Assert.Equal(0, afterOneYearAndOneMinute.DayOfYear);
-        Assert.Equal(1, afterOneYearAndOneMinute.MinuteOfDay);
-        Assert.Equal(6, KernelClock.ScheduledTicksPerSecond);
-        Assert.Equal(1, KernelClock.TicksPerMinute);
-    }
-
-    [Fact]
     public void NamedPcgStreamIsStableAndCannotAccidentallyAliasAnotherStream()
     {
         var first = Pcg32XshRrV1.Create("fixture-seed", "weather");

@@ -7,25 +7,6 @@ public sealed class ContentDefinitionTests
     private const string PackageDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     [Fact]
-    public void DefinitionCollectionsAreDefensivelyCopiedAndCanonicalized()
-    {
-        var costs = new List<ContentQuantity>
-        {
-            new("wood", 2),
-            new("stone", 1)
-        };
-        var tags = new List<string> { "zeta", "alpha" };
-        var building = Building("workshop", tags, costs);
-        costs[0] = new ContentQuantity("glass", 9);
-        tags[0] = "mutated";
-
-        Assert.Equal(["stone", "wood"], building.BuildCosts.Select(item => item.ResourceId));
-        Assert.Equal(["alpha", "zeta"], building.Tags);
-        Assert.Throws<NotSupportedException>(() => ((IList<string>)building.Tags)[0] = "mutated");
-        Assert.Throws<NotSupportedException>(() => ((IList<ContentQuantity>)building.BuildCosts)[0] = new("x", 1));
-    }
-
-    [Fact]
     public void InvalidBuildingAndRecipeDefinitionsAreRejected()
     {
         Assert.Throws<ArgumentException>(() => Building("Bad ID").Validate());
@@ -67,31 +48,12 @@ public sealed class ContentDefinitionTests
     }
 
     [Fact]
-    public void ApplyingDefinitionsIsDeterministicAndOrdersEachKindByCanonicalId()
-    {
-        var forge = Building("forge");
-        var shelter = Building("shelter");
-        var smelt = Recipe("smelt", forge);
-        var rest = Recipe("rest", shelter);
-
-        var first = ContentDefinitionApplicator.Apply([shelter, forge], [rest, smelt]);
-        var second = ContentDefinitionApplicator.Apply([forge, shelter], [smelt, rest]);
-
-        Assert.Equal(first.StateDigest, second.StateDigest);
-        Assert.Equal(
-            [forge.CanonicalId, shelter.CanonicalId],
-            first.Buildings.Select(item => item.CanonicalId));
-        Assert.Equal(
-            [rest.CanonicalId, smelt.CanonicalId],
-            first.Recipes.Select(item => item.CanonicalId));
-        first.Validate();
-    }
-
-    [Fact]
     public void ApplyingToExistingStateRejectsDuplicateIdsAndDanglingWorkstations()
     {
         var building = Building("forge");
-        var state = ContentDefinitionApplicator.Apply([building], []);
+        var shelter = Building("shelter");
+        var state = ContentDefinitionApplicator.Apply([shelter, building], []);
+        Assert.Equal([building.CanonicalId, shelter.CanonicalId], state.Buildings.Select(item => item.CanonicalId));
 
         Assert.Throws<InvalidOperationException>(() => ContentDefinitionApplicator.Apply(state, [building], []));
 

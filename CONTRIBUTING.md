@@ -59,7 +59,8 @@ one, and a workflow updates the repository.
   changes, set when it opens and again when it is marked ready (fix them by
   hand if they are wrong); one type, from the first ticked **Type of change**
   box; and `status:needs-review` while it is ready. `status:reviewing` comes off
-  when it closes or goes back to draft. An issue it closes
+  when it closes or goes back to draft. Quiet claims are
+  [released every hour](#claim-an-issue). An issue it closes
   (`Closes`, `Fixes` or `Resolves`) gets `status:has-pr`; once the pull request
   is ready for review, the issue's `status:in-progress` claim is removed.
   `status:has-pr` is removed when the last such pull request closes; if none
@@ -104,20 +105,46 @@ when their work lands.
 Ready work is agreed, unblocked, unclaimed and not waiting on the owner:
 
 ```text
-is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision" -label:"status:has-pr" -linked:pr
+is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-task -label:"status:in-progress" -label:"status:blocked" -label:"status:needs-decision"
 ```
 
 Take the highest priority first: add `label:"priority:p0"` to the search, then
 p1, p2 and p3, and within a level take the oldest issue. Read the issue's
 comments and **Development** panel first. If main already
-fixes it, name the commit and close the issue.
+fixes it, name the commit and close the issue. If the issue also has
+`status:has-pr`, an earlier draft was abandoned: continue that pull request's
+branch rather than starting again.
 
 ### Claim an issue
 
 Before you start, replace `status:needs-pr` with `status:in-progress` and
-comment with who is working on it and the branch name; assignment alone does
-not show which agent took it.
+comment with who is working on it and the branch name in backticks, such as
+`codex/123-fix`. Assignment alone does not show which agent took it, and the
+cleanup below finds your pushes through that branch name. Agents sign the
+comment with a session ID ([how](AGENTS.md#sign-your-comments)).
 
+- **Show your work.** Push your branch and open a draft pull request within the
+  first hour, then push at least every 2 hours while you work. Pushed commits
+  are how everyone, including the owner, can see the claim is alive, so only
+  pushes keep it; comments do not. If you are waiting on the owner, add
+  `status:needs-decision`, which keeps the claim. If you are waiting on
+  something else, add `status:blocked` and say what it is waiting on.
+- **Quiet claims are released automatically.** Every hour a workflow releases
+  any claim with nothing pushed for 4 hours. Work counts as a push to a linked
+  draft pull request's branch or to a branch named in the issue's comments, or
+  opening a linked draft; a push counts from when it reached GitHub, even if
+  its commits are older. Comments, edits, label changes and pushes to ready
+  pull requests, which belong to their reviewers, do not count. The issue goes
+  back to `status:needs-pr` with a comment naming the draft or branch to
+  continue from; a blocked issue stays out of the queue.
+  Claims waiting on the owner (`status:needs-decision` on the issue or pull
+  request) are kept. New claims still count. The cleanup checks current claims
+  and handoffs again before and after changing labels.
+- An abandoned draft keeps `status:has-pr` alongside `status:needs-pr` until
+  someone claims its issue or a closing pull request becomes ready. Routine
+  draft edits and pushes do not hide that unclaimed work from the search.
+  The cleanup workflow can be previewed from Actions with its dry-run option;
+  select `main`, since it runs only main's checked-in script.
 - Do not start a second fix for a claimed issue. If you think the approach is
   wrong, say so on the issue.
 - If you stop, push your branch, put `status:needs-pr` back in place of
@@ -126,8 +153,6 @@ not show which agent took it.
 - You don't remove it when you open the pull request: once a pull request that
   closes the issue is ready for review, the issue switches to `status:has-pr`
   automatically. A `Refs` pull request leaves the claim alone.
-- A claim with no pull request and no update for 12 hours is stale: say you are
-  taking it over, then claim it again.
 
 ### Link issues from the pull request
 
@@ -262,19 +287,25 @@ reviewed the current head.
 
 More than one reviewer may be merging at the same time, so:
 
-- **Claim a pull request before reviewing it.** Take the highest-priority one
-  from `is:pr is:open draft:false -label:"status:reviewing"`, add
-  `status:reviewing`, and comment with who is reviewing and the commit you
+- **Claim a pull request when you start reviewing it.** Take the
+  highest-priority one from `is:pr is:open draft:false -label:"status:reviewing"`,
+  add `status:reviewing`, and comment with who is reviewing and the commit you
   started from. Then read the comments again: if someone else's claim came
-  first, leave the label alone and pick another pull request. A claim with no
-  activity for 2 hours is stale: say you are taking it over, then claim it
-  again. The label comes off automatically when the pull request closes or
-  goes back to draft; remove it yourself if you stop without merging.
+  first, leave the label alone and pick another pull request.
+- **One review claim at a time.** A claim is not a place in the queue. Take a
+  second pull request only while the first waits on CI or a prerequisite pull
+  request.
+- **Quiet review claims are released automatically.** A review claim with
+  nothing pushed for 2 hours is released; as with issue claims, comments do
+  not count. Merging main in or pushing a fix counts. The label also comes off
+  when the pull request closes or goes back to draft; remove it yourself if
+  you stop without merging.
 - **Never use draft as a hold.** Your `status:reviewing` claim already keeps
   others away while you merge main in, add a fix or wait for a prerequisite
-  pull request; if you are waiting, say which pull request in a comment.
-  Convert to draft only to hand a pull request back
-  ([Drafts and readiness](#drafts-and-readiness)).
+  pull request; if you are waiting, say which pull request in a comment. A
+  wait longer than 2 hours lets the claim lapse, and anyone may claim the pull
+  request again once it can move. Convert to draft only to hand a pull request
+  back ([Drafts and readiness](#drafts-and-readiness)).
 - **Merge only on top of current main.** Two pull requests can each pass on
   their own and still break main together, for example by both raising the
   save format to the same new version. Just before merging, check whether main
