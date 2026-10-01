@@ -687,8 +687,10 @@ adult residents should retain a vote in those elections.
   half the council.** Silence and abstention supply no approval. A four-person
   council needs three yes votes; a three-person council needs two. This is a
   strict majority of the council, not merely more yes than no among replies.
-  Procedures for changing the governing arrangement, land adjudication and
-  inheritance are separate choices; this does not settle them automatically.
+  Changing the governing arrangement uses the separate
+  [resident approval rule](#town-law-scope-and-changes). Land adjudication and
+  inheritance procedures are separate choices; an ordinary council vote does
+  not settle them automatically.
 - **The initial proposal window is one unpaused world day.** Resolve sooner
   when the result is settled; otherwise close at the deadline. Without sufficient
   approval then, the proposal does not pass. Paused time does not consume the
@@ -717,8 +719,9 @@ These proposal, voting-window, seat-count and ballot choices are settled.
 The remaining ordinary council-process rules are agreed in
 [Council changes and election scheduling](#council-changes-and-election-scheduling).
 The completed voting and election decision is tracked in
-[#601](https://github.com/compoodment/ClankerWorld/issues/601); broader changes
-to the governing arrangement remain a separate interview topic.
+[#601](https://github.com/compoodment/ClankerWorld/issues/601). Approval authority
+for broader changes to the governing arrangement is agreed below; the detailed
+change process remains a separate interview topic.
 
 ### Election terms and council continuity
 
@@ -849,12 +852,55 @@ election interview.
   at an invented nomination phase.
 
 These rules complete the initial ordinary proposal and election process.
-Government changes, law scope, enforcement and the other topics below remain
-separate design choices; settling a ballot mechanism does not settle them.
+Law scope and approval for government changes are agreed below. The detailed
+government-change process, enforcement and other topics remain separate choices.
 Implementation is tracked in
 [#618](https://github.com/compoodment/ClankerWorld/issues/618), followed by
 Town membership and admission integration in
 [#602](https://github.com/compoodment/ClankerWorld/issues/602).
+
+### Town law scope and changes
+
+**Agreed with the owner on October 1, answers 46A–51A:**
+
+- **Agents may propose open-ended social laws with a clear subject and
+  scope.** Laws can concern shared work, resource use, businesses or public
+  conduct, rather than being restricted to a prepared catalogue. Passing
+  “do not cut trees in this grove” records a social rule; it does not make
+  cutting physically impossible or introduce a new world power.
+- **Local conduct laws apply to visitors within the Town's jurisdiction.**
+  A visiting lumberjack is subject to the protected-grove rule without
+  becoming a resident. Whether ignorance of a law affects consequences
+  remains part of the enforcement interview.
+- **Territorial laws apply on the Town's formally claimed land, or a
+  specified site within it.** A drawn border alone cannot extend authority
+  over another claim. Household use plots can fall under Town law without
+  making the household's tools or buildings Town property. Duties attached
+  to residency must say so explicitly; territorial rules do not follow
+  travelers everywhere. This does not decide land grant, transfer or
+  adjudication powers beyond the already agreed ownership/use-right rules.
+- **Amend or repeal a law through the ordinary council proposal and voting
+  process.** Identify the affected law, record its replacement or repeal,
+  and preserve its history. For the initial three-person council, two yes
+  votes can repeal grove protection through an ordinary proposal. Changing
+  the governing arrangement instead uses the resident approval rule below.
+- **A change to the governing arrangement needs yes votes from more than
+  half of all adult Town residents.** Representatives cannot replace
+  elections with a permanent ruler using an ordinary council vote. An
+  eight-adult Town needs five yes votes to establish a mayor or change its
+  electoral arrangement. Silence supplies no approval. The government-change
+  voting window, voter-roster handling, allowed forms and transition safeguards
+  remain to be decided; this settles approval authority, not those procedures.
+- **A new law applies from its recorded adoption onward.** Assess earlier
+  conduct under the laws that existed then; do not create a new violation by
+  applying a later law retrospectively. Protecting the grove today does not
+  turn yesterday's tree-cutting into a new violation. Preserve law history so
+  the applicable version remains identifiable.
+
+These law-scope, visitor, amendment and prospective-application rules are
+settled. Government-change safeguards and enforcement are the next batches in
+[#619](https://github.com/compoodment/ClankerWorld/issues/619). A law remains
+separate from fixed physics, ownership and validated action authority.
 
 ### Still to decide
 
@@ -865,8 +911,9 @@ Eligibility, ballots, election roster changes and delivery are agreed in
 [Election eligibility, ballots and notices](#election-eligibility-ballots-and-notices).
 Ordinary proposal changes, candidate registration, retries and election overlap
 are agreed in [Council changes and election scheduling](#council-changes-and-election-scheduling).
-Still open: repeal details;
-how governments may change; which laws apply to whom and where; how a
+Law scope, visitor obligations, repeal and prospective application are agreed
+in [Town law scope and changes](#town-law-scope-and-changes).
+Still open: the detailed government-change process and safeguards; how a
 violation is witnessed, investigated, enforced, or punished; specific land
 rights grant and adjudication procedures;
 taxes, inheritance, and interaction between conflicting Towns. Agents
