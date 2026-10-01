@@ -177,9 +177,11 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   your next job. Each session holds one issue claim; a session's subagents
   share it. The exception is combined work: when one pull request, or one stack
   of pull requests built on each other, will cover several related issues,
-  claim them together and name on each the branch that will close it. Each
-  issue's claim ends when the pull request that closes it is marked ready, and
-  you are free to claim the next issue once all of yours are ready.
+  claim them together, and in each claim comment name every branch of the
+  stack in backticks, starting with the one you push first, so a push to any of
+  them keeps all the claims. Each issue's claim ends when the pull request that
+  closes it is marked ready, and you are free to claim the next issue once all
+  of yours are ready.
 - **Only pushes keep a claim.** Push your branch and open a draft pull request
   within the first hour, even before the work builds, then push at least every
   hour. A draft is where unfinished work belongs. Work that exists only on your
@@ -187,15 +189,17 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
 - **Quiet claims are released automatically.** Every 30 minutes a workflow
   releases any claim with nothing pushed for 1.5 hours. What counts: adding
   `status:in-progress`, opening a linked draft, and pushes to a linked draft's
-  branch or to a branch named in the issue's comments. A draft that only refers
-  to the issue (`Refs`) counts when its branch is named in the issue's comments
-  or starts with the issue number, such as `codex/123-fix`. A push counts from
-  when it reached GitHub, even if its commits are older. Comments, edits, other
-  label changes and pushes to ready pull requests, which belong to their
-  reviewers, do not count. The released issue goes back to `status:needs-pr`,
-  unless it is blocked, with a comment naming the draft or branch to continue
-  from. GitHub sometimes starts scheduled runs late, so a release can come a
-  little after 1.5 hours.
+  branch or to one of the five branches most recently named in the issue's
+  comments. A draft that only refers to the issue (`Refs`) counts when its
+  branch is named in the issue's comments or, after one optional `prefix/`,
+  starts with the issue number and a hyphen, such as `codex/123-fix` or
+  `claude/issue-123-fix`. A push counts from when it reached GitHub, even if
+  its commits are older. Comments, edits, other label changes and pushes to
+  ready pull requests, which belong to their reviewers, do not count. The
+  released issue goes back to `status:needs-pr`, unless it is blocked, a
+  decision or an owner task, with a comment naming the draft or branch to
+  continue from. A release comes up to 30 minutes after the 1.5 hours, or later
+  when GitHub starts a scheduled run late.
 - **A claim lasts while its label is on.** `status:in-progress` means someone
   holds the issue, however long ago they last pushed. Only the claimant, the
   release workflow or an owner request ends a claim, so don't decide on your
@@ -417,8 +421,8 @@ Several reviewers may be merging at the same time, so:
   comes off when the pull request closes or goes back to draft.
 - **Never use draft as a hold.** Your claim keeps others away while you merge
   main in, add a fix or wait for CI. If you find the pull request must wait for
-  another one, add `status:blocked`, comment `Waits on #A` and remove your
-  claim. Convert to draft only to hand a pull request back
+  another one, add `status:blocked`, write `Waits on #A` in its description and
+  remove your claim. Convert to draft only to hand a pull request back
   ([Drafts and readiness](#drafts-and-readiness)).
 - **Fix what you find.** Fix problems on the pull request's branch rather than
   handing it back, small or large: merge main in, resolve conflicts, repair

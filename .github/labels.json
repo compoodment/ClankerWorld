@@ -17,7 +17,7 @@
     { "name": "area:tooling", "color": "ededed", "description": "CI, tests, build scripts and repository setup.", "aliases": [] },
 
     { "name": "status:needs-decision", "color": "d876e3", "description": "Waiting on the owner's answer.", "aliases": [] },
-    { "name": "status:blocked", "color": "6e7781", "description": "Waiting on something named in the issue: another issue, a pull request or an outside event.", "aliases": [] },
+    { "name": "status:blocked", "color": "6e7781", "description": "Waiting on something its description names: another issue, a pull request or an outside event.", "aliases": [] },
     { "name": "status:needs-pr", "color": "2cbe4e", "description": "Agreed and unblocked; needs someone to pick it up and open a pull request.", "aliases": ["status:ready"] },
     { "name": "status:in-progress", "color": "fbca04", "description": "An issue claimed by someone working on it. Reviewers claim pull requests with status:reviewing.", "aliases": [] },
     { "name": "status:has-pr", "color": "0052cc", "description": "An open pull request closes this issue (Closes, Fixes or Resolves). Added automatically.", "aliases": [] },

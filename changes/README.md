@@ -9,7 +9,7 @@ A file holds one plain-English bullet per change, written as it should appear
 in the changelog. Start the file with `- `, not a heading or a plain paragraph,
 and put each further bullet on the next line, with no blank line between them.
 `scripts/collect-changes.sh` stops, and the documentation tests fail, on a file
-that does not start with a `- ` bullet:
+that does not start with a `- ` bullet. For example:
 
 ```markdown
 - A mandatory harvest instruction completes after gathering orchard fruit.

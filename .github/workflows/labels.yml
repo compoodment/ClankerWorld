@@ -8,7 +8,6 @@ on:
       - .github/scripts/sync-labels.js
       - .github/workflows/labels.yml
   pull_request:
-    branches: [main]
     paths:
       - .github/labels.json
       - .github/scripts/sync-labels.js
