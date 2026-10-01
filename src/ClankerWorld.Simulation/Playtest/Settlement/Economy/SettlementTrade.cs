@@ -78,7 +78,7 @@ public sealed partial class PrivateWorldRuntime
             var take = lots.FirstOrDefault(lot => lot.OwnerId == other && lot.ItemKind != give.ItemKind &&
                 TradeQuantityAvailable(lot) && !WantsTradeItem(other, lot) && WantsTradeItem(actor, lot) &&
                 (lot.ItemKind != "food" || inhabitants[other].HungerBasisPoints >= 6_500));
-            if (take is not null)
+            if (take is not null && FitsSettlementTrade(actor, give, other, take))
             {
                 return (give, take);
             }
@@ -141,7 +141,7 @@ public sealed partial class PrivateWorldRuntime
             var id = $"{SettlementTradePrefix}{WorldTick}:{actor}:{other}";
             society.Apply(checkpoint => SocietyFixture.CreateBarterOffer(checkpoint,
                 new DirectBarterProposal(id, 1, actor, other, trade.Give.Id, 1, trade.Take.Id, 1, WorldTick + 120)));
-            society.Apply(checkpoint => SocietyFixture.AcceptBarterOffer(checkpoint, id, 1, actor));
+            AcceptSettlementBarter(id, 1, actor);
             AppendEvent("settlement_trade_offered", actor + ":" + other);
             return;
         }
@@ -168,7 +168,9 @@ public sealed partial class PrivateWorldRuntime
         if (!inhabitants.TryGetValue(offer.FirstPartyId, out var first) || !inhabitants.TryGetValue(offer.SecondPartyId, out var second) ||
             !IsWithinInteractionRange(first.Position, camp, ResourceInteractionRange) ||
             !IsWithinInteractionRange(second.Position, camp, ResourceInteractionRange)) return;
-        society.Apply(checkpoint => SocietyFixture.AcceptBarterOffer(checkpoint, offerId, offer.Revision, actor));
+        if (!FitsSettlementTrade(offer.FirstPartyId, society.Checkpoint.Inventory.GetLot(offer.FirstLotId),
+            offer.SecondPartyId, society.Checkpoint.Inventory.GetLot(offer.SecondLotId))) return;
+        AcceptSettlementBarter(offerId, offer.Revision, actor);
         if (society.Checkpoint.Inventory.GetOffer(offerId).State == DirectBarterState.Settled)
         {
             ReadTradedKnowledge(offer.FirstPartyId, offer.SecondPartyId, offer.FirstLotId, offer.SecondLotId);
@@ -186,8 +188,25 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private bool FitsSettlementTrade(string first, InventoryLot firstLot, string second, InventoryLot secondLot)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var firstLoad = InventoryFixture.TransferLoadQuantity(inventory, firstLot.Id, 1);
+        var secondLoad = InventoryFixture.TransferLoadQuantity(inventory, secondLot.Id, 1);
+        return inhabitants.ContainsKey(first) && inhabitants.ContainsKey(second) &&
+            CarryingRoom(first) + firstLoad >= secondLoad && CarryingRoom(second) + secondLoad >= firstLoad;
+    }
+
+    private void AcceptSettlementBarter(string id, int revision, string actor) => society.Apply(checkpoint =>
+    {
+        var result = SocietyFixture.AcceptBarterOffer(checkpoint, id, revision, actor);
+        ValidateCarryingTransition(checkpoint.Inventory, result.Checkpoint.Inventory);
+        return result;
+    });
+
     private bool TradeQuantityAvailable(InventoryLot lot) =>
         lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+        lot.ContainerLotId is null && lot.GroundPosition is null &&
         (!inhabitants.ContainsKey(lot.OwnerId) || !IsEquippedLot(lot.OwnerId, lot.Id)) &&
         AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ||
             OrnamentContent.IsOrnament(lot.ItemKind) || CombatGearContent.IsGear(lot.ItemKind) ? 1 : 2);

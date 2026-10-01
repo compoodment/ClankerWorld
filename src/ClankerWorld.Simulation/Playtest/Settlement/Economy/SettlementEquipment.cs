@@ -29,7 +29,8 @@ public static class CarryEquipmentRules
     public static int Capacity(InventoryCheckpoint inventory, PlaytestInhabitantState person)
     {
         var aid = inventory.Lots.FirstOrDefault(lot => lot.Id == person.Equipment?.CarryAidLotId &&
-            lot.OwnerId == person.InhabitantId && lot.StorageBuildingId is null && lot.Quantity > 0 &&
+            lot.OwnerId == person.InhabitantId && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.ContainerLotId is null && lot.GroundPosition is null && lot.Quantity > 0 &&
             lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0);
         return aid?.ItemKind switch { "basket" => 48, "sack" => 64, _ => BasicCapacity };
     }
@@ -102,7 +103,8 @@ public sealed partial class PrivateWorldRuntime
         if (!inhabitants.TryGetValue(actor, out var person)) return new(false, "This agent is not active.");
         var inventory = society.Checkpoint.Inventory;
         var lot = inventory.Lots.FirstOrDefault(item => item.Id == lotId && item.OwnerId == actor &&
-            item.StorageBuildingId is null && item.DeliveryBuildingId is null && AvailableLotQuantity(item) > 0);
+            item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.ContainerLotId is null && item.GroundPosition is null && AvailableLotQuantity(item) > 0);
         if (lot is not null && GearSlot(lot.ItemKind) is not null) return EquipPersonalGearLot(actor, lot);
         if (lot is null || !CarryEquipmentRules.IsClothing(lot.ItemKind) && !CarryEquipmentRules.IsCarryAid(lot.ItemKind))
             return new(false, "The agent must carry a usable garment, basket or sack to equip it.");
@@ -133,7 +135,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private InventoryLot? BestPersonalClothing(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.ContainerLotId is null && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
             CarryEquipmentRules.IsClothing(lot.ItemKind))
         .OrderByDescending(lot => CarryEquipmentRules.Protection(lot, WeatherAt(inhabitants[actor].Position)))
         .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -198,6 +201,7 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot? PersonalGoodsForStorage(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.ContainerLotId is null && lot.GroundPosition is null &&
             lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0 && !IsEquippedLot(actor, lot.Id) &&
             (!IsEdibleFood(lot.ItemKind) && ToolCapabilities.ForItem(lot.ItemKind) is null && !VesselRules.IsVessel(lot.ItemKind) ||
                 AvailableLotQuantity(lot) > 1) &&
@@ -309,6 +313,7 @@ public sealed partial class PrivateWorldRuntime
                 if (id is null) continue;
                 var lot = state.Society.Society.Inventory.Lots.FirstOrDefault(item => item.Id == id);
                 if (lot is null || lot.OwnerId != person.InhabitantId || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null ||
+                    lot.ContainerLotId is not null || lot.GroundPosition is not null ||
                     lot.Quantity != 1 || (carry ? !CarryEquipmentRules.IsCarryAid(lot.ItemKind) : !CarryEquipmentRules.IsClothing(lot.ItemKind)))
                     throw new InvalidDataException("Equipped gear must reference one personally carried item of the correct kind.");
             }

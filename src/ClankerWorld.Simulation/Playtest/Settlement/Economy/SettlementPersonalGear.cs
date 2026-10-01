@@ -65,6 +65,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var spare = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == actor &&
             OrnamentContent.IsOrnament(lot.ItemKind) && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+            lot.ContainerLotId is null && lot.GroundPosition is null &&
             AvailableLotQuantity(lot) > 0 && !IsAdditionalEquippedLot(actor, lot.Id));
         if (spare is not null)
             foreach (var recipient in inhabitants.Values.Where(person => person.InhabitantId != actor &&
@@ -121,6 +122,7 @@ public sealed partial class PrivateWorldRuntime
             return new(false, "Bring the ornament to a nearby living recipient first.");
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId && item.OwnerId == actor &&
             OrnamentContent.IsOrnament(item.ItemKind) && item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.ContainerLotId is null && item.GroundPosition is null &&
             AvailableLotQuantity(item) > 0);
         if (lot is null) return new(false, "This agent must personally carry an unreserved usable ornament to give it.");
         if (CarryingRoom(recipientId) < 1) return new(false, "The recipient has no room to carry the ornament.");
@@ -137,6 +139,7 @@ public sealed partial class PrivateWorldRuntime
         if (!inhabitants.TryGetValue(recipientId, out var recipient)) return;
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.OwnerId == actor &&
             OrnamentContent.IsOrnament(item.ItemKind) && item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.ContainerLotId is null && item.GroundPosition is null &&
             AvailableLotQuantity(item) > 0 && !IsAdditionalEquippedLot(actor, item.Id));
         if (lot is null) return;
         if (!IsWithinInteractionRange(person.Position, recipient.Position, 1))
@@ -153,6 +156,7 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(household) is not { } smith) return null;
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId && item.OwnerId == actor &&
             item.Quantity == 1 && item.StorageBuildingId is null && item.DeliveryBuildingId is null &&
+            item.ContainerLotId is null && item.GroundPosition is null &&
             CombatGearContent.IsGear(item.ItemKind) && item.ConditionBasisPoints is > 0 and <= 4_000 && AvailableLotQuantity(item) == 1);
         return lot is not null && HasIngredientsAtBuilding([new("iron", 1)], household, smith.InstanceId) ? (lot, smith) : null;
     }
@@ -185,7 +189,8 @@ public sealed partial class PrivateWorldRuntime
                 if (EquippedGearId(equipment, slot) is not { } id) continue;
                 var lot = state.Society.Society.Inventory.Lots.FirstOrDefault(item => item.Id == id);
                 if (lot is null || lot.OwnerId != person.InhabitantId || lot.Quantity != 1 ||
-                    lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null || GearSlot(lot.ItemKind) != slot ||
+                    lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null ||
+                    lot.ContainerLotId is not null || lot.GroundPosition is not null || GearSlot(lot.ItemKind) != slot ||
                     state.Society.Society.Inventory.Reservations.Any(reservation => reservation.LotId == id &&
                         reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed))
                     throw new InvalidDataException("Equipped personal gear must reference one personally carried item of the correct kind.");

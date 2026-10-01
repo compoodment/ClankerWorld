@@ -224,7 +224,7 @@ public static class WorldContentSimulationRules
                 field.RecipeId is { } recipeId && !recipeDefinitions.ContainsKey(recipeId) ||
                 field.JobId is { } jobId && !cropBuilds.Any(job => job.JobId == jobId &&
                     job.BuildingInstanceId == WorldBuildSiteRules.FieldSiteId(field.Position)) ||
-                state.Buildings.Any(building => Footprint(buildingDefinitions[building.DefinitionId], building.Position)
+                state.Buildings.Any(building => Footprint(buildingDefinitions[building.DefinitionId], building)
                     .Contains(field.Position)) || map.Resources.Any(resource => resource.Position == field.Position) ||
                 map.CampObjects.Any(item => item.Position == field.Position))
                 throw new InvalidDataException("A saved field has invalid ground, work or crop state.");

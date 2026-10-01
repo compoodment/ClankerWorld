@@ -33,6 +33,7 @@ public static class ToolCapabilities
     public static InventoryLot? Best(IEnumerable<InventoryLot> lots, ToolKind kind, int minimumTier = 1) =>
         lots.Where(lot => lot.Quantity > 0 && lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                 lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                lot.ContainerLotId is null && lot.GroundPosition is null &&
                 ForItem(lot.ItemKind) is { } tool && tool.Kind == kind && tool.Tier >= minimumTier)
             .OrderByDescending(lot => ForItem(lot.ItemKind)!.Tier)
             .ThenByDescending(lot => lot.ConditionBasisPoints)
