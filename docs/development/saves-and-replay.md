@@ -19,6 +19,14 @@ events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+The October 1 terrain tuning changes deterministic generation for new worlds.
+Loading retains the saved map and current weather episode; it does not replace
+either with a freshly generated map or a new weather roll. Earlier alpha maps
+may fail the existing regeneration checks and are refused and preserved; no
+terrain migration is provided. New saves with default weather store a null
+profile list to select the reduced built-in preset. Explicit profile lists
+keep their configured weather weights.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those

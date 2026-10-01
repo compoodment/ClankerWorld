@@ -25,7 +25,13 @@ public static class TerrainPlacementRules
     public const float BeachNoiseFrequency = 0.045f;
 
     /// <summary>Shore tiles whose beach noise reaches this value become sand; the rest stay grass.</summary>
-    public const float BeachNoiseThreshold = 0.1f;
+    public const float BeachNoiseThreshold = 0.3f;
+
+    /// <summary>Provisional chance that an eligible forest-grass tile holds a tree.</summary>
+    public const int ForestGrassTreePercent = 35;
+
+    /// <summary>Open meadows have occasional trees rather than forest density.</summary>
+    public const int MeadowTreePercent = 2;
 
     /// <summary>Scale of the tree groves inside a forest.</summary>
     public const float GroveNoiseFrequency = 0.11f;
