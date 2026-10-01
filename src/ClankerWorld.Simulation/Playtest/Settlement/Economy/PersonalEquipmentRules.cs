@@ -21,7 +21,8 @@ public static class PersonalEquipmentRules
     public static bool IsGarment(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak";
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
     public static bool IsCarried(InventoryLot lot, string actor) =>
-        lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null;
+        (lot.CarrierId == actor || lot.CarrierId is null && lot.OwnerId == actor) &&
+        lot.StorageBuildingId is null && lot.GroundPosition is null;
 
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
         lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 : Math.Max(0, lot.Quantity -
@@ -31,7 +32,7 @@ public static class PersonalEquipmentRules
 
     public static InventoryLot? EquippedUnit(InventoryCheckpoint inventory, string actor, string? id) =>
         id is null ? null : inventory.Lots.FirstOrDefault(lot => lot.Id == id && lot.Quantity == 1 &&
-            IsCarried(lot, actor) && lot.DeliveryBuildingId is null);
+            lot.OwnerId == actor && IsCarried(lot, actor) && lot.DeliveryBuildingId is null);
 
     public static int Capacity(InventoryCheckpoint inventory, string actor, PersonalEquipment? equipment)
     {

@@ -143,7 +143,7 @@ summaries remain unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named parent-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. Multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -163,8 +163,8 @@ Town border also gives Town membership. Unclaimed land in one Town gives Town
 membership without a household; land outside a Town starts an independent
 household. Overlapping household footprints or Town borders are refused, and
 the server checks the preview against current records again when the adult is
-placed. Walking does not change membership. An adult with no household cannot
-build a House. Instead they can ask a household that holds a House in their
+placed. Walking does not change membership. An adult with no household first
+asks a household that holds a House in their
 Town to take them in. Every adult member of that household must agree within
 the same short window as other proposals; one refusal or no answer ends the
 request, and that household is not asked again for two world days. Standing
@@ -172,9 +172,17 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials or no
-legal site. [Solo formation and departure](game-design/towns.md#household-membership),
-with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
-are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+legal site. Adults may leave without a vote and keep personal ownership of goods stored
+at the old House. Collection and returning borrowed work tools require travel
+and carrying space. A departure allocates up to two available, unreserved
+ready-to-eat portions once; collection and reload do not repeat that allowance.
+Dependent children keep their primary caregiver and move as a care group unless
+another adult explicitly accepts primary care. Existing homes must accept the
+whole group and have enough completed places. If no suitable home accepts them,
+one adult can start a household and pursue a House through the usual materials,
+legal-site and work rules. No House or materials are supplied for free. Leaving
+preserves Town membership and an empty household's property. See the
+[departure rules](game-design/towns.md#household-goods-and-departure).
 The agreed [House resident limits and expansion](game-design/towns.md#house-resident-capacity-and-relocation)
 are implemented by [#598](https://github.com/compoodment/ClankerWorld/issues/598).
 Relocation for existing overcrowding remains in

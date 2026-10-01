@@ -79,6 +79,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -201,6 +202,9 @@ public sealed partial class PrivateWorldRuntime
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var lot in inventory.Lots)
         {
+            if (lot.CarrierId is { } carrierId && (!people.TryGetValue(carrierId, out var custodian) ||
+                custodian.Status != SocietyInhabitantStatus.Active))
+                throw new InvalidDataException("Inventory physical custody references an unavailable person.");
             if (lot.GroundPosition is { } ground && (!map.Contains(new(ground.X, ground.Y)) ||
                 lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
@@ -209,6 +213,7 @@ public sealed partial class PrivateWorldRuntime
                 if (!buildings.TryGetValue(storageId, out var storage) ||
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                      people.ContainsKey(lot.OwnerId) && storage.HouseholdId is not null && definition.Tags.Contains("house", StringComparer.Ordinal) ||
                       storage.TownId == lot.OwnerId && storage.HouseholdId is null && !WarehouseFoodKinds.Contains(lot.ItemKind) &&
                       definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
@@ -294,6 +299,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCouncil(state);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {

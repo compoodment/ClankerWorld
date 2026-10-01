@@ -175,7 +175,8 @@ public static class GameUiText
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
-            "housing_blocked" or "paused" or "resumed";
+            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed";
     }
 
     /// <summary>

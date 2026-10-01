@@ -119,11 +119,11 @@ public sealed partial class PrivateWorldRuntime
         lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
     private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+        lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
         society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-            lot.ItemKind == kind && kind != "food" && AvailableLotQuantity(lot) > 0 &&
+            lot.ItemKind == kind && lot.CarrierId is null && kind != "food" && AvailableLotQuantity(lot) > 0 &&
             lot.OwnerId == TownForResident(actor) && WarehouseForResident(actor)?.InstanceId == lot.StorageBuildingId &&
             CanReachSharedItem(actor, lot));
 
@@ -273,8 +273,11 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, storage, "equipment", interactionRange);
             return;
         }
-        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
-            item.OwnerId, actor, item.Id, 1, "equipment_collected"));
+        var borrowedTool = item.ItemKind is "tool" or "wooden_axe" or "wooden_pickaxe" or "hoe" or "iron_axe" or "iron_pickaxe";
+        ApplyInventoryTransition(inventory => borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+            ? InventoryFixture.Relocate(inventory, $"equipment:{WorldTick}:{actor}:{kind}", item.Id, item.OwnerId, 1, actor)
+            : InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
+                item.OwnerId, actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
     }
 
@@ -391,7 +394,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                IsEdibleFood(lot.ItemKind) && (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
+                IsEdibleFood(lot.ItemKind) && (owner != actor ? lot.CarrierId is null :
+                    PersonalEquipmentRules.IsCarried(lot, actor!) && lot.DeliveryBuildingId is null) &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);

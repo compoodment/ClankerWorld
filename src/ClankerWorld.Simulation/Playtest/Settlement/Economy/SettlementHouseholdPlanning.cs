@@ -147,6 +147,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
 
         var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                 lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

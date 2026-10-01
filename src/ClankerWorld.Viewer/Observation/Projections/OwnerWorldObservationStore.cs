@@ -655,7 +655,8 @@ public sealed class OwnerWorldObservationStore
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState physical)
     {
-        var inventory = InventoryFor(state, inhabitant.Id);
+        var inventory = state.Society.Society.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, inhabitant.Id))
+            .GroupBy(lot => lot.ItemKind).Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray();
         var route = DeterminePlaytestRoute(state, physical, inventory);
         var perceived = KnownNearby(state.Map, physical.Position).ToArray();
         var known = KnownFixtureTopology(physical.Position, perceived, route);
@@ -672,6 +673,16 @@ public sealed class OwnerWorldObservationStore
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
+        var personalStored = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == inhabitant.Id &&
+            !PersonalEquipmentRules.IsCarried(lot, inhabitant.Id)).Sum(lot => lot.Quantity);
+        var borrowed = state.Society.Society.Inventory.Lots.Where(lot => lot.CarrierId == inhabitant.Id && lot.OwnerId != inhabitant.Id).Sum(lot => lot.Quantity);
+        decisionFactors.Add(new("personal-goods-awaiting-collection", $"{personalStored} units; ownership stays personal"));
+        decisionFactors.Add(new("borrowed-goods", $"{borrowed} units; ownership stays with the lender"));
+        if (inhabitant.PrimaryCaregiverId is { } primary)
+            decisionFactors.Add(new("primary-caregiver", state.Society.Society.GetInhabitant(primary).Name));
+        var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
+            .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
+        if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
@@ -766,7 +777,7 @@ public sealed class OwnerWorldObservationStore
         return blocker switch
         {
             HousingBlockers.AwaitingAnswer => $"No home yet. Asked the {asked} household to live in their House; every adult member must agree.",
-            HousingBlockers.NoHousehold => "No home. Belongs to no household, so no House can be planned. A household with a House may agree to take them in.",
+            HousingBlockers.NoHousehold => "No home. Seek an accepting household with room for the complete care group first; otherwise start a household and build a House.",
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",

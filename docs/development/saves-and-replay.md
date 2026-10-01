@@ -166,6 +166,8 @@ family decisions and births without inferring a family group from ancestry or
 household membership. Older alpha checkpoints need not load; no migration is
 provided.
 
+Private-world schema 39 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -239,7 +241,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 38. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -280,6 +282,7 @@ current alpha cutoff.
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 39 | Household departure records, once-only physical food allowances, care groups and personal collection rights; optional carrier IDs keep custody separate from property. Older alpha checkpoints are refused and preserved. |
 | Schema 38 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,

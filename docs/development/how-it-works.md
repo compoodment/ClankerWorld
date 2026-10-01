@@ -553,6 +553,12 @@ while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household.
+
+Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
+
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
 House has a saved `Housing` record on their physical state: a pending request,
 recent refusals and the current blocker. Each tick `MaintainHousing` resolves

@@ -105,7 +105,7 @@ public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null);
+    string? EquipmentNote = null, string? DepartureNote = null);
 
 /// <summary>
 /// Compact, provider-neutral state supplied to a decision provider. It is an
@@ -161,7 +161,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
-            self.EquipmentNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -549,6 +549,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
                 housing = request.Observation.Self?.HousingNote,
+                departure = request.Observation.Self?.DepartureNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -831,6 +832,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             town = self.TownName,
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
+                            departure = self.DepartureNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

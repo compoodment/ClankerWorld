@@ -467,6 +467,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
+            MaintainMovingCareGroups();
             MaintainParenthood();
             MaintainDependentCare();
             UpdateConversationsForTick(targetTick);

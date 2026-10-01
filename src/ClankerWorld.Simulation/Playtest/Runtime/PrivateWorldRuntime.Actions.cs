@@ -32,6 +32,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (state.Departures is { Count: > 0 } && MovingCareGroup(inhabitantId).Any(id => id != inhabitantId &&
+                !IsWithinInteractionRange(inhabitants[id].Position, state.Position, 2)))
+        {
+            RecordMovementBlocked(inhabitantId, state, "waiting_for_dependent");
+            return;
+        }
         var route = FindUnoccupiedRoute(inhabitantId, state.Position, destination, interactionRange);
         if (route.Count < 2)
         {
@@ -227,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Contains(tag, StringComparer.Ordinal)))
         .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
 
-    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
+    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.CarrierId is { } carrier ? inhabitants[carrier].Position : lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
         : lot.StorageBuildingId is { } buildingId
         ? worldSimulation.Buildings.Single(building => building.InstanceId == buildingId).Position
         : SettlementStoragePosition;

@@ -47,7 +47,8 @@ public sealed record InventoryLot(
     string? ProvenanceLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StorageBuildingId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CarrierId = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -363,6 +364,7 @@ public static partial class InventoryFixture
                     ? lot with
                     {
                         OwnerId = recipientId,
+                        CarrierId = null,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
                         GroundPosition = destinationGroundPosition,
@@ -377,6 +379,7 @@ public static partial class InventoryFixture
                 {
                     Id = $"{source.Id}#transfer:{transferId}",
                     OwnerId = recipientId,
+                    CarrierId = null,
                     Quantity = quantity,
                     ProvenanceLotId = source.Id,
                     StorageBuildingId = destinationStorageBuildingId,
@@ -390,6 +393,38 @@ public static partial class InventoryFixture
             lots: lots,
             eventKind: "inventory_transferred",
             detail: $"{transferId}:{senderId}:{recipientId}:{lotId}:{quantity}:{purpose}");
+    }
+
+    /// <summary>Moves physical custody without donating or changing recorded ownership.</summary>
+    public static InventoryCheckpoint Relocate(InventoryCheckpoint checkpoint, string moveId,
+        string lotId, string ownerId, int quantity, string? carrierId = null,
+        string? storageBuildingId = null, InventoryGroundPosition? groundPosition = null)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(moveId);
+        var source = checkpoint.GetLot(lotId);
+        var movedId = $"{lotId}#move:{moveId}";
+        if (source.OwnerId != ownerId || quantity <= 0 || quantity > source.Quantity ||
+            checkpoint.Lots.Any(lot => lot.Id == movedId))
+            throw new InvalidOperationException("The exact owned physical quantity is unavailable.");
+        EnsureUnreservedQuantity(checkpoint, source, quantity);
+        var moved = source with
+        {
+            Id = quantity == source.Quantity ? source.Id : movedId,
+            Quantity = quantity,
+            ProvenanceLotId = quantity == source.Quantity ? source.ProvenanceLotId : source.Id,
+            CarrierId = carrierId,
+            StorageBuildingId = storageBuildingId,
+            GroundPosition = groundPosition,
+            DeliveryBuildingId = null,
+        };
+        var lots = checkpoint.Lots.Where(lot => lot.Id != source.Id).Append(moved);
+        if (quantity < source.Quantity)
+            lots = lots.Append(source with { Quantity = source.Quantity - quantity });
+        var ordered = lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        ValidateLots(ordered);
+        return Commit(checkpoint, lots: ordered,
+            eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
     }
 
     public static InventoryCheckpoint ReleaseExpiredReservations(InventoryCheckpoint checkpoint, long targetTick)
@@ -550,7 +585,7 @@ public static partial class InventoryFixture
         if (source.Quantity == quantity)
         {
             return lots.Select(lot => lot.Id == source.Id
-                    ? lot with { OwnerId = recipientId, StorageBuildingId = null, DeliveryBuildingId = null } : lot)
+                    ? lot with { OwnerId = recipientId, CarrierId = null, StorageBuildingId = null, DeliveryBuildingId = null } : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         }
 
@@ -564,6 +599,7 @@ public static partial class InventoryFixture
         {
             Id = transferId,
             OwnerId = recipientId,
+            CarrierId = null,
             Quantity = quantity,
             ProvenanceLotId = source.Id,
             StorageBuildingId = null,
@@ -666,6 +702,9 @@ public static partial class InventoryFixture
                 (string.IsNullOrWhiteSpace(deliveryBuildingId) || deliveryBuildingId != deliveryBuildingId.Trim() ||
                  lot.StorageBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid delivery building ID.");
+            if (lot.CarrierId is { } carrier && (string.IsNullOrWhiteSpace(carrier) || carrier != carrier.Trim() ||
+                lot.StorageBuildingId is not null || lot.GroundPosition is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has invalid physical custody.");
             if (lot.Quantity <= 0 || lot.LastProcessedTick < 0 ||
                 lot.ConditionBasisPoints is < 0 or > 10_000 || lot.FreshnessBasisPoints is < 0 or > 10_000)
             {
