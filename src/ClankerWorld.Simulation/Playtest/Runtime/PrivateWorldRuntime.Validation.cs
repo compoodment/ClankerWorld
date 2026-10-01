@@ -263,6 +263,8 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
         if (state.SchemaVersion >= ConversationSchemaVersion && (state.Conversations is null || state.ConversationBudgets is null))
             throw new InvalidDataException($"Private-world schema {ConversationSchemaVersion} requires conversation state and daily budgets.");
+        if (state.SchemaVersion >= OrderLifecycleSchemaVersion && state.OrderCancellations is null)
+            throw new InvalidDataException($"Private-world schema {OrderLifecycleSchemaVersion} requires order-cancellation retry state.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
@@ -288,7 +290,9 @@ public sealed partial class PrivateWorldRuntime
         if (state.SchemaVersion >= ObserverGuidanceSchemaVersion &&
             (state.Instructions is null || state.CompletedInstructionIds is null))
             throw new InvalidDataException($"Private-world schema {ObserverGuidanceSchemaVersion} requires authoritative instruction state.");
-        ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint);
+        ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint,
+            state.Society.Society.WorldId, state.Events.Count == 0 ? 0 : state.Events[^1].EventId,
+            state.OrderCancellations ?? []);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
@@ -370,7 +374,10 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateSavedInstructions(
         IReadOnlyList<OwnerQueuedInstruction> instructions,
         IReadOnlyList<string> completedInstructionIds,
-        SocietyCheckpoint checkpoint)
+        SocietyCheckpoint checkpoint,
+        string worldId,
+        long latestEventId,
+        IReadOnlyList<OwnerOrderCancellation> cancellations)
     {
         var people = checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var instructionIds = new HashSet<string>(StringComparer.Ordinal);
@@ -400,7 +407,11 @@ public sealed partial class PrivateWorldRuntime
                     (observedTick < instruction.SubmittedTick || observedTick > checkpoint.WorldTick) ||
                 instruction.ObserverReply is not null &&
                     (instruction.ObservedTick is null ||
-                     CognitionDecisionResponse.NormalizeObserverReply(instruction.ObserverReply) != instruction.ObserverReply))
+                     CognitionDecisionResponse.NormalizeObserverReply(instruction.ObserverReply) != instruction.ObserverReply) ||
+                instruction.Kind == OwnerInstructionKind.Suggestive && instruction.Order is not null ||
+                instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is null ||
+                instruction.Order is { } order && !IsValidSavedOrder(order, instruction, completedInstructionIds,
+                    checkpoint.WorldTick))
                 throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
         }
 
@@ -411,6 +422,65 @@ public sealed partial class PrivateWorldRuntime
         if (instructions.Any(item => item.Kind == OwnerInstructionKind.Suggestive &&
                 completed.Contains(item.InstructionId) && item.ObservedTick is null))
             throw new InvalidDataException("A suggestion cannot be completed before an agent's personal model observes it.");
+
+        var cancellationKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var cancellation in cancellations)
+        {
+            var instruction = cancellation is null ? null : instructions.SingleOrDefault(item =>
+                item.InstructionId == cancellation.OrderId);
+            if (cancellation is null || string.IsNullOrWhiteSpace(cancellation.IdempotencyKey) ||
+                cancellation.IdempotencyKey.Length > 128 || cancellation.IdempotencyKey.Any(char.IsControl) ||
+                !cancellationKeys.Add(cancellation.IdempotencyKey) ||
+                string.IsNullOrWhiteSpace(cancellation.IssuerId) || cancellation.IssuerId.Length > 128 ||
+                cancellation.IssuerId.Any(char.IsControl) || cancellation.WorldId != worldId ||
+                cancellation.TargetInhabitantId != instruction?.TargetInhabitantId ||
+                instruction?.Kind != OwnerInstructionKind.MustDo || instruction.Order is null ||
+                cancellation.Receipt is null || cancellation.Receipt.OrderId != cancellation.OrderId ||
+                cancellation.Receipt.Status != instruction.Order.Status ||
+                cancellation.Receipt.Changed && cancellation.Receipt.Status != "cancelled" ||
+                cancellation.Receipt.WorldTick < 0 || cancellation.Receipt.WorldTick > checkpoint.WorldTick ||
+                cancellation.Receipt.LatestEventId < 0 || cancellation.Receipt.LatestEventId > latestEventId)
+                throw new InvalidDataException("The saved order-cancellation receipt is invalid or does not match its world, actor, and order.");
+        }
+    }
+
+    private static bool IsValidSavedOrder(
+        OwnerInstructionOrder order,
+        OwnerQueuedInstruction instruction,
+        IReadOnlyList<string> completedInstructionIds,
+        long worldTick)
+    {
+        var knownStatus = order.Status is "queued" or "waiting" or "doing" or "interrupted" or "blocked" or
+            "finished" or "cancelled" or "not_understood";
+        var terminal = order.Status is "finished" or "cancelled" or "not_understood";
+        var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
+            order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
+            order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
+            order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
+            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
+            order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
+            order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
+            order.WaitForDecisionAfterFailure && (order.Status != "blocked" || order.BlockedReason is null) ||
+            order.Status == "blocked" && string.IsNullOrWhiteSpace(order.BlockedReason) ||
+            terminal != isCompleted)
+            return false;
+
+        if (order.Action == "unknown")
+            return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
+                order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
+                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+
+        if (order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
+            order.RequestedUnits is < 1 or > 1000 || order.CompletedUnits is < 0 or > 1_000_000 ||
+            order.Status == "finished" && (order.RepeatUntilCancelled || order.CompletedUnits < order.RequestedUnits) ||
+            order.Action == "consume_food" && order.ProgressUnit != "food_items" ||
+            order.Action == "seek_food" && order.ProgressUnit != "arrivals" ||
+            order.Action == "harvest_food" && order.ProgressUnit is not ("harvests" or "food_items") ||
+            order.Action == "harvest_food" && order.QuantityIsExplicit != (order.ProgressUnit == "food_items"))
+            return false;
+
+        return true;
     }
 
     private static void ValidateConversationState(PrivateWorldRuntimeState state, SocietyCheckpoint checkpoint)

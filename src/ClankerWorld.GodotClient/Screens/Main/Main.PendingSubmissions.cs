@@ -38,6 +38,20 @@ public partial class Main
         return TryRetainPendingSubmission(pending);
     }
 
+    private bool TryBeginPendingOrderCancel(
+        OwnerOrderCancelAction action,
+        out OwnerPendingSubmission pending)
+    {
+        pending = null!;
+        if (!TryCreatePendingSubmissionBinding(out var binding))
+        {
+            SetStatus("cannot retain an order cancellation until this paired device has a valid pinned server origin", good: false);
+            return false;
+        }
+        pending = OwnerPendingSubmission.ForOrderCancel(binding, action);
+        return TryRetainPendingSubmission(pending);
+    }
+
     private bool TryRetainPendingSubmission(OwnerPendingSubmission candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
@@ -118,6 +132,12 @@ public partial class Main
             SetStatus("Return to the world where this instruction was sent before retrying. The request is still retained.", good: false);
             return;
         }
+        if (pending.OrderCancel is { } retainedCancellation &&
+            !retainedCancellation.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId))
+        {
+            SetStatus("Return to the world where this order was sent before retrying its cancellation. The request is still retained.", good: false);
+            return;
+        }
 
         var completed = false;
         await RunOwnerActionAsync(async () =>
@@ -138,6 +158,15 @@ public partial class Main
                 return receipt.Applied
                     ? $"confirmed authoring batch {receipt.BatchId} at revision {receipt.Revision}"
                     : $"authoring batch rejected · {receipt.Failure ?? "unknown validation failure"}";
+            }
+
+            if (pending.OrderCancel is { } cancellation)
+            {
+                var receipt = await ownerApi.CancelOrderAsync(
+                    ResolveWorldUri(), authority, deviceId, cancellation.ToAction(), signer, CancellationToken.None);
+                completed = true;
+                return receipt.Changed ? $"confirmed cancellation of order {receipt.OrderId}" :
+                    $"confirmed order {receipt.OrderId} is already {receipt.Status}";
             }
 
             throw new InvalidOperationException("The retained owner request has no supported payload.");
@@ -190,7 +219,11 @@ public partial class Main
                     ? string.Empty : " · Return to its original world before retrying."),
             { Authoring: { } authoring } =>
                 $"Retained paused-authoring retry · batch {authoring.BatchId}",
-            _ => "No retained owner request. A network failure keeps one instruction or authoring batch here for an exact retry.",
+            { OrderCancel: { } cancellation } =>
+                $"Retained order-cancellation retry · order {cancellation.OrderId} for {cancellation.TargetInhabitantId}" +
+                (cancellation.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId)
+                    ? string.Empty : " · Return to its original world before retrying."),
+            _ => "No retained owner request. A network failure keeps one instruction, order cancellation or authoring batch here for an exact retry.",
         };
     }
 

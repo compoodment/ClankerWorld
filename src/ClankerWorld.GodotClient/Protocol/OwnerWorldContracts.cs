@@ -184,7 +184,21 @@ public sealed record OwnerWorldInstruction(
     long RunEpoch,
     long SubmissionSequence,
     long? ObservedTick = null,
-    string? ObserverReply = null);
+    string? ObserverReply = null,
+    OwnerWorldInstructionOrder? Order = null);
+
+public sealed record OwnerWorldInstructionOrder(
+    string Action,
+    string Status,
+    int RequestedUnits,
+    int CompletedUnits,
+    string ProgressUnit,
+    bool RepeatUntilCancelled,
+    string? TargetFoodKind = null,
+    string? TargetResourceId = null,
+    int? TargetX = null,
+    int? TargetY = null,
+    string? BlockedReason = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -559,6 +573,13 @@ public sealed record OwnerInstructionAction(
     string TargetInhabitantId,
     string Kind,
     string Text,
+    string WorldId,
+    bool Queue = false);
+
+public sealed record OwnerOrderCancelAction(
+    string IdempotencyKey,
+    string TargetInhabitantId,
+    string OrderId,
     string WorldId);
 
 public sealed record OwnerAuthoringOperationAction(
@@ -653,6 +674,13 @@ public sealed record OwnerInstructionReceipt(
     long SubmittedTick,
     long RunEpoch,
     long Revision);
+
+public sealed record OwnerOrderControlReceipt(
+    string OrderId,
+    string Status,
+    bool Changed,
+    long WorldTick,
+    long LatestEventId);
 
 public sealed record OwnerAuthoringBatchReceipt(
     string BatchId,

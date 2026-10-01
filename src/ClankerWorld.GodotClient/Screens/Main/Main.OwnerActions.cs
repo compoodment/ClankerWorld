@@ -62,7 +62,8 @@ public partial class Main
             selected.Id,
             instructionOrderButton.ButtonPressed ? "must_do" : "suggestive",
             text,
-            current.Baseline.Snapshot.WorldId);
+            current.Baseline.Snapshot.WorldId,
+            instructionOrderButton.ButtonPressed && instructionQueueToggle.ButtonPressed);
         if (!TryBeginPendingInstruction(action, out var pending))
         {
             return;
@@ -81,6 +82,43 @@ public partial class Main
         {
             CompletePendingSubmission(pending);
         }
+    }
+
+    private async Task CancelSelectedOrderAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
+            observationSession.Current is not { } current)
+        {
+            SetStatus("Wait for the world to load before cancelling an order.", good: false);
+            return;
+        }
+        var order = current.Baseline.Snapshot.Instructions
+            .Where(item => item.TargetInhabitantId == selectedInhabitantId &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        if (order is null)
+        {
+            SetStatus("This agent has no waiting or active order to cancel.", good: false);
+            return;
+        }
+
+        var action = new OwnerOrderCancelAction(
+            $"cancel_order_{OwnerPairingProtocol.CreateRequestId()}",
+            order.TargetInhabitantId,
+            order.InstructionId,
+            current.Baseline.Snapshot.WorldId);
+        if (!TryBeginPendingOrderCancel(action, out var pending))
+            return;
+        var completed = false;
+        await RunOwnerActionAsync(async () =>
+        {
+            var receipt = await ownerApi.CancelOrderAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            completed = true;
+            return receipt.Changed ? "Order cancelled" : $"Order is already {receipt.Status}";
+        });
+        if (completed)
+            CompletePendingSubmission(pending);
     }
 
     private async Task SubmitAuthoringAsync()
@@ -390,10 +428,13 @@ public partial class Main
         authoringRenewable.Disabled = actionDisabled || !paused;
         instructionSuggestButton.Disabled = actionDisabled || deceasedSelected;
         instructionOrderButton.Disabled = actionDisabled || deceasedSelected;
+        instructionQueueToggle.Disabled = actionDisabled || deceasedSelected || !instructionOrderButton.ButtonPressed;
+        instructionCancelButton.Disabled = actionDisabled || deceasedSelected;
         instructionText.Editable = !actionDisabled && !deceasedSelected;
         RenderPendingSubmission();
         retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null ||
-            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId);
+            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId) ||
+            pendingSubmission?.OrderCancel is { } retainedCancellation && !retainedCancellation.CanRetryIn(snapshot?.WorldId);
         forgetPendingSubmissionButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pairingApprovalId.Editable = !actionDisabled;
         pairingApprovalCode.Editable = !actionDisabled;

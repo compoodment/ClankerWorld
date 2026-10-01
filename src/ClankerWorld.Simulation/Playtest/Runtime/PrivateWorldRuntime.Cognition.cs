@@ -35,10 +35,18 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
-            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+            var operativeOrder = PendingInstructionFor(inhabitant.Id);
+            if (FarmWorkFor(inhabitant.Id) is not null && operativeOrder is null &&
+                !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
+            if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
+            {
+                SetProject(inhabitant.Id, orderedProject with { Stage = "paused", Blocker = "Following an owner order." });
+                physical = inhabitants[inhabitant.Id];
+            }
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
+                operativeOrder is null &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
@@ -97,6 +105,7 @@ public sealed partial class PrivateWorldRuntime
                 WorldId = checkpoint.WorldId,
                 ObserverGuidance = observerGuidance,
                 ConversationChoiceContext = conversationChoiceContext,
+                OperativeOrderInstructionId = operativeOrder?.InstructionId,
             };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
             {
@@ -260,6 +269,34 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            if (PendingInstructionFor(inhabitant.Id) is { } order)
+            {
+                var orderCandidate = OrderCandidateFor(order, state);
+                if (ShouldInterruptOrder(state, order, orderCandidate))
+                {
+                    SetOrderStatus(order, "interrupted", "Urgent survival needs come first.");
+                    var urgentCandidate = UrgentSurvivalCandidateFor(inhabitant.Id, state);
+                    if (urgentCandidate is not null)
+                        ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
+                    continue;
+                }
+                if (order.Order!.WaitForDecisionAfterFailure)
+                {
+                    if (NeedsUrgentFood(state) || NeedsUrgentWarmth(state))
+                    {
+                        var urgentCandidate = UrgentSurvivalCandidateFor(inhabitant.Id, state);
+                        if (urgentCandidate is not null)
+                            ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
+                    }
+                    continue;
+                }
+                if (orderCandidate is not null)
+                {
+                    ExecuteOrderStep(order, state, orderCandidate);
+                    continue;
+                }
+                SetOrderStatus(order, "blocked", OrderBlockedReason(order, state));
+            }
             if (CanContinueLesson(inhabitant.Id))
             {
                 ContinueLesson(inhabitant.Id);
@@ -318,40 +355,46 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var completedSuggestions = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
+        _ = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
-        var forcedCandidate = !decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo
-            ? InstructionCandidate(pendingInstruction.Text)
-            : null;
-        if (forcedCandidate is not null && CreateCandidates(decision.InhabitantId, state)
-            .Any(candidate => candidate.Id == forcedCandidate))
+        if (decision.Admission.Intention.OperativeOrderInstructionId != pendingInstruction?.InstructionId)
         {
-            candidateId = forcedCandidate;
+            AppendEvent("instruction_order_stale_decision", decision.InhabitantId);
+            return;
         }
 
-        var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
-        ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
-        var forcedApplied = forcedCandidate == candidateId && (candidateId switch
+        if (pendingInstruction is { } order)
         {
-            "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
-            "consume_food" => inhabitants[decision.InhabitantId].HungerBasisPoints > state.HungerBasisPoints,
-            "harvest_food" => society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity) > carriedFoodBefore,
-            _ => false,
-        });
-
-        foreach (var instructionId in completedSuggestions)
+            if (decision.Admission.FellBack)
+            {
+                SetOrderStatus(order, "blocked", "Waiting for a usable decision.", waitForDecision: true);
+                ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+            }
+            else
+            {
+                var orderCandidate = OrderCandidateFor(order, state);
+                if (ShouldInterruptOrder(state, order, orderCandidate))
+                {
+                    SetOrderStatus(order, "interrupted", "Urgent survival needs come first.");
+                    ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+                }
+                else if (orderCandidate is not null)
+                {
+                    ExecuteOrderStep(order, state, orderCandidate);
+                }
+                else
+                {
+                    SetOrderStatus(order, "blocked", OrderBlockedReason(order, state));
+                    ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+                }
+            }
+        }
+        else
         {
-            AppendEvent("instruction_applied", $"{instructionId}:{candidateId}");
+            ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         }
 
-        if (!decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo && forcedApplied)
-        {
-            completedInstructionIds.Add(pendingInstruction.InstructionId);
-            AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
-        }
     }
 
     private List<string> ApplyObserverGuidanceResult(
@@ -423,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
         }
-        if (ContinueFarmWork(inhabitantId)) return;
+        if (PendingInstructionFor(inhabitantId) is null && ContinueFarmWork(inhabitantId)) return;
         if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
         {
             ApplyFieldCandidate(inhabitantId, state, candidateId);
@@ -814,7 +857,34 @@ public sealed partial class PrivateWorldRuntime
         if (currentConversation is null)
             candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
+        if (PendingInstructionFor(inhabitantId) is { } order)
+            return RestrictCandidatesForOrder(candidates, order, state);
         return candidates;
+    }
+
+    private List<CognitionCandidate> RestrictCandidatesForOrder(
+        List<CognitionCandidate> candidates,
+        OwnerQueuedInstruction order,
+        PlaytestInhabitantState state)
+    {
+        var safeIdle = candidates.Single(item => item.Id == "safe_idle");
+        var urgent = NeedsUrgentFood(state) || NeedsUrgentWarmth(state);
+        var taskCandidate = order.Order!.WaitForDecisionAfterFailure ? null : OrderCandidateFor(order, state);
+        if (ShouldInterruptOrder(state, order, taskCandidate))
+            taskCandidate = null;
+        if (taskCandidate is null)
+        {
+            if (!urgent && !order.Order!.WaitForDecisionAfterFailure)
+                return candidates;
+            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(item.Id))
+                .ToList();
+        }
+
+        var selected = candidates.Where(item => item.Id == taskCandidate.Id ||
+            urgent && IsSurvivalCandidate(item.Id)).ToList();
+        if (selected.All(item => item.Id != taskCandidate.Id)) selected.Add(taskCandidate);
+        if (selected.All(item => item.Id != safeIdle.Id)) selected.Add(safeIdle);
+        return selected;
     }
 
     private void AddBuildCandidates(

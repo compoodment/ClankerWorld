@@ -286,6 +286,7 @@ public sealed partial class PrivateWorldRuntime
         knowledge = proposed.knowledge;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
+        orderCancellations = proposed.orderCancellations;
         completedInstructionIds = proposed.completedInstructionIds;
         events = proposed.events;
         nextEventId = proposed.nextEventId;

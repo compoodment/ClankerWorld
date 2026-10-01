@@ -42,6 +42,8 @@ public partial class Main
     private readonly RichTextLabel instructionHistory = new();
     private readonly Button instructionSuggestButton = new();
     private readonly Button instructionOrderButton = new();
+    private readonly CheckButton instructionQueueToggle = new();
+    private readonly Button instructionCancelButton = new();
     private readonly PanelContainer thoughtsInset = new() { ThemeTypeVariation = "InsetPanel" };
     private readonly Button readThoughtsButton = new();
     private readonly PanelContainer thoughtsPanel = new();
@@ -262,6 +264,18 @@ public partial class Main
             speakHeading.AddChild(button);
         }
         instructionSuggestButton.ButtonPressed = true;
+        instructionOrderButton.Toggled += pressed => instructionQueueToggle.Visible = pressed;
+        instructionQueueToggle.Text = "Queue";
+        instructionQueueToggle.TooltipText = "Add this order after the current task instead of replacing it.";
+        instructionQueueToggle.Visible = false;
+        StyleCompactToggle(instructionQueueToggle);
+        speakHeading.AddChild(instructionQueueToggle);
+        instructionCancelButton.Text = "Cancel task";
+        instructionCancelButton.TooltipText = "Cancel the selected agent’s waiting or active order.";
+        StyleCompactToggle(instructionCancelButton);
+        instructionCancelButton.Pressed += () => _ = CancelSelectedOrderAsync();
+        instructionCancelButton.Hide();
+        speakHeading.AddChild(instructionCancelButton);
         speakSection.AddChild(speakHeading);
         var speakRow = new HBoxContainer();
         speakRow.AddThemeConstantOverride("separation", 4);
@@ -653,14 +667,17 @@ public partial class Main
             .Select(item =>
             {
                 var status = item.Kind == "must_do"
-                    ? item.State == "completed"
-                        ? item.ObservedTick is null ? "Order closed · not reported as heard" : "Heard by their personal model · order closed"
-                        : item.ObservedTick is null ? "Order pending · waiting for their personal model" : "Heard by their personal model · order pending"
+                    ? InstructionOrderSummary(item)
                     : item.ObservedTick is null ? "Suggestion waiting for their personal model" : "Suggestion heard by their personal model";
                 var reply = item.ObserverReply is null ? string.Empty : $"\nAgent reply: “{item.ObserverReply}”";
                 return $"{status}\n“You said: {item.Text}”{reply}";
             })
             .ToArray();
+        var pendingOrder = snapshot.Instructions.Where(item => item.TargetInhabitantId == inhabitant.Id &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        instructionCancelButton.Visible = !isDeceased && pendingOrder is not null;
+        instructionCancelButton.Disabled = isOwnerAction || pendingSubmission is not null || registration is null || deviceKey is null;
         SetPanelText(instructionHistory, recentInstructions.Length == 0
             ? "No messages yet."
             : string.Join("\n\n", recentInstructions));
@@ -687,6 +704,55 @@ public partial class Main
         PositionSelectedInhabitantCard(snapshot);
         PositionAgentProfile();
     }
+
+    private static string InstructionOrderSummary(OwnerWorldInstruction instruction)
+    {
+        var order = instruction.Order;
+        if (order is null)
+            return instruction.State == "completed"
+                ? instruction.ObservedTick is null ? "Order closed · not reported as heard" : "Heard by their personal model · order closed"
+                : instruction.ObservedTick is null ? "Order pending · waiting for their personal model" : "Heard by their personal model · order pending";
+
+        var task = order.Action switch
+        {
+            "consume_food" => "Eating food",
+            "harvest_food" => "Gathering food",
+            "seek_food" => "Going to a food site",
+            _ => "Order",
+        };
+        var units = order.RepeatUntilCancelled
+            ? $" · {order.CompletedUnits} {ProgressUnitLabel(order.ProgressUnit)} so far, repeats until cancelled"
+            : order.Status is "doing" or "interrupted" or "blocked" or "finished"
+                ? $" · {Math.Min(order.CompletedUnits, order.RequestedUnits)}/{order.RequestedUnits} {ProgressUnitLabel(order.ProgressUnit)}"
+                : string.Empty;
+        var reason = order.Status == "blocked" && !string.IsNullOrWhiteSpace(order.BlockedReason)
+            ? $" · {order.BlockedReason}"
+            : order.Status == "interrupted" && !string.IsNullOrWhiteSpace(order.BlockedReason)
+                ? $" · {order.BlockedReason}"
+                : string.Empty;
+        var heard = instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
+        var state = order.Status switch
+        {
+            "queued" => "Queued",
+            "waiting" => "Waiting",
+            "doing" => "Doing",
+            "interrupted" => "Interrupted",
+            "blocked" => "Blocked",
+            "finished" => "Finished",
+            "cancelled" => "Cancelled",
+            "not_understood" => "Not understood",
+            _ => "Waiting",
+        };
+        return $"{state} · {task}{units}{reason}{heard}";
+    }
+
+    private static string ProgressUnitLabel(string unit) => unit switch
+    {
+        "food_items" => "food items",
+        "arrivals" => "sites reached",
+        "harvests" => "harvest batches",
+        _ => unit,
+    };
 
     /// <summary>What this agent remembers, believes and has mapped, newest first, for the Memories panel.</summary>
     private void RenderMemoryHistory(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)

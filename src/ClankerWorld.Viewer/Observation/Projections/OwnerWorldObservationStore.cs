@@ -387,13 +387,18 @@ public sealed class OwnerWorldObservationStore
                     instruction.TargetInhabitantId,
                     ToWireValue(instruction.Kind),
                     instruction.Text,
-                    completedInstructionIds.Contains(instruction.InstructionId)
-                        ? "completed" : ToWireValue(instruction.State),
+                    instruction.Order?.Status ?? (completedInstructionIds.Contains(instruction.InstructionId)
+                        ? "completed" : ToWireValue(instruction.State)),
                     instruction.SubmittedTick,
                     instruction.RunEpoch,
                     instruction.SubmissionSequence,
                     instruction.ObservedTick,
-                    instruction.ObserverReply))
+                    instruction.ObserverReply,
+                    instruction.Order is { } order ? new ViewerInstructionOrder(
+                        order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
+                        order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
+                        order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
+                        order.BlockedReason) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -507,11 +512,17 @@ public sealed class OwnerWorldObservationStore
                 var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
                 var recentObserved = group
                     .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId) &&
-                        instruction.ObservedTick is not null)
+                        instruction.Kind == OwnerInstructionKind.Suggestive && instruction.ObservedTick is not null)
                     .OrderByDescending(instruction => instruction.ObservedTick)
                     .ThenByDescending(instruction => instruction.SubmissionSequence)
                     .Take(RecentObservedInstructionLimitPerAgent);
-                return pending.Concat(recentObserved);
+                var recentOrders = group
+                    .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId) &&
+                        instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is not null)
+                    .OrderByDescending(instruction => instruction.SubmissionSequence)
+                    .Take(RecentObservedInstructionLimitPerAgent);
+                return pending.Concat(recentObserved).Concat(recentOrders)
+                    .DistinctBy(instruction => instruction.InstructionId, StringComparer.Ordinal);
             })
             .OrderBy(instruction => instruction.SubmissionSequence)
             .ToArray();

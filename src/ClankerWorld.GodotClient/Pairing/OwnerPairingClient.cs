@@ -44,6 +44,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerAgentPlace = "/api/v1/owner/agents/place";
     public const string OwnerAgentRename = "/api/v1/owner/agents/rename";
     public const string OwnerInstructions = "/api/v1/owner/instructions";
+    public const string OwnerOrderCancel = "/api/v1/owner/orders/cancel";
     public const string OwnerAuthoring = "/api/v1/owner/authoring";
     public const string OwnerContentPropose = "/api/v1/owner/content/propose";
     public const string OwnerContentValidate = "/api/v1/owner/content/validate";

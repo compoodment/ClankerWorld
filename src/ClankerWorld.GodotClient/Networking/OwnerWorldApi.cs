@@ -300,6 +300,24 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
 
+    public Task<OwnerOrderControlReceipt> CancelOrderAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerOrderCancelAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerOrderCancelAction, OwnerOrderControlReceipt>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerOrderCancel,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.OrderCancel(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
     public Task<OwnerAuthoringBatchReceipt> SubmitAuthoringAsync(
         Uri serverUri,
         OwnerAuthorityIdentity authority,

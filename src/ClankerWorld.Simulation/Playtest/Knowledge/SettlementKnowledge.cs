@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
         if (map.TerrainKindAt(position) is not { } terrain)
             return false;
         var resourcesAtTile = map.Resources.Where(item => item.Position == position)
-            .Select(item => item.Kind).Distinct(StringComparer.Ordinal)
+            .Select(FoodKnowledgeKind).Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal).Take(AgentKnowledgeRules.MaximumResourceKindsPerFact).ToArray();
         var fact = new AgentKnowledgeFact(
             KnowledgeFactId(actor, position), actor, actor, position,
@@ -207,4 +207,12 @@ public sealed partial class PrivateWorldRuntime
         // bounded model-facing reference needs a stable alias for long IDs.
         discovererId.Length <= 128 ? discovererId :
             "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(discovererId)));
+
+    private static string FoodKnowledgeKind(MapResource resource) => resource.Kind switch
+    {
+        "fruit" => "fruit",
+        "food" when resource.NaturalObjectKind == "wild_greens" => "wild_greens",
+        "food" => "berries",
+        _ => resource.Kind,
+    };
 }

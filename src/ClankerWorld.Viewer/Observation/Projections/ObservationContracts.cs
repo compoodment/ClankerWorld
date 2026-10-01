@@ -178,7 +178,21 @@ public sealed record ViewerInstruction(
     long RunEpoch,
     long SubmissionSequence,
     long? ObservedTick = null,
-    string? ObserverReply = null);
+    string? ObserverReply = null,
+    ViewerInstructionOrder? Order = null);
+
+public sealed record ViewerInstructionOrder(
+    string Action,
+    string Status,
+    int RequestedUnits,
+    int CompletedUnits,
+    string ProgressUnit,
+    bool RepeatUntilCancelled,
+    string? TargetFoodKind = null,
+    string? TargetResourceId = null,
+    int? TargetX = null,
+    int? TargetY = null,
+    string? BlockedReason = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
