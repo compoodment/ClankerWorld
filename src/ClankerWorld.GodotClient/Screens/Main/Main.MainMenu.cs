@@ -605,9 +605,10 @@ public partial class Main
             listedActiveWorldId = catalog.ActiveId;
             listedWorlds = catalog.Worlds.OrderByDescending(world => world.Id == catalog.ActiveId)
                 .ThenByDescending(world => world.UpdatedUtc).ToArray();
-            var icon = SlotIcon(PixelGlyph.Globe);
+            var globe = SlotIcon(PixelGlyph.Globe);
             foreach (var world in listedWorlds)
             {
+                var icon = WorldThumbnailTexture(world.Thumbnail) ?? globe;
                 List<SlotTag> tags = [];
                 if (world.Id == catalog.ActiveId) tags.Add(new SlotTag("Current"));
                 if (world.Compatibility == "incompatible") tags.Add(new SlotTag("Can't open", Note: true));
@@ -621,6 +622,30 @@ public partial class Main
         }
         // The list fills after its containers update; size the first opening once it has.
         Callable.From(LayoutWorldMenu).CallDeferred();
+    }
+
+    /// <summary>
+    /// A world's map thumbnail from the host, or nothing when the host sent none
+    /// or it can't be read, in which case the card shows a globe.
+    /// </summary>
+    private static ImageTexture? WorldThumbnailTexture(WorldThumbnail? thumbnail)
+    {
+        // The host limits thumbnails to 96 columns and checkpoint maps to
+        // 2048 rows. Check these before decoding or creating a texture; this
+        // optional catalog copy must never prevent healthy cards from drawing.
+        if (thumbnail is null || thumbnail.Width is < 1 or > 96 || thumbnail.Height is < 1 or > 2048 ||
+            thumbnail.Encoding != "terrain-kind-v1" || thumbnail.Data is null ||
+            thumbnail.Data.Length != ((thumbnail.Width * thumbnail.Height + 2) / 3) * 4)
+            return null;
+        try
+        {
+            return WorldOverview.Thumbnail(WorldTerrainMap.FromPacked(
+                new OwnerWorldPackedTerrain(thumbnail.Width, thumbnail.Height, thumbnail.Encoding, thumbnail.Data)));
+        }
+        catch (Exception exception) when (exception is InvalidDataException or FormatException or OverflowException)
+        {
+            return null;
+        }
     }
 
     /// <summary>A world or save card's icon, in the same colors as the menu choice that opens it.</summary>
