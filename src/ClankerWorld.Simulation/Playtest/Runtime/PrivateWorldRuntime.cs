@@ -167,7 +167,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (!MatchesGeneratedCandidate(preparedMap, geographyOptions))
             throw new ArgumentException("The prepared map does not match the selected geography candidate.", nameof(preparedMap));
 
-        return new PrivateWorldRuntime(worldSeed, providerFactory, 64, 4, 0.5,
+        return new PrivateWorldRuntime(worldSeed, providerFactory, 64, 4,
             WorldStartPace.FounderSetup, geographyOptions, preparedMap);
     }
 
