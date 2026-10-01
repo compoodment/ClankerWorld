@@ -189,9 +189,10 @@ placement, the local search extent, the placement boundary's exact distance
 measurement near tile/footprint edges, whether geometric proximity also
 requires a walkable route, and how changing site revalidates any positions or
 claims tied to the previous layout without clearing model/provider choices.
-Warehouse details remain open: formal ownership, how Town residency is
-determined, access when the building is outside all Town borders or borders
-change, and how its hard access gate relates to any future crime system. The
+Town residency follows the [agreed membership rules](towns.md#town-membership).
+Warehouse access across border changes and public salvage in an abandoned Town
+follow the [agreed Town rules](towns.md#borders-abandoned-towns-and-salvage).
+How its ordinary access gate relates to a future crime system remains open. The
 optional survival grace period still
 needs a duration and precise effects. Also open:
 whether unrelated newcomers can arrive without player action or are only
@@ -205,8 +206,9 @@ Computment briefly considered removing the close-relative pairing ban, then
 retracted that thought; the ban still stands. A model-usage meter and optional
 AI-usage limit have since been accepted; neither is a population cap.
 
-For inheritance, still open: the exact final-model-turn contract; which assets
-are personal versus already household-owned; conflicts between a will and
+Personal ownership is separate from storage or carrying location under the
+[agreed household goods rules](towns.md#household-goods-and-departure).
+For inheritance, still open: the exact final-model-turn contract; conflicts between a will and
 agent-made law; minors, multiple heirs, debts, and no-household cases; and
 whether a final message beyond the will is part of the death event. Clanker's
 proposed safety rule is to freeze the estate at death, validate the model's
