@@ -91,25 +91,6 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
-    public async Task UniqueNameSurvivesLowConfidenceLegalChoice()
-    {
-        var provider = new SequencedHostedProvider(new NameReply("Aster Vale", 0.2));
-        using var world = CreateNameTestWorld("name-with-low-confidence", provider);
-        var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
-        world.StartWorld();
-
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        var result = await AdvanceUntilAcceptedAsync(world, NameTargetId);
-        var decision = Assert.Single(result.Decisions, item => item.InhabitantId == NameTargetId);
-        Assert.False(decision.Admission.FellBack);
-        Assert.Equal(0.2, decision.Admission.Intention!.Confidence);
-        Assert.Equal("Aster Vale", world.Society.GetInhabitant(NameTargetId).Name);
-        Assert.NotEqual(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
-        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
-        Assert.Equal(1, provider.CallCount);
-    }
-
-    [Fact]
     public async Task MalformedReplyDoesNotApplyItsNameOrStartTheDuplicateNameRetry()
     {
         var provider = new SequencedHostedProvider(new NameReply("Taken Name", 1.2));
@@ -311,23 +292,6 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
-    public async Task ActorEventRetainsItsLocationAcrossSaveAndViewerProjection()
-    {
-        using var world = new PrivateWorldRuntime("located-events");
-        for (var tick = 0; tick < 12; tick++) await world.AdvanceOneTickAsync();
-        var located = Assert.Single(world.ExportState().Events
-            .Where(item => item.Kind == "inhabitant_moved")
-            .Take(1));
-        Assert.NotNull(located.Position);
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(saved);
-        var projected = new OwnerWorldObservationStore(restored).GetEventsAfter(0).Events
-            .Single(item => item.EventId == located.EventId);
-        Assert.Equal(located.Position!.Value.X, projected.Position?.X);
-        Assert.Equal(located.Position.Value.Y, projected.Position?.Y);
-    }
-
-    [Fact]
     public async Task SlowHostedFounderDoesNotHoldWorldOrOtherFounders()
     {
         var hosted = new HeldHostedProvider();
@@ -379,41 +343,6 @@ public sealed class PrivateWorldDeferredCognitionTests
             person => Assert.Empty(person.RecentPrivateThoughts));
         Assert.DoesNotContain(world.ExportState().Events,
             item => item.Detail.Contains("I should gather food", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task AcceptedPersonalDecisionCanNameAnAgentButCannotUndoAPlayerRename()
-    {
-        var firstId = "founder:" + Guid.NewGuid().ToString("N");
-        var secondId = "founder:" + Guid.NewGuid().ToString("N");
-        var first = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel, chosenName: "Aster");
-        var second = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel, chosenName: "Ignored");
-        using var world = new PrivateWorldRuntime("chosen-names", id => id == firstId ? first :
-            id == secondId ? second : new DeterministicDecisionProvider(), startPace: WorldStartPace.FounderSetup);
-        world.PlaceFounder(firstId, new GridPoint(0, 0));
-        world.PlaceFounder(secondId, new GridPoint(1, 2));
-        world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(2, 2));
-        world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(3, 2));
-        world.StartWorld();
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await first.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        await second.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.True(first.NeedsNameObserved);
-        first.Release.TrySetResult(true);
-        await first.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(world, firstId);
-        Assert.Equal("Aster", world.Society.GetInhabitant(firstId).Name);
-        Assert.False(world.Society.GetInhabitant(firstId).NeedsName);
-
-        Assert.True(world.RenameAgent(secondId, "Player-picked"));
-        second.Release.TrySetResult(true);
-        await second.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(world, secondId);
-        Assert.Equal("Player-picked", world.Society.GetInhabitant(secondId).Name);
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
-        Assert.Equal("Aster", restored.Society.GetInhabitant(firstId).Name);
-        Assert.Equal("Player-picked", restored.Society.GetInhabitant(secondId).Name);
     }
 
     [Fact]

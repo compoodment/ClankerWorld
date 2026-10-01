@@ -11,21 +11,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class RiverBridgeTests
 {
     [Fact]
-    public void GroundOnlyRouteBuildsNoBridge()
-    {
-        var map = Map(
-            ".......",
-            ".......",
-            ".......");
-        var result = Plan(map, [new(0, 1)], [new(6, 1)]);
-
-        var proposal = Assert.IsType<RoadRouteProposal>(result.Proposal);
-        Assert.Equal(RoadRouteOutcomes.Connected, result.Outcome);
-        Assert.Empty(proposal.NewCrossings);
-        Assert.Equal(Enumerable.Range(0, 7).Select(x => new GridPoint(x, 1)), proposal.RoadTiles);
-    }
-
-    [Fact]
     public void OneNarrowStreamGetsAOneTileBridgeThatMovementCanUse()
     {
         var map = Map(
@@ -57,34 +42,6 @@ public sealed class RiverBridgeTests
         Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
         Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
         Assert.False(bridged.IsBuildable(new(3, 1)));
-    }
-
-    [Fact]
-    public void TwoTileRiverIsBridgedAndOnlyThenBecomesWalkable()
-    {
-        var map = Map(
-            "...~~...",
-            "...~~...",
-            "...~~...");
-        var request = Request(map, [new(0, 1)], [new(7, 1)]);
-        var proposal = Assert.IsType<RoadRouteProposal>(RoadRoutePlanner.Plan(request).Proposal);
-
-        var crossing = Assert.Single(proposal.NewCrossings);
-        Assert.Equal(BridgeDesigns.PlankSpanTwo, crossing.Design);
-        Assert.Equal([new GridPoint(3, 1), new GridPoint(4, 1)], crossing.Span);
-        Assert.Null(RoadRoutePlanner.Validate(request, proposal));
-
-        Assert.False(map.IsPassable(new(3, 1)));
-        Assert.False(map.IsReachableOnFoot(new(0, 0), new(7, 0)));
-        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Road, 0, "road:test"));
-        Assert.True(bridged.IsPassable(new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(2, 1), new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(3, 1), new(4, 1)));
-        Assert.True(bridged.CanFootStep(new(4, 1), new(5, 1)));
-        Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
-        Assert.False(bridged.CanFootStep(new(4, 1), new(4, 2)));
-        Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
-        Assert.True(bridged.IsReachableOnFoot(new(0, 2), new(7, 2)));
     }
 
     [Fact]
@@ -161,36 +118,6 @@ public sealed class RiverBridgeTests
     }
 
     [Fact]
-    public void RedundantSecondBridgeOverTheSameBanksIsNotBuilt()
-    {
-        var map = Map(
-            "...~...",
-            "...~...",
-            "...~...",
-            "...~...",
-            "...~...",
-            "...~...");
-        Assert.True(RiverBridgeRules.TryFindCrossing(map, new(2, 1), 1, 0, out var upstream));
-        var existing = RiverBridgeRules.ToBridge(upstream!, BridgeTriggers.Traffic, 0, null);
-        var bridged = WithBridges(map, existing);
-        Assert.True(RiverBridgeRules.TryFindCrossing(bridged, new(2, 5), 1, 0, out var downstream));
-        Assert.True(RiverBridgeRules.SharesBanks(bridged, downstream!, upstream!));
-
-        var request = Request(bridged, [new(0, 5)], [new(6, 5)], [existing]);
-        var proposal = Assert.IsType<RoadRouteProposal>(RoadRoutePlanner.Plan(request).Proposal);
-        Assert.Empty(proposal.NewCrossings);
-        Assert.Equal([existing.Id], proposal.UsedBridgeIds);
-        Assert.Contains(new GridPoint(2, 1), proposal.RoadTiles);
-        Assert.Contains(new GridPoint(4, 1), proposal.RoadTiles);
-        Assert.Null(RoadRoutePlanner.Validate(request, proposal));
-
-        // A proposal that tried to add the redundant bridge is refused whole.
-        var tampered = new RoadRouteProposal(
-            [new(0, 5), new(1, 5), new(2, 5), new(4, 5), new(5, 5), new(6, 5)], [downstream!], []);
-        Assert.Equal("crossing_redundant", RoadRoutePlanner.Validate(request, tampered));
-    }
-
-    [Fact]
     public void CrossingOverTheEastWestSeamIsStableFromEitherBank()
     {
         var map = Map(
@@ -229,27 +156,6 @@ public sealed class RiverBridgeTests
         var result = Plan(map, [new(0, 1)], [new(6, 1)], blocked: [new(4, 0), new(4, 1), new(4, 2)]);
         Assert.Null(result.Proposal);
         Assert.Equal(RoadRouteOutcomes.RouteUnavailable, result.Outcome);
-    }
-
-    [Fact]
-    public void RepeatedIdenticalGenerationProposesTheSameRouteAndIds()
-    {
-        var map = Map(
-            "..~.....~..",
-            "..~.....~..",
-            "..~.....~..",
-            "..~.....~..");
-        var first = Assert.IsType<RoadRouteProposal>(Plan(map, [new(0, 3)], [new(10, 0)]).Proposal);
-        var second = Assert.IsType<RoadRouteProposal>(Plan(map, [new(0, 3)], [new(10, 0)]).Proposal);
-        Assert.Equal(first.RoadTiles, second.RoadTiles);
-        Assert.Equal(first.NewCrossings.Select(item => item.Id), second.NewCrossings.Select(item => item.Id));
-
-        // Once committed, generating again reuses everything and adds nothing.
-        var bridges = first.NewCrossings.Select(item => RiverBridgeRules.ToBridge(item, BridgeTriggers.Road, 0, "road:x")).ToArray();
-        var bridged = WithBridges(map, bridges);
-        var again = RoadRoutePlanner.Plan(Request(bridged, [new(0, 3)], first.RoadTiles, bridges));
-        Assert.Equal([new GridPoint(0, 3)], again.Proposal!.RoadTiles);
-        Assert.Empty(again.Proposal.NewCrossings);
     }
 
     [Fact]

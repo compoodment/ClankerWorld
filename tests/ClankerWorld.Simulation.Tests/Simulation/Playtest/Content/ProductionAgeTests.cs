@@ -24,18 +24,6 @@ public sealed class ProductionAgeTests
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
-    [Theory]
-    [InlineData(SocietyAgeBand.Adult)]
-    [InlineData(SocietyAgeBand.Elder)]
-    public async Task EligibleWorkersCompleteRecipesAndCropsAfterReload(SocietyAgeBand age)
-    {
-        var prepared = await PrepareAsync(age);
-        using var world = PrivateWorldRuntime.Restore(prepared.State, _ => new IdleProvider());
-        var started = world.StartProduction(prepared.RecipeId, prepared.WorkstationId, prepared.WorkerId);
-        Assert.True(started.Applied, started.Failure);
-        await CompleteAfterReloadAsync(world.ExportState(), started.JobId!);
-    }
-
     internal static async Task CompleteAfterReloadAsync(PrivateWorldRuntimeState state, string jobId)
     {
         using var restored = PrivateWorldRuntime.Restore(

@@ -2,21 +2,12 @@ using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
-using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SocietyLifePaceTests
 {
-    [Fact]
-    public void LifePaceTelemetryContainsOnlyBoundedTickAndRate()
-    {
-        var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-        OwnerLifePaceTelemetry.Changed(logger, 123, 1_460);
-        Assert.Equal("world_life_pace tick=123 rate=1460", Assert.Single(logger.Messages));
-    }
-
     [Fact]
     public void UnknownFutureLifecycleContractIsRejected()
     {

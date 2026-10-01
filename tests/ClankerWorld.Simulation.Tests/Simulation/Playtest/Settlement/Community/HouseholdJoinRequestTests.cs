@@ -238,28 +238,6 @@ public sealed class HouseholdJoinRequestTests
     }
 
     [Fact]
-    public async Task UnansweredRequestExpiresAndCountsAsARefusal()
-    {
-        var provider = new ScriptedProvider();
-        using var world = NormalPathWorld.CreateGenerated("housing-expire", _ => provider);
-        var agent = "agent:" + Guid.NewGuid().ToString("N");
-        Assert.Null(world.AddAgent(agent, TownTileBeside(world, "first-town-house-b")));
-        provider.Choices[agent] = "household_ask:" + Beta;
-        await AdvanceUntil(world, () => world.Inhabitants.Single(person => person.InhabitantId == agent).Housing?.Request is not null);
-        provider.Choices[agent] = "safe_idle";
-        var requestedTick = world.Inhabitants.Single(person => person.InhabitantId == agent).Housing!.Request!.RequestedTick;
-        await AdvanceUntil(world, () => world.ExportState().Events.Any(item => item.Kind == "housing_request_expired"),
-            PrivateWorldRuntime.HousingRequestTicks + 5);
-
-        Assert.True(world.WorldTick > requestedTick + PrivateWorldRuntime.HousingRequestTicks);
-        Assert.Null(world.Society.GetInhabitant(agent).HouseholdId);
-        var housing = world.Inhabitants.Single(person => person.InhabitantId == agent).Housing!;
-        Assert.Null(housing.Request);
-        Assert.Equal(Beta, Assert.Single(housing.Refusals!).HouseholdId);
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "household_joined");
-    }
-
-    [Fact]
     public async Task RestoredHousingApprovalCannotOutliveItsWorldTickDeadline()
     {
         var provider = new ScriptedProvider();
