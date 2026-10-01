@@ -79,6 +79,8 @@ public sealed class SettlementLearningTests
     public async Task SavedSkillsRejectUnknownTeachersAndFutureLearningTimes()
     {
         var state = await PreparedState();
+        using var valid = PrivateWorldRuntime.Restore(state);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 30 }));
         var actor = state.Inhabitants[0].InhabitantId;
         foreach (var skill in new[]
         {

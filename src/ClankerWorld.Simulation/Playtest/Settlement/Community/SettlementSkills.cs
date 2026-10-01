@@ -15,7 +15,7 @@ public sealed record SettlementSkill(SettlementSkillKind Kind, long LearnedTick,
 
 public sealed partial class PrivateWorldRuntime
 {
-    private const int SkillsSchemaVersion = 29;
+    private const int SkillsSchemaVersion = 31;
 
     private bool HasSkill(string actor, SettlementSkillKind skill) =>
         inhabitants.TryGetValue(actor, out var person) && person.Skills?.Any(item => item.Kind == skill) == true;
