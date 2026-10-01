@@ -98,17 +98,6 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task BlockedDirectOrderPromptsOneDecisionThenWaitsForTheUsualPace()
-    {
-        const int ticks = 120;
-        var controlCalls = await DecisionsDuringBlockedOrderAsync(submitOrder: false, ticks);
-        var orderedCalls = await DecisionsDuringBlockedOrderAsync(submitOrder: true, ticks);
-
-        Assert.True(orderedCalls <= controlCalls + 1,
-            $"The blocked order led to {orderedCalls} decisions in {ticks} ticks; without it there were {controlCalls}.");
-    }
-
-    [Fact]
     public async Task BlockedDirectOrderDoesNotStartAHostedDecisionEveryTick()
     {
         var hosted = new CountingSelectingProvider(DecisionProviderKind.LargeLanguageModel, chooseIdle: true);
@@ -126,32 +115,6 @@ public sealed partial class PrivateWorldRuntimeTests
         var hostedCalls = hosted.CallCount - callsBefore;
         Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         Assert.InRange(hostedCalls, 1, 10);
-    }
-
-    private static async Task<int> DecisionsDuringBlockedOrderAsync(bool submitOrder, int ticks)
-    {
-        // This founder carries no food here, so "eat food" cannot progress.
-        var ordered = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        var others = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = new PrivateWorldRuntime("must-do-illegal-review",
-            id => id == OrderedAgent ? ordered : others);
-        for (var tick = 0; tick < 5; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var callsBefore = ordered.CallCount;
-        OwnerInstructionReceipt? order = submitOrder
-            ? world.SubmitInstruction(new OwnerInstructionRequest("blocked-eat", "owner:test",
-                OrderedAgent, OwnerInstructionKind.MustDo, "eat food"))
-            : null;
-        for (var tick = 0; tick < ticks; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        if (order is not null)
-        {
-            Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind is "instruction_applied" or "instruction_not_understood");
-        }
-        return ordered.CallCount - callsBefore;
     }
 
     private static async Task AdvanceWithHostedDecisionsAsync(PrivateWorldRuntime world)

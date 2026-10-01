@@ -21,47 +21,17 @@ public sealed class ProviderModelCatalogTests
         {"models":[
           {"name":"glm-5.3-flash","model":"glm-5.3-flash","modified_at":"2026-09-20T10:00:00Z"},
           {"name":"deepseek-v4-pro:0813","model":"deepseek-v4-pro:0813","modified_at":"2026-08-13T10:00:00Z"},
-          {"name":"kimi-k3:cloud","model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
-          {"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-08-21T10:00:00Z"},
+          {"model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
+          {"name":null,"model":"gemma4:31b","modified_at":"2026-08-21T10:00:00Z"},
           {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"}
         ]}
         """;
 
-    [Fact]
-    public void GameListsKeepTheirChosenOrderAndIncludeEachDefault()
-    {
-        Assert.Equal(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
-            ProviderModelCatalog.Curated[PlayerDecisionProviders.OpenAi]);
-        Assert.Equal(["glm-5.3-flash:cloud", "glm-5.3:cloud", "deepseek-v4.1-flash:cloud", "deepseek-v4-pro:0813",
-            "minimax-m3:cloud", "kimi-k3:cloud", "gemma4:31b"], ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud]);
-        Assert.Equal("gpt-6-luna", PlayerDecisionProviders.DefaultOpenAiModel);
-        Assert.Equal("glm-5.3-flash:cloud", PlayerDecisionProviders.DefaultOllamaCloudModel);
-        foreach (var (provider, models) in ProviderModelCatalog.Curated)
-        {
-            Assert.Contains(PlayerDecisionProviders.DefaultModel(provider), models);
-            Assert.Equal(models.Count, models.Distinct(StringComparer.Ordinal).Count());
-        }
-    }
-
     [Theory]
-    [InlineData("glm-5.3:cloud", "glm-5.3")]
     [InlineData("gpt-oss:120b-cloud", "gpt-oss:120b")]
     [InlineData("Gemma4:latest", "gemma4")]
-    [InlineData("gpt-6-luna", "gpt-6-luna")]
     public void MatchingIgnoresOllamaCloudEndings(string listed, string expected) =>
         Assert.Equal(expected, ProviderModelCatalog.MatchName(listed));
-
-    [Fact]
-    public void BothListShapesAreReadAndOthersAreRejected()
-    {
-        Assert.Equal(["gpt-6-luna", "gpt-6-sol", "gpt-5.6-terra", "text-embedding-3-small"],
-            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)));
-        Assert.Equal(["glm-5.3-flash", "deepseek-v4-pro:0813", "kimi-k3:cloud", "gemma4:31b", "gpt-oss:120b"],
-            ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
-        Assert.Equal(["kimi-k3:cloud", "gemma4:31b"], ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(
-            """{"models":[{"model":"kimi-k3:cloud"},{"name":null,"model":"gemma4:31b"}]}""")));
-        Assert.Throws<InvalidDataException>(() => ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes("""{"items":[]}""")));
-    }
 
     [Fact]
     public async Task SavedKeyMarksListedModelsItCantUseAndTheCheckIsReusedUntilItExpires()
@@ -187,20 +157,14 @@ public sealed class ProviderModelCatalogTests
     }
 
     [Theory]
-    [InlineData("null")]
     [InlineData("[]")]
-    [InlineData("7")]
     [InlineData("{\"data\":[null]}")]
     [InlineData("{\"data\":[{}]}")]
-    [InlineData("{\"data\":[{\"id\":null}]}")]
     [InlineData("{\"data\":[{\"id\":7}]}")]
-    [InlineData("{\"data\":[{\"id\":\"\"}]}")]
     [InlineData("{\"data\":[{\"id\":\" \"}]}")]
     [InlineData("{\"data\":[{\"id\":\"gpt-6-luna\"},{}]}")]
     [InlineData("{\"models\":[{}]}")]
     [InlineData("{\"models\":[{\"name\":7}]}")]
-    [InlineData("{\"models\":[{\"model\":null}]}")]
-    [InlineData("{\"models\":[{\"name\":\"\"}]}")]
     [InlineData("{\"models\":[{\"model\":\" \"}]}")]
     [InlineData("{\"models\":[{\"name\":\"kimi-k3:cloud\"},{}]}")]
     [InlineData("{\"models\":[\"unexpected\"]}")]

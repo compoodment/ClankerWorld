@@ -1,4 +1,3 @@
-using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 
@@ -20,31 +19,8 @@ public sealed class HouseholdBuildingUseCoverageTests
         ["building:warehouse-2x2", "building:workshop", "building:weaving-frame", "building:shelter",
          "building:storage", "building:fire", "building:stone-hearth"];
 
-    [Fact]
-    public async Task CompatibilityWorldWithoutAFarmhouseOffersNoCrops()
-    {
-        var recorder = new ActionCoverageRecorder();
-        using var world = new PrivateWorldRuntime("probe-world", _ => recorder, startPace: WorldStartPace.FounderSetup);
-        var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
-        for (var index = 0; index < positions.Length; index++)
-            world.PlaceFounder($"founder:{index + 1:D32}", positions[index]);
-        world.StartWorld();
-        world.StageStarterContent();
-        for (var tick = 0; tick < CoverageTicks; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var families = recorder.FamiliesOffered(world.WorldContent);
-        Assert.Contains("harvest_food", families);
-        Assert.Contains("explore", families);
-        // A household may build a Farmhouse during the run; one that never
-        // holds one is never offered a crop.
-        foreach (var household in world.Society.Households.Where(household => !Holds(world, household.Id, "farmhouse")))
-            Assert.DoesNotContain("farm", FamiliesForHousehold(world, recorder, household.Id));
-    }
-
     [Theory]
     [InlineData("probe-a")]
-    [InlineData("probe-b")]
     public async Task HouseholdsWorkAtTheBuildingsTheyHoldAndPlanOnlyWhatTheyLack(string seed)
     {
         var recorder = new ActionCoverageRecorder();

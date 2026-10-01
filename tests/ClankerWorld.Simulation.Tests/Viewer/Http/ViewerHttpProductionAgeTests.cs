@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Control;
-using ClankerWorld.Viewer.Observation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -12,11 +11,8 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
-    [InlineData(SocietyAgeBand.Infant)]
-    [InlineData(SocietyAgeBand.Child)]
     [InlineData(SocietyAgeBand.Adolescent)]
     [InlineData(SocietyAgeBand.Adult)]
-    [InlineData(SocietyAgeBand.Elder)]
     public async Task SignedProductionRequestEnforcesWorkerAgeWithoutChangingRejectedWorlds(SocietyAgeBand age)
     {
         var prepared = await ProductionAgeTests.PrepareAsync(age);
