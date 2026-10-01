@@ -498,6 +498,12 @@ nearest stone was at most 33 tiles from the starting berry patch. Before this
 change the same worlds had 1–65 separate mountain patches, the smallest of a
 single tile, and mountains covered 1.4–19% of dry land.
 
+Generation takes about a tenth longer. In four interleaved runs of
+`scripts/measure-map-generation.sh` on a shared machine under load, the median
+time to generate `probe-a` went from 191 to 211 ms, `probe-b` from 140 to
+153 ms and the Dry fixture from 76 to 85 ms (averages of the per-run medians).
+These are noisy measurements, not a performance promise.
+
 The October 1 measurements used .NET 10.0.401 and Godot 4.7.2 under WSL, with
 two .NET processors. Both Small maps are 256×128, use current hydrology and
 the Balanced visibility rules, and were measured before and after this change:
