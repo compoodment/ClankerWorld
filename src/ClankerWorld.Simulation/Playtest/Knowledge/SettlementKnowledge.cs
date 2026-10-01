@@ -47,6 +47,14 @@ public sealed partial class PrivateWorldRuntime
         if (facts.Length == 0)
             return;
 
+        if (FreeCarryCapacity(actor) < 1)
+        {
+            // The discoveries remain personal knowledge even when there is no
+            // room to create their physical, carryable copy.
+            AppendEvent("agent_knowledge_artifact_limited", $"{actor}|carrying_full|{facts.Length}");
+            return;
+        }
+
         var createdByActor = knowledge.Artifacts.Count(item => item.CreatorId == actor);
         if (createdByActor >= AgentKnowledgeRules.MaximumArtifactsPerCreator ||
             knowledge.Artifacts.Count >= AgentKnowledgeRules.MaximumArtifactsInWorld)
@@ -187,7 +195,7 @@ public sealed partial class PrivateWorldRuntime
     private AgentKnowledgeArtifact[] HeldKnowledgeArtifacts(string ownerId)
     {
         var heldLotIds = society.Checkpoint.Inventory.Lots
-            .Where(item => item.OwnerId == ownerId && item.ItemKind is ("field_map" or "field_record"))
+            .Where(item => PersonalEquipmentRules.IsCarried(item, ownerId) && item.ItemKind is ("field_map" or "field_record"))
             .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         return knowledge.Artifacts.Where(item => heldLotIds.Contains(item.LotId))
             .OrderBy(item => item.CreatedTick).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();

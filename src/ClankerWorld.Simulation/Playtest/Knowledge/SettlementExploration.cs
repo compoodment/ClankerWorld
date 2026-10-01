@@ -46,10 +46,9 @@ public sealed partial class PrivateWorldRuntime
         if (person.Survival is not { } condition) return true;
         // Budget the short out-and-back trip using adjacent exposure and actual movement costs.
         // Shelter at the starting tile is not protection carried along on the outing.
-        var clothing = HasCarriedItem(person.InhabitantId, "clothing") ? 35 : 0;
         return map.FootNeighbors(person.Position).Where(map.IsPassable).All(next =>
         {
-            var loss = Math.Max(0, WeatherExposure(next) - clothing);
+            var loss = Math.Max(0, WeatherExposure(next) - ClothingProtection(person.InhabitantId, next));
             var stepTicks = (RoadStepCost(person.Position, next) + 99) / 100 +
                 SettlementIllnessRules.TravelDelayTicks(condition.IllnessBasisPoints);
             return loss == 0 || condition.WarmthBasisPoints - loss * stepTicks * ExplorationStepsPerOuting * 2 >= UrgentWarmth;

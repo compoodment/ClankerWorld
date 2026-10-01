@@ -260,9 +260,10 @@ public sealed partial class PrivateWorldRuntime
             return HousingBlockers.AwaitingAnswer;
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return HousingBlockers.NoHousehold;
-        if (HouseholdBuildingProjectInProgress(householdId, "house"))
+        if (HouseholdBuildingProjectInProgress(householdId, "house", actor))
             return HousingBlockers.NoAuthorizedHome;
-        var house = PlannableHouseholdBuildings(householdId).FirstOrDefault(definition => HouseholdBuildingKind(definition) == "house");
+        var house = PlannableHouseholdBuildings(householdId, actor)
+            .FirstOrDefault(definition => HouseholdBuildingKind(definition) == "house");
         if (house is null)
             return HousingBlockers.NoAuthorizedHome;
         if (!HouseholdHasMaterialsInHand(householdId, house.BuildCosts))
