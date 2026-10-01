@@ -354,6 +354,30 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
 
+    public Task<OwnerBuildingManagementResult> RemoveBuildingAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerBuildingRemovalAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingRemovalAction, OwnerBuildingManagementResult>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerBuildingRemoval,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.BuildingRemoval(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<OwnerBuildingManagementResult> ReassignBuildingAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerBuildingReassignmentAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingReassignmentAction, OwnerBuildingManagementResult>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerBuildingReassignment,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.BuildingReassignment(action),
+            action, deviceKey, cancellationToken);
+
     public Task<OwnerProductionStartResult> StartProductionAsync(
         Uri serverUri,
         OwnerAuthorityIdentity authority,
