@@ -16,6 +16,7 @@ FAMILY_TITLES = {
     'menu': 'Main Menu valley',
     'brand': 'Logo and program icon',
     'relief': 'Mountains, peaks and hills',
+    'desert': 'Desert cacti and snow edges',
     'animals': 'Livestock and horses',
 }
 FAMILY_INTRO = {
@@ -32,11 +33,12 @@ FAMILY_INTRO = {
     'brand': 'Agreed on September 29 and not redrawn. Shown for completeness only.',
     'relief': 'Mountains, peaks and hills are now drawn from the world\'s elevation as one landform spanning many tiles, instead of a picture per tile. Hills are soft foothill shading, with no rings. The range and Town scenes show it in place.',
     'animals': 'Late-development livestock (chicken, sheep, cow) and the remaining horse facings, in the style of the approved agents and horse.',
+    'desert': 'From the October 1 playtest decisions: cacti as plant cover on desert sand only, and snow with more variation and a softer edge into neighbouring land.',
 }
 BASELINE_ALIAS = {'terrain16': 'terrain', 'hills': 'terrain', 'nature16': 'nature',
                   'items_tools': 'items', 'items_goods': 'items'}
 SKIP_BASELINE = {'edges', 'coasts', 'retired'}
-ORDER = ['relief', 'terrain', 'water', 'roads', 'nature', 'crops', 'buildings', 'agents', 'animals', 'items', 'glyphs', 'menu', 'brand']
+ORDER = ['relief', 'desert', 'terrain', 'water', 'roads', 'nature', 'crops', 'buildings', 'agents', 'animals', 'items', 'glyphs', 'menu', 'brand']
 
 def data_uri(path):
     with open(path, 'rb') as f:
@@ -65,6 +67,7 @@ def main():
     ap.add_argument('--approved', help='previous round proposals (index.json root)')
     ap.add_argument('--decisions', help='directory of previous-round decision JSON files')
     ap.add_argument('--compare', action='append', default=[], help='label|before.png|after.png scene comparison')
+    ap.add_argument('--redrawn', default='', help='comma-separated ids of approved pictures redrawn this round')
     args = ap.parse_args()
 
     baseline = load_index(args.baseline)
@@ -130,11 +133,18 @@ def main():
         if args.approved:
             for e in load_index(args.approved):
                 approved[e['id']] = (e, os.path.join(args.approved, e['path']))
+        # Decisions from every earlier round; a later round's answer for the
+        # same picture wins. Keys from round 2 onward carry an "rN:" prefix.
         previous = {}
         if args.decisions:
+            rows = []
             for path in glob.glob(os.path.join(args.decisions, '*.json')):
                 d = json.load(open(path)); d = d.get('data', d)
-                previous[d.get('key')] = d.get('decision')
+                key = d.get('key') or ''
+                m = re.match(r'^r(\d+):(.*)$', key)
+                rows.append((int(m.group(1)) if m else 1, m.group(2) if m else key, d.get('decision')))
+            for _, key, decision in sorted(rows):
+                if decision: previous[key] = decision
         def digest(path):
             with open(path, 'rb') as f: return hashlib.md5(f.read()).hexdigest()
         proposed_by_id = {e['id']: e for e in proposed}
@@ -156,12 +166,15 @@ def main():
                 ae, apath = approved[pid]
                 decision = previous.get(f"{fkey}~{pid}") or previous.get(f"{ae['family']}~{pid}")
                 twin = proposed_by_id.get(pid + '.sprite')
-                same = digest(path) == digest(apath) or (twin is not None and pid + '.sprite' in approved and
+                twin_same = (twin is not None and pid + '.sprite' in approved and
                         digest(os.path.join(args.proposed, twin['path'])) == digest(approved[pid + '.sprite'][1]))
-                # Approved pictures are hidden: any pixel change in them comes
-                # from a shared background (for example the approved grass now
-                # used under every sprite), not from a redraw.
-                if decision == 'approve':
+                same = digest(path) == digest(apath) or twin_same
+                # Approved pictures are hidden unless they were redrawn. A
+                # change in a composite whose bare sprite is unchanged comes
+                # from a shared background (the approved grass under every
+                # sprite), not from a redraw.
+                redrawn = {x for x in args.redrawn.split(',') if x}
+                if decision == 'approve' and (same or (twin is None and pid not in redrawn)):
                     approved_counts[fkey] += 1
                     continue
                 if same:

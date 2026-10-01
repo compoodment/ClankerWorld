@@ -31,6 +31,14 @@ namespace ArtPreview.Proposed.Buildings;
 /// style, the Restaurant, the Port in four rotations, a full Market plot,
 /// and the handcart and rowing boat as their own sprites.
 /// </para>
+/// <para>
+/// Round 3 (after the owner's second review) again keeps every approved
+/// drawing pixel for pixel, except the Market: it becomes a market hall with
+/// no stalls inside, and the Market plot becomes a small plaza of packed
+/// earth with the stalls standing on it. It adds a Port with six boats
+/// moored in each rotation, and the four diagonal facings of the handcart
+/// and the boat, with a turnaround strip for each.
+/// </para>
 /// </summary>
 public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
 {
@@ -92,7 +100,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     private enum Design { House, Warehouse, Farmhouse, Blacksmith, Silo, TailorShop, Store, Market, MarketStall, TownHall, Port, Clinic, Workshop, Generic, Restaurant }
 
     /// <summary>B3 roof materials; each has its own course pattern in <see cref="Surface"/>.</summary>
-    private enum Material { Clay, Slate, Thatch, Shingle, Plank, Canvas }
+    private enum Material { Clay, Slate, Thatch, Shingle, Plank }
 
     /// <summary>B4: a gable has two faces along the ridge; a hip adds triangular end faces.</summary>
     private enum RoofShape { Gable, Hip }
@@ -105,7 +113,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     /// hipped, the depth of a side yard (0 for none) and how far the roof
     /// stands back from the door side, so door, doorstep and path fit.
     /// </summary>
-    private readonly record struct Recipe(Ramp Roof, Material Material, RoofShape Shape, float Yard = 0, float Clearance = 5, Ramp? Stripe = null);
+    private readonly record struct Recipe(Ramp Roof, Material Material, RoofShape Shape, float Yard = 0, float Clearance = 5);
 
     private static Recipe RecipeFor(Design design) => design switch
     {
@@ -119,6 +127,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         Design.TownHall => new(Slate, Material.Slate, RoofShape.Hip, Clearance: 22),
         Design.Clinic => new(Cloth, Material.Shingle, RoofShape.Hip),
         Design.Workshop => new(GreenPlank, Material.Plank, RoofShape.Gable, Yard: 16),
+        // Round 3: the Market is a timber hall; its planks run along the eaves of a hipped roof.
+        Design.Market => new(Timber, Material.Plank, RoofShape.Hip),
         Design.Generic => new(Plain, Material.Shingle, RoofShape.Hip),
         // A gable tells the Restaurant's clay roof apart from the hipped House; the yard is a dining terrace.
         Design.Restaurant => new(Clay, Material.Clay, RoofShape.Gable, Yard: 20),
@@ -141,7 +151,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         new(Design.Silo, 1, 1, DoorSide.South, 0, "Silo.1x1", "Conical board roof in lit and shaded facets with seams, an iron band and a capped vent."),
         new(Design.TailorShop, 1, 1, DoorSide.South, 0, "TailorShop.1x1", "Dyed purple shingles; a spool sign above the door."),
         new(Design.Store, 1, 1, DoorSide.South, 0, "Store.1x1", "New: brown shingle roof with a red-and-cream striped awning over the door."),
-        new(Design.Market, 2, 2, DoorSide.South, 1, "Market.2x2", "New: paved square with a striped canvas pavilion and colourful stall awnings with produce."),
+        new(Design.Market, 2, 2, DoorSide.South, 1, "Market.2x2", "Round 3: the Market hall, with no stalls inside. Hipped timber-plank roof, a louvred lantern on the ridge flying the gold pennant, and a lean-to over an open arcade along the front with a sign of trading scales."),
         new(Design.MarketStall, 1, 1, DoorSide.South, 0, "MarketStall.1x1", "New: one striped stall awning with crates of produce facing the Road."),
         new(Design.TownHall, 3, 4, DoorSide.South, 1, "TownHall.3x4", "New: large hipped slate roof, open bell tower with a bronze bell, paved forecourt and wide steps."),
         new(Design.Port, 2, 4, DoorSide.North, 1, "Port.2x4", "New: plank shed on the shore facing the Road; a plank pier on piles with bollards and a moored boat.", PaintedBoat: true),
@@ -181,7 +191,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         (Design.Blacksmith, 2, 2, "Blacksmith.2x2.16", "16 px: slate in two tones, ember and anvil kept in the yard."),
         (Design.House, 2, 2, "House.2x2.16", "16 px: square hipped roof in two tones, chimney, door and step."),
         (Design.Warehouse, 2, 3, "Warehouse.2x3.16", "16 px: two-tone planks along the ridge and the split loading doors."),
-        (Design.Market, 2, 2, "Market.2x2.16", "16 px: paving, the striped pavilion and three stall awnings."),
+        (Design.Market, 2, 2, "Market.2x2.16", "Round 3, 16 px: the hall in two-tone planks, the grey lantern and its pennant, the arcade roof, the sign, door and step."),
     ];
 
     public IEnumerable<Entry> Render()
@@ -200,8 +210,12 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             yield return new(Family, id + ".sprite", sprite, note);
         }
         foreach (var entry in VehicleEntries()) yield return entry;
-        yield return new(Family, "Market.plot", MarketPlot(),
-            "The agreed Market: the 2x2 Market building at the head of a reserved plot of 10 x 12 tiles, with twelve 1x1 stalls along little lanes and room left for more.");
+        foreach (var (id, w, h, side, water, note) in MooredPorts)
+            yield return new(Family, id, MooredPort(w, h, side, water), note);
+        yield return new(Family, "Market.plaza", MarketPlaza(32),
+            "Round 3: the market hall at the head of a small plaza of packed earth (Road tiles drawn as one area), eight approved stalls standing on it and a Road leading in.");
+        yield return new(Family, "Market.plaza.16", MarketPlaza(16),
+            "Round 3, 16 px: the same Market plaza at mid zoom.");
     }
 
     /// <summary>
@@ -687,8 +701,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             Material.Slate => Slates(tones, along, across, small, salt),
             Material.Shingle => Shingles(tones, lit, along, across, small, salt),
             Material.Plank => Planks(tones, along, across, small, salt),
-            Material.Thatch => Straw(tones, along, across, small, salt),
-            _ => Canvas(recipe.Stripe ?? Berry, lit, along, across, small),
+            _ => Straw(tones, along, across, small, salt),
         };
     }
 
@@ -785,15 +798,6 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         if (strand == 0) return t.Joint;
         if (strand == 1 && !small) return t.Body.Lerp(t.Accent, 0.6f);
         return t.Body;
-    }
-
-    /// <summary>B3 Market: canvas in stripes running down the slope, with a darker hem at the eave.</summary>
-    private static Color Canvas(Ramp stripe, bool lit, int along, int across, bool small)
-    {
-        var width = small ? 2 : 4;
-        var striped = along / width % 2 == 0;
-        if (across == 0) return striped ? stripe[lit ? 1 : 0] : Cloth[lit ? 2 : 1];
-        return striped ? stripe[lit ? 2 : 1] : Cloth[lit ? 3 : 2];
     }
 
     // ----------------------------------------------------------------------
@@ -1718,50 +1722,208 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     // ----------------------------------------------------------------------
-    // Market and stalls.
+    // Market hall and stalls.
     // ----------------------------------------------------------------------
 
     /// <summary>
-    /// B3 Market: a paved square with a striped canvas pavilion in the middle
-    /// and stalls in the corners under awnings of different colours, each
-    /// with crates of produce. The corner on the way in from the door stays open.
+    /// Round 3 Market: a timber market hall with no stalls inside it; the
+    /// stalls stand outside on the plaza (<see cref="MarketPlaza"/>). A
+    /// hipped roof of timber planks carries a louvred lantern along its ridge
+    /// that flies the approved Market's gold pennant. Along the door side a
+    /// lower lean-to roof covers an open arcade, with a sign of trading
+    /// scales over the way in and the doorstep and path beyond its eave. It
+    /// is laid out once with the door "down" and turned to the door side by
+    /// <see cref="PortFrame"/>; every piece is lit from the north-west.
     /// </summary>
     private static void PaintMarket(Plate p, int w, int h, BuildingDoor door)
     {
-        Flagstones(p, p.Px(new Rect2(2, 2, w - 4, h - 4)), 77);
-        var middle = door.Tile is { } t ? t * 32 + 16 : door.Side is DoorSide.South or DoorSide.North ? w / 2f : h / 2f;
-        var corridor = door.Side switch
+        var recipe = RecipeFor(Design.Market);
+        var side = door.Side;
+        var frame = new PortFrame(Opposite(side), w, h);
+        float breadth = frame.Breadth, length = frame.Length;
+        // The arcade's eave stands seven units in from the footprint edge, leaving room for the doorstep and path.
+        const float front = 7, arcadeDepth = 12;
+        var arcade = p.Px(frame.Map(4, length - front - arcadeDepth, breadth - 8, arcadeDepth));
+        var hall = p.Px(frame.Map(3, 3, breadth - 6, length - front - arcadeDepth - 2));
+        var middle = p.P(Fit(door.Tile is { } t ? t * 32 + 16 : breadth / 2f, 14, breadth - 14));
+        // The hall roof's eave shadow falls across the lean-to; where both shadows land outside, only one is laid.
+        var hallShadow = new Rect2I(hall.Position.X + p.P(2), hall.Position.Y + p.P(3), hall.Size.X, hall.Size.Y);
+        LeanTo(p, arcade, side, recipe, (int)Design.Market * 31 + 8, hallShadow);
+        ArcadePosts(p, arcade, side, middle);
+        PaintRoof(p, hall, recipe, (int)Design.Market * 31 + 7);
+        Lantern(p, hall);
+        var sign = Inward(p, arcade, side, middle, 6);
+        ScalesSign(p, sign.X, sign.Y);
+        var (from, to) = Span(p, middle, 3);
+        var next = Step(p, arcade, side, from, to, 1, p.Small ? 1 : 3);
+        if (door.Tile is not null) Path(p, arcade, side, middle, next);
+    }
+
+    /// <summary>The side across the footprint from <paramref name="side"/>.</summary>
+    private static DoorSide Opposite(DoorSide side) => side switch
+    {
+        DoorSide.North => DoorSide.South,
+        DoorSide.East => DoorSide.West,
+        DoorSide.West => DoorSide.East,
+        _ => DoorSide.North,
+    };
+
+    /// <summary>
+    /// A lean-to roof over <paramref name="area"/> (pixels): one face sloping
+    /// down toward <paramref name="front"/>, laid in the recipe's courses
+    /// along that eave, with the eave shadow and the one-pixel edge. The main
+    /// roof, painted after it, lays its own eave shadow across it, so the
+    /// lean-to leaves out its shadow where <paramref name="shadowed"/> already has one.
+    /// </summary>
+    private static void LeanTo(Plate p, Rect2I area, DoorSide front, Recipe recipe, int salt, Rect2I shadowed)
+    {
+        int x0 = area.Position.X, y0 = area.Position.Y, w = area.Size.X, h = area.Size.Y;
+        if (w < 4 || h < 4) return;
+        var shadow = new Rect2I(x0 + p.P(2), y0 + p.P(3), w, h);
+        for (var y = shadow.Position.Y; y < shadow.End.Y; y++)
+            for (var x = shadow.Position.X; x < shadow.End.X; x++)
+                if (!shadowed.HasPoint(new Vector2I(x, y))) p.Put(x, y, Shadow);
+        var face = front switch
         {
-            DoorSide.North => new Rect2(middle - 7, 0, 14, h / 2f),
-            DoorSide.East => new Rect2(w / 2f, middle - 7, w / 2f, 14),
-            DoorSide.West => new Rect2(0, middle - 7, w / 2f, 14),
-            _ => new Rect2(middle - 7, h / 2f, 14, h / 2f),
+            DoorSide.North => Face.North,
+            DoorSide.East => Face.East,
+            DoorSide.West => Face.West,
+            _ => Face.South,
         };
-        var pavilion = new Rect2(w / 2f - 15, h / 2f - 12, 30, 24);
-        var roof = p.Px(pavilion);
-        PaintRoof(p, roof, new Recipe(Cloth, Material.Canvas, RoofShape.Hip, Stripe: Berry), 70);
-        Pennant(p, roof.Position.X + roof.Size.X / 2, roof.Position.Y + roof.Size.Y / 2 - 1);
-        var stalls = new (Rect2 Area, DoorSide Front, Ramp Stripe, Ramp Produce)[]
+        for (var j = 0; j < h; j++)
+            for (var i = 0; i < w; i++)
+            {
+                if (i == 0 || j == 0 || i == w - 1 || j == h - 1)
+                {
+                    p.Put(x0 + i, y0 + j, recipe.Roof.Edge);
+                    continue;
+                }
+                // "along" follows the eave, "across" counts up the slope from it, as on a main roof face.
+                var (along, across) = front switch
+                {
+                    DoorSide.North => (i - 1, j - 1),
+                    DoorSide.East => (j - 1, w - 2 - i),
+                    DoorSide.West => (j - 1, i - 1),
+                    _ => (i - 1, h - 2 - j),
+                };
+                p.Put(x0 + i, y0 + j, Surface(recipe, face, along, across, p.Small, salt));
+            }
+    }
+
+    /// <summary>
+    /// The Market's ridge lantern: a raised, louvred vent along the middle of
+    /// the ridge that lets the air out of the hall. From above it is a small
+    /// hipped roof of grey slate shingles sitting astride the main ridge, its
+    /// shadow falling south-east across the planks, with the approved
+    /// Market's gold pennant flying from its peak.
+    /// </summary>
+    private static void Lantern(Plate p, Rect2I hall)
+    {
+        int iw = hall.Size.X - 2, ih = hall.Size.Y - 2;
+        var horizontal = iw >= ih;
+        var length = horizontal ? iw : ih;
+        var breadth = horizontal ? ih : iw;
+        var ridge = (breadth + 1) / 2 - 1;
+        var along = Math.Max(p.P(12), length * 2 / 5);
+        var across = p.Small ? 5 : 9;
+        int centreAlong = length / 2, top = ridge - across / 2;
+        var roof = horizontal
+            ? new Rect2I(hall.Position.X + 1 + centreAlong - along / 2, hall.Position.Y + 1 + top, along, across)
+            : new Rect2I(hall.Position.X + 1 + top, hall.Position.Y + 1 + centreAlong - along / 2, across, along);
+        PaintRoof(p, roof, new Recipe(Slate, Material.Shingle, RoofShape.Hip), (int)Design.Market * 31 + 9);
+        var peak = RidgeEnds(roof.Position.X + 1, roof.Position.Y + 1, roof.Size.X - 2, roof.Size.Y - 2);
+        var (px, py) = peak[0];
+        Pennant(p, px + (peak[1].X - px) / 2 + (p.Small ? 0 : 1), py + (peak[1].Y - py) / 2);
+    }
+
+    /// <summary>
+    /// The arcade's posts along the lean-to's eave, two flanking the way in
+    /// and the rest spaced evenly to the corners: each a timber post head lit
+    /// on its north-west pixel, with a small shadow.
+    /// </summary>
+    private static void ArcadePosts(Plate p, Rect2I arcade, DoorSide side, int middle)
+    {
+        // At 16 px a post would be a single edge-coloured pixel on the eave, so the arcade shows by its roof alone (B7).
+        if (p.Small) return;
+        const int size = 3;
+        var horizontal = side is DoorSide.South or DoorSide.North;
+        var start = (horizontal ? arcade.Position.X : arcade.Position.Y) + 1;
+        var end = (horizontal ? arcade.End.X : arcade.End.Y) - 1 - size;
+        var gap = p.P(6);
+        var spots = new List<int>();
+        // Posts from a door-side post out to a corner; a short run keeps only its corner post.
+        void Run(int corner, int flank)
         {
-            (new Rect2(4, 4, 17, 13), DoorSide.South, Leaf, Fruit),
-            (new Rect2(w - 21, 4, 17, 13), DoorSide.South, Gold, Berry),
-            (new Rect2(4, h - 17, 17, 13), DoorSide.North, Lake, Leaf),
-            (new Rect2(w - 21, h - 17, 17, 13), DoorSide.North, Fruit, Gold),
-        };
-        var index = 0;
-        foreach (var (area, front, stripe, produce) in stalls)
-        {
-            index++;
-            if (Overlaps(area, corridor)) continue;
-            Stall(p, area, front, stripe, produce, index * 13, false);
+            if (Math.Abs(flank - corner) < p.P(8))
+            {
+                spots.Add(corner);
+                return;
+            }
+            var bays = Math.Max(1, (int)MathF.Round(Math.Abs(flank - corner) / (float)p.P(11)));
+            for (var k = 0; k <= bays; k++) spots.Add(corner + (flank - corner) * k / bays);
         }
+        Run(start, middle - gap - size);
+        Run(end, middle + gap);
+        foreach (var t in spots.Distinct())
+        {
+            var (x, y) = side switch
+            {
+                DoorSide.North => (t, arcade.Position.Y - size / 2),
+                DoorSide.East => (arcade.End.X - 1 - size / 2, t),
+                DoorSide.West => (arcade.Position.X - size / 2, t),
+                _ => (t, arcade.End.Y - 1 - size / 2),
+            };
+            p.Fill(x + 1, y + 1, size, size, SmallShadow);
+            p.Fill(x, y, size, size, Timber.Edge);
+            p.Put(x + 1, y + 1, Timber.Light);
+        }
+    }
+
+    /// <summary>B6 Market: a cream sign board with gold trading scales: a beam on a post, a pan hanging from each end.</summary>
+    private static void ScalesSign(Plate p, int cx, int cy)
+    {
+        if (p.Small)
+        {
+            p.Fill(cx - 1, cy - 1, 4, 4, SmallShadow);
+            p.Fill(cx - 2, cy - 2, 4, 4, Timber.Edge);
+            p.Fill(cx - 1, cy - 1, 2, 2, Cloth.Light);
+            p.Fill(cx - 1, cy - 1, 2, 1, Gold.Base);
+            p.Put(cx, cy, Gold.Shade);
+            return;
+        }
+        p.Fill(cx - 3, cy - 3, 9, 8, SmallShadow);
+        p.Fill(cx - 4, cy - 4, 9, 8, Timber.Edge);
+        p.Fill(cx - 3, cy - 3, 7, 6, Cloth.Light);
+        p.Fill(cx - 3, cy - 3, 7, 1, Cloth.Highlight);
+        string[] scales =
+        [
+            "...h...",
+            "lllllll",
+            "s..b..s",
+            "bb.b.bb",
+            "...b...",
+            "..sbs..",
+        ];
+        for (var j = 0; j < scales.Length; j++)
+            for (var i = 0; i < scales[j].Length; i++)
+            {
+                Color? c = scales[j][i] switch
+                {
+                    'h' => Gold.Highlight,
+                    'l' => Gold.Light,
+                    'b' => Gold.Base,
+                    's' => Gold.Shade,
+                    _ => null,
+                };
+                if (c is { } colour) p.Put(cx - 3 + i, cy - 3 + j, colour);
+            }
     }
 
     /// <summary>A market stall on its own tile, facing the door side, with a gap for the path.</summary>
     private static void PaintStallLot(Plate p, int w, int h, BuildingDoor door)
     {
         var area = new Rect2(4, 4, w - 8, h - 9);
-        Stall(p, area, door.Side, Berry, Fruit, 5, true);
+        Stall(p, area, door.Side, Berry, Fruit, 5);
         if (door.Tile is null) return;
         // The path runs from the crates to the footprint edge along the door axis.
         var middle = p.P(door.Tile.Value * 32 + 16);
@@ -1779,9 +1941,9 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     /// <summary>
     /// One stall in <paramref name="area"/> (units): an awning at the back
     /// sloping toward <paramref name="front"/>, and crates of produce on the
-    /// counter in front of it. With <paramref name="gap"/> the middle stays clear.
+    /// counter in front of it, in two pairs with the middle clear for the path.
     /// </summary>
-    private static void Stall(Plate p, Rect2 area, DoorSide front, Ramp stripe, Ramp produce, int salt, bool gap)
+    private static void Stall(Plate p, Rect2 area, DoorSide front, Ramp stripe, Ramp produce, int salt)
     {
         var across = front is DoorSide.South or DoorSide.North;
         var alongSize = across ? area.Size.X : area.Size.Y;
@@ -1789,7 +1951,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         var awningDepth = MathF.Round(depthSize * 0.6f);
         Awning(p, p.Px(Orient(area, front, 0, 0, alongSize, awningDepth)), front, stripe);
         var crateDepth = Math.Min(5f, depthSize - awningDepth);
-        var crates = gap ? new[] { 1f, 6f, alongSize - 11, alongSize - 6 } : new[] { 1f, 6f, 11f };
+        var crates = new[] { 1f, 6f, alongSize - 11, alongSize - 6 };
         var ramps = new[] { produce, Leaf, Berry, Gold };
         for (var i = 0; i < crates.Length; i++)
         {
@@ -1828,7 +1990,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         if (inner.Size.Y > 1) p.Put(inner.End.X - 1, inner.End.Y - 1, produce.Shade);
     }
 
-    /// <summary>The pavilion's finial: a pole top with a little gold pennant flying east.</summary>
+    /// <summary>The Market's finial, on the hall's lantern: a pole top with a little gold pennant flying east.</summary>
     private static void Pennant(Plate p, int x, int y)
     {
         if (p.Small)
@@ -1848,10 +2010,6 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
 
     /// <summary>Clamps to [min, max], or takes the middle when a small footprint leaves no room.</summary>
     private static int Fit(int value, int min, int max) => max < min ? (min + max) / 2 : Math.Clamp(value, min, max);
-
-    /// <summary>Whether two rectangles in units share any area.</summary>
-    private static bool Overlaps(Rect2 a, Rect2 b) =>
-        a.Position.X < b.End.X && b.Position.X < a.End.X && a.Position.Y < b.End.Y && b.Position.Y < a.End.Y;
 
     // ----------------------------------------------------------------------
     // Port.
@@ -2056,8 +2214,20 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     // tied up at a Port. Nothing in a building sprite pretends to be one.
     // ----------------------------------------------------------------------
 
-    /// <summary>The way a vehicle points: the handcart's shafts or the boat's bow.</summary>
-    private enum Facing { South, East, North, West }
+    /// <summary>
+    /// The way a vehicle points: the handcart's shafts or the boat's bow. The
+    /// diagonals were added in round 3 (appended, so the cardinal values stay)
+    /// because agents walk diagonally, so a cart they pull and a boat they
+    /// row travel diagonally too.
+    /// </summary>
+    private enum Facing { South, East, North, West, SouthEast, NorthEast, NorthWest, SouthWest }
+
+    /// <summary>Whether a facing is one of the four diagonals.</summary>
+    private static bool IsDiagonal(Facing facing) => facing >= Facing.SouthEast;
+
+    /// <summary>All eight facings clockwise from north, the order of the turnaround strips.</summary>
+    private static readonly Facing[] Compass =
+        [Facing.North, Facing.NorthEast, Facing.East, Facing.SouthEast, Facing.South, Facing.SouthWest, Facing.West, Facing.NorthWest];
 
     /// <summary>The letter used in asset Ids for a facing.</summary>
     private static string Letter(Facing facing) => facing switch
@@ -2065,7 +2235,11 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         Facing.South => "S",
         Facing.East => "E",
         Facing.North => "N",
-        _ => "W",
+        Facing.West => "W",
+        Facing.SouthEast => "SE",
+        Facing.NorthEast => "NE",
+        Facing.NorthWest => "NW",
+        _ => "SW",
     };
 
     /// <summary>
@@ -2077,6 +2251,23 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     private readonly record struct Heading(Facing Facing)
     {
         private const float Centre = 16;
+        private const float Half = 0.70710678f;
+
+        /// <summary>The unit vector the vehicle points along, in tile pixels (y down).</summary>
+        public Vector2 Forward => Facing switch
+        {
+            Facing.East => new Vector2(1, 0),
+            Facing.West => new Vector2(-1, 0),
+            Facing.South => new Vector2(0, 1),
+            Facing.North => new Vector2(0, -1),
+            Facing.SouthEast => new Vector2(Half, Half),
+            Facing.NorthEast => new Vector2(Half, -Half),
+            Facing.NorthWest => new Vector2(-Half, -Half),
+            _ => new Vector2(-Half, Half),
+        };
+
+        /// <summary>The unit vector to the vehicle's right: a quarter turn clockwise from <see cref="Forward"/>.</summary>
+        public Vector2 Right => new(-Forward.Y, Forward.X);
 
         /// <summary>A point of the frame in tile pixels.</summary>
         public Vector2 Map(float u, float v) => Facing switch
@@ -2084,7 +2275,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             Facing.East => new Vector2(Centre + u, Centre + v),
             Facing.West => new Vector2(Centre - u, Centre - v),
             Facing.South => new Vector2(Centre - v, Centre + u),
-            _ => new Vector2(Centre + v, Centre - u),
+            Facing.North => new Vector2(Centre + v, Centre - u),
+            _ => new Vector2(Centre, Centre) + Forward * u + Right * v,
         };
 
         /// <summary>A tile pixel position in the frame (the inverse of <see cref="Map"/>).</summary>
@@ -2093,8 +2285,20 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             Facing.East => new Vector2(x - Centre, y - Centre),
             Facing.West => new Vector2(Centre - x, Centre - y),
             Facing.South => new Vector2(y - Centre, Centre - x),
-            _ => new Vector2(Centre - y, x - Centre),
+            Facing.North => new Vector2(Centre - y, x - Centre),
+            _ => new Vector2(new Vector2(x - Centre, y - Centre).Dot(Forward), new Vector2(x - Centre, y - Centre).Dot(Right)),
         };
+
+        /// <summary>
+        /// The diagonal lattice of a 45° facing: steps along and across the
+        /// vehicle in units of half a pixel's diagonal, so a pixel centre always
+        /// lands on whole numbers and seams and bands fall on clean 45° stairs.
+        /// </summary>
+        public (int Along, int Across) Lattice(int x, int y)
+        {
+            var local = Local(x + 0.5f, y + 0.5f);
+            return ((int)MathF.Round(local.X * 1.41421356f), (int)MathF.Round(local.Y * 1.41421356f));
+        }
 
         /// <summary>A direction of the frame in tile pixels.</summary>
         public Vector2 Direction(float u, float v) => Map(u, v) - Map(0, 0);
@@ -2138,6 +2342,79 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         }
     }
 
+    /// <summary>
+    /// One part of a vehicle on its 32 px tile: the pixels whose centres fall
+    /// inside it. The diagonal facings are drawn from these masks rather than
+    /// by turning a finished picture: a part's outline is its outer ring of
+    /// pixels and its light comes from which open sides each ring pixel has on
+    /// screen, so a 45° part keeps crisp one-pixel stairs and the north-west
+    /// light, with nothing blurred or resampled.
+    /// </summary>
+    private sealed class Mask
+    {
+        private const int Size = 32;
+        private readonly bool[] on = new bool[Size * Size];
+
+        public Mask(Func<int, int, bool> covers)
+        {
+            for (var y = 0; y < Size; y++)
+                for (var x = 0; x < Size; x++)
+                    on[y * Size + x] = covers(x, y);
+        }
+
+        /// <summary>The pixels of a part written in the vehicle's frame (u forward, v to its right).</summary>
+        public static Mask Of(Heading f, Func<float, float, bool> inside) => new((x, y) =>
+        {
+            var local = f.Local(x + 0.5f, y + 0.5f);
+            return inside(local.X, local.Y);
+        });
+
+        public bool this[int x, int y] => x >= 0 && y >= 0 && x < Size && y < Size && on[y * Size + x];
+
+        /// <summary>Every covered pixel, row by row.</summary>
+        public IEnumerable<(int X, int Y)> Pixels()
+        {
+            for (var y = 0; y < Size; y++)
+                for (var x = 0; x < Size; x++)
+                    if (on[y * Size + x]) yield return (x, y);
+        }
+
+        /// <summary>Whether a covered pixel has an open pixel above, below or beside it.</summary>
+        public bool Rim(int x, int y) => this[x, y] && (!this[x - 1, y] || !this[x + 1, y] || !this[x, y - 1] || !this[x, y + 1]);
+
+        /// <summary>The part less its outer ring.</summary>
+        public Mask Inner() => new((x, y) => this[x, y] && !Rim(x, y));
+
+        /// <summary>The part and another together.</summary>
+        public Mask Or(Mask other) => new((x, y) => this[x, y] || other[x, y]);
+
+        /// <summary>
+        /// How squarely a ring pixel faces the north-west light, from its open
+        /// sides: 1 facing it, −1 facing away, 0 side-on (or not on the ring).
+        /// </summary>
+        public float Light(int x, int y)
+        {
+            float nx = 0, ny = 0;
+            if (!this[x - 1, y]) nx -= 1;
+            if (!this[x + 1, y]) nx += 1;
+            if (!this[x, y - 1]) ny -= 1;
+            if (!this[x, y + 1]) ny += 1;
+            var length = MathF.Sqrt(nx * nx + ny * ny);
+            return length == 0 ? 0 : -(nx + ny) / (length * 1.41421356f);
+        }
+
+        /// <summary>
+        /// Whether a ring pixel takes the lit tone of a two-tone part: it faces
+        /// the light, or it is side-on and open to the north (the way the
+        /// cardinal sprites light the north row of an east-west pole).
+        /// </summary>
+        public bool Lit(int x, int y)
+        {
+            var light = Light(x, y);
+            return light > 0.3f || (light > -0.3f && !this[x, y - 1]);
+        }
+    }
+
     /// <summary>The review pictures of both vehicles: every facing on its ground, and each bare sprite.</summary>
     private IEnumerable<Entry> VehicleEntries()
     {
@@ -2153,10 +2430,29 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
                 yield return new(Family, id, Bitmap.Over(Grass(1, 1, 32), sprite, 0, 0), note);
                 yield return new(Family, id + ".sprite", sprite, note);
             }
+        // Round 3: the four diagonals, because agents walk diagonally and pull the cart with them.
+        var diagonals = new[] { Facing.NorthEast, Facing.NorthWest, Facing.SouthEast, Facing.SouthWest };
+        foreach (var loaded in new[] { false, true })
+            foreach (var facing in diagonals)
+            {
+                var id = $"handcart.{(loaded ? "loaded" : "empty")}.{Letter(facing)}";
+                var note = facing != Facing.NorthEast ? null : loaded
+                    ? "Round 3: the loaded handcart on a diagonal, the same cart turned 45° and redrawn in clean pixel stairs, still lit from the north-west."
+                    : "Round 3: agents walk diagonally, so a cart they pull goes diagonally too. The same cart, part for part, turned 45° and redrawn in clean pixel stairs.";
+                var sprite = Handcart(facing, loaded, pulled: false);
+                yield return new(Family, id, Bitmap.Over(Grass(1, 1, 32), sprite, 0, 0), note);
+                yield return new(Family, id + ".sprite", sprite, note);
+            }
         const string pulledNote = "Handcart being pulled east: shafts lifted to hand height, so they look shorter and their shadow falls away from them.";
         var pulled = Handcart(Facing.East, loaded: true, pulled: true);
         yield return new(Family, "handcart.pulled.E", Bitmap.Over(Grass(1, 1, 32), pulled, 0, 0), pulledNote);
         yield return new(Family, "handcart.pulled.E.sprite", pulled, pulledNote);
+        const string pulledDiagonalNote = "Round 3: being pulled south-east, shafts lifted, their shadow falling away from them.";
+        var pulledDiagonal = Handcart(Facing.SouthEast, loaded: true, pulled: true);
+        yield return new(Family, "handcart.pulled.SE", Bitmap.Over(Grass(1, 1, 32), pulledDiagonal, 0, 0), pulledDiagonalNote);
+        yield return new(Family, "handcart.pulled.SE.sprite", pulledDiagonal, pulledDiagonalNote);
+        yield return new(Family, "handcart.turnaround", Turnaround(facing => Bitmap.Over(Grass(1, 1, 32), Handcart(facing, loaded: false, pulled: false), 0, 0)),
+            "Round 3: the empty handcart in all eight facings, clockwise from north: N, NE, E, SE, S, SW, W, NW.");
         foreach (var facing in facings)
         {
             var note = facing == Facing.South
@@ -2166,8 +2462,29 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             yield return new(Family, $"boat.{Letter(facing)}", Bitmap.Over(RiverTile(0, 0), sprite, 0, 0), note);
             yield return new(Family, $"boat.{Letter(facing)}.sprite", sprite, note);
         }
+        // Round 3: boats get the diagonals too, because they will travel diagonally across the water.
+        foreach (var facing in diagonals)
+        {
+            var note = facing == Facing.NorthEast
+                ? "Round 3: boats will travel diagonally, so they get the four diagonals too: the same hull and oars turned 45° in clean pixel stairs, lit from the north-west."
+                : null;
+            var sprite = Boat(facing, oarsOut: true);
+            yield return new(Family, $"boat.{Letter(facing)}", Bitmap.Over(RiverTile(0, 0), sprite, 0, 0), note);
+            yield return new(Family, $"boat.{Letter(facing)}.sprite", sprite, note);
+        }
+        yield return new(Family, "boat.turnaround", Turnaround(facing => Bitmap.Over(RiverTile(0, 0), Boat(facing, oarsOut: true), 0, 0)),
+            "Round 3: the rowing boat in all eight facings, clockwise from north: N, NE, E, SE, S, SW, W, NW.");
         yield return new(Family, "boat.moored.E", MooredBoat(),
             "The boat tied up on the east side of the Port pier, oars shipped, bow line to the pier bollard. The clear water beside the pier is the docking space.");
+    }
+
+    /// <summary>A strip of eight tiles, one per facing clockwise from north.</summary>
+    private static Image Turnaround(Func<Facing, Image> tile)
+    {
+        var strip = Image.CreateEmpty(32 * Compass.Length, 32, false, Image.Format.Rgba8);
+        for (var i = 0; i < Compass.Length; i++)
+            strip.BlitRect(tile(Compass[i]), new Rect2I(0, 0, 32, 32), new Vector2I(i * 32, 0));
+        return strip;
     }
 
     /// <summary>
@@ -2180,6 +2497,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     /// </summary>
     private static Image Handcart(Facing facing, bool loaded, bool pulled)
     {
+        if (IsDiagonal(facing)) return HandcartDiagonal(facing, loaded, pulled);
         var p = new Plate(32, 32, 1);
         var f = new Heading(facing);
         var bed = f.Box(-13, -6, 16, 12);
@@ -2369,6 +2687,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     /// </summary>
     private static Image Boat(Facing facing, bool oarsOut)
     {
+        if (IsDiagonal(facing)) return BoatDiagonal(facing, oarsOut);
         var p = new Plate(32, 32, 1);
         var f = new Heading(facing);
         // How far a pixel lies inside the hull's edge (negative outside), and its place in the frame.
@@ -2467,6 +2786,339 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         return p.Image;
     }
 
+    // ----------------------------------------------------------------------
+    // Diagonal vehicles (round 3).
+    // ----------------------------------------------------------------------
+
+    /// <summary>
+    /// The handcart facing a diagonal: the same cart as the cardinal sprites,
+    /// part for part and pixel for pixel in size (bed 16 × 12, iron-rimmed
+    /// wheels, two-pixel shafts with rope grips, the rope coil or the lashed
+    /// logs and sack), laid out in the cart's own frame and turned 45°. Each
+    /// part is rasterised as a mask and shaded from its open sides, so the
+    /// edges are clean 45° stairs and the light stays in the north-west: the
+    /// side boards facing the light are lit, the far ones shaded, the ones
+    /// side-on take the middle tone. Floor seams fall on the diagonal lattice.
+    /// </summary>
+    private static Image HandcartDiagonal(Facing facing, bool loaded, bool pulled)
+    {
+        var p = new Plate(32, 32, 1);
+        var f = new Heading(facing);
+        var tip = pulled ? 10f : 12f;
+        var bed = Mask.Of(f, (u, v) => u >= -13 && u < 3 && MathF.Abs(v) < 6);
+        // Three pixels a row, as heavy as the cardinal two-pixel shafts, four pixels either side of the middle.
+        var shafts = new[] { -4f, 4f }.Select(side => Mask.Of(f, (u, v) => u >= -1 && u < tip && MathF.Abs(v - side) < 1.05f)).ToArray();
+        var wheels = new[] { -8f, 8f }.Select(side => Mask.Of(f, (u, v) => Stadium(u, v, -8, -2, side) <= 2.05f)).ToArray();
+        var hubs = new[] { -10.5f, 10.5f }.Select(side => Mask.Of(f, (u, v) => MathF.Abs(u + 5) < 1.05f && MathF.Abs(v - side) < 0.75f)).ToArray();
+
+        // L2 shadow in one pass, as the cardinal cart; lifted shafts throw theirs further from them.
+        var shadow = new ShadowMask(32, 32);
+        foreach (var (x, y) in bed.Pixels()) shadow.Add(x + 1, y + 2);
+        foreach (var wheel in wheels)
+            foreach (var (x, y) in wheel.Pixels()) shadow.Add(x + 1, y + 2);
+        var (liftX, liftY) = pulled ? (3, 5) : (1, 1);
+        foreach (var shaft in shafts)
+            foreach (var (x, y) in shaft.Pixels()) shadow.Add(x + liftX, y + liftY);
+        shadow.Paint(p, SmallShadow);
+
+        // Shafts: lit on top and the edge step along the side away from the light, then rope round the
+        // last three pixels, wound in alternating turns.
+        foreach (var shaft in shafts)
+            foreach (var (x, y) in shaft.Pixels())
+            {
+                var local = f.Local(x + 0.5f, y + 0.5f);
+                Color c = shaft.Rim(x, y) && !shaft.Lit(x, y) ? Timber.Edge : Timber.Light;
+                if (local.X >= tip - 3) c = f.Lattice(x, y).Along % 2 == 0 ? Timber.Shade : Timber.Highlight;
+                p.Put(x, y, c);
+            }
+        foreach (var wheel in wheels) TyreDiagonal(p, f, wheel);
+        foreach (var hub in hubs)
+            foreach (var (x, y) in hub.Pixels()) p.Put(x, y, Iron.Shade);
+        CartBedDiagonal(p, f, bed);
+        if (loaded) CartLoadDiagonal(p, f);
+        else
+        {
+            var coil = f.Map(-6.5f, 0.5f);
+            RopeCoil(p, coil.X, coil.Y);
+        }
+        return p.Image;
+    }
+
+    /// <summary>Distance from (u, v) to the segment from (from, at) to (to, at) along u: a stadium's field.</summary>
+    private static float Stadium(float u, float v, float from, float to, float at)
+    {
+        var along = Math.Clamp(u, from, to);
+        return MathF.Sqrt((u - along) * (u - along) + (v - at) * (v - at));
+    }
+
+    /// <summary>
+    /// A wheel's iron tyre seen from above at 45°: an edge outline, the tread
+    /// lit on its sunny side and plain on the other, and darker ends where
+    /// the rim curves down to the ground, with one bright glint.
+    /// </summary>
+    private static void TyreDiagonal(Plate p, Heading f, Mask tyre)
+    {
+        var tread = tyre.Inner();
+        (int X, int Y)? glint = null;
+        foreach (var (x, y) in tyre.Pixels())
+        {
+            if (!tread[x, y])
+            {
+                p.Put(x, y, Iron.Edge);
+                continue;
+            }
+            var u = f.Local(x + 0.5f, y + 0.5f).X;
+            var lit = tread.Lit(x, y);
+            p.Put(x, y, u < -8.6f || u > -1.4f ? Iron.Shade : lit ? Iron.Light : Iron.Base);
+            if (lit && u is > -7.5f and < -2.5f && (glint is null || x + y < glint.Value.X + glint.Value.Y)) glint = (x, y);
+        }
+        if (glint is { } g) p.Put(g.X, g.Y, Iron.Highlight);
+    }
+
+    /// <summary>
+    /// The cart bed at 45°: edge outline, side boards lit where they face the
+    /// light, shaded where they face away and in the middle tone side-on, a
+    /// plank floor with seams across the cart on the diagonal lattice and the
+    /// back board's shadow on it, and an iron fitting at each corner.
+    /// </summary>
+    private static void CartBedDiagonal(Plate p, Heading f, Mask bed)
+    {
+        var boards = bed.Inner();
+        var floor = boards.Inner();
+        var seam = Toward(Timber, 2, 1, 0.65f);
+        foreach (var (x, y) in bed.Pixels())
+        {
+            Color c;
+            if (!boards[x, y]) c = Timber.Edge;
+            else if (!floor[x, y])
+            {
+                var light = boards.Light(x, y);
+                c = light > 0.3f ? Timber.Light : light < -0.3f ? Timber.Shade : Toward(Timber, 2, 3, 0.5f);
+            }
+            else if (floor.Light(x, y) > 0.3f) c = Toward(Timber, 2, 1, 0.5f);
+            else c = f.Lattice(x, y).Along is -11 or -5 ? seam : Timber.Base;
+            p.Put(x, y, c);
+        }
+        // Iron corner fittings on the boards: the pixel furthest into each corner, the one nearest the light brightest.
+        var corners = new List<(int X, int Y)>();
+        foreach (var (cu, cv) in new[] { (-1, -1), (-1, 1), (1, -1), (1, 1) })
+        {
+            (int X, int Y) best = (0, 0);
+            var reach = float.MinValue;
+            foreach (var (x, y) in boards.Pixels())
+            {
+                if (floor[x, y]) continue;
+                var local = f.Local(x + 0.5f, y + 0.5f);
+                var score = cu * local.X + cv * local.Y;
+                if (score > reach) (reach, best) = (score, (x, y));
+            }
+            corners.Add(best);
+        }
+        var ordered = corners.OrderBy(c => c.X + c.Y).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+            p.Put(ordered[i].X, ordered[i].Y, i == 0 ? Iron.Highlight : i == ordered.Count - 1 ? Iron.Base : Iron.Light);
+    }
+
+    /// <summary>
+    /// The load at 45°: two logs side by side with a third resting on them,
+    /// their pale end grain showing past the back of the bed, a rope lashed
+    /// across them, and a grain sack lying across the front of the bed.
+    /// </summary>
+    private static void CartLoadDiagonal(Plate p, Heading f)
+    {
+        // The top log's cut end lines up with the others here: set one pixel in, as on the cardinal cart,
+        // its end would turn into a notch on the 45° stairs.
+        var logs = new[]
+        {
+            Mask.Of(f, (u, v) => u >= -15 && u < -3 && v >= -6 && v < -1),
+            Mask.Of(f, (u, v) => u >= -15 && u < -3 && v >= 1 && v < 6),
+            Mask.Of(f, (u, v) => u >= -15 && u < -4 && v >= -3 && v < 3),
+        };
+        foreach (var log in logs)
+        {
+            var wood = log.Inner();
+            var back = wood.Pixels().Min(px => f.Local(px.X + 0.5f, px.Y + 0.5f).X);
+            var heart = wood.Pixels().Where(px => f.Local(px.X + 0.5f, px.Y + 0.5f).X < back + 0.8f)
+                .Select(px => (px, f.Local(px.X + 0.5f, px.Y + 0.5f).Y)).ToList();
+            var middle = heart.Count == 0 ? 0 : heart.Average(h => h.Item2);
+            var core = heart.Count == 0 ? (-1, -1) : heart.OrderBy(h => MathF.Abs(h.Item2 - (float)middle)).First().px;
+            foreach (var (x, y) in log.Pixels())
+            {
+                Color c;
+                if (!wood[x, y]) c = Timber.Edge;
+                else if (f.Local(x + 0.5f, y + 0.5f).X < back + 0.8f) c = (x, y) == core ? Timber.Light : Timber.Highlight;
+                else if (wood.Rim(x, y)) c = wood.Lit(x, y) ? Timber.Base : Toward(Timber, 1, 0, 0.45f);
+                else c = Timber.Shade;
+                p.Put(x, y, c);
+            }
+        }
+        // The lashing: a rope across all three logs, its ends tucked under in the edge step.
+        var load = logs[0].Or(logs[1]).Or(logs[2]);
+        var rope = load.Pixels().Where(px => MathF.Abs(f.Local(px.X + 0.5f, px.Y + 0.5f).X + 7.5f) < 0.55f).ToList();
+        if (rope.Count > 0)
+        {
+            var across = rope.Select(px => f.Local(px.X + 0.5f, px.Y + 0.5f).Y).ToList();
+            foreach (var (x, y) in rope)
+            {
+                var v = f.Local(x + 0.5f, y + 0.5f).Y;
+                p.Put(x, y, v <= across.Min() + 0.1f || v >= across.Max() - 0.1f ? Timber.Edge : Timber.Light);
+            }
+        }
+        SackDiagonal(p, f, -0.5f, 0.5f);
+    }
+
+    /// <summary>
+    /// A cloth sack lying across the cart at 45°, as <see cref="LyingSack"/>:
+    /// a long rounded body lit north-west with a shaded underside and a lit
+    /// spot, a fold where it sags, and its neck tied off in twine at the end
+    /// nearer the light, the tuft flaring past the tie.
+    /// </summary>
+    private static void SackDiagonal(Plate p, Heading f, float cu, float cv)
+    {
+        // Radii along the cart (u) and across it (v): the sack lies across the bed.
+        Mask Body(float ru, float rv, float dx, float dy) => new((x, y) =>
+        {
+            var local = f.Local(x + 0.5f - dx, y + 0.5f - dy);
+            var a = (local.X - cu) / ru;
+            var b = (local.Y - cv) / rv;
+            return a * a + b * b <= 1;
+        });
+        var centre = f.Map(cu, cv);
+        var ground = new ShadowMask(32, 32);
+        foreach (var (x, y) in Body(2.5f, 3.5f, 0, 0).Pixels()) ground.Add(x + 1, y + 1);
+        ground.Paint(p, SmallShadow);
+        foreach (var (x, y) in Body(2.5f, 3.5f, 0, 0).Pixels()) p.Put(x, y, Cloth.Edge);
+        foreach (var (x, y) in Body(1.6f, 2.6f, 0.4f, 0.4f).Pixels()) p.Put(x, y, Cloth.Shade);
+        foreach (var (x, y) in Body(1.3f, 2.3f, -0.3f, -0.3f).Pixels()) p.Put(x, y, Cloth.Base);
+        p.Put((int)(centre.X - 1), (int)(centre.Y - 1), Cloth.Light);
+        var fold = f.Map(cu, cv + 1);
+        p.Put((int)fold.X, (int)fold.Y, Cloth.Shade);
+        // The neck at the end of the long axis nearer the north-west.
+        var ends = new[] { -1f, 1f }.Select(side => (side, at: f.Map(cu, cv + side * 3.5f))).OrderBy(e => e.at.X + e.at.Y).First();
+        var outward = f.Right * ends.side;
+        void PutAt(Vector2 at, Color c) => p.Put((int)MathF.Floor(at.X), (int)MathF.Floor(at.Y), c);
+        var tie = f.Map(cu, cv + ends.side * 3.0f);
+        PutAt(tie, Timber.Shade);
+        PutAt(tie + outward * 1.2f, Cloth.Light);
+        var flare = tie + outward * 2.4f;
+        PutAt(flare, Cloth.Base);
+        PutAt(flare + f.Forward * 1.1f, Cloth.Edge);
+        PutAt(flare - f.Forward * 1.1f, Cloth.Edge);
+    }
+
+    /// <summary>
+    /// The rowing boat facing a diagonal: the same hull, outline, gunwale,
+    /// thwarts, decks, oars and ripple as the cardinal boat, laid out in the
+    /// boat's frame and turned 45°. The hull is rasterised as a mask whose
+    /// rings give the outline, gunwale and inner wall one pixel each, lit by
+    /// which way that part of the hull faces; the floorboards and thwarts
+    /// fall on the diagonal lattice, and each oar blade is a small oval
+    /// turned with the boat.
+    /// </summary>
+    private static Image BoatDiagonal(Facing facing, bool oarsOut)
+    {
+        var p = new Plate(32, 32, 1);
+        var f = new Heading(facing);
+        // The boat sits one pixel toward its bow, so the oars trailing behind it stay inside the tile; the
+        // blades lie a little nearer the hull than on the cardinal boat for the same reason.
+        var shift = new Vector2(MathF.Sign(f.Forward.X), MathF.Sign(f.Forward.Y));
+        Vector2 Local(float x, float y) => f.Local(x - shift.X, y - shift.Y);
+        Vector2 Map(float u, float v) => f.Map(u, v) + shift;
+        int Across(int x, int y) => f.Lattice(x - (int)shift.X, y - (int)shift.Y).Across;
+        float Depth(float x, float y)
+        {
+            var local = Local(x, y);
+            var beam = HalfBeam(local.X);
+            return beam < 0 ? -9 : MathF.Min(beam - MathF.Abs(local.Y), local.X + 14);
+        }
+        bool Thwart(float u) => u is >= -6 and < -4 or >= 3 and < 5;
+        bool Plank(float u) => Thwart(u) || u > 6 || u < -10;
+        var light = new Vector2(-0.7071f, -0.7071f);
+        var hull = new Mask((x, y) => Depth(x + 0.5f, y + 0.5f) > 0);
+        var gunwale = hull.Inner();
+        var wall = gunwale.Inner();
+        var floor = wall.Inner();
+
+        var shadow = new ShadowMask(32, 32);
+        foreach (var (x, y) in hull.Pixels()) shadow.Add(x + 2, y + 3);
+        shadow.Paint(p, SmallShadow);
+        for (var y = 0; y < 32; y++)
+            for (var x = 0; x < 32; x++)
+            {
+                var depth = Depth(x + 0.5f, y + 0.5f);
+                if (depth is <= -1.3f or > 0 || hull[x, y]) continue;
+                if (PixelArt.Hash(x, y, 233) % 2 == 0) continue;
+                p.Put(x, y, River.Highlight with { A = 0.45f });
+            }
+
+        foreach (var (x, y) in hull.Pixels())
+        {
+            var local = Local(x + 0.5f, y + 0.5f);
+            var (u, v) = (local.X, local.Y);
+            var sternward = u + 14 < HalfBeam(u) - MathF.Abs(v);
+            var outward = sternward ? f.Direction(-1, 0) : f.Direction(u > 4 ? 0.8f : 0, MathF.Sign(v));
+            var facingLight = outward.Normalized().Dot(light);
+            Color c;
+            if (!gunwale[x, y]) c = Timber.Edge;
+            else if (!wall[x, y]) c = facingLight > 0.15f ? Timber.Light : facingLight < -0.15f ? Timber.Base : Toward(Timber, 2, 3, 0.5f);
+            else if (!floor[x, y]) c = facingLight > 0.15f ? Toward(Timber, 1, 0, 0.55f) : Timber.Base;
+            else if (Plank(u)) c = Timber.Base;
+            else c = Math.Abs(Across(x, y)) == 3 ? Toward(Timber, 1, 0, 0.45f) : Timber.Shade;
+            p.Put(x, y, c);
+        }
+        // Thwarts and decks: their north and west edges catch the light, as on the cardinal boat.
+        bool PlankAt(int x, int y) => floor[x, y] && Plank(Local(x + 0.5f, y + 0.5f).X);
+        foreach (var (x, y) in floor.Pixels())
+            if (PlankAt(x, y) && (!PlankAt(x, y - 1) || !PlankAt(x - 1, y))) p.Put(x, y, Timber.Light);
+
+        if (oarsOut)
+            foreach (var side in new[] { -1, 1 })
+            {
+                var handle = Map(3.5f, side * 2.5f);
+                var rowlock = Map(-0.5f, side * 6.2f);
+                var blade = Map(-8.8f, side * 9.6f);
+                var c = p.Canvas;
+                Oval(p, f, blade + new Vector2(1, 1.5f), 2.6f, 1.4f, SmallShadow);
+                Oval(p, f, blade, 3.5f, 2.3f, River.Highlight with { A = 0.35f });
+                c.Line(handle.X, handle.Y, rowlock.X, rowlock.Y, Timber.Light);
+                c.Line(rowlock.X, rowlock.Y, blade.X, blade.Y, Timber.Light);
+                Oval(p, f, blade, 2.6f, 1.4f, Timber.Edge);
+                Oval(p, f, blade - new Vector2(0.3f, 0.3f), 1.8f, 0.6f, Timber.Light);
+                p.Put((int)rowlock.X, (int)rowlock.Y, Iron.Light);
+            }
+        else
+            foreach (var side in new[] { -1, 1 })
+            {
+                var from = Map(-9.5f, side * 2.5f);
+                var to = Map(6.5f, side * 2.5f);
+                p.Canvas.Line(from.X, from.Y, to.X, to.Y, Timber.Light);
+                var blade = new Mask((x, y) =>
+                {
+                    var local = Local(x + 0.5f, y + 0.5f);
+                    return local.X >= -10 && local.X < -6 && MathF.Abs(local.Y - side * 2.5f) < 1.05f;
+                });
+                foreach (var (x, y) in blade.Pixels()) p.Put(x, y, Timber.Light);
+                var oarlock = Map(-0.5f, side * 5.5f);
+                p.Put((int)oarlock.X, (int)oarlock.Y, Iron.Light);
+            }
+        var ring = Map(9.5f, 0.5f);
+        p.Put((int)ring.X, (int)ring.Y, Iron.Light);
+        return p.Image;
+    }
+
+    /// <summary>An oval of radii <paramref name="ru"/> along the vehicle and <paramref name="rv"/> across it, centred on a tile point.</summary>
+    private static void Oval(Plate p, Heading f, Vector2 centre, float ru, float rv, Color color)
+    {
+        for (var y = (int)(centre.Y - ru - 1); y <= (int)(centre.Y + ru + 1); y++)
+            for (var x = (int)(centre.X - ru - 1); x <= (int)(centre.X + ru + 1); x++)
+            {
+                var offset = new Vector2(x + 0.5f - centre.X, y + 0.5f - centre.Y);
+                var a = offset.Dot(f.Forward) / ru;
+                var b = offset.Dot(f.Right) / rv;
+                if (a * a + b * b <= 1) p.Put(x, y, color);
+            }
+    }
+
     /// <summary>
     /// The boat tied up beside a Port: the round-2 Port with its land row to
     /// the north, one column of open docking water to its east, and the
@@ -2485,96 +3137,154 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     // ----------------------------------------------------------------------
-    // Market plot.
+    // A Port with its boats moored (round 3).
+    // ----------------------------------------------------------------------
+
+    /// <summary>The review set of moored Ports: Id, footprint, door side, water and note.</summary>
+    private static readonly (string Id, int W, int H, DoorSide Side, TerrainStyle Water, string Note)[] MooredPorts =
+    [
+        ("Port.2x4.moored", 2, 4, DoorSide.North, TerrainStyle.Ocean,
+            "Round 3: the Port on the open sea with six boats moored, three along each side of the pier, each tied by its bow to its own bollard. The painted boat makes way for them."),
+        ("Port.2x4.N.moored", 2, 4, DoorSide.North, TerrainStyle.River,
+            "Round 3: six boats moored bow-in along the pier, with a lane of open water kept clear on each side for docking."),
+        ("Port.4x2.E.moored", 4, 2, DoorSide.East, TerrainStyle.River, "Round 3: the east-facing Port with its six boats."),
+        ("Port.2x4.S.moored", 2, 4, DoorSide.South, TerrainStyle.River, "Round 3: the south-facing Port with its six boats."),
+        ("Port.4x2.W.moored", 4, 2, DoorSide.West, TerrainStyle.River, "Round 3: the west-facing Port with its six boats."),
+    ];
+
+    /// <summary>
+    /// A Port with six boats moored: three along each long side of its pier,
+    /// between the shore and the T-head, each lying bow-in with its oars
+    /// shipped and a bow line to a bollard on the pier's edge. The picture
+    /// adds a column (or row) of open water on both long sides, the docking
+    /// lanes: the boats' sterns reach a third of the way into them and the
+    /// rest stays clear for a boat coming in. The Port itself is the approved
+    /// drawing for that rotation, without the round-1 painted boat.
+    /// </summary>
+    private static Image MooredPort(int tilesWide, int tilesHigh, DoorSide side, TerrainStyle water)
+    {
+        var land = PortLandSide(tilesWide, tilesHigh, side);
+        var lengthwise = land is DoorSide.North or DoorSide.South;
+        var (offsetX, offsetY) = lengthwise ? (32, 0) : (0, 32);
+        var image = HarbourGround(tilesWide + (lengthwise ? 2 : 0), tilesHigh + (lengthwise ? 0 : 2), land, water);
+        Sheet.Blend(image, Draw(Design.Port, tilesWide, tilesHigh, 32, new BuildingDoor(side, 1)), offsetX, offsetY);
+        var frame = new PortFrame(land, tilesWide * 32, tilesHigh * 32);
+        var pierFrom = frame.Breadth / 2f - 12;
+        var pierTo = frame.Breadth / 2f + 12;
+        Vector2 At(float across, float outward) => frame.Point(across, outward) + new Vector2(offsetX, offsetY);
+        // The bow lies two pixels clear of the pier's piles, as in the approved boat.moored.E.
+        const float bowGap = 3, halfLength = 14;
+        var berths = new List<(Vector2 Bollard, Vector2 Hull, Facing Facing)>();
+        foreach (var outward in new[] { 48f, 64f, 80f })
+            foreach (var high in new[] { false, true })
+            {
+                var edge = high ? pierTo : pierFrom;
+                var sign = high ? 1 : -1;
+                var hull = At(edge + sign * (bowGap + halfLength), outward);
+                // The bow points back across the water at the pier.
+                var facing = (lengthwise, high) switch
+                {
+                    (true, true) => Facing.West,
+                    (true, false) => Facing.East,
+                    (false, true) => Facing.North,
+                    _ => Facing.South,
+                };
+                berths.Add((At(edge - sign * 3, outward), hull, facing));
+            }
+        // A bollard for each boat on the pier's edge; the approved Port already has one at the first east berth.
+        var deck = new Plate(image.GetWidth(), image.GetHeight(), 1);
+        var existing = At(pierTo - 3, 48);
+        foreach (var (bollard, _, _) in berths)
+            if (bollard.DistanceTo(existing) > 0.5f) Bollard(deck, bollard.X, bollard.Y);
+        Sheet.Blend(image, deck.Image, 0, 0);
+        var lines = new PixelCanvas(image, new Rect2I(0, 0, image.GetWidth(), image.GetHeight()), 1);
+        foreach (var (bollard, hull, facing) in berths)
+        {
+            var corner = new Vector2I((int)MathF.Round(hull.X) - 16, (int)MathF.Round(hull.Y) - 16);
+            Sheet.Blend(image, Boat(facing, oarsOut: false), corner.X, corner.Y);
+            var ring = new Heading(facing).Map(9.5f, 0.5f) + new Vector2(corner.X, corner.Y);
+            var toward = (ring - bollard).Normalized();
+            var from = bollard + toward * 1.5f;
+            lines.Line(from.X + 0.5f, from.Y + 0.5f, ring.X + 0.5f, ring.Y + 0.5f, Cloth.Shade);
+        }
+        return image;
+    }
+
+    /// <summary>Grass on the land row or column and the given water everywhere else, for a harbour picture.</summary>
+    private static Image HarbourGround(int tilesWide, int tilesHigh, DoorSide land, TerrainStyle water)
+    {
+        var ground = Grass(tilesWide, tilesHigh, 32);
+        var atlas = WaterTextures.Atlas(32).GetImage();
+        for (var y = 0; y < tilesHigh; y++)
+            for (var x = 0; x < tilesWide; x++)
+            {
+                var onLand = land switch
+                {
+                    DoorSide.North => y == 0,
+                    DoorSide.South => y == tilesHigh - 1,
+                    DoorSide.West => x == 0,
+                    _ => x == tilesWide - 1,
+                };
+                if (!onLand) ground.BlitRect(atlas, (Rect2I)WaterTextures.Region(water, x, y, 32), new Vector2I(x * 32, y * 32));
+            }
+        return ground;
+    }
+
+    // ----------------------------------------------------------------------
+    // Market plaza (round 3).
     // ----------------------------------------------------------------------
 
     /// <summary>
-    /// The agreed Market as a whole (content list 6.10): a reserved plot of
-    /// 10 × 12 tiles with the 2 × 2 Market building at its head and 1 × 1
-    /// stalls along lanes, each stall's door facing a lane. The lanes are
-    /// ordinary Road pieces, joined and given doorstep spurs the way the map
-    /// does, and some stall places are left empty because stalls appear over
-    /// time. A loaded handcart is parked by one stall.
+    /// The Market as a whole: the market hall at the head of a small plaza of
+    /// packed earth with stalls standing on it, and a Road leading in. The
+    /// plaza is a block of ordinary Road tiles (7 × 5) drawn by the game's
+    /// <see cref="RoadSprites"/>: where every neighbour is Road the pieces
+    /// join into one continuous area, so it shows no lanes and no tile grid,
+    /// only the soft worn edge round the outside. The stall tiles count as
+    /// plaza ground, so the earth runs under them. Eight approved stalls
+    /// stand in two rows of four facing each other across the middle, with
+    /// an open way from the hall's door to the Road.
     /// </summary>
-    private static Image MarketPlot()
+    private static Image MarketPlaza(int tilePixels)
     {
-        const int tilesWide = 10, tilesHigh = 12;
-        var image = Grass(tilesWide, tilesHigh, 32);
-        // A central avenue from the Market's door to the plot's entrance on the south edge, and two cross lanes.
-        var lanes = new HashSet<Vector2I>();
-        for (var y = 2; y < tilesHigh; y++) lanes.Add(new Vector2I(5, y));
-        for (var x = 2; x <= 8; x++)
-        {
-            lanes.Add(new Vector2I(x, 4));
-            lanes.Add(new Vector2I(x, 8));
-        }
-        // Twelve stalls, each facing a lane; the gaps between them are places where more stalls may appear.
-        var stalls = new (int X, int Y, DoorSide Side)[]
-        {
-            (2, 3, DoorSide.South), (3, 3, DoorSide.South), (7, 3, DoorSide.South), (8, 3, DoorSide.South),
-            (2, 5, DoorSide.North), (3, 5, DoorSide.North), (8, 5, DoorSide.North),
-            (2, 7, DoorSide.South), (7, 7, DoorSide.South),
-            (3, 9, DoorSide.North), (8, 9, DoorSide.North),
-            (6, 10, DoorSide.West),
-        };
-        // Each door asks the lane tile in front of it for a doorstep spur.
-        var doorsteps = new Dictionary<Vector2I, RoadLinks> { [new Vector2I(5, 2)] = RoadLinks.DoorNorth };
-        foreach (var (x, y, side) in stalls)
-        {
-            var (tile, toward) = side switch
-            {
-                DoorSide.North => (new Vector2I(x, y - 1), RoadLinks.DoorSouth),
-                DoorSide.East => (new Vector2I(x + 1, y), RoadLinks.DoorWest),
-                DoorSide.West => (new Vector2I(x - 1, y), RoadLinks.DoorEast),
-                _ => (new Vector2I(x, y + 1), RoadLinks.DoorNorth),
-            };
-            doorsteps[tile] = doorsteps.GetValueOrDefault(tile) | toward;
-        }
-        var road = RoadDrawer();
-        bool Lane(int x, int y) => lanes.Contains(new Vector2I(x, y)) || (x == 5 && y >= tilesHigh);
+        const int tilesWide = 9, tilesHigh = 9;
+        var image = Grass(tilesWide, tilesHigh, tilePixels);
+        static bool Plaza(int x, int y) => x is >= 1 and <= 7 && y is >= 2 and <= 6;
+        // The Road leads in from the south on the middle column and carries on past the picture's edge.
+        static bool Road(int x, int y) => Plaza(x, y) || (x == 4 && y > 6);
+        // The hall's door asks the plaza tile in front of it for a doorstep path, as any building does.
+        var doorTile = new Vector2I(4, 2);
         for (var y = 0; y < tilesHigh; y++)
             for (var x = 0; x < tilesWide; x++)
             {
                 var links = RoadLinks.None;
-                if (Lane(x, y)) links |= RoadLinks.Road;
-                if (Lane(x, y - 1)) links |= RoadLinks.North;
-                if (Lane(x + 1, y)) links |= RoadLinks.East;
-                if (Lane(x, y + 1)) links |= RoadLinks.South;
-                if (Lane(x - 1, y)) links |= RoadLinks.West;
-                if (links.HasFlag(RoadLinks.Road) || System.Numerics.BitOperations.PopCount((uint)links) >= 2)
-                {
-                    if (Lane(x + 1, y - 1)) links |= RoadLinks.NorthEast;
-                    if (Lane(x + 1, y + 1)) links |= RoadLinks.SouthEast;
-                    if (Lane(x - 1, y + 1)) links |= RoadLinks.SouthWest;
-                    if (Lane(x - 1, y - 1)) links |= RoadLinks.NorthWest;
-                }
+                if (Road(x, y)) links |= RoadLinks.Road;
+                if (Road(x, y - 1)) links |= RoadLinks.North;
+                if (Road(x + 1, y)) links |= RoadLinks.East;
+                if (Road(x, y + 1)) links |= RoadLinks.South;
+                if (Road(x - 1, y)) links |= RoadLinks.West;
+                if (Road(x + 1, y - 1)) links |= RoadLinks.NorthEast;
+                if (Road(x + 1, y + 1)) links |= RoadLinks.SouthEast;
+                if (Road(x - 1, y + 1)) links |= RoadLinks.SouthWest;
+                if (Road(x - 1, y - 1)) links |= RoadLinks.NorthWest;
                 if (!RoadSprites.Draws(links)) continue;
-                if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(x, y));
+                if (new Vector2I(x, y) == doorTile) links |= RoadLinks.DoorNorth;
                 var variant = (int)(PixelArt.Hash(x, y, 7) % RoadSprites.VariantCount);
-                Sheet.Blend(image, road(links, variant, 32, false), x * 32, y * 32);
+                Sheet.Blend(image, RoadSprites.Render(links, variant, tilePixels, false), x * tilePixels, y * tilePixels);
             }
-        Sheet.Blend(image, Draw(Design.Market, 2, 2, 32, new BuildingDoor(DoorSide.South, 1)), 4 * 32, 0);
-        foreach (var (x, y, side) in stalls)
-            Sheet.Blend(image, Draw(Design.MarketStall, 1, 1, 32, new BuildingDoor(side, 0)), x * 32, y * 32);
-        Sheet.Blend(image, Handcart(Facing.East, loaded: true, pulled: false), 4 * 32, 9 * 32);
+        Sheet.Blend(image, Draw(Design.Market, 2, 2, tilePixels, new BuildingDoor(DoorSide.South, 1)), 3 * tilePixels, 0);
+        // Two rows of four stalls face each other across the plaza, leaving the middle column open.
+        foreach (var (x, y, side) in MarketStalls)
+            Sheet.Blend(image, Draw(Design.MarketStall, 1, 1, tilePixels, new BuildingDoor(side)), x * tilePixels, y * tilePixels);
         return image;
     }
 
-    /// <summary>
-    /// The Road drawing for the Market plot: the roads proposal's pieces when
-    /// that proposal is compiled alongside (so the plot matches the reviewed
-    /// Town), otherwise the game's current <see cref="RoadSprites"/>.
-    /// </summary>
-    private static Func<RoadLinks, int, int, bool, Image> RoadDrawer()
-    {
-        var set = new ArtSet();
-        var roads = typeof(BuildingsProposal).Assembly.GetTypes()
-            .Where(type => type.Namespace == "ArtPreview.Proposed.Roads" && typeof(IArtSetProvider).IsAssignableFrom(type) && !type.IsAbstract)
-            .Select(type => (IArtSetProvider)Activator.CreateInstance(type)!)
-            .FirstOrDefault();
-        roads?.Apply(set);
-        return set.Road;
-    }
+    /// <summary>Where the stalls stand on the plaza, in tiles, and the way each faces.</summary>
+    private static readonly (int X, int Y, DoorSide Side)[] MarketStalls =
+    [
+        (2, 4, DoorSide.North), (3, 4, DoorSide.North), (5, 4, DoorSide.North), (6, 4, DoorSide.North),
+        (2, 5, DoorSide.South), (3, 5, DoorSide.South), (5, 5, DoorSide.South), (6, 5, DoorSide.South),
+    ];
 
     // ----------------------------------------------------------------------
     // Small helpers.

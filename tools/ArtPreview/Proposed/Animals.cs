@@ -18,6 +18,18 @@ namespace ArtPreview.Proposed.Animals;
 /// agents proposal so the new facings match horse.S, horse.E and
 /// horse.rider.E pixel for pixel.
 /// </para>
+/// <para>
+/// Round 3 shows all eight facings the agents use (S, SW, W, NW, N, NE, E,
+/// SE). The straight facings are the approved round-2 drawings, unchanged
+/// pixel for pixel. Turned 45°, shapes sampled at pixel centres need a few
+/// touches to stay crisp, applied only on the diagonals: lone spur pixels are
+/// dropped from the horse, cow and hen outlines, the saddle rim is traced
+/// pixel by pixel, the blaze and the hen's comb are drawn as clean 45° runs,
+/// both cow horns keep their colour, the rider's boots sit a little further
+/// out so they still show, the sheep's head sits half a unit further out of
+/// the fleece, and the shorn sheep's neck reaches its body. The light stays
+/// in the north-west whatever the facing.
+/// </para>
 /// Livestock have no predators and no legs show from above, like the horse.
 /// Everything is deterministic.
 /// </summary>
@@ -29,7 +41,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
     /// <summary>Facing names in the game's order: 0 S, 1 SW, 2 W, 3 NW, 4 N, 5 NE, 6 E, 7 SE.</summary>
     public static readonly string[] FacingNames = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
 
-    /// <summary>The four facings animals are drawn in, in the order the review lists them.</summary>
+    /// <summary>The four facings of the round-2 horse lineup, in the order it shows them.</summary>
     private static readonly int[] ShownFacings = [0, 6, 4, 2];   // S, E, N, W
 
     // Agent palettes, used for the rider (unchanged from the approved agents proposal).
@@ -90,41 +102,141 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var shown = new List<(string Id, Image Sprite, int Size, string? Note)>();
         void Add(string id, Image sprite, int size = 32, string? note = null) => shown.Add((id, sprite, size, note));
 
-        foreach (var facing in ShownFacings)
-            Add($"cow.{FacingNames[facing]}", Cow(facing, 32), note: facing == 0
-                ? "Cream hide with irregular dark patches, ears out to the sides with short tan horns in front, a pink muzzle and a tufted tail."
-                : null);
-        foreach (var facing in ShownFacings)
-            Add($"sheep.{FacingNames[facing]}", Sheep(facing, false, 32), note: facing == 0
-                ? "A lumpy cream fleece lit from the north-west, a black face with ears out to the sides and a wool top-knot."
-                : null);
-        Add("sheep.shorn.E", Sheep(6, true, 32), note: "After shearing: a slimmer, smooth body one step darker, the same black face.");
-        foreach (var facing in ShownFacings)
-            Add($"chicken.{FacingNames[facing]}", Chicken(facing, 32), note: facing == 0
-                ? "A red hen: a round Rust body, darker folded wings, a paler head with a red comb, a yellow beak and a dark fanned tail."
-                : null);
-        Add("cow.E.16", Cow(6, 16), 16, "16 px: the patched cream block with a pink nose.");
-        Add("sheep.E.16", Sheep(6, false, 16), 16, "16 px: the round cream fleece with a dark head.");
-        Add("chicken.E.16", Chicken(6, 16), 16, "16 px: a small rust body with a red comb and a dark tail.");
-        Add("horse.N", Horse(4, false, 32), note: "The approved horse drawing turned north: mane, ears and blaze toward the top.");
-        Add("horse.W", Horse(2, false, 32), note: "The approved horse drawing turned west.");
-        Add("horse.rider.S", Horse(0, true, 32), note: "Rider facing you: face and fringe, hands on the reins over the neck, boots on both flanks.");
-        Add("horse.rider.N", Horse(4, true, 32), note: "Rider seen from behind: hair whorl, hands hidden in front, reins running to the bridle.");
-        Add("horse.rider.W", Horse(2, true, 32), note: "Rider facing west: the nose pokes out, both hands on the reins.");
+        // Each animal in all eight facings, S, SW, W, NW, N, NE, E, SE. The cardinal
+        // facings are the round-2 drawings, approved; the diagonals are round 3.
+        // horse.S, horse.E and horse.rider.E belong to the agents family.
+        foreach (var facing in AllFacings)
+            if (facing is not (0 or 6))
+                Add($"horse.{FacingNames[facing]}", Horse(facing, false, 32), note: HorseNote(facing, false));
+        foreach (var facing in AllFacings)
+            if (facing != 6)
+                Add($"horse.rider.{FacingNames[facing]}", Horse(facing, true, 32), note: HorseNote(facing, true));
+        foreach (var facing in AllFacings)
+            Add($"cow.{FacingNames[facing]}", Cow(facing, 32), note: CowNote(facing));
+        foreach (var facing in AllFacings)
+            Add($"sheep.{FacingNames[facing]}", Sheep(facing, false, 32), note: SheepNote(facing));
+        foreach (var facing in AllFacings)
+            Add($"sheep.shorn.{FacingNames[facing]}", Sheep(facing, true, 32), note: ShornNote(facing));
+        foreach (var facing in AllFacings)
+            Add($"chicken.{FacingNames[facing]}", Chicken(facing, 32), note: ChickenNote(facing));
+        foreach (var facing in SmallFacings)
+            Add($"cow.{FacingNames[facing]}.16", Cow(facing, 16), 16, facing == 6 ? "16 px: the patched cream block with a pink nose." : Small16Note(facing, "cow"));
+        foreach (var facing in SmallFacings)
+            Add($"sheep.{FacingNames[facing]}.16", Sheep(facing, false, 16), 16, facing == 6 ? "16 px: the round cream fleece with a dark head." : Small16Note(facing, "sheep"));
+        foreach (var facing in SmallFacings)
+            Add($"chicken.{FacingNames[facing]}.16", Chicken(facing, 16), 16, facing == 6 ? "16 px: a small rust body with a red comb and a dark tail." : Small16Note(facing, "hen"));
 
         var onGrass = shown.Select(e => new Entry(Family, e.Id, Bitmap.Over(TerrainTextures.Tile(TerrainStyle.Grass, 0, e.Size), e.Sprite, 0, 0), e.Note)).ToList();
         var bare = shown.Select(e => new Entry(Family, e.Id + ".sprite", e.Sprite)).ToList();
-        // The contact sheet sizes each column to its widest picture, so the wide
-        // lineup goes first (as the agents turnaround does) and only the first column widens.
-        var all = new List<Entry>
+
+        // Review aids, not assets: the round-2 lineup and one eight-facing turnaround per animal.
+        var wide = new List<Entry>
         {
             new(Family, "horse.lineup", HorseLineup(),
                 "Review aid, not an asset: the horse in all four facings, top row bare, bottom row ridden, in the order S, E, N, W. S and E are the approved drawings."),
+            new(Family, "horse.turnaround", Turnaround(facing => Horse(facing, false, 32)),
+                "Review aid, not an asset: the horse in all eight facings in the agents' order, S, SW, W, NW, N, NE, E, SE. The diagonals are new; the rest are approved."),
+            new(Family, "horse.rider.turnaround", Turnaround(facing => Horse(facing, true, 32)),
+                "Review aid, not an asset: the ridden horse in all eight facings, S, SW, W, NW, N, NE, E, SE."),
+            new(Family, "cow.turnaround", Turnaround(facing => Cow(facing, 32)),
+                "Review aid, not an asset: the cow in all eight facings, S, SW, W, NW, N, NE, E, SE."),
+            new(Family, "sheep.turnaround", Turnaround(facing => Sheep(facing, false, 32)),
+                "Review aid, not an asset: the sheep in all eight facings, S, SW, W, NW, N, NE, E, SE."),
+            new(Family, "sheep.shorn.turnaround", Turnaround(facing => Sheep(facing, true, 32)),
+                "Review aid, not an asset: the shorn sheep in all eight facings, S, SW, W, NW, N, NE, E, SE. Only E was drawn before."),
+            new(Family, "chicken.turnaround", Turnaround(facing => Chicken(facing, 32)),
+                "Review aid, not an asset: the hen in all eight facings, S, SW, W, NW, N, NE, E, SE."),
         };
-        all.AddRange(onGrass);
-        all.AddRange(bare);
+
+        // The contact sheet sizes each column to its widest picture, so every wide
+        // strip goes in the first column (as the agents turnaround does) and the
+        // other columns stay one tile wide.
+        var narrow = new Queue<Entry>(onGrass.Concat(bare));
+        var all = new List<Entry>();
+        foreach (var strip in wide)
+        {
+            all.Add(strip);
+            for (var cell = 1; cell < SheetColumns && narrow.Count > 0; cell++)
+                all.Add(narrow.Dequeue());
+        }
+        all.AddRange(narrow);
         return all;
     }
+
+    /// <summary>The contact sheet's column count (Program.cs lays out eight).</summary>
+    private const int SheetColumns = 8;
+
+    private static readonly int[] AllFacings = [0, 1, 2, 3, 4, 5, 6, 7];
+
+    /// <summary>The 16 px facings shown: east (approved) and the four diagonals.</summary>
+    private static readonly int[] SmallFacings = [1, 3, 5, 6, 7];
+
+    private static bool IsDiagonal(int facing) => (facing & 1) == 1;
+
+    /// <summary>The whole-pixel step nearest a direction: (±1, ±1) on a diagonal.</summary>
+    private static Vector2I PixelStep(Vector2 direction) => new(
+        MathF.Abs(direction.X) < 0.3f ? 0 : Math.Sign(direction.X),
+        MathF.Abs(direction.Y) < 0.3f ? 0 : Math.Sign(direction.Y));
+
+    /// <summary>All eight facings of one animal side by side on grass, in the game's order.</summary>
+    private static Image Turnaround(Func<int, Image> draw)
+    {
+        var image = Bitmap.Empty(32 * AllFacings.Length, 32);
+        foreach (var facing in AllFacings)
+        {
+            var ground = TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(facing, 0), 32);
+            image.BlitRect(ground, new Rect2I(0, 0, 32, 32), new Vector2I(facing * 32, 0));
+            Sheet.Blend(image, draw(facing), facing * 32, 0);
+        }
+        return image;
+    }
+
+    // ---------------------------------------------------------------- notes
+
+    private static string? HorseNote(int facing, bool rider) => (facing, rider) switch
+    {
+        (4, false) => "The approved horse drawing turned north: mane, ears and blaze toward the top.",
+        (2, false) => "The approved horse drawing turned west.",
+        (0, true) => "Rider facing you: face and fringe, hands on the reins over the neck, boots on both flanks.",
+        (4, true) => "Rider seen from behind: hair whorl, hands hidden in front, reins running to the bridle.",
+        (2, true) => "Rider facing west: the nose pokes out, both hands on the reins.",
+        (1, false) => "Round 3: turned south-west, head toward the bottom-left corner. The saddle rim is traced pixel by pixel so it stays one unbroken line.",
+        (1, true) => "Round 3: ridden, turned south-west: the face under the fringe toward the corner, both hands forward on the reins, boots on both flanks.",
+        _ => null,
+    };
+
+    private static string? CowNote(int facing) => facing switch
+    {
+        0 => "Cream hide with irregular dark patches, ears out to the sides with short tan horns in front, a pink muzzle and a tufted tail.",
+        1 => "Round 3: turned south-west. The patches stay on the same places on her body, and both tan horns show.",
+        _ => null,
+    };
+
+    private static string? SheepNote(int facing) => facing switch
+    {
+        0 => "A lumpy cream fleece lit from the north-west, a black face with ears out to the sides and a wool top-knot.",
+        1 => "Round 3: turned south-west. The head sits half a pixel further out of the fleece so the dark face still reads at the corner.",
+        _ => null,
+    };
+
+    private static string? ShornNote(int facing) => facing switch
+    {
+        6 => "After shearing: a slimmer, smooth body one step darker, the same black face.",
+        0 => "Round 3: every facing of the shorn sheep is new except E, turned from that drawing.",
+        1 => "Round 3: on the diagonals the slim neck reaches back to the body, so the head does not look cut off.",
+        _ => null,
+    };
+
+    private static string? ChickenNote(int facing) => facing switch
+    {
+        0 => "A red hen: a round Rust body, darker folded wings, a paler head with a red comb, a yellow beak and a dark fanned tail.",
+        1 => "Round 3: turned south-west. The red comb is a short diagonal ridge back from the yellow beak at the corner.",
+        _ => null,
+    };
+
+    private static string? Small16Note(int facing, string animal) => facing == 1
+        ? $"Round 3: the 16 px {animal} turned south-west, drawn at this size with the same silhouette and mark."
+        : null;
 
     /// <summary>Animals are not yet drawn in the reference scene, so no delegate changes.</summary>
     public void Apply(ArtSet set)
@@ -192,6 +304,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var paint = new Painter(image);
         var small = size < 24;
         var f = BodyFrame.For(facing, size, 1.4f);
+        var diagonal = IsDiagonal(facing);
 
         // Parts as (centre along the facing, half length, half width), rump to muzzle.
         (float At, float Along, float Across)[] body =
@@ -253,7 +366,9 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
 
         var shadeRim = small ? 0.8f : 1.6f;
         var lightRim = small ? 0.7f : 1.3f;
-        paint.Coat(Inside, Outline, q => InHorn(q) && !InCore(q) ? Horn : InPatch(q) ? CowPatch : CowHide, shadeRim, lightRim);
+        // Turned 45°, one horn can fall wholly inside the head's outline, so on a
+        // diagonal both horns keep their tan colour wherever they lie.
+        paint.Coat(Inside, Outline, q => InHorn(q) && (diagonal || !InCore(q)) ? Horn : InPatch(q) ? CowPatch : CowHide, shadeRim, lightRim, dropSpurs: diagonal);
 
         // Muzzle: Berry highlight pink with two nostrils.
         paint.Oval(f.At(13.3f), f.Forward, 1.3f * f.Unit, 2.2f * f.Unit, MuzzlePink, (q, _, _) => InCore(q + f.At(13.3f)));
@@ -280,6 +395,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var paint = new Painter(image);
         var small = size < 24;
         var f = BodyFrame.For(facing, size, 0.5f);
+        var diagonal = IsDiagonal(facing);
 
         // The fleece: a core oval plus a ring of lumps centred on its edge.
         const float coreAt = -1.8f;
@@ -300,14 +416,22 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             if (f.InPart(q, coreAt, 0, coreAlong, coreAcross)) return true;
             foreach (var (at, across) in lumps)
                 if (f.InPart(q, at, across, lumpRadius, lumpRadius)) return true;
-            // The top-knot: a tuft of wool over the back of the head (a shorn sheep keeps a small one).
+            // The top-knot: a tuft of wool over the back of the head (a shorn sheep keeps a
+            // small one). Turned 45°, the shorn one reaches back to the body, or the head
+            // would touch the body only at a corner and look cut off.
+            if (shorn && diagonal) return f.InPart(q, 4.3f, 0, 1.3f, 1.3f);
             return shorn ? f.InPart(q, 4.6f, 0, 0.9f, 1.2f) : f.InPart(q, 5.0f, 0, 1.7f, 1.9f);
         }
+        // Turned 45°, the fleece's corner lumps hide more of the face, so the head
+        // sits half a unit further out with smaller ears tucked in a little; it
+        // still reads as a dark wedge rather than a ragged blob.
+        var headAt = diagonal ? 0.5f : 0f;
+        var (earAt, earOut, earWide) = diagonal ? (6.3f, 2.9f, 1.1f) : (6.0f, 3.0f, 1.4f);
         bool InHead(Vector2 q) =>
-            f.InPart(q, 6.6f, 0, 2.3f, 2.3f)                 // crown and cheeks
-            || f.InPart(q, 8.4f, 0, 1.7f, 1.8f)              // the face, ending in a blunt nose
-            || f.InPart(q, 6.0f, -3.0f, 0.8f, 1.4f)          // ears out to the sides
-            || f.InPart(q, 6.0f, 3.0f, 0.8f, 1.4f);
+            f.InPart(q, 6.6f + headAt, 0, 2.3f, 2.3f)                 // crown and cheeks
+            || f.InPart(q, 8.4f + headAt, 0, 1.7f, 1.8f)              // the face, ending in a blunt nose
+            || f.InPart(q, earAt, -earOut, 0.8f, earWide)             // ears out to the sides
+            || f.InPart(q, earAt, earOut, 0.8f, earWide);
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
 
         paint.Oval(f.At(-0.6f) + new Vector2(1, 3) * f.Unit, f.Forward, 8.8f * f.Unit, (shorn ? 4.2f : 5.6f) * f.Unit, Shadow);
@@ -345,7 +469,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
                 }
         }
         // A lighter nose tip on the dark face.
-        paint.Dot(f.At(9.4f), SheepFace.Light);
+        paint.Dot(f.At(9.4f + headAt), SheepFace.Light);
         return image;
     }
 
@@ -364,6 +488,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var paint = new Painter(image);
         var small = size < 24;
         var f = BodyFrame.For(facing, size, 0.0f);
+        var diagonal = IsDiagonal(facing);
+        var forwardStep = PixelStep(f.Forward);
 
         // The tail: three feather lobes fanned at the back.
         bool InTail(Vector2 q) =>
@@ -386,13 +512,25 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         // The beak pokes out of the outline ahead of the head, like an agent's nose.
         var beak = f.At(small ? 6.4f : 6.8f);
         paint.Disc(beak, small ? 0.6f : 1.1f, Outline);
-        paint.Coat(Inside, Outline, FeathersAt, small ? 0.8f : 1.2f, small ? 0.6f : 1.0f);
+        paint.Coat(Inside, Outline, FeathersAt, small ? 0.8f : 1.2f, small ? 0.6f : 1.0f, dropSpurs: diagonal);
         paint.Dot(small ? f.At(5.8f) : f.At(6.6f), Beak);
 
         // Comb: a red ridge along the crown, lit at its front.
         if (small)
         {
             paint.Dot(f.At(4.2f), Comb);
+            return image;
+        }
+        if (diagonal)
+        {
+            // Turned 45°, the comb is a solid diagonal staircase back from the beak,
+            // about as long as the straight ridge, lit at the front.
+            var back = new Vector2(-forwardStep.X, -forwardStep.Y);
+            var front = f.At(6.6f) + back;
+            var rung = new Vector2(0, -forwardStep.Y);
+            paint.Run(front, -forwardStep, 3, Comb);
+            paint.Run(front + rung, -forwardStep, 2, Comb);
+            paint.Dot(front, CombLight);
             return image;
         }
         paint.Box(f.At(4.4f), f.Forward, 1.3f, 0.8f, Comb);
@@ -404,7 +542,10 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
 
     /// <summary>
     /// The horse from the approved agents proposal, copied unchanged so every
-    /// facing matches horse.S, horse.E and horse.rider.E. The body is one
+    /// straight facing matches horse.S, horse.E and horse.rider.E; on a
+    /// diagonal the saddle is traced pixel by pixel, the blaze is a clean 45°
+    /// run and the boots sit a little further out, so they stay as crisp as
+    /// the straight drawings. The body is one
     /// outlined silhouette made of a rounded rump, a barrel and a narrower
     /// chest, then a neck and a long head with two ears and a darker muzzle
     /// toward the facing, in the Timber ramp with a lit north-west rim. A
@@ -421,6 +562,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var s = Side(d);
         var o = new Vector2(16, 16) * p - d * (0.6f * p);   // the withers, a little behind the cell centre
         Vector2 At(float along, float across = 0) => o + d * (along * p) + s * (across * p);
+        var diagonal = IsDiagonal(facing);
+        var forwardStep = PixelStep(d);
 
         // Parts as (centre along the facing, half length, half width), tail to muzzle.
         (float At, float Along, float Across)[] body =
@@ -450,13 +593,16 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         bool InTail(Vector2 point) => Painter.InOval(point - (tailRoot + tailTip) / 2, tailAxis, 2.6f * p, 1.4f * p);
         paint.Silhouette(InTail, Outline, ManeColor, ManeColor.Darkened(0.25f), ManeColor.Lightened(0.15f), 1.2f, 1.0f);
 
-        paint.Silhouette(InBody, Outline, TimberBase, TimberShade, TimberLight, 1.6f, 1.3f);
+        paint.Silhouette(InBody, Outline, TimberBase, TimberShade, TimberLight, 1.6f, 1.3f, dropSpurs: diagonal);
 
         // Head: darker muzzle with nostrils, a pale blaze down the face, inner ears.
         paint.Oval(At(14.0f), d, 1.4f * p, 1.9f * p, TimberShade, (q, _, _) => InBody(q + At(14.0f)));
         paint.Dot(At(14.4f, -0.8f), TimberEdge);
         paint.Dot(At(14.4f, 0.8f), TimberEdge);
-        paint.Line(At(10.6f), At(13.0f), ClothLight);
+        if (diagonal)
+            paint.Run(At(13.0f), -forwardStep, 2, ClothLight);   // the same blaze as a clean 45° line
+        else
+            paint.Line(At(10.6f), At(13.0f), ClothLight);
         paint.Dot(At(8.9f, -2.5f), TimberShade);
         paint.Dot(At(8.9f, 2.5f), TimberShade);
 
@@ -467,18 +613,31 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
 
         // Saddle: a Timber edge seat with a lighter pommel toward the head.
         var seat = At(-1.0f);
-        paint.Box(seat, d, 3.0f * p, 3.5f * p, TimberEdge, (q, t, u) => MathF.Abs(t) < 2.6f * p || MathF.Abs(u) < 3.1f * p);
-        paint.Box(seat, d, 2.0f * p, 2.5f * p, TimberShade);
-        paint.Box(seat, d, 2.0f * p, 2.5f * p, TimberBase, (q, _, _) => q.Dot(TowardLight) > 1.2f * p);
+        if (diagonal)
+        {
+            // Turned 45°, the seat is traced pixel by pixel so its rim stays unbroken; a
+            // staircase rim is heavier, so the seat is half a pixel larger to keep its middle.
+            bool InSeat(Vector2 q) => MathF.Abs((q - seat).Dot(d)) <= 3.4f * p && MathF.Abs((q - seat).Dot(s)) <= 3.9f * p;
+            paint.Plate(InSeat, TimberEdge, q => (q - seat).Dot(TowardLight) > 1.6f * p ? TimberBase : TimberShade);
+        }
+        else
+        {
+            paint.Box(seat, d, 3.0f * p, 3.5f * p, TimberEdge, (q, t, u) => MathF.Abs(t) < 2.6f * p || MathF.Abs(u) < 3.1f * p);
+            paint.Box(seat, d, 2.0f * p, 2.5f * p, TimberShade);
+            paint.Box(seat, d, 2.0f * p, 2.5f * p, TimberBase, (q, _, _) => q.Dot(TowardLight) > 1.2f * p);
+        }
         paint.Dot(At(1.6f), TimberLight);
 
         if (!rider) return image;
 
         // The rider: an adult torso on the saddle, boots in the stirrups on both flanks.
+        // Turned 45°, the shoulders' staircase edge would hide most of each boot, so
+        // on a diagonal the boots sit a little further out and still show as a nub.
+        var bootOut = diagonal ? 7.8f : 7.0f;
         var build = (size >= 24 ? Build.Adult32 : Build.Adult16).Scaled(0.8f, 0.86f) with { Center = seat - d * (0.4f * p) };
         foreach (var side in new[] { -1f, 1f })
         {
-            var boot = At(1.6f, side * 7.0f);
+            var boot = At(1.6f, side * bootOut);
             paint.Oval(boot, d, 1.8f * p + 0.85f, 1.3f * p + 0.85f, Outline);
             paint.Oval(boot, d, 1.8f * p, 1.3f * p, TimberShade);
         }
@@ -678,7 +837,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
 
     /// <summary>
     /// Alpha-blending pixel painter in pixel units, clipped to its image, copied
-    /// from the approved agents proposal with one addition, <see cref="Coat"/>.
+    /// from the approved agents proposal with additions: <see cref="Coat"/>,
+    /// and for the diagonals <see cref="Plate"/> and <see cref="Run"/>.
     /// Shapes are sampled at pixel centres; ovals and boxes take a direction
     /// so the same call draws an animal at any facing. The optional keep
     /// predicate receives the pixel's offset from the shape centre (on screen,
@@ -705,8 +865,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         /// and those whose neighbour toward the light falls outside the light
         /// colour (L1), so joined parts share one outline and one set of rims.
         /// </summary>
-        public void Silhouette(Func<Vector2, bool> inside, Color outline, Color fill, Color shade, Color light, float shadeRim, float lightRim) =>
-            Coat(inside, outline, _ => new Ramp(fill, shade, light), shadeRim, lightRim);
+        public void Silhouette(Func<Vector2, bool> inside, Color outline, Color fill, Color shade, Color light, float shadeRim, float lightRim, bool dropSpurs = false) =>
+            Coat(inside, outline, _ => new Ramp(fill, shade, light), shadeRim, lightRim, dropSpurs);
 
         /// <summary>
         /// <see cref="Silhouette"/> with a colour ramp chosen per pixel, for
@@ -714,13 +874,29 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         /// follow the whole silhouette, each in the shade or light step of the
         /// ramp under that pixel.
         /// </summary>
-        public void Coat(Func<Vector2, bool> inside, Color outline, Func<Vector2, Ramp> rampAt, float shadeRim, float lightRim)
+        public void Coat(Func<Vector2, bool> inside, Color outline, Func<Vector2, Ramp> rampAt, float shadeRim, float lightRim, bool dropSpurs = false)
         {
-            for (var y = 0; y < image.GetHeight(); y++)
-                for (var x = 0; x < image.GetWidth(); x++)
+            var width = image.GetWidth();
+            var height = image.GetHeight();
+            Func<int, int, bool> member = (x, y) => inside(new Vector2(x + 0.5f, y + 0.5f));
+            if (dropSpurs)
+            {
+                // Turned 45°, small round parts (a tail lobe, an ear tip) sampled at
+                // pixel centres can leave a single pixel sticking out with only one
+                // side attached; it is dropped and becomes part of the outline.
+                var raw = new bool[width + 2, height + 2];
+                for (var y = -1; y <= height; y++)
+                    for (var x = -1; x <= width; x++)
+                        raw[x + 1, y + 1] = member(x, y);
+                bool Raw(int x, int y) => x >= -1 && y >= -1 && x <= width && y <= height && raw[x + 1, y + 1];
+                member = (x, y) => Raw(x, y)
+                    && (Raw(x + 1, y) ? 1 : 0) + (Raw(x - 1, y) ? 1 : 0) + (Raw(x, y + 1) ? 1 : 0) + (Raw(x, y - 1) ? 1 : 0) >= 2;
+            }
+            for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
                 {
                     var point = new Vector2(x + 0.5f, y + 0.5f);
-                    if (inside(point))
+                    if (member(x, y))
                     {
                         var ramp = rampAt(point);
                         var color = !inside(point - TowardLight * shadeRim) ? ramp.Shade
@@ -728,8 +904,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
                             : ramp.Fill;
                         Pixel(x, y, color);
                     }
-                    else if (inside(point + new Vector2(1, 0)) || inside(point - new Vector2(1, 0))
-                             || inside(point + new Vector2(0, 1)) || inside(point - new Vector2(0, 1)))
+                    else if (member(x + 1, y) || member(x - 1, y) || member(x, y + 1) || member(x, y - 1))
                     {
                         Pixel(x, y, outline);
                     }
@@ -783,6 +958,44 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
                     if (MathF.Abs(t) > halfAlong || MathF.Abs(u) > halfAcross) continue;
                     if (keep is null || keep(q, t, u)) Pixel(x, y, color);
                 }
+        }
+
+        /// <summary>
+        /// A flat plate such as a saddle, traced pixel by pixel: every pixel
+        /// inside the shape whose neighbour above, below or to either side is
+        /// outside takes the edge colour, so the rim stays one unbroken pixel
+        /// wide even on a diagonal; pixels with three sides outside are left
+        /// off to round the corners. The rest takes the fill colour.
+        /// </summary>
+        public void Plate(Func<Vector2, bool> inside, Color edge, Func<Vector2, Color> fill)
+        {
+            for (var y = 0; y < image.GetHeight(); y++)
+                for (var x = 0; x < image.GetWidth(); x++)
+                {
+                    var point = new Vector2(x + 0.5f, y + 0.5f);
+                    if (!inside(point)) continue;
+                    var open = (inside(point + new Vector2(1, 0)) ? 0 : 1) + (inside(point - new Vector2(1, 0)) ? 0 : 1)
+                               + (inside(point + new Vector2(0, 1)) ? 0 : 1) + (inside(point - new Vector2(0, 1)) ? 0 : 1);
+                    if (open >= 3) continue;
+                    // A corner neighbour outside also counts, so a 45° rim is a solid staircase rather than dots.
+                    var rim = open > 0
+                              || !inside(point + new Vector2(1, 1)) || !inside(point + new Vector2(-1, 1))
+                              || !inside(point + new Vector2(1, -1)) || !inside(point + new Vector2(-1, -1));
+                    Pixel(x, y, rim ? edge : fill(point));
+                }
+        }
+
+        /// <summary>
+        /// A run of <paramref name="count"/> pixels from the pixel under
+        /// <paramref name="start"/>, each one whole <paramref name="step"/> on:
+        /// a clean 45° line when the step is diagonal.
+        /// </summary>
+        public void Run(Vector2 start, Vector2I step, int count, Color color)
+        {
+            var x = (int)MathF.Floor(start.X);
+            var y = (int)MathF.Floor(start.Y);
+            for (var k = 0; k < count; k++)
+                Pixel(x + step.X * k, y + step.Y * k, color);
         }
 
         /// <summary>A one-pixel line.</summary>

@@ -1,11 +1,90 @@
-# Buildings: rounds 1 and 2
+# Buildings: rounds 1 to 3
 
 What to look at: `out/proposed/sheet-buildings.png` next to
 `out/baseline/sheet-buildings.png`, and the town in
 `out/scene/scene-buildings-32.x3.png` and `scene-buildings-16.x4.png` next to
 `scene-current-*`. Every entry is shown over grass (or water), as in the
 baseline, and also on its own (the `.sprite` entries) so it can be placed in a
-scene. Round 2 is described first; the round-1 note follows unchanged below it.
+scene. Round 3 is described first; the round-2 and round-1 notes follow
+unchanged below it.
+
+## Round 3
+
+You approved round 2 with three notes. Every approved picture is still exactly
+the same, pixel for pixel, except the Market building, which you asked to
+change. `Market.plot` is gone and round 3 adds 35 pictures, so there are now
+142.
+
+### The Market: a hall and a plaza
+
+- **Market.2x2 (redrawn):** a market hall with no stalls or awnings inside it.
+  A timber hall with a hipped roof of planks; on the ridge a lantern, a raised
+  vent with louvred sides that lets the air out, roofed in grey slate and
+  flying the gold pennant the old Market had; and along the front a lower
+  lean-to roof over an open arcade, its posts showing along the eave. A sign
+  with gold trading scales hangs over the way in, and the doorstep and path
+  start beyond the arcade. Also `Market.2x2.16`.
+- **Market.plaza (replaces Market.plot):** the hall at the head of a small
+  plaza of packed earth, 7 × 5 tiles, with an open square in front of the
+  hall, eight of the approved stalls standing back to back in two rows of
+  four with room between them, and a Road leading in from the south. The
+  plaza is ordinary Road tiles drawn by the game's own Road pieces: where
+  every neighbour is Road they join into one area, so there are no lanes and
+  no tile grid, only the soft worn edge round the outside. Also
+  `Market.plaza.16`.
+
+### Six boats at a Port
+
+`Port.2x4.moored` (on the sea), and `Port.2x4.N.moored`, `Port.4x2.E.moored`,
+`Port.2x4.S.moored` and `Port.4x2.W.moored` (on a river). Three boats lie
+along each side of the pier, between the shore and the T-head, each bow-in
+with its oars shipped and a bow line to its own bollard on the pier's edge.
+Each picture adds a lane of open water along both long sides, the docking
+space the design keeps clear; the boats' sterns reach about a third of the way
+into it.
+
+### Diagonal handcarts and boats
+
+- Agents walk diagonally, so a cart they pull goes diagonally too:
+  `handcart.empty` and `handcart.loaded` facing NE, NW, SE and SW, and
+  `handcart.pulled.SE`. Boats get the four diagonals as well (`boat.NE`,
+  `boat.NW`, `boat.SE`, `boat.SW`), because they will travel diagonally across
+  the water.
+- Each diagonal is the same cart or boat, part for part and the same size,
+  turned 45° and redrawn in clean one-pixel stairs rather than a blurred
+  rotation. It is still lit from the north-west: boards facing the light are
+  lit, the far ones shaded, and the ones side-on take the middle tone.
+- `handcart.turnaround` and `boat.turnaround` show all eight facings in a row,
+  clockwise from north: N, NE, E, SE, S, SW, W, NW.
+
+### Things to decide or know (round 3)
+
+- **Stalls stand on plaza ground.** In these pictures each stall's tile counts
+  as part of the plaza, so the earth runs under it. In the game a stall is a
+  building, and a building's tiles are not Road, so the map would need to draw
+  the plaza under stalls; otherwise each stall would sit in a small patch of
+  grass. On the plaza the stalls also leave out their doorstep path, because
+  the whole plaza is open to walk on.
+- **The hall's colour.** Timber planks, the same brown as the Store and the
+  Port shed on the overview map; up close the grey lantern and the arcade set
+  it apart.
+- **Style guide.** Rule B3 still says the Market has a canvas roof with stall
+  awnings. It would change to a timber hall with a ridge lantern, with the
+  stalls on a plaza.
+- **Bow-in mooring.** Three boats fit along each side of the pier only lying
+  bow-in, side by side; lying alongside, end to end, only two fit between the
+  shore and the T-head. The approved `boat.moored.E`, lying alongside, is
+  unchanged.
+- **The painted boat.** `Port.2x4.moored` leaves out the round-1 painted boat
+  so six real boats can tie up. The approved `Port.2x4` still has it.
+- **Small differences on the diagonals.** The diagonal boat sits one pixel
+  toward its bow and its oars are about a tenth shorter, so the blades stay
+  inside the tile. The diagonal handcart's shafts are three pixels a row,
+  which looks as heavy as the two-pixel shafts on the straight facings, and
+  the top log lines up with the other two at the back, because a one-pixel
+  step there turns into a notch at 45°.
+- **Not drawn yet:** 16 px versions of the handcart and the boat, and moored
+  boats at a slant (boats tie up square to the pier).
 
 ## Round 2
 

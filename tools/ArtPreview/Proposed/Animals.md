@@ -1,4 +1,46 @@
-# Animals: round 2 proposal
+# Animals: rounds 2 and 3
+
+Round 3 is described first; the round-2 note follows below it, with only its
+"Not done" list brought up to date.
+
+## Round 3: every animal faces eight ways
+
+You approved every round-2 animal and asked for diagonals ("and diagonal?",
+"diagonal for all these animals as well?"). Each animal now faces the same
+eight ways as the people, in the same order: S, SW, W, NW, N, NE, E, SE.
+
+- **What is new.** NE, NW, SE and SW for `horse`, `horse.rider`, `cow`,
+  `sheep` and `chicken`; all eight facings of the shorn sheep
+  (`sheep.shorn.S` to `sheep.shorn.SE`), turned from the approved
+  `sheep.shorn.E`; and 16 px diagonals for the cow, sheep and hen (`.16`).
+  Each is shown over grass and as a bare `.sprite`, 84 new pictures in all.
+- **Turnarounds.** `horse.turnaround`, `horse.rider.turnaround`,
+  `cow.turnaround`, `sheep.turnaround`, `sheep.shorn.turnaround` and
+  `chicken.turnaround` put each animal's eight facings side by side, like the
+  people's turnaround. They are review aids, not assets.
+- **Nothing approved changed.** Every round-2 picture, the lineup included, is
+  still exactly the same, pixel for pixel; I compared each file with the
+  approved one.
+- **Drawn the same way.** The diagonals come from the same drawing as the
+  approved facings, so they keep the size, the dark outline, the colours and
+  the markings in the same places on the body. The light still comes from the
+  north-west and the shadow still falls to the south-east whatever way an
+  animal faces, so on a diagonal the lit and shaded rims fall across the body
+  rather than along it.
+- **Touch-ups only on the diagonals.** Turned 45°, a few details would have
+  come out ragged, so I fixed them by hand in the drawing code: the saddle's
+  edge is one unbroken line (it broke into dots), the horse's blaze and the
+  hen's comb are clean diagonal strokes (the comb had become a blob), both cow
+  horns keep their tan colour (one disappeared), the rider's boots sit a
+  little further out so they still show, the sheep's head sits half a pixel
+  further out of the fleece so the dark face still reads at the corner, the
+  shorn sheep's neck reaches its body, and single stray pixels are trimmed
+  from the horse, cow and hen outlines. The saddle is half a pixel larger on
+  a diagonal, because its stepped edge looks heavier.
+- **Not checked in the game.** Nothing draws animals in the game yet; these
+  were judged only from the rendered PNGs.
+
+## Round 2
 
 The livestock you agreed for late development (a chicken for eggs, a sheep for
 wool, a cow for milk) drawn for the first time, and the rest of the horse you
@@ -11,7 +53,7 @@ side, bare on the top row and ridden on the bottom row, so you can check that
 the new facings match the two you approved. It is only a review aid, not an
 asset.
 
-## How they are drawn
+### How they are drawn
 
 Every animal is drawn the way your approved horse is, so they sit together with
 the people:
@@ -28,7 +70,7 @@ the people:
   horse but wider, the sheep is clearly smaller and rounder, and the hen is
   small but drawn a little larger than life so you can still see her.
 
-## Asset by asset
+### Asset by asset
 
 - **cow.S, cow.E, cow.N, cow.W.** A dairy cow: a broad, boxy body with squared
   hips, cream hide with irregular dark patches (one over the hips, a big one on
@@ -71,7 +113,7 @@ horse.rider.E: every solid pixel is identical.
 
 Every entry is also there as a bare transparent `.sprite`.
 
-## Style guide rules applied
+### Style guide rules applied
 
 - **Section 2 ramps:** every colour is a step of an existing ramp, so no new
   colours are needed. The cow's hide, the wool and the horns' highlight use
@@ -87,7 +129,7 @@ Every entry is also there as a bare transparent `.sprite`.
 - **S4:** each animal is identifiable at 16 px by silhouette plus one colour
   mark.
 
-## Where this departs from the guide, and why
+### Where this departs from the guide, and why
 
 - **Outline colour.** The guide gives world sprites an outline in the edge step
   of their own colour (L4) and people the dark 1E2226 outline (L5). The approved
@@ -96,11 +138,10 @@ Every entry is also there as a bare transparent `.sprite`.
 - **The chicken is larger than life.** A true-scale hen would be a few pixels
   across; she is drawn about 14 px long so she still reads at full zoom.
 
-## Not done
+### Not done
 
-- Facings other than north, south, east and west, walking frames, and lying,
-  eating or sleeping poses. The drawing turns to diagonals already; they are
-  not shown as entries yet.
+- Walking frames, and lying, eating or sleeping poses. (Diagonal facings
+  were added in round 3.)
 - The horse's cargo state (the content list mentions rider or cargo).
 - Young animals (chicks, lambs, calves), animal pens, feeders and coops.
 - Nothing in the game draws animals yet, and nobody has checked these in the
