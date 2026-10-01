@@ -105,7 +105,7 @@ generated memory summaries and full conversations are unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships and teaching | Basic version | One-for-one barter, positive trust and accepted/refused partnerships. Practical lessons are built but not offered in a normal game, because a learner needs a mentor who holds a work role ([#471](https://github.com/compoodment/ClankerWorld/issues/471) will make lessons teach a saved skill instead). Pricing, currency, conflict and rich dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation, infant care, child talk/play/help and age restrictions. Children without a selected model use safe local choices; parents do not yet bind that choice at birth. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores and shared-food council. Multiple Town founding, broader law, currencies and land disputes remain unfinished. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Guest invitations, leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -121,10 +121,19 @@ rank higher. Each new building's street runs on a few tiles past it, and a
 building away from the Roads gets a new side street. Town borders and
 building-site ranking are provisional. Adults placed on an
 owned building join its household; unclaimed Town placement joins the Town
-without a household; outside a Town it starts an independent household. Finding
-existing suitable housing before proposing a new House is not finished. Agents
-without a household cannot build a House; in fresh worlds they rely on clothing
-and natural storm cover until housing is resolved. New Shelters, Storehouses,
+without a household; outside a Town it starts an independent household. An
+adult with no household cannot build a House. Instead they can ask a household
+that holds a House in their Town to take them in. Every adult member of that
+household must agree within the same short window as other proposals; one
+refusal or no answer ends the request, and that household is not asked again
+for two world days. Standing beside a House grants nothing, and a pending
+request grants no access to the household's food, stock or shelter. Once
+every adult agrees, the newcomer is a member of that household. The agent's
+profile and its own model request say the real blocker: no household, a House
+still to plan, missing materials or no legal site. How an adult forms a new
+household is still open, so an adult nobody takes in relies on clothing and
+natural storm cover. This is a basic version: it has not been checked by hand
+in the Windows game yet. New Shelters, Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a

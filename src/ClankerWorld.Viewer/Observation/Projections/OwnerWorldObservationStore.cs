@@ -579,6 +579,8 @@ public sealed class OwnerWorldObservationStore
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
+        if (HousingDetail(state, physical.Housing) is { } housingDetail)
+            decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         if (state.Society.Cognition.Queue.Any(item => item.InhabitantId == inhabitant.Id))
@@ -639,8 +641,47 @@ public sealed class OwnerWorldObservationStore
                         edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
                         state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
                     ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
+                .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
+    }
+
+    /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>
+    private static string? HousingDetail(PrivateWorldRuntimeState state, SettlementHousing? housing)
+    {
+        if (housing?.Blocker is not { } blocker)
+            return null;
+        var asked = housing.Request is { } request
+            ? state.Society.Society.Households.FirstOrDefault(item => item.Id == request.HouseholdId)?.Name ?? "another"
+            : "another";
+        return blocker switch
+        {
+            HousingBlockers.AwaitingAnswer => $"No home yet. Asked the {asked} household to live in their House; every adult member must agree.",
+            HousingBlockers.NoHousehold => "No home. Belongs to no household, so no House can be planned. A household with a House may agree to take them in.",
+            HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
+            HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
+            HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            _ => null,
+        };
+    }
+
+    /// <summary>Requests to live in this adult's House that they must answer, or have answered.</summary>
+    private static IEnumerable<string> HousingRequestNotes(PrivateWorldRuntimeState state, SocietyInhabitant member)
+    {
+        if (member.HouseholdId is null)
+            yield break;
+        foreach (var applicant in state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal))
+        {
+            if (applicant.Housing?.Request is not { } request || request.HouseholdId != member.HouseholdId ||
+                !request.Members.Contains(member.Id, StringComparer.Ordinal))
+                continue;
+            var name = state.Society.Society.GetInhabitant(applicant.InhabitantId).Name;
+            yield return request.Approvals.Contains(member.Id, StringComparer.Ordinal)
+                ? $"Agreed to let {name} live in the House; waiting for the other adults."
+                : request.Rejections.Contains(member.Id, StringComparer.Ordinal)
+                    ? $"Refused {name}'s request to live in the House."
+                    : $"{name} asked to live in the household's House. Every adult member must answer.";
+        }
     }
 
     private static ViewerInhabitant ToDeceasedInhabitant(

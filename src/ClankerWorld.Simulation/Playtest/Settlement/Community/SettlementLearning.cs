@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanContinueLesson(string actor)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
         {
             return false;
         }
