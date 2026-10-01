@@ -111,7 +111,17 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(runtime.FounderSetup.FounderIds[^1], host.Services
                 .GetRequiredService<OwnerWorldObservationStore>().GetSnapshot().FounderSetup!.LastFounderId);
             var providerStatus = host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus();
-            Assert.DoesNotContain(providerStatus.Assignments ?? [], item => item.InhabitantId == lastFounder);
+            var inheritedRoutes = providerStatus.Assignments!.Where(item => item.InhabitantId == lastFounder).ToArray();
+            Assert.Equal(2, inheritedRoutes.Length);
+            Assert.Equal([PlayerDecisionProviders.PlanningRole, PlayerDecisionProviders.RoutineRole],
+                inheritedRoutes.Select(item => item.Role).Order(StringComparer.Ordinal));
+            Assert.All(inheritedRoutes, assignment =>
+            {
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
+                Assert.Null(assignment.Model);
+                Assert.Null(assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
             Assert.Contains(providerStatus.CredentialSlots ?? [], item => item.Id == slotId);
             Assert.Contains(placementLog.Messages, message => message.Contains(
                 "founder_setup outcome=undone world_tick=0", StringComparison.Ordinal));
