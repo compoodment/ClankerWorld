@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
@@ -190,6 +191,102 @@ public sealed class HandcartRuntimeTests
         var bytes = PrivateWorldRuntimeCodec.Encode(breaking.ExportState());
         using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
+    }
+
+    [Fact]
+    public async Task DeathKeepsTheCartInEscrowThenLetsItsHeirReachRepairAndUnloadAcrossReload()
+    {
+        using var setup = new PrivateWorldRuntime("inherited-visible-handcart", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var owner = state.Inhabitants[0].InhabitantId;
+        var household = state.Society.Society.GetInhabitant(owner).HouseholdId;
+        var heir = state.Society.Society.Inhabitants.First(person => person.Id != owner && person.HouseholdId == household).Id;
+        // Another household member still cannot claim the heir's personal cart.
+        var outsider = state.Society.Society.Inhabitants.First(person => person.Id != owner && person.Id != heir).Id;
+        var position = state.Inhabitants.Single(person => person.InhabitantId == owner).Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "estate-cart", "handcart", owner, 1,
+            conditionBasisPoints: 1, groundPosition: new(position.X, position.Y));
+        inventory = InventoryFixture.AddLot(inventory, "estate-cargo", "stone", owner, 32, containerLotId: "estate-cart");
+        inventory = InventoryFixture.AddLot(inventory, "heir-repair-wood", "wood", heir, 1);
+        inventory = InventoryFixture.AddLot(inventory, "heir-repair-fittings", "iron_fittings", heir, 1);
+        inventory = InventoryFixture.AddLot(inventory, "heir-repair-rope", "rope", heir, 1);
+        var society = state.Society.Society;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    Inventory = inventory,
+                    LifeClock = null,
+                    Config = society.Config with
+                    {
+                        TicksPerWorldDay = 1,
+                        DaysPerWorldYear = 4,
+                        EstateEscrowDays = 1,
+                        ContractVersion = 3,
+                        DayLifecycle = new(3, 12, 900, 1000),
+                        BaseNaturalMortalityBasisPoints = 0,
+                        NaturalMortalitySlopeBasisPoints = 0,
+                    },
+                    Inhabitants = society.Inhabitants.Select(person => person with
+                    {
+                        BirthTick = person.Id == owner ? -999 : -12,
+                        BirthLifeTick = null,
+                        AgeBand = person.Id == owner ? SocietyAgeBand.Elder : SocietyAgeBand.Adult,
+                        LastLifecycleYearChecked = person.Id == owner ? 999 : 12,
+                    }).ToArray(),
+                },
+            },
+            WorldSystems = state.WorldSystems! with
+            {
+                RegionalWeather = null,
+                Config = state.WorldSystems.Config with
+                { TicksPerDay = 1, DaysPerYear = 4, SpringDays = 1, SummerDays = 1, AutumnDays = 1, WinterDays = 1 },
+            },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            { HungerBasisPoints = 10_000, Project = null, LastDecisionContext = null }).ToArray(),
+            HandcartHitches = [new("estate-cart", owner)],
+        };
+        using var dying = PrivateWorldRuntime.Restore(state, _ => new CartChooser("safe_idle"));
+        Assert.True((await dying.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(SocietyInhabitantStatus.Dead, dying.Society.GetInhabitant(owner).Status);
+        var estate = Assert.Single(dying.Society.Estates);
+        Assert.Equal(estate.Id, dying.Society.Inventory.GetLot("estate-cart").OwnerId);
+        Assert.Equal(estate.Id, dying.Society.Inventory.GetLot("estate-cargo").OwnerId);
+        Assert.Empty(dying.ExportState().HandcartHitches!);
+        Assert.Equal(new InventoryGroundPosition(position.X, position.Y), dying.Society.Inventory.GetLot("estate-cart").GroundPosition);
+        var visibleEscrowCart = Assert.Single(new OwnerWorldObservationStore(dying).GetSnapshot().Handcarts);
+        Assert.Equal("Estate property", visibleEscrowCart.OwnerName);
+        Assert.Null(visibleEscrowCart.PullerId);
+        Assert.Equal(32, visibleEscrowCart.Cargo.Sum(item => item.Quantity));
+        var escrow = dying.ExportState();
+        escrow = escrow with
+        {
+            Society = escrow.Society with
+            { Society = escrow.Society.Society with { Inventory = InventoryFixture.WearSingleUnit(dying.Society.Inventory, "estate-cart", 1) } },
+        };
+        var bytes = PrivateWorldRuntimeCodec.Encode(escrow);
+        var chooser = new CartChooser("repair_handcart:estate-cart");
+        var outsiderChooser = new CartChooser("attach_handcart:estate-cart");
+        using var recovered = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => id == heir ? chooser : id == outsider ? outsiderChooser : new CartChooser("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(recovered.ExportState()));
+        await Until(recovered, () => recovered.Society.Inventory.GetLot("estate-cart").OwnerId == heir);
+        Assert.Equal(heir, recovered.Society.Inventory.GetLot("estate-cargo").OwnerId);
+        Assert.Equal(new InventoryGroundPosition(position.X, position.Y), recovered.Society.Inventory.GetLot("estate-cart").GroundPosition);
+        Assert.Equal(32, recovered.Society.Inventory.GetLot("estate-cargo").Quantity);
+        await Until(recovered, () => recovered.Society.Inventory.GetLot("estate-cart").ConditionBasisPoints == 10_000);
+        Assert.Equal(position, recovered.Inhabitants.Single(person => person.InhabitantId == heir).Position);
+        Assert.DoesNotContain(recovered.Society.Inventory.Lots, lot => lot.Id is "heir-repair-wood" or "heir-repair-fittings" or "heir-repair-rope");
+        Assert.DoesNotContain(outsiderChooser.Offered, id => id is "attach_handcart:estate-cart" or "repair_handcart:estate-cart" or "unload_handcart_ground:estate-cargo");
+        chooser.Preferred = "unload_handcart_ground:estate-cargo";
+        await Until(recovered, () => recovered.Society.Inventory.GetLot("estate-cargo").ContainerLotId is null);
+        var cargo = recovered.Society.Inventory.GetLot("estate-cargo");
+        Assert.Equal((heir, 32, new InventoryGroundPosition(position.X, position.Y)), (cargo.OwnerId, cargo.Quantity, cargo.GroundPosition));
+        var recoveredBytes = PrivateWorldRuntimeCodec.Encode(recovered.ExportState());
+        using var finalReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(recoveredBytes));
+        Assert.Equal(recoveredBytes, PrivateWorldRuntimeCodec.Encode(finalReload.ExportState()));
     }
 
     [Fact]

@@ -207,9 +207,9 @@ public sealed class PersonalEquipmentTests
             var reopened = false;
             string? selected = null;
             WorldProductionJob? sewn = null;
-            // The cold-weather coat includes four weaving jobs before sewing.
-            // Allow the real travel, warmth and production chain to complete.
-            for (var tick = 0; tick < 500; tick++)
+            // Four cloth jobs plus cold-weather travel put the coat's
+            // completion after the old 300-tick limit (311 in this fixture).
+            for (var tick = 0; tick < 350; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
@@ -231,7 +231,15 @@ public sealed class PersonalEquipmentTests
                 " Stock: " + string.Join(",", world.Society.Inventory.Lots.Where(lot => lot.OwnerId == Alpha || lot.OwnerId == actor)
                     .Select(lot => $"{lot.ItemKind}:{lot.Quantity}@{lot.StorageBuildingId}")) +
                 " Offers: " + string.Join(";", actorChoices.Offers.TakeLast(3)));
-            Assert.NotNull(sewn);
+            var finalWorker = world.Inhabitants.Single(person => person.InhabitantId == actor);
+            Assert.True(sewn is not null, "Jobs: " + string.Join(";", world.WorldSimulation.ProductionJobs) +
+                " Tick: " + world.WorldTick + " Worker hunger: " + finalWorker.HungerBasisPoints + " Survival: " + finalWorker.Survival +
+                " Reservations: " + string.Join(";", world.Society.Inventory.Reservations.Select(item =>
+                    $"{item.Id}:{item.State}:expires{item.ExpiryTick}:lot{item.LotId}")) +
+                " Production events: " + string.Join(";", world.ExportState().Events.Where(item => item.Kind is
+                    "production_input_unusable" or "production_tool_unusable" or "recipe_cancelled" or "production_worker_removed")
+                    .Select(item => item.Kind + ":" + item.Detail)) +
+                " Recent offers: " + string.Join(";", actorChoices.Offers.TakeLast(3)));
             Assert.Equal(sewn.JobId + ":output:00", selected);
             var unit = world.Society.Inventory.GetLot(selected!);
             Assert.Equal((kind, actor, 1), (unit.ItemKind, unit.OwnerId, unit.Quantity));
@@ -933,8 +941,6 @@ public sealed class PersonalEquipmentTests
         };
         inventory = InventoryFixture.AddLot(inventory, "full-builders-stone", "stone", requester, 8);
         inventory = InventoryFixture.AddLot(inventory, "helper-house-wood", "wood", helper, 4);
-        // Keep the demand while preventing the requester from forwarding a
-        // received load into construction during the handoff's own tick.
         state = WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == helper
@@ -944,7 +950,7 @@ public sealed class PersonalEquipmentTests
                     HungerBasisPoints = 9_500,
                     Equipment = null,
                     Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId, site),
-                        house.DisplayName, initial.WorldTick, "paused", LastTransitionTick: initial.WorldTick, RequiresFreshChoice: true),
+                        house.DisplayName, initial.WorldTick, "acquiring", LastTransitionTick: initial.WorldTick),
                 } : person).ToArray(),
         };
         var provider = new Choices(["assist:wood"]);
@@ -995,8 +1001,12 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(3, helperRemainder.Quantity);
         var delivered = Assert.Single(restored.Society.Inventory.Lots,
             lot => lot.ProvenanceLotId == "helper-house-wood");
-        Assert.Equal(requester, delivered.OwnerId);
-        Assert.Null(delivered.GroundPosition);
+        // The requester receives the one unit that fits, then contributes it
+        // to the physical camp stock for the active House project that tick.
+        Assert.Contains(restored.Society.Inventory.Events, item => item.Kind == "inventory_transferred" &&
+            item.Detail.Contains($":{requester}:{household}:{delivered.Id}:1:project_contribution", StringComparison.Ordinal));
+        Assert.Equal(household, delivered.OwnerId);
+        Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), delivered.GroundPosition);
         Assert.Null(delivered.StorageBuildingId);
         Assert.Null(delivered.DeliveryBuildingId);
         Assert.Equal(1, delivered.Quantity);
@@ -1005,8 +1015,9 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(new InventoryGroundPosition(camp.X, camp.Y), stagedStone.GroundPosition);
         Assert.Equal(1, stagedStone.Quantity);
         Assert.Equal(7, restored.Society.Inventory.GetLot("full-builders-stone").Quantity);
-        Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null));
-        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(7, PersonalEquipmentRules.CarriedQuantity(restored.Society.Inventory, requester, null));
+        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.Id == "helper-house-wood" ||
+            lot.ProvenanceLotId == "helper-house-wood").Sum(lot => lot.Quantity));
         var saved = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
