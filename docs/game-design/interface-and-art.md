@@ -27,14 +27,16 @@ everything that is available in the current build. See [what works today](../wha
   exist, **Settings**, **Mod Library**, **Quit Game**, and a separate **Continue** action for the
   most recently played world.
 - **New World** offers world size and climate choices, advanced generation
-  controls, preview/reroll, wrapping, and an optional early survival grace
-  period. The ordinary game has **one supported first-Town setup mode**. The
-  nothing-start challenge mode was removed from the plan for now. Generating
-  the world creates the map and opens it paused; four starting agents must be
-  configured before starting time. The first-Town siting and generated
-  building layout flow are in
-  [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices). API keys are not a prerequisite for
-  reaching the world view.
+  controls, preview/reroll and wrapping. **Agreed on October 1
+  ([#648](https://github.com/compoodment/ClankerWorld/issues/648)):** it offers
+  no survival grace period or extra starting supplies for now; a gentler start
+  may be added once the default game is finished. The ordinary game has **one
+  supported first-Town setup mode**. The nothing-start challenge mode was
+  removed from the plan for now. Generating the world creates the map and opens
+  it paused; four starting agents must be configured before starting time. The
+  first-Town siting and generated building layout flow are in
+  [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices).
+  API keys are not a prerequisite for reaching the world view.
 - Enter a visually coherent generated world. The player can see its whole
   geography from the start; there is no player fog of war. Individual agents
   may know only what they have experienced or learned.
@@ -70,6 +72,13 @@ everything that is available in the current build. See [what works today](../wha
   **Event Log** button, an **Add Agent** button near the menu button, and the
   menu button at top-right. Date display format and 24-hour/AM-PM time format
   belong in UI Settings.
+- **Agreed on October 1
+  ([#640](https://github.com/compoodment/ClankerWorld/issues/640)):** the date
+  uses season names by default, such as **Autumn 2, Year 1 · 14:20**, because
+  each 10-day month is one season: Spring, Summer, Autumn and Winter. Game
+  Settings also offers numeric dates (DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD) for
+  players who prefer them, and keeps the 24-hour or 12-hour time choice. Agent
+  ages show as life stage plus days, such as **Adult · 22 days**.
 - **Agreed after the September 29 style review:** the Event Log button shows
   how many events arrived since the player last opened the log. Because a
   world can hold several Towns, the top bar has no single-Town button; Town
@@ -173,7 +182,17 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on October 1:** Developer tools leave the pause menu for their own
   panel on a key, and become genuinely useful: for example tile coordinates,
   a performance readout, jumping to any agent and showing an agent's planned
-  path. The exact set is open.
+  path.
+- **The first Developer tools, agreed on October 1
+  ([#650](https://github.com/compoodment/ClankerWorld/issues/650)):** **F12**
+  opens the panel. It keeps today's tools (life-speed override, recovery for a
+  lost model reply, paused world editing and paired-device management) and adds
+  tile coordinates and facts, a performance readout, jumping to any agent and
+  showing an agent's planned path. It also offers **direct edits**: set an
+  agent's needs, give or remove goods, add or remove a skill, and start or end
+  a relationship. Every direct edit is written to the Event Log as a developer
+  edit, so playtest results are not mixed up with normal play. Time tools, such
+  as stepping one tick, are not in the first set.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -340,7 +359,7 @@ everything that is available in the current build. See [what works today](../wha
   the existing Add Agent and Suggest/Order controls. Needs, skills, goods,
   memories, relationships and world objects change through simulation actions.
   Direct manipulation of those fields belongs in developer tools, whose
-  exact tool set has not been chosen. This preserves the separately agreed
+  first set is agreed above. This preserves the separately agreed
   founder setup, world settings and Mod Library controls.
 - **Player renaming uses the same full-name check as model naming**, against
   every other living or deceased agent in the world. A taken full name is
@@ -373,19 +392,21 @@ measured, and is then tuned. Computment suggested Small/Medium zoom-out around
 exact percentage and visible-tile budget remain preferred starting points for
 tuning, not fixed finished-game numbers.
 
-Game Settings apply across worlds/on this installation:
-UI date and time display formats, graphics/display preferences, and stored
-provider credentials. The Main Menu's Settings entry opens
-Game Settings. World Settings belong to the current save: autosave on/off,
-interval and rotation; the optional AI-usage meter/limit; and Jev's per-world
-configuration. Selecting either category within Pause Menu Settings keeps the
-world paused.
-World generation choices such as size, climate and wrapping are chosen before
-creation and should be inspectable afterward, not silently mutable settings.
-Jev's on/off switch for an existing world is accepted; the exact settings
-categories and transition behavior for an in-flight Jev task remain open.
-World Settings must be absent from Main Menu Settings while no world is loaded;
-opening Main Menu settings must never enter a world.
+Game Settings apply across worlds/on this installation: UI date and time
+display formats, graphics/display preferences, and stored provider credentials.
+**Agreed on October 1
+([#639](https://github.com/compoodment/ClankerWorld/issues/639)):** the
+AI-usage meter and limit also belong in Game Settings, because one limit covers
+every world on the installation. The Main Menu's Settings entry opens Game
+Settings. World Settings belong to the current save: autosave on/off, interval
+and rotation, and Jev's per-world configuration. Selecting either category
+within Pause Menu Settings keeps the world paused. World generation choices
+such as size, climate and wrapping are chosen before creation and should be
+inspectable afterward, not silently mutable settings. Jev's on/off switch for
+an existing world is accepted; the exact settings categories and transition
+behavior for an in-flight Jev task remain open. World Settings must be absent
+from Main Menu Settings while no world is loaded; opening Main Menu settings
+must never enter a world.
 
 **Agreed (confirmed 30 September):** placing an agent with Add Agent on a
 household's property joins that household without its consent, as recorded in
@@ -416,8 +437,8 @@ is separate from this later Add Agent placement rule.
 Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
 which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
-categories, filter UI, event retention, and handling of events without a single map location; custom
-month/season names and date presentation. The player's role, direct edits,
+categories, filter UI, event retention, and handling of events without a
+single map location. The player's role, direct edits,
 suggestions and order rules are agreed in
 [Player guidance and orders](#player-guidance-and-orders). Computment may
 provide a UI drawing.
