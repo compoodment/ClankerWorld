@@ -58,6 +58,8 @@ public sealed class ProviderModelCatalogTests
             ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OpenAiList)));
         Assert.Equal(["glm-5.3-flash", "deepseek-v4-pro:0813", "kimi-k3:cloud", "gemma4:31b", "gpt-oss:120b"],
             ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(OllamaTags)));
+        Assert.Equal(["kimi-k3:cloud", "gemma4:31b"], ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes(
+            """{"models":[{"model":"kimi-k3:cloud"},{"name":null,"model":"gemma4:31b"}]}""")));
         Assert.Throws<InvalidDataException>(() => ProviderModelCatalog.Parse(Encoding.UTF8.GetBytes("""{"items":[]}""")));
     }
 
@@ -189,6 +191,18 @@ public sealed class ProviderModelCatalogTests
     [InlineData("[]")]
     [InlineData("7")]
     [InlineData("{\"data\":[null]}")]
+    [InlineData("{\"data\":[{}]}")]
+    [InlineData("{\"data\":[{\"id\":null}]}")]
+    [InlineData("{\"data\":[{\"id\":7}]}")]
+    [InlineData("{\"data\":[{\"id\":\"\"}]}")]
+    [InlineData("{\"data\":[{\"id\":\" \"}]}")]
+    [InlineData("{\"data\":[{\"id\":\"gpt-6-luna\"},{}]}")]
+    [InlineData("{\"models\":[{}]}")]
+    [InlineData("{\"models\":[{\"name\":7}]}")]
+    [InlineData("{\"models\":[{\"model\":null}]}")]
+    [InlineData("{\"models\":[{\"name\":\"\"}]}")]
+    [InlineData("{\"models\":[{\"model\":\" \"}]}")]
+    [InlineData("{\"models\":[{\"name\":\"kimi-k3:cloud\"},{}]}")]
     [InlineData("{\"models\":[\"unexpected\"]}")]
     public async Task MalformedListShapesKeepModelsUsableAndCanBeRetried(string body)
     {
@@ -204,6 +218,24 @@ public sealed class ProviderModelCatalogTests
         broken = false;
         Assert.Null((await catalog.ListAsync(action, CancellationToken.None)).Error);
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("{\"data\":[]}")]
+    [InlineData("{\"models\":[]}")]
+    public async Task EmptyModelListsAreSuccessfullyCheckedAndCached(string body)
+    {
+        using var directory = new TemporaryDirectory();
+        var handler = new ListHandler(_ => (HttpStatusCode.OK, body));
+        var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(handler));
+        var action = new OwnerProviderModelListAction("openai", ApiKey: "empty-list-secret");
+
+        var result = await catalog.ListAsync(action, CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.All(result.Models, item => Assert.False(item.Available));
+        _ = await catalog.ListAsync(action, CancellationToken.None);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]
