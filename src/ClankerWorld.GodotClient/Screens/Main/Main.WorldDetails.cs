@@ -63,6 +63,7 @@ public partial class Main
             string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
         if (renderedEventLog == content) return;
         renderedEventLog = content;
+        RenderEventRows(entries);
         eventLog.Clear();
         if (entries.Length == 0)
         {

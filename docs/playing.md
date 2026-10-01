@@ -115,8 +115,13 @@ lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
-**Event Log** shows important events. Clicking an event with a known location
-moves the camera there. Opening the log marks its new entries read.
+**Event Log** shows important events under a heading for each day, each with an
+icon for its kind. An event with a known location has a **Find** button that
+moves the camera there. Opening the log marks its new entries read; the ones
+that were new keep a small dot while it stays open. **Agents** lists everyone
+with their portrait and what they are doing, and tags anyone **Hungry**,
+**Cold** or **Ill**. Click a row to find that agent, or double-click it to open
+their Profile.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -142,7 +147,8 @@ Jev and the current model-usage controls. Main Menu Settings exposes Game
 Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
-Press **F1** or **?** for the in-game controls list. With no menu or text field
+Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
+and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.

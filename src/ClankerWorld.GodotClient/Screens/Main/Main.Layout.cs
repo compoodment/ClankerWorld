@@ -194,6 +194,7 @@ public partial class Main
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
         inhabitantList.TooltipText = "Choose someone to find them in the world.";
         rosterBody.AddChild(inhabitantList);
+        BuildRosterCards(rosterBody);
         AddClosablePanelContents(rosterPanel, "Agents", rosterBody);
         rosterPanel.CustomMinimumSize = new Vector2(410, 0);
         rosterPanel.ZIndex = 80;
@@ -203,8 +204,12 @@ public partial class Main
         ConfigureTextPanel(eventLog, 300);
         eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
-        AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
-        eventsPanel.CustomMinimumSize = new Vector2(390, 0);
+        var eventsBody = new VBoxContainer();
+        eventLog.Hide();
+        eventsBody.AddChild(eventLog);
+        BuildEventRows(eventsBody);
+        AddClosablePanelContents(eventsPanel, "Event Log", eventsBody);
+        eventsPanel.CustomMinimumSize = new Vector2(430, 0);
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
