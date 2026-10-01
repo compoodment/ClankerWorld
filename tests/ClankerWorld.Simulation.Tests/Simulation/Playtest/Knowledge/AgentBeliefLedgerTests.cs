@@ -131,4 +131,42 @@ public sealed class AgentBeliefLedgerTests
             new SocietyAgentBelief("belief:stolen", "founder-mira", "Scout moved the tool.",
                 SocietyBeliefProvenance.Hearsay, 8_000, 0, SourceAgentId: "founder-rowan")));
     }
+
+    [Fact]
+    public void SharedSourceTurnAllowsMultipleOwnersAndLinkedCorrections()
+    {
+        using var world = new PrivateWorldRuntime("shared-source-turn-beliefs");
+        const string sourceTurnId = "conversation:test:turn:1";
+        var scoutBelief = world.RecordAgentBelief(new SocietyAgentBelief(
+            "belief:scout-heard-turn", "founder-scout", "Mira says the trail is clear.",
+            SocietyBeliefProvenance.Hearsay, 5_000, 0,
+            SourceAgentId: "founder-mira", SourceTurnId: sourceTurnId));
+        var rowanBelief = world.RecordAgentBelief(new SocietyAgentBelief(
+            "belief:rowan-heard-turn", "founder-rowan", "Mira says the trail is clear.",
+            SocietyBeliefProvenance.Hearsay, 5_000, 0,
+            SourceAgentId: "founder-mira", SourceTurnId: sourceTurnId));
+        var correction = world.CorrectAgentBelief("founder-scout", scoutBelief.Id,
+            new SocietyAgentBelief(
+                "belief:scout-corrected-turn", "founder-scout", "Mira said the north trail is clear.",
+                SocietyBeliefProvenance.Hearsay, 7_500, 0,
+                SourceAgentId: "founder-mira", SourceTurnId: sourceTurnId));
+
+        var saved = world.Society;
+        var beliefs = saved.Beliefs ?? throw new InvalidOperationException("Expected recorded beliefs.");
+        Assert.Equal(sourceTurnId, correction.SourceTurnId);
+        SocietyFixture.Validate(saved);
+        Assert.Equal(correction.Id, beliefs.Single(item => item.Id == scoutBelief.Id)
+            .SupersededByBeliefId);
+        Assert.Equal(sourceTurnId, beliefs.Single(item => item.Id == rowanBelief.Id)
+            .SourceTurnId);
+        Assert.Equal(3, beliefs.Count);
+        Assert.Contains(beliefs, item => item.OwnerId == "founder-scout" &&
+            item.SourceTurnId == sourceTurnId && item.Id == correction.Id);
+        Assert.Contains(beliefs, item => item.OwnerId == "founder-rowan" &&
+            item.SourceTurnId == sourceTurnId && item.Id == rowanBelief.Id);
+        Assert.Throws<InvalidDataException>(() => world.RecordAgentBelief(new SocietyAgentBelief(
+            "belief:unlinked-scout-duplicate", "founder-scout", "A duplicate report of that line.",
+            SocietyBeliefProvenance.Hearsay, 5_000, 0,
+            SourceAgentId: "founder-mira", SourceTurnId: sourceTurnId)));
+    }
 }

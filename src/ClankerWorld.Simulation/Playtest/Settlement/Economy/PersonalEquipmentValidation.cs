@@ -57,7 +57,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateEquipmentShape(PersonalEquipment equipment, long tick, int schema)
     {
         static bool InvalidId(string? id) => id is not null && (string.IsNullOrWhiteSpace(id) || id.Any(char.IsControl));
-        if (schema < 35 || InvalidId(equipment.ClothingLotId) || InvalidId(equipment.CarryAidLotId) ||
+        if (schema < PersonalEquipmentSchemaVersion || InvalidId(equipment.ClothingLotId) || InvalidId(equipment.CarryAidLotId) ||
             equipment.ClothingLotId is not null && equipment.ClothingLotId == equipment.CarryAidLotId ||
             equipment.Repair is { } repair &&
             (InvalidId(repair.LotId) || InvalidId(repair.BuildingId) || repair.LotId is null || repair.BuildingId is null ||

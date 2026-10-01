@@ -35,7 +35,8 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
-            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical))
+            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+                !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
@@ -43,12 +44,15 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
                 physical = inhabitants[inhabitant.Id];
             }
+            if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
+                continue;
+            var conversationChoiceContext = ConversationChoiceContextFor(inhabitant.Id);
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
-                !NeedsCognition(inhabitant.Id, current, candidates))
+                !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;
             }
@@ -86,7 +90,10 @@ public sealed partial class PrivateWorldRuntime
                 RetrievedMemories: retrievedMemories,
                 KnownMapFacts: knownMapFacts, Self: self,
                 NeedsPersonality: physical.IdentityChoicePending,
-                NeedsAspiration: physical.IdentityChoicePending);
+                NeedsAspiration: physical.IdentityChoicePending)
+            {
+                ConversationChoiceContext = conversationChoiceContext,
+            };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
             {
                 try
@@ -132,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
                 {
-                    LastDecisionContext = DecisionContext(physical, candidates),
+                    LastDecisionContext = DecisionContext(physical, candidates, conversationChoiceContext),
                 };
             }
         }
@@ -141,8 +148,15 @@ public sealed partial class PrivateWorldRuntime
     private bool NeedsCognition(
         string inhabitantId,
         CognitionIntention? current,
-        List<CognitionCandidate> candidates)
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext)
     {
+        if (conversationChoiceContext is not null &&
+            !HasPromptedConversationChoice(inhabitants[inhabitantId].LastDecisionContext, conversationChoiceContext))
+        {
+            return true;
+        }
+
         // A new instruction prompts one fresh decision. If it cannot progress
         // yet, it waits for the agent's usual decisions instead of requesting
         // another (possibly paid) decision on every tick.
@@ -189,16 +203,32 @@ public sealed partial class PrivateWorldRuntime
         if (current.CandidateId == "safe_idle")
         {
             var physical = inhabitants[inhabitantId];
-            return DecisionContext(physical, candidates) != physical.LastDecisionContext ||
+            return DecisionContext(physical, candidates, conversationChoiceContext) != physical.LastDecisionContext ||
                 checked(WorldTick - current.WorldTick) >= 300;
         }
 
         return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
     }
 
-    private string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
-        $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
-        string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+    private string DecisionContext(
+        PlaytestInhabitantState state,
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext = null)
+    {
+        var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
+            string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+        return conversationChoiceContext is null
+            ? context
+            : $"{context}|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}";
+    }
+
+    private static bool HasPromptedConversationChoice(string? lastDecisionContext, string conversationChoiceContext) =>
+        lastDecisionContext?.EndsWith(
+            $"|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}",
+            StringComparison.Ordinal) == true;
+
+    private static string ConversationChoiceContextDigest(string conversationChoiceContext) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(conversationChoiceContext)));
 
     private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
     {
@@ -210,6 +240,10 @@ public sealed partial class PrivateWorldRuntime
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             if (dispatched.Contains(inhabitant.Id) || !inhabitants.TryGetValue(inhabitant.Id, out var state))
+            {
+                continue;
+            }
+            if (IsConversationBusy(inhabitant.Id))
             {
                 continue;
             }
@@ -317,6 +351,13 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
+            candidateId.StartsWith("conversation_", StringComparison.Ordinal))
+        {
+            if (!ApplyConversationCandidate(inhabitantId, candidateId))
+                AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
+            return;
+        }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
@@ -614,7 +655,18 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId,
         PlaytestInhabitantState state)
     {
-        var candidates = new List<CognitionCandidate>();
+        var currentConversation = ConversationFor(inhabitantId);
+        var candidates = currentConversation is null
+            ? new List<CognitionCandidate>()
+            : ConversationCandidates(inhabitantId).ToList();
+        if (currentConversation is not null &&
+            (currentConversation.Status is AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker or AgentConversationStatus.WrapUp ||
+             currentConversation.Status == AgentConversationStatus.Proposed && currentConversation.InitiatorId == inhabitantId))
+        {
+            if (candidates.Count == 0)
+                candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
+            return candidates;
+        }
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
@@ -712,6 +764,8 @@ public sealed partial class PrivateWorldRuntime
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
+        if (currentConversation is null)
+            candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
         return candidates;
     }

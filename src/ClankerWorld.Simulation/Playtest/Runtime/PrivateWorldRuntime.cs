@@ -20,7 +20,10 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 35;
+    public const int StateSchemaVersion = 36;
+    public const int ChildModelSelectionSchemaVersion = 33;
+    public const int ConversationSchemaVersion = 35;
+    public const int PersonalEquipmentSchemaVersion = 36;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
@@ -68,6 +71,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
     private HashSet<GridPoint> roadTiles = [];
+    private List<AgentConversation> conversations = [];
+    private List<AgentConversationDailyBudget> conversationBudgets = [];
     private GridPoint SettlementStoragePosition =>
         map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
         worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
@@ -79,6 +84,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         SettlementStoragePosition;
     private long nextInstructionSequence = 1;
     private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PendingConversationTurn> pendingConversationTurns = new(StringComparer.Ordinal);
     private readonly List<PrivateWorldMemoryCompactionTransition> memoryCompactionTransitions = [];
 
     private sealed record HostedDecisionOutcome(CognitionDecisionResponse? Response, string? Failure);
@@ -86,6 +92,12 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         CognitionDecisionRequest Request,
         Task<HostedDecisionOutcome> Task,
         CancellationTokenSource Cancellation);
+    private sealed record ConversationTurnOutcome(AgentConversationTurnResponse? Response, Exception? Failure);
+    private sealed record PendingConversationTurn(
+        AgentConversationTurnRequest Request,
+        Task<ConversationTurnOutcome> Task,
+        CancellationTokenSource Cancellation,
+        long ProviderEpoch);
 
     public PrivateWorldRuntime(
         string worldSeed,
@@ -252,6 +264,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.roadTiles = state.RoadTiles!.ToHashSet();
         runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic!;
+        runtime.conversations = state.Conversations!.ToList();
+        runtime.conversationBudgets = state.ConversationBudgets!.ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
@@ -311,6 +325,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
         if (!trustedPreparedState)
         {
+            runtime.SuspendRestoredConversations();
             runtime.RepairSavedRoadFootprints();
             runtime.Validate();
         }
@@ -321,6 +336,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
         foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+        foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
+            AgentConversationInterruption.Disconnected);
         society.Dispose();
         gate.Dispose();
         tickGate.Dispose();
@@ -381,7 +398,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles, Bridges, bridgeTraffic, fields.ToArray());
+        RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
+        conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
 
     private void AppendEvent(string kind, string detail)
     {

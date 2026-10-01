@@ -128,10 +128,14 @@ public sealed record InhabitantObservation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsPersonality = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsAspiration = false)
 {
-    // Scheduler control metadata is materialized only for a duplicate-name
-    // retry request. It is not stored in the durable queue observation.
+    // Scheduler control metadata is materialized only for duplicate-name
+    // retries and live conversation choices. It is not stored in a save or
+    // sent to a provider.
     [JsonIgnore]
     public bool IsNameRetry { get; init; }
+
+    [JsonIgnore]
+    public string? ConversationChoiceContext { get; init; }
 
     public void Validate()
     {
@@ -141,6 +145,9 @@ public sealed record InhabitantObservation(
         {
             throw new ArgumentOutOfRangeException(nameof(WorldTick));
         }
+
+        if (ConversationChoiceContext is { Length: > 512 })
+            throw new ArgumentException("Conversation choice context exceeds its bound.", nameof(ConversationChoiceContext));
 
         if (HungerBasisPoints is < 0 or > 10_000)
         {

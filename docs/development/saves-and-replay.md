@@ -37,7 +37,7 @@ retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
 Older alpha saves need not load; no field or orchard migration is provided.
 
-Schema 35 adds authoritative garment and carrying-aid lot IDs and timed repair
+Schema 36 adds authoritative garment and carrying-aid lot IDs and timed repair
 work, with exact material reservations. Loading checks the selected goods are
 single, unreserved units physically carried by their recorded owner; repair
 work also needs its private work site and exact live inputs. Broken gear and
@@ -117,6 +117,21 @@ that recorded events reproduce its expected results and digests.
 - Keep build revision, release labels and telemetry out of canonical digests.
 - Never infer compatibility merely from the public game version or file age.
 
+The private-world checkpoint stores the conversation cursor (revision, status,
+next speaker and consent/interruption state) together with the full admitted
+history: up to six accepted public turns and one accepted wrap-up, including
+the actual listener IDs for each. Each later speaker receives the committed
+public history so far, not an unaccepted reply; the wrap-up request receives
+the six public turns. Each participant's current-day allowance is saved too.
+A live provider request is never saved. On restore, an accepted unfinished
+conversation becomes suspended and cannot spend again until both participants
+make fresh resume choices, including when a saved suspension contained one
+person's earlier choice. A pending invitation keeps its original deadline and
+requires normal acceptance, which counts against the invitee's daily allowance.
+Conversation records use private-world schema 35, following schema 34's fields
+and ground harvest lots. No migration for older alpha saves is added solely to preserve
+compatibility.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. Compatibility
@@ -186,21 +201,22 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 34. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 35. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
-learned skills and skill-based lessons, birth-model choices, and household fields
-with ground harvest lots. These fields retain their current validation and
-roundtrip behavior.
+learned skills and skill-based lessons, birth-model choices, household fields
+with ground harvest lots, and bounded conversations with daily allowances.
+These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, record when those fields were introduced; they do
-not allow an earlier checkpoint schema past the current alpha cutoff.
+for fields and ground lots, and schema 35 for conversations, record when those
+fields were introduced; they do not allow an earlier checkpoint schema past the
+current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -221,7 +237,8 @@ not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 32 | Optional per-adult housing state: a pending request to live in another household's House (the household asked, its recorded adult members, including adults who join or come of age while pending, their answers and the 120-tick expiry), recent refusals and the current housing blocker. Loading checks that the applicant has no household, that members and answers name known people, and that refusals name known households. An older schema that carries housing state is refused. |
 | Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 | Schema 34 | Household field ownership, crop stages, interrupted work and protected replanting stock, plus physical ground positions for harvest lots. Older schemas carrying fields or ground lots are refused. Fertility remains derived from the world seed and map layers. |
-| Schema 35 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
+| Schema 36 | Personal garment and carrying-aid selection, timed repair work and exact material reservations. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

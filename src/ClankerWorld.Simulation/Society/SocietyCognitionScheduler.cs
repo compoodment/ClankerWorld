@@ -248,6 +248,10 @@ public sealed class SocietyCognitionScheduler
         var currentRequest = runtime.PreviewRequest(ObservationFor(entry));
         if (currentRequest.RequestId != originalRequest.RequestId ||
             currentRequest.Observation.IsNameRetry != originalRequest.Observation.IsNameRetry ||
+            !string.Equals(
+                currentRequest.Observation.ConversationChoiceContext,
+                originalRequest.Observation.ConversationChoiceContext,
+                StringComparison.Ordinal) ||
             currentRequest.Observation.RunEpoch != currentRunEpoch ||
             response is not null &&
                 originalRequest.Observation.Candidates.Any(candidate => candidate.Id == response.SelectedCandidateId) &&

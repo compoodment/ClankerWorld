@@ -1201,6 +1201,7 @@ public static partial class SocietyFixture
             belief.Statement.Any(char.IsControl) || !Enum.IsDefined(belief.Provenance) ||
             belief.ConfidenceBasisPoints is < 0 or > 10_000 || belief.FormedTick < 0 ||
             belief.FormedTick > checkpoint.WorldTick || belief.SourceEventId is <= 0 ||
+            belief.SourceTurnId is { } sourceTurnId && !IsCanonicalBoundedText(sourceTurnId, 600) ||
             belief.SupersededTick is < 0 || belief.SupersededTick > checkpoint.WorldTick ||
             belief.SupersededByBeliefId is { } superseding && !IsSafeBeliefId(superseding) ||
             belief.SupersedesBeliefId is { } superseded && !IsSafeBeliefId(superseded))
@@ -1217,10 +1218,42 @@ public static partial class SocietyFixture
              belief.SourceAgentId is not null && belief.SourceAgentId != belief.OwnerId))
             throw new InvalidDataException("An agent belief's provenance does not match its witness or reporter.");
 
+        if (belief.SourceTurnId is not null &&
+            (belief.Provenance != SocietyBeliefProvenance.Hearsay || belief.SourceAgentId is null ||
+             (checkpoint.Beliefs ?? []).Any(item => item.OwnerId == belief.OwnerId &&
+                 item.SourceTurnId == belief.SourceTurnId &&
+                 !SharesCorrectionLineage(checkpoint, belief, item))))
+            throw new InvalidDataException("An agent belief source turn is invalid or already recorded for this owner.");
+
         if ((!allowSupersedes && (belief.SupersedesBeliefId is not null ||
                                   belief.SupersededByBeliefId is not null || belief.SupersededTick is not null)) ||
             belief.SupersededByBeliefId is null && belief.SupersededTick is not null)
             throw new InvalidDataException("Only a correction may link a belief to its predecessor.");
+    }
+
+    private static bool SharesCorrectionLineage(
+        SocietyCheckpoint checkpoint,
+        SocietyAgentBelief first,
+        SocietyAgentBelief second) =>
+        BeliefDescendsFrom(checkpoint, first, second.Id) ||
+        BeliefDescendsFrom(checkpoint, second, first.Id);
+
+    private static bool BeliefDescendsFrom(
+        SocietyCheckpoint checkpoint,
+        SocietyAgentBelief descendant,
+        string ancestorId)
+    {
+        if (descendant.Id == ancestorId) return true;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var current = descendant;
+        while (current.SupersedesBeliefId is { } previousId && seen.Add(previousId))
+        {
+            if (previousId == ancestorId) return true;
+            var previous = (checkpoint.Beliefs ?? []).FirstOrDefault(item => item.Id == previousId);
+            if (previous is null) return false;
+            current = previous;
+        }
+        return false;
     }
 
     private static SocietyAgentBelief NormalizeBelief(SocietyAgentBelief belief) => belief with
@@ -1229,6 +1262,7 @@ public static partial class SocietyFixture
         OwnerId = NormalizeRequiredText(belief.OwnerId, nameof(belief.OwnerId)),
         Statement = NormalizeBeliefStatement(belief.Statement),
         SourceAgentId = NormalizeOptionalText(belief.SourceAgentId),
+        SourceTurnId = NormalizeOptionalText(belief.SourceTurnId),
         AboutInhabitantId = NormalizeOptionalText(belief.AboutInhabitantId),
         SupersedesBeliefId = NormalizeOptionalText(belief.SupersedesBeliefId),
         SupersededByBeliefId = NormalizeOptionalText(belief.SupersededByBeliefId),
