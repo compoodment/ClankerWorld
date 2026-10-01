@@ -292,7 +292,11 @@ public partial class Main
         catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (IsCurrentRead()) manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+            if (IsCurrentRead())
+            {
+                manualSaveStatus.Text = "Could not list saves: " + FriendlyFailure(exception);
+                manualSaveList.Placeholder = "No saves to show.";
+            }
         }
         finally
         {

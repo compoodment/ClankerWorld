@@ -15,8 +15,14 @@ public sealed partial class PrivateWorldRuntime
 {
     private void EnqueueDueCognition()
     {
-        var runtimes = society.Capture().Cognition.Runtimes
+        var cognitionState = society.Capture().Cognition;
+        var runtimes = cognitionState.Runtimes
             .ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var namingRetries = cognitionState.Queue
+            .Where(entry => entry.TriggerIds.Contains(
+                SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal))
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
@@ -39,7 +45,8 @@ public sealed partial class PrivateWorldRuntime
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
-            if (!NeedsCognition(inhabitant.Id, current, candidates))
+            if (!namingRetries.Contains(inhabitant.Id) &&
+                !NeedsCognition(inhabitant.Id, current, candidates))
             {
                 continue;
             }
@@ -393,6 +400,21 @@ public sealed partial class PrivateWorldRuntime
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(ExpandBuildingPrefix, StringComparison.Ordinal))
+        {
+            ApplyBuildingExpansionCandidate(inhabitantId, state, candidateId[ExpandBuildingPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal) ||
+            candidateId.StartsWith(RevokeHouseGuestPrefix, StringComparison.Ordinal))
+        {
+            var invited = candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal);
+            var household = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId;
+            if (household is not null && HouseForHousehold(household) is { } house)
+                SetHouseGuestInvitationCore(inhabitantId, house.InstanceId,
+                    candidateId[(invited ? InviteHouseGuestPrefix.Length : RevokeHouseGuestPrefix.Length)..], invited);
+            return;
+        }
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
             BeginProject(inhabitantId, state, candidateId);
@@ -514,7 +536,7 @@ public sealed partial class PrivateWorldRuntime
                 "build_completed",
                 TownForResident(inhabitantId),
                 houseOwner,
-                society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : null);
+                BuildingConstructionOwner(inhabitantId, definition));
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
@@ -629,6 +651,8 @@ public sealed partial class PrivateWorldRuntime
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
+            AddBuildingExpansionCandidates(candidates, inhabitantId);
+            AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
             AddFarmGrainCandidate(candidates, inhabitantId, state);

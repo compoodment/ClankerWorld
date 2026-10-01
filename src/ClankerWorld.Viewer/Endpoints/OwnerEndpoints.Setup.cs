@@ -228,16 +228,18 @@ internal static partial class OwnerEndpoints
                 {
                     var runtime = services.GetRequiredService<PrivateWorldRuntime>();
                     var position = new GridPoint(action.X, action.Y);
-                    runtime.ValidateAgentPlacement(action.AgentId, position);
+                    runtime.ValidateAgentPlacement(action.AgentId, position,
+                        action.ExpectedHouseholdId, action.ExpectedTownId);
                     providers.Configure(cognition);
-                    var household = runtime.AddAgent(action.AgentId, position);
+                    var household = runtime.AddAgent(action.AgentId, position,
+                        action.ExpectedHouseholdId, action.ExpectedTownId);
                     services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
                     AgentPlacementLog.Placed(logger, action.AgentId, household, runtime.WorldTick, action.X, action.Y);
                     var town = runtime.Towns.SingleOrDefault(item => item.ResidentIds.Contains(action.AgentId, StringComparer.Ordinal));
                     TownTelemetry.Transition(logger, runtime.WorldTick, town?.Id ?? "none",
                         town is null ? TownTransitionKind.ResidentUnaffiliated : TownTransitionKind.ResidentJoined,
                         town?.ResidentIds.Count ?? 0, town?.AssignedBuildingIds.Count ?? 0, town?.BorderTiles.Count ?? 0);
-                    return Results.Ok(new OwnerAgentPlacementReceipt(action.AgentId, household));
+                    return Results.Ok(new OwnerAgentPlacementReceipt(action.AgentId, household, town?.Id));
                 }
                 catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
                 {
@@ -246,6 +248,8 @@ internal static partial class OwnerEndpoints
                         Guid.TryParseExact(id["agent:".Length..], "N", out _)
                             ? id : "<invalid-id>";
                     AgentPlacementLog.Rejected(logger, loggedId, exception.GetType().Name);
+                    if (exception is AgentPlacementChangedException)
+                        return Results.Conflict(new OwnerControlFailure("placement_changed", exception.Message));
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
                 }
             }
