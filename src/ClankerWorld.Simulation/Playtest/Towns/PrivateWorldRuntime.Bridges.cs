@@ -31,6 +31,9 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(FarmFields.Select(field => field.Position))
             .Concat(businessTrade.Markets.SelectMany(plot => MarketStallPositions(plot.MarketId)))
+            .Concat(boatTransport.Boats.Select(boat => boat.Position))
+            .Concat(worldSimulation.Buildings.Where(placed => PortNavigationRules.IsPort(definitions[placed.DefinitionId]))
+                .SelectMany(placed => PortGeometryFor(placed).DockingTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))

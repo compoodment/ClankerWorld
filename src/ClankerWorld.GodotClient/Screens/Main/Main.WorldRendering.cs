@@ -77,6 +77,7 @@ public partial class Main
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.Boats.Select(boat => "boat:" + boat.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -155,6 +156,17 @@ public partial class Main
                 BuildingSprites.KindForObject(mapObject.Kind) is null ? ObjectGlyph(mapObject.Kind) : string.Empty,
                 ObjectMarker(mapObject.Kind),
                 Pretty(mapObject.Kind));
+        }
+
+        foreach (var boat in snapshot.Boats)
+        {
+            var town = snapshot.Towns.FirstOrDefault(item => item.Id == boat.TownId)?.Name ?? "Town";
+            var passenger = snapshot.Inhabitants.FirstOrDefault(item => item.Id == boat.PassengerId)?.DisplayName;
+            var cargo = string.Join(" · ", boat.CarriedItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"));
+            var estate = string.Join(" · ", boat.EstateItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"));
+            AddMapObjectVisual("boat:" + boat.Id, boat.Position, "▰", "Boat",
+                $"{town}'s communal boat · {Pretty(boat.State)}" + (passenger is null ? "" : $"\nAboard · {passenger}") +
+                (cargo.Length == 0 ? "" : $"\nCarried goods · {cargo}") + (estate.Length == 0 ? "" : $"\nEstate goods aboard · {estate}"));
         }
 
         foreach (var building in snapshot.PlacedBuildings)

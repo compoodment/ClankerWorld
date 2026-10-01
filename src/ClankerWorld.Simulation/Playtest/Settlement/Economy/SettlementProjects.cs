@@ -594,6 +594,7 @@ public sealed partial class PrivateWorldRuntime
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
             return;
         }
+        if (building is not null) position = BuildingWorkPosition(building, position);
         if (state.Position != position)
         {
             SetProject(inhabitantId, project with { Stage = "travelling", Blocker = null });
@@ -615,7 +616,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);
-        if (building is not null && worldSimulation.Buildings.Any(item => item.InstanceId == BuildInstanceId(inhabitantId, building)))
+        if (building is not null && worldSimulation.Buildings.Any(item => item.InstanceId ==
+                ConstructionInstanceId(inhabitantId, building, selection.SitePosition ?? item.Position)))
         {
             SetProject(inhabitantId, project with { Stage = "completed", Blocker = null });
         }

@@ -217,7 +217,15 @@ public sealed partial class PrivateWorldRuntime
     private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
 
     private string ProductionOwnerFor(PlacedBuilding? building, string workerId) =>
-        building?.HouseholdId ?? society.Checkpoint.GetInhabitant(workerId).HouseholdId ?? workerId;
+        building is not null && worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+            PortNavigationRules.IsPort(definition)) ? building.TownId ?? throw new InvalidOperationException("A Port must belong to a Town.")
+            : building?.HouseholdId ?? society.Checkpoint.GetInhabitant(workerId).HouseholdId ?? workerId;
+
+    private GridPoint BuildingWorkPosition(PlacedBuilding building) => BuildingWorkPosition(
+        worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position);
+
+    private GridPoint BuildingWorkPosition(BuildingDefinition definition, GridPoint position) => PortNavigationRules.IsPort(definition)
+        ? PortNavigationRules.Geometry(map, definition, position).WorkPosition : position;
 
     private static bool IsHouseholdBuildingTag(string tag) => HouseholdBuildingKinds.IsKindTag(tag);
 

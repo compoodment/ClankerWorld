@@ -292,6 +292,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (PassengerBoat(inhabitantId) is not null && candidateId is not ("consume_food" or "safe_idle")) return;
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
@@ -424,6 +425,31 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
         {
             CollectEquipment(inhabitantId, state, candidateId[CollectToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(BoatTravelPrefix, StringComparison.Ordinal))
+        {
+            TakeBoatCandidate(inhabitantId, state, candidateId[BoatTravelPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(PortSupplyPrefix, StringComparison.Ordinal))
+        {
+            SupplyPort(inhabitantId, state, candidateId[PortSupplyPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(PortBuildBoatPrefix, StringComparison.Ordinal))
+        {
+            BuildPortBoat(inhabitantId, state, candidateId[PortBuildBoatPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(PortMaterialPrefix, StringComparison.Ordinal))
+        {
+            GatherPortMaterial(inhabitantId, state, candidateId[PortMaterialPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(BoatEstatePickupPrefix, StringComparison.Ordinal))
+        {
+            PickUpBoatEstateCargo(inhabitantId, state, candidateId[BoatEstatePickupPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(EquipPersonalGearPrefix, StringComparison.Ordinal))
@@ -594,14 +620,15 @@ public sealed partial class PrivateWorldRuntime
             }
 
             var position = rankedSite.Position;
-            if (state.Position != position)
+            var workPosition = BuildingWorkPosition(definition, position);
+            if (state.Position != workPosition)
             {
-                MoveToward(inhabitantId, state, position, "build");
+                MoveToward(inhabitantId, state, workPosition, "build", 0);
                 return;
             }
 
             var placement = PlaceBuildingCore(
-                BuildInstanceId(inhabitantId, definition),
+                ConstructionInstanceId(inhabitantId, definition, position),
                 definition.CanonicalId,
                 position,
                 "build_completed",
@@ -646,6 +673,14 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state)
     {
         var candidates = new List<CognitionCandidate>();
+        if (PassengerBoat(inhabitantId) is not null)
+        {
+            if (state.HungerBasisPoints < ComfortableFullness && society.Checkpoint.Inventory.Lots.Any(lot =>
+                lot.OwnerId == inhabitantId && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0))
+                candidates.Add(new("consume_food", "Eat one food item carried aboard the boat.", 0));
+            candidates.Add(new("safe_idle", "Stay aboard with your goods until the boat can land.", 100));
+            return candidates;
+        }
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
@@ -710,6 +745,8 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, inhabitantId);
         AddBusinessCandidates(candidates, inhabitantId);
         AddPersonalGearCandidates(candidates, inhabitantId);
+        AddBoatTravelCandidates(candidates, inhabitantId, state);
+        AddPortCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
         AddMedicalCareCandidates(candidates, inhabitantId);
         AddCartCandidates(candidates, inhabitantId);
@@ -768,6 +805,7 @@ public sealed partial class PrivateWorldRuntime
         var canGrow = inhabitant.HouseholdId is { } farmingHousehold &&
             HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
+                     !item.Tags.Contains("boat", StringComparer.Ordinal) &&
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
                      !IsLegacyCampCooking(item) &&
                      (!item.IsCrop || canGrow && founderSetup is null &&

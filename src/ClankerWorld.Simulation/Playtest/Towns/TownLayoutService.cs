@@ -179,7 +179,9 @@ public static class TownLayoutService
         if (!map.Contains(position))
             return false;
         var footprint = Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
+        var port = PortNavigationRules.IsPort(definition);
+        if (port ? !PortNavigationRules.Fits(map, definition, position, context.OccupiedTiles, out _, context.RoadTiles)
+            : footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
             return false;
         if (definition.Tags.Contains("market", StringComparer.Ordinal) &&
             !BusinessMarketLayout.TryFindPlot(map, context.OccupiedTiles, position, out _))
@@ -193,12 +195,15 @@ public static class TownLayoutService
         if (context.Town is { } town &&
             !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))
             return false;
-        if (!context.ReachableFootCosts.TryGetValue(position, out var routeCost))
+        var workPosition = port ? PortNavigationRules.Geometry(map, definition, position).WorkPosition : position;
+        if (!context.ReachableFootCosts.TryGetValue(workPosition, out var routeCost))
             return false;
 
         var reasons = new List<TownConstructionSiteReason>
         {
-            new(TownConstructionSiteReasonCodes.BuildableGround, $"All {footprint.Length} footprint tiles are clear, buildable ground."),
+            new(TownConstructionSiteReasonCodes.BuildableGround, port
+                ? "A clear land end leads into three clear water rows, with docking water along both sides."
+                : $"All {footprint.Length} footprint tiles are clear, buildable ground."),
             new(TownConstructionSiteReasonCodes.FootAccess, "A legal unoccupied foot route reaches this site."),
         };
         var score = Math.Max(0, 24 - routeCost / 100);

@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 30;
+    public const int StateSchemaVersion = 31;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
@@ -279,6 +279,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.roadTiles = (state.RoadTiles ?? []).ToHashSet();
         runtime.bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic ?? BridgeTrafficState.Empty;
+        runtime.boatTransport = state.BoatTransport ?? BoatTransportState.Empty();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
@@ -414,7 +415,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles, Bridges, bridgeTraffic, businessTrade);
+        RoadTiles, Bridges, bridgeTraffic, businessTrade,
+        boatTransport.Boats.Count == 0 && boatTransport.GuestPermissions.Count == 0 ? null : boatTransport);
 
     private void AppendEvent(string kind, string detail)
     {

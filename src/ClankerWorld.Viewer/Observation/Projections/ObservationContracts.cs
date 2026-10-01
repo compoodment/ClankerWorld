@@ -30,6 +30,9 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
+public sealed record ViewerBoat(string Id, string TownId, ViewerPosition Position, string? PassengerId,
+    string? OriginPortId, string? DestinationPortId, string State, IReadOnlyList<ViewerPosition> RemainingRoute,
+    IReadOnlyList<ViewerInventoryEntry> CarriedItems, IReadOnlyList<ViewerInventoryEntry> EstateItems);
 
 public sealed record ViewerResource(string Id, string Kind, ViewerPosition Position, bool IsRenewable, string State,
     int? Quantity = null, int? Capacity = null, int? RegenerationAmount = null,
@@ -334,6 +337,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public IReadOnlyList<ViewerCart> Carts { get; init; } = [];
     public IReadOnlyList<ViewerField> Fields { get; init; } = [];
+    public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
     /// <summary>

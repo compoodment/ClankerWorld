@@ -241,6 +241,7 @@ public sealed partial class PrivateWorldRuntime
         roadTiles = proposed.roadTiles;
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
+        boatTransport = proposed.boatTransport;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -330,6 +331,9 @@ public sealed partial class PrivateWorldRuntime
             StageRestaurantContent();
             StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
             StageBuiltInContent(CombatGearContent.PackageId, BlacksmithContent.PackageId, CombatGearContent.Create, "combat_gear_content_staged");
+            if (contentRegistry.ExportState().Packages.Any(package => package.Manifest.PackageId == HouseCraftingContent.PackageId &&
+                    package.Lifecycle == ContentPackageLifecycle.Active))
+                StageBuiltInContent(PortContent.PackageId, BlacksmithContent.PackageId, PortContent.Create, "port_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -411,6 +415,7 @@ public sealed partial class PrivateWorldRuntime
             RemoveDeadPhysicalState();
             ReleaseDeadCartPullers();
             MaintainBusinessTrades();
+            ProcessBoatTransport(targetTick);
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();

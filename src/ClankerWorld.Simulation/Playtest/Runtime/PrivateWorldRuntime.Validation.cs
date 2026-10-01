@@ -15,6 +15,7 @@ public sealed partial class PrivateWorldRuntime
 {
     public void Validate()
     {
+        ValidateBoatTransport(CaptureState());
         SocietyFixture.Validate(society.Checkpoint);
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
@@ -30,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map);
+            society.Checkpoint.Inhabitants, map, boatTransport);
         ValidateBusinessTrade(CaptureState());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
@@ -79,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion, boatTransport);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -95,7 +96,7 @@ public sealed partial class PrivateWorldRuntime
                     throw new InvalidDataException("Persistent projects require private-world schema 5.");
                 }
             }
-            if (!map.IsPassable(inhabitant.Position) ||
+            if (!map.IsPassable(inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
                 inhabitant.MoveWaitTicks < 0 || inhabitant.TravelCooldownTicks < 0)
             {
@@ -199,7 +200,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, BoatTransportState? transport = null)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -209,7 +210,7 @@ public sealed partial class PrivateWorldRuntime
             if (lot.GroundPosition is { } ground && !(simulation.Fields ?? []).Any(field =>
                 field.Position == new GridPoint(ground.X, ground.Y) && field.HouseholdId == lot.OwnerId) &&
                 !(simulation.Carts ?? []).Any(cart => (cart.LotId == lot.Id || cart.Id == lot.CartId) &&
-                    cart.Position == new GridPoint(ground.X, ground.Y)) &&
+                    cart.Position == new GridPoint(ground.X, ground.Y)) && !IsBoatEstateCargo(transport, lot) &&
                 !(map.IsPassable(new(ground.X, ground.Y)) &&
                   !map.Resources.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
                   !map.CampObjects.Any(item => item.Position == new GridPoint(ground.X, ground.Y)) &&
@@ -222,7 +223,7 @@ public sealed partial class PrivateWorldRuntime
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
                       storage.TownId == lot.OwnerId && storage.HouseholdId is null && !WarehouseFoodKinds.Contains(lot.ItemKind) &&
-                      definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
+                      (definition.Tags.Contains("warehouse", StringComparer.Ordinal) || definition.Tags.Contains("port", StringComparer.Ordinal))))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
             }
             if (lot.DeliveryBuildingId is { } deliveryId &&
@@ -238,6 +239,7 @@ public sealed partial class PrivateWorldRuntime
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ValidateBoatTransport(state);
         ValidateVessels(state);
         ValidateMedicalCare(state);
         ValidateCarts(state);
@@ -360,7 +362,7 @@ public sealed partial class PrivateWorldRuntime
                 state.Society.Society.WorldTick);
             ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society, state.Map, state.SchemaVersion);
             ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-                state.WorldContent, state.Society.Society.Inhabitants, state.Map);
+                state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.BoatTransport);
             if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
                 !state.Society.Society.Households.Any(household => household.Id == householdId)))
                 throw new InvalidDataException("A House references a missing household.");
@@ -387,7 +389,7 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion, state.BoatTransport);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -413,7 +415,7 @@ public sealed partial class PrivateWorldRuntime
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
         SeededMap map,
-        int schemaVersion)
+        int schemaVersion, BoatTransportState? transport = null)
     {
         var archived = archive.ToArray();
         if (archived.Length > 0 && schemaVersion < 13)
@@ -428,7 +430,8 @@ public sealed partial class PrivateWorldRuntime
             if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
-                !map.IsPassable(person.LastPhysical.Position) ||
+                !map.IsPassable(person.LastPhysical.Position) && !(person.BoatIdAtDeath is { } boatId &&
+                    transport?.Boats.Any(boat => boat.Id == boatId) == true && PortNavigationRules.NavigableWater(map, person.LastPhysical.Position)) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);

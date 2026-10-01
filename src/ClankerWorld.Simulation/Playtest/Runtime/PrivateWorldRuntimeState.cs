@@ -42,7 +42,8 @@ public sealed record PlaytestDeceasedInhabitantState(
     string InhabitantId,
     long DeathTick,
     int AgeAtDeath,
-    PlaytestInhabitantState LastPhysical);
+    PlaytestInhabitantState LastPhysical,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BoatIdAtDeath = null);
 
 public sealed record PlaytestWorldEvent(
     long EventId,
@@ -82,7 +83,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GridPoint>? RoadTiles = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BridgeState>? Bridges = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BridgeTrafficState? BridgeTraffic = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BusinessTradeState? BusinessTrade = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BusinessTradeState? BusinessTrade = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BoatTransportState? BoatTransport = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

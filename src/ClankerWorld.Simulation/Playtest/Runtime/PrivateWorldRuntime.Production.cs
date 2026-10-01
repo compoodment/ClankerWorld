@@ -27,6 +27,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .Concat(FarmFields.Select(field => field.Position))
             .Concat(Carts.Select(cart => cart.Position))
+            .Concat(worldSimulation.Buildings.Where(placed => PortNavigationRules.IsPort(definitions[placed.DefinitionId]))
+                .SelectMany(placed => PortGeometryFor(placed).DockingTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -46,7 +48,8 @@ public sealed partial class PrivateWorldRuntime
             map,
             town,
             occupied,
-            FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite),
+            FindUnoccupiedFootCosts(actor, origin, town, occupied,
+                selectedSite is { } selected && building is not null ? BuildingWorkPosition(building, selected) : selectedSite),
             resourcesForLayout,
             buildingsForLayout,
             roadTiles: roadTiles,
@@ -77,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
         // remains a mandatory route target, however far away it was saved.
         IReadOnlyList<GridPoint>? anchors = town is null ? null : TownLayoutContext.CandidateBounds(map, town);
         if (selectedSite is { } chosenSite && anchors is not null)
-            anchors = anchors.Contains(chosenSite) ? [chosenSite] : [];
+            anchors = [chosenSite];
         var pendingAnchors = anchors?.Where(point => map.IsBuildable(point) && !occupiedSites.Contains(point))
             .ToHashSet();
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
@@ -171,11 +174,12 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var activeJobs = worldSimulation.ProductionJobs.Count(item =>
                 item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+            var workPosition = BuildingWorkPosition(placed);
             if (activeJobs < definition.Capacity &&
-                (actorId is null || FindUnoccupiedRoute(actorId, inhabitants[actorId].Position, placed.Position, 0).Count > 0))
+                (actorId is null || FindUnoccupiedRoute(actorId, inhabitants[actorId].Position, workPosition, 0).Count > 0))
             {
                 siteId = placed.InstanceId;
-                position = placed.Position;
+                position = workPosition;
                 return true;
             }
         }
@@ -207,7 +211,7 @@ public sealed partial class PrivateWorldRuntime
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
         if (definition.Tags.Contains("market", StringComparer.Ordinal)) return household;
-        if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
+        if (!definition.Tags.Any(IsHouseholdBuildingTag) && !PortNavigationRules.IsPort(definition)) return HouseholdId;
         // Existing household supplies remain usable; new supplies stay personally
         // carried until a household has a physical House to receive them.
         return HouseForHousehold(household) is not null || HasAvailableQuantities(definition.BuildCosts, household)
@@ -223,13 +227,18 @@ public sealed partial class PrivateWorldRuntime
         return "build-v2-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inhabitantId + "\n" + definition.CanonicalId)));
     }
 
+    private string ConstructionInstanceId(string actor, BuildingDefinition definition, GridPoint position) =>
+        PortNavigationRules.IsPort(definition)
+            ? $"port-{TownForResident(actor)}-{definition.LocalId}-{position.X}-{position.Y}"
+            : BuildInstanceId(actor, definition);
+
     private bool CanPlaceBuilding(
         BuildingDefinition definition,
         GridPoint position,
         out string failure)
     {
         var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point)))
+        if (!PortNavigationRules.IsPort(definition) && footprint.Any(point => !map.IsBuildable(point)))
         {
             failure = "Every building footprint tile must be on buildable ground; mountains and peaks cannot hold buildings.";
             return false;
@@ -258,6 +267,18 @@ public sealed partial class PrivateWorldRuntime
             {
                 occupied.Add(existingPoint);
             }
+            if (PortNavigationRules.IsPort(existingDefinition))
+                foreach (var dock in PortNavigationRules.Geometry(map, existingDefinition, placed.Position).DockingTiles)
+                    occupied.Add(dock);
+        }
+
+        if (PortNavigationRules.IsPort(definition))
+        {
+            occupied.UnionWith(Bridges.SelectMany(bridge => bridge.Span));
+            occupied.UnionWith(boatTransport.Boats.Select(boat => boat.Position));
+            var valid = PortNavigationRules.Fits(map, definition, position, occupied, out var portFailure, roadTiles);
+            failure = portFailure ?? string.Empty;
+            return valid;
         }
 
         if (footprint.Any(occupied.Contains))
@@ -556,7 +577,7 @@ public sealed partial class PrivateWorldRuntime
                     productionOwner,
                     CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
                     targetTick,
-                    storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
+                    storageBuildingId: productionBuilding?.HouseholdId is not null || recipe.Tags.Contains("boat", StringComparer.Ordinal) ? productionBuilding!.InstanceId
                         : IsEdibleFood(output.ResourceId) ? null : silo,
                     containerCapacity: VesselRules.Capacity(output.ResourceId));
             }

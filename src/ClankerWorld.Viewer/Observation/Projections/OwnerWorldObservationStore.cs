@@ -285,6 +285,17 @@ public sealed class OwnerWorldObservationStore
                     .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
                     .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            Boats = (state.BoatTransport?.Boats ?? []).Select(boat => new ViewerBoat(boat.Id, boat.TownId, ToPosition(boat.Position),
+                boat.Journey?.PassengerId, boat.Journey?.OriginPortId, boat.Journey?.DestinationPortId,
+                boat.Journey is null ? "docked" : boat.Journey.WaitingSinceTick is not null ? "waiting" : boat.Journey.Returning ? "returning" : "travelling",
+                boat.Journey?.WaterPath.Skip(boat.Journey.PathIndex).Select(ToPosition).ToArray() ?? [],
+                boat.Journey is { } journey ? state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == journey.PassengerId &&
+                        lot.StorageBuildingId is null && lot.GroundPosition is null)
+                    .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray() : [],
+                state.Society.Society.Inventory.Lots.Where(lot => boat.EstateCargoLotIds?.Contains(lot.Id, StringComparer.Ordinal) == true)
+                    .GroupBy(lot => lot.ItemKind).OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray())).ToArray(),
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
                 .Concat(state.Society.Society.Inhabitants

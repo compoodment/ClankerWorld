@@ -24,7 +24,9 @@ public static class CarryEquipmentRules
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
 
     public static long Load(InventoryCheckpoint inventory, string actor) => inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null)
+        .Where(lot => lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null &&
+            (lot.ContainerLotId is null || inventory.Lots.Any(container => container.Id == lot.ContainerLotId &&
+                container.StorageBuildingId is null && container.GroundPosition is null)))
         .Sum(lot => (long)lot.Quantity);
 
     public static int Capacity(InventoryCheckpoint inventory, PlaytestInhabitantState person)

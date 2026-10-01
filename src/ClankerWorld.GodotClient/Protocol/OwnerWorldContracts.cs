@@ -29,6 +29,9 @@ public sealed record OwnerWorldField(OwnerWorldPosition Position, string Househo
     int WorkDone, int WorkRequired, IReadOnlyList<OwnerWorldInventoryEntry> GroundItems);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
+public sealed record OwnerWorldBoat(string Id, string TownId, OwnerWorldPosition Position, string? PassengerId,
+    string? OriginPortId, string? DestinationPortId, string State, IReadOnlyList<OwnerWorldPosition> RemainingRoute,
+    IReadOnlyList<OwnerWorldInventoryEntry> CarriedItems, IReadOnlyList<OwnerWorldInventoryEntry> EstateItems);
 
 public sealed record OwnerWorldResource(
     string Id,
@@ -329,6 +332,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public IReadOnlyList<OwnerWorldCart> Carts { get; init; } = [];
     public IReadOnlyList<OwnerWorldField> Fields { get; init; } = [];
+    public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];

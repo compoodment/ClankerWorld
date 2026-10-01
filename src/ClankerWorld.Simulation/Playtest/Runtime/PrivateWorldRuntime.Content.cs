@@ -101,6 +101,7 @@ public sealed partial class PrivateWorldRuntime
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), HouseCraftingContent.Create(), SiloContent.Create(), TailorContent.Create(), PotteryContent.Create(),
                 OrnamentContent.Create(), CombatGearContent.Create(), CareContent.Create(), RestaurantContent.Create(), CartContent.Create(), BusinessContent.Create(),
+                PortContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -230,6 +231,9 @@ public sealed partial class PrivateWorldRuntime
             if (assignedTownId is not null && !towns.Any(item => item.Id == assignedTownId))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
                     "The assigned Town does not exist.");
+            if (PortNavigationRules.IsPort(definition) && assignedTownId is null)
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "A Port must be built for an existing Town.");
 
             var isHouse = definition.Tags.Contains("house", StringComparer.Ordinal);
             var acceptsHouseholdOwner = definition.Tags.Any(IsHouseholdBuildingTag);
@@ -384,7 +388,7 @@ public sealed partial class PrivateWorldRuntime
                     return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
                 }
 
-                workPosition = placed.Position;
+                workPosition = BuildingWorkPosition(placed);
             }
 
             var worker = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == normalizedWorkerId);
@@ -418,6 +422,11 @@ public sealed partial class PrivateWorldRuntime
                     "The household workshop must be claimed before production.");
 
             var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            var onSitePortRecipe = workstation is not null && PortNavigationRules.IsPort(workstation);
+            if (onSitePortRecipe && (placed?.TownId is not { } portTown || TownForResident(normalizedWorkerId) != portTown))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "An adult resident must build their Town's communal boat.");
+            if (onSitePortRecipe && !HasIngredientsAtBuilding(recipe.Inputs, placed!.TownId!, placed.InstanceId))
+                return ProductionStartResult.Rejected(normalizedRecipeId, "Carry the Town's boat materials into the Port first.");
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     $"The household building lacks {MissingWorkstationIngredients(recipe, worker.HouseholdId!, placed!.InstanceId)} in its on-site stock.");
@@ -457,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
                     completionTick,
                     isFertileLandBuild ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId),
                     out reservationIds,
-                    onSiteHouseholdRecipe ? placed!.InstanceId : null);
+                    onSiteHouseholdRecipe || onSitePortRecipe ? placed!.InstanceId : null);
                 if (isFertileLandBuild && recipe.Tags.Contains("farm-crop", StringComparer.Ordinal))
                     foreach (var id in reservationIds) reserved = InventoryFixture.ConsumeReservation(reserved, id);
                 return reserved;
