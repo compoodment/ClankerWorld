@@ -25,25 +25,15 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 8);
 
         // Filters start off, so the map starts clean.
-        townBorderFilter.Text = "Town borders";
         townBorderFilter.TooltipText = "Show Town borders as a dashed line.";
         townBorderFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
-        body.AddChild(townBorderFilter);
+        body.AddChild(FilterRow(townBorderFilter, border: true, "Town borders", "A dashed line around each Town"));
 
-        householdPropertyFilter.Text = "Household property";
         householdPropertyFilter.TooltipText = "Tint buildings and fields that belong to a household.";
         householdPropertyFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
-        body.AddChild(householdPropertyFilter);
-
-        var note = new Label
-        {
-            Text = "Only buildings that belong to a household are tinted. Unclaimed land is not marked.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(275, 0),
-        };
-        body.AddChild(note);
+        body.AddChild(FilterRow(householdPropertyFilter, border: false, "Household property", "Tints the buildings and fields a household owns"));
         AddClosablePanelContents(filtersPanel, "Map filters", body);
-        filtersPanel.CustomMinimumSize = new Vector2(305, 0);
+        filtersPanel.CustomMinimumSize = new Vector2(320, 0);
         filtersPanel.ZIndex = 85;
         filtersPanel.Hide();
         canvas.AddChild(filtersPanel);

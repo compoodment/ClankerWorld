@@ -165,7 +165,11 @@ public partial class Main
         BuildBuildingCards();
 
         worldOverview.CenterRequested += CenterCameraAt;
-        AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
+        var overviewBody = new VBoxContainer();
+        overviewBody.AddThemeConstantOverride("separation", 6);
+        overviewBody.AddChild(worldOverview);
+        overviewBody.AddChild(OverviewLegend());
+        AddClosablePanelContents(worldOverviewPanel, "World Map", overviewBody);
         worldOverviewPanel.Position = new Vector2(14, 14);
         worldOverviewPanel.ZIndex = 80;
         worldOverviewPanel.Hide();
@@ -249,21 +253,7 @@ public partial class Main
         BuildWorldInfoPanel(content);
         BuildControlsPanel(content);
 
-        var tileBody = new VBoxContainer();
-        var tileHeading = new HBoxContainer();
-        tileHeading.AddChild(new Label { Text = "Selected tile", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-        var closeTile = CloseButton("Close tile inspection");
-        closeTile.Pressed += ClearTileSelection;
-        tileHeading.AddChild(closeTile);
-        tileBody.AddChild(tileHeading);
-        ConfigureTextPanel(selectedTileText, float.MaxValue);
-        tileBody.AddChild(selectedTileText);
-        AddPanelContents(selectedTilePanel, tileBody);
-        selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
-        selectedTilePanel.Resized += PositionSelectedTilePanel;
-        selectedTilePanel.ZIndex = 80;
-        selectedTilePanel.Hide();
-        content.AddChild(selectedTilePanel);
+        BuildTileCard(content);
         BuildMapHud(content);
     }
 
