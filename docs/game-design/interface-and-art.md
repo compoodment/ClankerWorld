@@ -436,8 +436,9 @@ The recent history should persist with the world save but remain bounded.
 
 ### Agreed
 
-- **Pixel art** is the visual style. **32×32-pixel ground tiles** and **PNG
-  runtime assets** are the initial standard. Taller agents/trees and multi-tile
+- **Pixel art** is the visual style, with **32×32-pixel ground tiles**. The
+  art is drawn in code at startup rather than loaded from PNG files (October
+  1); an exported mod may still carry approved image files. Taller agents/trees and multi-tile
   buildings can use larger transparent images anchored to logical tiles.
 - **Straight top-down** is the chosen art perspective for now: show the tops of
   objects, not isometric sides. Isometric would need a visual comparison before
@@ -472,6 +473,32 @@ The recent history should persist with the world save but remain bounded.
   permanently limited to the original art catalogue. Each new design still
   needs a valid visual/gameplay representation; this does not authorize every
   theoretical combination.
+- **Agreed after the October 1 art review:** the game keeps its current
+  pixel-art character, made more consistent by the
+  [pixel-art style guide](../development/art-style.md): ramps built on the
+  existing colours, light from the north-west, calm ground with soft
+  patches, outlined sprites and roof materials. computment reviewed every
+  texture beside a proposed redraw and approved 193 of 216 pictures as drawn,
+  with no rejections. Approved: the ground tiles for grass, forest, sand,
+  rock, snow and tundra; water; Roads and the plank bridge, with a street
+  running up to the deck; trees and natural sites, including picked and
+  depleted states; crop fields and orchard stages; House, Warehouse,
+  Blacksmith, Silo and Tailor Shop roofs and the Store, Market, Town Hall,
+  Port and Clinic; agents facing all eight directions, with walking,
+  carrying, working, talking and hurt poses and a first horse; and item
+  icons, including those for water, wild greens, potatoes, porridge, stew,
+  meals and diamonds. The coin icon is gold.
+- **Changes asked in that review:** mountains, peaks and hills are redrawn as
+  one landform spanning many tiles rather than a picture per tile, and how
+  they generate is to be rethought too
+  ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); the Main Menu valley keeps its look
+  with better mountains; tilled soil needs more than plain lines; the grain
+  icon must read as grain as clearly as before; and the Farmhouse loses its
+  painted cart, because handcarts will be real vehicles. These redraws are in
+  a second review round.
+- Art is drawn in code, not stored as image files. computment prefers this.
+  Approved art for content that is not built yet waits in
+  `tools/ArtPreview/Proposed/` until its feature lands.
 - Worn everyday, cold or wet clothing **does not change an agent's map sprite
   appearance**. Clothing has item icons and gameplay effects. Armor imagery
   may be prompted as new art later; whether worn armor is shown on agents and
@@ -496,7 +523,7 @@ method remains Clanker's proposal, not an accepted implementation rule.
 
 ### Still to decide
 
-Exact palette and style guide; animation standards;
+How mountains, peaks and hills are drawn and generated; animation timing;
 AI-generation provider and spending controls; how much visual cleanup can be
 automated; quality criteria; asset size budgets; and the final art/content
 metadata contract. Also open: the minimum distinct designs each category

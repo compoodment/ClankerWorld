@@ -18,26 +18,27 @@ public sealed record TreeArtEntry(
 /// <summary>
 /// The single reviewed list of tree art. The map reads tree sprites and stage
 /// names from here, so a new stage or replacement art is added in one place.
-/// Every entry is a provisional placeholder: none is approved final art.
+/// Each entry records whether its art was approved in an owner review.
 /// </summary>
 public static class TreeArtManifest
 {
     public const string CodeDrawn = "Drawn in code by UI/Graphics/NatureSprites.cs";
     public const string RepositoryLicence = "MIT, the repository licence (LICENSE)";
     public const string Provisional = "Provisional placeholder; not approved final art";
+    public const string Approved = "Approved in the October 1 art review";
     public const string Missing = "Missing: no art yet; the game shows the item by name";
 
     public static IReadOnlyList<TreeArtEntry> Entries { get; } =
     [
-        new(1, "broadleaf", "mature", "tree.broadleaf.mature", NatureSprite.Broadleaf, CodeDrawn, RepositoryLicence, Provisional),
-        new(2, "conifer", "mature", "tree.conifer.mature", NatureSprite.Conifer, CodeDrawn, RepositoryLicence, Provisional),
-        new(3, "broadleaf", "stump", "tree.broadleaf.stump", NatureSprite.BroadleafStump, CodeDrawn, RepositoryLicence, Provisional),
+        new(1, "broadleaf", "mature", "tree.broadleaf.mature", NatureSprite.Broadleaf, CodeDrawn, RepositoryLicence, Approved),
+        new(2, "conifer", "mature", "tree.conifer.mature", NatureSprite.Conifer, CodeDrawn, RepositoryLicence, Approved),
+        new(3, "broadleaf", "stump", "tree.broadleaf.stump", NatureSprite.BroadleafStump, CodeDrawn, RepositoryLicence, Approved),
         new(4, "conifer", "stump", "tree.conifer.stump", NatureSprite.ConiferStump, CodeDrawn, RepositoryLicence, Provisional),
-        new(5, "broadleaf", "sapling", "tree.broadleaf.sapling", NatureSprite.BroadleafSapling, CodeDrawn, RepositoryLicence, Provisional),
+        new(5, "broadleaf", "sapling", "tree.broadleaf.sapling", NatureSprite.BroadleafSapling, CodeDrawn, RepositoryLicence, Approved),
         new(6, "conifer", "sapling", "tree.conifer.sapling", NatureSprite.ConiferSapling, CodeDrawn, RepositoryLicence, Provisional),
-        new(7, "orchard", "fruiting", "tree.orchard.fruiting", NatureSprite.OrchardFruiting, CodeDrawn, RepositoryLicence, Provisional),
-        new(8, "orchard", "picked", "tree.orchard.picked", NatureSprite.OrchardPicked, CodeDrawn, RepositoryLicence, Provisional),
-        new(9, "orchard", "growing", "tree.orchard.growing", NatureSprite.OrchardGrowing, CodeDrawn, RepositoryLicence, Provisional),
+        new(7, "orchard", "fruiting", "tree.orchard.fruiting", NatureSprite.OrchardFruiting, CodeDrawn, RepositoryLicence, Approved),
+        new(8, "orchard", "picked", "tree.orchard.picked", NatureSprite.OrchardPicked, CodeDrawn, RepositoryLicence, Approved),
+        new(9, "orchard", "growing", "tree.orchard.growing", NatureSprite.OrchardGrowing, CodeDrawn, RepositoryLicence, Approved),
         // One tree-seed item serves broadleaf and conifer. It lives in
         // inventories only, which list items by name.
         new(0, "broadleaf", "seed", "item.tree_seed", null, "None", "None", Missing),

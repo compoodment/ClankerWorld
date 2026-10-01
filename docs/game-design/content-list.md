@@ -254,8 +254,9 @@ scope**; this roster therefore has no audio production list.
 - **Buildings:** support the decided footprint sizes exactly. Add construction,
   expanded, damaged or abandoned states only if the simulation can produce
   them; do not multiply every building by speculative decorative variants.
-- **Scale/style:** 32×32 logical ground tiles, PNG runtime assets and **straight
-  top-down** view are the decided direction; trees and multi-tile buildings can
+- **Scale/style:** 32×32 logical ground tiles, art drawn in code and a **straight
+  top-down** view are the decided direction (see the
+  [pixel-art style guide](../development/art-style.md)); trees and multi-tile buildings can
   span anchored transparent images. Palette, character sprite size, animation
   count and a reference scene remain open. Isometric is only a possible future
   visual experiment, not the production target.

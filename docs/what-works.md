@@ -242,12 +242,20 @@ Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, sto
 haze/flashes. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
-Ground, buildings, agents and natural objects use provisional code-drawn pixel
-art. The interface uses wooden frames and parchment panels, with pixel fonts:
+Most of the map uses the pixel art approved in the October 1 art review: the
+ground for grass, forest, sand, rock, snow and tundra; water; Roads and plank
+bridges, with streets running up to each bridge; trees and natural sites;
+House, Warehouse, Blacksmith, Silo and Tailor Shop roofs; and item icons.
+Agents face the way they last moved and show walking steps, and carrying,
+working, talking or hurt poses chosen from what the game already knows about
+them. Mountains, peaks, hills, fertile soil, the other ground types and the
+Farmhouse, Workshop and other buildings still use the earlier provisional art
+while their redraws are reviewed. Picked, harvested and per-site depleted
+states are drawn but need the game to track them. The interface uses wooden
+frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
 the ClankerWorld logo over an animated pixel-art valley that follows the Light
-or Dark theme. None of
-this is a finished production art catalogue. Mineral/clay sites exist; some
+or Dark theme. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 
 ## Saves, keys and inventions

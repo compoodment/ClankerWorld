@@ -1,9 +1,41 @@
-# ClankerWorld pixel-art style guide
+---
+title: Pixel-art style guide
+type: development-reference
+status: active
+updated: 2026-10-01
+---
 
-Draft of October 1 for computment's approval. It describes the look the
-game already has, tightened into rules that can be checked on a rendered
-PNG, plus the handful of changes that make the current art read better.
-Nothing here replaces an agreed decision in `docs/game-design/`.
+# Pixel-art style guide
+
+This page holds the rules for the game's pixel art. Computment approved this
+direction in the October 1 art review: it keeps the look the game already
+had and tightens it into rules you can check on a rendered picture. The
+decisions themselves are in
+[Interface and art](../game-design/interface-and-art.md#pixel-art-and-generated-images).
+
+All art is drawn in C# code in the Godot client
+(`src/ClankerWorld.GodotClient/UI/Graphics/`, `UI/Map/`, `UI/MenuScene.cs`),
+generated once at startup from fixed seeds. There are no image files.
+
+## Drawing and reviewing art
+
+`tools/ArtPreview/` renders the client's real art generators to PNG files
+without the engine, so art can be reviewed before it reaches the game. Its
+[README](../../tools/ArtPreview/README.md) lists the commands.
+
+- New or changed art starts as a proposal in `tools/ArtPreview/Proposed/`,
+  drawn against these rules, with a note for the owner. The renderer builds
+  a review page where computment approves, changes or rejects each picture.
+- Approved art moves into the client unchanged. Compare the client's
+  renders (`baseline`) with the approved proposal (`proposed`): approved
+  pictures must match pixel for pixel.
+- Godot stores colour channels by truncating, while the preview renderer
+  rounds. Hex colours match either way, but a blended or part-transparent
+  colour can land one step lower in the game. Snap such colours in client
+  code when an exact match matters.
+- Art for content that is agreed but not in the game yet stays in
+  `tools/ArtPreview/Proposed/` until the feature is built. The feature's
+  pull request moves it into the client.
 
 ## 1. Purpose and non-goals
 
@@ -116,16 +148,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
   Both tile seamlessly with themselves and each other: motifs stay one pixel
   clear of the edges and mottling blobs may cross edges only if they
   continue on the opposite edge.
-- T3 **Mountains and peaks are top-down.** Draw relief, not triangles: a
-  ridge line that runs roughly NW–SE or across the tile, lit faces in the
-  light step on the north-west side, shaded faces in the shade step, a
-  one-pixel crease in the edge step, and small scree. Peaks add a snow
-  patch (Peak highlight) on the lit side of the ridge. No silhouette shows
-  the side of the mountain.
-- T4 **Hills** are an overlay: a broad crescent of light (alpha 0.25–0.30)
-  on the north-west of a mound and a crescent of shade (alpha 0.30–0.38)
-  on the south-east, each two pixels thick with a half-alpha rim, and no
-  closed ring. Grass shows through.
+- T3 **Mountains and peaks are one landform.** The owner rejected
+  per-tile mountain pictures on October 1 ("a mountain is a whole entity").
+  The proposal in review draws relief from the world's elevation across many
+  tiles, lit from the north-west, with snow on the highest ground. Until it
+  is approved, the game keeps its current mountain and peak tiles.
+- T4 **Hills** are soft foothill shading of the same landform, never rings
+  or mounds. Also in review.
 - T5 **Fertile soil** reads as tilled earth: furrows two shades apart
   running east–west four pixels apart, a few clods in the light step.
 - T6 Snow is smooth with one or two drift ridges in the shade step and
@@ -212,14 +241,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
 
 ## 10. Agents
 
-- A1 Straight top-down: the crown of the head is centred over the
-  shoulders; facing is shown by where the fringe, nose hint, hands and feet
-  appear, not by drawing a side view.
-- A2 Eight facings in order S, SW, W, NW, N, NE, E, SE. Facing S shows the
-  fringe and a nose hint at the bottom of the head disc, both hands beside
-  the shoulders and both feet below; facing N shows the hair whorl, feet
-  above; E and W show one arm forward and the feet to that side; diagonals
-  sit between.
+- A1 Straight top-down: the head and hair sit a little above the shoulders,
+  so the shirt colour shows in every facing. Facing is shown by the face and
+  fringe, a nose pixel at the side, a hair whorl when facing north, the
+  turned shoulders, and the near hand reaching forward; never by a side view.
+- A2 Eight facings in order S, SW, W, NW, N, NE, E, SE. Boots show ahead of
+  the body; a standing figure facing north hides its feet, which would read
+  as ears.
 - A3 Frames: still, walk 1 and walk 2 (feet alternate ±2 px, hands swing
   1 px). Carrying puts a crate (Timber ramp, 8 × 6) in front toward the
   facing. Working swings a tool in the leading hand. Talking adds a 5 × 4
@@ -280,5 +308,5 @@ black overlay; the ramps already shift hue toward blue in the shade.
 8. Do buildings show material, ridge, door and one identifying feature?
 9. Do agents read their facing from fringe, hands and feet?
 10. Are picked, harvested and depleted states distinct per site?
-11. Is the drawing deterministic and cheap, with no edits outside Proposed/?
+11. Is the drawing deterministic and cheap enough to generate at startup?
 12. Is it better than the current art at 1× and 3×, while still looking like ClankerWorld?
