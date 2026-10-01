@@ -737,3 +737,30 @@ speeds construction, a hoe speeds crop preparation, and a knife halves eligible
 food and clothing preparation times; individual fields connect sickle harvesting
 in the farming change. Condition and broken quantities are derived owner
 observations, shown with existing icons or the established crate fallback.
+
+## Ornaments and personal equipment
+
+The Blacksmith has supplementary content packages for rare materials and
+physical combat gear. The trial recipes refine 2 gold ore with 1 wood into
+1 gold, turn 2 gold into a gold ornament, and set 1 diamond into that ornament.
+Spears use 2 wood and 1 iron; swords use 1 wood and 2 iron; shields use 2 wood,
+1 cloth and 1 iron; basic armor uses 2 cloth and 3 iron. Each recipe reserves
+actual on-site household stock and produces one household-owned item there.
+Amounts, job duration, reserves and repair thresholds remain provisional.
+
+`EquipmentState` refers to individual personally carried lots in clothing,
+carrying aid, weapon, shield, armor and ornament slots. Equipping a stack splits
+off one item; replacing a slot retains the previous item. Normal choices collect
+accessible household gear, equip it and replace broken gear. Worn combat gear
+at 40% condition or below can be repaired with one on-site iron at the
+household's Blacksmith. Broken gear needs replacement. The physical recipes
+and slots are built; combat actions, combat wear, protection, injury and lethal
+outcomes still await their accepted rules ([#568](https://github.com/compoodment/ClankerWorld/issues/568)).
+
+An adult may give a personally carried usable ornament to a nearby living
+recipient with carrying room. Giving the currently worn ornament clears its
+saved slot and transfers the physical item. Normal choices also offer spare
+ornaments as optional gifts. Unequipped ornaments and gear can participate in
+the ordinary mutually accepted barter path; equipped lots stay out of offers
+and Blacksmith supply errands. Saved equipment rejects another owner's stock,
+stored goods, stacks, wrong item kinds and reserved references.

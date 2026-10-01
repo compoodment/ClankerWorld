@@ -100,6 +100,10 @@ public sealed partial class PrivateWorldRuntime
                      .Select(lot => ToolCapabilities.ForItem(lot.ItemKind)).Where(tool => tool is not null)
                      .GroupBy(tool => tool!.RepairMaterial).OrderBy(group => group.Key, StringComparer.Ordinal))
             yield return (group.Key, 2);
+        if (society.Checkpoint.Inventory.Lots.Any(lot => inhabitants.ContainsKey(lot.OwnerId) &&
+            HouseholdFor(lot.OwnerId) == householdId && CombatGearContent.IsGear(lot.ItemKind) &&
+            lot.ConditionBasisPoints is > 0 and <= 4_000))
+            yield return ("iron", 2);
     }
 
     private (string Kind, int Missing, InventoryLot? Personal, InventoryLot? Stock, ClankerWorld.Simulation.Harness.MapResource? Source)?
@@ -115,7 +119,7 @@ public sealed partial class PrivateWorldRuntime
             if (missing <= 0) continue;
             var personal = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                 lot.ItemKind == kind && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-                AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+                AvailableLotQuantity(lot) > 0 && !IsEquippedLot(actor, lot.Id)).OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             var stock = personal is null ? society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == kind && lot.StorageBuildingId != smithId && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault() : null;

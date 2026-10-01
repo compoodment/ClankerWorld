@@ -345,6 +345,8 @@ public sealed partial class PrivateWorldRuntime
             return NeedsToolOutput(output.ResourceId, ownerId);
         if (output.ResourceId == "iron" && ownerId is not null)
             return NeedsSmithIron(ownerId);
+        if (OrnamentContent.IsOrnament(output.ResourceId) || CombatGearContent.IsGear(output.ResourceId))
+            return NeedsPersonalGearOutput(output.ResourceId, ownerId);
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
                 (ownerId is null || lot.OwnerId == ownerId ||
                  (CarryEquipmentRules.IsClothing(output.ResourceId) || CarryEquipmentRules.IsCarryAid(output.ResourceId)) &&

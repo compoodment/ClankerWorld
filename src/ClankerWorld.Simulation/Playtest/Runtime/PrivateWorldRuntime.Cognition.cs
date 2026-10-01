@@ -415,6 +415,21 @@ public sealed partial class PrivateWorldRuntime
             CollectEquipment(inhabitantId, state, candidateId[CollectToolPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(EquipPersonalGearPrefix, StringComparison.Ordinal))
+        {
+            EquipPersonalGear(inhabitantId, state, candidateId[EquipPersonalGearPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(GiftOrnamentPrefix, StringComparison.Ordinal))
+        {
+            GiftSpareOrnament(inhabitantId, state, candidateId[GiftOrnamentPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RepairCombatGearPrefix, StringComparison.Ordinal))
+        {
+            RepairCombatGear(inhabitantId, state, candidateId[RepairCombatGearPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
             RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
@@ -682,6 +697,7 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddEquipmentCandidates(candidates, inhabitantId);
+        AddPersonalGearCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {

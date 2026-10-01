@@ -336,6 +336,8 @@ public sealed class SettlementTradeTests
         {
             foreach (var item in request.Observation.Candidates) SeenCandidates.Add(item.Id);
             var candidate = request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal))
+                ?? (prefix.StartsWith("trade_propose:", StringComparison.Ordinal)
+                    ? request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith("trade_meet:", StringComparison.Ordinal)) : null)
                 ?? request.Observation.Candidates.Single(item => item.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with
             {

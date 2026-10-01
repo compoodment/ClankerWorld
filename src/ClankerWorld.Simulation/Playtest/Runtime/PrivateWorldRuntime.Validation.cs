@@ -296,6 +296,7 @@ public sealed partial class PrivateWorldRuntime
             society.Checkpoint.WorldTick, state.SchemaVersion);
         ValidateSurvival(state);
         ValidateEquipment(state);
+        ValidatePersonalGear(state);
         ValidateCouncil(state);
         ValidateLessons(state);
         foreach (var person in state.Inhabitants)

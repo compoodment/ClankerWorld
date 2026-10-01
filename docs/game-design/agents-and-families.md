@@ -317,8 +317,9 @@ options, not agreed game design.
 - Combat can turn lethal, but agents should not be dying constantly. Personal
   models choose intentions; the game rules resolve reach, movement,
   timing, protection, injury, and outcomes. Health already exists in the
-  prototype, but the integrated game **does not yet have a combat loop,
-  weapons, armor, combat injuries, or combat AI**.
+  prototype. The Blacksmith can craft spears, swords, shields and basic armor
+  for physical equipment slots, but the integrated game **does not yet have a
+  combat loop, equipment combat effects, combat injuries, or combat AI**.
 
 ### Leaning toward
 

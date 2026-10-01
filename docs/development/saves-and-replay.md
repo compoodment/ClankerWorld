@@ -319,3 +319,12 @@ no private checkpoint schema field: tool wear uses each inventory lot's existing
 condition, while finite deposits use saved ecology quantity. Current-format
 checks exercise extraction, tool wear and repair, and a knife-assisted recipe
 with its reserved inputs through save, load and continued simulation.
+
+Ornament and physical combat-gear packages add recipes at the same Blacksmith.
+The optional equipment record also saves individual weapon, shield, armor and
+ornament lot references. References must remain personally owned, carried,
+unreserved single items of the right kind. Current saves preserve refinement
+and crafting reservations, equipping, gifts and consented ornament barter
+across reload. Giving a worn ornament clears the donor's reference before a
+checkpoint is published. No combat injury state is added. Older alpha worlds
+may be refused when content identity differs; their files remain preserved.

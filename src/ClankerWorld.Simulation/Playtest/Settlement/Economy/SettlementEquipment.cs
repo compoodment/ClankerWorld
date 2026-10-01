@@ -7,7 +7,11 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed record EquipmentState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? WornClothingLotId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CarryAidLotId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CarryAidLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? WeaponLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ShieldLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ArmorLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OrnamentLotId = null);
 
 public sealed record EquipmentChangeResult(bool Applied, string? Failure = null);
 
@@ -68,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
         lot.StorageBuildingId is null && lot.Quantity > 0);
 
     private bool IsEquippedLot(string actor, string lotId) => inhabitants[actor].Equipment is { } equipment &&
-        (equipment.WornClothingLotId == lotId || equipment.CarryAidLotId == lotId);
+        (equipment.WornClothingLotId == lotId || equipment.CarryAidLotId == lotId || IsAdditionalEquippedLot(actor, lotId));
 
     /// <summary>Equip personally carried gear. Changing a carrying aid never discards its cargo.</summary>
     public EquipmentChangeResult EquipItem(string actor, string lotId)
@@ -99,6 +103,7 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var lot = inventory.Lots.FirstOrDefault(item => item.Id == lotId && item.OwnerId == actor &&
             item.StorageBuildingId is null && item.DeliveryBuildingId is null && AvailableLotQuantity(item) > 0);
+        if (lot is not null && GearSlot(lot.ItemKind) is not null) return EquipPersonalGearLot(actor, lot);
         if (lot is null || !CarryEquipmentRules.IsClothing(lot.ItemKind) && !CarryEquipmentRules.IsCarryAid(lot.ItemKind))
             return new(false, "The agent must carry a usable garment, basket or sack to equip it.");
         var equipment = person.Equipment ?? new EquipmentState();

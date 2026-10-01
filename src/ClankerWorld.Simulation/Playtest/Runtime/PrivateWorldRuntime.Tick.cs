@@ -323,6 +323,8 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StagePotteryContent();
+            StageBuiltInContent(OrnamentContent.PackageId, BlacksmithContent.PackageId, OrnamentContent.Create, "ornament_content_staged");
+            StageBuiltInContent(CombatGearContent.PackageId, BlacksmithContent.PackageId, CombatGearContent.Create, "combat_gear_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
