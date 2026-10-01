@@ -169,14 +169,12 @@ public sealed class BuildingExpansionTests
     {
         using var seed = PreparedWorld("first-town-house-a", out _, out _);
         var state = seed.ExportState();
-        var site = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
-            !state.Map.Resources.Any(resource => resource.Position == tile.Position) &&
-            !state.Towns!.SelectMany(town => town.BorderTiles).Contains(tile.Position) &&
-            !state.Inhabitants.Any(person => person.Position == tile.Position)).Position;
+        var site = FindUnaffiliatedOpenTile(state);
         const string actor = "agent:00000000000000000000000000000098";
         var household = seed.AddAgent(actor, site);
-        var definition = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        Assert.Equal("household:" + actor, household);
         state = seed.ExportState();
+        var definition = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
         var inventory = state.Society.Society.Inventory;
         foreach (var cost in definition.BuildCosts)
             inventory = InventoryFixture.AddLot(inventory, "first-house-" + cost.ResourceId, cost.ResourceId, actor, cost.Amount);
@@ -204,7 +202,7 @@ public sealed class BuildingExpansionTests
     [Fact]
     public async Task FullHouseExpansionAddsPlacesWithoutChangingItsIdentityStockOrCookingJobAcrossReload()
     {
-        using var world = PreparedWorld("first-town-house-a", out var actor, out var building);
+        using var world = PreparedWorld("first-town-house-a", out var actor, out var building, householdWood: 10);
         var newResident = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Equal(building.HouseholdId, world.AddAgent(newResident, building.Position));
         var full = new OwnerWorldObservationStore(world).GetSnapshot().PlacedBuildings
@@ -289,6 +287,250 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
+    public async Task ExpansionMaterialsBeyondFullHouseStockAreDeliveredAcrossReload()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var building, householdWood: 10);
+        var householdId = building.HouseholdId!;
+        var firstExtraResident = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(householdId, seed.AddAgent(firstExtraResident, building.Position));
+        var state = seed.ExportState();
+        var warehouse = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-warehouse");
+        var otherBuildings = state.WorldSimulation.Buildings.Where(item => item.InstanceId != building.InstanceId)
+            .SelectMany(item => WorldContentSimulationRules.Footprint(state.WorldContent!.Buildings.Single(
+                definition => definition.CanonicalId == item.DefinitionId), item)).ToHashSet();
+        var occupied = otherBuildings.Concat(state.Map.Resources.Select(resource => resource.Position))
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).Concat(state.RoadTiles!).ToHashSet();
+        var houseDefinition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        var towns = state.Towns!;
+        bool IsClearFootprint(IEnumerable<GridPoint> footprint, GridPoint source) => footprint.All(point =>
+            state.Map.IsBuildable(point) && !occupied.Contains(point) && point != source &&
+            !state.Inhabitants.Any(person => person.InhabitantId != actor && person.Position == point) &&
+            !towns.Where(town => town.Id != building.TownId).Any(town => town.BorderTiles.Contains(point)));
+        GridPoint[] Rectangle(GridPoint position, int width, int height) =>
+            Enumerable.Range(0, height).SelectMany(y => Enumerable.Range(0, width)
+                .Select(x => new GridPoint(position.X + x, position.Y + y))).ToArray();
+
+        var placement = state.Map.FootNeighbors(warehouse.Position)
+            .Where(camp => state.Map.CanFootStep(warehouse.Position, camp) && !occupied.Contains(camp) &&
+                !state.Inhabitants.Any(person => person.Position == camp))
+            .SelectMany(camp => state.Map.FootNeighbors(camp)
+                .Where(site => Math.Abs(site.X - camp.X) + Math.Abs(site.Y - camp.Y) == 1 &&
+                    state.Map.CanFootStep(site, camp) && state.Map.IsBuildable(site) && !occupied.Contains(site) &&
+                    !state.Inhabitants.Any(person => person.InhabitantId != actor && person.Position == site))
+                .Select(site => (Camp: camp, Site: site)))
+            .First(pair =>
+            {
+                var firstShapes = new (GridPoint Position, int Width, int Height, GridPoint[] Tiles)[]
+                {
+                    (new(pair.Site.X, pair.Site.Y - 1), 1, 2,
+                        [new(pair.Site.X, pair.Site.Y - 1), pair.Site]),
+                    (pair.Site, 1, 2, [pair.Site, new(pair.Site.X, pair.Site.Y + 1)]),
+                    (new(pair.Site.X - 1, pair.Site.Y), 2, 1,
+                        [new(pair.Site.X - 1, pair.Site.Y), pair.Site]),
+                    (pair.Site, 2, 1, [pair.Site, new(pair.Site.X + 1, pair.Site.Y)]),
+                };
+                var firstShape = firstShapes.FirstOrDefault(shape => IsClearFootprint(shape.Tiles, pair.Camp));
+                if (firstShape.Tiles is null) return false;
+                var secondPositions = firstShape.Width == 1
+                    ? new[] { new GridPoint(firstShape.Position.X - 1, firstShape.Position.Y), firstShape.Position }
+                    : new[] { new GridPoint(firstShape.Position.X, firstShape.Position.Y - 1), firstShape.Position };
+                return secondPositions.Any(position => IsClearFootprint(Rectangle(position, 2, 2), pair.Camp));
+            });
+        var camp = placement.Camp;
+        var houseSite = placement.Site;
+        Assert.True(state.Map.CanFootStep(houseSite, camp));
+        Assert.Equal(1, state.Map.FootDistance(houseSite, camp));
+        building = building with { Position = houseSite, Entrance = null };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = houseSite }
+                : person).ToArray(),
+            WorldSimulation = state.WorldSimulation with
+            {
+                Buildings = state.WorldSimulation.Buildings.Select(item => item.InstanceId == building.InstanceId
+                    ? building : item).ToArray(),
+            },
+            Towns = state.Towns!.Select(town => town.Id == building.TownId
+                ? town with
+                {
+                    BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, houseSite,
+                    houseDefinition.Width + 2, houseDefinition.Height + 2)
+                }
+                : town).ToArray(),
+        };
+        var provider = new IdleProvider("expand_building:" + building.InstanceId);
+        using var firstStage = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == actor ? provider : new IdleProvider());
+        var initialCapacity = HouseResidentCapacityRules.Calculate(
+            firstStage.Society.Inhabitants.Where(person => person.HouseholdId == householdId),
+            houseDefinition.Width, houseDefinition.Height);
+        Assert.Equal(initialCapacity.Limit, initialCapacity.ResidentCount);
+        var firstStageWood = firstStage.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        Assert.True(firstStage.StartBuildingExpansion(actor, building.InstanceId).Applied);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await firstStage.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(firstStageWood - 4,
+            firstStage.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+
+        var intermediate = firstStage.ExportState();
+        building = intermediate.WorldSimulation!.Buildings.Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(2, building.Footprint!.Width * building.Footprint.Height);
+        var extraResidents = new[]
+        {
+            firstExtraResident,
+            "agent:" + Guid.NewGuid().ToString("N"),
+            "agent:" + Guid.NewGuid().ToString("N"),
+            "agent:" + Guid.NewGuid().ToString("N"),
+        };
+        for (var index = 1; index < extraResidents.Length; index++)
+            Assert.Equal(householdId, firstStage.AddAgent(extraResidents[index], building.Position));
+        intermediate = firstStage.ExportState();
+        var futurePositions = building.Footprint.Width == 1
+            ? new[] { new GridPoint(building.Position.X - 1, building.Position.Y), building.Position }
+            : new[] { new GridPoint(building.Position.X, building.Position.Y - 1), building.Position };
+        var futureBuildingTiles = futurePositions.SelectMany(position => Enumerable.Range(0, 2)
+            .SelectMany(y => Enumerable.Range(0, 2)
+                .Select(x => new GridPoint(position.X + x, position.Y + y)))).ToHashSet();
+        var occupiedAfterFirst = intermediate.WorldSimulation!.Buildings
+            .SelectMany(item => WorldContentSimulationRules.Footprint(intermediate.WorldContent!.Buildings.Single(
+                definition => definition.CanonicalId == item.DefinitionId), item))
+            .Concat(intermediate.Map.Resources.Select(resource => resource.Position))
+            .Concat(intermediate.Map.CampObjects.Select(item => item.Position))
+            .Concat(intermediate.RoadTiles!).ToHashSet();
+        var firstAwayPosition = intermediate.Map.FootNeighbors(building.Position)
+            .Where(step => intermediate.Map.CanFootStep(building.Position, step) && !occupiedAfterFirst.Contains(step) &&
+                !intermediate.Inhabitants.Any(person => !extraResidents.Contains(person.InhabitantId) && person.Position == step))
+            .SelectMany(step => intermediate.Map.FootNeighbors(step).Where(point =>
+                intermediate.Map.FootDistance(building.Position, point) == 2 && intermediate.Map.CanFootStep(step, point) &&
+                intermediate.Map.IsBuildable(point) && !occupiedAfterFirst.Contains(point) &&
+                !futureBuildingTiles.Contains(point) && point != camp &&
+                !intermediate.Inhabitants.Any(person => !extraResidents.Contains(person.InhabitantId) && person.Position == point)))
+            .Distinct().First();
+        var otherAwayPositions = intermediate.Map.Tiles.Select(tile => tile.Position)
+            .Where(point => intermediate.Map.IsBuildable(point) && !occupiedAfterFirst.Contains(point) &&
+                !futureBuildingTiles.Contains(point) && point != camp && point != firstAwayPosition &&
+                !intermediate.Inhabitants.Any(person => !extraResidents.Contains(person.InhabitantId) && person.Position == point) &&
+                intermediate.Map.FootDistance(point, camp) >= 6)
+            .OrderBy(point => point.Y).ThenBy(point => point.X).Take(3).ToArray();
+        Assert.Equal(3, otherAwayPositions.Length);
+        var residentPositions = new[] { firstAwayPosition }.Concat(otherAwayPositions).ToArray();
+        intermediate = intermediate with
+        {
+            Inhabitants = intermediate.Inhabitants.Select(person => extraResidents.Contains(person.InhabitantId)
+                ? person with { Position = residentPositions[Array.IndexOf(extraResidents, person.InhabitantId)] }
+                : person.InhabitantId == actor ? person with { Position = building.Position } : person).ToArray(),
+        };
+        Assert.Equal(2, intermediate.Map.FootDistance(building.Position, firstAwayPosition));
+        var effective = BuildingStorageRules.EffectiveDefinition(houseDefinition, building);
+        var fullHousehold = HouseResidentCapacityRules.Calculate(
+            intermediate.Society.Society.Inhabitants.Where(person => person.HouseholdId == householdId),
+            effective.Width, effective.Height);
+        Assert.Equal(fullHousehold.Limit, fullHousehold.ResidentCount);
+        var inventory = intermediate.Society.Society.Inventory;
+        var capacity = BuildingStorageRules.Capacity(houseDefinition, building)!.Value;
+        Assert.Equal(8, BuildingStorageRules.ExpansionCosts(houseDefinition, building,
+            new BuildingFootprintRevision(2, 2, 2)).Single(cost => cost.ResourceId == "wood").Amount);
+        var houseStock = inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+        Assert.InRange(houseStock, 0, capacity - 1);
+        inventory = InventoryFixture.AddLot(inventory, "expansion-camp-wood", "wood", householdId, 2,
+            groundPosition: new InventoryGroundPosition(camp.X, camp.Y));
+        inventory = InventoryFixture.AddLot(inventory, "expansion-house-capacity-fill", "stone", householdId,
+            capacity - houseStock, storageBuildingId: building.InstanceId);
+        Assert.Equal(capacity, inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity));
+        intermediate = intermediate with
+        {
+            Society = intermediate.Society with { Society = intermediate.Society.Society with { Inventory = inventory } },
+            Towns = intermediate.Towns!.Select(town => town.Id == building.TownId
+                ? town with
+                {
+                    BorderTiles = TownBorderRules.ExpandForBuilding(intermediate.Map, town, building.Position,
+                    effective.Width + 2, effective.Height + 2)
+                }
+                : town).ToArray(),
+        };
+        Assert.InRange(intermediate.Map.FootDistance(building.Position, camp), 1, 3);
+        var initialHouseStock = inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId)
+            .Select(lot => (lot.Id, lot.OwnerId, lot.ItemKind, lot.Quantity)).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        var secondStageWood = inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(intermediate)),
+            id => id == actor ? provider : new IdleProvider());
+
+        for (var tick = 0; tick < 100 && !world.Society.Inventory.Lots.Any(lot =>
+                 lot.OwnerId == actor && lot.DeliveryBuildingId == building.InstanceId && lot.ItemKind == "wood"); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(provider.Seen, request => request.Observation.Candidates.Any(candidate =>
+            candidate.Id == "expand_building:" + building.InstanceId));
+        var transitLot = Assert.Single(world.Society.Inventory.Lots, lot =>
+            lot.OwnerId == actor && lot.DeliveryBuildingId == building.InstanceId && lot.ItemKind == "wood");
+        Assert.Equal(2, transitLot.Quantity);
+        Assert.Equal(camp, world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal) &&
+            item.Detail.EndsWith(":building_expansion_material", StringComparison.Ordinal));
+        Assert.Equal(secondStageWood, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(initialHouseStock, world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId)
+            .Select(lot => (lot.Id, lot.OwnerId, lot.ItemKind, lot.Quantity)).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray());
+
+        var transitBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(transitBytes),
+            id => id == actor ? provider : new IdleProvider());
+        Assert.Equal(transitBytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        for (var tick = 0; tick < 100 && resumed.WorldSimulation.BuildingExpansions?.Any(job =>
+                 job.State == WorldProductionJobState.Running) != true; tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+
+        var expansion = Assert.Single(resumed.WorldSimulation.BuildingExpansions!, job => job.State == WorldProductionJobState.Running);
+        Assert.Equal(building.Position, resumed.Inhabitants.Single(person => person.InhabitantId == actor).Position);
+        Assert.Contains(resumed.ExportState().Events, item => item.Kind == "inhabitant_moved" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal) &&
+            item.Detail.EndsWith(":building_expansion_delivery", StringComparison.Ordinal));
+        Assert.All(expansion.InputReservationIds, id => Assert.Equal(InventoryReservationState.Reserved,
+            resumed.Society.Inventory.GetReservation(id).State));
+        var deliveredWood = Assert.Single(resumed.Society.Inventory.Lots, lot =>
+            lot.OwnerId == householdId && lot.ItemKind == "wood" && lot.GroundPosition ==
+                new InventoryGroundPosition(building.Position.X, building.Position.Y));
+        Assert.Equal(2, deliveredWood.Quantity);
+        Assert.Null(deliveredWood.StorageBuildingId);
+        Assert.All(initialHouseStock, original =>
+        {
+            var current = resumed.Society.Inventory.GetLot(original.Id);
+            Assert.Equal(original.OwnerId, current.OwnerId);
+            Assert.Equal(original.Quantity, current.Quantity);
+            Assert.Equal(building.InstanceId, current.StorageBuildingId);
+        });
+
+        using var working = Reload(resumed);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await working.AdvanceOneTickAsync()).Advanced);
+        var completedExpansion = working.WorldSimulation.BuildingExpansions!.Single(job => job.JobId == expansion.JobId);
+        Assert.Equal(WorldProductionJobState.Completed, completedExpansion.State);
+        Assert.Equal(secondStageWood - 8, working.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        var consumedByLot = expansion.InputReservationIds.Select(working.Society.Inventory.GetReservation)
+            .GroupBy(reservation => reservation.LotId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(reservation => reservation.Quantity), StringComparer.Ordinal);
+        Assert.All(initialHouseStock, original =>
+        {
+            var expectedQuantity = original.Quantity - consumedByLot.GetValueOrDefault(original.Id);
+            var current = working.Society.Inventory.Lots.SingleOrDefault(lot => lot.Id == original.Id);
+            if (expectedQuantity == 0)
+            {
+                Assert.Null(current);
+                return;
+            }
+
+            Assert.NotNull(current);
+            Assert.Equal(original.OwnerId, current.OwnerId);
+            Assert.Equal(expectedQuantity, current.Quantity);
+            Assert.Equal(building.InstanceId, current.StorageBuildingId);
+        });
+        var visibleHouse = new OwnerWorldObservationStore(working).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == building.InstanceId);
+        Assert.Equal(12, visibleHouse.ResidentLimit);
+        Assert.Equal(6, visibleHouse.PermanentResidentCount);
+        working.Validate();
+    }
+
+    [Fact]
     public async Task AStaleExpansionReleasesMaterialsAndKeepsTheOriginalBuilding()
     {
         using var world = PreparedWorld("first-town-house-a", out var actor, out var building);
@@ -351,11 +593,8 @@ public sealed class BuildingExpansionTests
         Assert.Equal(worker.Proficiency, savedWorker.Proficiency);
         var state = world.ExportState();
         var outsiderId = "agent:00000000000000000000000000000099";
-        var placement = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
-            !state.Map.Resources.Any(resource => resource.Position == tile.Position) &&
-            !state.Towns!.SelectMany(town => town.BorderTiles).Contains(tile.Position) &&
-            !world.Inhabitants.Any(person => person.Position == tile.Position)).Position;
-        world.AddAgent(outsiderId, placement);
+        var placement = FindUnaffiliatedOpenTile(state);
+        Assert.Equal("household:" + outsiderId, world.AddAgent(outsiderId, placement));
         Assert.False(world.StartBuildingExpansion(outsiderId, building.InstanceId).Applied);
     }
 
@@ -407,6 +646,7 @@ public sealed class BuildingExpansionTests
         };
         using var invited = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
         using var revoked = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        Assert.NotEqual(VegetationCover.Forest, state.Map.VegetationAt(new GridPoint(house.Position.X, house.Position.Y + 1)));
         var otherAdult = revoked.Society.Inhabitants.First(person => person.Id != actor && person.HouseholdId == house.HouseholdId).Id;
         Assert.True(revoked.SetHouseGuestInvitation(otherAdult, house.InstanceId, guest, false).Applied);
         Assert.False(invited.StartProduction(invited.WorldContent.Recipes.Single(item => item.LocalId == "house-meal").CanonicalId,
@@ -452,6 +692,7 @@ public sealed class BuildingExpansionTests
         var guest = seed.Society.Inhabitants.First(person => person.HouseholdId != house.HouseholdId).Id;
         Assert.True(seed.SetHouseGuestInvitation(actor, house.InstanceId, guest, true).Applied);
         var state = seed.ExportState();
+        Assert.NotEqual(VegetationCover.Forest, state.Map.VegetationAt(new GridPoint(house.Position.X + 1, house.Position.Y)));
         state = state with
         {
             Survival = new SettlementSurvivalState(0, []),
@@ -476,38 +717,125 @@ public sealed class BuildingExpansionTests
         Assert.Equal(house.Position, world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
     }
 
-    private static PrivateWorldRuntime PreparedWorld(string buildingId, out string actor, out PlacedBuilding building)
+    private static PrivateWorldRuntime PreparedWorld(string buildingId, out string actor, out PlacedBuilding building,
+        int householdWood = 52)
     {
         using var seed = NormalPathWorld.CreateGenerated("expansion-world", _ => new IdleProvider());
         var state = seed.ExportState();
         building = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == buildingId);
         var targetBuilding = building;
         var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == targetBuilding.DefinitionId);
-        var occupied = state.WorldSimulation.Buildings.Where(item => item.InstanceId != buildingId)
-            .SelectMany(item => WorldContentSimulationRules.Footprint(state.WorldContent.Buildings.Single(value => value.CanonicalId == item.DefinitionId), item))
-            .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(state.RoadTiles!).ToHashSet();
-        var site = state.Map.Tiles.Select(tile => tile.Position).First(position =>
-            Enumerable.Range(-1, 4).SelectMany(dy => Enumerable.Range(-1, 4).Select(dx => new GridPoint(position.X + dx, position.Y + dy)))
-                .All(point => state.Map.IsBuildable(point) && !occupied.Contains(point)));
-        building = building with { Position = site, Entrance = null };
         actor = state.Society.Society.Inhabitants.First(person => targetBuilding.HouseholdId is null || person.HouseholdId == targetBuilding.HouseholdId).Id;
         var actorId = actor;
-        var placed = building;
         var inventory = state.Society.Society.Inventory;
         inventory = InventoryFixture.AddLot(inventory, "expansion-wood", "wood", building.HouseholdId ?? building.TownId!,
-            building.HouseholdId is null ? 210 : 10, storageBuildingId: building.InstanceId);
+            building.HouseholdId is null ? 210 : householdWood, storageBuildingId: building.InstanceId);
         if (building.HouseholdId is null)
             inventory = InventoryFixture.AddLot(inventory, "expansion-stone", "stone", building.TownId!, 8, storageBuildingId: building.InstanceId);
-        state = state with
+        var probeInventory = inventory;
+        if (building.HouseholdId is not null && householdWood < 52)
+            probeInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "expansion-wood", "wood",
+                building.HouseholdId, 52, storageBuildingId: building.InstanceId);
+        var occupied = state.WorldSimulation.Buildings.Where(item => item.InstanceId != buildingId)
+            .SelectMany(item => WorldContentSimulationRules.Footprint(state.WorldContent.Buildings.Single(value => value.CanonicalId == item.DefinitionId), item))
+            .Concat(state.Map.Resources.Select(resource => resource.Position))
+            .Concat(state.Map.CampObjects.Select(item => item.Position))
+            .Concat(state.RoadTiles!)
+            .Concat(state.Fields!.Select(field => field.Position))
+            .Concat(state.Inhabitants.Where(person => person.InhabitantId != actorId).Select(person => person.Position))
+            .Concat(state.Towns!.Where(town => town.Id != targetBuilding.TownId).SelectMany(town => town.BorderTiles))
+            .ToHashSet();
+        var candidates = state.Map.Tiles.Select(tile => tile.Position)
+            .Where(position => state.Map.FootDistance(targetBuilding.Position, position) < int.MaxValue)
+            .OrderBy(position => state.Map.FootDistance(targetBuilding.Position, position))
+            .ThenBy(position => position.Y).ThenBy(position => position.X);
+        var connectedRoadTiles = ReachableFootTiles(state.Map, state.RoadTiles![0]);
+        PrivateWorldRuntimeState? prepared = null;
+        foreach (var site in candidates)
         {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actorId
-                ? person with { Position = site, HungerBasisPoints = 9_000 } : person).ToArray(),
-            WorldSimulation = state.WorldSimulation with { Buildings = state.WorldSimulation.Buildings.Select(item => item.InstanceId == buildingId ? placed : item).ToArray() },
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Towns = state.Towns!.Select(town => town.Id == placed.TownId
-                ? town with { BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, definition.Width + 2, definition.Height + 2) } : town).ToArray(),
-        };
-        return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+            var guestApproaches = new[]
+            {
+                new GridPoint(site.X + 1, site.Y),
+                new GridPoint(site.X, site.Y + 1),
+            };
+            if (guestApproaches.Any(point => state.Map.VegetationAt(point) == VegetationCover.Forest)) continue;
+            var entrances = state.Map.FootNeighbors(site).Where(point =>
+                    WorldContentSimulationRules.IsEntrance(definition, site, point) && state.Map.CanFootStep(site, point) &&
+                    !occupied.Contains(point) && connectedRoadTiles.Contains(point))
+                .OrderBy(point => Math.Abs(point.X - site.X) + Math.Abs(point.Y - site.Y))
+                .ThenBy(point => point.Y).ThenBy(point => point.X).ToArray();
+            if (entrances.Length == 0) continue;
+            var envelope = Enumerable.Range(-1, 4).SelectMany(dy => Enumerable.Range(-1, 4)
+                .Select(dx => new GridPoint(site.X + dx, site.Y + dy))).ToArray();
+            if (!state.Map.IsBuildable(site) || envelope.Any(point =>
+                    !state.Map.IsBuildable(point) || occupied.Contains(point))) continue;
+
+            var placed = targetBuilding with { Position = site, Entrance = entrances[0] };
+            var candidate = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actorId
+                    ? person with { Position = site, HungerBasisPoints = 9_000 } : person).ToArray(),
+                WorldSimulation = state.WorldSimulation with
+                {
+                    Buildings = state.WorldSimulation.Buildings.Select(item => item.InstanceId == buildingId ? placed : item).ToArray(),
+                },
+                Society = state.Society with { Society = state.Society.Society with { Inventory = probeInventory } },
+                Towns = state.Towns!.Select(town => town.Id == placed.TownId
+                    ? town with
+                    {
+                        BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site,
+                        definition.Width + 2, definition.Height + 2)
+                    } : town).ToArray(),
+            };
+            using var probe = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(candidate)), _ => new IdleProvider());
+            if (!probe.StartBuildingExpansion(actorId, buildingId).Applied) continue;
+            prepared = candidate with
+            {
+                Society = candidate.Society with
+                {
+                    Society = candidate.Society.Society with { Inventory = inventory },
+                },
+            };
+            building = placed;
+            break;
+        }
+
+        Assert.NotNull(prepared);
+        return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(prepared)),
+            _ => new IdleProvider());
+    }
+
+    private static GridPoint FindUnaffiliatedOpenTile(PrivateWorldRuntimeState state)
+    {
+        var buildings = state.WorldSimulation!.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(state.WorldContent!.Buildings.Single(item =>
+                item.CanonicalId == building.DefinitionId), building));
+        var unavailable = buildings.Concat(state.Map.Resources.Select(item => item.Position))
+            .Concat(state.Map.CampObjects.Select(item => item.Position))
+            .Concat(state.RoadTiles!)
+            .Concat(state.Fields!.Select(item => item.Position))
+            .Concat(state.Inhabitants.Select(item => item.Position))
+            .Concat(state.Towns!.SelectMany(item => item.BorderTiles))
+            .ToHashSet();
+        return state.Map.Tiles.Select(tile => tile.Position).First(point =>
+            state.Map.IsBuildable(point) && !unavailable.Contains(point));
+    }
+
+    private static HashSet<GridPoint> ReachableFootTiles(SeededMap map, GridPoint start)
+    {
+        var visited = new HashSet<GridPoint> { start };
+        var pending = new Queue<GridPoint>();
+        pending.Enqueue(start);
+        while (pending.TryDequeue(out var current))
+        {
+            foreach (var next in map.FootNeighbors(current))
+            {
+                if (!map.CanFootStep(current, next) || !visited.Add(next)) continue;
+                pending.Enqueue(next);
+            }
+        }
+        return visited;
     }
 
     private static PrivateWorldRuntime Reload(PrivateWorldRuntime world) => PrivateWorldRuntime.Restore(

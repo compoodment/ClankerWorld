@@ -44,6 +44,45 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal("Ari 1", restored.Society.GetInhabitant(birth.ChildId).Name);
         Assert.Equal(SocietyAgeBand.Infant, restored.Society.GetInhabitant(birth.ChildId).AgeBand);
         Assert.Empty(restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId).Skills ?? []);
+        var newborn = restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId);
+        Assert.NotNull(newborn.Housing?.Blocker);
+        Assert.Contains(newborn.Housing!.Blocker,
+            new[] { HousingBlockers.NoAuthorizedHome, HousingBlockers.MissingMaterials, HousingBlockers.NoLegalSite });
+        Assert.Contains(restored.ExportState().Events, item => item.Kind == "housing_blocked" &&
+            item.Detail == $"{birth.ChildId}:{newborn.Housing.Blocker}");
+        var newbornProfile = new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants
+            .Single(person => person.Id == birth.ChildId);
+        Assert.Contains(newbornProfile.DecisionFactors, factor => factor.Key == "housing" &&
+            factor.Detail.Contains("No home", StringComparison.Ordinal));
+        using (var reloaded = PrivateWorldRuntime.Restore(
+                   PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState()))))
+        {
+            Assert.Equal(newborn.Housing.Blocker,
+                reloaded.Inhabitants.Single(person => person.InhabitantId == birth.ChildId).Housing?.Blocker);
+            var reloadedState = reloaded.ExportState();
+            var householdId = reloaded.Society.GetInhabitant(birth.ChildId).HouseholdId!;
+            var members = reloaded.Society.GetHousehold(householdId).MemberIds
+                .Where(member => member != birth.ChildId).ToArray();
+            var forgedRequest = reloadedState with
+            {
+                Inhabitants = reloadedState.Inhabitants.Select(person => person.InhabitantId == birth.ChildId
+                    ? person with { Housing = new SettlementHousing(Request: new SettlementHousingRequest(
+                        householdId, reloaded.Society.WorldTick,
+                        reloaded.Society.WorldTick + PrivateWorldRuntime.HousingRequestTicks, members, [], [])) }
+                    : person).ToArray(),
+            };
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forgedRequest));
+            var forgedRefusal = reloadedState with
+            {
+                Inhabitants = reloadedState.Inhabitants.Select(person => person.InhabitantId == birth.ChildId
+                    ? person with { Housing = (person.Housing ?? new()) with
+                    {
+                        Refusals = [new SettlementHousingRefusal(householdId, reloaded.Society.WorldTick)],
+                    } }
+                    : person).ToArray(),
+            };
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forgedRefusal));
+        }
         Assert.Equal("completed", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
         var completedState = restored.ExportState();
         var forgedPending = completedState with
@@ -176,11 +215,18 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(4, capacity.PermanentResidentCount);
         Assert.Equal(3, capacity.ResidentLimit);
         Assert.True(capacity.IsOvercrowded);
+        var newborn = moved.Inhabitants.Single(item => item.InhabitantId == birth.ChildId);
+        Assert.Equal(HousingBlockers.Overcrowded, newborn.Housing?.Blocker);
+        Assert.Contains(new OwnerWorldObservationStore(moved).GetSnapshot().Inhabitants
+            .Single(item => item.Id == birth.ChildId).DecisionFactors,
+            factor => factor.Key == "housing" && factor.Detail.Contains("Housing need", StringComparison.Ordinal));
         Assert.Equal(4, capacity.PermanentResidentCount);
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(moved.ExportState())), ProviderFor);
         Assert.Equal(newHome.Id, Assert.Single(restored.Society.Births).HouseholdId);
         Assert.Equal(newHome.Id, restored.Inhabitants.Single(item => item.InhabitantId == caregiver).Parenthood!.BirthHouseholdId);
+        Assert.Equal(HousingBlockers.Overcrowded,
+            restored.Inhabitants.Single(item => item.InhabitantId == birth.ChildId).Housing?.Blocker);
     }
 
     [Fact]

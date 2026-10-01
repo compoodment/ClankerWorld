@@ -1097,7 +1097,7 @@ public static partial class SocietyFixture
         foreach (var birth in checkpoint.Births)
         {
             var child = checkpoint.Inhabitants.SingleOrDefault(person => person.Id == birth.ChildId);
-            if (birth.Revision <= 0 || birth.CommittedTick < 0 ||
+            if (birth.Revision <= 0 || birth.CommittedTick < 0 || birth.CommittedTick > checkpoint.WorldTick ||
                 string.IsNullOrWhiteSpace(birth.PrimaryCaregiverId) ||
                 string.IsNullOrWhiteSpace(birth.HouseholdId) ||
                 string.IsNullOrWhiteSpace(birth.DomesticFamilyUnitId) || child is null ||

@@ -592,8 +592,11 @@ storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
 before placement. A birth always goes to the primary caregiver's current
-household, even when that puts the House over its limit; the building card and
-agent context show the resulting crowding. House expansion can start for a
+household, even when that puts the House over its limit; the building card,
+agent context and the newborn's saved housing status show the resulting need.
+An unavailable House is recorded the same way without delaying birth. This
+status gives dependents no adult admission or construction choices. House
+expansion can start for a
 storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident. The game does not yet relocate people who already live in an

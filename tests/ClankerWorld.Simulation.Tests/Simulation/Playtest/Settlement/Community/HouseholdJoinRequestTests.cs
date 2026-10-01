@@ -92,7 +92,25 @@ public sealed class HouseholdJoinRequestTests
     public async Task AdultAddedToHouseholdMustAnswerAnAlreadyPendingRequest(bool agrees)
     {
         var provider = new ScriptedProvider();
-        using var world = NormalPathWorld.CreateGenerated("housing-review-new-adult", _ => provider);
+        using var seed = NormalPathWorld.CreateGenerated("housing-review-new-adult", _ => provider);
+        var house = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var builder = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, seed.AddAgent(builder, house.Position));
+        var state = seed.ExportState();
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "housing-review-expansion-wood", "wood", builder, 4);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        var expansion = world.StartBuildingExpansion(builder, house.InstanceId);
+        Assert.True(expansion.Applied, expansion.Failure);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId);
+        Assert.Equal(1, house.Footprint!.Revision);
+
         var applicant = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Null(world.AddAgent(applicant, TownTileBeside(world, "first-town-house-a")));
         provider.Choices[applicant] = "household_ask:" + Alpha;
@@ -100,12 +118,13 @@ public sealed class HouseholdJoinRequestTests
         provider.Choices[applicant] = "safe_idle";
         var originalMembers = world.Society.GetHousehold(Alpha).MemberIds.ToArray();
         provider.Choices[originalMembers[0]] = "household_admit:" + applicant;
-        provider.Choices[originalMembers[1]] = ScriptedProvider.AnythingButHousing;
+        foreach (var member in originalMembers.Skip(1))
+            provider.Choices[member] = ScriptedProvider.AnythingButHousing;
         await AdvanceUntil(world, () => Housing(world, applicant)?.Request?.Approvals.Contains(originalMembers[0], StringComparer.Ordinal) == true);
         var newAdult = "agent:" + Guid.NewGuid().ToString("N");
-        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         Assert.Equal(Alpha, world.AddAgent(newAdult, house.Position));
-        provider.Choices[originalMembers[1]] = "household_admit:" + applicant;
+        foreach (var member in originalMembers.Skip(1))
+            provider.Choices[member] = "household_admit:" + applicant;
         provider.Choices[newAdult] = ScriptedProvider.AnythingButHousing;
         await AdvanceUntil(world, () => Housing(world, applicant)?.Request is { } request &&
             originalMembers.All(member => request.Approvals.Contains(member, StringComparer.Ordinal)) &&
@@ -381,9 +400,8 @@ public sealed class HouseholdJoinRequestTests
 
         Assert.Equal(Alpha, world.Society.GetInhabitant(agent).HouseholdId);
         Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("household_", StringComparison.Ordinal));
-        Assert.Contains("3 of 3 permanent resident places", provider.HousingNotes[agent], StringComparison.Ordinal);
-        Assert.Contains("people physically inside now; people away still count as residents",
-            provider.HousingNotes[agent], StringComparison.Ordinal);
+        Assert.Contains("House: 3/3 permanent places (is full)", provider.HousingNotes[agent], StringComparison.Ordinal);
+        Assert.Contains("inside; absences still count", provider.HousingNotes[agent], StringComparison.Ordinal);
         Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == agent).Housing);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind.StartsWith("housing_", StringComparison.Ordinal));
         var visible = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == agent);

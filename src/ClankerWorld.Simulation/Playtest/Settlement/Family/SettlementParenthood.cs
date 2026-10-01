@@ -235,6 +235,12 @@ public sealed partial class PrivateWorldRuntime
             }
             inhabitants.Add(birth.ChildId, new(birth.ChildId, site.Value, 8_000, 0, "curious", "grow with the household",
                 Survival: new SurvivalCondition()));
+            var housingBlocker = HousingBlocker(birth.ChildId);
+            if (housingBlocker is not null)
+            {
+                SetHousing(birth.ChildId, new(Blocker: housingBlocker));
+                AppendEvent("housing_blocked", $"{birth.ChildId}:{housingBlocker}");
+            }
             if (TownForResident(caregiverId) is { } parentTownId)
                 AddTownResident(parentTownId, birth.ChildId, "child_joined");
             SetParenthood(person.InhabitantId, plan with

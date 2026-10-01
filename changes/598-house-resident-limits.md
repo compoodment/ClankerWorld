@@ -1,1 +1,1 @@
-- Houses limit permanent residents by completed footprint and recorded family group, expand for more places, and place births with their primary caregiver even when that home is full.
+- Houses limit permanent residents by completed footprint and recorded family group, expand for more places, and place births with their primary caregiver even when that home is full. Newborn profiles retain a housing need when the actual household has no authorized House or exceeds completed capacity; this does not grant children adult admission or construction choices.

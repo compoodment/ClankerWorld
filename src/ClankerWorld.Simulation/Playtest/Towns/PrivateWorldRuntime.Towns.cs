@@ -187,7 +187,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
         var membership = AgentPlacementRules.Resolve(householdOwners, townIds);
-        if (membership.HouseholdIdFor(agentId) is { } householdId)
+        if (membership.HouseholdPropertyOwnerId is { } householdId)
         {
             var proposed = SocietyFixture.CreateFounder(agentId, "New agent", config: society.Checkpoint.Config) with
             {

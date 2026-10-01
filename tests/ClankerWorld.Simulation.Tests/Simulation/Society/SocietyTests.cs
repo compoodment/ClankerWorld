@@ -160,6 +160,10 @@ public sealed class SocietyTests
             "food-lot", 2, checkpoint.WorldTick, PrimaryCaregiverId: "alice"));
         var child = birth.Checkpoint.GetInhabitant(Assert.IsType<string>(birth.CreatedId));
         var record = Assert.Single(birth.Checkpoint.Births);
+        Assert.Throws<InvalidDataException>(() => SocietyFixture.Validate(birth.Checkpoint with
+        {
+            Births = [record with { CommittedTick = birth.Checkpoint.WorldTick + 1 }],
+        }));
 
         Assert.Equal("home-a", child.HouseholdId);
         Assert.Equal("alice", child.PrimaryCaregiverId);

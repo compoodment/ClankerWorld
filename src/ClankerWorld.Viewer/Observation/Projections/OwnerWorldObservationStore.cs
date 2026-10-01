@@ -768,6 +768,7 @@ public sealed class OwnerWorldObservationStore
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            HousingBlockers.Overcrowded => "Housing need. The household's House is over its completed resident capacity; no one is moved automatically.",
             _ => null,
         };
     }
