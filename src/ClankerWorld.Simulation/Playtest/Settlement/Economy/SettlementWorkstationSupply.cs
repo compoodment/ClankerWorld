@@ -69,6 +69,9 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
                 var stock = carried is not null ? null : SpareHouseholdStock(actor, householdId, input.Key, building);
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
+                if (source is not null && (deliveryRoom <= 0 ||
+                    ProjectMaterialCarryUnits(actor, input.Key, source) > FreeCarryCapacity(actor)))
+                    source = null;
                 if (carried is null && stock is null && source is null)
                     continue;
                 yield return new WorkstationSupplyNeed(building, definition, input.Key, missing, carried, stock, source);

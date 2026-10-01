@@ -91,6 +91,41 @@ public sealed class PotteryContentTests
                 }
                 : person).ToArray(),
         };
+
+        var currentInventory = supplyState.Society.Society.Inventory;
+        var adult = supplyState.Inhabitants.Single(person => person.InhabitantId == actor);
+        var freeCapacity = PersonalEquipmentRules.FreeCapacity(currentInventory, actor, adult.Equipment);
+        if (freeCapacity > 0)
+            currentInventory = InventoryFixture.AddLot(currentInventory, "test-workstation-full-load", "test_load",
+                actor, freeCapacity, currentInventory.WorldTick);
+        Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(currentInventory, actor, adult.Equipment));
+        var fullLoadState = supplyState with
+        {
+            Society = supplyState.Society with
+            {
+                Society = supplyState.Society.Society with { Inventory = currentInventory },
+            },
+        };
+        var fullLoadCandidates = await ObservePersistedCandidates(fullLoadState, actor);
+        Assert.DoesNotContain("supply_workstation:clay", fullLoadCandidates);
+
+        var fullStorageInventory = supplyState.Society.Society.Inventory;
+        var onSiteQuantity = fullStorageInventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId)
+            .Sum(lot => lot.Quantity);
+        var houseStorageRoom = Math.Max(0, BuildingStorageRules.UnitsPerTile - onSiteQuantity);
+        if (houseStorageRoom > 0)
+            fullStorageInventory = InventoryFixture.AddLot(fullStorageInventory, "test-workstation-full-storage", "test_storage",
+                householdId, houseStorageRoom, fullStorageInventory.WorldTick, storageBuildingId: house.InstanceId);
+        var fullStorageState = supplyState with
+        {
+            Society = supplyState.Society with
+            {
+                Society = supplyState.Society.Society with { Inventory = fullStorageInventory },
+            },
+        };
+        var fullStorageCandidates = await ObservePersistedCandidates(fullStorageState, actor);
+        Assert.DoesNotContain("supply_workstation:clay", fullStorageCandidates);
+
         using var supplying = PrivateWorldRuntime.Restore(supplyState, id => id == actor
             ? supplier : new IdleProvider());
         for (var tick = 0; tick < 160 &&
@@ -109,6 +144,53 @@ public sealed class PotteryContentTests
         Assert.Equal(15, supplying.WorldSystems!.Ecology.GetResource(clay.Id).Quantity);
 
         var productionState = supplying.ExportState();
+        var noJugState = SetActorCondition(productionState, actor, 10_000, house.Position);
+        var noJugCandidates = await ObservePersistedCandidates(noJugState, actor);
+        Assert.Empty(ContainerActionCandidates(noJugCandidates));
+
+        var otherAdult = productionState.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.Id != actor && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var foreignJugInventory = InventoryFixture.AddLot(productionState.Society.Society.Inventory,
+            "test-foreign-carried-jug", InventoryContainerRules.WaterJug, otherAdult, 1,
+            productionState.Society.Society.WorldTick);
+        var foreignJugState = SetActorCondition(productionState with
+        {
+            Society = productionState.Society with
+            {
+                Society = productionState.Society.Society with { Inventory = foreignJugInventory },
+            },
+        }, actor, 10_000, house.Position);
+        var foreignJugCandidates = await ObservePersistedCandidates(foreignJugState, actor);
+        Assert.Empty(ContainerActionCandidates(foreignJugCandidates));
+
+        var freshwaterShores = FreshWaterShorePoints(productionState.Map);
+        var occupiedTiles = productionState.Inhabitants.Select(person => person.Position)
+            .Concat(setup.WorldSimulation.Buildings.Select(building => building.Position))
+            .Concat(setup.RoadTiles)
+            .Concat(productionState.Map.CampObjects.Select(item => item.Position))
+            .Concat(productionState.Map.Resources.Select(item => item.Position))
+            .ToHashSet();
+        var blockedShoreOrigins = productionState.Map.Tiles.Select(tile => tile.Position)
+            .Where(point => !occupiedTiles.Contains(point) && productionState.Map.IsPassable(point) &&
+                productionState.Map.HydrologyAt(point) == WaterKind.Land)
+            .Where(point => freshwaterShores.All(shore => !productionState.Map.IsReachableOnFoot(point, shore)))
+            .ToArray();
+        Assert.NotEmpty(freshwaterShores);
+        Assert.NotEmpty(blockedShoreOrigins);
+        var jugAtBlockedShore = InventoryFixture.AddLot(productionState.Society.Society.Inventory,
+            "test-jug-with-no-reachable-shore", InventoryContainerRules.WaterJug, actor, 1,
+            productionState.Society.Society.WorldTick);
+        var blockedShoreState = SetActorCondition(productionState with
+        {
+            Society = productionState.Society with
+            {
+                Society = productionState.Society.Society with { Inventory = jugAtBlockedShore },
+            },
+        }, actor, 10_000, blockedShoreOrigins[0]);
+        var blockedShoreCandidates = await ObservePersistedCandidates(blockedShoreState, actor);
+        Assert.DoesNotContain(blockedShoreCandidates,
+            id => id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
+
         var woodStock = InventoryFixture.AddLot(productionState.Society.Society.Inventory,
             "test-house-pottery-wood", "wood", householdId, 4,
             productionState.Society.Society.WorldTick, storageBuildingId: house.InstanceId);
@@ -137,6 +219,25 @@ public sealed class PotteryContentTests
             productionState = resumed.ExportState();
         }
 
+        var storedJug = productionState.Society.Society.Inventory.Lots.Single(lot =>
+            lot.ItemKind == InventoryContainerRules.WaterJug);
+        var lockInventory = InventoryFixture.AddLot(productionState.Society.Society.Inventory,
+            "test-reserved-water", InventoryContainerRules.FreshWater, householdId, 1,
+            productionState.Society.Society.WorldTick, containerLotId: storedJug.Id,
+            storageBuildingId: house.InstanceId);
+        lockInventory = InventoryFixture.Reserve(lockInventory, "test-water-jug-lock", householdId,
+            "test-reserved-water", 1, "keep this vessel family in place", productionState.Society.Society.WorldTick + 100);
+        var lockedJugState = SetActorCondition(productionState with
+        {
+            Society = productionState.Society with
+            {
+                Society = productionState.Society.Society with { Inventory = lockInventory },
+            },
+        }, actor, 10_000, house.Position);
+        var lockedJugCandidates = await ObservePersistedCandidates(lockedJugState, actor);
+        Assert.DoesNotContain("collect_water_jug", lockedJugCandidates);
+        Assert.DoesNotContain(lockedJugCandidates, id => id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
+
         var jugId = productionState.Society.Society.Inventory.Lots.Single(lot =>
             lot.ItemKind == InventoryContainerRules.WaterJug).Id;
         var collector = new PrefixCandidateProvider("collect_water_jug");
@@ -154,6 +255,20 @@ public sealed class PotteryContentTests
         var waterLoop = new WaterLoopProvider();
         using var filling = PrivateWorldRuntime.Restore(heldJugState, id => id == actor
             ? waterLoop : new IdleProvider());
+        for (var tick = 0; tick < 500 &&
+             filling.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId).Sum(lot => lot.Quantity) <
+             InventoryContainerRules.WaterJugCapacity; tick++)
+            Assert.True((await filling.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(InventoryContainerRules.WaterJugCapacity,
+            filling.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId).Sum(lot => lot.Quantity));
+        Assert.Equal(actor, filling.Society.Inventory.GetLot(jugId).OwnerId);
+        Assert.Null(filling.Society.Inventory.GetLot(jugId).StorageBuildingId);
+
+        var fullJugState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(filling.ExportState()));
+        var fullJugCandidates = await ObservePersistedCandidates(fullJugState, actor);
+        Assert.DoesNotContain(fullJugCandidates,
+            id => id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
+
         for (var tick = 0; tick < 500 && filling.Society.Inventory.GetLot(jugId).StorageBuildingId != house.InstanceId; tick++)
             Assert.True((await filling.AdvanceOneTickAsync()).Advanced);
         var filledJug = filling.Society.Inventory.GetLot(jugId);
@@ -477,6 +592,37 @@ public sealed class PotteryContentTests
             if (map.Contains(neighbor))
                 yield return neighbor;
         }
+    }
+
+    private static async Task<string[]> ObservePersistedCandidates(PrivateWorldRuntimeState state, string actor)
+    {
+        var persisted = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state));
+        var observer = new PrefixCandidateProvider("safe_idle");
+        using var world = PrivateWorldRuntime.Restore(persisted, id => id == actor
+            ? observer : new IdleProvider());
+        for (var tick = 0; tick < 60 && observer.OfferedCandidates.IsEmpty; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.False(observer.OfferedCandidates.IsEmpty, "The saved actor should reach a cognition observation.");
+        return observer.OfferedCandidates.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+    }
+
+    private static IEnumerable<string> ContainerActionCandidates(IEnumerable<string> candidates) => candidates.Where(id =>
+        id is "collect_water_jug" or "return_water_jug" ||
+        id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
+
+    private static GridPoint[] FreshWaterShorePoints(SeededMap map)
+    {
+        var shores = new HashSet<GridPoint>();
+        foreach (var water in map.Tiles.Select(tile => tile.Position)
+                     .Where(point => map.HydrologyAt(point) is WaterKind.River or WaterKind.Lake))
+        {
+            foreach (var point in CardinalNeighbors(map, water))
+            {
+                if (map.HydrologyAt(point) == WaterKind.Land && map.IsPassable(point))
+                    shores.Add(point);
+            }
+        }
+        return shores.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
     }
 
     private sealed class IdleProvider : IDecisionProvider
