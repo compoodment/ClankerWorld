@@ -271,6 +271,36 @@ static class SceneRunner
             provider.Apply(set);
             sets.Add(set);
         }
+        // All proposals together: each delegate comes from the family that
+        // redraws it. Crops and nature both set Nature, so orchard stages come
+        // from crops and every other sprite from nature.
+        var defaults = new ArtSet();
+        var combined = new ArtSet { Name = "proposed" };
+        Func<NatureSprite, int, Image>? cropsNature = null;
+        foreach (var set in sets.Skip(1).OrderBy(set => set.Name))
+        {
+            if (set.Tile != defaults.Tile) combined.Tile = set.Tile;
+            if (set.Hill != defaults.Hill) combined.Hill = set.Hill;
+            if (set.WaterTile != defaults.WaterTile) combined.WaterTile = set.WaterTile;
+            if (set.EdgePiece != defaults.EdgePiece) combined.EdgePiece = set.EdgePiece;
+            if (set.CoastPiece != defaults.CoastPiece) combined.CoastPiece = set.CoastPiece;
+            if (set.Road != defaults.Road) combined.Road = set.Road;
+            if (set.Building != defaults.Building) combined.Building = set.Building;
+            if (set.Agent != defaults.Agent) combined.Agent = set.Agent;
+            if (set.Bridge is not null) combined.Bridge = set.Bridge;
+            if (set.Nature != defaults.Nature)
+            {
+                if (set.Name == "crops") cropsNature = set.Nature;
+                else combined.Nature = set.Nature;
+            }
+        }
+        if (cropsNature is { } orchard)
+        {
+            var others = combined.Nature;
+            combined.Nature = (sprite, size) => sprite is NatureSprite.OrchardGrowing or NatureSprite.OrchardFruiting or NatureSprite.OrchardPicked
+                ? orchard(sprite, size) : others(sprite, size);
+        }
+        sets.Add(combined);
         foreach (var set in sets)
             foreach (var tileSize in new[] { 32, 16 })
             {

@@ -206,7 +206,11 @@ public static class SceneComposer
             };
             doorsteps[tile] = doorsteps.GetValueOrDefault(tile) | toward;
         }
-        bool IsRoad(int x, int y) => spec.Roads.Contains(new(x, y));
+        // The proposed bridge deck stays inside its tile, so a Road beside it
+        // treats the deck as Road and runs up to it (the rule the roads
+        // proposal recommends). The current deck overhangs the banks instead.
+        var deckJoins = art.Bridge is not null;
+        bool IsRoad(int x, int y) => spec.Roads.Contains(new(x, y)) || (deckJoins && spec.Bridges.ContainsKey(new(x, y)));
         for (var y = 0; y < spec.Height; y++)
             for (var x = 0; x < spec.Width; x++)
             {
@@ -223,7 +227,7 @@ public static class SceneComposer
                     if (IsRoad(x - 1, y + 1)) links |= RoadLinks.SouthWest;
                     if (IsRoad(x - 1, y - 1)) links |= RoadLinks.NorthWest;
                 }
-                if (!RoadSprites.Draws(links)) continue;
+                if (!RoadSprites.Draws(links) || spec.Bridges.ContainsKey(new(x, y))) continue;
                 if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(x, y));
                 var variant = (int)(PixelArt.Hash(x, y, 7) % RoadSprites.VariantCount);
                 var dark = RoadSprites.NeedsDarkEdge(map.StyleAt(x, y));
