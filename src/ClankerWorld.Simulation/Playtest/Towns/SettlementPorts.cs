@@ -161,7 +161,11 @@ public sealed partial class PrivateWorldRuntime
         if (quantity <= 0 || InventoryFixture.TransferLoadQuantity(society.Checkpoint.Inventory, lot.Id, quantity) > CarryingRoom(actor)) return;
         if (lot.OwnerId == actor)
             ApplyInventoryTransition(inventory => quantity == lot.Quantity
-                ? inventory with { Lots = inventory.Lots.Select(item => item.Id == lot.Id ? item with { GroundPosition = null } : item).ToArray() }
+                ? inventory with
+                {
+                    Lots = inventory.Lots.Select(item => item.Id == lot.Id || item.ContainerLotId == lot.Id
+                        ? item with { GroundPosition = null } : item).ToArray()
+                }
                 : inventory with
                 {
                     Lots = inventory.Lots.Select(item => item.Id == lot.Id ? item with { Quantity = item.Quantity - quantity } : item)

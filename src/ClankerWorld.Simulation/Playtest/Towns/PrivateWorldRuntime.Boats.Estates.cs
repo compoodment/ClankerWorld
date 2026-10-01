@@ -19,7 +19,8 @@ public sealed partial class PrivateWorldRuntime
         SetBoat(boat);
         ApplyInventoryTransition(inventory => inventory with
         {
-            Lots = inventory.Lots.Select(lot => roots.Contains(lot.Id, StringComparer.Ordinal)
+            Lots = inventory.Lots.Select(lot => roots.Contains(lot.Id, StringComparer.Ordinal) ||
+                lot.ContainerLotId is { } vessel && roots.Contains(vessel, StringComparer.Ordinal)
                 ? lot with { GroundPosition = new(boat.Position.X, boat.Position.Y) } : lot).ToArray(),
         });
         AppendEvent("boat_estate_retained", $"{actor}:{boat.Id}:{estate.Id}");
@@ -36,12 +37,14 @@ public sealed partial class PrivateWorldRuntime
         if (remaining.Length == 0) return;
         ApplyInventoryTransition(inventory => inventory with
         {
-            Lots = inventory.Lots.Select(lot => remaining.Contains(lot.Id, StringComparer.Ordinal)
+            Lots = inventory.Lots.Select(lot => remaining.Contains(lot.Id, StringComparer.Ordinal) ||
+                lot.ContainerLotId is { } vessel && remaining.Contains(vessel, StringComparer.Ordinal)
                 ? lot with { GroundPosition = new(boat.Position.X, boat.Position.Y) } : lot).ToArray(),
         });
     }
 
     private static bool IsBoatEstateCargo(BoatTransportState? transport, InventoryLot lot) =>
-        transport?.Boats.Any(boat => boat.EstateCargoLotIds?.Contains(lot.Id, StringComparer.Ordinal) == true &&
+        transport?.Boats.Any(boat => (boat.EstateCargoLotIds?.Contains(lot.Id, StringComparer.Ordinal) == true ||
+            lot.ContainerLotId is { } vessel && boat.EstateCargoLotIds?.Contains(vessel, StringComparer.Ordinal) == true) &&
             lot.GroundPosition == new InventoryGroundPosition(boat.Position.X, boat.Position.Y)) == true;
 }
