@@ -16,6 +16,8 @@ public partial class Main : Control
     private const int DefaultTileSize = 96;
     private const int TileGap = 0;
     private const int RefreshSeconds = 1;
+    /// <summary>Space between the settings boxes and the scrollbar, in interface pixels.</summary>
+    private const int SettingsScrollGap = 10;
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
     private const string AppIconPath = "res://icon.ico";
@@ -53,6 +55,7 @@ public partial class Main : Control
     private readonly Button pairAgainButton = new();
     private readonly Label connectionStatusLabel = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
+    private readonly PanelContainer usageLimitPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
@@ -148,15 +151,12 @@ public partial class Main : Control
     private readonly ConfirmationDialog quitGameConfirmation = new();
     private readonly CheckButton fullscreenToggle = new();
     private readonly OptionButton windowSizeChoice = new();
-    private readonly OptionButton renderResolutionChoice = new();
-    private readonly OptionButton uiScaleChoice = new();
     private static readonly Vector2I[] DisplaySizePresets =
     [
         new(1280, 720),
         new(1600, 900),
         new(1920, 1080),
     ];
-    private readonly List<Vector2I> renderSizeOptions = [];
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
@@ -262,8 +262,8 @@ public partial class Main : Control
         BuildLayout();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
-        ApplyUiScale(displayPreferences.UiScalePercent);
-        GetWindow().SizeChanged += RefreshAutomaticRenderResolution;
+        ApplyUiScale();
+        GetWindow().SizeChanged += RefreshRenderSize;
         ShowMainMenu();
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
