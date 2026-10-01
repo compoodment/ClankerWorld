@@ -868,12 +868,31 @@ public partial class Main
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
             };
-            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
-            if (clockLabel.Text != "01-02-0001 · 00:00" ||
-                !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
-                !TownListText().Contains("First Town", StringComparison.Ordinal) ||
-                !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
-                throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+            // A smoke run may load an existing installation's 12-hour or date
+            // preference. Check explicit formats without saving over that choice.
+            var installedClockPreferences = displayPreferences;
+            try
+            {
+                foreach (var (twelveHour, expectedClock) in new[]
+                         { (false, "01-02-0001 · 00:00"), (true, "01-02-0001 · 12:00 AM") })
+                {
+                    displayPreferences = installedClockPreferences with
+                    {
+                        UseTwelveHourClock = twelveHour,
+                        DateFormat = "dmy",
+                    };
+                    Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
+                    if (clockLabel.Text != expectedClock ||
+                        !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
+                        !TownListText().Contains("First Town", StringComparison.Ordinal) ||
+                        !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
+                        throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
+                }
+            }
+            finally
+            {
+                displayPreferences = installedClockPreferences;
+            }
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
@@ -1100,6 +1119,25 @@ public partial class Main
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+
+            var overlappingProperties = ownedMap with
+            {
+                PlacedBuildings = [.. ownedMap.PlacedBuildings,
+                    new("other-house", "house", new(2, 2), 0, "Other House", ["house"], 1, 1,
+                        HouseholdId: "household:two")],
+            };
+            PreviewAddAgentPlacement(overlappingProperties, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household property overlaps", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a footprint claimed by two households.");
+
+            var secondTown = sample.Towns[0] with { Id = "town:second", Name = "Second Town" };
+            PreviewAddAgentPlacement(sample with { Towns = [.. sample.Towns, secondTown] }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Town borders overlap", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a tile inside two Town borders.");
+
+            PreviewAddAgentPlacement(ownedMap, new Vector2I(2, 2));
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (placementFields.Where((field, index) => field.GetGlobalRect() != placementFieldRects[index]).Any())

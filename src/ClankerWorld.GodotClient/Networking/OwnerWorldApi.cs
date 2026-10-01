@@ -253,7 +253,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAgentPlacementAction, OwnerAgentPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentPlacement(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.AgentPlacementPayloadDomain);
 
     public Task<OwnerAgentRenameReceipt> RenameAgentAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

@@ -45,6 +45,7 @@ public static class OwnerWorldActionPayload
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v2";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -216,10 +217,12 @@ public static class OwnerWorldActionPayload
         var cognition = ProviderConfiguration(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 

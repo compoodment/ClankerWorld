@@ -124,6 +124,11 @@ public sealed record InhabitantObservation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsPersonality = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsAspiration = false)
 {
+    // Scheduler control metadata is materialized only for a duplicate-name
+    // retry request. It is not stored in the durable queue observation.
+    [JsonIgnore]
+    public bool IsNameRetry { get; init; }
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(InhabitantId);
@@ -776,6 +781,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
                         "at most 48 characters). " +
+                        (request.Observation.IsNameRetry
+                            ? "The full name you chose is already taken in this world. Choose a different full name. Do not list or ask for anyone else’s name. "
+                            : string.Empty) +
                         "When needs_personality or needs_aspiration is true, you may also include " +
                         "chosen_personality and chosen_aspiration respectively, in your own words, " +
                         "each at most 256 characters with no control characters. This is a one-time choice. " +
@@ -798,6 +806,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         agent_id = request.Observation.InhabitantId,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         needs_name = request.Observation.NeedsName,
+                        name_retry = request.Observation.IsNameRetry,
                         needs_personality = request.Observation.NeedsPersonality,
                         needs_aspiration = request.Observation.NeedsAspiration,
                         self = request.Observation.Self is { } self ? new

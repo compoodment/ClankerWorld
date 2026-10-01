@@ -108,10 +108,13 @@ when they overlap the pointer. **World Info** includes Towns and their residents
 moves the camera there. Opening the log marks its new entries read.
 
 **Add Agent** configures and places another adult after starting. Placement
-shows the Town and household-owned buildings. Choose the model and key, then
-point at land to see the Town and household preview below those fields.
-Starting membership follows the
-place you choose; it does not make the adult biologically related to anyone.
+shows the household and Town that the selected tile would give the adult.
+Household-owned property gives the adult that household; otherwise, a tile in
+one Town gives Town membership without a household; outside a Town, the adult
+starts an independent household. If household owners or Town borders overlap,
+choose another tile. The preview does not reserve the land: the server checks
+the current ownership and borders again when you place the adult, and asks you
+to choose again if they changed. Walking later does not change membership.
 
 ## Pause, settings and controls
 
