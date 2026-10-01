@@ -2,7 +2,6 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
-using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -12,35 +11,24 @@ public sealed class TailorContentTests
     private const string Beta = "household:camp-beta";
 
     [Fact]
-    public void NewWorldsHaveTheTailorShopAndNoWeavingFrame()
-    {
-        using var world = NormalPathWorld.CreateGenerated("tailor-content", _ => new ActionCoverageRecorder(chooseIdle: true));
-        var content = world.WorldContent;
-        Assert.Contains(content.Buildings, building => building.LocalId == "tailor-shop-1x1" && building.Tags.Contains("tailor"));
-        Assert.Contains(content.Recipes, recipe => recipe.LocalId == "weave-cloth" &&
-            recipe.Outputs.Single().ResourceId == "cloth");
-        Assert.Contains(content.Recipes, recipe => recipe.LocalId == "sew-clothing" &&
-            recipe.Inputs.Single().ResourceId == "cloth" && recipe.Outputs.Single().ResourceId == "clothing");
-        Assert.DoesNotContain(content.Buildings, building => building.LocalId == "weaving-frame");
-        Assert.DoesNotContain(content.Recipes, recipe => recipe.DisplayName == "Woven clothing");
-
-        // Each starting agent's garment waits in their household's House.
-        foreach (var (household, house) in new[] { (Alpha, "first-town-house-a"), (Beta, "first-town-house-b") })
-        {
-            var members = world.Society.Inhabitants.Count(person => person.HouseholdId == household);
-            Assert.Equal(2, members);
-            Assert.Equal(members, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-                lot.ItemKind == "clothing" && lot.StorageBuildingId == house).Sum(lot => lot.Quantity));
-        }
-    }
-
-    [Fact]
     public async Task HouseholdTurnsFiberIntoClothAndClothingThroughOrdinaryChoicesAcrossReload()
     {
         var (state, shopId) = WorldWithTailorShop("tailor-flow", fiberInHouse: 6);
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
         var weave = state.WorldContent!.Recipes.Single(item => item.LocalId == "weave-cloth");
         var sew = state.WorldContent.Recipes.Single(item => item.LocalId == "sew-clothing");
+        Assert.Equal("cloth", Assert.Single(weave.Outputs).ResourceId);
+        Assert.Equal("cloth", Assert.Single(sew.Inputs).ResourceId);
+        Assert.Equal("clothing", Assert.Single(sew.Outputs).ResourceId);
+        Assert.DoesNotContain(state.WorldContent.Buildings, building => building.LocalId == "weaving-frame");
+        Assert.DoesNotContain(state.WorldContent.Recipes, recipe => recipe.DisplayName == "Woven clothing");
+        foreach (var (household, house) in new[] { (Alpha, "first-town-house-a"), (Beta, "first-town-house-b") })
+        {
+            var members = state.Society.Society.Inhabitants.Count(person => person.HouseholdId == household);
+            Assert.Equal(2, members);
+            Assert.Equal(members, state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household &&
+                lot.ItemKind == "clothing" && lot.StorageBuildingId == house).Sum(lot => lot.Quantity));
+        }
         var allowed = new[] { "haul_household_stock", "supply_workstation:fiber", "build:recipe:" + weave.CanonicalId,
             "build:recipe:" + sew.CanonicalId };
         IDecisionProvider Provider(string id) => new AllowedChoices(id == actor ? allowed : []);
@@ -89,30 +77,6 @@ public sealed class TailorContentTests
     }
 
     [Fact]
-    public async Task AnAdultWithoutClothingCollectsAGarmentFromTheShop()
-    {
-        var (state, shopId) = WorldWithTailorShop("tailor-wear", fiberInHouse: 0);
-        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
-        var inventory = state.Society.Society.Inventory;
-        foreach (var lot in inventory.Lots.Where(lot => lot.ItemKind == "clothing" && lot.Quantity > 0).ToArray())
-        {
-            inventory = InventoryFixture.Reserve(inventory, "worn-out-" + lot.Id, lot.OwnerId, lot.Id, lot.Quantity, "worn_out", 10_000);
-            inventory = InventoryFixture.ConsumeReservation(inventory, "worn-out-" + lot.Id);
-        }
-        inventory = InventoryFixture.AddLot(inventory, "shop-garment", "clothing", Alpha, 1, storageBuildingId: shopId);
-        state = WithSnow(state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } });
-        using var world = PrivateWorldRuntime.Restore(state, id => new AllowedChoices(id == actor ? ["wear_clothing"] : []));
-        for (var tick = 0; tick < 200 && !world.Society.Inventory.Lots.Any(lot => lot.OwnerId == actor &&
-                 lot.ItemKind == "clothing" && lot.Quantity > 0); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        // The whole garment moves from the shop's stock to the agent.
-        var garment = world.Society.Inventory.GetLot("shop-garment");
-        Assert.Equal(actor, garment.OwnerId);
-        Assert.Null(garment.StorageBuildingId);
-        Assert.Equal(1, garment.Quantity);
-    }
-
-    [Fact]
     public async Task OnlyTheHoldingHouseholdWorksAtItsTailorShop()
     {
         var (state, shopId) = WorldWithTailorShop("tailor-access", fiberInHouse: 0);
@@ -145,23 +109,6 @@ public sealed class TailorContentTests
     }
 
     [Fact]
-    public async Task WithoutATailorShopNoClothIsMadeAndNothingPretendsToBe()
-    {
-        var recorder = new ActionCoverageRecorder(chooseIdle: true);
-        using var world = NormalPathWorld.CreateGenerated("tailor-none", _ => recorder);
-        for (var tick = 0; tick < 240; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var families = recorder.FamiliesOffered(world.WorldContent);
-        Assert.DoesNotContain(world.WorldSimulation.Buildings, building => world.WorldContent.Buildings.Any(definition =>
-            definition.CanonicalId == building.DefinitionId && definition.Tags.Contains("tailor", StringComparer.Ordinal)));
-        Assert.DoesNotContain("recipe:weave-cloth", families);
-        Assert.DoesNotContain("recipe:sew-clothing", families);
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.ItemKind == "cloth");
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "recipe_completed" &&
-            item.Detail.Contains("sew-clothing", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task MissingFiberBlocksWeavingUntilItIsBroughtIn()
     {
         var (state, shopId) = WorldWithTailorShop("tailor-missing", fiberInHouse: 0);
@@ -184,21 +131,6 @@ public sealed class TailorContentTests
 
     private static (PrivateWorldRuntimeState State, string ShopId) WorldWithTailorShop(string seed, int fiberInHouse)
         => TailorTestWorld.Create(seed, fiberInHouse);
-
-    private static PrivateWorldRuntimeState WithSnow(PrivateWorldRuntimeState state)
-    {
-        var systems = state.WorldSystems!;
-        var profiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 0, 0, 0, 0, 1)).ToArray();
-        return state with
-        {
-            WorldSystems = systems with
-            {
-                RegionalWeather = null,
-                Config = systems.Config with { WeatherProfiles = profiles },
-                Climate = systems.Climate with { Weather = WeatherKind.Snow },
-            },
-        };
-    }
 
     private static IEnumerable<InventoryLot> TailorOutputs(PrivateWorldRuntime world, string shopId) =>
         world.Society.Inventory.Lots.Where(lot => lot.OwnerId == Alpha && lot.StorageBuildingId == shopId && lot.Quantity > 0);

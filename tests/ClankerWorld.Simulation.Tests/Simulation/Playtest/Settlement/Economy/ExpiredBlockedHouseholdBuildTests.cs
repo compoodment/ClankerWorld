@@ -10,8 +10,10 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ExpiredBlockedHouseholdBuildTests
 {
-    [Fact]
-    public async Task ExpiredUnfillableHouseholdRecipePausesForFreshChoiceAndResumesAfterInputsReturn()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExpiredUnfillableHouseholdRecipePausesForFreshChoiceAndResumesAfterInputsReturn(bool fullCarriers)
     {
         using var setup = NormalPathWorld.CreateGenerated("expired-household-recipe-inputs", _ => new IdleProvider());
         var state = setup.ExportState();
@@ -34,6 +36,23 @@ public sealed class ExpiredBlockedHouseholdBuildTests
         };
         inventory = InventoryFixture.AddLot(inventory, "blocked-axe-wood", "wood", household, 2,
             storageBuildingId: blacksmith.InstanceId);
+        if (fullCarriers)
+        {
+            var house = state.WorldSimulation.Buildings.First(building => building.HouseholdId == household &&
+                setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                    .Tags.Contains("house", StringComparer.Ordinal));
+            inventory = InventoryFixture.AddLot(inventory, "uncollectable-axe-wood", "wood", household, 1,
+                storageBuildingId: house.InstanceId);
+            foreach (var person in state.Inhabitants.Where(person => members.Contains(person.InhabitantId)))
+            {
+                var cargo = PersonalEquipmentRules.CarriedQuantity(inventory, person.InhabitantId, person.Equipment);
+                var capacity = PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment);
+                Assert.InRange(cargo, 0, capacity);
+                if (cargo < capacity)
+                    inventory = InventoryFixture.AddLot(inventory, "full-carrier:" + person.InhabitantId, "stone",
+                        person.InhabitantId, capacity - cargo);
+            }
+        }
         var resourceKinds = state.Map.Resources.Where(resource => resource.Kind is "construction" or "wood")
             .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         state = state with
@@ -86,6 +105,8 @@ public sealed class ExpiredBlockedHouseholdBuildTests
         Assert.Equal(original.StartedTick, paused.StartedTick);
         Assert.Equal(original.WorkDone, paused.WorkDone);
         Assert.Null(paused.JobId);
+        if (fullCarriers)
+            Assert.Equal(1, blocked.Society.Inventory.GetLot("uncollectable-axe-wood").Quantity);
         Assert.DoesNotContain(blocked.WorldSimulation.ProductionJobs, job => job.WorkerId == actor &&
             job.RecipeId == recipe.CanonicalId && job.State == WorldProductionJobState.Running);
         Assert.DoesNotContain(recorder.OfferedByAgent.Values.SelectMany(items => items.Keys), id =>

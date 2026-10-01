@@ -367,6 +367,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (!ApplyConversationCandidate(inhabitantId, candidateId))
                 AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
+            else if (inhabitants[inhabitantId].Equipment?.Repair is not null)
+                CancelEquipmentRepair(inhabitantId);
             return;
         }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
