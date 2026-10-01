@@ -11,6 +11,9 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class FarmFieldTests
 {
+    private static readonly (string Crop, string SeedKind)[] SeedCrops =
+        [("grain", "grain_seed"), ("cultivated_greens", "cultivated_green_seed")];
+
     [Fact]
     public async Task OrdinaryChooserExpandsAndReplantsGeneratedFieldsThroughARealFoodShortageAndReload()
     {
@@ -18,8 +21,8 @@ public sealed class FarmFieldTests
         // The household has eaten its starter rations. Keep all real planting
         // stock and let ordinary choices arrange every field operation.
         state = FeedHouseholdFromAvailableStock(state, household);
-        var initialSeeds = new[] { "grain_seed", "cultivated_green_seed" }.ToDictionary(kind => kind,
-            kind => state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == kind).Sum(lot => lot.Quantity));
+        var initialSeeds = SeedCrops.ToDictionary(item => item.SeedKind,
+            item => state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == item.SeedKind).Sum(lot => lot.Quantity));
         using var first = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
         for (var tick = 0; tick < 1_800 && !first.Fields.Any(field => field.HouseholdId == household && field.Cycle > 0); tick++)
             Assert.True((await first.AdvanceOneTickAsync()).Advanced);
@@ -57,7 +60,7 @@ public sealed class FarmFieldTests
                 reservation.Quantity == 1 && reservation.State == InventoryReservationState.Reserved);
             var events = second.ExportState().Events;
             Assert.True(events.Count(item => item.Kind == "field_planted") >= 2);
-            foreach (var (crop, seedKind) in new[] { ("grain", "grain_seed"), ("cultivated_greens", "cultivated_green_seed") })
+            foreach (var (crop, seedKind) in SeedCrops)
             {
                 var planted = events.Count(item => item.Kind == "field_planted" && item.Detail.EndsWith(":" + crop, StringComparison.Ordinal));
                 var harvested = events.Count(item => item.Kind == "field_harvested" && item.Detail.EndsWith(":" + crop, StringComparison.Ordinal));
