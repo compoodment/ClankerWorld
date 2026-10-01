@@ -32,6 +32,7 @@ public sealed class CaregiverFoodRoutingTests
         state = state with
         {
             Society = state.Society with { Society = society },
+            Survival = new SettlementSurvivalState(0, []),
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 HungerBasisPoints = 9_000,
