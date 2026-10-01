@@ -64,14 +64,15 @@ public static class RegionalWeatherRules
                 .Select(key => regions.WrapsEastWest ? ((key.Item1 + regions.Columns) % regions.Columns, key.Item2) : key)
                 .Where(key => key != (previous.X, previous.Y)).Distinct()
                 .Count(key => snapshot.TryGetValue(key, out var neighbor) && neighbor.Weather is WeatherKind.Rain or WeatherKind.Storm);
-            var bonus = Math.Min(weights[(int)WeatherKind.Clear], wetNeighbors);
+            var weightScale = state.Config.WeatherProfiles is null ? 4 : 1;
+            var bonus = Math.Min(weights[(int)WeatherKind.Clear], wetNeighbors * weightScale);
             if (weights[(int)WeatherKind.Rain] > 0)
             {
                 weights[(int)WeatherKind.Rain] += bonus;
                 weights[(int)WeatherKind.Clear] -= bonus;
             }
-            if (previous.Weather != WeatherKind.Storm && weights[(int)previous.Weather] <= int.MaxValue - 3)
-                weights[(int)previous.Weather] += 3;
+            if (previous.Weather != WeatherKind.Storm && weights[(int)previous.Weather] <= int.MaxValue - 3 * weightScale)
+                weights[(int)previous.Weather] += 3 * weightScale;
             if (tick < previous.SevereAllowedAt || state.Config.TicksPerDay < 2)
             {
                 weights[(int)WeatherKind.Cloudy] += weights[(int)WeatherKind.Storm];

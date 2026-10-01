@@ -111,15 +111,15 @@ public sealed record WorldSystemsConfig(
     int AutumnDays = 91,
     int WinterDays = 92,
     int MaxChunkCount = 256,
-    int MaxResourcesPerChunk = 64,
+    int MaxResourcesPerChunk = 1_024,
     int MaxCultureTags = 16,
     IReadOnlyList<WeatherProfile>? WeatherProfiles = null)
 {
     public const int MaximumChunkCount = 1_024;
-    public const int MaximumResourcesPerChunk = 128;
+    public const int MaximumResourcesPerChunk = 2_048;
     public const int MaximumCultureTags = 32;
 
-    private static readonly WeatherProfile[] BuiltInWeatherProfiles =
+    private static readonly WeatherProfile[] BaselineWeatherProfiles =
     [
         new(SeasonKind.Spring, 45, 25, 25, 5, 0),
         new(SeasonKind.Summer, 55, 20, 15, 10, 0),
@@ -127,7 +127,14 @@ public sealed record WorldSystemsConfig(
         new(SeasonKind.Winter, 30, 30, 5, 5, 30),
     ];
 
-    public static WorldSystemsConfig Default { get; } = new(WeatherProfiles: BuiltInWeatherProfiles);
+    private static readonly WeatherProfile[] BuiltInWeatherProfiles = BaselineWeatherProfiles.Select(profile =>
+    {
+        var weights = ReduceDefaultPrecipitation([profile.ClearWeight, profile.CloudyWeight, profile.RainWeight,
+            profile.StormWeight, profile.SnowWeight]);
+        return new WeatherProfile(profile.Season, weights[0], weights[1], weights[2], weights[3], weights[4]);
+    }).ToArray();
+
+    public static WorldSystemsConfig Default { get; } = new();
 
     [JsonIgnore]
     public IReadOnlyList<WeatherProfile> EffectiveWeatherProfiles =>
@@ -135,6 +142,18 @@ public sealed record WorldSystemsConfig(
 
     public WeatherProfile GetWeatherProfile(SeasonKind season) =>
         EffectiveWeatherProfiles.Single(profile => profile.Season == season);
+
+    internal WeatherProfile GetRegionalBaseProfile(SeasonKind season) => WeatherProfiles is null
+        ? BaselineWeatherProfiles.Single(profile => profile.Season == season) : GetWeatherProfile(season);
+
+    internal static int[] ReduceDefaultPrecipitation(int[] weights)
+    {
+        // Scale by four so a 25% reduction is exact even for small weights.
+        // Reallocate the removed share between clear and cloudy conditions.
+        var removed = weights[2] + weights[3] + weights[4];
+        return [weights[0] * 4 + removed / 2, weights[1] * 4 + removed - removed / 2,
+            weights[2] * 3, weights[3] * 3, weights[4] * 3];
+    }
 
     public void Validate()
     {
@@ -333,7 +352,7 @@ public static class WeatherRules
     internal static int[] RegionalWeights(SeasonKind season, WorldSystemsConfig config,
         int regionY, int regionRows, ClimateZone? climate)
     {
-        var profile = config.GetWeatherProfile(season);
+        var profile = config.GetRegionalBaseProfile(season);
         // Snow is confined to cold latitudes. This is a coarse first climate
         // rule; long-run rainfall and individual weather events remain distinct.
         var latitude = Math.Abs(((regionY + 0.5) / regionRows) - 0.5) * 2;
@@ -365,7 +384,8 @@ public static class WeatherRules
             rainWeight -= shifted;
             snowWeight += shifted;
         }
-        return [clearWeight, profile.CloudyWeight, rainWeight, stormWeight, snowWeight];
+        int[] weights = [clearWeight, profile.CloudyWeight, rainWeight, stormWeight, snowWeight];
+        return config.WeatherProfiles is null ? WorldSystemsConfig.ReduceDefaultPrecipitation(weights) : weights;
     }
 
     public static ClimateZone? RegionClimate(SeededMap map, GridPoint position)
