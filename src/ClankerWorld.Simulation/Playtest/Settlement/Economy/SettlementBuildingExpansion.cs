@@ -80,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<InventoryLot> ExpansionMaterialLots(string actor, PlacedBuilding building) =>
         society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.OwnerId == actor && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null ||
+            PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
             lot.OwnerId == (building.HouseholdId ?? building.TownId) && lot.StorageBuildingId == building.InstanceId);
 
     private bool HasExpansionMaterials(string actor, PlacedBuilding building, IReadOnlyList<ContentQuantity> costs) =>
