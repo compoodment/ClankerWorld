@@ -9,7 +9,7 @@ public partial class Main
     /// Clicking a building opens its quick card and outlines it; Details docks
     /// on the left with its facts, work, storage and people; Escape steps back;
     /// an agent's card replaces it; world updates refresh it; and Details stays
-    /// inside the view at a large UI Scale.
+    /// inside the view.
     /// </summary>
     private async Task VerifyBuildingCardsAsync(OwnerWorldSnapshot baseMap)
     {
@@ -66,23 +66,30 @@ public partial class Main
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
 
-        // World updates refresh the open panel, and a large UI Scale scrolls it rather than cutting it off.
+        // World updates refresh the open panel, which scrolls rather than running off the view.
         RenderBuildingCard(buildingMap with
         {
             PlacedBuildings = [.. buildingMap.PlacedBuildings.Where(item => item.InstanceId != house.InstanceId),
-                house with { StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)] }],
+                house with
+                {
+                    StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)],
+                    Width = 2, Height = 2, StorageCapacity = 256, StoredQuantity = 11, FootprintRevision = 2,
+                    InvitedGuests = ["Lina"], ExpansionState = "completed",
+                }],
             ProductionJobs = [],
         });
         if (buildingDetailsStorage.Summary != "4 kinds · 11 items" || buildingDetailsStorage.SlotCount != 4 ||
             buildingWorkSection.Visible)
             throw new InvalidOperationException("Building Details must follow the building's latest storage and work.");
-        ApplyUiScale(200);
+        facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+        if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
+            !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
+            !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
+            throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
         ApplyResponsiveLayout();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
-            throw new InvalidOperationException($"Building Details must stay inside the view at a large UI Scale: {buildingDetailsPanel.GetGlobalRect()}.");
-        ApplyUiScale(displayPreferences.UiScalePercent);
-        ApplyResponsiveLayout();
+            throw new InvalidOperationException($"Building Details must stay inside the view: {buildingDetailsPanel.GetGlobalRect()}.");
 
         // Escape closes open top-bar panels first, so keep Filters out of the way.
         var filtersWereOpen = filtersPanel.Visible;

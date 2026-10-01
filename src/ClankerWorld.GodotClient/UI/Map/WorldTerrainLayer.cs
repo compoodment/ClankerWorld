@@ -13,6 +13,8 @@ public partial class WorldTerrainLayer : Control
 
     private WorldTerrainMap? world;
     private Texture2D? paletteTexture;
+    private ImageTexture? townSiteGuidanceTexture;
+    private TownSiteGuidance? currentTownSiteGuidance;
     private Rect2 visibleTiles;
     private int tileSize;
     private int tileGap;
@@ -35,12 +37,20 @@ public partial class WorldTerrainLayer : Control
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
+    private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
     private static readonly Color[] HouseholdPropertyColors =
     [
         new("4DC7B9"), new("9D89DF"), new("6AA6E8"), new("E69D70"),
     ];
 
     public int VisibleTileCount { get; private set; }
+
+    /// <summary>Opt-in developer measurement of CPU draw-command submission, excluding GPU rendering.</summary>
+    public bool MeasureDrawCost { get; set; }
+
+    public double LastDrawMilliseconds { get; private set; }
+
+    public long DrawSampleCount { get; private set; }
 
     /// <summary>Tiles inside the Town borders currently drawn; zero when borders are hidden.</summary>
     public int TownBorderTileCount => townBorderTiles.Count;
@@ -58,6 +68,8 @@ public partial class WorldTerrainLayer : Control
     public bool WrapsEastWest => wrapsEastWest;
 
     public WorldTerrainMap? World => world;
+
+    public TownSiteGuidance? CurrentTownSiteGuidance => currentTownSiteGuidance;
 
     public int WeatherRegionSize => weatherRegionSize;
 
@@ -79,6 +91,8 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        townSiteGuidanceTexture = null;
+        currentTownSiteGuidance = null;
         // At overview scale, thousands of individual draw commands are much
         // slower than one nearest-neighbor pixel per tile from the same map.
         // This is a render cache, not a separate regional art set.
@@ -90,6 +104,7 @@ public partial class WorldTerrainLayer : Control
         trees = new byte[checked(map.Width * map.Height)];
         naturalObjects = new byte[checked(map.Width * map.Height)];
         campResources.Clear();
+        fields.Clear();
         naturalStages = new byte[checked(map.Width * map.Height)];
         weatherRegions.Clear();
         HasActiveWeather = false;
@@ -99,6 +114,44 @@ public partial class WorldTerrainLayer : Control
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
+    }
+
+    /// <summary>Shows provisional Town-site advice over open land; this never gates a map click.</summary>
+    public void SetTownSiteGuidance(TownSiteGuidance? guidance)
+    {
+        if (ReferenceEquals(currentTownSiteGuidance, guidance)) return;
+        if (guidance is not null)
+        {
+            var currentWorld = world;
+            if (currentWorld is null || guidance.Width != currentWorld.Width ||
+                guidance.Height != currentWorld.Height)
+                throw new InvalidOperationException("Town-site guidance must match the current terrain map.");
+        }
+        currentTownSiteGuidance = guidance;
+        townSiteGuidanceTexture = null;
+        if (guidance is not null)
+        {
+            var image = Image.CreateEmpty(guidance.Width, guidance.Height, false, Image.Format.Rgba8);
+            for (var y = 0; y < guidance.Height; y++)
+                for (var x = 0; x < guidance.Width; x++)
+                {
+                    var assessment = guidance.At(x, y);
+                    if (assessment.IsBuildableGround)
+                        image.SetPixel(x, y, GuidanceColor(assessment.GuidanceStrength));
+                }
+            townSiteGuidanceTexture = ImageTexture.CreateFromImage(image);
+        }
+        QueueRedraw();
+    }
+
+    private static Color GuidanceColor(float strength)
+    {
+        var low = new Color(0.75f, 0.31f, 0.20f, 0.22f);
+        var middle = new Color(0.91f, 0.67f, 0.27f, 0.22f);
+        var high = new Color(0.27f, 0.72f, 0.43f, 0.22f);
+        return strength < 0.5f
+            ? low.Lerp(middle, strength * 2)
+            : middle.Lerp(high, (strength - 0.5f) * 2);
     }
 
     public void SetWeatherRegions(int regionSize, IReadOnlyList<OwnerWeatherRegion> regions)
@@ -116,6 +169,36 @@ public partial class WorldTerrainLayer : Control
         HasActiveWeather = weatherRegions.Values.Any(weather => weather is "rain" or "storm" or "snow");
         WeatherVersion++;
         QueueRedraw();
+    }
+
+    public void SetFields(IReadOnlyList<OwnerWorldFarmField> next)
+    {
+        var indexed = next.ToDictionary(field => new Vector2I(field.Position.X, field.Position.Y));
+        if (indexed.Count == fields.Count && indexed.All(entry => fields.TryGetValue(entry.Key, out var prior) && prior == entry.Value)) return;
+        fields.Clear();
+        foreach (var entry in indexed) fields.Add(entry.Key, entry.Value);
+        QueueRedraw();
+    }
+
+    private void DrawFields((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                if (!fields.TryGetValue(new(wrapsEastWest ? Mod(x, world!.Width) : x, y), out var field)) continue;
+                var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
+                DrawRect(tile, new Color(field.Stage == "preparing" ? "84765D" : "654931"));
+                if (tileSize >= 8)
+                    for (var row = 1; row <= 3; row++)
+                        DrawLine(tile.Position + new Vector2(1, tileSize * row / 4f),
+                            tile.Position + new Vector2(tileSize - 1, tileSize * row / 4f), new Color("9B7149"), Math.Max(1, tileSize / 24f));
+                if (field.Stage is not ("planted" or "growing" or "ready")) continue;
+                var color = new Color(field.Stage == "ready" && field.Crop == "grain" ? "D9BD57" : "67A847");
+                var radius = Math.Max(1, tileSize * (field.Stage == "planted" ? 0.04f : 0.1f));
+                for (var row = 1; row <= 2; row++)
+                    for (var column = 1; column <= 2; column++)
+                        DrawCircle(tile.Position + new Vector2(tileSize * column / 3f, tileSize * row / 3f), radius, color);
+            }
     }
 
     public void SetTownBorders(IReadOnlyList<OwnerWorldTown> towns)
@@ -154,7 +237,8 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings)
+    public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
+        IReadOnlyList<OwnerWorldFarmField>? fieldTiles = null)
     {
         ArgumentNullException.ThrowIfNull(buildings);
         var next = new Dictionary<Vector2I, string>();
@@ -162,6 +246,8 @@ public partial class WorldTerrainLayer : Control
             for (var y = 0; y < building.Height; y++)
                 for (var x = 0; x < building.Width; x++)
                     next[new Vector2I(building.Position.X + x, building.Position.Y + y)] = building.HouseholdId!;
+        foreach (var field in fieldTiles ?? [])
+            next[new Vector2I(field.Position.X, field.Position.Y)] = field.HouseholdId;
         if (next.Count == householdPropertyTiles.Count && next.All(entry =>
                 householdPropertyTiles.TryGetValue(entry.Key, out var owner) && owner == entry.Value)) return;
         householdPropertyTiles.Clear();
@@ -390,6 +476,22 @@ public partial class WorldTerrainLayer : Control
 
     public override void _Draw()
     {
+        if (!MeasureDrawCost)
+        {
+            DrawMapContents();
+            return;
+        }
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        try { DrawMapContents(); }
+        finally
+        {
+            LastDrawMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            DrawSampleCount++;
+        }
+    }
+
+    private void DrawMapContents()
+    {
         if (world is null) return;
         var bounds = VisibleBounds();
         var stride = tileSize + tileGap;
@@ -449,6 +551,8 @@ public partial class WorldTerrainLayer : Control
                 }
             }
         }
+        DrawFields(bounds, stride);
+        DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
         DrawBridges(bounds, stride);
         DrawBuildings(bounds, stride);
@@ -500,6 +604,25 @@ public partial class WorldTerrainLayer : Control
                 DrawRect(new Rect2(new Vector2(x * stride + 1, building.Position.Y * stride + 1),
                     new Vector2(building.Size.X * stride - tileGap - 2, building.Size.Y * stride - tileGap - 2)),
                     new Color("FFD166"), filled: false, width: tileSize >= 12 ? 3 : 2);
+            }
+        }
+    }
+
+    private void DrawTownSiteGuidance((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || townSiteGuidanceTexture is null || bounds.Width == 0 || bounds.Height == 0)
+            return;
+        var end = bounds.Left + bounds.Width;
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+        {
+            for (var x = bounds.Left; x < end;)
+            {
+                var sourceX = wrapsEastWest ? Mod(x, world.Width) : x;
+                var span = Math.Min(end - x, world.Width - sourceX);
+                DrawTextureRectRegion(townSiteGuidanceTexture,
+                    new Rect2(x * stride, y * stride, span * stride, stride),
+                    new Rect2(sourceX, y, span, 1));
+                x += span;
             }
         }
     }

@@ -14,6 +14,8 @@ public partial class AgentMarker : Control
     private string caption = string.Empty;
     private bool selected;
     private bool hovered;
+    private bool conversationBadgeVisible;
+    private bool conversationUnread;
     private int variant;
     private int stage = 2;
     private int facing = AgentSprites.South;
@@ -71,6 +73,7 @@ public partial class AgentMarker : Control
     private static readonly Color NameEdge = new("1E1712");
 
     public event Action? Activated;
+    public event Action? ConversationActivated;
 
     /// <summary>Names grow with UI Scale, in whole steps so the pixel font stays crisp.</summary>
     public static int TextScale { get; set; } = 1;
@@ -85,6 +88,29 @@ public partial class AgentMarker : Control
     {
         get => selected;
         set { if (selected != value) { selected = value; Raise(); } }
+    }
+
+    public bool ConversationBadgeVisible
+    {
+        get => conversationBadgeVisible;
+        set { if (conversationBadgeVisible != value) { conversationBadgeVisible = value; QueueRedraw(); } }
+    }
+
+    /// <summary>Unread indication is local to this player and is never sent to agents.</summary>
+    public bool ConversationUnread
+    {
+        get => conversationUnread;
+        set { if (conversationUnread != value) { conversationUnread = value; QueueRedraw(); } }
+    }
+
+    public Rect2 ConversationBadgeBounds
+    {
+        get
+        {
+            var side = Math.Min(Size.X, Size.Y);
+            var diameter = Math.Min(side, Math.Clamp(side * 0.42f, 4f, 13f));
+            return new Rect2(Size.X - diameter, 0, diameter, diameter);
+        }
     }
 
     /// <summary>Appearance variant from <see cref="AgentSprites.VariantFor"/>.</summary>
@@ -219,9 +245,13 @@ public partial class AgentMarker : Control
 
     public override void _GuiInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+        if (@event is InputEventMouseButton mouseButton &&
+            mouseButton.ButtonIndex == MouseButton.Left && mouseButton.Pressed)
         {
-            Activated?.Invoke();
+            if (ConversationBadgeVisible && ConversationBadgeBounds.HasPoint(mouseButton.Position))
+                ConversationActivated?.Invoke();
+            else
+                Activated?.Invoke();
             AcceptEvent();
         }
     }
@@ -237,6 +267,7 @@ public partial class AgentMarker : Control
                 DrawCircle(center, Math.Max(2.5f, side / 2 + 1.5f), selected ? SelectedColor : HoveredColor);
             DrawCircle(center, Math.Max(1.5f, side / 2), new Color("1E2226"));
             DrawCircle(center, Math.Max(1f, side / 2 - 1), new Color("F4C78A"));
+            DrawConversationBadge();
             return;
         }
 
@@ -253,6 +284,7 @@ public partial class AgentMarker : Control
         var frame = Frame;
         DrawTextureRectRegion(AgentSprites.PoseAtlas(variant, stage, facing, frame, atlasSize), sprite,
             AgentSprites.PoseRegion(facing, frame, atlasSize));
+        DrawConversationBadge();
         if (!NameShown || drawn < NameMinimum) return;
         var font = UiFonts.Text;
         var fontSize = UiFonts.Body * TextScale;
@@ -270,5 +302,20 @@ public partial class AgentMarker : Control
             }
         }
         DrawString(font, baseline, text, fontSize: fontSize, modulate: selected ? SelectedColor : NameColor);
+    }
+
+    private void DrawConversationBadge()
+    {
+        if (!ConversationBadgeVisible) return;
+        var bounds = ConversationBadgeBounds;
+        var center = bounds.GetCenter();
+        var radius = bounds.Size.X * 0.43f;
+        DrawCircle(center, radius + 1, new Color("1E1712"));
+        DrawCircle(center, radius, ConversationUnread ? new Color("FFD166") : new Color("F4E7BE"));
+        var dotRadius = Math.Max(0.65f, radius * 0.13f);
+        for (var index = -1; index <= 1; index++)
+            DrawCircle(center + new Vector2(index * radius * 0.45f, 0), dotRadius, new Color("493522"));
+        DrawLine(center + new Vector2(-radius * 0.35f, radius * 0.62f),
+            center + new Vector2(-radius * 0.62f, radius * 0.94f), new Color("1E1712"), Math.Max(1, radius * 0.3f));
     }
 }

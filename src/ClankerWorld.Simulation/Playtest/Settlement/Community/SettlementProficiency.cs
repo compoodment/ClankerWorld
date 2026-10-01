@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntime
         return SettlementProficiency.Level(experience);
     }
 
-    private void CreditCompletedWork(string actor, string domain)
+    private void CreditCompletedWork(string actor, string domain, SettlementSkillKind? skill = null)
     {
         if (!inhabitants.TryGetValue(actor, out var person)) return;
         var previous = person.Proficiency ?? new();
@@ -29,16 +29,24 @@ public sealed partial class PrivateWorldRuntime
             "crafting" => previous with { Crafting = Math.Min(30, previous.Crafting + 1) },
             _ => throw new InvalidOperationException("Unknown practice domain."),
         };
-        if (next == previous) return;
-        inhabitants[actor] = person with { Proficiency = next };
-        checkpointSchemaVersion = StateSchemaVersion;
-        AppendEvent("work_practice_earned", actor);
+        if (next != previous)
+        {
+            inhabitants[actor] = person with { Proficiency = next };
+            checkpointSchemaVersion = StateSchemaVersion;
+            AppendEvent("work_practice_earned", actor);
+        }
+        GainSkill(actor, skill ?? domain switch
+        {
+            "building" => SettlementSkillKind.Building,
+            "farming" => SettlementSkillKind.Farming,
+            _ => SettlementSkillKind.Crafting,
+        });
     }
 
-    private static void ValidateProficiency(PlaytestInhabitantState person, int schema)
+    private static void ValidateProficiency(PlaytestInhabitantState person)
     {
-        if (person.Proficiency is { } practice && (schema < 11 ||
-            practice.Building is < 0 or > 30 || practice.Farming is < 0 or > 30 || practice.Crafting is < 0 or > 30))
-            throw new InvalidDataException("Work proficiency requires schema 11 and bounded experience.");
+        if (person.Proficiency is { } practice &&
+            (practice.Building is < 0 or > 30 || practice.Farming is < 0 or > 30 || practice.Crafting is < 0 or > 30))
+            throw new InvalidDataException("Work proficiency exceeds its experience bounds.");
     }
 }

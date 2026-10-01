@@ -28,9 +28,11 @@ public sealed partial class PrivateWorldRuntime
     {
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         return map.Resources.Select(item => item.Position)
+            .Concat(fields.Select(field => field.Position))
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
-                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position)))
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
             .ToHashSet();
     }
 

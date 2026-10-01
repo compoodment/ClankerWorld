@@ -55,9 +55,11 @@ public partial class Main
         BuildQuickCard();
         BuildAgentProfile();
         BuildThoughtsReader();
+        BuildConversationReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
         uiLayer.AddChild(thoughtsPanel);
+        uiLayer.AddChild(conversationPanel);
     }
 
     private void BuildQuickCard()
@@ -335,6 +337,7 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        conversationPanel.Hide();
         RenderThoughtsReader(snapshot, inhabitant);
         thoughtsPanel.Show();
         ApplyResponsiveLayout();
@@ -598,8 +601,11 @@ public partial class Main
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
         if (inhabitant.Lesson is { } lesson)
-            details.Add($"Learning {Pretty(lesson.Role)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+            details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
+        foreach (var skill in inhabitant.Skills ?? [])
+            details.Add($"{Pretty(skill.Kind)} skill · {(skill.TeacherName is { } teacher ? "taught by " + teacher : "learned by doing")} · {DisplayWorldClock(skill.LearnedTick)}");
         if (inhabitant.Proficiency is { } practice)
             details.Add($"Practice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30");
         if (isDeceased)

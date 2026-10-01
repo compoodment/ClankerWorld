@@ -69,24 +69,19 @@ public partial class Main
         var originalRenderSize = displayWindow.ContentScaleSize;
         var originalScaleMode = displayWindow.ContentScaleMode;
         var originalScaleAspect = displayWindow.ContentScaleAspect;
-        var originalPreferences = displayPreferences;
         OpenMainMenuSettings();
         try
         {
-            displayPreferences = originalPreferences with
-            {
-                UiScalePercent = 100,
-                RenderWidth = 2560,
-                RenderHeight = 1440,
-                AutoRenderResolution = false,
-            };
-            ApplyUiScale(100);
             displayWindow.ContentScaleMode = Window.ContentScaleModeEnum.Viewport;
             displayWindow.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
             displayWindow.Size = new Vector2I(2560, 1440);
             displayWindow.ContentScaleSize = new Vector2I(2560, 1440);
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            // The interface follows the screen: 1440p picks 200% with no setting to change.
+            if (uiLayer.Factor != 2 || menuLayer.Factor != 2)
+                throw new InvalidOperationException($"A 1440p screen must show the interface at 200%: {uiLayer.Factor}.");
+            SetUiFactor(1);
 
             var smokeMap = new OwnerWorldSnapshot("ui-scale-smoke", 0, "ui-scale-map",
                 Enumerable.Range(0, 16).Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(),
@@ -99,65 +94,86 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            VerifyPixelText("at 100% UI Scale");
+            VerifyPixelText("at 100%");
             var nativeRenderSize = displayWindow.ContentScaleSize;
             var baseClockHeight = clockLabel.GetGlobalRect().Size.Y;
-            var baseScaleChoiceHeight = uiScaleChoice.GetGlobalRect().Size.Y;
+            var baseChoiceHeight = themeChoice.GetGlobalRect().Size.Y;
             var baseSettingsWidth = gameMenuPanel.GetGlobalRect().Size.X;
             var mapStageScale = mapStage.Scale;
-            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseScaleChoiceHeight < 1 || baseSettingsWidth < 1)
-                throw new InvalidOperationException("UI Scale smoke check could not read the interface at 100%.");
+            if (uiLayer.Factor != 1 || menuLayer.Factor != 1 || baseClockHeight < 1 || baseChoiceHeight < 1 || baseSettingsWidth < 1)
+                throw new InvalidOperationException("The interface size smoke check could not read the interface at 100%.");
             if (TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
-                throw new InvalidOperationException("1440p UI Scale map input smoke check could not resolve its reference tile.");
+                throw new InvalidOperationException("1440p interface size map input smoke check could not resolve its reference tile.");
 
-            var scaleIndex = 1;
-            foreach (var percent in DisplayUiScalePolicy.SupportedPercentages.Skip(1))
+            ApplyUiScale();
+            RenderMap(smokeMap);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            const int factor = 2;
+            VerifyPixelText("at 200%");
+            // Text, controls and panels grow together instead of text alone.
+            if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
+                !Mathf.IsEqualApprox(themeChoice.GetGlobalRect().Size.Y, baseChoiceHeight * factor) ||
+                !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
+                throw new InvalidOperationException("200% must enlarge text, controls and panels by the same 2×.");
+            // Dialogs are separate windows: their contents, frame and title scale on their own.
+            var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
+            if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
+                !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
+                DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
+                quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
+                !Mathf.IsEqualApprox(themeChoice.GetPopup().ContentScaleFactor, factor) ||
+                UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor ||
+                AgentMarker.TextScale != factor)
+                throw new InvalidOperationException($"Dialogs, drop-down lists, tooltips and map names must grow with the interface: title {titleSize}.");
+            if (displayWindow.Size != new Vector2I(2560, 1440) ||
+                displayWindow.ContentScaleSize != nativeRenderSize)
+                throw new InvalidOperationException("The interface size changed the 1440p window or native render size.");
+            if (mapStage.Scale != mapStageScale ||
+                TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
+                throw new InvalidOperationException("The interface size changed the terrain transform or map interaction coordinates.");
+            var settingsViewport = settingsScroll.GetGlobalRect();
+            var choiceBounds = themeChoice.GetGlobalRect();
+            if (!mainMenuOverlay.GetGlobalRect().Encloses(gameMenuPanel.GetGlobalRect()) ||
+                choiceBounds.Position.X < settingsViewport.Position.X - 1 ||
+                choiceBounds.End.X > settingsViewport.End.X + 1)
+                throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
+            await VerifyAgentConversationReaderAt200PercentAsync();
+
+            var emptyLayer = Convert.ToBase64String(new byte[16]);
+            var fieldMap = smokeMap with
             {
-                uiScaleChoice.Select(scaleIndex);
-                SetUiScale(scaleIndex);
-                RenderMap(smokeMap);
-                for (var frame = 0; frame < 2; frame++)
-                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                PackedMapLayers = new OwnerWorldPackedMapLayers(4, 4, "map-layers-v2",
+                    emptyLayer, emptyLayer, emptyLayer, emptyLayer, emptyLayer)
+                {
+                    Fertility = Convert.ToBase64String(Enumerable.Repeat((byte)67, 16).ToArray()),
+                },
+                Fields = [new(new(1, 1), "household:field-smoke", "growing", "cultivated_greens", 67, null, null)],
+                GroundStocks = [new(new(1, 1), "household:field-smoke", "cultivated_greens", 3)],
+                Stockpiles = [new("household:field-smoke", "Farm household", [])],
+            };
+            RenderMap(fieldMap);
+            householdPropertyFilter.ButtonPressed = true;
+            selectedTile = new(1, 1);
+            selectedTilePanel.Show();
+            RenderTileInspection(fieldMap);
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!selectedTileText.Text.Contains("Soil fertility: Good", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Field: Growing", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Used by: Farm household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
+                terrainLayer.HouseholdPropertyTileCount != 1 ||
+                !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
+                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+            householdPropertyFilter.ButtonPressed = false;
+            selectedTile = null;
+            selectedTilePanel.Hide();
+            terrainLayer.SetSelectedTile(null);
+            RenderMap(smokeMap);
 
-                // 1440p leaves room for 200%; bigger steps would squeeze the menus below their minimum area.
-                var factor = DisplayUiScalePolicy.FittingFactor(percent, 2560, 1440);
-                if (uiLayer.Factor != factor || menuLayer.Factor != factor ||
-                    uiScaleChoice.IsItemDisabled(scaleIndex) != (factor * 100 != percent))
-                    throw new InvalidOperationException($"UI Scale {percent}% at 1440p must magnify the interface by {factor} and mark steps that do not fit.");
-                VerifyPixelText($"at {percent}% UI Scale");
-                // Text, controls and panels grow together instead of text alone.
-                if (!Mathf.IsEqualApprox(clockLabel.GetGlobalRect().Size.Y, baseClockHeight * factor) ||
-                    !Mathf.IsEqualApprox(uiScaleChoice.GetGlobalRect().Size.Y, baseScaleChoiceHeight * factor) ||
-                    !Mathf.IsEqualApprox(gameMenuPanel.GetGlobalRect().Size.X, baseSettingsWidth * factor))
-                    throw new InvalidOperationException($"UI Scale {percent}% must enlarge text, controls and panels by the same {factor}×.");
-                // Dialogs are separate windows: their contents, frame and title scale on their own.
-                var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
-                if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
-                    !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
-                    deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
-                    DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
-                    quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
-                    !Mathf.IsEqualApprox(uiScaleChoice.GetPopup().ContentScaleFactor, factor) ||
-                    UiTheme.Theme.GetFontSize("font_size", "TooltipLabel") != UiFonts.Body * factor)
-                    throw new InvalidOperationException($"Dialogs, drop-down lists and tooltips must grow with UI Scale {percent}%: title {titleSize}.");
-                if (displayWindow.Size != new Vector2I(2560, 1440) ||
-                    displayWindow.ContentScaleSize != nativeRenderSize)
-                    throw new InvalidOperationException($"UI Scale {percent}% changed the 1440p window or native render size.");
-                if (mapStage.Scale != mapStageScale ||
-                    TileAtCanvas(mapStage.Position + new Vector2(currentTileSize * 1.5f, currentTileSize * 1.5f), smokeMap) != new Vector2I(1, 1))
-                    throw new InvalidOperationException($"UI Scale {percent}% changed the terrain transform or map interaction coordinates.");
-
-                var settingsViewport = settingsScroll.GetGlobalRect();
-                var scaleChoiceBounds = uiScaleChoice.GetGlobalRect();
-                if (!mainMenuOverlay.GetGlobalRect().Encloses(gameMenuPanel.GetGlobalRect()) ||
-                    scaleChoiceBounds.Position.X < settingsViewport.Position.X - 1 ||
-                    scaleChoiceBounds.End.X > settingsViewport.End.X + 1)
-                    throw new InvalidOperationException($"Game Settings escaped its usable bounds at 1440p and {percent}% UI Scale.");
-                scaleIndex++;
-            }
-
-            uiScaleChoice.Select(0);
-            SetUiScale(0);
             var generatedMap = smokeMap with
             {
                 WorldId = "zoom-bounds-smoke",
@@ -175,6 +191,8 @@ public partial class Main
             displayWindow.ContentScaleSize = new Vector2I(1280, 720);
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (uiLayer.Factor != 1)
+                throw new InvalidOperationException($"A 720p window must show the interface at 100%: {uiLayer.Factor}.");
             cameraZoom = maximumCameraZoom;
             RenderMap(generatedMap);
             var lowResolutionVisibleRows = mapCanvas.Size.Y / currentTileSize;
@@ -187,9 +205,126 @@ public partial class Main
             displayWindow.ContentScaleMode = originalScaleMode;
             displayWindow.ContentScaleAspect = originalScaleAspect;
             displayWindow.ContentScaleSize = originalRenderSize;
-            SaveDisplayPreferences(originalPreferences);
-            ApplyUiScale(originalPreferences.UiScalePercent);
-            RefreshRenderResolutionOptions();
+            ApplyUiScale();
+        }
+    }
+
+    private async Task VerifyAgentConversationReaderAt200PercentAsync()
+    {
+        if (uiLayer.Factor != 2)
+            throw new InvalidOperationException("Conversation history smoke must run at 200% UI Scale.");
+
+        var menuVisible = mainMenuOverlay.Visible;
+        var gameMenuVisible = gameMenuPanel.Visible;
+        var menuShadeVisible = menuShade.Visible;
+        var oldSelection = selectedInhabitantId;
+        var oldProfileRequested = agentProfileRequested;
+        var oldProfileVisible = agentProfilePanel.Visible;
+        var oldQuickCardVisible = selectedInhabitantCard.Visible;
+        var wasInWorld = isInWorld;
+        isInWorld = true;
+        mainMenuOverlay.Hide();
+        gameMenuPanel.Hide();
+        menuShade.Hide();
+        try
+        {
+            const string firstAgentId = "conversation-ui-a";
+            const string secondAgentId = "conversation-ui-b";
+            const string thirdAgentId = "conversation-ui-c";
+            const string fourthAgentId = "conversation-ui-d";
+            var firstPosition = new OwnerWorldPosition(1, 1);
+            var secondPosition = new OwnerWorldPosition(2, 1);
+            var thirdPosition = new OwnerWorldPosition(1, 3);
+            var fourthPosition = new OwnerWorldPosition(2, 3);
+            OwnerWorldInhabitant Agent(string id, string name, OwnerWorldPosition position) => new(
+                id, name, "active", position, 8_000, [], [], new OwnerWorldRoute("idle", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(position, [position], [position]), false);
+            var publicText = string.Join(' ', Enumerable.Repeat("A public sentence with enough words to wrap comfortably on a large screen.", 6));
+            var closedTurns = Enumerable.Range(0, 7).Select(index =>
+            {
+                var speaker = index == 6 || index % 2 == 0 ? firstAgentId : secondAgentId;
+                var listener = speaker == firstAgentId ? secondAgentId : firstAgentId;
+                return new OwnerWorldConversationTurn(
+                    $"conversation:ui-closed:turn:{index + 1}", speaker,
+                    speaker == firstAgentId ? "Aster" : "Rowan", publicText, index + 1, [listener], index == 6);
+            }).ToArray();
+            var conversations = new OwnerWorldConversation[]
+            {
+                new("conversation:ui-closed", firstAgentId, "Aster", secondAgentId, "Rowan",
+                    "closed", null, "agreed", 0, 8, closedTurns),
+                new("conversation:ui-interrupted", thirdAgentId, "Mira", fourthAgentId, "Ilya",
+                    "suspended", "owner_paused", null, 0, 7,
+                    [new("conversation:ui-interrupted:turn:1", thirdAgentId, "Mira", publicText, 5,
+                        [fourthAgentId], false)]),
+            };
+            var conversationMap = new OwnerWorldSnapshot("conversation-ui-smoke", 8, "conversation-ui-map",
+                Enumerable.Range(0, 36).Select(index => new OwnerWorldTile(index % 6, index / 6, "meadow")).ToArray(),
+                [], [], null, 0)
+            {
+                PackedTerrain = new OwnerWorldPackedTerrain(6, 6, "terrain-kind-v1",
+                    Convert.ToBase64String(new byte[36])),
+                Inhabitants = [
+                    Agent(firstAgentId, "Aster", firstPosition), Agent(secondAgentId, "Rowan", secondPosition),
+                    Agent(thirdAgentId, "Mira", thirdPosition), Agent(fourthAgentId, "Ilya", fourthPosition)],
+                Conversations = conversations,
+            };
+            RenderMap(conversationMap);
+            selectedInhabitantId = secondAgentId;
+            RenderSelectedInhabitantCard(conversationMap);
+            OpenAgentProfile(speak: false);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            var marker = inhabitantVisuals[firstAgentId];
+            if (!marker.ConversationBadgeVisible || !marker.ConversationUnread || marker.TooltipText.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("A nearby public conversation must show a bounded unread bubble preview without placing its full history in the tooltip.");
+            marker._GuiInput(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = true,
+                Position = marker.ConversationBadgeBounds.GetCenter(),
+            });
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationPanel.Visible || !conversationReaderStatus.Text.StartsWith("Closed ·", StringComparison.Ordinal) ||
+                marker.ConversationUnread || selectedInhabitantId != secondAgentId || !agentProfilePanel.Visible ||
+                conversationReaderSummary.Text.Contains(publicText, StringComparison.Ordinal))
+                throw new InvalidOperationException("Clicking the conversation bubble must open its closed-session summary, mark it read locally, and leave agent selection alone.");
+
+            conversationHistoryButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!conversationHistoryText.Visible || !conversationHistoryText.ScrollActive ||
+                !conversationHistoryText.Text.Contains(publicText, StringComparison.Ordinal) ||
+                conversationHistoryText.GetContentHeight() <= conversationHistoryText.Size.Y ||
+                conversationPanel.Position.X < 0 || conversationPanel.Position.Y < HudTop - 1 ||
+                conversationPanel.Position.X + conversationPanel.Size.X > UiSize.X + 1 ||
+                conversationPanel.Position.Y + conversationPanel.Size.Y > UiSize.Y + 1)
+                throw new InvalidOperationException("Expanded long conversation history must scroll inside the 200% layout bounds.");
+
+            GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+            if (conversationPanel.Visible || selectedInhabitantId != secondAgentId ||
+                !agentProfilePanel.Visible || gameMenuPanel.Visible)
+                throw new InvalidOperationException("Escape must close expanded conversation history before the selected agent's Profile, without clearing selection or opening the Pause Menu.");
+
+            OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
+            if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
+                throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+        }
+        finally
+        {
+            conversationPanel.Hide();
+            openConversationId = null;
+            openConversationAgentId = null;
+            selectedInhabitantId = oldSelection;
+            agentProfileRequested = oldProfileRequested;
+            agentProfilePanel.Visible = oldProfileVisible;
+            selectedInhabitantCard.Visible = oldQuickCardVisible;
+            isInWorld = wasInWorld;
+            mainMenuOverlay.Visible = menuVisible;
+            gameMenuPanel.Visible = gameMenuVisible;
+            menuShade.Visible = menuShadeVisible;
         }
     }
 
@@ -322,6 +457,149 @@ public partial class Main
         }
     }
 
+    /// <summary>The selected child's settings show its saved choice without exposing local key data.</summary>
+    private void VerifyChildModelStatus()
+    {
+        const string childId = "agent:ui-child";
+        const string slotId = "4a6fa705672f4aa89a50ba458f6ed8b1";
+        var previousReconnect = observationSession.Current;
+        var previousConfiguration = providerConfiguration;
+        string? restorationFailure = null;
+        try
+        {
+            var inhabitant = new OwnerWorldInhabitant(childId, "Mira", "alive", new(0, 0), 0, [], [],
+                new("none", null, null, [], "ui-test"), new(new(0, 0), [], []), false)
+            {
+                Relationships = [new OwnerWorldInhabitantRelationship(
+                    "ui-child-parentage", "founder:parent", "biological_parentage", "accepted", "family", 0, "child")],
+            };
+            var snapshot = new OwnerWorldSnapshot("ui-child-world", 0, "ui-map", [new(0, 0, "meadow")], [], [],
+                null, 0)
+            { Inhabitants = [inhabitant] };
+            var reconnect = new OwnerWorldReconnect(
+                new OwnerWorldHandshake(new(1, 1),
+                    ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+                        "owner-control.request.v1", "paused-authoring.request.v1"], []),
+                new OwnerWorldReconnectBaseline(snapshot, new OwnerWorldEventSlice(0, 0, [])));
+            if (!observationSession.TryAccept(reconnect, 0, out var failure))
+                throw new InvalidOperationException($"A child status smoke observation must be coherent: {failure}");
+
+            var childConfiguration = new OwnerProviderConfigurationStatus("deterministic", "deterministic", 1,
+                [new("deterministic", string.Empty, false), new("openai", "gpt-6-luna", false),
+                    new("ollama-cloud", "glm-5.3-flash:cloud", false)],
+                [new(childId, "routine", "openai", "gpt-6.1-sol", slotId, "initiating_parent"),
+                    new(childId, "planning", "openai", "gpt-6.1-sol", slotId, "initiating_parent")], []);
+            providerConfiguration = childConfiguration;
+            PopulateCognitionTargets();
+            cognitionTargetChoice.Select(1);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Model needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("gpt-6.1-sol", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("no other model used", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("secret", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("A child whose saved key is unavailable must see its selected model and the setup needed to use it, without key data.");
+
+            providerConfiguration = childConfiguration with
+            {
+                CredentialSlots = [new(slotId, "openai", "Child model key 1")],
+            };
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Chosen from the parent who began the family plan", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("gpt-6.1-sol", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child with its saved key available must see the initiating parent's selected model.");
+
+            providerConfiguration = childConfiguration with { Assignments = [] };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child without a birth-time choice must remain explicitly unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected for this child", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("world defaults are not used", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model choice must survive as a safe local child route.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "openai", "gpt-6.1-sol", slotId), new(childId, "planning", "inherit")],
+            };
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · gpt-6.1-sol needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A child with a role-specific override must see both saved routes and setup state.");
+
+            snapshot = snapshot with
+            {
+                Inhabitants = [inhabitant with
+                {
+                    DecisionFactors = [new("birth-model-provider", "openai"), new("birth-model-id", "frozen-before-save-model")],
+                }],
+            };
+            reconnect = reconnect with { Baseline = reconnect.Baseline with { Snapshot = snapshot } };
+            observationSession.ResetAfterLoad();
+            if (!observationSession.TryAccept(reconnect, 0, out failure))
+                throw new InvalidOperationException($"A pending birth model observation must be coherent: {failure}");
+            providerConfiguration = childConfiguration with { Assignments = [] };
+            PopulateCognitionTargets();
+            cognitionTargetChoice.Select(1);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Model needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("waiting", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal))
+                throw new InvalidOperationException("A saved birth choice awaiting provider storage must remain visible instead of appearing unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · frozen-before-save-model waiting", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A pending birth route must remain visible alongside an explicit role-specific override.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model override must take precedence over the historical birth choice.");
+        }
+        finally
+        {
+            observationSession.ResetAfterLoad();
+            if (previousReconnect is not null &&
+                !observationSession.TryAccept(previousReconnect, previousReconnect.Baseline.Events.AfterEventId, out restorationFailure))
+            {
+                restorationFailure ??= "The previous observation was rejected.";
+            }
+            providerConfiguration = previousConfiguration;
+            PopulateCognitionTargets();
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+        }
+        if (restorationFailure is not null)
+            throw new InvalidOperationException($"The child status smoke could not restore the previous observation: {restorationFailure}");
+    }
+
     /// <summary>Pixel lettering stays crisp only at whole multiples of its pixel size.</summary>
     private void VerifyPixelText(string when)
     {
@@ -402,6 +680,7 @@ public partial class Main
 
     private async Task VerifyFirstWorldListAsync()
     {
+        VerifyWorldThumbnailFallback();
         worldMenuColumns.Hide();
         worldSelectionList.Show();
         worldSelectButton.Show();
@@ -410,21 +689,67 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
+            worldSelectionList.Placeholder != "Checking saved worlds…" ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
             new CatalogWorld($"world-{index}", $"World {index}", $"world-{index}", "seed",
-                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible")).ToArray()));
+                DateTimeOffset.UnixEpoch, [], null, index == 6 ? "incompatible" : "compatible",
+                Thumbnail: index switch
+                {
+                    0 => new WorldThumbnail(1, 1, "terrain-kind-v1", null!),
+                    1 => new WorldThumbnail(2, 1, "terrain-kind-v1", "AAU="),
+                    _ => null,
+                })).ToArray()));
         await loading;
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (worldSelectionList.ItemCount != 7 || listedActiveWorldId != "world-0" || !worldSelectionList.IsVisibleInTree() ||
             worldMenuScroll.Size.Y < 300)
             throw new InvalidOperationException("The first opening must display a delayed seven-world result without reopening.");
+        // Each world is a card, current world first; the arrow keys move between them.
+        if (worldSelectionList.GetItemTitle(0) != "World 0" || worldSelectionList.GetItemTitle(6) != "World 6")
+            throw new InvalidOperationException("World cards must show each world's name, the current world first.");
+        worldSelectionList.Select(0);
+        worldSelectionList._GuiInput(new InputEventAction { Action = "ui_down", Pressed = true });
+        if (worldSelectionList.GetSelectedItems() is not [1])
+            throw new InvalidOperationException("The down arrow must choose the next world card.");
         worldSelectionList.Select(6);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, 6L);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, 6L);
         if (!worldSelectButton.Disabled)
             throw new InvalidOperationException("An incompatible world must remain blocked after listing.");
         worldMenuOverlay.Hide();
+    }
+
+    private static void VerifyWorldThumbnailFallback()
+    {
+        WorldThumbnail?[] invalid =
+        [
+            null,
+            new(1, 1, "terrain-kind-v1", null!),
+            new(1, 1, null!, "AA=="),
+            new(1, 1, "unknown", "AA=="),
+            new(1, 1, "terrain-kind-v1", "!!!!"),
+            new(1, 1, "terrain-kind-v1", "AAAA"),
+            new(1, 1, "terrain-kind-v1", "/w=="),
+            new(0, 1, "terrain-kind-v1", ""),
+            new(1, -1, "terrain-kind-v1", ""),
+            new(97, 1, "terrain-kind-v1", Convert.ToBase64String(new byte[97])),
+            new(1, 2049, "terrain-kind-v1", Convert.ToBase64String(new byte[2049])),
+            new(int.MaxValue, int.MaxValue, "terrain-kind-v1", "AA=="),
+        ];
+        foreach (var thumbnail in invalid)
+        {
+            using var unusable = WorldThumbnailTexture(thumbnail);
+            if (unusable is not null)
+                throw new InvalidOperationException("Missing or damaged world thumbnails must fall back to the globe.");
+        }
+        using var texture = WorldThumbnailTexture(new WorldThumbnail(2, 1, "terrain-kind-v1", "AAU="));
+        if (texture is null || texture.GetWidth() != 2 || texture.GetHeight() != 1)
+            throw new InvalidOperationException("A valid world thumbnail must retain its shape.");
+        using var image = texture.GetImage();
+        if (image.GetPixel(0, 0) != TerrainTextures.BaseColor(TerrainStyle.Grass) ||
+            image.GetPixel(1, 0) != TerrainTextures.BaseColor(TerrainStyle.Ocean))
+            throw new InvalidOperationException("World thumbnails must draw the overview's terrain colors.");
     }
 
     /// <summary>The logo replaces the old title and slogan, sits above the card and stays crisp.</summary>
@@ -511,8 +836,53 @@ public partial class Main
                     !CurrentWorldOptions().LatitudeCooling || !CurrentWorldOptions().WrapEastWest || worldSizeChoice.ItemCount != 2)
                     throw new InvalidOperationException("Reset must restore the complete supported New World preset.");
                 worldAdvancedToggle.ButtonPressed = true;
-                if (!worldAdvancedOptions.Visible || worldForestChoice.FocusMode == FocusModeEnum.None)
+                if (!worldAdvancedOptions.Visible || !worldForestChoice.KeyboardReachable)
                     throw new InvalidOperationException("Advanced generation controls must be expandable and keyboard accessible.");
+                var missedCoverage = new OwnerWorldCandidateReport(2, 100, 15, 10, 15, 10,
+                    2, 10, 1, 10, true, true, false, true);
+                previewedWorldOptions = CurrentWorldOptions();
+                previewedWorldResult = new OwnerWorldPreview(new OwnerWorldPackedTerrain(1, 1, "terrain-v1", "AA=="),
+                    new OwnerWorldPosition(0, 0), "preview-manifest")
+                {
+                    MapLayersDigest = "preview-layers",
+                    Coverage = missedCoverage,
+                    Candidates = [missedCoverage],
+                };
+                worldAcceptUnmetTargets.Show();
+                if (CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("A preview that misses a default Balanced target must require explicit acceptance.");
+                worldAcceptUnmetTargets.ButtonPressed = true;
+                if (!CanCreatePreview(CurrentWorldOptions()))
+                    throw new InvalidOperationException("Explicitly accepting displayed coverage misses must enable creation of that preview.");
+                worldAcceptUnmetTargets.ButtonPressed = false;
+                var mountainOnly = missedCoverage with { ForestTargetApplicable = false, ForestTargetMet = false };
+                var mountainOnlyPreview = previewedWorldResult with
+                {
+                    Coverage = mountainOnly,
+                    Candidates = [mountainOnly],
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview);
+                if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                var forestOnly = missedCoverage with
+                {
+                    ForestTargetApplicable = true,
+                    ForestTargetMet = false,
+                    MountainTargetApplicable = false,
+                    MountainTargetMet = false,
+                };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = forestOnly, Candidates = [forestOnly] });
+                if (!worldPreviewStatus.Text.Contains("Missed: Forest 15.0%", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("Candidate results:", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Preview must name a missed Normal target and candidate results when only forest is targeted.");
+                var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
+                SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
+                if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains("15.0% forest and 10.0% mountains", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
+                InvalidateWorldPreview(refresh: false);
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))
@@ -567,9 +937,8 @@ public partial class Main
                 throw new InvalidOperationException("World Settings cannot be opened from the Main Menu.");
             for (var frame = 0; frame < 2; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - uiScaleChoice.GetGlobalRect().Position.X) > 1 ||
-                Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1 ||
-                Math.Abs(renderResolutionChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
+            if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - themeChoice.GetGlobalRect().Position.X) > 1 ||
+                Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
                 throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
             // Both themes keep text readable on every surface it sits on.
             foreach (var palette in new[] { UiTheme.Light, UiTheme.Dark })
@@ -655,8 +1024,6 @@ public partial class Main
             var originalScaleMode = displayWindow.ContentScaleMode;
             var originalDisplayPreferences = displayPreferences;
             var originalWindowChoice = windowSizeChoice.Selected;
-            var originalRenderChoice = renderResolutionChoice.Selected;
-            var originalUiScaleChoice = uiScaleChoice.Selected;
             try
             {
                 await VerifyFirstWorldListAsync();
@@ -670,25 +1037,13 @@ public partial class Main
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (displayWindow.Size != DisplaySizePresets[1])
                     throw new InvalidOperationException("Window Size must change the physical window size.");
-                if (renderSizeOptions.Count == 0)
-                    throw new InvalidOperationException("At least one fixed render choice must be available.");
-                var fixedChoice = renderSizeOptions.Count;
-                var fixedRenderSize = renderSizeOptions[^1];
-                renderResolutionChoice.Select(fixedChoice);
-                SetRenderResolution(fixedChoice);
-                if (displayWindow.Size != DisplaySizePresets[1] ||
-                    displayWindow.ContentScaleSize != fixedRenderSize)
-                    throw new InvalidOperationException($"A fixed render choice must leave the window size alone: window={displayWindow.Size}, expected={DisplaySizePresets[1]}, render={displayWindow.ContentScaleSize}, expected render={fixedRenderSize}.");
+                // The game draws at the window's own resolution whatever its size.
                 windowSizeChoice.Select(0);
                 SetWindowSize(0);
                 if (displayWindow.Size != DisplaySizePresets[0] ||
-                    displayWindow.ContentScaleSize != fixedRenderSize ||
+                    displayWindow.ContentScaleSize != AutomaticRenderSize() ||
                     displayWindow.ContentScaleMode != Window.ContentScaleModeEnum.Viewport)
-                    throw new InvalidOperationException("Window Size must not change a fixed render resolution.");
-                renderResolutionChoice.Select(0);
-                SetRenderResolution(0);
-                if (displayWindow.ContentScaleSize != AutomaticRenderSize())
-                    throw new InvalidOperationException("Automatic render resolution must follow the current display or window.");
+                    throw new InvalidOperationException($"The picture must follow the window's own resolution: render={displayWindow.ContentScaleSize}, expected={AutomaticRenderSize()}.");
             }
             finally
             {
@@ -696,11 +1051,8 @@ public partial class Main
                 displayWindow.ContentScaleSize = originalRenderSize;
                 displayWindow.ContentScaleMode = originalScaleMode;
                 windowSizeChoice.Select(originalWindowChoice);
-                uiScaleChoice.Select(originalUiScaleChoice);
                 SaveDisplayPreferences(originalDisplayPreferences);
-                ApplyUiScale(originalDisplayPreferences.UiScalePercent);
-                RefreshRenderResolutionOptions();
-                renderResolutionChoice.Select(originalRenderChoice);
+                ApplyUiScale();
             }
             mainMenuOverlay.Hide();
             isInWorld = true;
@@ -741,6 +1093,15 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
+            // Game and World share one width, and the call limit has its own box on the World page.
+            var gamePageWidth = gameMenuPanel.Size.X;
+            settingsScroll.ScrollVertical = 200;
+            worldSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!worldSettingsContent.Visible || !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth) ||
+                settingsScroll.ScrollVertical != 0 || usageLimitPanel.GetParent() != worldSettingsContent ||
+                cognitionSettingsPanel.GetIndex() + 1 != usageLimitPanel.GetIndex())
+                throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width and show Model calls after Agent model: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -897,6 +1258,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyModelPicker();
+            VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
@@ -1823,6 +2185,8 @@ public partial class Main
                 {
                     Survival = null,
                     PublicIntention = new OwnerWorldPublicIntention("safe_idle", "keeping a safe routine", "deterministic", 1),
+                    Lesson = new("Mira", "farming", "training", 3, 20),
+                    Skills = [new("building", 0, "teacher-id", "Mira"), new("crafting", 0, null, null)],
                     Relationships = [new OwnerWorldInhabitantRelationship("home:test", "household:one",
                         "household_membership", "accepted", "household", 1)],
                 }],
@@ -1832,6 +2196,10 @@ public partial class Main
                 !inhabitantSocialDetails.Text.Contains("Member of Founder's household", StringComparison.Ordinal) ||
                 inhabitantSocialDetails.Text.Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
                 inhabitantDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Building skill · taught by Mira", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Crafting skill · learned by doing", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Learning Farming with Mira", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("teacher-id", StringComparison.Ordinal) ||
                 !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal))
                 throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {inhabitantSocialDetails.Text}");
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
@@ -2059,6 +2427,78 @@ public partial class Main
                 PlacedBuildings = [],
                 Towns = [],
             };
+            var siteWidth = 32;
+            var siteHeight = 32;
+            var siteLength = siteWidth * siteHeight;
+            var siteTerrain = new OwnerWorldPackedTerrain(siteWidth, siteHeight, "terrain-kind-v1",
+                Convert.ToBase64String(new byte[siteLength]));
+            var siteHydrology = new byte[siteLength];
+            var siteSurface = new byte[siteLength];
+            siteHydrology[(siteHeight - 1) * siteWidth + siteWidth - 1] = 1;
+            siteSurface[(siteHeight - 1) * siteWidth + siteWidth - 1] = 4;
+            siteSurface[16 * siteWidth + 21] = 7;
+            var siteLayers = new OwnerWorldPackedMapLayers(siteWidth, siteHeight, "map-layers-v1",
+                Convert.ToBase64String(Enumerable.Repeat((byte)2, siteLength).ToArray()),
+                Convert.ToBase64String(Enumerable.Repeat((byte)100, siteLength).ToArray()),
+                Convert.ToBase64String(siteHydrology), Convert.ToBase64String(siteSurface),
+                Convert.ToBase64String(Enumerable.Repeat((byte)1, siteLength).ToArray()));
+            var siteSnapshot = new OwnerWorldSnapshot("ui-town-site-guidance", 0, "site-guidance-map",
+                [], [],
+                [
+                    new("site-food", "food", new(20, 16), false, "available", 4, NaturalObjectKind: "berry_bush"),
+                    new("site-farmland", "fertile_land", new(21, 16), false, "available", 1, NaturalObjectKind: "fertile_soil"),
+                    new("site-wood", "construction", new(19, 16), true, "available", 5, TreeKind: "broadleaf", TreeStage: "mature"),
+                    new("site-stone", "stone", new(20, 18), false, "available", 3, NaturalObjectKind: "stone_outcrop"),
+                ], null, 0)
+            {
+                PackedTerrain = siteTerrain,
+                PackedMapLayers = siteLayers,
+                FounderSetup = new OwnerFounderSetup(4, 0, false) { CanChooseTownSite = true },
+            };
+            RenderMap(siteSnapshot);
+            choosingFirstTownSite = true;
+            UpdateTownSiteGuidance(siteSnapshot, force: true);
+            RenderFounderSetup(siteSnapshot);
+            var guidance = terrainLayer.CurrentTownSiteGuidance
+                ?? throw new InvalidOperationException("Choosing a Town site must draw suitability guidance.");
+            var betterSite = guidance.At(20, 16);
+            var lessSuitableSite = guidance.At(2, 2);
+            if (!betterSite.IsBuildableGround || !betterSite.HasNearbyFood || !betterSite.HasNearbyFarmland ||
+                !betterSite.HasNearbyWood || !betterSite.HasNearbyStone ||
+                lessSuitableSite.GuidanceStrength >= betterSite.GuidanceStrength ||
+                !lessSuitableSite.IsBuildableGround ||
+                !CanSubmitFirstTownSiteChoice(siteSnapshot, new Vector2I(2, 2)) ||
+                !townSiteButton.Visible ||
+                townSiteButton.Text != "Cancel Town site")
+                throw new InvalidOperationException("Town-site advice must distinguish a stronger local mix while still submitting a less suitable buildable site for the host's layout check.");
+            UpdateHoverReadout(siteSnapshot, new Vector2I(20, 16));
+            if (!hoverReadoutLabel.Text.Contains("Town-site advice", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("fertile ground", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("stone", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("Roads", StringComparison.Ordinal))
+                throw new InvalidOperationException("Town-site hover help must explain the nearby factors behind its map tint.");
+            UpdateHoverReadout(siteSnapshot, new Vector2I(2, 2));
+            if (!hoverReadoutLabel.Text.Contains("no food nearby", StringComparison.Ordinal) ||
+                !hoverReadoutLabel.Text.Contains("no stone nearby", StringComparison.Ordinal))
+                throw new InvalidOperationException("Town-site hover help must identify missing nearby factors as well as helpful ones.");
+            var wrappedSiteSnapshot = siteSnapshot with
+            {
+                WorldId = "ui-wrapped-site-guidance",
+                WrapsEastWest = true,
+                Resources = [new("seam-food", "food", new(siteWidth - 1, 16), false, "available", 1,
+                    NaturalObjectKind: "wild_greens")],
+            };
+            var wrappedSiteTerrain = WorldTerrainMap.FromPacked(siteTerrain, siteLayers, wrapsEastWest: true);
+            var wrappedGuidance = TownSiteGuidance.Create(wrappedSiteTerrain, wrappedSiteSnapshot);
+            if (!wrappedGuidance.At(0, 16).HasNearbyFood ||
+                TownSiteGuidance.Create(WorldTerrainMap.FromPacked(siteTerrain, siteLayers), wrappedSiteSnapshot)
+                    .At(0, 16).HasNearbyFood ||
+                guidance.At(siteWidth - 1, siteHeight - 1).IsBuildableGround)
+                throw new InvalidOperationException("Town-site advice must follow wrapped geography and leave water unshaded.");
+            choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            UpdateHoverReadout(siteSnapshot, new Vector2I(2, 2));
+            RenderFounderSetup(sample);
             RenderMap(largeMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (terrainLayer.DrawsGroundTextures)
@@ -2546,16 +2986,69 @@ public partial class Main
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
-            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
-            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+            var family = new List<OwnerWorldInhabitant> { parent, child, partner };
+            var currentParent = parent;
+            for (var generation = 0; generation < 8; generation++)
+            {
+                var ancestor = parent with
+                {
+                    Id = $"ancestor:{generation}",
+                    DisplayName = $"Ancestor {generation + 1}",
+                    Relationships = [new OwnerWorldInhabitantRelationship($"birth:ancestor:{generation}", currentParent.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent")],
+                };
+                family.Add(ancestor);
+                currentParent = ancestor;
+            }
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = family.ToArray() }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 9 || familyTreeView.PartnerEdgeCount != 1 ||
                 !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
                 !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
-                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
+                family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
-            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var familyWindow = GetWindow();
+            var originalFamilySize = familyWindow.Size;
+            var originalFamilyRenderSize = familyWindow.ContentScaleSize;
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var expectedFactor = size == new Vector2I(1920, 1080) ? 2 : 1;
+                if (GetViewportRect().Size != new Vector2(size.X, size.Y) || uiLayer.Factor != expectedFactor)
+                    throw new InvalidOperationException($"Family tree smoke must exercise the requested viewport and interface size at {size}: viewport={GetViewportRect().Size}, factor={uiLayer.Factor}.");
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y <= 0 || familyTreeView.Size.Y <= 0 ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect))
+                    throw new InvalidOperationException($"Family tree must show its content in a screen-bounded scroll panel at {size}: panel={panelRect}, scroll={scrollRect}, tree={familyTreeView.Size}.");
+                if (size == new Vector2I(1024, 768) &&
+                    familyTreeScroll.GetVScrollBar().MaxValue <= familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A tall family tree must remain scrollable when the panel is capped to the screen.");
+            }
+            foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                familyWindow.Size = size;
+                familyWindow.ContentScaleSize = size;
+                familyTreePanel.Hide();
+                ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+                var panelRect = familyTreePanel.GetGlobalRect();
+                var scrollRect = familyTreeScroll.GetGlobalRect();
+                if (familyTreeScroll.Size.Y < familyTreeView.GetCombinedMinimumSize().Y ||
+                    !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect) ||
+                    !panelRect.Encloses(familyTreeStatus.GetGlobalRect()))
+                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and help text at {size}: panel={panelRect}, scroll={scrollRect}, help={familyTreeStatus.GetGlobalRect()}.");
+                if (familyTreeScroll.GetVScrollBar().MaxValue > familyTreeScroll.GetVScrollBar().Page)
+                    throw new InvalidOperationException("A fitting short tree must not retain the long tree's vertical scroll range.");
+            }
+            familyWindow.Size = originalFamilySize;
+            familyWindow.ContentScaleSize = originalFamilyRenderSize;
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             ApplyResponsiveLayout();
-            if (!mapCanvas.GetGlobalRect().Encloses(familyTreePanel.GetGlobalRect()))
-                throw new InvalidOperationException("Family tree panel must fit within the world view.");
             familyTreeView.GetChildren().OfType<Button>().Single(button => button.Text.StartsWith(parent.DisplayName, StringComparison.Ordinal))
                 .EmitSignal(BaseButton.SignalName.Pressed);
             if (selectedInhabitantId != parent.Id || familyTreePanel.Visible)

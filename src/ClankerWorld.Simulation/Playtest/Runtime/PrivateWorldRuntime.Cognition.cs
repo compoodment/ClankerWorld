@@ -35,18 +35,24 @@ public sealed partial class PrivateWorldRuntime
             // versions, so orders that are already waiting follow the same rule.
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
+            if (FarmWorkFor(inhabitant.Id) is not null && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+                !ShouldDispatchConversationChoice(inhabitant.Id))
+                continue;
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
                 SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
                 physical = inhabitants[inhabitant.Id];
             }
+            if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
+                continue;
+            var conversationChoiceContext = ConversationChoiceContextFor(inhabitant.Id);
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
-                !NeedsCognition(inhabitant.Id, current, candidates))
+                !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;
             }
@@ -69,7 +75,8 @@ public sealed partial class PrivateWorldRuntime
                 physical.Survival?.WarmthBasisPoints, physical.Survival?.IllnessBasisPoints,
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
-                towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name);
+                towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
+                HousingNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -83,7 +90,10 @@ public sealed partial class PrivateWorldRuntime
                 RetrievedMemories: retrievedMemories,
                 KnownMapFacts: knownMapFacts, Self: self,
                 NeedsPersonality: physical.IdentityChoicePending,
-                NeedsAspiration: physical.IdentityChoicePending);
+                NeedsAspiration: physical.IdentityChoicePending)
+            {
+                ConversationChoiceContext = conversationChoiceContext,
+            };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
             {
                 try
@@ -129,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
                 {
-                    LastDecisionContext = DecisionContext(physical, candidates),
+                    LastDecisionContext = DecisionContext(physical, candidates, conversationChoiceContext),
                 };
             }
         }
@@ -138,8 +148,15 @@ public sealed partial class PrivateWorldRuntime
     private bool NeedsCognition(
         string inhabitantId,
         CognitionIntention? current,
-        List<CognitionCandidate> candidates)
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext)
     {
+        if (conversationChoiceContext is not null &&
+            !HasPromptedConversationChoice(inhabitants[inhabitantId].LastDecisionContext, conversationChoiceContext))
+        {
+            return true;
+        }
+
         // A new instruction prompts one fresh decision. If it cannot progress
         // yet, it waits for the agent's usual decisions instead of requesting
         // another (possibly paid) decision on every tick.
@@ -177,16 +194,32 @@ public sealed partial class PrivateWorldRuntime
         if (current.CandidateId == "safe_idle")
         {
             var physical = inhabitants[inhabitantId];
-            return DecisionContext(physical, candidates) != physical.LastDecisionContext ||
+            return DecisionContext(physical, candidates, conversationChoiceContext) != physical.LastDecisionContext ||
                 checked(WorldTick - current.WorldTick) >= 300;
         }
 
         return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
     }
 
-    private string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
-        $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
-        string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+    private string DecisionContext(
+        PlaytestInhabitantState state,
+        List<CognitionCandidate> candidates,
+        string? conversationChoiceContext = null)
+    {
+        var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
+            string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+        return conversationChoiceContext is null
+            ? context
+            : $"{context}|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}";
+    }
+
+    private static bool HasPromptedConversationChoice(string? lastDecisionContext, string conversationChoiceContext) =>
+        lastDecisionContext?.EndsWith(
+            $"|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}",
+            StringComparison.Ordinal) == true;
+
+    private static string ConversationChoiceContextDigest(string conversationChoiceContext) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(conversationChoiceContext)));
 
     private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
     {
@@ -201,6 +234,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            if (IsConversationBusy(inhabitant.Id))
+            {
+                continue;
+            }
             if (inhabitant.AgeBand == SocietyAgeBand.Infant)
             {
                 continue;
@@ -210,6 +247,7 @@ public sealed partial class PrivateWorldRuntime
                 ContinueLesson(inhabitant.Id);
                 continue;
             }
+            if (ContinueFarmWork(inhabitant.Id)) continue;
             if (CanContinueProject(state))
             {
                 ContinueProject(inhabitant.Id, state);
@@ -299,9 +337,22 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
+            candidateId.StartsWith("conversation_", StringComparison.Ordinal))
+        {
+            if (!ApplyConversationCandidate(inhabitantId, candidateId))
+                AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
+            return;
+        }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
+            return;
+        }
+        if (ContinueFarmWork(inhabitantId)) return;
+        if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
+        {
+            ApplyFieldCandidate(inhabitantId, state, candidateId);
             return;
         }
         if (candidateId.StartsWith("child_", StringComparison.Ordinal))
@@ -322,6 +373,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("partner_", StringComparison.Ordinal))
         {
             ApplyFamilyCandidate(inhabitantId, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith("household_", StringComparison.Ordinal))
+        {
+            ApplyHousingCandidate(inhabitantId, candidateId);
             return;
         }
         if (candidateId.StartsWith("learn:", StringComparison.Ordinal) || candidateId.StartsWith("lesson_", StringComparison.Ordinal))
@@ -379,10 +435,10 @@ public sealed partial class PrivateWorldRuntime
             DeliverBlacksmithOre(inhabitantId, state);
             return;
         }
-        if (candidateId == "collect_wooden_axe" || candidateId == "collect_wooden_pickaxe")
+        if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
             CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : "wooden_pickaxe");
+                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
@@ -400,6 +456,21 @@ public sealed partial class PrivateWorldRuntime
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(ExpandBuildingPrefix, StringComparison.Ordinal))
+        {
+            ApplyBuildingExpansionCandidate(inhabitantId, state, candidateId[ExpandBuildingPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal) ||
+            candidateId.StartsWith(RevokeHouseGuestPrefix, StringComparison.Ordinal))
+        {
+            var invited = candidateId.StartsWith(InviteHouseGuestPrefix, StringComparison.Ordinal);
+            var household = society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId;
+            if (household is not null && HouseForHousehold(household) is { } house)
+                SetHouseGuestInvitationCore(inhabitantId, house.InstanceId,
+                    candidateId[(invited ? InviteHouseGuestPrefix.Length : RevokeHouseGuestPrefix.Length)..], invited);
+            return;
+        }
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
             BeginProject(inhabitantId, state, candidateId);
@@ -415,9 +486,9 @@ public sealed partial class PrivateWorldRuntime
             ReplantTree(inhabitantId, state);
             return;
         }
-        if (candidateId == "plant_tree")
+        if (candidateId is "plant_tree" or "plant_orchard")
         {
-            PlantTreeNearby(inhabitantId, state);
+            PlantTreeNearby(inhabitantId, state, candidateId == "plant_orchard");
             return;
         }
 
@@ -521,7 +592,7 @@ public sealed partial class PrivateWorldRuntime
                 "build_completed",
                 TownForResident(inhabitantId),
                 houseOwner,
-                society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId is null ? inhabitantId : null);
+                BuildingConstructionOwner(inhabitantId, definition));
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
@@ -559,12 +630,22 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId,
         PlaytestInhabitantState state)
     {
-        var candidates = new List<CognitionCandidate>();
+        var currentConversation = ConversationFor(inhabitantId);
+        var candidates = currentConversation is null
+            ? new List<CognitionCandidate>()
+            : ConversationCandidates(inhabitantId).ToList();
+        if (currentConversation is not null &&
+            (currentConversation.Status is AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker or AgentConversationStatus.WrapUp ||
+             currentConversation.Status == AgentConversationStatus.Proposed && currentConversation.InitiatorId == inhabitantId))
+        {
+            if (candidates.Count == 0)
+                candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
+            return candidates;
+        }
         var instruction = PendingInstructionFor(inhabitantId);
         var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
 
-        var hasFood = society.Checkpoint.Inventory.Lots.Any(item =>
-            item.OwnerId == inhabitantId && IsEdibleFood(item.ItemKind) && AvailableLotQuantity(item) > 0);
+        var hasFood = PreferredFood(inhabitantId, inhabitantId).Any();
         if (hasFood && state.HungerBasisPoints < ComfortableFullness)
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
@@ -626,6 +707,7 @@ public sealed partial class PrivateWorldRuntime
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);
             AddFamilyCandidates(candidates, inhabitantId);
+            AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
@@ -636,10 +718,13 @@ public sealed partial class PrivateWorldRuntime
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
+            AddBuildingExpansionCandidates(candidates, inhabitantId);
+            AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
             AddFarmGrainCandidate(candidates, inhabitantId, state);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
+            AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
@@ -652,6 +737,8 @@ public sealed partial class PrivateWorldRuntime
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
+        if (currentConversation is null)
+            candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
         return candidates;
     }
@@ -667,11 +754,9 @@ public sealed partial class PrivateWorldRuntime
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the
         // household holds or a communal one (see TryFindRecipeSite).
-        var canGrow = inhabitant.HouseholdId is { } farmingHousehold &&
-            HouseholdBuildingWithTag(farmingHousehold, "farmhouse") is not null;
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     (!item.IsCrop || canGrow)))
+                     !item.IsCrop))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
             {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using ClankerWorld.GodotClient.Pairing;
 
 namespace ClankerWorld.GodotClient.UI;
@@ -23,7 +24,13 @@ public sealed record OwnerWorldPosition(int X, int Y);
 public sealed record OwnerWorldTile(int X, int Y, string Terrain);
 public sealed record OwnerWorldPackedTerrain(int Width, int Height, string Encoding, string Data);
 public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation)
+{
+    public string? Fertility { get; init; }
+}
+public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
+    int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
 
@@ -138,6 +145,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
+    public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
     public IReadOnlyList<OwnerWorldSocialStanding> SocialStanding { get; init; } = [];
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
@@ -160,7 +168,9 @@ public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisP
     int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
-public sealed record OwnerWorldLesson(string TeacherName, string Role, string Stage, int Progress, int Required);
+public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,
+    string Stage, int Progress, int Required);
+public sealed record OwnerWorldSkill(string Kind, long LearnedTick, string? TeacherId, string? TeacherName);
 public sealed record OwnerWorldProficiency(int Building, int Farming, int Crafting);
 public sealed record OwnerWorldSocialStanding(string SubjectId, string SubjectName, int Trust);
 
@@ -240,7 +250,13 @@ public sealed record OwnerWorldPlacedBuilding(
     string? TownId = null,
     string? HouseholdId = null,
     IReadOnlyList<OwnerWorldInventoryEntry>? StoredItems = null,
-    OwnerWorldPosition? Entrance = null);
+    OwnerWorldPosition? Entrance = null,
+    int? StorageCapacity = null,
+    int StoredQuantity = 0,
+    int FootprintRevision = 0,
+    IReadOnlyList<string>? InvitedGuests = null,
+    string? ExpansionState = null,
+    string? ExpansionFailure = null);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -262,6 +278,28 @@ public sealed record OwnerWorldBridge(
     IReadOnlyList<OwnerWorldPosition> Entrances,
     IReadOnlyList<OwnerWorldPosition> Span,
     long BuiltTick);
+
+public sealed record OwnerWorldConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record OwnerWorldConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<OwnerWorldConversationTurn> Turns);
 
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
@@ -295,6 +333,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
+    public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
@@ -307,6 +347,8 @@ public sealed record OwnerWorldSnapshot(
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldConversation> Conversations { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
 
@@ -350,17 +392,45 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
     string ResourceAbundance = "Normal", string ForestCover = "Normal",
-    string MountainRelief = "Normal", string RiverAbundance = "Normal");
+    string MountainRelief = "Normal", string RiverAbundance = "Normal",
+    int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
+    string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
 public sealed record CatalogWorld(string Id, string Name, string WorldId, string Seed,
     DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings, string Compatibility = "unknown",
-    string? CompatibilityReason = null);
+    string? CompatibilityReason = null, WorldThumbnail? Thumbnail = null);
+/// <summary>A small picture of a world's terrain for the Load World list, packed like the world's own terrain.</summary>
+public sealed record WorldThumbnail(int Width, int Height, string Encoding, string Data);
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
 public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWorldPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
 {
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
+    public OwnerWorldCandidateReport? Coverage { get; init; }
+    public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+}
+public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
+    int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
+    int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,
+    bool ForestTargetApplicable, bool MountainTargetApplicable,
+    bool ForestTargetMet, bool MountainTargetMet)
+{
+    public bool TargetsApplicable => ForestTargetApplicable || MountainTargetApplicable;
+    public bool MeetsTargets => (!ForestTargetApplicable || ForestTargetMet) &&
+        (!MountainTargetApplicable || MountainTargetMet);
+    public IReadOnlyList<string> UnmetTargets
+    {
+        get
+        {
+            var unmet = new List<string>(2);
+            if (ForestTargetApplicable && !ForestTargetMet)
+                unmet.Add($"Forest {ForestPercent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% (target 20–40%)");
+            if (MountainTargetApplicable && !MountainTargetMet)
+                unmet.Add($"Mountains {MountainPercent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% (target 5–12%)");
+            return unmet;
+        }
+    }
 }
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false);
@@ -438,7 +508,13 @@ public sealed record OwnerProviderConfigurationAction(
     string? CredentialSlotId = null,
     string? NewCredentialLabel = null);
 
-public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
+public sealed record InhabitantProviderAssignment(
+    string InhabitantId,
+    string Role,
+    string Provider,
+    string? Model = null,
+    string? CredentialSlotId = null,
+    string? SelectionReason = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

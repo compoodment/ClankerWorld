@@ -163,7 +163,10 @@ public static class GameUiText
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+            "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
+            "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
+            "field_ready" or "field_work_interrupted" or "crop_weather_loss" or
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
@@ -171,7 +174,8 @@ public static class GameUiText
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
-            "paused" or "resumed";
+            "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
+            "housing_blocked" or "paused" or "resumed";
     }
 
     /// <summary>
@@ -192,6 +196,25 @@ public static class GameUiText
     /// Names how fed an agent is. The host reports fullness, so a low value
     /// means hungry; the bands follow the host's food-seeking thresholds.
     /// </summary>
+    /// <summary>
+    /// When a world or save was last written, the way a person would say it:
+    /// "just now", "12 minutes ago", "yesterday", or a date once it is a week old.
+    /// </summary>
+    public static string SavedAgo(DateTimeOffset saved, DateTimeOffset now)
+    {
+        var age = now - saved;
+        if (age < TimeSpan.FromMinutes(1)) return "just now";
+        if (age < TimeSpan.FromHours(1)) return Plural((int)age.TotalMinutes, "minute") + " ago";
+        var savedDay = saved.ToLocalTime().Date;
+        var today = now.ToLocalTime().Date;
+        if (savedDay == today) return Plural((int)age.TotalHours, "hour") + " ago";
+        if (savedDay == today.AddDays(-1)) return "yesterday";
+        if (age < TimeSpan.FromDays(7)) return Plural((int)Math.Max(2, (today - savedDay).TotalDays), "day") + " ago";
+        return saved.ToLocalTime().ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string Plural(int count, string unit) => count == 1 ? $"1 {unit}" : $"{count} {unit}s";
+
     public static string FullnessState(int fullnessBasisPoints) => fullnessBasisPoints switch
     {
         >= 7_000 => "well fed",

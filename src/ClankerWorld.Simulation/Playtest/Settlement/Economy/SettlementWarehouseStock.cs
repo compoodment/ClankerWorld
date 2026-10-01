@@ -7,9 +7,9 @@ public sealed partial class PrivateWorldRuntime
 {
     private const int WarehouseLoadQuantity = 4;
     private static readonly HashSet<string> WarehouseResourceKinds =
-        new(StringComparer.Ordinal) { "wood", "stone", "fiber", "seed" };
+        new(StringComparer.Ordinal) { "wood", "stone", "fiber", "tree_seed" };
     private static readonly HashSet<string> WarehouseFoodKinds =
-        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potato", "greens", "bread", "porridge", "stew" };
+        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potatoes", "berries", "wild_greens", "cultivated_greens", "bread", "porridge", "stew" };
 
     private PlacedBuilding? WarehouseForResident(string actor)
     {
@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddWarehouseStockCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
-        if (WarehouseForResident(actor) is not { } warehouse || PersonalWarehouseSurplus(actor) is not { } surplus ||
+        if (WarehouseForResident(actor) is not { } warehouse || StorageRoom(warehouse.InstanceId) == 0 || PersonalWarehouseSurplus(actor) is not { } surplus ||
             state.Position != warehouse.Position &&
             FindUnoccupiedRoute(actor, state.Position, warehouse.Position, 0).Count == 0)
             return;
@@ -49,7 +49,8 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, warehouse.Position, "town_warehouse", 0);
             return;
         }
-        var quantity = Math.Min(WarehouseLoadQuantity, AvailableLotQuantity(surplus) - WarehouseLoadQuantity);
+        var quantity = Math.Min(StorageRoom(warehouse.InstanceId), Math.Min(WarehouseLoadQuantity, AvailableLotQuantity(surplus) - WarehouseLoadQuantity));
+        if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"warehouse-stock:{WorldTick}:{actor}", actor, warehouse.TownId!, surplus.Id,
             quantity, "town_resources_stored", warehouse.InstanceId));

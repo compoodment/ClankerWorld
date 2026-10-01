@@ -63,6 +63,8 @@ everything that is available in the current build. See [what works today](../wha
   playtests):** to make names more varied, each agent's naming request suggests
   a fixed starting letter for that agent. In a test on one model this raised
   the number of different first names from 8 to 15 without extra requests.
+  [Player renaming](interface-and-art.md#player-guidance-and-orders) uses the
+  same full-name check and preserves the person's identity and historical text.
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, culture, and
@@ -92,14 +94,16 @@ everything that is available in the current build. See [what works today](../wha
   it a prerequisite for having a child.
 - **A child uses their own selected personal AI model once they leave infancy.**
   Infants do not make calls to their personal model. The parents' provider/model
-  choice can be stored at birth, then used when that agent enters the child
-  stage. This resolves the earlier open question about *whether* children use
+  choice is recorded at birth, then used when that agent enters the child stage.
+  This resolves the earlier open question about *whether* children use
   their own models; initial age-up thresholds are below. Jev must not be
   required for infant care, because Jev is optional per world. If the two
   parents choose different models, the **initiating parent's model** is used,
   as a disclosed tie-break. If the chosen model has no working key, the child
   shows "model needs setup" and idles safely. The game never substitutes a
-  different paid model.
+  different paid model. The owner can later select another personal model or
+  leave the child without one; an explicitly unconfigured child keeps using
+  built-in choices and does not inherit the world's default provider.
 - **Children are real social agents, not silent placeholders.** Their personal
   models can converse, play, learn, form friendships, and choose age-appropriate
   simple helping tasks. Adult-only decisions such as land deals and parenthood
@@ -138,10 +142,15 @@ everything that is available in the current build. See [what works today](../wha
 
 ### Agreed starter Town and remaining choices
 
+These setup decisions come from [issue #160](https://github.com/compoodment/ClankerWorld/issues/160)
+and its reviewed [design PR #296](https://github.com/compoodment/ClankerWorld/pull/296).
+
 The player chooses a **rough site for the first Town** in New World, with the
 best suitable areas shown as **guidance, not the only allowed locations**.
 Fertile land, reachable wood and stone, and short connected Roads make a site
 more suitable; lack of an ideal score does not forbid the player's choice.
+The current map tint and hovered tips are provisional advice from nearby map
+resources and open ground; they do not decide whether a site can be chosen.
 Water or another physically impossible location cannot hold the Town. Within
 the chosen rough site, Town generation automatically picks a feasible layout
 for **two Houses, a Warehouse, a Farmhouse and a Blacksmith**, connected by
@@ -180,9 +189,10 @@ placement, the local search extent, the placement boundary's exact distance
 measurement near tile/footprint edges, whether geometric proximity also
 requires a walkable route, and how changing site revalidates any positions or
 claims tied to the previous layout without clearing model/provider choices.
-Warehouse details remain open: formal ownership, how Town residency is
-determined, access when the building is outside all Town borders or borders
-change, and how its hard access gate relates to any future crime system. The
+Town residency follows the [agreed membership rules](towns.md#town-membership).
+Warehouse access across border changes and public salvage in an abandoned Town
+follow the [agreed Town rules](towns.md#borders-abandoned-towns-and-salvage).
+How its ordinary access gate relates to a future crime system remains open. The
 optional survival grace period still
 needs a duration and precise effects. Also open:
 whether unrelated newcomers can arrive without player action or are only
@@ -196,8 +206,9 @@ Computment briefly considered removing the close-relative pairing ban, then
 retracted that thought; the ban still stands. A model-usage meter and optional
 AI-usage limit have since been accepted; neither is a population cap.
 
-For inheritance, still open: the exact final-model-turn contract; which assets
-are personal versus already household-owned; conflicts between a will and
+Personal ownership is separate from storage or carrying location under the
+[agreed household goods rules](towns.md#household-goods-and-departure).
+For inheritance, still open: the exact final-model-turn contract; conflicts between a will and
 agent-made law; minors, multiple heirs, debts, and no-household cases; and
 whether a final message beyond the will is part of the death event. Clanker's
 proposed safety rule is to freeze the estate at death, validate the model's
@@ -240,20 +251,25 @@ another sprite family at first.
   in-world; inspecting a thought as the player does not broadcast it to anyone.
 - A conversation is a real joint activity with a reason, turns, and a chance to
   conclude, disagree, withdraw, or postpone. Ordinary job scheduling should
-  not cut it off mid-sentence. Danger or urgent needs may interrupt; a bounded
+  not cut it off mid-sentence. Danger or urgent needs can interrupt; a bounded
   final wrap-up round can avoid endless looping. If unresolved, say so rather
-  than fabricate agreement, and allow later resumption. The marriage-surname
-  conversation above is a special case: it must be started even across the
-  world, has the four-turn bound described above, and a marriage cannot
-  complete with its surname undecided. Ordinary conversations have no agreed
-  numeric turn limit yet; a provisional limit is recorded below. These are intended rules, not a claim that the
-  marriage conversation is implemented.
+  than fabricate agreement. Resuming requires both participants to choose it;
+  loading a saved world leaves an interrupted conversation stopped until they
+  agree again. The marriage-surname conversation above is a special case: it
+  must be started even across the world, has the four-turn bound described
+  above, and a marriage cannot complete with its surname undecided. The
+  ordinary conversation limits below are provisional and may change after
+  playtesting; they do not imply that the separate marriage-surname feature is
+  implemented.
 - **Each participant's own model speaks that participant's turns** in a
   conversation, as in the marriage-surname conversation above.
 - **Leaning toward (provisional; tuned in playtests):** a conversation has at
   most **six public turns**, three per participant, plus **one wrap-up
   round**. An agent starts a conversation by choosing a talk action, and each
-  agent has at most two conversations per world day.
+  agent has at most two conversations per world day. Both participants must
+  accept the invitation, any later resumption, and the same structured
+  wrap-up before it can apply an effect. Spoken text alone never changes the
+  world or counts as agreement.
 - **Spoken promises are not tracked as commitments in the first version.**
   Tracking whether promises are kept or broken comes later.
 - Socializing agents display a chat bubble above their sprites. Clicking opens
@@ -277,23 +293,28 @@ another sprite family at first.
   expose one agent's private memories to another. Jev does not replace the
   agent's personal model or become mandatory for memory to work. With Jev off,
   the game still needs a functioning memory/retrieval path.
-- **Leaning toward (provisional): a lesson teaches a saved skill.** A skill,
+- **Agreed: a lesson teaches a saved skill.** A skill,
   such as farming or smithing, is saved for the learner and the lesson records
   who taught it. In the first version a skill does not change what an agent is
   able to do. Later, skills could speed up work or unlock advanced tools, but
   that is not decided. Agents start with no skills, and an agent first gains a
   skill by finishing that kind of work.
+  The first version records building, farming, crafting and smithing. An adult
+  can ask a free, healthy adult who already knows that skill to teach it. Both
+  remain free to refuse or stop; completing a lesson keeps the teacher and time
+  in the learner's record. Lessons do not assign work roles.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 
 ### Still to decide
 
-Real token and turn budgets, conversation frequency beyond the provisional
-limits above, group-planning mechanics, interrupt/resume behavior, memory
+Real token budgets and conversation costs, whether the provisional frequency
+and turn limits above feel right, group-planning mechanics, memory
 importance/retention rules, compaction triggers and fallback method without
 Jev, and Jev's exact role need implementation and playtesting. The budgets
-stay open until they are measured in play. The proposed lifecycle is accepted
-as a direction, not proof that it will feel right in the finished game.
+stay open until they are measured in play. The bounded consent and
+interrupt/resume behavior is the current baseline, not proof that it will feel
+right in the finished game.
 The September 29 external code review raised additional **questions, not
 decisions**. On 30 September computment settled or deferred three of them:
 each participant's own model speaks its own conversation turns (agreed above);

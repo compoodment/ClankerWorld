@@ -4,9 +4,9 @@ using Godot;
 namespace ClankerWorld.GodotClient;
 
 /// <summary>
-/// Light on-map feedback that never takes clicks: a one-line readout of the
-/// ground under the pointer so the map can be explored without opening the
-/// tile card. The HUD's pause control already shows when time is stopped.
+/// Light on-map feedback that never takes clicks: a compact readout of the
+/// ground under the pointer, with Town-site advice during paused setup. The
+/// HUD's pause control already shows when time is stopped.
 /// </summary>
 public partial class Main
 {
@@ -14,6 +14,7 @@ public partial class Main
     private readonly Label hoverReadoutLabel = new();
     private Vector2I? hoverReadoutTile;
     private OwnerWorldSnapshot? hoverReadoutSnapshot;
+    private bool hoverReadoutTownSiteMode;
 
     private void BuildMapHud(Control canvas)
     {
@@ -43,13 +44,20 @@ public partial class Main
         {
             hoverReadoutTile = null;
             hoverReadoutSnapshot = null;
+            hoverReadoutTownSiteMode = false;
             hoverReadout.Hide();
             return;
         }
-        if (hoverReadoutTile == point && ReferenceEquals(hoverReadoutSnapshot, snapshot) && hoverReadout.Visible) return;
+        var townSiteMode = choosingFirstTownSite;
+        if (hoverReadoutTile == point && ReferenceEquals(hoverReadoutSnapshot, snapshot) &&
+            hoverReadoutTownSiteMode == townSiteMode && hoverReadout.Visible) return;
         hoverReadoutTile = point;
         hoverReadoutSnapshot = snapshot;
-        hoverReadoutLabel.Text = HoverSummary(snapshot, terrainMap, point);
+        hoverReadoutTownSiteMode = townSiteMode;
+        var siteAdvice = townSiteMode
+            ? terrainLayer.CurrentTownSiteGuidance?.At(point.X, point.Y)
+            : null;
+        hoverReadoutLabel.Text = HoverSummary(snapshot, terrainMap, point, siteAdvice);
         hoverReadout.Show();
         PositionMapHud();
     }
@@ -58,7 +66,8 @@ public partial class Main
     private static OwnerWorldBridge? BridgeAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>
         snapshot.Bridges.FirstOrDefault(bridge => bridge.Span.Any(point => point.X == tile.X && point.Y == tile.Y));
 
-    private static string HoverSummary(OwnerWorldSnapshot snapshot, WorldTerrainMap terrain, Vector2I tile)
+    private static string HoverSummary(OwnerWorldSnapshot snapshot, WorldTerrainMap terrain, Vector2I tile,
+        TownSiteAssessment? siteAdvice = null)
     {
         var parts = new List<string>();
         var water = WorldTerrainMap.HydrologyName(terrain.HydrologyAt(tile.X, tile.Y));
@@ -68,6 +77,10 @@ public partial class Main
         if (WorldTerrainMap.VegetationName(terrain.VegetationAt(tile.X, tile.Y)) is { } vegetation and not "None")
             parts.Add(vegetation);
         if (terrain.IsHillAt(tile.X, tile.Y)) parts.Add("Hills");
+        if (terrain.FertilityAt(tile.X, tile.Y) is { } fertility && fertility > 0)
+            parts.Add($"{WorldTerrainMap.FertilityName(fertility)} soil");
+        if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
+            parts.Add($"{Pretty(field.Stage)} field" + (field.Crop is null ? "" : $" · {Pretty(field.Crop)}"));
         var building = snapshot.PlacedBuildings.FirstOrDefault(item =>
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
             tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height);
@@ -79,6 +92,25 @@ public partial class Main
         if (BridgeAt(snapshot, tile) is not null) parts.Add("Bridge");
         if (snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } owner)
             parts.Add(owner.Name);
-        return string.Join(" · ", parts);
+        var summary = string.Join(" · ", parts);
+        return siteAdvice is { } advice
+            ? $"{summary}\nTown-site advice: {TownSiteFactorSummary(advice)}"
+            : summary;
+    }
+
+    private static string TownSiteFactorSummary(TownSiteAssessment advice)
+    {
+        var roadSpace = advice.OpenGroundForRoads switch
+        {
+            >= 0.7f => "room for Roads",
+            >= 0.35f => "some road space",
+            _ => "little open ground for Roads",
+        };
+        return string.Join(" · ",
+            advice.HasNearbyFood ? "nearby food" : "no food nearby",
+            advice.HasNearbyFarmland ? "fertile ground nearby" : "little fertile ground nearby",
+            advice.HasNearbyWood ? "nearby wood" : "no wood nearby",
+            advice.HasNearbyStone ? "nearby stone" : "no stone nearby",
+            roadSpace);
     }
 }

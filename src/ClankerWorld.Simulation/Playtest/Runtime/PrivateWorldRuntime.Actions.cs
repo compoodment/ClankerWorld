@@ -64,7 +64,8 @@ public sealed partial class PrivateWorldRuntime
         if (interactionRange == 0 && worldSimulation.Buildings.Any(building =>
                 building.Position == destination &&
                 building.HouseholdId is not null &&
-                building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId))
+                (building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId ||
+                 WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId))))
             occupied.Remove(destination);
         // An occupied exact destination cannot be reached. Keep the household
         // sharing exception above, and avoid searching an entire map for it.
@@ -179,14 +180,21 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
             inventory,
             $"food:harvest:{WorldTick:D10}:{inhabitantId}",
-            source.Kind == "fruit" ? "fruit" : "food",
+            source.Kind == "fruit" ? "fruit" : source.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries",
             inhabitantId,
             harvestYield,
             WorldTick));
 
         AppendEvent("food_harvested", $"{inhabitantId}:{harvestYield}");
         if (source.TreeKind == TreeGrowthRules.Orchard)
+        {
+            var lotId = $"orchard-seed:{WorldTick:D10}:{inhabitantId}";
+            ApplyInventoryTransition(inventory => InventoryFixture.Reserve(
+                InventoryFixture.AddLot(inventory, lotId, TreeGrowthRules.OrchardSeedItem, inhabitantId,
+                    TreeGrowthRules.OrchardSeedsPerPick, WorldTick), OrchardReplantingPrefix + lotId,
+                inhabitantId, lotId, 1, "orchard_replanting", long.MaxValue));
             AppendEvent("fruit_harvested", $"{inhabitantId}:{source.Id}:{harvestYield}:picked");
+        }
     }
 
     private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
@@ -207,12 +215,13 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Contains(tag, StringComparer.Ordinal)))
         .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
 
-    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.StorageBuildingId is { } buildingId
+    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
+        : lot.StorageBuildingId is { } buildingId
         ? worldSimulation.Buildings.Single(building => building.InstanceId == buildingId).Position
         : SettlementStoragePosition;
 
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
-        lot.StorageBuildingId is null ? ResourceInteractionRange : 0;
+        lot.StorageBuildingId is null && lot.GroundPosition is null ? ResourceInteractionRange : 0;
 
     private InventoryLot? AvailableSharedFood(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && MayCollectSharedFood(actor)
@@ -253,7 +262,7 @@ public sealed partial class PrivateWorldRuntime
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, inhabitantId, lot.Id, 1));
         inhabitants[inhabitantId] = state with
         {
-            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + 3_000),
+            HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + FoodNourishment(lot.ItemKind)),
             Survival = AfterMeal(state, lot)
         };
         AppendEvent("food_consumed", inhabitantId);

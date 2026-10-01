@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Persistence;
+using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Viewer.Observation;
 
@@ -18,12 +19,20 @@ public sealed record ViewerTile(int X, int Y, string Terrain);
 public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding, string Data);
 /// <summary>Independent row-major byte layers; terrain remains a compatibility projection.</summary>
 public sealed record ViewerPackedMapLayers(int Width, int Height, string Encoding,
-    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation);
+    string Climate, string Elevation, string Hydrology, string Surface, string Vegetation)
+{
+    public string? Fertility { get; init; }
+}
+public sealed record ViewerFarmField(ViewerPosition Position, string HouseholdId, string Stage, string? Crop,
+    int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
 {
     public ViewerPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
+    public GeographyCandidateReport? Coverage { get; init; }
+    public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
@@ -129,6 +138,7 @@ public sealed record ViewerInhabitant(
     public ViewerSurvival? Survival { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
+    public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
     public IReadOnlyList<ViewerSocialStanding> SocialStanding { get; init; } = [];
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
@@ -151,7 +161,10 @@ public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoint
     int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
-public sealed record ViewerLesson(string TeacherName, string Role, string Stage, int Progress, int Required);
+// Keep the existing observation field name so older owner clients can still display a lesson.
+public sealed record ViewerLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,
+    string Stage, int Progress, int Required);
+public sealed record ViewerSkill(string Kind, long LearnedTick, string? TeacherId, string? TeacherName);
 public sealed record ViewerProficiency(int Building, int Farming, int Crafting);
 public sealed record ViewerSocialStanding(string SubjectId, string SubjectName, int Trust);
 
@@ -231,7 +244,13 @@ public sealed record ViewerPlacedBuilding(
     string? TownId = null,
     string? HouseholdId = null,
     IReadOnlyList<ViewerInventoryEntry>? StoredItems = null,
-    ViewerPosition? Entrance = null);
+    ViewerPosition? Entrance = null,
+    int? StorageCapacity = null,
+    int StoredQuantity = 0,
+    int FootprintRevision = 0,
+    IReadOnlyList<string>? InvitedGuests = null,
+    string? ExpansionState = null,
+    string? ExpansionFailure = null);
 
 public sealed record ViewerProductionJob(
     string JobId,
@@ -286,6 +305,28 @@ public sealed record ViewerBridge(
     IReadOnlyList<ViewerPosition> Span,
     long BuiltTick);
 
+public sealed record ViewerConversationTurn(
+    string Id,
+    string SpeakerId,
+    string SpeakerName,
+    string Text,
+    long WorldTick,
+    IReadOnlyList<string> ListenerIds,
+    bool IsWrapUp);
+
+public sealed record ViewerConversation(
+    string Id,
+    string InitiatorId,
+    string InitiatorName,
+    string InviteeId,
+    string InviteeName,
+    string Status,
+    string? Interruption,
+    string? Outcome,
+    long CreatedTick,
+    long LastUpdatedTick,
+    IReadOnlyList<ViewerConversationTurn> Turns);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -300,6 +341,8 @@ public sealed record ViewerWorldSnapshot(
     public ViewerPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
+    public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
@@ -316,6 +359,9 @@ public sealed record ViewerWorldSnapshot(
     /// backwards-compatible Phase 2 diagnostic clients.
     /// </summary>
     public IReadOnlyList<ViewerInhabitant> Inhabitants { get; init; } = [];
+
+    /// <summary>Recent public dialogue only; private thoughts never enter this projection.</summary>
+    public IReadOnlyList<ViewerConversation> Conversations { get; init; } = [];
 
     /// <summary>
     /// Present for the Phase 2 composite host. Its separate topology revision

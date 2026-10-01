@@ -51,8 +51,10 @@ perspective; no parallel isometric art set is planned.
 
 The surface list is a **small art vocabulary**, not a rigid list of
 natural biomes. Forests and mountain regions should visibly appear in default
-worlds. Grass, stone and snow should suit their generated climate; cacti were
-previously an example but are now disfavored, pending a final exclusion.
+worlds. Grass, stone and snow should suit their generated climate. Cacti are
+back as desert-only plant cover (October 1), and fertility is a property of
+the land, with fields tilled by agents rather than placed as objects (see
+[The world](world.md#maps-plants-and-weather)).
 Forest-floor art should correspond to a visible tree or plant, mostly trees;
 grass-surfaced forest art can carry scattered trees. Hills at mountain bases
 are agreed as a visual layer only; for now a hill costs the same to walk as
@@ -156,8 +158,8 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 
 | # | Status | Building / footprint | Finished-game function and art |
 | --- | --- | --- | --- |
-| 6.1 | Agreed | House: 1×1, 1×2, 2×2 | Three readable exterior footprints; private household food/resources, cooking and storm refuge. Invited guests may shelter from storms but get no access to the House's stock or cooking. Expansion raises storage, **not** occupancy. No beds or sleeping props required. |
-| 6.2 | Agreed | Warehouse: 2×2, 2×3 | Two exterior footprints; physical communal **non-food** resource stock for Town residents only, checked when they pick something up. What someone already carries stays theirs. Any Town resident may plan its expansion once its stock is nearly full. |
+| 6.1 | Agreed | House: 1×1, 1×2, 2×2 | Three readable exterior footprints; private household food/resources, cooking and storm refuge. Expansion increases storage and permanent-resident places: **3/4 at 1×1, 6/8 at 1×2, 12/16 at 2×2**, with the larger limit for a dominant family under the [resident and relocation rules](towns.md#house-resident-capacity-and-relocation). Invited guests may shelter without taking resident places or gaining stock/cooking access. No beds or sleeping props required. |
+| 6.2 | Agreed | Warehouse: 2×2, 2×3 | Two exterior footprints; physical communal **non-food** resource stock for residents of its recorded Town, checked at pickup even if a border change leaves it outside the border. An abandoned Town's unreserved communal stock permits [public salvage until revival](towns.md#borders-abandoned-towns-and-salvage). What someone already carries stays theirs. Any Town resident may plan its expansion once its stock is nearly full. |
 | 6.3 | Agreed | Store: 1×1, 1×2 | Two exterior footprints; **optional** household shop, held by the household that builds it (a Farmhouse or Tailor Shop household may build one), with goods physically delivered and stocked there before sale. |
 | 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, held by a starting household. Household-held, **not communal**: the holding household works there and sells directly from it, and any adult resident of that household may use it. A Farmhouse household may also build a Silo and an optional Store. |
 | 6.5 | Agreed | Farm fields | Prepared/seeded/growing/ready/harvested states for each accepted crop, not visible building interiors. |
@@ -165,7 +167,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
-| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn; rules for reservation, stall ownership and filling it are open. Trading admits any Town's agents. |
+| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn. Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Plot reservation, stall ownership and how new stalls fill the plot remain open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
@@ -198,7 +200,7 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports (see [The world](world.md#first-boat-and-port-travel)). Quantities and speed are provisional; queueing/recovery details remain open. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Quantities and speed are provisional; queueing and who grants visitor permission remain open. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
@@ -271,7 +273,8 @@ are also agreed additions.
 
 Still open: optional starter supplies beyond the guaranteed minima; whether a
 Blacksmith offers refined metal directly in its business catalogue; exact Port
-clearance and blocked-arrival recovery; Market stall reservation; currency and
+clearance, visitor-permission authority and boat queueing; Market plot
+reservation, stall ownership and construction; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;
 and late-development invention/mod art generation and fallback. Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery
