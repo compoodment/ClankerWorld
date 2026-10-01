@@ -402,6 +402,19 @@ public partial class Main
         var assignments = providerConfiguration?.Assignments ?? [];
         var routine = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "routine");
         var planning = assignments.FirstOrDefault(item => item.InhabitantId == childId && item.Role == "planning");
+        var child = observationSession.Current?.Baseline.Snapshot.Inhabitants.FirstOrDefault(item => item.Id == childId);
+        var birthProvider = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-provider")?.Detail;
+        var birthModel = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-id")?.Detail;
+        if ((routine is null || planning is null) && birthProvider is "openai" or "ollama-cloud" &&
+            !string.IsNullOrWhiteSpace(birthModel))
+        {
+            var pendingModelName = $"{ProviderDisplayName(birthProvider)} · {birthModel}";
+            if (routine is null && planning is null)
+                return $"Model needs setup: {pendingModelName} was chosen at birth; its settings are waiting to be saved. Built-in choices continue until setup is recovered.";
+
+            var pendingRoute = $"{pendingModelName} waiting for saved setup; built-in choices continue";
+            return $"Routine: {(routine is null ? pendingRoute : ChildModelRouteSummary(routine))} · Planning: {(planning is null ? pendingRoute : ChildModelRouteSummary(planning))}.";
+        }
         if (IsUnconfiguredChildRoute(routine) && IsUnconfiguredChildRoute(planning))
             return "No personal model selected for this child. Safe local decisions continue until a model is assigned; world defaults are not used.";
 

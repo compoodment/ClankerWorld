@@ -56,6 +56,10 @@ public sealed partial class SettlementParenthoodTests
             Assert.Equal("initiating-parent-model", child.ChildModelSelection!.ModelId);
             Assert.Equal("openai", child.ChildModelSelection.Provider);
             Assert.Equal(0, callCounts.GetValueOrDefault(childId));
+            Assert.DoesNotContain(providers.CaptureStatus().Assignments ?? [], item => item.InhabitantId == childId);
+            var shown = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(item => item.Id == childId);
+            Assert.Contains(shown.DecisionFactors, factor => factor.Key == "birth-model-provider" && factor.Detail == "openai");
+            Assert.Contains(shown.DecisionFactors, factor => factor.Key == "birth-model-id" && factor.Detail == "initiating-parent-model");
 
             var birthTick = world.WorldTick;
             var savedText = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(stateFile.Path));
@@ -132,6 +136,26 @@ public sealed partial class SettlementParenthoodTests
                 item => item.InhabitantId == childId && item.Role == "planning").Model);
 
             var saved = restored.ExportState();
+            var death = SocietyFixture.Kill(saved.Society.Society, childId, SocietyDeathCause.Accident).Checkpoint;
+            var archivedChild = new PlaytestDeceasedInhabitantState(childId, death.WorldTick,
+                death.AgeAt(death.GetInhabitant(childId), death.WorldTick), child);
+            var archived = saved with
+            {
+                Society = saved.Society with { Society = death },
+                Inhabitants = saved.Inhabitants.Where(item => item.InhabitantId != childId).ToArray(),
+                DeceasedInhabitants = [.. saved.DeceasedInhabitants ?? [], archivedChild],
+            };
+            Assert.Equal(child.ChildModelSelection, Assert.Single(PrivateWorldRuntimeCodec.Decode(
+                PrivateWorldRuntimeCodec.Encode(archived)).DeceasedInhabitants!).LastPhysical.ChildModelSelection);
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
+                archived with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }));
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(archived with
+            {
+                DeceasedInhabitants = [archivedChild with
+                {
+                    LastPhysical = child with { ChildModelSelection = child.ChildModelSelection! with { Role = "invalid" } },
+                }],
+            }));
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
                 saved with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }));
             var hungryChildState = saved with

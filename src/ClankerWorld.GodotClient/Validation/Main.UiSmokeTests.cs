@@ -387,6 +387,47 @@ public partial class Main
             if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · gpt-6.1-sol needs setup", StringComparison.Ordinal) ||
                 !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
                 throw new InvalidOperationException("A child with a role-specific override must see both saved routes and setup state.");
+
+            snapshot = snapshot with
+            {
+                Inhabitants = [inhabitant with
+                {
+                    DecisionFactors = [new("birth-model-provider", "openai"), new("birth-model-id", "frozen-before-save-model")],
+                }],
+            };
+            reconnect = reconnect with { Baseline = reconnect.Baseline with { Snapshot = snapshot } };
+            observationSession.ResetAfterLoad();
+            if (!observationSession.TryAccept(reconnect, 0, out failure))
+                throw new InvalidOperationException($"A pending birth model observation must be coherent: {failure}");
+            providerConfiguration = childConfiguration with { Assignments = [] };
+            PopulateCognitionTargets();
+            cognitionTargetChoice.Select(1);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Model needs setup", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("waiting", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal))
+                throw new InvalidOperationException("A saved birth choice awaiting provider storage must remain visible instead of appearing unconfigured.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("Routine: OpenAI · frozen-before-save-model waiting", StringComparison.Ordinal) ||
+                !cognitionConfigurationStatus.Text.Contains("Planning: no personal model", StringComparison.Ordinal))
+                throw new InvalidOperationException("A pending birth route must remain visible alongside an explicit role-specific override.");
+
+            providerConfiguration = childConfiguration with
+            {
+                Assignments = [new(childId, "routine", "inherit"), new(childId, "planning", "inherit")],
+            };
+            RenderProviderConfiguration();
+            if (!cognitionConfigurationStatus.Text.Contains("No personal model selected", StringComparison.Ordinal) ||
+                cognitionConfigurationStatus.Text.Contains("frozen-before-save-model", StringComparison.Ordinal))
+                throw new InvalidOperationException("An explicit no-model override must take precedence over the historical birth choice.");
         }
         finally
         {

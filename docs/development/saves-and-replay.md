@@ -19,7 +19,7 @@ events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
-Private-world schema 32 records an agent's learned skills and each lesson's
+Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
 references and times, and rejects null entries in living or deceased skill
@@ -27,7 +27,7 @@ lists as damaged checkpoint data. Current lesson progress and skills survive pau
 save/load and replay. Old alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
-At birth, a child also saves its personal-model role, provider endpoint, model
+Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
 parent who began the family plan is the tie-break. The provider store preserves that
@@ -40,7 +40,9 @@ no-personal-model setting, is saved separately from the historical birth
 choice. That setting survives ticks and reloads; an explicitly unconfigured
 child uses built-in choices instead of the world default. Infants make no
 personal-model calls; normal presence, budget and admission checks still apply
-after infancy.
+after infancy. Living and deceased profiles validate the descriptor against its
+recorded birth and schema. While provider storage is being recovered, the Model
+panel keeps showing the selected provider and model with a setup message.
 
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
@@ -183,6 +185,7 @@ stands. A save that fails these checks is refused with a reason and kept.
 | Schema 30 | Building footprint revisions, reserved expansion jobs and saved House guest invitations. Expanded geometry is used by validation, Town assignment, construction and observation; building IDs and stock locations stay the same. Earlier builds refuse these checkpoints instead of losing expansion or invitation records. |
 | Schema 31 | Learned skills and skill-based lessons, including learning time and optional teacher in living and deceased profiles. Earlier formats cannot hold these records; older builds refuse these checkpoints instead of discarding skills. Model-attempt and building-expansion records remain distinct. |
 | Schema 32 | Optional per-adult housing state: a pending request to live in another household's House (the household asked, its recorded adult members, including adults who join or come of age while pending, their answers and the 120-tick expiry), recent refusals and the current housing blocker. Loading checks that the applicant has no household, that members and answers name known people, and that refusals name known households. An older schema that carries housing state is refused. |
+| Schema 33 | A child's immutable birth-model descriptor in living and deceased profiles: personal role, provider endpoint, model, installation-local key-slot ID and parental selection reason. Owner changes to each decision role remain separate. API-key bytes stay in protected installation storage. An older schema carrying a birth descriptor is refused. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
