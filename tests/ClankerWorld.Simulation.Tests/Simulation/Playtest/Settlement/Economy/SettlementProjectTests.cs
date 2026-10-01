@@ -444,11 +444,22 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Contains(world.ExportState().Events, item => item.Kind == "material_gathered" && item.Detail.Contains(":wood:", StringComparison.Ordinal));
         if (!world.Society.Inventory.Reservations.Any(item => item.Purpose.StartsWith("building:", StringComparison.Ordinal)))
             output.WriteLine(CapacityDiagnostic(world));
-        Assert.Contains(world.Society.Inventory.Reservations, reservation =>
+        var completed = world.Society.Inventory.Reservations.Where(reservation =>
             reservation.Purpose.StartsWith("building:", StringComparison.Ordinal) &&
-            reservation.State == InventoryReservationState.Completed &&
-            world.WorldSimulation.Buildings.Any(building => building.HouseholdId == reservation.OwnerId));
-        Assert.NotEmpty(world.WorldSimulation.Buildings);
+            reservation.State == InventoryReservationState.Completed).ToArray();
+        Assert.NotEmpty(completed);
+        foreach (var reservation in completed)
+        {
+            var built = Assert.Single(world.WorldSimulation.Buildings,
+                building => "building:" + building.InstanceId == reservation.Purpose);
+            var household = world.Society.Inhabitants.FirstOrDefault(person => person.Id == reservation.OwnerId)
+                ?.HouseholdId ?? reservation.OwnerId;
+            Assert.Equal(household, built.HouseholdId);
+        }
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Validate();
     }
 
     private static string CapacityDiagnostic(PrivateWorldRuntime world) => System.Text.Json.JsonSerializer.Serialize(new

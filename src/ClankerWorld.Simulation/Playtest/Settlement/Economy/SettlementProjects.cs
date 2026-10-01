@@ -561,7 +561,8 @@ public sealed partial class PrivateWorldRuntime
             AcquireProjectInput(inhabitantId, state, missing, constructionOwner);
             return;
         }
-        if (survivalState is not null && !HasCarriedItem(inhabitantId, "tool") && SharedItem("tool", inhabitantId) is not null)
+        if (survivalState is not null && FreeCarryCapacity(inhabitantId) > 0 &&
+            !HasCarriedItem(inhabitantId, "tool") && SharedItem("tool", inhabitantId) is not null)
         {
             CollectEquipment(inhabitantId, state, "tool");
             return;
