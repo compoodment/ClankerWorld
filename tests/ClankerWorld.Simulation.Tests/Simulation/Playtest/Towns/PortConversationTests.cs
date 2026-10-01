@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -18,22 +20,30 @@ public sealed partial class PortBoatTests
         var passenger = state.Inhabitants[0].InhabitantId;
         var landActor = state.Inhabitants[1].InhabitantId;
         state = AtConversationPort(state, passenger, landActor, "port-one");
+        var household = state.Society.Society.GetInhabitant(passenger).HouseholdId!;
+        var food = state.Society.Society.Inventory.Lots.First(lot => lot.OwnerId == household && FoodItems.IsEdible(lot.ItemKind) && lot.Quantity > 1);
+        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "boat-conversation-food", household, passenger,
+            food.Id, 1, "boat_food_collected");
+        var carriedFood = Assert.Single(inventory.Lots, lot => lot.OwnerId == passenger && FoodItems.IsEdible(lot.ItemKind));
+        Assert.Equal(food.Id, carriedFood.ProvenanceLotId);
+        var destinationLand = Geometry(state, "port-two").LandTiles;
+        var blockers = state.Inhabitants.Skip(2).Take(2).ToArray();
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == passenger
+                ? person with { HungerBasisPoints = 3_500 }
+                : person.InhabitantId == blockers[0].InhabitantId ? person with { Position = destinationLand[0] }
+                : person.InhabitantId == blockers[1].InhabitantId ? person with { Position = destinationLand[1] }
+                : person).ToArray()
+        };
         using var departing = PrivateWorldRuntime.Restore(state, _ => new Pick());
         var boatId = Assert.Single(departing.Boats).Id;
         Assert.True(departing.StartBoatJourney(boatId, passenger, "port-two").Applied);
         var aboard = departing.ExportState();
         var formerPassengerPosition = state.Inhabitants.Single(person => person.InhabitantId == passenger).Position;
-        // A restored passenger without an old intention receives a real aboard observation.
         aboard = aboard with
         {
-            Society = aboard.Society with
-            {
-                Cognition = aboard.Society.Cognition with
-                {
-                    Runtimes = aboard.Society.Cognition.Runtimes.Select(runtime => runtime.InhabitantId == passenger
-                        ? runtime with { CurrentIntention = null } : runtime).ToArray()
-                }
-            },
             Inhabitants = aboard.Inhabitants.Select(person => person.InhabitantId == landActor
                 ? person with { Position = formerPassengerPosition, LastDecisionContext = null }
                 : person).ToArray()
@@ -45,7 +55,12 @@ public sealed partial class PortBoatTests
         Assert.Contains(provider.PlanningRequests, request => request.Observation.InhabitantId == landActor);
         Assert.DoesNotContain(provider.PlanningRequests, request => request.Observation.InhabitantId == landActor &&
             request.Observation.Candidates.Any(candidate => candidate.Id == $"talk:{passenger}"));
-        Assert.Contains(provider.PlanningRequests, request => request.Observation.InhabitantId == passenger);
+        // Actual food keeps a meaningful aboard choice available. The blocked landing
+        // leaves time for the saved decision cadence without forcing another poll.
+        for (var tick = 0; tick < 40 && provider.PlanningRequests.All(request => request.Observation.InhabitantId != passenger); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(provider.PlanningRequests, request => request.Observation.InhabitantId == passenger &&
+            request.Observation.Candidates.Any(candidate => candidate.Id == "consume_food"));
         Assert.All(provider.PlanningRequests.Where(request => request.Observation.InhabitantId == passenger), request =>
             Assert.All(request.Observation.Candidates, candidate => Assert.True(candidate.Id is "consume_food" or "safe_idle")));
         Assert.Empty(world.Conversations);
@@ -57,8 +72,17 @@ public sealed partial class PortBoatTests
         Assert.Equal((passenger, 2, "aboard-jug"), (world.Society.Inventory.GetLot("aboard-water").OwnerId,
             world.Society.Inventory.GetLot("aboard-water").Quantity, world.Society.Inventory.GetLot("aboard-water").ContainerLotId));
 
+        Assert.Equal((passenger, 1, food.Id), (world.Society.Inventory.GetLot(carriedFood.Id).OwnerId,
+            world.Society.Inventory.GetLot(carriedFood.Id).Quantity, world.Society.Inventory.GetLot(carriedFood.Id).ProvenanceLotId));
+        Assert.Equal(food.Quantity - 1, world.Society.Inventory.GetLot(food.Id).Quantity);
+        var unblocked = world.ExportState();
+        unblocked = unblocked with
+        {
+            Inhabitants = unblocked.Inhabitants.Select(person => blockers.FirstOrDefault(blocker => blocker.InhabitantId == person.InhabitantId) is { } blocker
+                ? person with { Position = blocker.Position } : person).ToArray()
+        };
         using var traveling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new Pick());
+            PrivateWorldRuntimeCodec.Encode(unblocked)), _ => new Pick());
         for (var tick = 0; tick < 100 && traveling.Boats[0].Journey is not null; tick++)
             Assert.True((await traveling.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("port-two", traveling.Boats[0].DockedPortId);
