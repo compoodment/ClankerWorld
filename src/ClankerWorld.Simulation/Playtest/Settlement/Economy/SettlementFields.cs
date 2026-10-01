@@ -139,10 +139,16 @@ public sealed partial class PrivateWorldRuntime
                 SetFarmField(field with { Stage = FarmFieldStage.Prepared, Work = null });
                 break;
             case FarmWorkKind.Plant:
-                ApplyInventoryTransition(inventory => InventoryFixture.ConsumeReservation(inventory, work.SeedReservationId!));
+                ApplyInventoryTransition(inventory =>
+                {
+                    if (field.ReplantingReservationId is { } previous && field.Crop != work.Crop && ActiveFarmReservation(previous))
+                        inventory = InventoryFixture.ReleaseReservation(inventory, previous, "field_crop_changed");
+                    return InventoryFixture.ConsumeReservation(inventory, work.SeedReservationId!);
+                });
                 SetFarmField(field with { Stage = FarmFieldStage.Planted, Crop = work.Crop, PlantedTick = WorldTick,
                     ReadyTick = checked(WorldTick + FarmFieldRules.GrowthTicks(worldSystems.Config.TicksPerDay, fertility.At(field.Position))),
-                    Tended = false, Work = null });
+                    Tended = false, Work = null,
+                    ReplantingReservationId = field.Crop == work.Crop ? field.ReplantingReservationId : null });
                 break;
             case FarmWorkKind.Tend:
                 SetFarmField(field with { Tended = true, Work = null });
@@ -153,7 +159,8 @@ public sealed partial class PrivateWorldRuntime
         }
         CreditCompletedWork(workerId, "farming");
         AppendEvent(work.Kind == FarmWorkKind.Till ? "field_prepared" : work.Kind == FarmWorkKind.Plant ? "field_planted" :
-            work.Kind == FarmWorkKind.Tend ? "field_tended" : "field_harvested", $"{workerId}:{FarmFieldRules.FieldId(field.Position)}:{field.Crop ?? work.Crop}");
+            work.Kind == FarmWorkKind.Tend ? "field_tended" : "field_harvested",
+            $"{workerId}:{FarmFieldRules.FieldId(field.Position)}:{(work.Kind == FarmWorkKind.Plant ? work.Crop : field.Crop)}");
         return true;
     }
 

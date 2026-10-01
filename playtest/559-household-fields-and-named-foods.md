@@ -1,0 +1,3 @@
+Try a fresh temperate world with the built-in chooser. Watch a household collect a hoe, prepare neighbouring fields, carry seeds, tend and harvest crops, and carry the harvest to private farm storage. Let food run low and check that planting stock is kept and used for another crop.
+
+Inspect each crop stage and ground stock at 100% and 200% interface size, including the map overview and household property filter. Save during planting and carrying, reload, and check that no inputs or harvests duplicate. Try orchard planting and autumn fruiting. Automated checks cover these rules; a hands-on Windows playtest is still pending.

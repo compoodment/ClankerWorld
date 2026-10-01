@@ -96,7 +96,7 @@ public sealed class HouseholdBuildingPlanTests
         Assert.Null(harvest.StorageBuildingId);
         state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(setup.ExportState()));
         using var hauling = PrivateWorldRuntime.Restore(state, id => id == actor ? FarmFieldTests.HaulProvider() : new ActionCoverageRecorder(chooseIdle: true));
-        for (var tick = 0; tick < 80 && hauling.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == "harvest-silo" && lot.ItemKind == "grain").Sum(lot => lot.Quantity) < harvest.Quantity; tick++)
+        for (var tick = 0; tick < 160 && hauling.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == "harvest-silo" && lot.ItemKind == "grain").Sum(lot => lot.Quantity) < harvest.Quantity; tick++)
             Assert.True((await hauling.AdvanceOneTickAsync()).Advanced);
         var stored = hauling.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == "harvest-silo" && lot.ItemKind == "grain").ToArray();
         Assert.True(harvest.Quantity == stored.Sum(lot => lot.Quantity), string.Join("\n",

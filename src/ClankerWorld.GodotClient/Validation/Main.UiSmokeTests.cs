@@ -153,6 +153,38 @@ public partial class Main
                     scaleChoiceBounds.Position.X < settingsViewport.Position.X - 1 ||
                     scaleChoiceBounds.End.X > settingsViewport.End.X + 1)
                     throw new InvalidOperationException($"Game Settings escaped its usable bounds at 1440p and {percent}% UI Scale.");
+                var emptyLayer = Convert.ToBase64String(new byte[16]);
+                var fieldMap = smokeMap with
+                {
+                    PackedMapLayers = new OwnerWorldPackedMapLayers(4, 4, "map-layers-v2",
+                        emptyLayer, emptyLayer, emptyLayer, emptyLayer, emptyLayer)
+                    {
+                        Fertility = Convert.ToBase64String(Enumerable.Repeat((byte)67, 16).ToArray()),
+                    },
+                    Fields = [new(new(1, 1), "household:field-smoke", "growing", "cultivated_greens", 67, null, null)],
+                    GroundStocks = [new(new(1, 1), "household:field-smoke", "cultivated_greens", 3)],
+                    Stockpiles = [new("household:field-smoke", "Farm household", [])],
+                };
+                RenderMap(fieldMap);
+                householdPropertyFilter.ButtonPressed = true;
+                selectedTile = new(1, 1);
+                selectedTilePanel.Show();
+                RenderTileInspection(fieldMap);
+                for (var frame = 0; frame < 3; frame++)
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!selectedTileText.Text.Contains("Soil fertility: Good", StringComparison.Ordinal) ||
+                    !selectedTileText.Text.Contains("Field: Growing", StringComparison.Ordinal) ||
+                    !selectedTileText.Text.Contains("Used by: Farm household", StringComparison.Ordinal) ||
+                    !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
+                    terrainLayer.HouseholdPropertyTileCount != 1 ||
+                    !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
+                    selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
+                    throw new InvalidOperationException($"Field ownership, crop and soil inspection must fit at {percent}% UI Scale.");
+                householdPropertyFilter.ButtonPressed = false;
+                selectedTile = null;
+                selectedTilePanel.Hide();
+                terrainLayer.SetSelectedTile(null);
+                RenderMap(smokeMap);
                 scaleIndex++;
             }
 

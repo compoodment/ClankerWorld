@@ -268,7 +268,8 @@ public partial class Main
         var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
         var propertyOwnerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
+            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId ??
+            snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y)?.HouseholdId;
         var lines = new List<string>
         {
             $"Tile {tile.X}, {tile.Y}",

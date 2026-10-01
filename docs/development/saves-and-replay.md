@@ -26,6 +26,14 @@ references and times. Current lesson progress and skills survive pause,
 save/load and replay. Old alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
+Private-world schema 32 adds household field tiles and their crop/work state.
+The saved inventory also records a ground position for physical harvest lots.
+Field ownership, work inputs, growth times and replanting reservations are
+validated together with inventory and map geometry. Current-format roundtrips
+retain intermediate work, carried deliveries and planting reserves. Fertility
+is derived from the seed and immutable map layers rather than saved per tile.
+Older alpha saves need not load; no field or orchard migration is provided.
+
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.

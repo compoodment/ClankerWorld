@@ -32,10 +32,10 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
             else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
             {
-                var crop = PlantableCrop(actor, field);
-                if (crop is not null)
+                var priority = 14;
+                foreach (var crop in PlantableCrops(actor, field))
                     candidates.Add(new(FarmCandidate(FarmWorkKind.Plant, field.Position, crop),
-                        $"Carry {FarmFieldRules.PlantingItem(crop).Replace('_', ' ')} to the field and plant {crop.Replace('_', ' ')}.", 14));
+                        $"Carry {FarmFieldRules.PlantingItem(crop).Replace('_', ' ')} to the field and plant {crop.Replace('_', ' ')}.", priority++));
             }
         }
         var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
@@ -78,10 +78,11 @@ public sealed partial class PrivateWorldRuntime
         return stock < population * FarmFieldRules.MealsPerPersonPerDay * 2;
     }
 
-    private string? PlantableCrop(string actor, FarmFieldState field) =>
-        new[] { FarmFieldRules.Greens, FarmFieldRules.Potatoes, FarmFieldRules.Grain }
-            .OrderBy(crop => field.Crop == crop ? -1 : fields.Count(item => item.HouseholdId == field.HouseholdId && item.Crop == crop))
-            .FirstOrDefault(crop => PlantingStock(actor, field, crop) is not null);
+    private IEnumerable<string> PlantableCrops(string actor, FarmFieldState field) =>
+        new[] { FarmFieldRules.Greens, FarmFieldRules.Grain, FarmFieldRules.Potatoes }
+            .OrderBy(crop => field.Crop == crop ? -1 : fields.Count(item => item.HouseholdId == field.HouseholdId &&
+                (item.Work?.Crop ?? item.Crop) == crop))
+            .Where(crop => PlantingStock(actor, field, crop) is not null);
 
     private InventoryLot? PlantingStock(string actor, FarmFieldState field, string crop)
     {
@@ -90,7 +91,7 @@ public sealed partial class PrivateWorldRuntime
         var reserve = inventory.Reservations.FirstOrDefault(item => item.Id == field.ReplantingReservationId &&
             item.State == InventoryReservationState.Reserved);
         return inventory.Lots.Where(lot => lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
-                (lot.OwnerId == actor && lot.GroundPosition is null || lot.OwnerId == field.HouseholdId) &&
+                (lot.OwnerId == actor && lot.GroundPosition is null && lot.StorageBuildingId is null || lot.OwnerId == field.HouseholdId) &&
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
