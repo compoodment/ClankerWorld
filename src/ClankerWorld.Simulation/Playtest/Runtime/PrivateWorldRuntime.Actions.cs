@@ -145,6 +145,11 @@ public sealed partial class PrivateWorldRuntime
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
         var source = AvailableFoodSource(inhabitantId, state.Position);
+        HarvestFoodAtSource(inhabitantId, state, source);
+    }
+
+    private void HarvestFoodAtSource(string inhabitantId, PlaytestInhabitantState state, MapResource? source)
+    {
         if (source is null || !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             AppendEvent("harvest_failed", $"{inhabitantId}:not_at_available_food");

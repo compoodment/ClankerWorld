@@ -713,6 +713,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var miningTier = ToolCapabilities.RequiredMiningTier(itemKind);
+        if (FoodItems.IsEdible(itemKind))
+        {
+            HarvestFoodAtSource(inhabitantId, state, source);
+            return;
+        }
         var neededTool = itemKind == "wood" && source.TreeKind is not null ? ToolKind.Axe : ToolKind.Pickaxe;
         var requiresTool = miningTier > 0 || itemKind == "wood" && source.TreeKind is not null;
         if (requiresTool && CarriedTool(inhabitantId, neededTool, Math.Max(1, miningTier)) is null)

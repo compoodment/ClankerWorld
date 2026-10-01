@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId is null && lot.ContainerLotId is null && lot.GroundPosition is null &&
                 AvailableLotQuantity(lot) > 0 &&
                 (lot.ItemKind != "grain" || FarmhouseForHousehold(householdId) is null))
-            .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
+            .OrderBy(lot => FoodItems.IsEdible(lot.ItemKind) ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private void AddHouseHaulCandidate(List<CognitionCandidate> candidates,
