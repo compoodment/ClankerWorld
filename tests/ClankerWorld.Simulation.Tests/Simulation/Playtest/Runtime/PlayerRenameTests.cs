@@ -40,6 +40,34 @@ public sealed class PlayerRenameTests
     }
 
     [Fact]
+    public void ConfirmingOwnUnchosenPlaceholderRetainsPlayerPrecedenceWithoutClaimingAnotherName()
+    {
+        using var initial = NewWorld();
+        var saved = initial.ExportState();
+        saved = saved with
+        {
+            Society = saved.Society with
+            {
+                Society = saved.Society.Society with
+                {
+                    Inhabitants = saved.Society.Society.Inhabitants.Select(person =>
+                        person.Id is First or Second ? person with { Name = "New agent" } : person).ToArray(),
+                },
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(saved);
+        Assert.True(world.Society.GetInhabitant(First).NeedsName);
+        Assert.True(world.RenameAgent(First, "New agent"));
+        Assert.False(world.Society.GetInhabitant(First).NeedsName);
+        Assert.Equal("New agent", world.Society.GetInhabitant(First).Name);
+        Assert.True(world.Society.GetInhabitant(Second).NeedsName);
+        var beforeRetry = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False(world.RenameAgent(First, "New agent"));
+        Assert.Equal(beforeRetry, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Throws<InhabitantNameTakenException>(() => world.RenameAgent(First, "NEW AGENT"));
+    }
+
+    [Fact]
     public void RenamePreservesIdentityAndHistoricalSpeechAcrossReloadAndRetry()
     {
         using var initial = NewWorld();
