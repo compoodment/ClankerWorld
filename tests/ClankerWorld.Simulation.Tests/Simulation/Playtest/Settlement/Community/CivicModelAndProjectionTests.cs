@@ -129,11 +129,13 @@ public sealed partial class TownHallTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var proposed = Assert.IsType<TownLawBallot>(world.TownCouncils.Single().Ballot);
         Assert.Equal(author, proposed.ProposerId);
+        Assert.Empty(proposed.Approvals);
         Assert.Equal("protected_grove", proposed.Key);
         Assert.Empty(world.TownCouncils.Single().Laws!);
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var restored = PrivateWorldRuntime.Restore(saved, _ => new CivicChooser(false, false));
         var inventoryBefore = JsonSerializer.Serialize(restored.Society.Inventory);
+        Assert.True(restored.VoteTownLaw(author, Town, true).Applied);
         foreach (var voter in restored.TownCouncils.Single().MemberIds.Where(id => id != author).Take(2))
             Assert.True(restored.VoteTownLaw(voter, Town, true).Applied);
         Assert.Null(restored.TownCouncils.Single().Ballot);
@@ -153,6 +155,7 @@ public sealed partial class TownHallTests
         state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
         using var world = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false));
         Assert.True(world.ProposeTownLaw(author, Town, "protected_grove", "Ask before felling Town trees.").Applied);
+        Assert.True(world.VoteTownLaw(author, Town, true).Applied);
         foreach (var voter in others.Take(2)) Assert.True(world.VoteTownLaw(voter, Town, true).Applied);
         var farmhouse = world.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
         state = world.ExportState() with

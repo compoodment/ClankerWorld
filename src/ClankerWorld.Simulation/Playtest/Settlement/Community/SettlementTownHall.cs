@@ -44,7 +44,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var townId = TownForResident(actor);
         var current = townCouncils.FirstOrDefault(item => item.TownId == townId);
-        if (current is null || !current.MemberIds.Contains(actor, StringComparer.Ordinal) || current.Ballot is not null ||
+        if (current is null || !TownAdultResidents(current.TownId).Contains(actor, StringComparer.Ordinal) || current.Ballot is not null ||
             current.Election is not null || TownHallFor(current.TownId) is null || WorldTick - current.LastResolutionTick < 300)
             return null;
         var population = towns.Single(town => town.Id == current.TownId).ResidentIds.Count;
@@ -175,16 +175,16 @@ public sealed partial class PrivateWorldRuntime
     {
         AdvanceTownCouncils();
         var current = townCouncils.FirstOrDefault(item => item.TownId == townId);
-        if (current is null || !AtTownHall(actor, townId) || !current.MemberIds.Contains(actor, StringComparer.Ordinal) ||
+        if (current is null || !AtTownHall(actor, townId) ||
             current.Election is not null || current.Ballot is not null || !ValidTownLawKey(key) ||
             string.IsNullOrWhiteSpace(text) || text.Length > 280 || text.Any(char.IsControl) ||
             foodPolicy is not (null or "open" or "essential_first") ||
             key == "shared_food" && (foodPolicy is null || repeal) || key != "shared_food" && foodPolicy is not null ||
             repeal && !(current.Laws ?? []).Any(law => law.Key == key) ||
             !repeal && key != "shared_food" && (current.Laws ?? []).Count >= 64 && !(current.Laws ?? []).Any(law => law.Key == key))
-            return new(false, "Only a current council member at this Town's Hall may propose a valid rule while no vote is pending.");
+            return new(false, "An adult resident at this Town's Hall may propose a valid rule while no vote is pending.");
         var ballot = new TownLawBallot(key, text.Trim(), actor, foodPolicy, repeal, WorldTick,
-            checked(WorldTick + CivicVoteLifetime), current.MemberIds.ToArray(), [actor], []);
+            checked(WorldTick + CivicVoteLifetime), current.MemberIds.ToArray(), [], []);
         SetTownCouncil(ResolveTownLawBallot(current with { Ballot = ballot }));
         ObserveTownRules(actor, townCouncils.Single(item => item.TownId == townId));
         AppendEvent("town_law_proposed", $"{townId}|{key}|{actor}");
@@ -246,7 +246,7 @@ public sealed partial class PrivateWorldRuntime
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
         var current = townCouncils.FirstOrDefault(item => item.TownId == TownForResident(actor));
         if (current is null) return;
-        if (current.MemberIds.Contains(actor, StringComparer.Ordinal) && current.Ballot is null && current.Election is null &&
+        if (current.Ballot is null && current.Election is null &&
             AtTownHall(actor, current.TownId) && WorldTick - current.LastResolutionTick >= 300)
             candidates.Add(new("council_town_author", "Propose a useful named Town social rule at this Hall; the council must vote before it changes anything.", 110));
         if (!HasTownCouncilDecision(actor)) return;

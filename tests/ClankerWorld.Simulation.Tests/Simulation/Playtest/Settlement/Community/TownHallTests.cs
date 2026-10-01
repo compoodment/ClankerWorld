@@ -74,6 +74,7 @@ public sealed partial class TownHallTests
         var adults = state.Society.Society.Inhabitants.Select(person => person.Id).ToArray();
         using var world = PrivateWorldRuntime.Restore(state, _ => new CivicChooser(false, false));
         Assert.True(world.ProposeTownLaw(adults[0], Town, "protected_grove", "Ask before felling Town trees.").Applied);
+        Assert.True(world.VoteTownLaw(adults[0], Town, true).Applied);
         Assert.True(world.VoteTownLaw(adults[1], Town, true).Applied);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
@@ -83,10 +84,12 @@ public sealed partial class TownHallTests
         Assert.Empty(loaded.TownCouncils.Single().Laws!);
         Assert.Equal("open", loaded.TownCouncils.Single().FoodPolicy);
         Assert.True(loaded.ProposeTownLaw(adults[0], Town, "protected_grove", "Ask before felling Town trees.").Applied);
+        Assert.True(loaded.VoteTownLaw(adults[0], Town, true).Applied);
         Assert.True(loaded.VoteTownLaw(adults[1], Town, true).Applied);
         Assert.True(loaded.VoteTownLaw(adults[2], Town, true).Applied);
         Assert.Single(loaded.TownCouncils.Single().Laws!);
         Assert.True(loaded.ProposeTownLaw(adults[0], Town, "protected_grove", "Repeal the tree request.", repeal: true).Applied);
+        Assert.True(loaded.VoteTownLaw(adults[0], Town, true).Applied);
         Assert.True(loaded.VoteTownLaw(adults[1], Town, true).Applied);
         Assert.True(loaded.VoteTownLaw(adults[2], Town, true).Applied);
         Assert.Empty(loaded.TownCouncils.Single().Laws!);
@@ -144,7 +147,7 @@ public sealed partial class TownHallTests
         Assert.Equal(4, world.TownCouncils.Single(council => council.TownId == Town).MemberIds.Count);
         Assert.All(world.TownCouncils, council => Assert.Null(council.Election));
         Assert.False(world.VoteTownLaw(outsiders[0], Town, true).Applied);
-        Assert.Equal([local], world.TownCouncils.Single(council => council.TownId == Town).Ballot!.Approvals);
+        Assert.Empty(world.TownCouncils.Single(council => council.TownId == Town).Ballot!.Approvals);
         Assert.False(world.ProposeTownLaw(local, "town:visitors", "other_town", "Take their goods.").Applied);
         world.Validate();
     }
