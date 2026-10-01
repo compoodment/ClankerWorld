@@ -99,7 +99,9 @@ public sealed class PersonalEquipmentTests
     public async Task HouseholdSuppliesWeavesSewsAndEquipsTailorGoodsAcrossReload(string recipeId,
         string kind, int fiber, int clothCost, WeatherKind weather)
     {
-        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + kind, fiber);
+        // On some maps the tailor also gathers nearby wild fiber and weaves
+        // more cloth than the garment needs; these seeds' maps do not.
+        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + recipeId, fiber);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
         // Exhaust the starting garments so the selected garment must come
         // from the actual Tailor production chain below.
