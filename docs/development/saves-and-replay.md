@@ -22,7 +22,8 @@ accounting. Saves store slot IDs and model choices, never API-key bytes.
 Private-world schema 32 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
-references and times. Current lesson progress and skills survive pause,
+references and times, and rejects null entries in living or deceased skill
+lists as damaged checkpoint data. Current lesson progress and skills survive pause,
 save/load and replay. Old alpha lesson records need not load; no migration is
 provided. Saved skills grant no ordinary action permissions or speed bonus.
 
