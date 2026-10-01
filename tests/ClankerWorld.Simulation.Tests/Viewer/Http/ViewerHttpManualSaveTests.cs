@@ -17,6 +17,61 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
+    [InlineData("\"32\"")]
+    [InlineData("null")]
+    [InlineData("true")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    [InlineData("32.5")]
+    [InlineData("2147483648")]
+    public async Task MalformedSaveSchemaIsReportedAsInvalidWhilePausedAndPreservesTheWorld(string schemaJson)
+    {
+        var directory = Directory.CreateTempSubdirectory("malformed-save-schema-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            file.Save(runtime);
+            var activeBytes = File.ReadAllBytes(file.Path);
+            var runtimeBytes = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
+            var activeId = catalog.Capture().ActiveId;
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            var saved = saves.Create("Recoverable", runtime, []);
+            var path = Path.Combine(file.Path + ".manual", saved.Id + ".save");
+            var healthy = File.ReadAllBytes(path);
+            var document = JsonNode.Parse(healthy)!.AsObject();
+            document["state"]!["schemaVersion"] = JsonNode.Parse(schemaJson);
+            var damaged = Encoding.UTF8.GetBytes(document.ToJsonString());
+            File.WriteAllBytes(path, damaged);
+
+            var action = new OwnerManualSaveAction("load", saved.Id);
+            using var refused = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/saves/load", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.Contains("The save is invalid", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damaged));
+            Assert.Equal(activeBytes, File.ReadAllBytes(file.Path));
+            Assert.Equal(runtimeBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(activeId, catalog.Capture().ActiveId);
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            Assert.Single(saves.List(runtime.Society.WorldId));
+
+            File.WriteAllBytes(path, healthy);
+            using var accepted = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/saves/load", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            runtime.Validate();
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(5)]
     [InlineData(10)]

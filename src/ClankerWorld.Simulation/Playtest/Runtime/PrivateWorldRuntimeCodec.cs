@@ -50,6 +50,7 @@ public static class PrivateWorldRuntimeCodec
             using var header = JsonDocument.Parse(bytes);
             if (header.RootElement.TryGetProperty("state", out var state) && state.ValueKind == JsonValueKind.Object &&
                 state.TryGetProperty("schemaVersion", out var schemaVersion) &&
+                schemaVersion.ValueKind == JsonValueKind.Number &&
                 schemaVersion.TryGetInt32(out var schema))
             {
                 PrivateWorldRuntime.ValidateMinimumSupportedSchemaVersion(schema);
