@@ -12,7 +12,7 @@ public sealed partial class TownHallTests
     [InlineData(true)]
     public async Task ACompletedVoterCanFinishHouseCraftingWithoutHavingToVolunteer(bool willing)
     {
-        var state = CivicCalendar(AtHall(WithHall(AddAdults(Initial(), 4))), 48);
+        var state = RegisteredElection(day: 48, nomineeIndexes: willing ? [0, 1, 2, 4] : [0, 1, 2]);
         var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         var hall = state.WorldSimulation.Buildings.Single(building => building.DefinitionId == TownHallContent.TownHall().CanonicalId);
         var actor = state.Towns!.Single().ResidentIds[0];
@@ -30,9 +30,7 @@ public sealed partial class TownHallTests
         var rope = state.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "twist-rope");
         var provider = new ChooseOneProject("build:recipe:" + rope.CanonicalId);
         using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new CivicChooser(false, false));
-        var nominees = world.Towns.Single().ResidentIds.Skip(1).Take(3).ToArray();
-        foreach (var nominee in nominees) Assert.True(world.VolunteerTownCouncil(nominee, Town).Applied);
-        if (willing) Assert.True(world.VolunteerTownCouncil(actor, Town).Applied);
+        var nominees = world.TownCouncils.Single().Election!.Candidates.Where(id => id != actor).Take(3).ToArray();
         Assert.True(world.VoteTownElection(actor, Town, nominees).Applied);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var travelling = world.ExportState().Inhabitants.Single(person => person.InhabitantId == actor);

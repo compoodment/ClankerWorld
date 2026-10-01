@@ -9,10 +9,19 @@ public partial class Main
         foreach (var council in snapshot.TownCouncils)
         {
             lines.Add(new(TownStyle.Heading, GameUiText.PartyName(snapshot, council.TownId) + " council"));
+            lines.Add(new(TownStyle.Detail, council.GoverningForm == "representative" ? "Representative council · two yes votes are required" :
+                council.FallbackReason == "candidate" ? "All adults govern while a complete willing council is sought" : "All adult residents govern"));
             lines.Add(new(TownStyle.Body, council.MemberNames.Count == 0 ? "No councillors seated; representative seats may be vacant." : string.Join(", ", council.MemberNames)));
             lines.Add(new(TownStyle.Body, council.FoodPolicy == "essential_first" ? "Communal food: hungry residents first" : "Communal food: open access"));
             if (council.HallId is null) lines.Add(new(TownStyle.Note, "Build a Town Hall so residents can meet and vote."));
             if (council.TermExpiryTick is { } expiry) lines.Add(new(TownStyle.Detail, "Representative term ends " + DisplayWorldClock(expiry)));
+            foreach (var candidate in council.CandidateRegister)
+                lines.Add(new(TownStyle.Detail, candidate.Name + " is willing: " +
+                    string.Join(" and ", new[] { candidate.FullTermWilling ? "full term" : null, candidate.ReplacementWilling ? "remaining term" : null }.Where(text => text is not null))));
+            if (council.ElectionRetryAfterTick is { } retry)
+                lines.Add(new(TownStyle.Note, "Next election retry after " + DisplayWorldClock(retry) + "; improved circumstances may allow it sooner."));
+            if (council.LastDrawMemberNames.Count > 0)
+                lines.Add(new(TownStyle.Detail, "Recorded tie draw selected: " + string.Join(", ", council.LastDrawMemberNames)));
             if (council.ElectionExpiryTick is { } electionExpiry)
             {
                 lines.Add(new(TownStyle.Body, GameUiText.TownElectionSummary(council) + " · closes " + DisplayWorldClock(electionExpiry)));

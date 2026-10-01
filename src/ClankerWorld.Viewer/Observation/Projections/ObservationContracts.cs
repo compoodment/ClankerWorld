@@ -419,7 +419,14 @@ public sealed record ViewerTownCouncil(string TownId, string? HallId, string Foo
     public int ElectionAvailableSeats { get; init; }
     public IReadOnlyList<string> ElectionCandidateNames { get; init; } = [];
     public IReadOnlyList<string> ElectionSelectedMemberNames { get; init; } = [];
+    public string GoverningForm { get; init; } = "collective";
+    public string? FallbackReason { get; init; }
+    public string? ElectionKind { get; init; }
+    public long? ElectionRetryAfterTick { get; init; }
+    public IReadOnlyList<ViewerTownCandidate> CandidateRegister { get; init; } = [];
+    public IReadOnlyList<string> LastDrawMemberNames { get; init; } = [];
 }
+public sealed record ViewerTownCandidate(string Name, bool FullTermWilling, bool ReplacementWilling);
 public sealed record ViewerTownLaw(string Key, string Text, long AdoptedTick);
 public sealed record ViewerBusinessListing(string Id, string SellerId, string BuildingId, string HouseholdId,
     string GoodsKind, int GoodsQuantity, string PaymentKind, int PaymentQuantity, long ExpiryTick,

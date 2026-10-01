@@ -369,7 +369,15 @@ public sealed partial class OwnerWorldObservationStore
                 ElectionIsRunoff = current.Election?.IsRunoff ?? false,
                 ElectionAvailableSeats = current.Election?.AvailableSeats ?? 0,
                 ElectionCandidateNames = (current.Election?.Candidates ?? []).Select(id => state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray(),
-                ElectionSelectedMemberNames = (current.Election?.SelectedMemberIds ?? []).Select(id => state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray()
+                ElectionSelectedMemberNames = (current.Election?.SelectedMemberIds ?? []).Select(id => state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray(),
+                GoverningForm = current.GoverningForm,
+                FallbackReason = current.FallbackReason,
+                ElectionKind = current.Election?.Kind,
+                ElectionRetryAfterTick = current.ElectionRetryAfterTick,
+                CandidateRegister = current.CandidateRegister.Select(item => new ViewerTownCandidate(
+                    state.Society.Society.Inhabitants.Single(person => person.Id == item.CandidateId).Name, item.FullTermWilling, item.ReplacementWilling)).ToArray(),
+                LastDrawMemberNames = (current.LastElectionOutcome?.DrawnMemberIds ?? []).Select(id =>
+                    state.Society.Society.Inhabitants.Single(person => person.Id == id).Name).ToArray()
             }).ToArray(),
             BusinessTrade = BusinessSnapshot(state),
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,

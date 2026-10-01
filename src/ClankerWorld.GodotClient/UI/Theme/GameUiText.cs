@@ -10,7 +10,7 @@ public static class GameUiText
     private const int MinutesPerDay = 1_440;
 
     public static string TownElectionSummary(OwnerWorldTownCouncil council) =>
-        $"{(council.ElectionIsRunoff ? "Runoff" : "Election")}: {council.ElectionVotes}/{council.ElectionVoters} ballots · {council.ElectionAvailableSeats} {(council.ElectionAvailableSeats == 1 ? "seat" : "seats")} available";
+        $"{(council.ElectionIsRunoff ? "Runoff" : council.ElectionKind == "replacement" ? "Replacement election" : "Election")}: {council.ElectionVotes}/{council.ElectionVoters} ballots · {council.ElectionAvailableSeats} {(council.ElectionAvailableSeats == 1 ? "seat" : "seats")} available";
 
     public static string ModelStatus(string? status) => status switch
     {

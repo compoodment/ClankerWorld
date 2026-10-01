@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
 
+// Reuses PortBoatTests' genuinely paid Ports, completed boat, geometry and idle provider.
 public sealed partial class PortBoatTests
 {
     private const string BoatHallId = "test-boat-town-hall";
@@ -55,8 +56,8 @@ public sealed partial class PortBoatTests
             : prepared.ExportState(), _ => new Pick());
         var (passenger, landResident, townId) = AssertAdjacentHallPassenger(world);
 
-        // This also opens the legitimate first election if no real tick has yet followed Hall placement.
-        Assert.True(world.VolunteerTownCouncil(landResident, townId).Applied);
+        Assert.Contains(world.TownCouncils.Single(item => item.TownId == townId).CandidateRegister,
+            item => item.CandidateId == landResident);
         var election = world.TownCouncils.Single(item => item.TownId == townId).Election!;
         Assert.False(election.IsRunoff);
         Assert.Contains(passenger, election.Electorate);
@@ -82,27 +83,6 @@ public sealed partial class PortBoatTests
         var state = WithJug(docked.ExportState());
         var passenger = state.Inhabitants[0].InhabitantId;
         var household = state.Society.Society.GetInhabitant(passenger).HouseholdId!;
-        if (election)
-        {
-            using var residents = PrivateWorldRuntime.Restore(state, _ => new Pick());
-            for (var index = 0; index < 4; index++)
-            {
-                var id = "agent:" + (9_100 + index).ToString("x32", System.Globalization.CultureInfo.InvariantCulture);
-                var current = residents.ExportState();
-                var point = current.Towns!.Single(town => town.Id == current.BoatTransport!.Boats.Single().TownId)
-                    .BorderTiles.First(position => current.Map.IsBuildable(position) &&
-                        current.Inhabitants.All(person => person.Position != position) &&
-                        current.Map.Resources.All(resource => resource.Position != position) &&
-                        current.Map.CampObjects.All(item => item.Position != position) &&
-                        current.WorldSimulation!.Buildings.All(building =>
-                            !WorldContentSimulationRules.Footprint(current.WorldContent!.Buildings.Single(
-                                definition => definition.CanonicalId == building.DefinitionId), building).Contains(position)));
-                residents.AddAgent(id, point);
-                Assert.Contains(id, residents.Towns.Single(town => town.Id == current.BoatTransport!.Boats.Single().TownId).ResidentIds);
-            }
-            state = residents.ExportState();
-        }
-
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             BoatHallWood, "wood", household, 24, storageBuildingId: "first-town-house-a");
         inventory = InventoryFixture.AddLot(inventory,
@@ -112,10 +92,16 @@ public sealed partial class PortBoatTests
         var boat = Assert.Single(placing.Boats);
         Assert.True(placing.StartBoatJourney(boat.Id, passenger, "port-two").Applied);
         boat = Assert.Single(placing.Boats);
-        var destinationWater = boat.Journey!.WaterPath[^1];
-        var atOrigin = TryPlaceBoatHall(placing, boat.Position);
-        Assert.True(atOrigin || TryPlaceBoatHall(placing, destinationWater),
-            "The generated Port fixture needs one legally buildable paid Hall adjacent to an actual journey endpoint.");
+        var journeyPath = boat.Journey!.WaterPath.ToArray();
+        GridPoint? alongsideWater = null;
+        foreach (var water in journeyPath)
+            if (TryPlaceBoatHall(placing, water))
+            {
+                alongsideWater = water;
+                break;
+            }
+        Assert.True(alongsideWater.HasValue,
+            "The generated Port fixture needs one legally buildable paid Hall adjacent to its actual water journey, including intermediate shore tiles.");
         state = placing.ExportState();
         var hall = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == BoatHallId);
         Assert.Equal(boat.TownId, hall.TownId);
@@ -144,20 +130,36 @@ public sealed partial class PortBoatTests
         {
             Inhabitants = state.Inhabitants.Select(person =>
                 person.InhabitantId == landResident ? person with { Position = landPosition }
-                : !atOrigin && person.InhabitantId == others[0] ? person with { Position = destination.LandTiles[0] }
-                : !atOrigin && person.InhabitantId == others[1] ? person with { Position = destination.LandTiles[1] }
+                : person.InhabitantId == others[0] ? person with { Position = destination.LandTiles[0] }
+                : person.InhabitantId == others[1] ? person with { Position = destination.LandTiles[1] }
                 : person).ToArray()
         };
         var world = PrivateWorldRuntime.Restore(state, _ => new Pick());
         try
         {
-            if (!atOrigin)
+            if (election)
             {
-                for (var tick = 0; tick < 100 && world.Boats[0].Journey!.WaitingSinceTick is null; tick++)
-                    Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-                Assert.NotNull(world.Boats[0].Journey!.WaitingSinceTick);
-                Assert.Equal(destinationWater, world.Boats[0].Position);
+                // Register at the actual Hall before the eighth resident opens the frozen contest.
+                Assert.True(world.VolunteerTownCouncil(landResident, boat.TownId).Applied);
+                for (var index = 0; index < 4; index++)
+                {
+                    var id = "agent:" + (9_100 + index).ToString("x32", System.Globalization.CultureInfo.InvariantCulture);
+                    var current = world.ExportState();
+                    var point = current.Towns!.Single(town => town.Id == boat.TownId).BorderTiles.First(position =>
+                        current.Map.IsBuildable(position) && current.Inhabitants.All(person => person.Position != position) &&
+                        current.Map.Resources.All(resource => resource.Position != position) && current.Map.CampObjects.All(item => item.Position != position) &&
+                        current.WorldSimulation!.Buildings.All(building => !WorldContentSimulationRules.Footprint(
+                            current.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).Contains(position)));
+                    world.AddAgent(id, point);
+                    Assert.Contains(id, world.Towns.Single(town => town.Id == boat.TownId).ResidentIds);
+                }
             }
+            // The physical journey advances normally. Its blocked destination prevents accidental
+            // landing if the chosen adjacent-water point is the final berth.
+            for (var tick = 0; tick < journeyPath.Length * 3 && world.Boats[0].Position != alongsideWater!.Value; tick++)
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(alongsideWater!.Value, world.Boats[0].Position);
+            Assert.NotNull(world.Boats[0].Journey);
             AssertAdjacentHallPassenger(world);
             return world;
         }
