@@ -13,10 +13,14 @@ public sealed class GeographyVisibilityTests(ITestOutputHelper output)
     {
         var scenarios = new[]
         {
-            new GeographyOptions("issue-409-small-wrapped", WorldSizePreset.Small, WrapEastWest: true),
-            new GeographyOptions("issue-409-small-bounded", WorldSizePreset.Small, WrapEastWest: false),
-            new GeographyOptions("issue-409-medium-wrapped", WorldSizePreset.Medium, WrapEastWest: true),
-            new GeographyOptions("issue-409-medium-bounded", WorldSizePreset.Medium, WrapEastWest: false),
+            new GeographyOptions("issue-409-small-wrapped", WorldSizePreset.Small, WrapEastWest: true,
+                WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion),
+            new GeographyOptions("issue-409-small-bounded", WorldSizePreset.Small, WrapEastWest: false,
+                WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion),
+            new GeographyOptions("issue-409-medium-wrapped", WorldSizePreset.Medium, WrapEastWest: true,
+                WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion),
+            new GeographyOptions("issue-409-medium-bounded", WorldSizePreset.Medium, WrapEastWest: false,
+                WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion),
         };
         using var process = Process.GetCurrentProcess();
         var peakBefore = process.PeakWorkingSet64;
@@ -51,7 +55,8 @@ public sealed class GeographyVisibilityTests(ITestOutputHelper output)
             Assert.True(report.MeetsTargets,
                 $"{options.Size} wrap={options.WrapEastWest} selected candidate {report.Attempt} " +
                 $"missed {string.Join(", ", report.UnmetTargets)}.");
-            output.WriteLine($"{options.Size} wrap={options.WrapEastWest} attempt={report.Attempt} " +
+            output.WriteLine($"{options.Size} wrap={options.WrapEastWest} water={options.WaterPercent}% " +
+                $"hydrology={options.HydrologyVersion} attempt={report.Attempt} " +
                 $"forest={report.ForestPercent:F2}% regions={report.ForestRegionCount} " +
                 $"mountain={report.MountainPercent:F2}% regions={report.MountainRegionCount} " +
                 $"candidates={selection.Candidates.Count}");
@@ -71,7 +76,8 @@ public sealed class GeographyVisibilityTests(ITestOutputHelper output)
     [Fact]
     public void SelectedCandidateAttemptSurvivesCreateSaveAndRestoreExactly()
     {
-        var options = new GeographyOptions("issue-409-medium-wrapped", WorldSizePreset.Medium);
+        var options = new GeographyOptions("issue-409-medium-wrapped", WorldSizePreset.Medium,
+            WaterPercent: 50, HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion);
         var selection = GeographyCandidateSelector.Select(options);
         var selectedOptions = selection.Options;
         using var created = PrivateWorldRuntime.CreateFromGeneratedGeography(

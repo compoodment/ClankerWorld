@@ -26,7 +26,7 @@ public sealed partial class ViewerHttpTests
         using var client = host.CreateClient();
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var device = await StartAndActivateAsync(host, client, key);
-        var action = new OwnerWorldCreationAction("Balanced", "issue-409-balanced-create", "Small", 50, true);
+        var action = new OwnerWorldCreationAction("Balanced", "issue-409-miss-1", "Small", 50, true);
         var payload = OwnerHttpBinding.WorldCreationPayload(action);
         var stopwatch = Stopwatch.StartNew();
         using var previewed = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -41,6 +41,8 @@ public sealed partial class ViewerHttpTests
         var coverage = Assert.IsType<GeographyCandidateReport>(preview.Coverage);
         Assert.True(coverage.ForestTargetApplicable);
         Assert.True(coverage.MountainTargetApplicable);
+        Assert.False(coverage.MeetsTargets);
+        Assert.All(preview.Candidates, candidate => Assert.False(candidate.MeetsTargets));
         Assert.Equal(coverage.Attempt, Assert.Single(preview.Candidates,
             candidate => candidate.Attempt == coverage.Attempt).Attempt);
 
@@ -50,20 +52,17 @@ public sealed partial class ViewerHttpTests
             ExpectedManifestDigest = preview.ManifestDigest,
             ExpectedMapLayersDigest = preview.MapLayersDigest,
         };
-        if (!coverage.MeetsTargets)
-        {
-            using var unaccepted = await SendSignedAsync(host, client, key, device.DeviceId,
-                "/api/v1/owner/worlds/create", create, OwnerHttpBinding.WorldCreationPayload(create));
-            Assert.Equal(HttpStatusCode.Conflict, unaccepted.StatusCode);
-            Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
-        }
+        using var unaccepted = await SendSignedAsync(host, client, key, device.DeviceId,
+            "/api/v1/owner/worlds/create", create, OwnerHttpBinding.WorldCreationPayload(create));
+        Assert.Equal(HttpStatusCode.Conflict, unaccepted.StatusCode);
+        Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
 
         var stale = create with { ExpectedMapLayersDigest = "sha256:stale-preview" };
         using var changedPreview = await SendSignedAsync(host, client, key, device.DeviceId,
             "/api/v1/owner/worlds/create", stale, OwnerHttpBinding.WorldCreationPayload(stale));
         Assert.Equal(HttpStatusCode.Conflict, changedPreview.StatusCode);
 
-        var accepted = create with { AcceptUnmetTargets = !coverage.MeetsTargets };
+        var accepted = create with { AcceptUnmetTargets = true };
         using var created = await SendSignedAsync(host, client, key, device.DeviceId,
             "/api/v1/owner/worlds/create", accepted, OwnerHttpBinding.WorldCreationPayload(accepted));
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);

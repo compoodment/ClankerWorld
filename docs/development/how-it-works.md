@@ -654,8 +654,9 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
 controls forest cover, mountain relief and river abundance independently;
 Normal is zero and omitted from saved JSON. Low/High use forest rainfall
-thresholds 175/125, mountain relief shifts of minus half/full upper elevation,
-and river catchment thresholds 288/72. Outside the visibility trial, Normal
+thresholds 175/125 and river catchment thresholds 288/72. Low mountain relief
+subtracts half the elevation above 130; High adds that full amount for Balanced
+Small/Medium worlds and half elsewhere. Outside the visibility trial, Normal
 keeps a 150 rainfall threshold, zero relief shift and river threshold 144.
 Resource abundance retains its existing Sparse/Normal/Abundant saved values;
 the UI labels them Low/Normal/High.
