@@ -82,12 +82,9 @@ chain and current model credentials;
 selection reads and restores the checkpoint again before changing worlds.
 Checking a changed checkpoint can therefore still be slow, especially on a
 large generated map, while repeated unchanged lists avoid rebuilding worlds.
-<<<<<<< HEAD
 After a host start, a background task makes the structural check for each
 inactive checkpoint, so the first list can reuse it; it reads checkpoints only
 and changes no save.
-=======
->>>>>>> origin/main
 
 Manual load shares the world-mutation lock with world selection. Its pause/world
 checks, checkpoint restore, routing/autosave restore and rollback finish before
