@@ -135,6 +135,7 @@ public sealed partial class PrivateWorldRuntime
 
     private MapResource? AvailableFoodSource(string actor, GridPoint position) => map.Resources
         .Where(resource => FoodItems.IsEdible(resource.Kind) &&
+            CarryingRoom(actor) >= (resource.TreeKind == TreeGrowthRules.Orchard ? 2 : 1) &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
             map.IsReachableOnFoot(position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
@@ -156,7 +157,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var harvestYield = Math.Min(CarryingRoom(inhabitantId), source.TreeKind == TreeGrowthRules.Orchard
+        var harvestYield = Math.Min(Math.Max(0, CarryingRoom(inhabitantId) - (source.TreeKind == TreeGrowthRules.Orchard ? 1 : 0)), source.TreeKind == TreeGrowthRules.Orchard
             ? TreeGrowthRules.OrchardFruitPerPick : HarvestFoodYield);
         if (harvestYield == 0)
         {

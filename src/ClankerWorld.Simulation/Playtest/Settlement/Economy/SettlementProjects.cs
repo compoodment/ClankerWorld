@@ -811,6 +811,7 @@ public sealed partial class PrivateWorldRuntime
     private MapResource? MaterialSource(string itemKind, string actor) => map.Resources
         .Where(resource =>
             (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
+            (resource.TreeKind != TreeGrowthRules.Orchard || CarryingRoom(actor) >= 2) &&
             (itemKind != "wood" || resource.TreeKind is null || CarriedTool(actor, ToolKind.Axe) is not null ||
                 SharedTool(actor, ToolKind.Axe) is not null) &&
             (ToolCapabilities.RequiredMiningTier(itemKind) == 0 ||
