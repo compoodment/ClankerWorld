@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Playing the current game
@@ -64,6 +64,13 @@ You can save both providers' keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 
+To check a selected model, press **Test model · 1 paid call** in Add Agent or
+an agent's Model panel. This sends one real request and counts toward the
+installation's paid-call limit, even if the provider times out or rejects it.
+A key pasted for this check is not saved. The result tells you whether the
+provider returned a reply the game can use; it does not show provider error
+details.
+
 ## Look around
 
 Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
@@ -101,15 +108,20 @@ when they overlap the pointer. **World Info** includes Towns and their residents
 moves the camera there. Opening the log marks its new entries read.
 
 **Add Agent** configures and places another adult after starting. Placement
-shows the Town and household-owned buildings. Choose the model and key, then
-point at land to see the Town and household preview below those fields.
-Starting membership follows the
-place you choose; it does not make the adult biologically related to anyone.
+shows the household and Town that the selected tile would give the adult.
+Household-owned property gives the adult that household; otherwise, a tile in
+one Town gives Town membership without a household; outside a Town, the adult
+starts an independent household. If household owners or Town borders overlap,
+choose another tile. The preview does not reserve the land: the server checks
+the current ownership and borders again when you place the adult, and asks you
+to choose again if they changed. Walking later does not change membership.
 
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
 the world paused. Opening ordinary inspection panels leaves time running.
+Settings and the Mod Library open inside the Pause Menu window; its back arrow
+or **Escape** returns to the menu's buttons.
 
 Game Settings controls the display, interface scale, theme, weather effects and
 date/time format. World Settings contains that world's autosaves, Jev and the
@@ -152,7 +164,8 @@ Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choos
 for a bug or playtest report. Rough notes are welcome: what you did, what happened,
 what you expected and the build you used.
 [Contributing](../CONTRIBUTING.md#issues-and-design-questions) explains the report options.
-Some fixes still need a Windows playtest; include failures as well as successes.
+Some fixes still need a Windows playtest; the [playtest list](../playtest/README.md)
+says what to try. Include failures as well as successes.
 
 ## Advanced New World settings
 

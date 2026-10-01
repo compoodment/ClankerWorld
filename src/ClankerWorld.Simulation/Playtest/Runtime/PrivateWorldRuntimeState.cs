@@ -32,7 +32,15 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WaterCollectionWork? WaterWork = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] EquipmentState? Equipment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatment? MedicalTreatment = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? MedicalCaregiverIds = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? MedicalCaregiverIds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null);
+
+public sealed record PlaytestModelAttempt(
+    string Status,
+    long WorldTick,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastAcceptedCandidateId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? LastAcceptedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SetupBlocker = null);
 
 public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 

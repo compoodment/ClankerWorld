@@ -9,6 +9,18 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    public static string ModelStatus(string? status) => status switch
+    {
+        "waiting" => "Waiting for the model",
+        "canceled" => "Canceled by pause or disconnect",
+        "missing_key" => "Missing key",
+        "usage_limit" => "Usage limit reached",
+        "unusable_reply" => "Unusable reply",
+        "timed_out" => "Timed out",
+        "model_unavailable" => "Model unavailable",
+        _ => "Ready",
+    };
+
     public static string ActorMapLabel(string displayName)
     {
         var words = displayName.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
@@ -36,7 +48,7 @@ public static class GameUiText
     public static string FriendlyFailure(Exception exception) => exception switch
     {
         Pairing.OwnerActionCompatibilityException =>
-            "this client and world server need matching updates before making a new world. Update both; your device pairing can stay as it is",
+            "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
         {
             System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden =>

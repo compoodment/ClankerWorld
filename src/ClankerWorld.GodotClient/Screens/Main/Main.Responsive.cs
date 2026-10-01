@@ -74,6 +74,7 @@ public partial class Main
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
+        FitMenuScrolls(viewport.Y);
 
         var toastSize = statusToast.GetCombinedMinimumSize();
         statusToast.Position = new Vector2(
@@ -142,6 +143,23 @@ public partial class Main
             y = Math.Clamp(center.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
         }
         card.Position = new Vector2(x, y);
+    }
+
+    /// <summary>
+    /// Settings and Developer tools scroll inside the menu panel, as tall as
+    /// their contents but never taller than the screen leaves room for.
+    /// </summary>
+    private void FitMenuScrolls(float viewportHeight)
+    {
+        foreach (var scroll in new[] { settingsScroll, developerScroll })
+        {
+            if (!scroll.IsVisibleInTree() || scroll.GetChildCount() == 0 || scroll.GetChild(0) is not Control content) continue;
+            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, 0);
+            var around = gameMenuPanel.GetCombinedMinimumSize().Y;
+            var height = Math.Clamp(content.GetCombinedMinimumSize().Y, 120, Math.Max(120, viewportHeight - 28 - around));
+            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, height);
+        }
+        gameMenuPanel.Size = gameMenuPanel.GetCombinedMinimumSize();
     }
 
     /// <summary>The agent card sits below the HUD when it fits, and slides up over it only when it is taller than the room left.</summary>

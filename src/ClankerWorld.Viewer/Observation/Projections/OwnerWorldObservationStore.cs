@@ -632,6 +632,13 @@ public sealed class OwnerWorldObservationStore
         };
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
+        var modelStatus = physical.LastModelAttempt?.Status ?? "ready";
+        if (modelStatus == "waiting" && state.Society.Society.IsPaused) modelStatus = "canceled";
+        decisionFactors.Add(new ViewerDecisionFactor("model-status", modelStatus));
+        if (physical.LastModelAttempt?.LastAcceptedCandidateId is { } acceptedCandidate)
+            decisionFactors.Add(new ViewerDecisionFactor("last-model-choice", acceptedCandidate));
+        if (physical.LastModelAttempt?.SetupBlocker is { } setupBlocker)
+            decisionFactors.Add(new ViewerDecisionFactor("model-setup-blocker", setupBlocker));
         if (state.Society.Cognition.Queue.Any(item => item.InhabitantId == inhabitant.Id))
             decisionFactors.Add(new ViewerDecisionFactor("decision-pending", "true"));
         if (runtime?.CurrentIntention is { } intention)
