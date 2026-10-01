@@ -601,6 +601,7 @@ public partial class Main
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
         if (inhabitant.Lesson is { } lesson)
             details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
         foreach (var skill in inhabitant.Skills ?? [])
