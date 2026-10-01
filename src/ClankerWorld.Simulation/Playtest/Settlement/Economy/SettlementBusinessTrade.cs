@@ -37,6 +37,22 @@ public sealed partial class PrivateWorldRuntime
 
     private bool BusinessBuyerWants(string actor, InventoryLot lot)
     {
+        var inventory = society.Checkpoint.Inventory;
+        if (ToolProgressionRules.Find(lot.ItemKind) is { } offeredTool)
+        {
+            var carriedTool = ToolProgressionRules.BestUsableTool(inventory, actor, offeredTool.Family);
+            return carriedTool is null ||
+                ToolProgressionRules.Find(carriedTool.ItemKind)!.Tier < offeredTool.Tier;
+        }
+        if (PersonalEquipmentRules.IsGarment(lot.ItemKind))
+        {
+            var weather = WeatherAt(inhabitants[actor].Position);
+            var bestProtection = inventory.Lots.Where(item =>
+                    ToolProgressionRules.IsTopLevelCarriedLot(item, actor) &&
+                    PersonalEquipmentRules.IsGarment(item.ItemKind) && AvailableLotQuantity(item) > 0)
+                .Select(item => PersonalEquipmentRules.Protection(item, weather)).DefaultIfEmpty(0).Max();
+            return PersonalEquipmentRules.Protection(lot, weather) > bestProtection;
+        }
         if (WantsTradeItem(actor, lot)) return true;
         if (lot.ItemKind == "iron")
         {
@@ -46,19 +62,11 @@ public sealed partial class PrivateWorldRuntime
                 society.Checkpoint.Inventory.Lots.Where(item => item.ItemKind == "iron" &&
                     (item.OwnerId == actor || item.OwnerId == household)).Sum(AvailableLotQuantity) < 2;
         }
-        var carried = society.Checkpoint.Inventory.Lots.Where(item => PersonalEquipmentRules.IsCarried(item, actor));
-        if (BusinessRules.MaySell("blacksmith", lot.ItemKind))
-            return !carried.Any(item => ToolTradeFamily(item.ItemKind) == ToolTradeFamily(lot.ItemKind) &&
-                item.ConditionBasisPoints > 0);
-        if (PersonalEquipmentRules.IsGarment(lot.ItemKind))
-            return !carried.Any(item => PersonalEquipmentRules.IsGarment(item.ItemKind) && item.ConditionBasisPoints > 0);
         if (PersonalEquipmentRules.IsCarryAid(lot.ItemKind))
             return PersonalEquipmentRules.Capacity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) <
                 (lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity);
         return false;
     }
-
-    private static string ToolTradeFamily(string kind) => kind[(kind.LastIndexOf('_') + 1)..];
 
     private bool BusinessPaymentUseful(PlacedBuilding building, InventoryLot payment) =>
         IsEdibleFood(payment.ItemKind) || worldContent.Recipes.Any(recipe =>

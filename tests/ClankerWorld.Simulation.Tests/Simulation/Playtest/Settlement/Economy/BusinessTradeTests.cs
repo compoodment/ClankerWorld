@@ -140,6 +140,69 @@ public sealed class BusinessTradeTests
         settling.Validate();
     }
 
+    [Theory]
+    [InlineData("blacksmith", "iron_axe", "wooden_axe", 10_000, true)]
+    [InlineData("blacksmith", "stone_axe", "iron_axe", 10_000, false)]
+    [InlineData("blacksmith", "wooden_axe", "wooden_axe", 10_000, false)]
+    [InlineData("blacksmith", "wooden_axe", "iron_axe", 0, true)]
+    [InlineData("tailor", "rain_cloak", "clothing", 1_000, true)]
+    [InlineData("tailor", "clothing", "padded_coat", 10_000, false)]
+    [InlineData("tailor", "padded_coat", "padded_coat", 10_000, false)]
+    public async Task ShopBuyersConsiderUsefulEquipmentUpgradesWithoutBuyingInferiorReplacements(
+        string shopKind, string goodsKind, string heldKind, int heldCondition, bool wants)
+    {
+        var (state, buyer, seller, shopId) = CreateShopState(shopKind);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId != shopId).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "upgrade-goods", goodsKind,
+            state.Society.Society.GetInhabitant(seller).HouseholdId!, 1, storageBuildingId: shopId);
+        inventory = InventoryFixture.AddLot(inventory, "held-equipment", heldKind, buyer, 1,
+            conditionBasisPoints: heldCondition);
+        if (shopKind == "tailor")
+            inventory = inventory with
+            {
+                Lots = inventory.Lots.Select(lot => lot.Id == "buyer-payment"
+                    ? lot with { ItemKind = "cloth" } : lot).ToArray(),
+            };
+        state = WithInventory(state, inventory);
+        var buyerProvider = new ShopProvider("business_shop:");
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == buyer ? buyerProvider : new ShopProvider("safe_idle"));
+        for (var step = 0; step < 10 && (wants ? world.BusinessTrades.Count == 0 : buyerProvider.Seen.IsEmpty); step++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.NotEmpty(buyerProvider.Seen);
+        Assert.Equal(wants, buyerProvider.Seen.Contains("business_shop:" + shopId));
+        Assert.Equal(wants ? 1 : 0, world.BusinessTrades.Count);
+        Assert.Equal(inventory.GetLot("held-equipment") with
+        {
+            LastProcessedTick = world.Society.Inventory.GetLot("held-equipment").LastProcessedTick,
+        }, world.Society.Inventory.GetLot("held-equipment"));
+        if (!wants)
+        {
+            Assert.Equal(1, world.Society.Inventory.GetLot("upgrade-goods").Quantity);
+            world.Validate();
+            return;
+        }
+        var trade = Assert.Single(world.BusinessTrades);
+        var offer = world.Society.Inventory.GetOffer(trade.OfferId);
+        Assert.Equal("upgrade-goods", offer.FirstLotId);
+        Assert.Equal(1, offer.FirstQuantity);
+        var totalBefore = world.Society.Inventory.Lots.Sum(lot => lot.Quantity);
+        state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        state = state with { Inhabitants = state.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray() };
+        using var resumed = PrivateWorldRuntime.Restore(state, id => id == seller
+            ? new ShopProvider("business_continue:") : new ShopProvider("safe_idle"));
+        for (var step = 0; step < 40 && resumed.Society.Inventory.GetOffer(offer.Id).State == DirectBarterState.Open; step++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(DirectBarterState.Settled, resumed.Society.Inventory.GetOffer(offer.Id).State);
+        Assert.Equal(buyer, resumed.Society.Inventory.GetLot("upgrade-goods").OwnerId);
+        Assert.Equal(buyer, resumed.Society.Inventory.GetLot("held-equipment").OwnerId);
+        Assert.Equal(totalBefore, resumed.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        resumed.Validate();
+    }
+
     [Fact]
     public async Task AShopCannotOfferTheSameHouseholdsRemoteStock()
     {
@@ -430,6 +493,24 @@ public sealed class BusinessTradeTests
     {
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new ShopProvider("safe_idle"));
         var state = setup.ExportState();
+        if (!state.WorldSimulation!.Buildings.Any(building => state.WorldContent!.Buildings
+                .Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains(kind)))
+        {
+            var definition = state.WorldContent!.Buildings.Where(item => item.Tags.Contains(kind))
+                .OrderBy(item => item.Width * item.Height).First();
+            var house = state.WorldSimulation.Buildings.First(building => building.HouseholdId is not null &&
+                state.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+            var buildingInventory = state.Society.Society.Inventory;
+            foreach (var cost in definition.BuildCosts)
+                buildingInventory = InventoryFixture.AddLot(buildingInventory, "shop-building-" + cost.ResourceId,
+                    cost.ResourceId, house.HouseholdId!, cost.Amount, storageBuildingId: house.InstanceId);
+            using var placing = PrivateWorldRuntime.Restore(WithInventory(state, buildingInventory), _ => new ShopProvider("safe_idle"));
+            _ = state.Map.Tiles.OrderBy(tile => state.Map.FootDistance(tile.Position, house.Position))
+                .Select(tile => tile.Position).First(point =>
+                    placing.PlaceBuilding("test-business-" + kind, definition.CanonicalId, point, house.HouseholdId).Applied);
+            placing.Validate();
+            state = placing.ExportState();
+        }
         var shop = state.WorldSimulation!.Buildings.Single(building =>
             state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId).Tags.Contains(kind));
         var seller = state.Society.Society.GetHousehold(shop.HouseholdId!).MemberIds[0];
