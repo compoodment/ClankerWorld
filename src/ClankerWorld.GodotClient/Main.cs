@@ -73,6 +73,7 @@ public partial class Main : Control
     private readonly Button saveCognitionProviderButton = new();
     private readonly Button forgetCognitionCredentialButton = new();
     private readonly Button deleteCognitionCredentialSlotButton = new();
+    private readonly Button openModelSettingsButton = new();
     private readonly Button refreshCognitionProviderButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();

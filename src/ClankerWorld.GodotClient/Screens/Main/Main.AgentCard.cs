@@ -276,8 +276,7 @@ public partial class Main
         selectedAgentOverview.AddChild(speakSection);
         body.AddChild(selectedAgentOverview);
 
-        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
-        selectedAgentModelScroll.AddChild(selectedAgentModelContent);
+        BuildAgentModelScroll();
         selectedAgentModelScroll.Hide();
         body.AddChild(selectedAgentModelScroll);
 
@@ -729,6 +728,7 @@ public partial class Main
     private void PositionAgentProfile()
     {
         if (!agentProfilePanel.Visible) return;
+        if (selectedAgentModelScroll.Visible) FitAgentModelScroll();
         agentProfilePanel.CustomMinimumSize = new Vector2(Math.Min(AgentProfileWidth, Math.Max(1, UiSize.X - 28)), 0);
         agentProfilePanel.Size = agentProfilePanel.GetCombinedMinimumSize();
         agentProfilePanel.Position = new Vector2(14, HudTop);
