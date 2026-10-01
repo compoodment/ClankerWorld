@@ -11,6 +11,11 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class PrivateWorldTerrainChunkTests
 {
+    private static readonly JsonSerializerOptions RawStateJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     [Fact]
     public void GeneratedMapRoundTripsThroughCurrentCompactChunks()
     {
@@ -20,8 +25,7 @@ public sealed class PrivateWorldTerrainChunkTests
             startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         var state = world.ExportState();
         var newBytes = PrivateWorldRuntimeCodec.Encode(state);
-        var rawCurrentBytes = JsonSerializer.SerializeToUtf8Bytes(state,
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var rawCurrentBytes = JsonSerializer.SerializeToUtf8Bytes(state, RawStateJsonOptions);
         var newText = Encoding.UTF8.GetString(newBytes);
 
         Assert.DoesNotContain("\"tiles\"", newText, StringComparison.Ordinal);
@@ -56,6 +60,9 @@ public sealed class PrivateWorldTerrainChunkTests
         var encodedError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(unsupportedState));
         Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
             encodedError.Message, StringComparison.Ordinal);
+        var restoreError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(unsupportedState));
+        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
+            restoreError.Message, StringComparison.Ordinal);
 
         var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
         var savedState = document["state"]!.AsObject();
