@@ -122,12 +122,35 @@ in the existing first personal-model action reply. Optional `chosen_personality`
 and `chosen_aspiration` strings are trimmed, limited to 256 characters and
 refused if they contain control characters. An accepted personal reply consumes
 the opportunity even if either field is missing or invalid; the placeholder
-stays without an additional model attempt. Later replies cannot overwrite it.
+stays without an additional model attempt. Routine replies cannot overwrite it.
 The pending opportunity is checkpointed, so pause/reload discards late replies
 and preserves an unconsumed choice. It selects the personal planner rather than
 Jev's routine router. Choice events contain only the agent ID; chosen text stays
-in that agent's saved state and later self context, not runtime logs. Children
-and identity changes later in life remain separate work.
+in that agent's saved state and later self context, not runtime logs. Children's
+initial identity remains separate work.
+
+The runtime records five named identity opportunities: midlife (half the
+configured maximum life, day 30 by default), parenthood, loss of a partner,
+loss of a biological parent, and becoming an elder. Each kind is recorded
+once per agent. After the initial identity choice, and outside urgent needs
+or another model turn, a separate request gives only the current identity and
+the named moment. It requires that agent's personal planner, never a world
+default or Jev. The existing installation usage meter reserves the call.
+The request has a 15-second timeout; accepted optional fields are limited to
+256 characters each and contain no control characters. Invalid fields refuse
+the entire change. An absent, declined, failed or interrupted reply consumes
+the opportunity without retry. With no selected personal model it keeps the
+identity without a call.
+
+Life-moment replies are admitted at the live tick commit boundary, rechecking
+the actor, current identity, run epoch and selected provider. Pause and presence
+loss cancel outstanding requests. A saved in-flight opportunity becomes
+interrupted when play resumes; death finalizes it in the deceased archive.
+The moment record saves accepted fields and timing. Events contain only agent
+IDs and the moment kind; runtime logs record only that an agent changed its
+identity. Accepted text appears in the owner profile and later self context.
+The offline bounded test reaches all five moments, observes exactly five
+requests, and confirms that more ticks and a reload add none.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
 *inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the

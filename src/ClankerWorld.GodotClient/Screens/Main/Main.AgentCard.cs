@@ -591,6 +591,10 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (Factor("personality") is { } personality) details.Add("Personality: " + personality);
+        if (Factor("aspiration") is { } aspiration) details.Add("Aspiration: " + aspiration);
+        details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "identity-change")
+            .Select(factor => factor.Detail));
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")
