@@ -45,6 +45,14 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string ItemName(string kind) => kind switch
+    {
+        "storage_pot" => "Storage pot",
+        "water_jug" => "Water jug",
+        "fresh_water" => "Fresh water",
+        _ => HumanizeIdentifier(kind),
+    };
+
     public static string FriendlyFailure(Exception exception) => exception switch
     {
         Pairing.OwnerActionCompatibilityException =>
@@ -320,6 +328,9 @@ public static class GameUiText
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
+            "storage_pot" => "storage pot",
+            "water_jug" => "water jug",
+            "fresh_water" => "fresh water",
             _ => null,
         };
         if (known is not null)

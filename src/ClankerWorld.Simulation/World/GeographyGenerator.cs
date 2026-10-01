@@ -64,7 +64,10 @@ public sealed record GeographyOptions(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int HydrologyVersion = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount ForestCover = GenerationAmount.Normal,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount MountainRelief = GenerationAmount.Normal,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount RiverAbundance = GenerationAmount.Normal);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount RiverAbundance = GenerationAmount.Normal,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int CandidateAttempt = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        int BalancedVisibilityVersion = GeographyGenerator.CurrentBalancedVisibilityVersion);
 
 public readonly record struct GeographyTile(byte Elevation, byte Rainfall, WaterKind Water,
     byte Temperature, ClimateZone Climate);
@@ -130,7 +133,9 @@ public sealed class GeneratedGeography
 public static class GeographyGenerator
 {
     public const int CurrentHydrologyVersion = 1;
+    public const int CurrentBalancedVisibilityVersion = 1;
     public const int ChunkSize = 64;
+    public const int MaximumCandidateAttempts = 3;
 
     public static (int Width, int Height) Dimensions(WorldSizePreset size) => size switch
     {
@@ -152,6 +157,14 @@ public static class GeographyGenerator
             !Enum.IsDefined(options.ResourceAbundance) || !Enum.IsDefined(options.ForestCover) ||
             !Enum.IsDefined(options.MountainRelief) || !Enum.IsDefined(options.RiverAbundance))
             throw new ArgumentOutOfRangeException(nameof(options), "The climate selection is invalid.");
+        if (options.CandidateAttempt is < 0 or >= MaximumCandidateAttempts)
+            throw new ArgumentOutOfRangeException(nameof(options), "The selected geography candidate is invalid.");
+        if (options.BalancedVisibilityVersion is < 0 or > CurrentBalancedVisibilityVersion)
+            throw new ArgumentOutOfRangeException(nameof(options), "The balanced visibility generation version is unsupported.");
+        if (options.Size is WorldSizePreset.Small or WorldSizePreset.Medium &&
+            options.ClimateMode == ClimateMode.Balanced &&
+            options.BalancedVisibilityVersion != CurrentBalancedVisibilityVersion)
+            throw new ArgumentOutOfRangeException(nameof(options), "Balanced Small and Medium worlds require the current visibility generation version.");
 
         if (options.HydrologyVersion is < 0 or > CurrentHydrologyVersion)
             throw new ArgumentOutOfRangeException(nameof(options), "The hydrology version is unsupported.");
@@ -162,10 +175,13 @@ public static class GeographyGenerator
         var water = new byte[length];
         var temperature = new byte[length];
         var climate = new byte[length];
-        var elevationNoise = NewNoise(NoiseSeed(options.Seed, "elevation"), 0.012f);
-        var rainNoise = NewNoise(NoiseSeed(options.Seed, "rainfall"), 0.018f);
-        var temperatureNoise = NewNoise(NoiseSeed(options.Seed, "temperature"), 0.007f);
-        var dominanceNoise = NewNoise(NoiseSeed(options.Seed, "climate-dominance"), 0.006f);
+        var candidateSeed = options.CandidateAttempt == 0
+            ? options.Seed
+            : DeriveCandidateSeed(options.Seed, options.CandidateAttempt);
+        var elevationNoise = NewNoise(NoiseSeed(candidateSeed, "elevation"), 0.012f);
+        var rainNoise = NewNoise(NoiseSeed(candidateSeed, "rainfall"), 0.018f);
+        var temperatureNoise = NewNoise(NoiseSeed(candidateSeed, "temperature"), 0.007f);
+        var dominanceNoise = NewNoise(NoiseSeed(candidateSeed, "climate-dominance"), 0.006f);
 
         // A circle in noise-input space makes the *flat* map's east and west
         // edges neighbors. Its third coordinate never becomes a game axis.
@@ -197,12 +213,19 @@ public static class GeographyGenerator
                     ? dominanceNoise.GetNoise(circleX[x], y, circleZ[x])
                     : dominanceNoise.GetNoise(x, y);
                 var scaled = (byte)Math.Clamp((int)MathF.Round((value + 1f) * 127.5f), 0, 255);
-                scaled = (byte)Math.Clamp(scaled + (options.MountainRelief switch
+                var trialBalancedRelief = options.BalancedVisibilityVersion == CurrentBalancedVisibilityVersion &&
+                    options.Size is WorldSizePreset.Small or WorldSizePreset.Medium &&
+                    options.ClimateMode == ClimateMode.Balanced;
+                var upperElevation = Math.Max(0, scaled - 130);
+                var reliefShift = options.MountainRelief switch
                 {
-                    GenerationAmount.Low => -Math.Max(0, scaled - 130) / 2,
-                    GenerationAmount.High => Math.Max(0, scaled - 130) / 2,
+                    GenerationAmount.Low => -upperElevation / 2,
+                    GenerationAmount.High when trialBalancedRelief => upperElevation,
+                    GenerationAmount.High => upperElevation / 2,
+                    GenerationAmount.Normal when trialBalancedRelief => upperElevation / 3,
                     _ => 0,
-                }), 0, 255);
+                };
+                scaled = (byte)Math.Clamp(scaled + reliefShift, 0, 255);
                 var index = y * width + x;
                 elevation[index] = scaled;
                 rainfall[index] = (byte)Math.Clamp((int)MathF.Round((wetness + 1f) * 127.5f), 0, 255);
@@ -280,6 +303,12 @@ public static class GeographyGenerator
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(worldSeed + ":" + layer));
         return BinaryPrimitives.ReadInt32LittleEndian(digest);
+    }
+
+    private static string DeriveCandidateSeed(string seed, int attempt)
+    {
+        var input = Encoding.UTF8.GetBytes($"clankerworld/balanced-candidate/v1\n{seed}\n{attempt.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        return Convert.ToHexStringLower(SHA256.HashData(input));
     }
 
     private static void ClassifyOceans(byte[] water, int width, int height, bool wrap)

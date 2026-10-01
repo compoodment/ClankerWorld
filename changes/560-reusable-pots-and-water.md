@@ -1,0 +1,1 @@
+- Households can make storage pots and water jugs from clay, store food in pots to slow spoilage, and carry fresh water in reusable jugs.

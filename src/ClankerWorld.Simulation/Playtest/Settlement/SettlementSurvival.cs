@@ -399,7 +399,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                IsEdibleFood(lot.ItemKind) && (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
+                lot.ContainerLotId is null && IsEdibleFood(lot.ItemKind) &&
+                (owner != actor || lot.GroundPosition is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null) &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);

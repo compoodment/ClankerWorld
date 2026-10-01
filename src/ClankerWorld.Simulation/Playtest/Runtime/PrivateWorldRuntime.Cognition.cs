@@ -485,6 +485,31 @@ public sealed partial class PrivateWorldRuntime
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
             return;
         }
+        if (candidateId == "collect_water_jug")
+        {
+            CollectWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "return_water_jug")
+        {
+            ReturnWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "store_food_in_pot")
+        {
+            StoreFoodInPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "take_food_from_pot")
+        {
+            TakeFoodFromPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId.StartsWith(FillWaterJugPrefix, StringComparison.Ordinal))
+        {
+            FillWaterJug(inhabitantId, state, candidateId[FillWaterJugPrefix.Length..]);
+            return;
+        }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
         {
             GatherBuildingMaterial(inhabitantId, state, candidateId[GatherBuildingMaterialPrefix.Length..]);
@@ -751,6 +776,7 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -770,6 +796,7 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
+            AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);

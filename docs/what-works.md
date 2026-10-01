@@ -29,7 +29,7 @@ test alone does not make it available in the game.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. |
+| Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
@@ -44,6 +44,17 @@ and Roads. The Houses hold
 household food; the Warehouse supplies a wooden axe and pickaxe. Four unrelated
 founders form two starting households: the first holds the Farmhouse and the
 second holds the Blacksmith. The player presses Start World explicitly.
+
+Default Balanced Small/Medium previews measure forests and mountains against
+dry land and try at most three deterministic maps for the Normal settings. The
+preview shows every candidate's coverage and creates the exact selected map.
+If a selected map misses a target, Create World stays unavailable until the
+player accepts the displayed result or changes the seed. Uniform Dry and
+polar-only settings do not use those trial bands; each band applies only while
+its own forest or mountain control is Normal. This is connected to the normal
+owner/server path; the current measurements are
+automated fixture evidence, not a Windows visual playtest or a final balance
+claim.
 
 World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
@@ -126,6 +137,7 @@ summaries remain unfinished.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. Quantities, work times, yields and farm planning remain provisional. |
+| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; a jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Fresh water has no active cooking, medicine-making or animal-care use yet. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
 | Expand storage and invite House guests | Basic version | Adult household members may expand a nearly full House from 1×1 to 1×2 and then 2×2. Adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Work keeps the building's identity, stock and cooking jobs, reserves materials, and cancels safely if the space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |

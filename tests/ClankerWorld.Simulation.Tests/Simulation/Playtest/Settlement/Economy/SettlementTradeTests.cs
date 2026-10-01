@@ -87,6 +87,33 @@ public sealed class SettlementTradeTests
     }
 
     [Fact]
+    public async Task SettlementTradeCannotOfferContainerContentsAsLooseLots()
+    {
+        using var seed = new PrivateWorldRuntime("container-settlement-trade");
+        var state = seed.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        state = WithTradeGoods(state, first, second);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "trade-pot", InventoryContainerRules.StoragePot, first, 1);
+        inventory = InventoryFixture.PutIntoContainer(inventory, "put-trade-food-in-pot", first,
+            "trade-pot", "trade-food", 4);
+        state = WithInventory(state, inventory);
+        var proposer = new TradeProvider("trade_propose:");
+        using var world = PrivateWorldRuntime.Restore(state, id => id == first
+            ? proposer : new TradeProvider("safe_idle"));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.DoesNotContain(proposer.SeenCandidates, id => id.StartsWith("trade_propose:", StringComparison.Ordinal));
+        Assert.Empty(world.Society.Inventory.Offers);
+        var food = Assert.Single(world.Society.Inventory.Lots, lot => lot.ContainerLotId == "trade-pot");
+        Assert.Equal("food", food.ItemKind);
+        Assert.Equal(4, food.Quantity);
+        world.Validate();
+    }
+
+    [Fact]
     public async Task AdultAndElderCanIndependentlyCompleteBarterAfterReload()
     {
         using var seed = new PrivateWorldRuntime("elder-barter");
@@ -141,6 +168,14 @@ public sealed class SettlementTradeTests
             },
         };
     }
+
+    private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) => state with
+    {
+        Society = state.Society with
+        {
+            Society = state.Society.Society with { Inventory = inventory },
+        },
+    };
 
     [Theory]
     [InlineData(false, "food")]

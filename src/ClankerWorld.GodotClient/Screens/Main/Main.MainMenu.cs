@@ -53,6 +53,7 @@ public partial class Main
     private readonly CheckBox worldLatitudeChoice = new();
     private readonly WorldOverview worldPreview = new();
     private readonly Label worldPreviewStatus = new();
+    private readonly CheckBox worldAcceptUnmetTargets = new();
     private readonly Button worldPreviewButton = new();
     private readonly SlotList worldSelectionList = new();
     private readonly Button worldCreateButton = new();
@@ -62,6 +63,7 @@ public partial class Main
     private string? listedActiveWorldId;
     private readonly WorldListRequest worldListRequest = new();
     private OwnerWorldCreationAction? previewedWorldOptions;
+    private OwnerWorldPreview? previewedWorldResult;
     private bool worldMenuBusy;
     private int worldPreviewRevision;
     private readonly ConfirmationDialog quitToMenuConfirmation = new();
@@ -441,8 +443,13 @@ public partial class Main
         worldPreviewFrame.AddChild(worldPreview);
         previewColumn.AddChild(worldPreviewFrame);
         worldPreviewStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        worldPreviewStatus.CustomMinimumSize = new Vector2(0, 44);
+        worldPreviewStatus.CustomMinimumSize = new Vector2(0, 64);
         previewColumn.AddChild(worldPreviewStatus);
+        worldAcceptUnmetTargets.Text = "I accept this map's displayed coverage misses";
+        worldAcceptUnmetTargets.TooltipText = "Create this exact map even though one or more default Balanced trial targets are missed.";
+        worldAcceptUnmetTargets.Hide();
+        worldAcceptUnmetTargets.Toggled += _ => RefreshWorldMenuAvailability();
+        previewColumn.AddChild(worldAcceptUnmetTargets);
 
         worldMenuColumns.AddThemeConstantOverride("h_separation", 20);
         worldMenuColumns.AddThemeConstantOverride("v_separation", 12);
@@ -673,7 +680,15 @@ public partial class Main
         worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
         worldDeleteButton.Disabled = disabled || world is null;
         worldPreviewButton.Disabled = disabled;
-        worldCreateButton.Disabled = disabled || !SameGeneration(previewedWorldOptions, CurrentWorldOptions());
+        worldCreateButton.Disabled = disabled || !CanCreatePreview(CurrentWorldOptions());
+    }
+
+    private bool CanCreatePreview(OwnerWorldCreationAction options)
+    {
+        if (!SameGeneration(previewedWorldOptions, options) || previewedWorldResult is not { } preview ||
+            preview.Coverage is not { } coverage || string.IsNullOrWhiteSpace(preview.MapLayersDigest))
+            return false;
+        return coverage.MeetsTargets || !coverage.TargetsApplicable || worldAcceptUnmetTargets.ButtonPressed;
     }
 
     private async Task RunWorldMenuActionAsync(Func<Task> action)
@@ -746,6 +761,9 @@ public partial class Main
     {
         var revision = ++worldPreviewRevision;
         previewedWorldOptions = null;
+        previewedWorldResult = null;
+        worldAcceptUnmetTargets.ButtonPressed = false;
+        worldAcceptUnmetTargets.Hide();
         worldCreateButton.Disabled = true;
         worldPreview.Hide();
         worldPreviewStatus.Text = "Updating the preview…";
@@ -777,6 +795,8 @@ public partial class Main
         worldMenuBusy = true;
         worldPreviewButton.Disabled = true;
         worldCreateButton.Disabled = true;
+        worldAcceptUnmetTargets.ButtonPressed = false;
+        worldAcceptUnmetTargets.Hide();
         worldPreviewStatus.Text = "Generating map preview…";
         try
         {
@@ -790,9 +810,9 @@ public partial class Main
             worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain, result.PackedMapLayers, action.WrapEastWest));
             worldPreview.Show();
             previewedWorldOptions = action;
-            worldCreateButton.Disabled = false;
-            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
-                "You will choose where your first Town goes after creating the world.";
+            previewedWorldResult = result;
+            SetWorldPreviewStatus(result);
+            worldCreateButton.Disabled = !CanCreatePreview(CurrentWorldOptions());
         }
         catch (Exception exception)
         {
@@ -809,6 +829,56 @@ public partial class Main
         }
     }
 
+    private void SetWorldPreviewStatus(OwnerWorldPreview result)
+    {
+        var coverage = result.Coverage;
+        if (coverage is null)
+        {
+            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
+                "You will choose where your first Town goes after creating the world.";
+            worldAcceptUnmetTargets.ButtonPressed = false;
+            worldAcceptUnmetTargets.Hide();
+            return;
+        }
+
+        var selected = $"Candidate #{coverage.Attempt}: {coverage.ForestPercent:F1}% forest and " +
+            $"{coverage.MountainPercent:F1}% mountains across {coverage.DryLandTiles:N0} dry-land tiles.";
+        if (!coverage.TargetsApplicable)
+        {
+            worldPreviewStatus.Text = selected + " No trial targets apply to these settings.";
+            worldAcceptUnmetTargets.ButtonPressed = false;
+            worldAcceptUnmetTargets.Hide();
+        }
+        else
+        {
+            var targetNames = new List<string>(2);
+            if (coverage.ForestTargetApplicable) targetNames.Add("forest (20–40%)");
+            if (coverage.MountainTargetApplicable) targetNames.Add("mountains (5–12%)");
+            var candidateResults = string.Join(" · ", result.Candidates.Select(candidate =>
+            {
+                var outcome = candidate.MeetsTargets
+                    ? "meets applicable targets"
+                    : "misses " + string.Join(", ", candidate.UnmetTargets);
+                return $"#{candidate.Attempt} F {candidate.ForestPercent:F1}% / M {candidate.MountainPercent:F1}% ({outcome})";
+            }));
+            if (coverage.MeetsTargets)
+            {
+                var targetWord = targetNames.Count == 1 ? "target" : "targets";
+                worldPreviewStatus.Text = $"{selected} Met applicable Normal {targetWord}: " +
+                    string.Join(" and ", targetNames) + $". Candidate results: {candidateResults}.";
+                worldAcceptUnmetTargets.ButtonPressed = false;
+                worldAcceptUnmetTargets.Hide();
+            }
+            else
+            {
+                worldPreviewStatus.Text = selected + " Missed: " + string.Join("; ", coverage.UnmetTargets) +
+                    $". Candidate results: {candidateResults}. Choose a new seed or accept these misses.";
+                worldAcceptUnmetTargets.Show();
+            }
+        }
+        worldPreviewStatus.Text += $" {result.ResourceSites} resource sites; you will choose where your first Town goes after creation.";
+    }
+
     private async Task CreateSelectedWorldAsync()
     {
         if (worldMenuBusy || isOwnerAction || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
@@ -821,12 +891,23 @@ public partial class Main
             return;
         }
         var action = CurrentWorldOptions();
-        if (!SameGeneration(previewedWorldOptions, action))
+        if (!CanCreatePreview(action))
         {
-            worldPreviewStatus.Text = "Preview the map before creating the world.";
-            worldCreateButton.Disabled = true;
+            worldPreviewStatus.Text = previewedWorldResult?.Coverage is { TargetsApplicable: true, MeetsTargets: false }
+                ? "Accept the displayed coverage misses, or choose a new seed, before creating the world."
+                : "Preview the map before creating the world.";
+            RefreshWorldMenuAvailability();
             return;
         }
+        var preview = previewedWorldResult!;
+        var createAction = action with
+        {
+            CandidateAttempt = preview.Coverage!.Attempt,
+            ExpectedManifestDigest = preview.ManifestDigest,
+            ExpectedMapLayersDigest = preview.MapLayersDigest,
+            AcceptUnmetTargets = !preview.Coverage.MeetsTargets && preview.Coverage.TargetsApplicable &&
+                worldAcceptUnmetTargets.ButtonPressed,
+        };
         await RunWorldMenuActionAsync(async () =>
         {
             worldMenuStatus.Text = "Generating world…";
@@ -836,7 +917,7 @@ public partial class Main
                     signer, CancellationToken.None);
                 resumeWorldOnContinue = false;
                 await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
-                    action, signer, CancellationToken.None));
+                    createAction, signer, CancellationToken.None));
                 worldMenuOverlay.Hide();
                 await EnterWorldAsync();
             }
