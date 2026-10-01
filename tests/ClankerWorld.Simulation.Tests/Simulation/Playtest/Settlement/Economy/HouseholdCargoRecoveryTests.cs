@@ -52,7 +52,7 @@ public sealed class HouseholdCargoRecoveryTests
         state = state with
         {
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Survival = new SettlementSurvivalState(state.WorldTick, []),
+            Survival = new SettlementSurvivalState(state.Society.Society.WorldTick, []),
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 HungerBasisPoints = person.InhabitantId == actor ? 6_000 : 9_000,
