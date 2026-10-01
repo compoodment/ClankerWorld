@@ -228,13 +228,13 @@ In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
 sand. Forests show small groves on darker forest floor, where every tile holds
 a tree, among scattered trees on forest grass. A band of hills rings each
-mountain area. Hills are drawn over the ground and cost the same to walk and
-build on as grass. These are the first version of the September 29 terrain
-direction: their numbers are provisional until computment reviews generated
-maps, and they have not been checked by hand in the Windows game yet
-([#461](https://github.com/compoodment/ClankerWorld/issues/461)). Worlds
-generated before this change no longer load; they are refused and their saves
-are kept.
+mountain area. Hills are drawn as soft foothill shading over the ground and
+cost the same to walk and build on as grass. These are the first version of the
+September 29 terrain direction: their numbers are provisional until computment
+reviews generated maps, and they have not been checked by hand in the Windows
+game yet ([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
+Worlds generated before this change no longer load; they are refused and their
+saves are kept.
 
 Bridges are a basic version. Where agents often wade across the same one-tile
 river (six crossings by at least two agents within two world days), a bridge
@@ -271,12 +271,22 @@ Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, sto
 haze/flashes. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
-Ground, buildings, agents and natural objects use provisional code-drawn pixel
-art. The interface uses wooden frames and parchment panels, with pixel fonts:
+The map uses the pixel art approved in the October 1 art review: every ground
+type, with mountains, peaks and hills drawn from the world's elevation as one
+landform spanning many tiles, and snow that thins into frost at its edges;
+water; Roads and plank bridges, with streets running up to each bridge; trees
+and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
+desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
+its stage; every current building; item icons; and the interface icons.
+Agents face the way they last moved and show walking steps, and carrying,
+working, talking or hurt poses chosen from what the game already knows about
+them. A mountain range near the camera can show the earlier per-tile art for
+a moment while its relief is drawn. Picked, harvested and per-site depleted
+states are drawn but need the game to track them. The interface uses wooden
+frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
-the ClankerWorld logo over an animated pixel-art valley that follows the Light
-or Dark theme. None of
-this is a finished production art catalogue. Mineral/clay sites exist; some
+the ClankerWorld logo over an animated pixel-art valley with snowy mountains
+that follows the Light or Dark theme. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 
 ## Saves, keys and inventions

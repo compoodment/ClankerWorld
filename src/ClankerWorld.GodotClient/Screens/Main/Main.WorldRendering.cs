@@ -228,6 +228,11 @@ public partial class Main
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
+                // Facing and frame only present what the observation says:
+                // the tile the host reports and what the agent is doing there.
+                actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
+                    mapWidth, snapshot.WrapsEastWest);
+                actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);
