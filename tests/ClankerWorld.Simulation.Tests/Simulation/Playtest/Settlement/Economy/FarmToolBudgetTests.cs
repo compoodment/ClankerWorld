@@ -106,9 +106,18 @@ public sealed class FarmToolBudgetTests
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("field-early-repair-boundary");
         if (foodShortage) state = FarmFieldTests.FeedHouseholdFromAvailableStock(state, household);
+        // Prepare the real field before placing the Smith: its generated Road
+        // must respect this actual field instead of occupying a future fixture tile.
+        using (var preparing = FarmFieldTests.Restore(state))
+        {
+            Assert.True(preparing.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+            await Advance(preparing, 8);
+            Assert.Equal(FarmFieldStage.Prepared, Assert.Single(preparing.Fields).Stage);
+            state = preparing.ExportState();
+        }
         if (ownedSmith) state = WithOwnedSmith(state, household, point);
         var inventory = InventoryFixture.ChangeCondition(state.Society.Society.Inventory, "carried-hoe", actor,
-            condition - 10_000, "fixture-replant-repair");
+            condition - state.Society.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints, "fixture-replant-repair");
         if (!seed) inventory = inventory with
         {
             Lots = inventory.Lots.Where(lot => lot.OwnerId != household ||
@@ -116,10 +125,7 @@ public sealed class FarmToolBudgetTests
         };
         inventory = InventoryFixture.AddLot(inventory, "boundary-repair-wood", "wood", household, 1,
             storageBuildingId: materialOnSite && ownedSmith ? "repair-smith" : "first-town-house-a");
-        state = FreshChoices(FarmFieldTests.WithInventory(state, inventory) with
-        {
-            Fields = [new(point, household, FarmFieldStage.Prepared)],
-        }, actor);
+        state = FreshChoices(FarmFieldTests.WithInventory(state, inventory), actor);
         var recorder = new ActionCoverageRecorder(chooseIdle: true);
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => recorder);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);

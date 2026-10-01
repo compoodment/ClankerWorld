@@ -401,7 +401,9 @@ public sealed partial class TownHallTests
         state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
         using var world = PrivateWorldRuntime.Restore(state);
         var hall = world.WorldContent.Buildings.Single(definition => definition.CanonicalId == TownHallContent.TownHall().CanonicalId);
-        foreach (var position in world.Towns.Single().BorderTiles)
+        var town = world.Towns.Single();
+        foreach (var position in state.Map.Tiles.Select(tile => tile.Position).Where(position =>
+                     TownBorderRules.IsWithinOrAdjacent(town, position, hall.Width, hall.Height)))
         {
             var placed = world.PlaceBuilding("test-town-hall", hall.CanonicalId, position);
             if (placed.Applied) return world.ExportState();
