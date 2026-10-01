@@ -3,7 +3,8 @@ const { test } = require('node:test');
 const labelPullRequest = require('./pr-labels.js');
 
 function scenario({ live = {}, event = {}, action = 'edited', changes, files = ['src/ClankerWorld.Simulation/Kernel/InventoryFixture.cs'],
-  issueLabels = ['priority:p2', 'status:needs-pr', 'status:in-progress'], otherPrs = [], beforeRemove = () => {} } = {}) {
+  issueLabels = ['priority:p2', 'status:needs-pr', 'status:in-progress'], otherPrs = [],
+  beforeRemove = () => {}, beforeAdd = () => {} } = {}) {
   const pr = {
     number: 25, state: 'open', draft: false, merged: false,
     body: '- [x] Bug fix\nCloses #4', labels: ['status:reviewing'], ...live,
@@ -25,11 +26,12 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
         get: async ({ issue_number }) => ({ data: structuredClone(records.get(issue_number)) }),
         addLabels: async ({ issue_number, labels }) => {
           const record = records.get(issue_number);
+          beforeAdd({ issue_number, labels, record, pr, issue });
           record.labels = [...new Set([...record.labels, ...labels])];
         },
         removeLabel: async ({ issue_number, name }) => {
           const record = records.get(issue_number);
-          beforeRemove({ issue_number, name, record, otherPrs });
+          beforeRemove({ issue_number, name, record, otherPrs, pr, issue });
           record.labels = record.labels.filter(label => label !== name);
         },
       },
@@ -46,7 +48,7 @@ function scenario({ live = {}, event = {}, action = 'edited', changes, files = [
 test('queued draft edit preserves a live ready PR review claim and clears its linked issue claim', async () => {
   const state = scenario({ event: { draft: true, labels: [] } });
   await state.run();
-  assert.equal(state.reads(), 1);
+  assert.equal(state.reads(), 2);
   assert.ok(state.pr.labels.includes('status:reviewing'));
   assert.ok(state.pr.labels.includes('status:needs-review'));
   assert.ok(state.issue.labels.includes('status:has-pr'));
@@ -133,4 +135,33 @@ test('cleanup restores an issue link acquired by another PR after the initial ch
   await state.run();
   assert.deepEqual(state.pr.labels, []);
   assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:in-progress']));
+});
+
+test('a PR closing during an open handler cannot finish with review or linked-issue labels restored', async () => {
+  const state = scenario({
+    beforeAdd({ issue_number, labels, pr }) {
+      if (issue_number === 25 && labels.includes('status:needs-review')) pr.state = 'closed';
+    },
+  });
+  await state.run();
+  assert.ok(!state.pr.labels.includes('status:needs-review'));
+  assert.ok(!state.pr.labels.includes('status:reviewing'));
+  assert.deepEqual(state.issue.labels, ['priority:p2', 'status:needs-pr']);
+});
+
+test('a PR reopening during cleanup retains its new reviewer claim and current issue link', async () => {
+  const state = scenario({
+    action: 'closed', live: { state: 'closed', labels: ['status:needs-review'] },
+    issueLabels: ['priority:p2', 'status:has-pr'],
+    beforeRemove({ issue_number, name, pr }) {
+      if (issue_number === 25 && name === 'status:needs-review') {
+        pr.state = 'open';
+        pr.labels.push('status:reviewing');
+      }
+    },
+  });
+  await state.run();
+  assert.ok(state.pr.labels.includes('status:needs-review'));
+  assert.ok(state.pr.labels.includes('status:reviewing'));
+  assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr']);
 });

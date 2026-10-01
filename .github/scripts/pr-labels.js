@@ -238,21 +238,27 @@ async function releaseIssue({ github, core, repo, number, prNumber, merged }) {
   }
 }
 
-async function labelPullRequest({ github, context, core }) {
+async function clearInactiveReviewLabels(github, repo, number) {
+  for (const name of [NeedsReview, Reviewing]) {
+    const { data: live } = await github.rest.pulls.get({ ...repo, pull_number: number });
+    if (live.state === 'open' && !live.draft) return;
+    await removeLabel(github, repo, number, name);
+  }
+}
+
+async function applyPullRequestLabels({ github, context, core, pr, previousBodies }) {
   const repo = context.repo;
   const action = context.payload.action;
-  // Events can wait in the workflow queue while the PR is edited, claimed,
-  // drafted, closed or reopened. Reconcile the current PR, not that snapshot.
-  const { data: pr } = await github.rest.pulls.get({
-    ...repo, pull_number: context.payload.pull_request.number,
-  });
   const repoName = `${repo.owner}/${repo.repo}`;
   const linked = closingIssueNumbers(pr.body, repoName);
 
   if (pr.state === 'closed') {
-    await removeLabel(github, repo, pr.number, NeedsReview);
-    await removeLabel(github, repo, pr.number, Reviewing);
-    for (const number of linked) {
+    await clearInactiveReviewLabels(github, repo, pr.number);
+    const released = new Set(linked);
+    for (const body of previousBodies) {
+      for (const number of closingIssueNumbers(body, repoName)) released.add(number);
+    }
+    for (const number of released) {
       await releaseIssue({ github, core, repo, number, prNumber: pr.number, merged: pr.merged });
     }
     return;
@@ -280,8 +286,7 @@ async function labelPullRequest({ github, context, core }) {
     core.info(`Added ${prLabels.join(', ')} to this pull request.`);
   }
   if (pr.draft) {
-    await removeLabel(github, repo, pr.number, NeedsReview);
-    await removeLabel(github, repo, pr.number, Reviewing);
+    await clearInactiveReviewLabels(github, repo, pr.number);
   }
 
   let priority = files.some(file => WorkflowPaths.some(path => file.startsWith(path))) ? WorkflowPriority : null;
@@ -310,15 +315,32 @@ async function labelPullRequest({ github, context, core }) {
     }
   }
 
-  // An edit that drops a reference releases that issue.
-  const previousBody = context.payload.changes?.body?.from;
-  if (action === 'edited' && previousBody !== undefined) {
+  // Release references from the event or an earlier reconciliation pass.
+  for (const previousBody of previousBodies) {
     for (const number of closingIssueNumbers(previousBody, repoName)) {
       if (!linked.has(number)) {
         await releaseIssue({ github, core, repo, number, prNumber: pr.number, merged: false });
       }
     }
   }
+}
+
+async function labelPullRequest({ github, context, core }) {
+  const request = { ...context.repo, pull_number: context.payload.pull_request.number };
+  let { data: pr } = await github.rest.pulls.get(request);
+  const previousBodies = new Set([
+    context.payload.pull_request.body,
+    context.payload.changes?.body?.from,
+  ]);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await applyPullRequestLabels({ github, context, core, pr, previousBodies });
+    const { data: live } = await github.rest.pulls.get(request);
+    if (live.state === pr.state && live.draft === pr.draft &&
+        live.merged === pr.merged && live.body === pr.body) return;
+    previousBodies.add(pr.body);
+    pr = live;
+  }
+  throw new Error('The PR kept changing during label reconciliation; retry against its current state.');
 }
 
 module.exports = labelPullRequest;
