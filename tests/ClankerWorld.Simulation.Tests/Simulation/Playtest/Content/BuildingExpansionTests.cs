@@ -686,6 +686,114 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
+    public async Task ExpansionPickupWaitsForCarrySpaceAndReservesRoomForOtherInboundDelivery()
+    {
+        using var seed = PreparedWorld("first-town-house-a", out var actor, out var house, householdWood: 4);
+        var state = seed.ExportState();
+        var householdId = house.HouseholdId!;
+        var sourcePosition = state.Map.FootNeighbors(house.Position).First(point =>
+            state.Map.CanFootStep(house.Position, point) && state.Map.IsBuildable(point) &&
+            !state.Inhabitants.Any(person => person.Position == point) &&
+            !state.WorldSimulation!.Buildings.Any(item => WorldContentSimulationRules.Footprint(
+                state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == item.DefinitionId), item).Contains(point)) &&
+            !state.Map.Resources.Any(resource => resource.Position == point) &&
+            !state.Map.CampObjects.Any(item => item.Position == point) && !state.RoadTiles!.Contains(point));
+        var houseDefinition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var houseCapacity = BuildingStorageRules.Capacity(houseDefinition, house)!.Value;
+        var inventory = state.Society.Society.Inventory;
+        var houseWood = inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId && lot.ItemKind == "wood").ToArray();
+        Assert.Equal(4, houseWood.Sum(lot => lot.Quantity));
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => houseWood.Any(wood => wood.Id == lot.Id)
+                ? lot with { StorageBuildingId = null, GroundPosition = new InventoryGroundPosition(sourcePosition.X, sourcePosition.Y) }
+                : lot).ToArray(),
+        };
+        var currentHouseStock = inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
+        Assert.True(houseCapacity - currentHouseStock > 1);
+        inventory = InventoryFixture.AddLot(inventory, "expansion-inbound-room-fill", "stone", householdId,
+            houseCapacity - currentHouseStock - 1, storageBuildingId: house.InstanceId);
+
+        var otherCarrier = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.Id != actor && PersonalEquipmentRules.FreeCapacity(inventory, person.Id,
+                state.Inhabitants.Single(physical => physical.InhabitantId == person.Id).Equipment) > 0);
+        inventory = InventoryFixture.AddLot(inventory, "expansion-other-inbound", "stone", otherCarrier.Id, 1);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == "expansion-other-inbound"
+                ? lot with { DeliveryBuildingId = house.InstanceId }
+                : lot).ToArray(),
+        };
+
+        var physicalActor = state.Inhabitants.Single(person => person.InhabitantId == actor);
+        var freeCarry = PersonalEquipmentRules.FreeCapacity(inventory, actor, physicalActor.Equipment);
+        Assert.True(freeCarry > 0);
+        inventory = InventoryFixture.AddLot(inventory, "expansion-carry-capacity-fill", "stone", actor, freeCarry);
+        Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(inventory, actor, physicalActor.Equipment));
+        var totalWood = inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null, Project = null }
+                : person).ToArray(),
+        };
+
+        var blockedProvider = new IdleProvider("expand_building:" + house.InstanceId);
+        using (var full = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+                   id => id == actor ? blockedProvider : new IdleProvider()))
+        {
+            for (var tick = 0; tick < 40 && blockedProvider.Seen.Count == 0; tick++)
+                Assert.True((await full.AdvanceOneTickAsync()).Advanced);
+            Assert.NotEmpty(blockedProvider.Seen);
+            Assert.DoesNotContain(blockedProvider.Seen.SelectMany(request => request.Observation.Candidates),
+                candidate => candidate.Id == "expand_building:" + house.InstanceId);
+            Assert.Empty(full.WorldSimulation.BuildingExpansions ?? []);
+        }
+
+        inventory = InventoryFixture.Transfer(inventory, "expansion-open-one-carry-slot", actor, householdId,
+            "expansion-carry-capacity-fill", 1, "test_free_expansion_capacity",
+            destinationGroundPosition: new InventoryGroundPosition(sourcePosition.X, sourcePosition.Y));
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        var provider = new IdleProvider("expand_building:" + house.InstanceId);
+        using var ready = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == actor ? provider : new IdleProvider());
+        for (var tick = 0; tick < 40 && !ready.Society.Inventory.Lots.Any(lot =>
+                 lot.OwnerId == actor && lot.ItemKind == "wood" && lot.DeliveryBuildingId == house.InstanceId); tick++)
+            Assert.True((await ready.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(provider.Seen.SelectMany(request => request.Observation.Candidates),
+            candidate => candidate.Id == "expand_building:" + house.InstanceId);
+        var transit = Assert.Single(ready.Society.Inventory.Lots, lot =>
+            lot.OwnerId == actor && lot.ItemKind == "wood" && lot.DeliveryBuildingId == house.InstanceId);
+        Assert.Equal(1, transit.Quantity);
+        Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(ready.Society.Inventory, actor,
+            ready.Inhabitants.Single(person => person.InhabitantId == actor).Equipment));
+
+        var transitBytes = PrivateWorldRuntimeCodec.Encode(ready.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(transitBytes),
+            id => id == actor ? provider : new IdleProvider());
+        for (var tick = 0; tick < 5 && !resumed.Society.Inventory.Lots.Any(lot =>
+                 lot.OwnerId == householdId && lot.ItemKind == "wood" &&
+                 lot.GroundPosition == new InventoryGroundPosition(house.Position.X, house.Position.Y)); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+
+        var delivered = Assert.Single(resumed.Society.Inventory.Lots, lot =>
+            lot.OwnerId == householdId && lot.ItemKind == "wood" &&
+            lot.GroundPosition == new InventoryGroundPosition(house.Position.X, house.Position.Y));
+        Assert.Equal(1, delivered.Quantity);
+        Assert.Equal(totalWood, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(houseCapacity - 1, resumed.Society.Inventory.Lots
+            .Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
+        Assert.Equal(house.InstanceId, resumed.Society.Inventory.GetLot("expansion-other-inbound").DeliveryBuildingId);
+        Assert.Equal(1, resumed.Society.Inventory.GetLot("expansion-other-inbound").Quantity);
+        resumed.Validate();
+    }
+
+    [Fact]
     public async Task AnInvitedGuestCanReachAnOccupiedHouseDuringAStorm()
     {
         using var seed = PreparedWorld("first-town-house-a", out var actor, out var house);

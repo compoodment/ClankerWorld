@@ -156,7 +156,7 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
-Private-world schema 37 saves each inhabitant's explicit domestic family unit
+Private-world schema 38 saves each inhabitant's explicit domestic family unit
 and primary caregiver, plus the caregiver, intended home and actual birth home
 for an agreed parenthood plan. Birth records retain the caregiver and actual
 household. House resident counts and limits are derived from active household
