@@ -42,7 +42,7 @@ public static class AgentConversationRules
             Revision: 1,
             AgentConversationStatus.Proposed,
             [initiatorId],
-            inviteeId,
+            CurrentSpeakerId: null,
             AwaitingWrapUp: false,
             [],
             AgentConversationEffect.None,

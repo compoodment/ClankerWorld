@@ -33,7 +33,9 @@ public sealed partial class PrivateWorldRuntime
             if (current.Status == AgentConversationStatus.Closed) continue;
             var next = !activeIds.Contains(current.InitiatorId) || !activeIds.Contains(current.InviteeId)
                 ? AgentConversationRules.CloseUnavailable(current, WorldTick)
-                : AgentConversationRules.Suspend(current, AgentConversationInterruption.Restored, WorldTick);
+                : current.Status == AgentConversationStatus.Proposed
+                    ? current
+                    : AgentConversationRules.Suspend(current, AgentConversationInterruption.Restored, WorldTick);
             if (next == current) continue;
             conversations[index] = next;
             changed = true;
@@ -312,19 +314,14 @@ public sealed partial class PrivateWorldRuntime
         if (oldestClosed is null) return;
 
         var turnIds = oldestClosed.Turns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        var removedBeliefs = (society.Checkpoint.Beliefs ?? [])
-            .Where(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId))
-            .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        if (removedBeliefs.Count > 0)
+        if ((society.Checkpoint.Beliefs ?? []).Any(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId)))
         {
             society.Apply(checkpoint => new SocietyOperationResult(checkpoint with
             {
-                Beliefs = (checkpoint.Beliefs ?? []).Where(item => !removedBeliefs.Contains(item.Id)).ToArray(),
-                MemoryCompactions = (checkpoint.MemoryCompactions ?? []).Select(item => item with
-                {
-                    Sources = item.Sources.Where(source => source.Kind != SocietyMemorySourceKind.Belief ||
-                        !removedBeliefs.Contains(source.SourceId)).ToArray(),
-                }).ToArray(),
+                Beliefs = (checkpoint.Beliefs ?? []).Select(item =>
+                    item.SourceTurnId is { } sourceTurnId && turnIds.Contains(sourceTurnId)
+                        ? item with { SourceTurnId = null }
+                        : item).ToArray(),
             }));
         }
         conversations.Remove(oldestClosed);
@@ -615,8 +612,8 @@ public sealed partial class PrivateWorldRuntime
     {
         try
         {
-            var response = await provider.SpeakAsync(request, cancellationToken).AsTask()
-                .WaitAsync(ConversationProviderTimeout, cancellationToken).ConfigureAwait(false);
+            var response = await AgentConversationProviderExecution.SpeakAsync(
+                provider, request, ConversationProviderTimeout, cancellationToken).ConfigureAwait(false);
             return new ConversationTurnOutcome(response, null);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)

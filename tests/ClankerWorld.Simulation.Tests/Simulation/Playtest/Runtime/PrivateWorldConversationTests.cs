@@ -190,6 +190,64 @@ public sealed class PrivateWorldConversationTests
     }
 
     [Fact]
+    public async Task PendingInvitationSurvivesPrivateWorldFileReloadAndCanStillBeAccepted()
+    {
+        var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
+        {
+            InitiatorId, InviteeId,
+        });
+        var directory = Directory.CreateTempSubdirectory("clankerworld-pending-invitation-");
+        var path = Path.Combine(directory.FullName, "world.json");
+        try
+        {
+            using var world = NewWorld("pending-invitation-reload", provider);
+            world.StartWorld();
+            for (var attempt = 0; attempt < 50 && world.Conversations.All(item =>
+                     item.Status != AgentConversationStatus.Proposed); attempt++)
+            {
+                _ = await world.AdvanceOneTickNonBlockingAsync();
+                await Task.Delay(5);
+            }
+
+            var beforeSave = Assert.Single(world.Conversations, item => item.Status == AgentConversationStatus.Proposed);
+            Assert.Null(beforeSave.CurrentSpeakerId);
+            var savedBudget = world.ConversationBudgets.Single(item => item.AgentId == InitiatorId);
+            var file = new PrivateWorldStateFile(path, id =>
+                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            file.Save(world);
+            var exactSavedBytes = File.ReadAllBytes(path);
+
+            using var restored = file.LoadOrCreate("pending-invitation-reload");
+            Assert.Equal(exactSavedBytes, File.ReadAllBytes(path));
+            var afterReload = Assert.Single(restored.Conversations, item => item.Status == AgentConversationStatus.Proposed);
+            Assert.Equal(beforeSave.Id, afterReload.Id);
+            Assert.Null(afterReload.CurrentSpeakerId);
+            Assert.Equal(beforeSave.CreatedTick, afterReload.CreatedTick);
+            Assert.Equal(beforeSave.ProposalDeadlineTick, afterReload.ProposalDeadlineTick);
+            Assert.Equal(beforeSave.Revision, afterReload.Revision);
+            Assert.Equal(savedBudget, restored.ConversationBudgets.Single(item => item.AgentId == InitiatorId));
+            Assert.Empty(provider.TurnRequests);
+
+            restored.Resume();
+            for (var attempt = 0; attempt < 90 && restored.Conversations.Single(item => item.Id == beforeSave.Id)
+                     .Turns.Count == 0; attempt++)
+            {
+                _ = await restored.AdvanceOneTickNonBlockingAsync();
+                await Task.Delay(5);
+            }
+
+            var accepted = Assert.Single(restored.Conversations, item => item.Id == beforeSave.Id);
+            Assert.NotEmpty(accepted.Turns);
+            Assert.Contains(provider.TurnRequests, request => request.ConversationId == beforeSave.Id);
+            Assert.Equal(1, restored.ConversationBudgets.Single(item => item.AgentId == InviteeId).Count);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ProviderRouteChangedDuringPreparedTickCannotAdmitTurnOrListenerMemory()
     {
         var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
@@ -312,6 +370,11 @@ public sealed class PrivateWorldConversationTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
             Encoding.UTF8.GetBytes(nullTurnEntry.ToJsonString())));
 
+        var nullBudgetEntry = JsonNode.Parse(encoded) ?? throw new InvalidDataException("Encoded state was empty.");
+        nullBudgetEntry["state"]!["conversationBudgets"]![0] = null;
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+            Encoding.UTF8.GetBytes(nullBudgetEntry.ToJsonString())));
+
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(encoded), _ => provider);
         var restoredConversation = Assert.Single(restored.Conversations!);
@@ -340,6 +403,136 @@ public sealed class PrivateWorldConversationTests
                 item.Provenance == SocietyBeliefProvenance.Hearsay && item.Statement == thirdTurn.Text);
         Assert.DoesNotContain(afterResume.Society.Society.Beliefs!, item =>
             item.SourceTurnId == thirdTurn.Id && !thirdTurn.ListenerIds.Contains(item.OwnerId));
+    }
+
+    [Fact]
+    public async Task TrimmingOldConversationKeepsCorrectedPrivateHearsayAndCompactionAcrossAnotherHeardTurn()
+    {
+        const string seed = "conversation-history-trimming";
+        const string oldConversationId = "conversation:000-old-heard-claim";
+        const string oldBeliefId = "conversation-belief:old-source";
+        const string correctionId = "conversation-belief:corrected-source";
+        var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
+        {
+            InitiatorId, InviteeId,
+        });
+        using var setup = NewWorld(seed, provider);
+        setup.StartWorld();
+        var initial = setup.ExportState();
+        var society = initial.Society.Society;
+        var old = ClosedConversationWithOneTurn(oldConversationId, society.WorldTick, society.RunEpoch);
+        var conversations = new List<AgentConversation> { old.Conversation };
+        for (var index = 0; index < AgentConversationRules.MaximumSavedConversations - 1; index++)
+        {
+            var proposal = AgentConversationRules.Propose(
+                $"conversation:closed:{index:D2}", InitiatorId, InviteeId, society.WorldTick, society.RunEpoch);
+            Assert.True(AgentConversationRules.TryDeclineProposal(
+                proposal, InviteeId, society.WorldTick, out var refused));
+            conversations.Add(refused);
+        }
+
+        var oldClaim = new SocietyAgentBelief(
+            oldBeliefId, ListenerId, old.Turn.Text, SocietyBeliefProvenance.Hearsay,
+            5_000, old.Turn.WorldTick, old.Turn.SpeakerId, SourceTurnId: old.Turn.Id);
+        society = SocietyFixture.RecordAgentBelief(society, oldClaim);
+        var correctedClaim = SocietyFixture.CorrectAgentBelief(society, ListenerId, oldClaim.Id,
+            new SocietyAgentBelief(
+                correctionId, ListenerId, "I later learned the speaker had been mistaken about the trail.",
+                SocietyBeliefProvenance.Hearsay, 7_500, old.Turn.WorldTick,
+                old.Turn.SpeakerId, SourceTurnId: old.Turn.Id));
+        society = SocietyFixture.RecordAgentMemoryCompaction(correctedClaim, ListenerId,
+        [
+            new SocietyAgentMemoryImportance(
+                correctionId, SocietyMemorySourceKind.Belief, old.Turn.WorldTick, 8_000, 8_500,
+                old.Turn.WorldTick),
+        ]);
+
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Society = initial.Society with { Society = society },
+            Conversations = conversations,
+            ConversationBudgets = [],
+        }, id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+        for (var attempt = 0; attempt < 50 && world.Conversations.All(item =>
+                 item.Status != AgentConversationStatus.Proposed); attempt++)
+        {
+            _ = await world.AdvanceOneTickNonBlockingAsync();
+            await Task.Delay(5);
+        }
+
+        var newConversation = Assert.Single(world.Conversations, item => item.Status == AgentConversationStatus.Proposed);
+        Assert.Equal(AgentConversationRules.MaximumSavedConversations, world.Conversations.Count);
+        Assert.DoesNotContain(world.Conversations, item => item.Id == oldConversationId);
+        var afterTrim = world.ExportState().Society.Society;
+        var retainedOldClaim = Assert.Single(afterTrim.Beliefs!, item => item.Id == oldBeliefId);
+        var retainedCorrection = Assert.Single(afterTrim.Beliefs!, item => item.Id == correctionId);
+        Assert.Null(retainedOldClaim.SourceTurnId);
+        Assert.Null(retainedCorrection.SourceTurnId);
+        Assert.Equal(old.Turn.SpeakerId, retainedCorrection.SourceAgentId);
+        Assert.Equal("I later learned the speaker had been mistaken about the trail.", retainedCorrection.Statement);
+        Assert.Equal(correctionId, retainedOldClaim.SupersededByBeliefId);
+        Assert.Equal(oldBeliefId, retainedCorrection.SupersedesBeliefId);
+        Assert.Contains(Assert.Single(afterTrim.MemoryCompactions!, item => item.OwnerId == ListenerId).Sources,
+            item => item.Kind == SocietyMemorySourceKind.Belief && item.SourceId == correctionId);
+
+        for (var attempt = 0; attempt < 90 && world.Conversations.Single(item => item.Id == newConversation.Id)
+                 .Turns.Count == 0; attempt++)
+        {
+            _ = await world.AdvanceOneTickNonBlockingAsync();
+            await Task.Delay(5);
+        }
+        var firstNewTurn = Assert.Single(world.Conversations.Single(item => item.Id == newConversation.Id).Turns);
+        Assert.Contains(ListenerId, firstNewTurn.ListenerIds);
+        var fileDirectory = Directory.CreateTempSubdirectory("clankerworld-trimmed-conversation-");
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(fileDirectory.FullName, "world.json"), id =>
+                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            file.Save(world);
+            using var reloaded = file.LoadOrCreate(seed);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()), File.ReadAllBytes(file.Path));
+            var afterReloadSociety = reloaded.ExportState().Society.Society;
+            Assert.Contains(afterReloadSociety.Beliefs!, item => item.Id == correctionId && item.SourceTurnId is null &&
+                item.SupersedesBeliefId == oldBeliefId);
+            Assert.Contains(Assert.Single(afterReloadSociety.MemoryCompactions!, item => item.OwnerId == ListenerId).Sources,
+                item => item.Kind == SocietyMemorySourceKind.Belief && item.SourceId == correctionId);
+
+            reloaded.Resume();
+            for (var attempt = 0; attempt < 120 && reloaded.Conversations.Single(item => item.Id == newConversation.Id)
+                     .Turns.Count < 2; attempt++)
+            {
+                _ = await reloaded.AdvanceOneTickNonBlockingAsync();
+                await Task.Delay(5);
+            }
+            var retainedConversation = Assert.Single(reloaded.Conversations, item => item.Id == newConversation.Id);
+            Assert.True(retainedConversation.Turns.Count >= 2);
+            var heardTurns = retainedConversation.Turns.Take(2).ToArray();
+            Assert.All(heardTurns, turn =>
+            {
+                Assert.Contains(turn.SpeakerId == InitiatorId ? InviteeId : InitiatorId, turn.ListenerIds);
+                Assert.Contains(turn.ListenerIds, listenerId => listenerId != InitiatorId && listenerId != InviteeId);
+            });
+            var afterSecondTurn = reloaded.ExportState();
+            foreach (var turn in heardTurns)
+                foreach (var listenerId in turn.ListenerIds)
+                    Assert.Contains(afterSecondTurn.Society.Society.Beliefs!, item =>
+                        item.OwnerId == listenerId && item.SourceTurnId == turn.Id && item.Statement == turn.Text);
+
+            reloaded.Pause();
+            var roundTripBytes = PrivateWorldRuntimeCodec.Encode(reloaded.ExportState());
+            using var finalRestore = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(roundTripBytes),
+                id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            Assert.Equal(roundTripBytes, PrivateWorldRuntimeCodec.Encode(finalRestore.ExportState()));
+            var finalSociety = finalRestore.ExportState().Society.Society;
+            Assert.Contains(finalSociety.Beliefs!, item => item.Id == correctionId && item.SourceTurnId is null &&
+                item.SupersededByBeliefId is null);
+            Assert.Contains(Assert.Single(finalSociety.MemoryCompactions!, item => item.OwnerId == ListenerId).Sources,
+                item => item.Kind == SocietyMemorySourceKind.Belief && item.SourceId == correctionId);
+        }
+        finally
+        {
+            fileDirectory.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -372,8 +565,56 @@ public sealed class PrivateWorldConversationTests
         Assert.Equal(33, saved.SchemaVersion);
     }
 
+    [Fact]
+    public async Task ConversationProviderDeadlineCancelsUnderlyingProviderOperation()
+    {
+        var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
+        {
+            InitiatorId, InviteeId,
+        })
+        {
+            BlockConversationUntilCanceled = true,
+        };
+        var request = new AgentConversationTurnRequest(
+            "conversation-timeout-check", "conversation:timeout-check", 1, 0, 0,
+            AgentConversationPurpose.PublicTurn, InitiatorId, "Aster", InviteeId, "Rowan",
+            "patient", "learn", [], [AgentConversationEffect.None]);
+
+        var timeout = await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await AgentConversationProviderExecution.SpeakAsync(
+                provider, request, TimeSpan.FromMilliseconds(25), CancellationToken.None));
+        await provider.CancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(AgentConversationInterruption.ProviderTimedOut,
+            AgentConversationFailureClassifier.Classify(timeout));
+        Assert.Single(provider.TurnRequests);
+    }
+
     private static PrivateWorldRuntime NewWorld(string seed, ConversationProvider provider) =>
         NewWorld(seed, id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+
+    private static (AgentConversation Conversation, AgentConversationTurn Turn) ClosedConversationWithOneTurn(
+        string id,
+        long worldTick,
+        long runEpoch)
+    {
+        var proposal = AgentConversationRules.Propose(id, InitiatorId, InviteeId, worldTick, runEpoch);
+        Assert.True(AgentConversationRules.TryAcceptProposal(proposal, InviteeId, worldTick, runEpoch, out var accepted));
+        Assert.True(AgentConversationRules.TryBeginTurn(accepted, worldTick, runEpoch, out var begun));
+        var request = new AgentConversationTurnRequest(
+            $"{id}:request", id, begun.Revision, runEpoch, worldTick, AgentConversationPurpose.PublicTurn,
+            InitiatorId, "Aster", InviteeId, "Rowan", "patient", "learn", [], [AgentConversationEffect.None]);
+        var response = new AgentConversationTurnResponse(
+            request.RequestId, id, request.Revision, runEpoch, InitiatorId,
+            "A public claim about the trail.", AgentConversationDisposition.Continue);
+        Assert.True(AgentConversationRules.TryAdmitTurn(
+            begun, request, response, [InviteeId, ListenerId], worldTick, runEpoch,
+            out var admitted, out var turn));
+        Assert.NotNull(turn);
+        var closed = AgentConversationRules.CloseUnavailable(admitted, worldTick);
+        AgentConversationRules.Validate(closed, worldTick);
+        return (closed, turn);
+    }
 
     private static PrivateWorldRuntime NewWorld(string seed, Func<string, IDecisionProvider> providerFactory)
     {
@@ -432,6 +673,8 @@ public sealed class PrivateWorldConversationTests
         long IAgentConversationProvider.ProviderEpoch => CurrentProviderEpoch;
         public List<AgentConversationTurnRequest> TurnRequests { get; } = [];
         public Exception? ConversationFailure { get; init; }
+        public bool BlockConversationUntilCanceled { get; init; }
+        public TaskCompletionSource CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool CanSpeakAs(string agentId) => assignedAgents.Contains(agentId);
 
@@ -474,6 +717,8 @@ public sealed class PrivateWorldConversationTests
             request.Validate();
             TurnRequests.Add(request);
             if (ConversationFailure is { } failure) throw failure;
+            if (BlockConversationUntilCanceled)
+                return new ValueTask<AgentConversationTurnResponse>(WaitForCancellationAsync(cancellationToken));
             return ValueTask.FromResult(new AgentConversationTurnResponse(
                 request.RequestId,
                 request.ConversationId,
@@ -482,6 +727,20 @@ public sealed class PrivateWorldConversationTests
                 request.SpeakerId,
                 "A public turn with no world command.",
                 AgentConversationDisposition.Continue));
+        }
+
+        private async Task<AgentConversationTurnResponse> WaitForCancellationAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                CancellationObserved.TrySetResult();
+                throw;
+            }
+            throw new InvalidOperationException("The cancellation wait unexpectedly completed.");
         }
     }
 

@@ -167,6 +167,41 @@ public interface IAgentConversationProvider
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>Applies one bounded deadline to a personal conversation request.</summary>
+public static class AgentConversationProviderExecution
+{
+    public static async Task<AgentConversationTurnResponse> SpeakAsync(
+        IAgentConversationProvider provider,
+        AgentConversationTurnRequest request,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(request);
+        if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(5))
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+
+        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestCancellation.CancelAfter(timeout);
+        try
+        {
+            return await provider.SpeakAsync(request, requestCancellation.Token).AsTask()
+                .WaitAsync(requestCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception) when
+            (!cancellationToken.IsCancellationRequested && requestCancellation.IsCancellationRequested)
+        {
+            requestCancellation.Cancel();
+            throw new TimeoutException("The personal conversation provider did not respond before its deadline.", exception);
+        }
+        catch
+        {
+            requestCancellation.Cancel();
+            throw;
+        }
+    }
+}
+
 /// <summary>Stable, bounded categories for logs and interruption state.</summary>
 public static class AgentConversationFailureClassifier
 {

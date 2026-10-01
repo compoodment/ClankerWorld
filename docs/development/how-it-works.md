@@ -219,6 +219,15 @@ one accepted wrap-up), and each later provider request receives the committed
 public history so far. The wrap-up request receives the six public turns; a
 pending answer is never included or saved.
 
+Saving by itself keeps an unaccepted invitation pending, with its original
+deadline and the inviter's saved daily allowance. It has no current speaker;
+only acceptance assigns the first turn. When the 64-session save limit is
+reached, the oldest closed session is removed before a new one starts. A
+listener's private hearsay claim, its correction links and any memory-compaction
+reference remain saved. Only the link from that private claim to the removed
+public turn is cleared; its statement and speaker attribution stay private to
+its owner, while the old turn text leaves the shared conversation history.
+
 Pausing, disconnect, a provider failure, urgent need, separation or an
 unavailable participant interrupts or closes the activity according to its
 state. A save contains accepted bounded turns and daily allowances, not a live

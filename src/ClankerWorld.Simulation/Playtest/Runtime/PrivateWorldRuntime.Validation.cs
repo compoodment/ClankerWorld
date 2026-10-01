@@ -404,7 +404,7 @@ public sealed partial class PrivateWorldRuntime
         var worldDay = checkpoint.Config.TicksPerWorldDay <= 0
             ? 0
             : checkpoint.WorldTick / checkpoint.Config.TicksPerWorldDay;
-        if (conversations.Any(item => item is null) ||
+        if (conversations.Any(item => item is null) || budgets.Any(item => item is null) ||
             conversations.Count > AgentConversationRules.MaximumSavedConversations ||
             conversations.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != conversations.Count ||
             budgets.Count > knownAgents.Count ||
@@ -428,13 +428,18 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("An agent cannot take part in overlapping conversations.");
 
         var turns = conversations.SelectMany(item => item.Turns).ToDictionary(item => item.Id, StringComparer.Ordinal);
-        foreach (var belief in checkpoint.Beliefs ?? [])
+        foreach (var group in (checkpoint.Beliefs ?? []).Where(item => item.SourceTurnId is not null)
+                     .GroupBy(item => (item.OwnerId, item.SourceTurnId)))
         {
-            if (belief.SourceTurnId is not { } sourceTurnId) continue;
+            var sourceTurnId = group.Key.SourceTurnId!;
+            var beliefs = group.ToArray();
             if (!turns.TryGetValue(sourceTurnId, out var turn) ||
-                !turn.ListenerIds.Contains(belief.OwnerId, StringComparer.Ordinal) ||
-                turn.SpeakerId != belief.SourceAgentId || belief.Provenance != SocietyBeliefProvenance.Hearsay ||
-                belief.FormedTick != turn.WorldTick || belief.Statement != turn.Text)
+                !turn.ListenerIds.Contains(group.Key.OwnerId, StringComparer.Ordinal) ||
+                beliefs.Any(item => item.SourceAgentId != turn.SpeakerId) ||
+                beliefs.Count(item => item.SupersedesBeliefId is null) != 1 ||
+                beliefs.Single(item => item.SupersedesBeliefId is null) is not
+                { Provenance: SocietyBeliefProvenance.Hearsay } sourceBelief ||
+                sourceBelief.FormedTick != turn.WorldTick || sourceBelief.Statement != turn.Text)
                 throw new InvalidDataException("An agent belief references a conversation turn it did not hear.");
         }
     }
