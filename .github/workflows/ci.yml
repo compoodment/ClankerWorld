@@ -14,8 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Verify pull request label and stale-claim automation
-        run: node --test .github/scripts/pr-labels.test.js .github/scripts/stale-claims.test.js
+      - name: Verify the workflow scripts and the label list
+        run: |
+          node --test .github/scripts/*.test.js
+          node -e "require('./.github/scripts/sync-labels.js').readConfig()"
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json

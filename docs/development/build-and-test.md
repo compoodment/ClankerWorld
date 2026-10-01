@@ -50,6 +50,7 @@ lettering, Timber, is drawn in code in `UI/Theme/TimberFont.cs`.
 | Godot scripts, scenes or UI | Run the Godot client check and relevant automated tests; inspect the affected controls in the game. |
 | Windows export or device storage | Run the Windows export check and relevant native Windows checks. Test the actual bundle on Windows when claiming player usability. |
 | Saves, events or compatibility | Include the replay and rollback checks described in [Saves and replay](saves-and-replay.md). During alpha, older saves need not keep loading, so no old-save or migration checks are needed; a save that cannot load must still be refused visibly and preserved. |
+| Workflow automation (scripts, workflows, labels and templates in `.github/`) | Run `node --test .github/scripts/*.test.js`, and add or update tests when a script's behavior changes. For `.github/labels.json`, read the pull request's Labels check output to see what it would create, rename or delete; after merging, check that the Labels run on main passed. |
 | Release | Follow the applicable [release gate](releasing.md#release-gate), including real player-path checks. |
 
 The CI configuration in [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
@@ -98,8 +99,9 @@ dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 ```
 
-These checks cover the required pages, front matter, local links, linked
-headings and that each entry in `changes/` starts with a `- ` bullet. The
+These checks cover front matter on pages under `docs/`, local links and linked
+headings in every Markdown file, and that each entry in `changes/` starts with
+a `- ` bullet. They do not check that any particular page exists. The
 documentation test reads each page with both LF and CRLF line endings, and CI
 also runs it on a Windows checkout. That job is separate from a Windows game
 playtest and from the native provider-storage checks.

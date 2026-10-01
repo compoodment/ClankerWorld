@@ -54,6 +54,10 @@ is:issue is:open label:"type:decision"
 is:issue is:open label:owner-task
 ```
 
+Then add the [playtest list](playtest/README.md): how many files and checks are
+waiting for the owner to try in the game by hand. Playtest checks are never
+owner-task issues, so these searches do not show them.
+
 ## Sign your comments
 
 Many sessions share one GitHub account, so sign every claim, review claim,

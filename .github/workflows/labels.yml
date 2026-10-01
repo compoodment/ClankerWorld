@@ -39,15 +39,23 @@ jobs:
             const syncLabels = require('./.github/scripts/sync-labels.js');
             await syncLabels({ github, context, core, dryRun: true });
 
+  # Changes labels only from main's copy of labels.json, even when someone
+  # starts it by hand from another branch, and one run at a time.
   sync:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: labels-sync
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
       - name: Create, rename and update labels
         uses: actions/github-script@v8
         with:

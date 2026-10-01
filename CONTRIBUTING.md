@@ -46,10 +46,13 @@ Otherwise use the matching template:
 Every open issue has **one type**, **one or two areas**, **a priority** and,
 while someone works on it or it waits on something, **a status**. Whoever
 changes an issue's situation updates its labels in the same step. Use only the
-labels in [`.github/labels.json`](.github/labels.json): to add or rename one,
-edit that file and a workflow updates the repository. Never create a label by
-hand; retired ones, such as `status:needs-playtest`, are deleted again every
-six hours.
+labels in [`.github/labels.json`](.github/labels.json), and change them by
+editing that file; a workflow then updates the repository. To rename a label,
+change its name and add the old name to its `aliases`, so issues keep it, and
+in the same pull request update the issue forms, `.github/scripts/` and the
+searches here and in AGENTS.md that name it. Never create a label by hand;
+retired ones, such as `status:needs-playtest`, are deleted again every six
+hours.
 
 | Kind | Labels |
 | --- | --- |
@@ -155,8 +158,11 @@ doing the work, and a merged one may mean main already fixes it. If main
 already fixes it, name the commit and close the issue.
 
 If the issue also has `status:has-pr`, an earlier draft was abandoned: continue
-that pull request's branch rather than starting again. Say on the pull request
-that you are taking it over, fetch its latest head before each push, and never
+that pull request's branch rather than starting again. If the draft also
+closes other open issues that nobody holds, claim them together with yours as
+combined work, naming its branch on each, so the queue does not hand them to
+another session working on the same branch. Say on the pull request that you
+are taking it over, fetch its latest head before each push, and never
 force-push. If a push is rejected because the branch moved, find out who pushed
 and merge their work in before you continue.
 
@@ -171,9 +177,9 @@ sign the comment with a session ID ([how](AGENTS.md#sign-your-comments)).
   your next job. Each session holds one issue claim; a session's subagents
   share it. The exception is combined work: when one pull request, or one stack
   of pull requests built on each other, will cover several related issues,
-  claim them together and name on each the branch that will close it. Your
-  claim ends when your pull request is marked ready, so you are then free to
-  claim the next issue.
+  claim them together and name on each the branch that will close it. Each
+  issue's claim ends when the pull request that closes it is marked ready, and
+  you are free to claim the next issue once all of yours are ready.
 - **Only pushes keep a claim.** Push your branch and open a draft pull request
   within the first hour, even before the work builds, then push at least every
   hour. A draft is where unfinished work belongs. Work that exists only on your
@@ -310,7 +316,8 @@ linking to it. Only call a feature available once it works on the normal
 private-world and Godot play path; a test or data type alone does not make it
 playable. Put detailed unresolved findings in Issues, and link them from a page
 only when that helps a reader understand a limitation. If a page moves, update
-the links to it and the documentation checks that list it.
+the links to it; the [documentation checks](docs/development/build-and-test.md#focused-documentation-checks)
+fail on any local link or heading link you miss.
 
 Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
@@ -320,9 +327,12 @@ supported behavior or operational promise.
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
 the file with a `- ` bullet. Name the file after the issue number and the
-change, such as `431-orchard-harvest.md`, or after your branch when there is no
-issue. `scripts/collect-changes.sh` moves the entries into CHANGELOG.md when a
-release is prepared, or whenever the changelog should catch up.
+change, such as `431-orchard-harvest.md`. When there is no issue, name it after
+your branch without the `claude/` or `codex/` prefix, such as
+`settings-redesign.md`. Put the file directly in `changes/`; entries in
+subfolders are not collected. `scripts/collect-changes.sh` moves the entries
+into CHANGELOG.md when a release is prepared, or whenever the changelog should
+catch up.
 
 ### Drafts and readiness
 
