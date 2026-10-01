@@ -225,6 +225,40 @@ public sealed class FarmFieldTests
         contested.Validate();
     }
 
+    [Fact]
+    public async Task FreshChoicePausedBuildCanYieldToFieldWorkWithoutLosingItsSavedPlan()
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-fresh-choice-paused-project");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe");
+        var project = new SettlementProject("build:recipe:" + recipe.CanonicalId, recipe.DisplayName,
+            state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "fresh-choice-greens-seed",
+            FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Fields = [new(point, household, FarmFieldStage.Prepared)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Project = project, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Greens}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new IdleProvider());
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(candidateId, provider.SelectedCandidateIds);
+        var field = Assert.Single(world.Fields);
+        Assert.Equal(FarmWorkKind.Plant, field.Work?.Kind);
+        Assert.Equal(actor, field.Work?.WorkerId);
+        var paused = world.Inhabitants.Single(item => item.InhabitantId == actor).Project;
+        Assert.Equal(project, paused);
+        world.Validate();
+    }
+
     [Theory]
     [InlineData("grain", "grain_seed")]
     [InlineData("cultivated_greens", "cultivated_green_seed")]

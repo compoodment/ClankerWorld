@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
-            state.Project is { Stage: not ("completed" or "cancelled") }) return;
+            (state.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice)) return;
         if (!HasCarriedItem(actor, FarmFieldRules.Hoe))
         {
             if (SharedItem(FarmFieldRules.Hoe, actor) is not null)

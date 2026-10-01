@@ -41,7 +41,11 @@ public sealed partial class PrivateWorldRuntime
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
-                SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
+                SetProject(inhabitant.Id, project with
+                {
+                    Stage = "paused",
+                    Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs",
+                });
                 physical = inhabitants[inhabitant.Id];
             }
             if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
@@ -50,6 +54,13 @@ public sealed partial class PrivateWorldRuntime
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
+            if (PauseExpiredUnfillableHouseholdRecipeProject(inhabitant.Id))
+            {
+                physical = inhabitants[inhabitant.Id];
+                candidates = CreateCandidates(inhabitant.Id, physical)
+                    .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
+                    .ToList();
+            }
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))

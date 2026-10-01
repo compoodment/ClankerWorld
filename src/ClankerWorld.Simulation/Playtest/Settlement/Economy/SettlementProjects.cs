@@ -16,13 +16,16 @@ public sealed record SettlementProject(
     int WorkDone = 0,
     string? Blocker = null,
     string? JobId = null,
-    long LastTransitionTick = 0);
+    long LastTransitionTick = 0,
+    bool RequiresFreshChoice = false);
 
 public sealed partial class PrivateWorldRuntime
 {
     private const int ProjectWorkTicks = 10;
     private const string WaitingForWorkSiteBlocker = "Waiting for a free work site";
+    private const string FreshChoicePauseBlocker = "Materials for this work are unavailable. Choose another task for now.";
     private const int BlockedProjectRetryDelayTicks = 60;
+
     private static bool IsCompatibleSavedMap(SeededMap generated, PrivateWorldRuntimeState state)
     {
         if (MapManifestCodec.Digest(state.Map) != state.Map.ManifestDigest)
@@ -278,7 +281,8 @@ public sealed partial class PrivateWorldRuntime
             project.StartedTick < 0 || project.StartedTick > worldTick ||
             project.LastTransitionTick < project.StartedTick || project.LastTransitionTick > worldTick ||
             project.WorkDone is < 0 or > ProjectWorkTicks ||
-            project.Stage is not ("acquiring" or "gathering" or "delivering" or "travelling" or "working" or "waiting" or "blocked" or "paused" or "completed" or "cancelled"))
+            project.Stage is not ("acquiring" or "gathering" or "delivering" or "travelling" or "working" or "waiting" or "blocked" or "paused" or "completed" or "cancelled") ||
+            project.RequiresFreshChoice && (project.Stage != "paused" || project.JobId is not null))
         {
             throw new InvalidDataException("The saved settlement project is invalid.");
         }
@@ -287,6 +291,7 @@ public sealed partial class PrivateWorldRuntime
     private bool CanContinueProject(PlaytestInhabitantState state) =>
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
+        !project.RequiresFreshChoice &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
         !NeedsUrgentFood(state) &&
         !HasTradeResponse(state.InhabitantId) &&
@@ -300,6 +305,88 @@ public sealed partial class PrivateWorldRuntime
         (!NeedsUrgentWarmth(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;
 
+    private bool PauseExpiredUnfillableHouseholdRecipeProject(string inhabitantId)
+    {
+        if (inhabitants[inhabitantId].Project is not
+            {
+                Stage: "blocked",
+                Blocker: "Waiting for ingredients at this household building",
+                JobId: null,
+            } project || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
+            !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) || selection.IsBuilding)
+            return false;
+
+        var recipe = worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId);
+        if (recipe is null || !TryFindRecipeSite(recipe, out var siteId, out _, inhabitantId) ||
+            worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == siteId) is not
+            { HouseholdId: { } householdId } building ||
+            !worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                definition.Tags.Any(IsHouseholdBuildingTag)) ||
+            HasIngredientsAtBuilding(recipe.Inputs, householdId, building.InstanceId) ||
+            worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? []).Any(job =>
+                job.WorkerId == inhabitantId && job.RecipeId == recipe.CanonicalId &&
+                job.State == WorldProductionJobState.Running))
+            return false;
+
+        var missingKinds = recipe.Inputs.Where(input => society.Checkpoint.Inventory.Lots
+                .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId == building.InstanceId &&
+                    lot.ItemKind == input.ResourceId)
+                .Sum(AvailableLotQuantity) < input.Amount)
+            .Select(input => input.ResourceId).ToHashSet(StringComparer.Ordinal);
+        if (HasActionableProjectInputSupply(householdId, building, missingKinds))
+            return false;
+
+        SetProject(inhabitantId, project with
+        {
+            Stage = "paused",
+            Blocker = FreshChoicePauseBlocker,
+            RequiresFreshChoice = true,
+        });
+        checkpointSchemaVersion = StateSchemaVersion;
+        return true;
+    }
+
+    private bool HasActionableProjectInputSupply(string householdId, PlacedBuilding building,
+        HashSet<string> missingKinds)
+    {
+        if (missingKinds.Count == 0) return false;
+        var residents = society.Checkpoint.Inhabitants.Where(person => person.HouseholdId == householdId &&
+                person.Status == SocietyInhabitantStatus.Active && AdultResident(person.Id))
+            .Select(person => person.Id).ToArray();
+        foreach (var resident in residents)
+        {
+            foreach (var candidate in CreateCandidates(resident, inhabitants[resident]))
+            {
+                if (candidate.Id.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal) &&
+                    candidate.DestinationId == building.InstanceId &&
+                    missingKinds.Contains(candidate.Id[SupplyWorkstationPrefix.Length..]))
+                    return true;
+
+                if (candidate.Id == "haul_smith_input" && candidate.DestinationId == building.InstanceId &&
+                    BlacksmithInputForDelivery(householdId, building.InstanceId) is { } smithInput &&
+                    missingKinds.Contains(smithInput.ItemKind))
+                    return true;
+
+                if (candidate.Id is "gather_smith_ore" or "deliver_smith_ore" &&
+                    candidate.DestinationId == building.InstanceId && missingKinds.Contains("iron_ore"))
+                    return true;
+
+                if (candidate.Id.StartsWith("assist:", StringComparison.Ordinal) &&
+                    missingKinds.Contains(candidate.Id["assist:".Length..]))
+                    return true;
+
+                if (candidate.Id == "haul_household_stock" && candidate.DestinationId == building.InstanceId &&
+                    society.Checkpoint.Inventory.Lots.Any(lot => lot.DeliveryBuildingId == building.InstanceId &&
+                        missingKinds.Contains(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
+                        (lot.OwnerId == resident || lot.OwnerId == householdId)) ||
+                    candidate.Id == "haul_household_stock" && candidate.DestinationId == building.InstanceId &&
+                    UnlocatedHouseholdStock(householdId) is { } stock && missingKinds.Contains(stock.ItemKind))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private void BeginProject(string inhabitantId, PlaytestInhabitantState state, string candidateId)
     {
         if (!TownConstructionCandidateIds.TryParse(candidateId, out var selected))
@@ -309,7 +396,24 @@ public sealed partial class PrivateWorldRuntime
             TownConstructionCandidateIds.TryParse(existing.CandidateId, out var current) &&
             current.IsBuilding == selected.IsBuilding && current.DefinitionId == selected.DefinitionId)
         {
-            if (existing.CandidateId != candidateId)
+            if (existing.RequiresFreshChoice)
+            {
+                state = state with
+                {
+                    Project = existing with
+                    {
+                        CandidateId = candidateId,
+                        Stage = "acquiring",
+                        Blocker = null,
+                        LastTransitionTick = WorldTick,
+                        RequiresFreshChoice = false,
+                    },
+                };
+                inhabitants[inhabitantId] = state;
+                checkpointSchemaVersion = StateSchemaVersion;
+                AppendEvent("project_fresh_choice_resumed", $"{inhabitantId}:{candidateId}");
+            }
+            else if (existing.CandidateId != candidateId)
             {
                 state = state with
                 {
