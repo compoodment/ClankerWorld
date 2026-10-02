@@ -622,6 +622,8 @@ public partial class Main
         if (Factor("aspiration") is { } aspiration) details.Add("Aspiration: " + aspiration);
         details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "identity-change")
             .Select(factor => factor.Detail));
+        if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
+            details.Add(inhabitant.MedicalCareNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
         {
             details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
