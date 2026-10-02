@@ -358,7 +358,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 52. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -375,7 +375,8 @@ physical shop exchanges beside their exact inventory offers,
 the continuity rule's state with each eligible couple's deadline, food-order
 targets, progress, retry state and cancellation receipts, staged
 guardian-search records with their offered adults, medical permission and
-consumed-dose progress, and selected personal ornaments.
+consumed-dose progress, selected personal ornaments, and physical knowledge
+writing with exact material reservations and completed-artifact receipts.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
