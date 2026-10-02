@@ -16,11 +16,12 @@ public sealed partial class PrivateWorldRuntime
             return false;
 
         // A provisional reserve of two sheets per eligible writer permits a
-        // book. Count sheets already collected too, so collection alone does
-        // not prompt the household to manufacture another batch.
+        // book. Count collected and reserved sheets too, so starting to write
+        // does not prompt the household to manufacture another batch.
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == KnowledgeContent.Paper &&
+                lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                 (lot.OwnerId == householdId || writers.Contains(lot.OwnerId)))
-            .Sum(AvailableLotQuantity);
+            .Sum(lot => lot.Quantity);
         return available < writers.Count * 2;
     }
 }
