@@ -582,7 +582,7 @@ public partial class Main
         profileMeters.Visible = !isDeceased;
         var carrying = inhabitant.Inventory.Count == 0
             ? "Carrying nothing"
-            : "Carrying " + string.Join(", ", inhabitant.Inventory.Select(item => $"{Pretty(item.Kind).ToLowerInvariant()} ({item.Quantity})"));
+            : "Carrying " + string.Join(", ", inhabitant.Inventory.Select(item => $"{GameUiText.ItemName(item.Kind).ToLowerInvariant()} ({item.Quantity})"));
         selectedActorConditionLabel.Text = isDeceased
             ? survival is null ? "Historical record" :
                 $"At death · Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}% · Diet {survival.NutritionBasisPoints / 100}%"
@@ -591,6 +591,17 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (!isDeceased && inhabitant.Equipment is { } equipment)
+        {
+            details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
+                (equipment.CarriedQuantity > equipment.Capacity ? " · Full; store or set down a load before picking up more." : ""));
+            if (equipment.ClothingKind is { } garment)
+                details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
+            if (equipment.CarryAidKind is { } aid)
+                details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.RepairItemKind is { } repairItem)
+                details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
+        }
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")

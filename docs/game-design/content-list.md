@@ -119,7 +119,7 @@ an endless ore ladder merely because they are conventional crafting-game items.
 | 4.5 | Agreed | Sickle | Wood-and-iron tool speeds crop harvesting; exact advantage is provisional. |
 | 4.6 | Agreed | Knife | Iron tool speeds food preparation and suitable crafting; any combat use follows the combat design. |
 | 4.7 | Agreed | Everyday clothing | Basic, cold-protective and wet-protective clothing are gameplay equipment. Agents **keep the same map sprite appearance regardless of worn clothing**; separate worn-outfit sprite sets are not needed. Clothing has item icons/effects. |
-| 4.8 | Agreed | Carry aid | House-made fiber/rope basket and Tailor-made cloth/rope sack share one equipped carrying slot. Blacksmith-made wood/iron-fittings/rope handcart is a visible vehicle that can be pulled, parked, repaired and transferred. Capacities are provisional. |
+| 4.8 | Agreed | Carry aid | House-made fiber/rope basket and Tailor-made cloth/rope sack share one equipped carrying slot. Blacksmith-made wood/iron-fittings/rope handcart is a visible vehicle that can be pulled, parked, repaired and transferred. Capacities are provisional. The handcart faces eight directions like agents. |
 
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
 Blacksmith, plus **eight food portions in each House** and **at least one
@@ -167,9 +167,9 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. It may also sell spare refined iron. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
-| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn. Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Plot reservation, stall ownership and how new stalls fill the plot remain open. Trading admits any Town's agents. |
+| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Plot reservation, stall ownership and how new stalls fill the plot remain open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
-| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
+| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock; up to **six boats** moor there, three per side (October 1 art review). Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Stocks bandages and medicine and sells care. Patients visit or caregivers deliver supplies; treatment consumes goods. Exact name, quantities and recovery rates remain open or provisional. |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
@@ -201,8 +201,8 @@ alternatives are not fixed by this roster.
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
 | 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Quantities and speed are provisional; queueing and who grants visitor permission remain open. |
-| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
-| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
+| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
+| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
 | 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
 | 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. No hostile predators. Recovery rates remain to be tuned. |
@@ -254,8 +254,9 @@ scope**; this roster therefore has no audio production list.
 - **Buildings:** support the decided footprint sizes exactly. Add construction,
   expanded, damaged or abandoned states only if the simulation can produce
   them; do not multiply every building by speculative decorative variants.
-- **Scale/style:** 32×32 logical ground tiles, PNG runtime assets and **straight
-  top-down** view are the decided direction; trees and multi-tile buildings can
+- **Scale/style:** 32×32 logical ground tiles, art drawn in code and a **straight
+  top-down** view are the decided direction (see the
+  [pixel-art style guide](../development/art-style.md)); trees and multi-tile buildings can
   span anchored transparent images. Palette, character sprite size, animation
   count and a reference scene remain open. Isometric is only a possible future
   visual experiment, not the production target.

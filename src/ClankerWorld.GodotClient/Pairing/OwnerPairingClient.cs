@@ -51,6 +51,8 @@ public static class OwnerPairingEndpoints
     public const string OwnerContentStage = "/api/v1/owner/content/stage";
     public const string OwnerContentRollback = "/api/v1/owner/content/rollback";
     public const string OwnerBuildingPlacement = "/api/v1/owner/buildings/place";
+    public const string OwnerBuildingRemoval = "/api/v1/owner/buildings/remove";
+    public const string OwnerBuildingReassignment = "/api/v1/owner/buildings/reassign";
     public const string OwnerProductionStart = "/api/v1/owner/production/start";
     public const string OwnerPairingApproval = "/api/v1/owner/pairings/approve";
     public const string OwnerDeviceRevoke = "/api/v1/owner/devices/revoke";
@@ -126,11 +128,12 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(deviceKey);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var pairing = await SendJsonAsync<OwnerPairingStartRequest, OwnerPairingStart>(
             HttpMethod.Post,
             BuildEndpointUri(serverBaseUri, endpoints.PairingsPath),
             new OwnerPairingStartRequest(deviceKey.PublicKeySpkiBase64),
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         ValidatePairingStart(pairing, deviceKey);
         return pairing;
@@ -146,9 +149,10 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pairingId);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var status = await GetJsonAsync<OwnerPairingStatus>(
             BuildEndpointUri(serverBaseUri, $"{endpoints.PairingsPath}/{Uri.EscapeDataString(pairingId)}"),
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         if (!string.Equals(status.PairingId, pairingId, StringComparison.Ordinal) || status.Authority is null)
         {
@@ -186,11 +190,12 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         var activation = CreateActivationRequest(pairing, deviceKey);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var device = await SendJsonAsync<OwnerPairingActivationRequest, OwnerDevice>(
             HttpMethod.Post,
             BuildEndpointUri(serverBaseUri, endpoints.PairingActivationPath),
             activation,
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         if (!string.Equals(device.DeviceId, pairing.DeviceId, StringComparison.Ordinal) ||
             !string.Equals(device.PublicKeyFingerprint, deviceKey.PublicKeyFingerprint, StringComparison.Ordinal) ||
@@ -428,6 +433,17 @@ public sealed class OwnerPairingClient
         {
             throw new InvalidDataException("Server returned an activation proof that does not bind this pairing response.");
         }
+    }
+
+    private CancellationTokenSource CreatePairingDeadline(CancellationToken cancellationToken)
+    {
+        // HttpClient's timeout stops at successful headers with ResponseHeadersRead.
+        // Public pairing needs the same bounded body read as signed owner actions.
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var maximum = TimeSpan.FromSeconds(15);
+        deadline.CancelAfter(httpClient.Timeout == Timeout.InfiniteTimeSpan || httpClient.Timeout > maximum
+            ? maximum : httpClient.Timeout);
+        return deadline;
     }
 
     private async Task<TResponse> GetJsonAsync<TResponse>(Uri endpointUri, CancellationToken cancellationToken)

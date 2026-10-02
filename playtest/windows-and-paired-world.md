@@ -1,6 +1,6 @@
 # Windows and the paired world
 
-Carried over from the older checklist in [#285](https://github.com/compoodment/ClankerWorld/issues/285), which covered fixes merged in late September. Each bullet links the issue it came from.
+Carried over from the older checklist in [#285](https://github.com/compoodment/ClankerWorld/issues/285), which covered fixes merged in late September. Each bullet links the issue it came from. #285 stays closed: if a bullet here fails, open a Bug issue that links #285 instead of reopening it.
 
 - Create a new world and look before choosing a Town site. There is no old camp and no Town border, and after you choose a site only the new Town appears. ([#285](https://github.com/compoodment/ClankerWorld/issues/285))
 - Open a new world, and a saved world whose Town is near the east–west wrap. The first view shows dry land, the Town or its agents, not open sea or the wrong side of the wrap. ([#285](https://github.com/compoodment/ClankerWorld/issues/285))

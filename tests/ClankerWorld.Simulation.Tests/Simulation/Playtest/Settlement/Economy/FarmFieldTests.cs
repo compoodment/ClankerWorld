@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -128,14 +129,16 @@ public sealed class FarmFieldTests
     [Fact]
     public async Task RawCropReservesDoNotSuppressFreshFoodPlantingAcrossReload()
     {
-        var (state, _, household, point) = PreparedFarmer("field-raw-stock-shortage");
+        var (state, actor, household, point) = PreparedFarmer("field-raw-stock-shortage");
         state = FeedHouseholdFromAvailableStock(state, household);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "raw-reserve-grain", "grain", household, 40,
             storageBuildingId: "first-town-farmhouse");
         inventory = InventoryFixture.AddLot(inventory, "raw-reserve-potatoes", "potatoes", household, 40);
         state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        // Only the farmer acts. Other founders walking over the field or
+        // hauling the green seed would test their timing, not the crop choice.
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-            _ => new DeterministicDecisionProvider());
+            id => id == actor ? new DeterministicDecisionProvider() : new IdleProvider());
         for (var tick = 0; tick < 120 && !world.Fields.Any(field => field.HouseholdId == household &&
                  field.Crop == FarmFieldRules.Greens); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -145,6 +148,131 @@ public sealed class FarmFieldTests
         Assert.Equal(40, world.Society.Inventory.GetLot("raw-reserve-potatoes").Quantity);
         using var restored = Reload(world);
         Assert.Contains(restored.Fields, field => field.HouseholdId == household && field.Crop == FarmFieldRules.Greens);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TemporarilyOccupiedFieldKeepsItsPlantingChoiceAndSiblingDoesNotReplaceIt(bool pausedBuild)
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-claim-through-occupancy");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var sibling = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand == SocietyAgeBand.Adult && person.Id != actor).Id;
+        var siblingOrigin = state.Inhabitants.Single(person => person.InhabitantId == sibling).Position;
+        Assert.NotEqual(point, siblingOrigin);
+        Assert.True(state.Map.IsReachableOnFoot(siblingOrigin, point));
+        var occupied = state.Map.Resources.Select(resource => resource.Position)
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var siblingAway = state.Map.Tiles.Select(tile => tile.Position)
+            .First(position => position != point && position != siblingOrigin && state.Map.IsBuildable(position) &&
+                !occupied.Contains(position) && !state.Inhabitants.Any(person =>
+                    person.Position == position && person.InhabitantId != actor && person.InhabitantId != sibling) &&
+                state.Map.IsReachableOnFoot(position, point));
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Greens}";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "field-claim-greens-seed", FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "field-claim-sibling-hoe", FarmFieldRules.Hoe, sibling, 1);
+        var savedPlan = pausedBuild ? new SettlementProject(
+            "build:recipe:" + state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe").CanonicalId,
+            "Wooden axe", state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true) : null;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+                Cognition = state.Society.Cognition with
+                {
+                    Queue = [],
+                    Runtimes = state.Society.Cognition.Runtimes.Select(runtime => runtime with
+                    {
+                        CurrentIntention = null,
+                    }).ToArray(),
+                },
+            },
+            Fields = [new(point, household, FarmFieldStage.Prepared)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = siblingOrigin,
+                    HungerBasisPoints = 10_000,
+                    LastDecisionContext = null,
+                    Project = savedPlan
+                }
+                : person.InhabitantId == sibling
+                    ? person with { Position = siblingAway, HungerBasisPoints = 10_000, LastDecisionContext = null }
+                    : person).ToArray(),
+        };
+        var firstChoice = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var choosing = PrivateWorldRuntime.Restore(state, _ => firstChoice);
+        Assert.True((await choosing.AdvanceOneTickAsync()).Advanced);
+        var actorCandidates = firstChoice.Requests.Where(request => request.InhabitantId == actor)
+            .SelectMany(request => request.CandidateIds).ToArray();
+        Assert.True(actorCandidates.Contains(candidateId, StringComparer.Ordinal),
+            $"Actor candidates: {string.Join(",", actorCandidates)}");
+        Assert.Contains(candidateId, firstChoice.SelectedCandidateIds);
+        var actorRuntime = choosing.ExportState().Society.Cognition.Runtimes.Single(item => item.InhabitantId == actor);
+        Assert.Equal(candidateId, actorRuntime.CurrentIntention?.CandidateId);
+        Assert.Contains(choosing.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == FarmFieldRules.PlantingItem(FarmFieldRules.Greens) && lot.Quantity == 1);
+
+        state = choosing.ExportState() with
+        {
+            Inhabitants = choosing.ExportState().Inhabitants.Select(person => person.InhabitantId == sibling
+                    ? person with { Position = point, LastDecisionContext = null }
+                    : person).ToArray(),
+        };
+        state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state));
+        var secondChoice = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var contested = PrivateWorldRuntime.Restore(state, _ => secondChoice);
+        Assert.Equal(candidateId, contested.ExportState().Society.Cognition.Runtimes
+            .Single(item => item.InhabitantId == actor).CurrentIntention?.CandidateId);
+        Assert.True((await contested.AdvanceOneTickAsync()).Advanced);
+        var siblingRequest = Assert.Single(secondChoice.Requests, request => request.InhabitantId == sibling);
+        Assert.True(!siblingRequest.CandidateIds.Any(id => id.StartsWith(
+                $"farm:Plant:{point.X}:{point.Y}:", StringComparison.Ordinal)),
+            $"Sibling candidates: {string.Join(",", siblingRequest.CandidateIds)}");
+        Assert.Equal(candidateId, contested.ExportState().Society.Cognition.Runtimes
+            .Single(item => item.InhabitantId == actor).CurrentIntention?.CandidateId);
+        Assert.Contains(contested.Fields, field => field.Position == point && field.Stage == FarmFieldStage.Prepared);
+        Assert.Equal(savedPlan, contested.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        contested.Validate();
+    }
+
+    [Fact]
+    public async Task FreshChoicePausedBuildCanYieldToFieldWorkWithoutLosingItsSavedPlan()
+    {
+        var (state, actor, household, point) = PreparedFarmer("field-fresh-choice-paused-project");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe");
+        var project = new SettlementProject("build:recipe:" + recipe.CanonicalId, recipe.DisplayName,
+            state.Society.Society.WorldTick, "paused", 4,
+            "Materials for this work are unavailable. Choose another task for now.",
+            LastTransitionTick: state.Society.Society.WorldTick, RequiresFreshChoice: true);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "fresh-choice-greens-seed",
+            FarmFieldRules.PlantingItem(FarmFieldRules.Greens), actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Fields = [new(point, household, FarmFieldStage.Prepared)],
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Project = project, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Greens}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new IdleProvider());
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(candidateId, provider.SelectedCandidateIds);
+        var field = Assert.Single(world.Fields);
+        Assert.Equal(FarmWorkKind.Plant, field.Work?.Kind);
+        Assert.Equal(actor, field.Work?.WorkerId);
+        var paused = world.Inhabitants.Single(item => item.InhabitantId == actor).Project;
+        Assert.Equal(project, paused);
+        world.Validate();
     }
 
     [Theory]
@@ -534,6 +662,33 @@ public sealed class FarmFieldTests
         delivering.Validate();
     }
 
+    [Fact]
+    public async Task PotatoesInAStoragePotAreNotOfferedAsPlantingStock()
+    {
+        var (state, actor, household, point) = PreparedFarmer("potted-potato-stock");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var potatoKind = FarmFieldRules.PlantingItem(FarmFieldRules.Potatoes);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind != potatoKind).ToArray(),
+        };
+        // Contents move only with their vessel, so planting cannot take them.
+        inventory = InventoryFixture.AddLot(inventory, "potato-pot", InventoryContainerRules.StoragePot, household, 1);
+        inventory = InventoryFixture.AddLot(inventory, "potted-potatoes", potatoKind, household, 3,
+            containerLotId: "potato-pot");
+        state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Potatoes}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        await Advance(world, 10);
+        Assert.Contains(provider.Requests, request => request.InhabitantId == actor);
+        Assert.DoesNotContain(provider.Requests, request => request.CandidateIds.Contains(candidateId));
+        Assert.DoesNotContain(world.Fields, field => field.Position == point && field.Crop == FarmFieldRules.Potatoes);
+        Assert.Equal("potato-pot", world.Society.Inventory.GetLot("potted-potatoes").ContainerLotId);
+        Assert.Equal(3, world.Society.Inventory.GetLot("potted-potatoes").Quantity);
+    }
+
     internal static (PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point) PreparedFarmer(string seed)
     {
         var state = GeographyGeneratorTests.StartedGeneratedWorld(new(seed, WorldSizePreset.Small));
@@ -594,5 +749,36 @@ public sealed class FarmFieldTests
                     ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")]
                 },
             }, cancellationToken);
+    }
+
+    private sealed record FieldChoiceRequest(string InhabitantId, string[] CandidateIds);
+
+    private sealed class RecordingFieldChoiceProvider(string actor, string candidateId) : IDecisionProvider
+    {
+        private readonly ConcurrentQueue<FieldChoiceRequest> requests = new();
+        private readonly ConcurrentQueue<string> selected = new();
+
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public FieldChoiceRequest[] Requests => requests.ToArray();
+        public string[] SelectedCandidateIds => selected.ToArray();
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            requests.Enqueue(new FieldChoiceRequest(observation.InhabitantId,
+                observation.Candidates.Select(item => item.Id).ToArray()));
+            var chosen = observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(item => item.Id == candidateId)
+                : null;
+            chosen ??= observation.Candidates.Single(item => item.Id == "safe_idle");
+            selected.Enqueue(chosen.Id);
+            var probabilities = observation.Candidates.ToDictionary(item => item.Id,
+                item => item.Id == chosen.Id ? 1d : 0d, StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
+                Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration,
+                observation.ObservationDigest, chosen.Id, 1, probabilities));
+        }
     }
 }
