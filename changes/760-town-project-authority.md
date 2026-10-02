@@ -1,0 +1,1 @@
+- Record the agreed rule for shared Town construction: an adult proposes the site and material budget, the current Council approves it, and residents physically supply and build with real goods. This design decision covers Markets, Town Halls, Ports and communal boats; it does not implement them.

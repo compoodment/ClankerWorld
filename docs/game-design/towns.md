@@ -555,8 +555,31 @@ materials in hand. There is no Town-wide limit on how many of a kind exist
 until playtests show agents overbuilding. Only the household that holds the
 Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
 exception**: a household may plan it, and once it is built the Town holds it.
-Other buildings the Town shares wait for governance. Any Town resident may plan
-the Warehouse's expansion once its stock is nearly full.
+Other shared buildings use the Council-approved Town projects below. Any Town
+resident may still plan the Warehouse's expansion once its stock is nearly full.
+
+### Shared Town projects
+
+**Agreed by the owner on October 2, 2026 ([#760](https://github.com/compoodment/ClankerWorld/issues/760)):**
+an adult Town resident may propose a named shared construction project with
+its site and material budget. The legitimate current Council must approve it
+through the ordinary proposal and majority procedure before residents may
+spend Town materials or start that project. Pending votes follow the Council's
+existing membership and ballot rules; proposing a project grants no permission.
+
+This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
+communal boats at a Port. Resident adults physically supply and build the
+approved project with real materials. Approval creates no goods, transfers no
+private stock and grants no access to household or personal supplies. Private
+donations need separate consent and the ordinary physical transfer rules.
+
+Permission is bound to the approved project, site and material budget. A
+different site or larger budget needs another approval. Ownership, land rights,
+routes, carrying room, storage, work and reservations still apply. Cancelling
+or blocking a project must preserve its goods and safely release unspent
+reservations. This is a supported construction effect; free-form law text
+cannot execute it. The existing resident rule for Warehouse expansion stays
+in place. Costs, quantities and work times remain provisional for playtesting.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
