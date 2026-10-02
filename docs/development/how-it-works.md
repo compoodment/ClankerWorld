@@ -400,7 +400,10 @@ or any lake or ocean tile, means there is no crossing there: wider rivers,
 lakes and the sea need boats. A two-tile line through a tile that also lies on
 a two-tile line across the other axis does not count either: that tile is a
 corner of a river one tile thick that runs diagonally, and wading it would turn
-inside the water and walk along the channel. A built bridge makes its river tiles walkable at
+inside the water and walk along the channel. Where a one-tile spur or a river's
+head meets a two-tile line, an agent can still turn once inside the water; no
+route crosses more than two water tiles, and such a turn records no bridge
+evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
