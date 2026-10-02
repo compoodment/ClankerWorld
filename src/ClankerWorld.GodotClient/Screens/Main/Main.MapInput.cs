@@ -66,6 +66,8 @@ public partial class Main
         RefreshTileHoverAtMouse();
         RenderWorldHud(snapshot);
         RenderWorldInfo(snapshot);
+        // The path follows the camera and zoom, and the short way round a wrapped seam.
+        if (developerPanel.Visible) RenderPlannedPath();
     }
 
     private static float CameraAxis(float centerTile, float stagePixels, float viewportPixels, float stride) =>

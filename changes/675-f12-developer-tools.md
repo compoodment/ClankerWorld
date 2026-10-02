@@ -1,0 +1,1 @@
+- Developer tools now open with **F12** inside a world, without pausing it, instead of from Pause Menu Settings. Besides the earlier tools, they show the tile under the pointer, frame time, how long the server takes per step of world time and the number of living agents, move the camera to any agent you choose, and can draw the selected agent's planned path.
