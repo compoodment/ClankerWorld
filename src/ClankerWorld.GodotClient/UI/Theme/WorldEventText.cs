@@ -89,7 +89,9 @@ public static class WorldEventText
             "equipment_repair_started" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} began repairing an item.",
             "equipment_repaired" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} repaired an item.",
             "equipment_repair_interrupted" => "Repair stopped; its unused materials are available again.",
-            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" =>
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+                "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+                "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" =>
                 DescribeWrittenKnowledge(worldEvent, snapshot),
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
@@ -159,6 +161,11 @@ public static class WorldEventText
         {
             "agent_knowledge_artifact_read" => $"{recipient} learned about places from a written work.",
             "agent_knowledge_shared" => $"{author} shared written knowledge with {recipient}.",
+            "agent_knowledge_artifact_collected" => $"{author} picked up a written work.",
+            "agent_knowledge_artifact_stored" => $"{author} stored a written work.",
+            "agent_knowledge_writing_started" => $"{author} started work on a {GameUiText.ItemName(fields.ElementAtOrDefault(1) ?? "record").ToLowerInvariant()}.",
+            "agent_knowledge_writing_cancelled" => $"{author} stopped writing; the unused materials are available again.",
+            "agent_knowledge_material_collected" => $"{author} collected writing supplies.",
             _ => fields.ElementAtOrDefault(2) switch
             {
                 "field_map" => $"{author} finished drawing a field map.",

@@ -777,6 +777,13 @@ public sealed class OwnerWorldObservationStore
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
+        {
+            var kind = writing.Kind.Replace('_', ' ');
+            var action = writing.SourceArtifactId is not null ? "Copying" : writing.Kind == "field_map" ? "Drawing" : "Writing";
+            decisionFactors.Add(new ViewerDecisionFactor("knowledge-writing",
+                $"{action} a {kind} · {writing.WorkDone}/{writing.WorkRequired}"));
+        }
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
         {

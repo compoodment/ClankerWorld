@@ -251,6 +251,8 @@ public static class GameUiText
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
             "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+            "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
@@ -448,6 +450,11 @@ public static class GameUiText
         "knowledge_write:field_map" => inProgress ? "drawing a field map" : "draw a field map",
         "knowledge_write:book" => inProgress ? "writing a book" : "write a book",
         "knowledge_continue" => inProgress ? "continuing written work" : "continue written work",
+        "knowledge_materials" => inProgress ? "collecting writing supplies" : "collect writing supplies",
+        _ when candidateId == "knowledge_collect" || candidateId.StartsWith("knowledge_collect:", StringComparison.Ordinal) =>
+            inProgress ? "collecting a written work" : "collect a written work",
+        _ when candidateId == "knowledge_store" || candidateId.StartsWith("knowledge_store:", StringComparison.Ordinal) =>
+            inProgress ? "storing a written work" : "store a written work",
         _ when candidateId.StartsWith("knowledge_copy:", StringComparison.Ordinal) =>
             inProgress ? "copying a written work" : "copy a written work",
         _ when candidateId.StartsWith("knowledge_read:", StringComparison.Ordinal) =>
