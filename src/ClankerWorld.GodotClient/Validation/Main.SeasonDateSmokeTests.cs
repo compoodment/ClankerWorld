@@ -64,7 +64,7 @@ public partial class Main
                 var saved = displayPreferencesStore.Load();
                 if (clockLabel.Text != expected || displayPreferences.DateStyle != style ||
                     saved.DateStyle != style || saved.UseTwelveHourClock != twelveHour ||
-                    !worldInfoText.Text.Contains("Date and time: " + expected, StringComparison.Ordinal))
+                    !PageText(worldStatsPage).Contains(expected, StringComparison.Ordinal))
                     throw new InvalidOperationException($"Choosing {dateFormatChoice.GetItemText(index)} must change every full date at once and be remembered: top bar {clockLabel.Text}, saved {saved.DateStyle}.");
             }
 
@@ -89,8 +89,8 @@ public partial class Main
                         (climateShown && (seasonLabel.IsVisibleInTree() == seasonDate || seasonIcon.IsVisibleInTree() == seasonDate ||
                             !weatherLabel.IsVisibleInTree() || weatherLabel.Text != "Cloudy")))
                         throw new InvalidOperationException($"The top bar must name the season once at {size} with {style} dates: clock={clockLabel.Text}, season shown={seasonLabel.IsVisibleInTree()}, weather={weatherLabel.Text}.");
-                    if (worldDetails.GetParsedText().Contains("Autumn · Cloudy", StringComparison.Ordinal) == seasonDate)
-                        throw new InvalidOperationException($"World Info must not repeat the season after a season date: {worldDetails.GetParsedText()}");
+                    if (PageText(worldStatsPage).Contains("Autumn · Cloudy", StringComparison.Ordinal) == seasonDate)
+                        throw new InvalidOperationException($"World Info must not repeat the season after a season date: {PageText(worldStatsPage).ReplaceLineEndings(" / ")}");
                     var hudGroups = new[] { hudLeft, hudTime, hudRight }.Select(row => row.GetParent<Control>().GetGlobalRect()).ToArray();
                     if (hudGroups.Any(rect => !mapCanvas.GetGlobalRect().Encloses(rect)) ||
                         hudGroups[0].Intersects(hudGroups[1]) || hudGroups[1].Intersects(hudGroups[2]))

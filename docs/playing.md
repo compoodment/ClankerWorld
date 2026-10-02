@@ -148,13 +148,11 @@ progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
-when they overlap the pointer. **World Info** includes Towns and their residents;
-its Towns page also shows each Town's council, current and latest settled election,
-and eight recent proposal results. Long Town readouts scroll. **Event Log** shows
-important events under a heading for each day, each with an
-icon for its kind. An event with a known location has a **Find** button that
-moves the camera there. Opening the log marks its new entries read; the ones
-that were new keep a small dot while it stays open. While the continuity rule
+when they overlap the pointer. **Event Log** shows important events under a
+heading for each day, each with an icon for its kind. An event with a known
+location has a **Find** button that moves the camera there. Opening the log
+marks its new entries read; the ones that were new keep a small dot while it
+stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
 Opening the offer adds nobody and makes no paid model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
@@ -169,6 +167,15 @@ starts an independent household. If household owners or Town borders overlap,
 choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
+
+**World Info** has two pages. **Towns** lists each Town with its residents'
+portraits, its council, its current and latest settled election, eight recent
+proposal results and a **Show** button that moves the map there. Below the list
+are each household's stores, the projects under way and how far they have got,
+the household council and recent social activity; the page scrolls once it is
+long. **World** shows today's date, the season and weather where you are
+looking and the year length, then counts of agents, Towns, households,
+buildings, road tiles, bridges, resource sites and the map size.
 
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
