@@ -134,7 +134,12 @@ public partial class Main
         {
             AddNewcomerOffer();
             height += 34;
-            if (entries.Length > 0) eventRows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+            if (entries.Length > 0)
+            {
+                // The spacer and the gap after it.
+                eventRows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+                height += 8;
+            }
         }
         if (entries.Length == 0)
         {

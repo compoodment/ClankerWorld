@@ -57,6 +57,19 @@ public partial class Main
                 throw new InvalidOperationException("An active rule must offer a newcomer even without retained transition events.");
             if (NewcomerOfferButton() is null)
                 throw new InvalidOperationException("The Event Log rows must show the newcomer offer while the rule is on.");
+            // The offer above a short history fits without a scrollbar.
+            knownEvents[900] = new OwnerWorldEvent(900, 1, "food_consumed", "founder-scout", null);
+            RenderEventLog();
+            eventsPanel.Show();
+            FitHudLists();
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var offerScrolls = eventScroll.GetVScrollBar().Visible;
+            var offerLayout = $"rows={eventRows.GetCombinedMinimumSize().Y} wanted={eventsWantedHeight} scroll={eventScroll.Size.Y}";
+            eventsPanel.Hide();
+            knownEvents.Remove(900);
+            RenderEventLog();
+            if (offerScrolls)
+                throw new InvalidOperationException("The newcomer offer and a short Event Log must fit without scrolling: " + offerLayout);
             var requests = new List<string>();
             var responses = Task.Run(async () =>
             {
