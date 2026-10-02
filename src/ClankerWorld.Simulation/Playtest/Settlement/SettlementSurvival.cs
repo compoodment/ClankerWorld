@@ -356,7 +356,7 @@ public sealed partial class PrivateWorldRuntime
             available = society.Checkpoint.Inventory.Lots.Where(lot => IsPreparedMeal(lot.ItemKind) &&
                     (ownerId is null || lot.OwnerId == ownerId)).Sum(AvailableLotQuantity);
         var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)
-            : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, residentCount);
+            : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
     });
 

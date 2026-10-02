@@ -1,4 +1,4 @@
-Households now cook named potato or greens meals, porridge, bread and vegetable
+- Households now cook named potato or greens meals, porridge, bread and vegetable
 stew from ingredients carried into their House. A Restaurant can cook grain and
 vegetable meals and improve bread into a more nourishing Restaurant meal.
 Water and wood are real inputs, and water jugs remain reusable. Grain keeps

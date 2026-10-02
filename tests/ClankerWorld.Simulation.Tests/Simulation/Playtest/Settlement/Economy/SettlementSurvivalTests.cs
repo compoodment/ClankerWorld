@@ -294,6 +294,7 @@ public sealed class SettlementSurvivalTests
                     // project may walk the agent away from it.
                     Project = null,
                     Exploration = null,
+                    LastDecisionContext = null,
                 }
                 : person.Position == heater.Position ? person with { Position = recoveringPosition } : person).ToArray(),
             Society = state.Society with
@@ -301,17 +302,31 @@ public sealed class SettlementSurvivalTests
                 Society = state.Society.Society with
                 {
                     Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
-                        "recovery-coat", "clothing", recoveringId, 1),
+                        "recovery-coat", "padded_coat", recoveringId, 1),
                 },
             },
             Survival = state.Survival! with { Fires = [new CampFireState(heater.InstanceId, world.WorldTick + 120)] },
         };
+        var recoveryProvider = new RecoveryProvider(recoveringId);
         using var recovering = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(recoveryState)), _ => new IdleProvider());
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(recoveryState)), _ => recoveryProvider);
         for (var tick = 0; tick < 110; tick++)
             Assert.True((await recovering.AdvanceOneTickAsync()).Advanced);
-        Assert.True(recovering.Inhabitants.Single(person => person.InhabitantId == recoveringId)
-            .Survival!.WarmthBasisPoints > 6_000);
+        var recovered = recovering.Inhabitants.Single(person => person.InhabitantId == recoveringId);
+        var recoveryInventory = recovering.Society.Inventory;
+        var equipped = recoveryInventory.Lots.FirstOrDefault(lot => lot.Id == recovered.Equipment?.ClothingLotId);
+        Assert.True(recoveryProvider.WearOffered);
+        Assert.Equal("recovery-coat", recovered.Equipment?.ClothingLotId);
+        Assert.Contains(recovering.ExportState().Events, item => item.Kind == "equipment_equipped" &&
+            item.Detail == $"{recoveringId}|recovery-coat|padded_coat");
+        Assert.Equal(heater.Position, recovered.Position);
+        Assert.True(recovered.Survival!.WarmthBasisPoints > 6_000,
+            $"Heater={heater.InstanceId} definition={heater.DefinitionId} tags=" +
+            string.Join(",", recovering.WorldContent.Buildings.Single(definition => definition.CanonicalId == heater.DefinitionId).Tags) +
+            $" position={recovered.Position} warmth={recovered.Survival.WarmthBasisPoints} hunger={recovered.HungerBasisPoints}" +
+            $" equipment={recovered.Equipment} equipped={equipped?.ItemKind}:{equipped?.ConditionBasisPoints}" +
+            " fires=" + string.Join(",", recovering.ExportState().Survival!.Fires) +
+            " reservations=" + string.Join(",", recoveryInventory.Reservations.Where(reservation => reservation.LotId == equipped?.Id)));
     }
 
     [Fact]
@@ -495,6 +510,25 @@ public sealed class SettlementSurvivalTests
                 Kind, ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, "safe_idle", 1,
                 request.Observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == "safe_idle" ? 1d : 0d)));
+    }
+
+    private sealed class RecoveryProvider(string actor) : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public bool WearOffered { get; private set; }
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var wear = request.Observation.InhabitantId == actor
+                ? request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == "wear_clothing") : null;
+            WearOffered |= wear is not null;
+            var selected = wear ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            return new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = request.Observation with { Candidates = [selected] },
+            }, cancellationToken);
+        }
     }
 
     private sealed class ExplorationProvider : IDecisionProvider

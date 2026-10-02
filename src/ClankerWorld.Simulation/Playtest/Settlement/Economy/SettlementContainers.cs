@@ -125,7 +125,9 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState person, string householdId, PlacedBuilding house)
     {
         var inventory = society.Checkpoint.Inventory;
-        if (person.HungerBasisPoints < 7_000 &&
+        // Like collecting other household food, a serving follows the Town's
+        // food policy, and only food that can be eaten now is offered.
+        if (person.HungerBasisPoints < 7_000 && MayCollectSharedFood(actor) &&
             !inventory.Lots.Any(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.DeliveryBuildingId is null && IsEdibleFood(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0) &&

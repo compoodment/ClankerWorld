@@ -112,7 +112,8 @@ public sealed class FarmFieldTests
     {
         var inventory = state.Society.Society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit" or
+                "simple_meal" or "porridge" or "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal").ToArray())
         {
             var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
                 .Where(reservation => reservation.LotId == lot.Id && reservation.State is
@@ -660,6 +661,33 @@ public sealed class FarmFieldTests
         Assert.Equal(1, delivering.Society.Inventory.GetLot("protected-ground-seed").Quantity);
         Assert.Equal(InventoryReservationState.Reserved, delivering.Society.Inventory.GetReservation("protected-replanting-seed").State);
         delivering.Validate();
+    }
+
+    [Fact]
+    public async Task PotatoesInAStoragePotAreNotOfferedAsPlantingStock()
+    {
+        var (state, actor, household, point) = PreparedFarmer("potted-potato-stock");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var potatoKind = FarmFieldRules.PlantingItem(FarmFieldRules.Potatoes);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind != potatoKind).ToArray(),
+        };
+        // Contents move only with their vessel, so planting cannot take them.
+        inventory = InventoryFixture.AddLot(inventory, "potato-pot", InventoryContainerRules.StoragePot, household, 1);
+        inventory = InventoryFixture.AddLot(inventory, "potted-potatoes", potatoKind, household, 3,
+            containerLotId: "potato-pot");
+        state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Potatoes}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        await Advance(world, 10);
+        Assert.Contains(provider.Requests, request => request.InhabitantId == actor);
+        Assert.DoesNotContain(provider.Requests, request => request.CandidateIds.Contains(candidateId));
+        Assert.DoesNotContain(world.Fields, field => field.Position == point && field.Crop == FarmFieldRules.Potatoes);
+        Assert.Equal("potato-pot", world.Society.Inventory.GetLot("potted-potatoes").ContainerLotId);
+        Assert.Equal(3, world.Society.Inventory.GetLot("potted-potatoes").Quantity);
     }
 
     internal static (PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point) PreparedFarmer(string seed)

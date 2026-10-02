@@ -120,7 +120,10 @@ public sealed partial class SettlementParenthoodTests
                 "; Owners=" + string.Join(',', world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood")
                     .Select(lot => lot.OwnerId + "=" + lot.Quantity + "@" + lot.StorageBuildingId)) +
                 "; Projects=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new { person.InhabitantId, person.Project })) +
-                "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)));
+                "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)) +
+                "; Positions=" + string.Join(',', world.Inhabitants.Select(person => person.InhabitantId + "@" + person.Position)) +
+                "; Workstations=" + string.Join(',', world.WorldSimulation.Buildings.Where(building =>
+                    building.DefinitionId == workshop.CanonicalId).Select(building => building.InstanceId + "@" + building.Position)));
             Assert.True(savedWhileWorking);
             var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.WorkerId == childId &&
                 job.RecipeId == tools.CanonicalId && job.StartedTick >= adultState.Society.Society.WorldTick &&
