@@ -596,17 +596,17 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
         }
-        if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
-        {
-            ApplyMedicalCandidate(inhabitantId, state, candidateId);
-            return;
-        }
         if (inhabitants[inhabitantId].Equipment?.Repair is not null && candidateId != "repair_equipment")
         {
             CancelEquipmentRepair(inhabitantId);
             state = inhabitants[inhabitantId];
         }
         if (PendingInstructionFor(inhabitantId) is null && ContinueFarmWork(inhabitantId)) return;
+        if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
+        {
+            ApplyMedicalCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
         {
             ApplyFieldCandidate(inhabitantId, state, candidateId);

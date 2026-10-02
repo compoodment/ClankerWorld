@@ -246,27 +246,8 @@ public sealed partial class PrivateWorldRuntimeTests
         IDecisionProvider? provider = null,
         int? hungerBasisPoints = null)
     {
-        var options = new GeographyOptions("audit-food-route-13", WorldSizePreset.Small);
-        var world = new PrivateWorldRuntime(options.Seed,
-            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true),
-            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
-        var map = world.ExportState().Map;
-        var anchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
-        world.InitializeFirstTownContent();
-        world.AcceptFirstTownLayout(anchor);
-        var buildingTiles = world.WorldSimulation.Buildings.SelectMany(building =>
-            WorldContentSimulationRules.Footprint(
-                world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId),
-                building.Position)).ToHashSet();
-        var startingTiles = map.Tiles.Where(tile =>
-                Math.Abs(tile.Position.X - anchor.X) <= 5 && Math.Abs(tile.Position.Y - anchor.Y) <= 5 &&
-                map.IsBuildable(tile.Position) && !buildingTiles.Contains(tile.Position) &&
-                !map.Resources.Any(item => item.Position == tile.Position))
-            .Take(4).Select(tile => tile.Position).ToArray();
-        Assert.Equal(4, startingTiles.Length);
-        for (var index = 0; index < startingTiles.Length; index++)
-            world.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), startingTiles[index]);
-        world.StartWorld();
+        var world = NormalPathWorld.CreateGenerated("audit-food-route-13",
+            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : BerryStand(world));
         var state = world.ExportState();
         var actorPosition = state.Inhabitants.Single(item => item.InhabitantId == HarvestInstructionActor).Position;

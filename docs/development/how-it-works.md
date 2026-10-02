@@ -951,12 +951,14 @@ come from reachable renewable patches. Ingredients must arrive at the actual
 workplace; medicine reserves water from a real reusable jug and leaves the
 vessel intact. Injury causes and bandage treatment remain deferred.
 
-The related [#749](https://github.com/compoodment/ClankerWorld/issues/749) draft
+The [#749](https://github.com/compoodment/ClankerWorld/issues/749) fix
 returns empty household pots and jugs from a workstation to the household's
 House using physical pickup and the existing delivery path. It keeps inventory
 ownership and reservations authoritative and checks carrying room, the walking
-route and destination space. A save during the trip retains the same vessel
-and delivery. The return path's runtime checks are still pending.
+route and destination space. As with other household deliveries, the hauling
+adult holds the vessel during the trip and delivery hands it back to the
+household. A save during the trip retains the same vessel and delivery.
+Automated checks cover the return path.
 
 Medical permission is admitted only from a fresh, accepted, non-fallback
 `LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
@@ -977,8 +979,8 @@ spent effect from being reattached after permission is renewed. Death releases
 live reservations while preserving completed consumption receipts. Permission,
 active progress and closed receipts survive current-format save/reload; a
 paused world advances no treatment time. See [saves and replay](saves-and-replay.md).
-The draft is connected to normal runtime, with complete validation and the
-[Windows playtest](../../playtest/565-clinic-care.md) still pending.
+Automated checks cover this path; the
+[Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
