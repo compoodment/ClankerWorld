@@ -118,10 +118,12 @@ when they overlap the pointer. **World Info** includes Towns and their residents
 **Event Log** shows important events under a heading for each day, each with an
 icon for its kind. An event with a known location has a **Find** button that
 moves the camera there. Opening the log marks its new entries read; the ones
-that were new keep a small dot while it stays open. **Agents** lists everyone
-with their portrait and what they are doing, and tags anyone **Hungry**,
-**Cold** or **Ill**. Click a row to find that agent, or double-click it to open
-their Profile.
+that were new keep a small dot while it stays open. While the continuity rule
+is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
+Opening the offer adds nobody and makes no paid model call. **Agents** lists
+everyone with their portrait and what they are doing, and tags anyone
+**Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
+double-click it to open their Profile.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.

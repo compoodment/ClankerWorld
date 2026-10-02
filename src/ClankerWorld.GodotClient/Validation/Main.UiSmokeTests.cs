@@ -812,6 +812,7 @@ public partial class Main
         try
         {
             VerifyEventLogAgentNames();
+            await VerifyNewcomerOfferAsync();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.

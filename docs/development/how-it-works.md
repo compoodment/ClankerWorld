@@ -1019,6 +1019,12 @@ fields are read separately. Existing entries use the current saved name, includi
 deceased profiles. Hosted-decision and Town telemetry likewise keep complete IDs.
 These readers do not rewrite accepted event details or change save/replay formats.
 
+The owner snapshot projects the saved continuity rule's current on/off state.
+Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
+rule is on in a started world, even when the transition event has left bounded
+history. The link opens the existing Add Agent controls and rechecks the current
+snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished

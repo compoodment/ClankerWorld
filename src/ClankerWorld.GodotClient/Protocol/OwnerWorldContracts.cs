@@ -368,6 +368,7 @@ public sealed record OwnerWorldSnapshot(
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
+    public bool? ContinuityRuleActive { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
     public IReadOnlyList<OwnerWorldLandTitle> TownLandTitles { get; init; } = [];
