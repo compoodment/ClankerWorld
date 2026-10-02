@@ -1,7 +1,3 @@
-# Agents and models
-
-Merged on 30 September from [#442](https://github.com/compoodment/ClankerWorld/issues/442), [#443](https://github.com/compoodment/ClankerWorld/issues/443) and [#503](https://github.com/compoodment/ClankerWorld/issues/503).
-
 - Place an adult that uses a personal model, either a founder in a new world or one added with Add Agent. After its first decision, its Profile shows a personality and aspiration in its own words instead of "undecided" and "find a purpose". ([#442](https://github.com/compoodment/ClankerWorld/issues/442))
 - Let it make more decisions, then save and load. Its personality and aspiration stay the same. ([#442](https://github.com/compoodment/ClankerWorld/issues/442))
 - If a model leaves them out, the agent keeps "undecided" and "find a purpose" and carries on without an extra model call. ([#442](https://github.com/compoodment/ClankerWorld/issues/442))

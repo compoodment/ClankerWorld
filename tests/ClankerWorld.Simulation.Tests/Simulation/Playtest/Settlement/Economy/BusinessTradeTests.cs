@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -64,13 +65,21 @@ public sealed class BusinessTradeTests
         if (visitorFromAnotherTown)
         {
             var firstTown = Assert.Single(state.Towns!);
+            var firstTownResidents = firstTown.ResidentIds.Where(id => id != buyer).ToArray();
+            var firstTownAdults = firstTownResidents.Where(id =>
+                state.Society.Society.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
             var visitorHome = state.Map.Tiles.Select(tile => tile.Position).First(position =>
                 state.Map.IsLand(position) && !firstTown.BorderTiles.Contains(position));
             state = state with
             {
-                Towns = [firstTown with { ResidentIds = firstTown.ResidentIds.Where(id => id != buyer).ToArray() },
+                Towns = [firstTown with
+                    {
+                        ResidentIds = firstTownResidents,
+                        Governance = TownGovernanceRules.Advance(firstTown.Governance!, firstTown.Id, state.WorldSeed,
+                            firstTownAdults, state.Society.Society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+                    },
                     new TownRuntimeState("town:visitor-home", "Visitor Home", "founded", state.Society.Society.WorldTick,
-                        [buyer], [], [visitorHome], visitorHome)],
+                        [buyer], [], [visitorHome], visitorHome, TownGovernanceState.Create([buyer]))],
             };
         }
         var buyerProvider = new ShopProvider("business_shop:");

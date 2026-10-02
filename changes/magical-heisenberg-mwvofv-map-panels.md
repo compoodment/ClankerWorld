@@ -1,0 +1,1 @@
+- The tile card is headed by the ground's name with a picture of the tile, and lists its facts in short rows, including climate, soil and any field or goods on it. The hover label shows a small picture of the ground, the World Map marks Towns and agents on parchment with a legend, each map filter says what it draws, and on/off switches have a new look.

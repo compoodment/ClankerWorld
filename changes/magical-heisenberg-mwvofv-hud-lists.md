@@ -1,0 +1,1 @@
+- The Agents list shows a portrait row per agent with what they are doing and Hungry, Cold or Ill tags. The Event Log has an icon per kind of event, a heading per day and a Find button for events with a place. The controls list draws keys as keycaps in two grouped columns. Both lists stop above the bottom of the screen and scroll.

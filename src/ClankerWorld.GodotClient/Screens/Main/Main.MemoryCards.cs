@@ -127,7 +127,7 @@ public partial class Main
     /// <summary>What this agent remembers, believes and has mapped, newest first, for the Memories panel.</summary>
     private void RenderMemoryCards(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
     {
-        var signature = string.Join("|", inhabitant.Id, UiTheme.Current.Name, displayPreferences.DateFormat, displayPreferences.UseTwelveHourClock,
+        var signature = string.Join("|", inhabitant.Id, UiTheme.Current.Name, displayPreferences.DateStyle, observedCalendarPace, displayPreferences.UseTwelveHourClock,
             string.Join(",", inhabitant.RecentMemories.Select(item => $"{item.WorldTick}:{item.Summary}:{item.SubjectName}:{item.Visibility}")),
             string.Join(",", inhabitant.RecentBeliefs.Select(item => $"{item.WorldTick}:{item.Statement}:{item.Provenance}:{item.ConfidenceBasisPoints}:{item.SourceAgentName}:{item.AboutInhabitantId}:{item.IsCorrected}:{item.CorrectedTick}")),
             string.Join(",", inhabitant.RecentKnowledgeFacts.Select(item => $"{item.WorldTick}:{item.X}:{item.Y}:{item.Terrain}:{string.Join('+', item.ResourceKinds)}:{item.Acquisition}:{item.SourceAgentName}:{item.DiscovererName}")),

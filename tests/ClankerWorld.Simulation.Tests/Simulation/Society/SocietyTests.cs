@@ -146,6 +146,77 @@ public sealed class SocietyTests
     }
 
     [Fact]
+    public void RevokedPrimaryCareDoesNotCarryChildIntoFormerCaregiversNewPartnership()
+    {
+        var (checkpoint, childId) = BirthWithAcceptedCare();
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, "partnership-1", "alice").Checkpoint;
+        var separatedFamily = checkpoint.GetInhabitant(childId).DomesticFamilyUnitId;
+        Assert.Equal(separatedFamily, checkpoint.GetInhabitant("alice").DomesticFamilyUnitId);
+        Assert.NotEqual(separatedFamily, checkpoint.GetInhabitant("bob").DomesticFamilyUnitId);
+
+        var primaryCare = Assert.Single(checkpoint.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == "alice" && edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, primaryCare.Id, "alice").Checkpoint;
+        Assert.Equal(separatedFamily, checkpoint.GetInhabitant(childId).DomesticFamilyUnitId);
+
+        checkpoint = SocietyFixture.ProposeRelationship(checkpoint,
+            new("partnership-2", 1, SocietyRelationshipType.Partnership, "alice", "cara", checkpoint.WorldTick)).Checkpoint;
+        checkpoint = SocietyFixture.AcceptRelationship(checkpoint, "partnership-2", 1, "cara").Checkpoint;
+
+        Assert.NotEqual(separatedFamily, checkpoint.GetInhabitant("alice").DomesticFamilyUnitId);
+        Assert.Equal(separatedFamily, checkpoint.GetInhabitant(childId).DomesticFamilyUnitId);
+        Assert.Null(checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.Equal("alice", Assert.Single(checkpoint.Births).PrimaryCaregiverId);
+        Assert.Equal("home-a", checkpoint.GetInhabitant(childId).HouseholdId);
+    }
+
+    [Fact]
+    public void RevokingNonprimaryCareLeavesTheRecordedPrimaryCaregiver()
+    {
+        var (checkpoint, childId) = BirthWithAcceptedCare();
+        var birthFamily = checkpoint.GetInhabitant(childId).DomesticFamilyUnitId;
+        var secondaryCare = Assert.Single(checkpoint.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == "bob" && edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, secondaryCare.Id, "bob").Checkpoint;
+
+        Assert.Equal("alice", checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.True(SocietyFixture.HasActivePrimaryCaregiver(checkpoint, childId));
+        Assert.Equal(birthFamily, checkpoint.GetInhabitant(childId).DomesticFamilyUnitId);
+        Assert.Equal("alice", Assert.Single(checkpoint.Births).PrimaryCaregiverId);
+    }
+
+    [Fact]
+    public void RevokingAcceptedCareFromAnAdultWithoutAHouseholdClearsTheCurrentPrimary()
+    {
+        var (checkpoint, childId) = BirthWithAcceptedCare();
+        var caraMembership = Assert.Single(checkpoint.Relationships, edge => edge.Type == SocietyRelationshipType.HouseholdMembership &&
+            edge.TargetId == "cara" && edge.State == SocietyRelationshipState.Accepted);
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, caraMembership.Id, "cara").Checkpoint;
+        Assert.Null(checkpoint.GetInhabitant("cara").HouseholdId);
+
+        var formerPrimary = Assert.Single(checkpoint.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == "alice" && edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, formerPrimary.Id, "alice").Checkpoint;
+        var acceptedCare = SocietyFixture.AcceptDependentGuardianship(checkpoint, "cara", childId);
+        Assert.Contains(acceptedCare.NewEvents ?? [], item => item.Kind == "dependent_guardian_accepted");
+        checkpoint = acceptedCare.Checkpoint;
+
+        var acceptedEdge = Assert.Single(checkpoint.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == "cara" && edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+        Assert.Null(acceptedEdge.HouseholdId);
+        Assert.Equal("cara", checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
+        var familyUnit = checkpoint.GetInhabitant(childId).DomesticFamilyUnitId;
+
+        checkpoint = SocietyFixture.RevokeRelationship(checkpoint, acceptedEdge.Id, "cara").Checkpoint;
+
+        Assert.Null(checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.Equal(familyUnit, checkpoint.GetInhabitant(childId).DomesticFamilyUnitId);
+        Assert.Equal("home-a", checkpoint.GetInhabitant(childId).HouseholdId);
+        Assert.Equal("alice", Assert.Single(checkpoint.Births).PrimaryCaregiverId);
+    }
+
+    [Fact]
     public void BirthBindsCaregiverAndHomeWhenParentsLiveInDifferentHouseholds()
     {
         var checkpoint = Genesis(TestConfig(), "alice", "bob");
@@ -205,7 +276,7 @@ public sealed class SocietyTests
         checkpoint = SocietyFixture.AcceptRelationship(checkpoint, "survivor-partnership", 1, "cara").Checkpoint;
         var survivorUnit = checkpoint.GetInhabitant("bob").DomesticFamilyUnitId;
         Assert.NotEqual(birthUnit, survivorUnit);
-        Assert.Equal("alice", checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.Null(checkpoint.GetInhabitant(childId).PrimaryCaregiverId);
         Assert.Equal(birthUnit, checkpoint.GetInhabitant(childId).DomesticFamilyUnitId);
 
         var assumption = SocietyFixture.AssumePrimaryCare(checkpoint, "bob", childId);
@@ -600,6 +671,18 @@ public sealed class SocietyTests
             new InventoryLot("food-lot", "food", ids[0], 3, 10_000, 10_000, 0),
         };
         return SocietyFixture.CreateGenesis("world", founders, lots, config);
+    }
+
+    private static (SocietyCheckpoint Checkpoint, string ChildId) BirthWithAcceptedCare()
+    {
+        var checkpoint = Genesis(TestConfig(), "alice", "bob", "cara");
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home-a", "Home A", ["alice", "bob"]).Checkpoint;
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home-c", "Home C", ["cara"]).Checkpoint;
+        checkpoint = AcceptPartnership(checkpoint, "alice", "bob");
+        var birth = SocietyFixture.CommitBirth(checkpoint, new SocietyBirthRequest(
+            "caregiver-revocation-child", 1, "alice", "bob", "home-a", ["alice", "bob"], ["alice", "bob"],
+            "food-lot", 2, checkpoint.WorldTick, PrimaryCaregiverId: "alice"));
+        return (birth.Checkpoint, Assert.IsType<string>(birth.CreatedId));
     }
 
     private static SocietyCheckpoint AcceptPartnership(
