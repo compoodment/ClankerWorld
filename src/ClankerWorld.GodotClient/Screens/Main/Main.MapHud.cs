@@ -12,6 +12,7 @@ public partial class Main
 {
     private readonly PanelContainer hoverReadout = new();
     private readonly Label hoverReadoutLabel = new();
+    private readonly TextureRect hoverReadoutSwatch = new();
     private Vector2I? hoverReadoutTile;
     private OwnerWorldSnapshot? hoverReadoutSnapshot;
     private bool hoverReadoutTownSiteMode;
@@ -19,10 +20,18 @@ public partial class Main
     private void BuildMapHud(Control canvas)
     {
         hoverReadout.ThemeTypeVariation = "HudPanel";
-        hoverReadout.AddChild(hoverReadoutLabel);
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 6);
+        hoverReadoutSwatch.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        hoverReadoutSwatch.TextureFilter = CanvasItem.TextureFilterEnum.Nearest;
+        hoverReadoutSwatch.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        row.AddChild(hoverReadoutSwatch);
+        hoverReadoutLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        row.AddChild(hoverReadoutLabel);
+        hoverReadout.AddChild(row);
         hoverReadout.Hide();
 
-        foreach (var control in new Control[] { hoverReadout, hoverReadoutLabel })
+        foreach (var control in new Control[] { hoverReadout, row, hoverReadoutSwatch, hoverReadoutLabel })
             control.MouseFilter = Control.MouseFilterEnum.Ignore;
         hoverReadout.ZIndex = 60;
         hoverReadout.Resized += PositionMapHud;
@@ -58,6 +67,7 @@ public partial class Main
             ? terrainLayer.CurrentTownSiteGuidance?.At(point.X, point.Y)
             : null;
         hoverReadoutLabel.Text = HoverSummary(snapshot, terrainMap, point, siteAdvice);
+        hoverReadoutSwatch.Texture = TileSwatch(terrainMap, point.X, point.Y, 10);
         hoverReadout.Show();
         PositionMapHud();
     }
