@@ -94,10 +94,14 @@ public sealed partial class PrivateWorldRuntimeTests
             var position = CancellationActorPosition(world.ExportState());
             CancelTravelOrder(world, order.InstructionId, "cancel-unreturned-travel");
 
-            for (var tick = 0; tick < 5; tick++)
+            // The ordinary request starts on a background task, so a slow runner may
+            // need a few more ticks; the agent must stay put on every one of them.
+            for (var tick = 0; tick < 5 || tick < 60 &&
+                     !provider.Requests.Any(request => request.OperativeOrderInstructionId is null); tick++)
             {
                 Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
                 Assert.Equal(position, CancellationActorPosition(world.ExportState()));
+                if (tick >= 5) await Task.Delay(10);
             }
 
             Assert.False(provider.Returned.Task.IsCompleted);

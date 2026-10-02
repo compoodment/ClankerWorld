@@ -288,7 +288,7 @@ public partial class AgentMarker : Control
         if (!NameShown || drawn < NameMinimum) return;
         var font = UiFonts.Text;
         var fontSize = UiFonts.Body * TextScale;
-        var text = caption.Length > 14 ? caption[..13] + "…" : caption;
+        var text = caption.Length > 14 ? caption[..13] + "..." : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
         // Light letters with a dark pixel edge and no box, gold for the selected agent.
         var baseline = new Vector2(Mathf.Floor(center.X - textSize.X / 2),

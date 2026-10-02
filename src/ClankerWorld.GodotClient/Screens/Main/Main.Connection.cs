@@ -144,7 +144,7 @@ public partial class Main
                     pairingInstructionLabel.Text = "Waiting for host approval. Give the host the pairing ID and comparison code exactly as shown.";
                     break;
                 case OwnerPairingState.Approved:
-                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key…";
+                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key...";
                     await ActivatePendingPairingAsync();
                     break;
                 case OwnerPairingState.Active:
@@ -371,7 +371,7 @@ public partial class Main
 
             var previousRefreshCount = successfulRefreshCount;
             var previousToastTime = statusToastShownAtMsec;
-            connectionStatusLabel.Text = "Checking connection…";
+            connectionStatusLabel.Text = "Checking connection...";
             connectionStatusLabel.Show();
             connectButton.Disabled = true;
             await RefreshAsync();

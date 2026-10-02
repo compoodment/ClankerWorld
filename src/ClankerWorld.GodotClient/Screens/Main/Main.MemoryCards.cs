@@ -81,7 +81,7 @@ public partial class Main
         text.AddThemeConstantOverride("separation", 2);
         text.AddChild(new Label
         {
-            Text = words,
+            Text = GameUiText.PlainEllipses(words),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             CustomMinimumSize = new Vector2(240, 0),
             ThemeTypeVariation = faded ? "DimLabel" : string.Empty,
@@ -102,7 +102,7 @@ public partial class Main
         return line;
     }
 
-    private static Label MetaText(string text) => new() { Text = text, ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+    private static Label MetaText(string text) => new() { Text = GameUiText.PlainEllipses(text), ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
 
     private static Label Tag(string text, bool note = false) => new()
     {

@@ -45,11 +45,25 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    /// <summary>
+    /// Text from an agent's model or the host with each ellipsis character
+    /// (U+2026) spelled as three full stops. The body font draws that character
+    /// at mid-height, as Chinese text does, so game text never uses it.
+    /// </summary>
+    public static string PlainEllipses(string text) => text.Replace(Ellipsis, "...", StringComparison.Ordinal);
+
+    /// <summary>The ellipsis character, written as an escape so searches for it find only mistakes.</summary>
+    public const string Ellipsis = "\u2026";
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",
         "water_jug" => "Water jug",
         "fresh_water" => "Fresh water",
+        "gold_ore" => "Gold ore",
+        "gold" => "Refined gold",
+        "gold_ornament" => "Gold ornament",
+        "diamond_ornament" => "Diamond ornament",
         _ => HumanizeIdentifier(kind),
     };
 
@@ -236,6 +250,7 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
+            "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
@@ -297,6 +312,9 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId?.StartsWith("wear_ornament:", StringComparison.Ordinal) == true) return "putting on an ornament";
+        if (candidateId == "remove_ornament") return "taking off an ornament";
+        if (candidateId?.StartsWith("gift_ornament:", StringComparison.Ordinal) == true) return "giving an ornament";
         if (candidateId?.StartsWith("return_empty_vessel:", StringComparison.Ordinal) == true) return "bringing an empty vessel home";
         if (candidateId?.StartsWith("medical_allow:", StringComparison.Ordinal) == true) return "allowing medical care";
         if (candidateId?.StartsWith("medical_revoke:", StringComparison.Ordinal) == true) return "withdrawing medical permission";

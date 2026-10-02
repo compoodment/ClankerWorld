@@ -201,7 +201,7 @@ public partial class Main
             progress.AddChild(new Label { Text = $"{done}% · {Pretty(project.Stage).ToLowerInvariant()}", ThemeTypeVariation = "DimLabel" });
             text.AddChild(progress);
             if (project.Blocker is { } blocker)
-                text.AddChild(new Label { Text = blocker, ThemeTypeVariation = "BadLabel", AutowrapMode = TextServer.AutowrapMode.WordSmart });
+                text.AddChild(new Label { Text = GameUiText.PlainEllipses(blocker), ThemeTypeVariation = "BadLabel", AutowrapMode = TextServer.AutowrapMode.WordSmart });
             line.AddChild(text);
             townExtras.AddChild(line);
         }
@@ -224,7 +224,7 @@ public partial class Main
             line.AddChild(Portrait(person, Control.SizeFlags.ShrinkBegin));
             line.AddChild(new Label
             {
-                Text = $"{person.DisplayName}: {note}",
+                Text = $"{person.DisplayName}: {GameUiText.PlainEllipses(note)}",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 CustomMinimumSize = new Vector2(200, 0),
