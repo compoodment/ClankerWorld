@@ -515,6 +515,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
+            MaintainRelocation();
             MaintainMovingCareGroups();
             MaintainParenthood();
             MaintainContinuity();

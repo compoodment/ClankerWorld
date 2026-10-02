@@ -71,7 +71,10 @@ public sealed partial class PrivateWorldRuntime
             inhabitants[id] = person with
             {
                 Project = null,
-                Housing = new(Blocker: id == actor ? HousingBlockers.NoHousehold : HousingBlockers.NoAuthorizedHome),
+                // A move-out notice ends with membership; a pending request elsewhere stays open.
+                Housing = id == actor
+                    ? (person.Housing ?? new()) with { Blocker = HousingBlockers.NoHousehold, Relocation = null }
+                    : new(Blocker: HousingBlockers.NoAuthorizedHome),
                 LastDecisionContext = null,
             };
         }
@@ -246,10 +249,14 @@ public sealed partial class PrivateWorldRuntime
             if (CanResumeHeldInputs(actor, job.BuildingId, job.Reservations) && TryResumeKnife(actor, job.Id, out _))
                 candidates.Add(new("household_resume_work:" + job.Id,
                     "Go to your household's building and take over its paused work using the same committed materials.", 17, job.BuildingId));
-        if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null)
+        var home = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        if (home is not null)
             candidates.Add(new("household_leave", "Leave your household without a vote; keep responsibility for your dependent children and collect your personal belongings physically.", 115));
-        else if (inhabitants[actor].Housing?.Request is null && !AskableHouseholds(actor).Any())
-            candidates.Add(new("household_found", "Start your own household with your dependent children. A House still needs a legal site, materials and work.", 19));
+        if (inhabitants[actor].Housing?.Request is null && MayFoundHousehold(actor) && !AskableHouseholds(actor).Any())
+            candidates.Add(new("household_found", home is null
+                    ? "Start your own household with your dependent children. A House still needs a legal site, materials and work."
+                    : "Move out of your overcrowded House and start your own household with your dependent children. A House still needs a legal site, materials and work.",
+                home is null || HoldsRelocationNotice(actor) ? 19 : 104));
         if (FreeCarryCapacity(actor) > 0)
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
@@ -260,8 +267,7 @@ public sealed partial class PrivateWorldRuntime
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
                 VesselFits(lot, StorageRoom(ownerHouse.InstanceId)))
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
-        if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } home && HouseForHousehold(home) is { } house &&
-            StorageRoom(house.InstanceId) > 0)
+        if (home is not null && HouseForHousehold(home) is { } house && StorageRoom(house.InstanceId) > 0)
         {
             foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                          PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
@@ -280,6 +286,22 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new("household_accept_care:" + child.Id, $"Explicitly accept primary care of {child.Name}, so their current caregiver may leave without taking them.", 112));
     }
 
+    /// <summary>
+    /// An adult with no household may start one. So may a member of an
+    /// overcrowded House who has a move-out notice, or whose House cannot grow
+    /// any further, taking their dependents with them.
+    /// </summary>
+    private bool MayFoundHousehold(string actor)
+    {
+        if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } home) return true;
+        if (HoldsRelocationNotice(actor)) return true;
+        return HouseResidentCapacity(home) is { IsOvercrowded: true } && HouseForHousehold(home) is { } house &&
+            !HouseCanExpandFurther(house);
+    }
+
+    private bool HouseCanExpandFurther(PlacedBuilding house) =>
+        ExpansionShapes(house).Any(shape => CanFitExpansion(house, shape.Position, shape.Footprint, out _));
+
     private void ApplyDepartureCandidate(string actor, string candidate)
     {
         if (candidate.StartsWith("household_resume_work:", StringComparison.Ordinal))
@@ -290,8 +312,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidate == "household_leave") { DepartHousehold(actor, "voluntary"); return; }
         if (candidate == "household_found")
         {
-            if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not null ||
+            if (!AdultResident(actor) || !MayFoundHousehold(actor) ||
                 inhabitants[actor].Housing?.Request is not null || AskableHouseholds(actor).Any()) return;
+            // Splitting from an overcrowded House is an ordinary departure first.
+            if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
+                !DepartHousehold(actor, HoldsRelocationNotice(actor) ? "displaced" : "voluntary")) return;
             var householdId = $"household:solo:{actor}:{WorldTick}";
             var group = MovingCareGroup(actor);
             society.Apply(checkpoint => SocietyFixture.CreateHousehold(checkpoint, householdId,

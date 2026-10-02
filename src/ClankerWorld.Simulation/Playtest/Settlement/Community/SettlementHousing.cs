@@ -15,11 +15,15 @@ public sealed record SettlementHousingRequest(string HouseholdId, long Requested
 /// <summary>A household that refused or did not answer, so it is not asked again for a while.</summary>
 public sealed record SettlementHousingRefusal(string HouseholdId, long Tick);
 
-/// <summary>Housing status for an adult applicant or a resident with an unmet housing need.</summary>
+/// <summary>
+/// Housing status for an adult applicant or a resident with an unmet housing
+/// need, including a move-out notice from an overcrowded House.
+/// </summary>
 public sealed record SettlementHousing(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousingRequest? Request = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementHousingRefusal>? Refusals = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Blocker = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Blocker = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementRelocation? Relocation = null);
 
 /// <summary>
 /// Why a resident has no authorized home or their household is overcrowded.
@@ -84,13 +88,18 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Households this adult may ask now: they hold a House in the adult's
-    /// Town, have an adult who can answer, and did not refuse recently. Only
-    /// an adult with no household asks; how an adult leaves or changes a
-    /// household follows the agreed departure and care-group rules.
+    /// Town, have room for the adult's whole care group, have an adult who can
+    /// answer, and did not refuse recently. An adult with no household asks,
+    /// and so does a member with a move-out notice from an overcrowded House;
+    /// how an adult leaves or changes a household follows the agreed departure
+    /// and care-group rules.
     /// </summary>
     private IEnumerable<SocietyHousehold> AskableHouseholds(string actor)
     {
-        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not null)
+        if (!AdultResident(actor))
+            yield break;
+        var current = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        if (current is not null && !MayRelocateFromHousehold(actor))
             yield break;
         var housing = inhabitants[actor].Housing;
         if (housing?.Request is not null)
@@ -98,7 +107,7 @@ public sealed partial class PrivateWorldRuntime
         var town = TownForResident(actor);
         foreach (var household in society.Checkpoint.Households.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
-            if (HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
+            if (household.Id == current || HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
                 !CanFitCareGroup(household.Id, actor) ||
                 HouseholdAdults(household.Id).Length == 0 ||
                 housing?.Refusals?.Any(refusal => refusal.HouseholdId == household.Id &&
@@ -131,10 +140,15 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor))
             return;
         AddDepartureCandidates(candidates, actor);
+        AddRelocationCandidates(candidates, actor);
+        // Only a member with a move-out notice asks while still living in their House.
+        var member = society.Checkpoint.GetInhabitant(actor).HouseholdId is not null;
         foreach (var household in AskableHouseholds(actor))
         {
             candidates.Add(new(HousingAskPrefix + household.Id,
-                $"Ask the {household.Name} household to let you live in their House; every adult member must agree.",
+                member
+                    ? $"Ask the {household.Name} household to let you move into their House, which has room; every adult member must agree."
+                    : $"Ask the {household.Name} household to let you live in their House; every adult member must agree.",
                 18, household.Id));
         }
         foreach (var applicant in PendingHousingRequestsFor(actor))
@@ -151,6 +165,11 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor))
             return;
+        if (candidate == HouseholdVolunteerCandidate)
+        {
+            ApplyVolunteerToRelocate(actor);
+            return;
+        }
         ApplyDepartureCandidate(actor, candidate);
         if (candidate.StartsWith(HousingAskPrefix, StringComparison.Ordinal))
         {
@@ -212,7 +231,9 @@ public sealed partial class PrivateWorldRuntime
             housing = housing with { Request = request };
             SetHousing(actor, housing);
         }
-        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not null ||
+        var current = AdultResident(actor) ? society.Checkpoint.GetInhabitant(actor).HouseholdId : null;
+        // A member's request ends with their move-out notice: the move is no longer needed.
+        if (!AdultResident(actor) || current is not null && (current == request.HouseholdId || !MayRelocateFromHousehold(actor)) ||
             HouseForHousehold(request.HouseholdId) is null || living.Length == 0)
         {
             EndHousingRequest(actor, request, "housing_request_cancelled", remember: false);
@@ -234,6 +255,14 @@ public sealed partial class PrivateWorldRuntime
         }
         else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)))
         {
+            // A member moves out through the ordinary departure first, so the
+            // allowance, collection right and care group follow the same rules.
+            if (current is not null &&
+                !DepartHousehold(actor, HoldsRelocationNotice(actor) ? "displaced" : "voluntary"))
+            {
+                EndHousingRequest(actor, request, "housing_request_cancelled", remember: false);
+                return;
+            }
             society.Apply(checkpoint => SocietyFixture.JoinHouseholdCareGroup(checkpoint, actor, request.HouseholdId));
             if (society.Checkpoint.GetInhabitant(actor).HouseholdId != request.HouseholdId)
             {
@@ -265,7 +294,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void SetHousing(string actor, SettlementHousing housing)
     {
-        var empty = housing.Request is null && housing.Refusals is not { Count: > 0 } && housing.Blocker is null;
+        var empty = housing.Request is null && housing.Refusals is not { Count: > 0 } && housing.Blocker is null &&
+            housing.Relocation is null;
         inhabitants[actor] = inhabitants[actor] with
         {
             Housing = empty ? null : housing with { Refusals = housing.Refusals is { Count: > 0 } ? housing.Refusals : null },
@@ -315,24 +345,22 @@ public sealed partial class PrivateWorldRuntime
         if (person.HouseholdId is { } householdId && HouseForHousehold(householdId) is { } house &&
             HouseResidentCapacity(householdId) is { } capacity)
         {
+            if (capacity.IsOvercrowded)
+                return RelocationNote(actor, householdId, capacity);
             var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
             var footprint = WorldContentSimulationRules.Footprint(definition, house).ToHashSet();
             var inside = inhabitants.Values.Count(physical =>
                 society.Checkpoint.GetInhabitant(physical.InhabitantId).Status == SocietyInhabitantStatus.Active &&
                 footprint.Contains(physical.Position));
-            var state = capacity.IsOvercrowded ? "overcrowded" :
-                capacity.HasFreePlace ? "has room" : "is full";
+            var state = capacity.HasFreePlace ? "has room" : "is full";
             var family = capacity.HasDominantFamily
                 ? "; majority-family limit applies"
                 : string.Empty;
             var expansion = (worldSimulation.BuildingExpansions ?? []).Any(job =>
                 job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Running)
                 ? "; expansion adds places when complete" : string.Empty;
-            var need = capacity.IsOvercrowded
-                ? "; need: no automatic moves"
-                : string.Empty;
             return $"House: {capacity.ResidentCount}/{capacity.Limit} permanent places ({state}); " +
-                $"{inside} inside; absences still count{family}{expansion}{need}";
+                $"{inside} inside; absences still count{family}{expansion}";
         }
         if (inhabitants[actor].Housing is not { Blocker: { } blocker } housing)
             return null;
@@ -349,7 +377,7 @@ public sealed partial class PrivateWorldRuntime
             HousingBlockers.NoLegalSite =>
                 "You have no home. Your household has the materials for a House but no legal site to build it.",
             HousingBlockers.Overcrowded =>
-                "Your household's House is over its completed resident capacity. This is a housing need; no one is moved automatically.",
+                "Your household's House is over its completed resident capacity and takes no new residents until it has room.",
             _ => null,
         };
     }
@@ -367,12 +395,15 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             if (schemaVersion < HousingSchemaVersion)
                 throw new InvalidDataException($"Housing requests require private-world schema {HousingSchemaVersion}.");
-            if (housing.Request is null && housing.Refusals is not { Count: > 0 } && housing.Blocker is null ||
+            if (housing.Request is null && housing.Refusals is not { Count: > 0 } && housing.Blocker is null &&
+                housing.Relocation is null ||
                 housing.Blocker is not null && !HousingBlockers.All.Contains(housing.Blocker, StringComparer.Ordinal) ||
                 housing.Refusals is { } refusals && (refusals.Any(refusal => refusal is null ||
                     !households.Contains(refusal.HouseholdId) || refusal.Tick < 0 || refusal.Tick > society.WorldTick) ||
                     refusals.Select(refusal => refusal.HouseholdId).Distinct(StringComparer.Ordinal).Count() != refusals.Count))
                 throw new InvalidDataException("The saved housing state is invalid.");
+            if (housing.Relocation is { } notice)
+                ValidateRelocation(person, notice, people, society, schemaVersion);
             var hasAdultAdmissionState = housing.Request is not null || housing.Refusals is { Count: > 0 };
             var isAdultResident = people.TryGetValue(person.InhabitantId, out var societyPerson) &&
                 societyPerson.Status == SocietyInhabitantStatus.Active &&
@@ -383,7 +414,9 @@ public sealed partial class PrivateWorldRuntime
             if (housing.Request is not { } request)
                 continue;
             var answers = request.Approvals is null || request.Rejections is null ? null : request.Approvals.Concat(request.Rejections).ToArray();
-            if (!people.TryGetValue(person.InhabitantId, out var applicant) || applicant.HouseholdId is not null ||
+            // A member asks only while holding a move-out notice from their current House.
+            if (!people.TryGetValue(person.InhabitantId, out var applicant) || applicant.HouseholdId == request.HouseholdId ||
+                applicant.HouseholdId is not null && housing.Relocation?.HouseholdId != applicant.HouseholdId ||
                 !households.Contains(request.HouseholdId) || request.RequestedTick < 0 || request.RequestedTick > society.WorldTick ||
                 request.ExpiryTick - request.RequestedTick != HousingRequestTicks ||
                 request.Members is null || answers is null || request.Members.Count == 0 ||
