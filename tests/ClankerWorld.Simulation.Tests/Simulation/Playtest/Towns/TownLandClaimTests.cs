@@ -67,7 +67,10 @@ public sealed class TownLandClaimTests
         Assert.All(plot, tile => Assert.Contains(tile, world.Towns[0].BorderTiles));
         Assert.Equal(initial.HouseholdLandUseRights, world.HouseholdLandUseRights);
         Assert.Equal(initial.WorldSimulation!.Buildings, world.WorldSimulation.Buildings);
-        Assert.Equal(initial.Society.Society.Inventory.Lots, world.Society.Inventory.Lots);
+        Assert.Equal(initial.Society.Society.Inventory.Lots.Select(lot =>
+                (lot.Id, lot.ItemKind, lot.OwnerId, lot.Quantity, lot.StorageBuildingId, lot.CarrierId, lot.ContainerLotId, lot.GroundPosition)),
+            world.Society.Inventory.Lots.Select(lot =>
+                (lot.Id, lot.ItemKind, lot.OwnerId, lot.Quantity, lot.StorageBuildingId, lot.CarrierId, lot.ContainerLotId, lot.GroundPosition)));
         Assert.Equal(initial.Society.Society.Inventory.Reservations, world.Society.Inventory.Reservations);
         Assert.Single(world.ExportState().Events, e => e.Kind == "town_land_claimed");
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
