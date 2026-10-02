@@ -156,14 +156,16 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
-        Assert.Equal(2, provider.CallCount);
+        // How many ticks a hosted reply takes depends on the runner, so an ordinary
+        // re-evaluation may also start; only the two naming requests may ask for a name.
+        Assert.Equal(2, provider.ObservedRequests.Count(request => request.NeedsName || request.IsNameRetry));
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
         Assert.Contains(world.ExportState().Events,
             item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        Assert.Equal(2, provider.CallCount);
+        Assert.Equal(2, provider.ObservedRequests.Count(request => request.NeedsName || request.IsNameRetry));
     }
 
     [Fact]
