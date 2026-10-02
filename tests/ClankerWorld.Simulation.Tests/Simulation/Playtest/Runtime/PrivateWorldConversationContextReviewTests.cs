@@ -145,10 +145,10 @@ public sealed partial class PrivateWorldConversationTests
         var completionStartTick = world.WorldTick;
         const int completionTickHorizon = 80;
         const int maxCompletionAttempts = completionTickHorizon * 10;
-        var completionTimeout = System.Diagnostics.Stopwatch.StartNew();
+        using var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         long? conversationClosedAtTick = null;
         var completionAttempts = 0;
-        for (; completionAttempts < maxCompletionAttempts && completionTimeout.Elapsed < TimeSpan.FromSeconds(15);
+        for (; completionAttempts < maxCompletionAttempts && !completionDeadline.IsCancellationRequested;
              completionAttempts++)
         {
             if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
@@ -157,9 +157,14 @@ public sealed partial class PrivateWorldConversationTests
                 var lesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
                 if (lesson.Stage == "completed" || world.WorldTick - conversationClosedAtTick >= completionTickHorizon)
                     break;
+                // Each lesson step needs a fresh decision; await it before spending the tick budget.
+                _ = await world.AdvanceOneTickAsync(completionDeadline.Token);
             }
-            _ = await world.AdvanceOneTickNonBlockingAsync();
-            await Task.Delay(2);
+            else
+            {
+                _ = await world.AdvanceOneTickNonBlockingAsync(cancellationToken: completionDeadline.Token);
+                await Task.Delay(2, completionDeadline.Token);
+            }
         }
         if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
             conversationClosedAtTick ??= world.WorldTick;
