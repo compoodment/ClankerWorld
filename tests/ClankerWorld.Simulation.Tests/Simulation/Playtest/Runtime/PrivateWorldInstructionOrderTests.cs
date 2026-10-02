@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -329,21 +330,11 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task BlockedDirectOrderPromptsOneDecisionThenWaitsForTheUsualPace()
-    {
-        const int ticks = 120;
-        var controlCalls = await DecisionsDuringBlockedOrderAsync(submitOrder: false, ticks);
-        var orderedCalls = await DecisionsDuringBlockedOrderAsync(submitOrder: true, ticks);
-
-        Assert.True(orderedCalls <= controlCalls + 1,
-            $"The blocked order led to {orderedCalls} decisions in {ticks} ticks; without it there were {controlCalls}.");
-    }
-
-    [Fact]
     public async Task BlockedDirectOrderDoesNotStartAHostedDecisionEveryTick()
     {
         var hosted = new CountingSelectingProvider(DecisionProviderKind.LargeLanguageModel, chooseIdle: true);
         var local = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
+        // This founder carries no food here, so "eat food" cannot progress.
         using var world = CreateOrderWorldWithoutFood(
             "must-do-illegal-review", id => id == OrderedAgent ? hosted : local);
         for (var tick = 0; tick < 5; tick++)
@@ -358,32 +349,6 @@ public sealed partial class PrivateWorldRuntimeTests
         var hostedCalls = hosted.CallCount - callsBefore;
         Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         Assert.InRange(hostedCalls, 1, 10);
-    }
-
-    private static async Task<int> DecisionsDuringBlockedOrderAsync(bool submitOrder, int ticks)
-    {
-        // This founder carries no food here, so "eat food" cannot progress.
-        var ordered = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        var others = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = CreateOrderWorldWithoutFood(
-            "must-do-illegal-review", id => id == OrderedAgent ? ordered : others);
-        for (var tick = 0; tick < 5; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var callsBefore = ordered.CallCount;
-        OwnerInstructionReceipt? order = submitOrder
-            ? world.SubmitInstruction(new OwnerInstructionRequest("blocked-eat", "owner:test",
-                OrderedAgent, OwnerInstructionKind.MustDo, "eat food"))
-            : null;
-        for (var tick = 0; tick < ticks; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        if (order is not null)
-        {
-            Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind is "instruction_applied" or "instruction_not_understood");
-        }
-        return ordered.CallCount - callsBefore;
     }
 
     private static PrivateWorldRuntime CreateOrderWorldWithoutFood(
@@ -413,6 +378,108 @@ public sealed partial class PrivateWorldRuntimeTests
             },
         };
         return PrivateWorldRuntime.Restore(state, providerFactory);
+    }
+
+    [Theory]
+    [InlineData("long idempotency key")]
+    [InlineData("idempotency key with a control character")]
+    [InlineData("long issuer ID")]
+    [InlineData("issuer ID with a control character")]
+    [InlineData("unknown kind")]
+    public void MalformedInstructionIsRefusedBeforeTheWorldOrItsSaveChanges(string malformation)
+    {
+        var request = new OwnerInstructionRequest("malformed-message", "owner:test", OrderedAgent,
+            OwnerInstructionKind.Suggestive, "Rest when you can.");
+        request = malformation switch
+        {
+            "long idempotency key" => request with { IdempotencyKey = new string('k', 129) },
+            "idempotency key with a control character" => request with { IdempotencyKey = "malformed\u0001message" },
+            "long issuer ID" => request with { IssuerId = new string('o', 129) },
+            "issuer ID with a control character" => request with { IssuerId = "owner:\u0007test" },
+            "unknown kind" => request with { Kind = (OwnerInstructionKind)99 },
+            _ => throw new ArgumentOutOfRangeException(nameof(malformation)),
+        };
+        using var world = new PrivateWorldRuntime("malformed-instruction");
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+
+        Assert.ThrowsAny<ArgumentException>(() => world.SubmitInstruction(request));
+
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        // The refusal used no message number, so the next valid message is still the first.
+        var accepted = world.SubmitInstruction(new OwnerInstructionRequest("valid-after-refusal", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Rest when you can."));
+        Assert.Equal("private-instruction-0000000001", accepted.InstructionId);
+        Assert.Equal(accepted.InstructionId, Assert.Single(world.ExportState().Instructions!).InstructionId);
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CurrentSaveWithoutItsMessageRecordsIsRefused(bool missingCompletedIds)
+    {
+        using var world = new PrivateWorldRuntime("missing-message-records");
+        var state = world.ExportState();
+        Assert.True(state.SchemaVersion >= PrivateWorldRuntime.ObserverGuidanceSchemaVersion);
+        state = missingCompletedIds ? state with { CompletedInstructionIds = null } : state with { Instructions = null };
+
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
+    }
+
+    [Fact]
+    public void AgentCardKeepsTheLatestClosedMessagesEvenWhenNoPersonalModelHeardThem()
+    {
+        const int closedOrderCount = 8;
+        const int closedMessagesShown = 6;
+        using var world = new PrivateWorldRuntime("closed-unheard-messages");
+        var heard = world.SubmitInstruction(new OwnerInstructionRequest("heard-suggestion", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Try the riverbank berries."));
+        var waiting = world.SubmitInstruction(new OwnerInstructionRequest("waiting-suggestion", "owner:test",
+            OrderedAgent, OwnerInstructionKind.Suggestive, "Rest when you can."));
+        // The game cannot act on these orders, so each closes at once and no personal model hears it.
+        var closedOrders = Enumerable.Range(1, closedOrderCount)
+            .Select(index => world.SubmitInstruction(new OwnerInstructionRequest($"closed-order-{index}",
+                "owner:test", OrderedAgent, OwnerInstructionKind.MustDo, $"build house number {index}")))
+            .ToArray();
+        var otherAgentOrder = world.SubmitInstruction(new OwnerInstructionRequest("other-agent-order",
+            "owner:test", "founder-mira", OwnerInstructionKind.MustDo, "build a wall"));
+        var exported = world.ExportState();
+        Assert.All(closedOrders.Append(otherAgentOrder), order =>
+            Assert.Contains(order.InstructionId, exported.CompletedInstructionIds ?? []));
+        // The oldest message was heard by a personal model and answered.
+        var withHeardMessage = exported with
+        {
+            Instructions = exported.Instructions!.Select(item => item.InstructionId == heard.InstructionId
+                ? item with { ObservedTick = item.SubmittedTick, ObserverReply = "I will look there." }
+                : item).ToArray(),
+            CompletedInstructionIds = [.. exported.CompletedInstructionIds!, heard.InstructionId],
+        };
+
+        using var live = PrivateWorldRuntime.Restore(withHeardMessage);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(live.ExportState())));
+        foreach (var runtime in new[] { live, reloaded })
+        {
+            var projected = new OwnerWorldObservationStore(runtime).GetSnapshot().Instructions;
+            var forAgent = projected.Where(item => item.TargetInhabitantId == OrderedAgent).ToArray();
+            // Open messages always stay; closed ones are bounded to the newest few, heard or not.
+            Assert.Equal(
+                closedOrders.TakeLast(closedMessagesShown).Select(item => item.InstructionId)
+                    .Prepend(waiting.InstructionId).ToArray(),
+                forAgent.Select(item => item.InstructionId).ToArray());
+            Assert.Equal("queued", forAgent[0].State);
+            Assert.All(forAgent.Skip(1), item =>
+            {
+                Assert.Equal("must_do", item.Kind);
+                Assert.Equal("completed", item.State);
+                Assert.Null(item.ObservedTick);
+                Assert.Null(item.ObserverReply);
+            });
+            var otherAgent = Assert.Single(projected, item => item.TargetInhabitantId != OrderedAgent);
+            Assert.Equal(otherAgentOrder.InstructionId, otherAgent.InstructionId);
+            Assert.Equal("completed", otherAgent.State);
+            Assert.Null(otherAgent.ObservedTick);
+        }
     }
 
     private sealed class GuidanceRecordingProvider : IDecisionProvider

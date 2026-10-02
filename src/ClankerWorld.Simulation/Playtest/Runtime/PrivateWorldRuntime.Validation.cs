@@ -249,6 +249,13 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private static bool HasSavedToolUseState(PrivateWorldRuntimeState state) =>
+        state.WorldSimulation is { } simulation &&
+            simulation.ProductionJobs.Concat(simulation.CropBuilds ?? [])
+                .Any(job => job is not null && job.ToolLotId is not null) ||
+        (state.Fields ?? []).Any(field => field is not null &&
+            (field.Work?.HoeLotId is not null || field.Work?.SickleLotId is not null));
+
     internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
     {
         if (schemaVersion < MinimumSupportedStateSchemaVersion)
@@ -288,6 +295,8 @@ public sealed partial class PrivateWorldRuntime
         if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
             state.WorldSimulation is null || state.AssetReservations is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
+        if (state.SchemaVersion < ToolProgressionSchemaVersion && HasSavedToolUseState(state))
+            throw new InvalidDataException($"Saved tool use links require private-world schema {ToolProgressionSchemaVersion}.");
         if (state.SchemaVersion >= ConversationSchemaVersion && (state.Conversations is null || state.ConversationBudgets is null))
             throw new InvalidDataException($"Private-world schema {ConversationSchemaVersion} requires conversation state and daily budgets.");
         if (state.SchemaVersion >= OrderLifecycleSchemaVersion && state.OrderCancellations is null)
@@ -415,13 +424,12 @@ public sealed partial class PrivateWorldRuntime
         foreach (var instruction in instructions)
         {
             if (instruction is null || string.IsNullOrWhiteSpace(instruction.InstructionId) ||
-                instruction.InstructionId.Length > 128 ||
+                instruction.InstructionId.Length > OwnerQueuedInstruction.MaximumIdentifierLength ||
                 instruction.InstructionId != $"private-instruction-{instruction.SubmissionSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}" ||
                 !instructionIds.Add(instruction.InstructionId) ||
-                string.IsNullOrWhiteSpace(instruction.IdempotencyKey) || instruction.IdempotencyKey.Length > 128 ||
-                instruction.IdempotencyKey.Any(char.IsControl) || !idempotencyKeys.Add(instruction.IdempotencyKey) ||
-                string.IsNullOrWhiteSpace(instruction.IssuerId) || instruction.IssuerId.Length > 128 ||
-                instruction.IssuerId.Any(char.IsControl) ||
+                !IsValidInstructionIdentifier(instruction.IdempotencyKey) ||
+                !idempotencyKeys.Add(instruction.IdempotencyKey) ||
+                !IsValidInstructionIdentifier(instruction.IssuerId) ||
                 !people.Contains(instruction.TargetInhabitantId) ||
                 instruction.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo) ||
                 instruction.State != OwnerInstructionState.Queued ||

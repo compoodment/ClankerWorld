@@ -385,6 +385,7 @@ public sealed partial class PrivateWorldRuntime
             StageFarmContent();
             StageBlacksmithContent();
             StageHouseCookingContent();
+            StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -464,6 +465,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();

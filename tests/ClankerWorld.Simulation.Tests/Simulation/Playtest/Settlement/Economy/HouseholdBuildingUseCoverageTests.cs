@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 
@@ -27,6 +28,15 @@ public sealed class HouseholdBuildingUseCoverageTests
         using var setup = NormalPathWorld.CreateGenerated(seed, _ => recorder);
         var state = setup.ExportState();
         var farmingHousehold = setup.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse").HouseholdId!;
+        // This checks permission to mill available grain, independently of
+        // which crop the normal chooser grows to meet the food shortage.
+        var inventory = InventoryFixture.AddLot(
+            state.Society.Society.Inventory, "coverage-milling-grain", "grain", farmingHousehold, 1,
+            storageBuildingId: "first-town-farmhouse");
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
         // Work is demand-driven. Start with a real shortage rather than
         // requiring unnecessary crop work while starter rations are plentiful.
         using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(state, farmingHousehold),
@@ -74,13 +84,21 @@ public sealed class HouseholdBuildingUseCoverageTests
             if (!Holds(world, household.Id, "blacksmith"))
                 Assert.DoesNotContain(families, blacksmithRecipes.Contains);
             if (!Holds(world, household.Id, "tailor"))
-                Assert.DoesNotContain(families, family => tailorRecipes.Contains(family) || family == "supply_workstation");
+                Assert.DoesNotContain(families, tailorRecipes.Contains);
         }
 
-        // Each household is offered the productive building it lacks, never a
-        // second House and never a building the Town shares.
-        Assert.Contains("building:blacksmith-1x2", farmFamilies);
-        Assert.Contains("building:farmhouse-1x1", smithFamilies);
+        // Pottery also uses supply trips. Every offered destination must still
+        // belong to the supplying adult's household, whatever recipe needs it.
+        Assert.All(recorder.WorkstationSupplyOffers.Keys, offer =>
+        {
+            var building = Assert.Single(world.WorldSimulation.Buildings,
+                item => item.InstanceId == offer.DestinationId);
+            Assert.Equal(world.Society.GetInhabitant(offer.AgentId).HouseholdId, building.HouseholdId);
+        });
+
+        // Building offers need materials in hand; HouseholdBuildingPlanTests
+        // checks the positive offers with that prerequisite supplied. This
+        // free-running world must never plan a second House or Town buildings.
         foreach (var families in new[] { farmFamilies, smithFamilies })
         {
             Assert.DoesNotContain("building:house-1x1", families);

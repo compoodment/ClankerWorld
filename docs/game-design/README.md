@@ -61,8 +61,8 @@ are agreed: the observer can send suggestions and orders through the game's
 normal rules. These controls do not mean every intended action is built yet.
 
 Still-open topics include knowledge across generations, government and the economy, medicine and
-injuries, art references and invention assets, save branches and mod
-compatibility. Work out the intended experience before narrowing these choices
+injuries, art references and invention assets, the details of save branches
+and mod compatibility. Work out the intended experience before narrowing these choices
 to what the current prototype can already do.
 
 [Earlier design conversations](../archive/vision-interview-history.md) are kept

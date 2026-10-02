@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # How the game works
@@ -74,6 +74,14 @@ normal planning assignment or inherited world planning provider. A child
 without an explicit personal-model choice and an agent whose planning model is
 set to deterministic stay local; neither receives a forced hosted call.
 
+A submitted message is checked before it changes the world. Its idempotency key
+and issuer ID must each be at most 128 characters with no control characters,
+its kind must be a suggestion or an order, and its text must be at most 512
+characters. A request that fails these checks is refused with a validation
+error; the world, its message numbering and its save stay unchanged. These are
+the same limits a save applies, so an accepted message cannot leave the world
+unable to save.
+
 `InstructionCandidate` recognizes only a bounded food-task set: eating food,
 seeking a food source, and harvesting food. Harvest and travel orders must name
 food (or a supported food resource); explicit resource names must match a
@@ -112,6 +120,16 @@ requests until a personal-model result is accepted. After the fresh request,
 every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
+
+The owner snapshot sends every open message, plus the six most recently
+submitted closed messages for each agent, whether or not a personal model heard
+them. An order the game could not act on, or one carried out by local rules,
+therefore still appears on the agent card as closed and not heard. The card
+shows up to four messages per agent, newest first by submission but always
+preferring open messages over closed ones, then lists them in the order they
+were sent. Newer closed messages therefore cannot hide an order that is still
+waiting. The save keeps
+every message; only the snapshot is bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -172,6 +190,18 @@ survives pause and restore without a new per-agent save field. The name check
 is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
+
+Player renames reuse `InhabitantNameRules`, including NFC normalization,
+collapsed Unicode whitespace and `OrdinalIgnoreCase` comparison. The runtime
+checks all other recorded inhabitants, living or deceased, under the same
+world gate that commits the rename. A taken name returns `name_taken` from
+the signed owner endpoint; the client translates only that refusal into a
+name-specific explanation. The Profile's open name field then keeps the
+refused text through ordinary refreshes (`RefusedAgentRename`) until the
+player edits or closes it, renames successfully, or another agent or world is
+shown; its name labels always follow the host's snapshot. An unchanged name
+is a no-op. No name check rewrites saved dialogue or identity references, and
+player choices still supersede late model naming replies.
 
 The response must select a legal candidate. Any finite confidence from 0 to 1
 is accepted; confidence does not veto the choice or a valid chosen name.
@@ -414,7 +444,11 @@ so each can be checked on its own
 3. **Vegetation eligibility.** Cover follows climate and the surface beneath
    it, so a beach carries no forest or grass cover. Dry scrub and cactus cover
    on desert sand follow the dry climate; cacti additionally need hot desert
-   sand, never dry scrub, ordinary beaches, water or rock.
+   sand, never dry scrub, ordinary beaches, water or rock. The client draws
+   cactus cover as desert brush and puts a cactus sprite on about one cover
+   tile in five, chosen from the tile's position, skipping Roads, bridges,
+   doorsteps, fields and buildings (`WorldTerrainLayer.CactusAt`). The cacti
+   are decoration only; the server does not track them.
 4. **Object placement.** The starter berry patch, tree and grain seed patch must
    stand off sand. Every forest-floor tile then gets a tree. Wild sites come
    next, then rare deposits, scattered trees and orchards. A tree or plant
@@ -435,8 +469,12 @@ three tiles (counting diagonal steps as one) of a mountain or peak. They are a
 visual layer only: nothing is saved for them, they keep their own surface, and
 they cost the same to walk and build on as grass. `SeededMap.IsHillAt` and the
 Godot client's `WorldTerrainMap` apply the same rule to the saved elevation and
-water layers. The client draws a relief overlay on hill tiles, warms their
-overview color and shows "Landform: Hills" in tile inspection. Hill travel cost
+water layers. The client draws mountains, peaks and hills as one relief layer
+from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders 16×16-tile
+chunks on worker threads, caches one texture per chunk and atlas size, and
+shows the per-tile mountain and hill art for a chunk until its relief is
+ready. It also warms hills' overview color and shows "Landform: Hills" in tile
+inspection. Hill travel cost
 and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
@@ -578,7 +616,8 @@ requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
-ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+ranks no site), `awaiting_answer` and `overcrowded` (the household's House
+has more permanent residents than places). The code is shown on the owner's agent
 card and sent to the agent's own model as a `housing` line in its self context.
 An adult with no household is offered `household_ask:{household}` for each
 household that holds a House in the same Town, has an adult who can answer and
@@ -600,9 +639,25 @@ have a household are never offered a request in the current implementation.
 including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
 are agreed but remain implementation work in
 [#593](https://github.com/compoodment/ClankerWorld/issues/593).
-The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
-and overcrowding relocation are follow-ups in
-[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+
+**House resident capacity** (`HouseResidentCapacityRules`). A completed House
+provides three permanent-resident places per footprint tile, or four per tile
+when one explicitly recorded domestic family unit has at least two residents
+and a strict majority of the House's residents. The unit is saved separately
+from ancestry; traveling residents and infants count, dead people and invited
+storm guests do not. Joining a household is offered only when the proposed
+resident fits after their arrival is counted. The server checks again after
+unanimous admission, and Add Agent checks the selected household property
+before placement. A birth always goes to the primary caregiver's current
+household, even when that puts the House over its limit; the building card,
+agent context and the newborn's saved housing status show the resulting need.
+An unavailable House is recorded the same way without delaying birth. This
+status gives dependents no adult admission or construction choices. House
+expansion can start for a
+storage need or when there is no resident place, but added places use only the
+completed footprint. Unfinished expansion does not reserve room for another
+resident. The game does not yet relocate people who already live in an
+overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 A recipe project that finds its work site busy waits with the blocker "Waiting
@@ -717,8 +772,17 @@ the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
 satisfy this food reserve while their cooking paths remain unfinished, so they
 do not stop farmers planting fresh greens. Grain is milled into flour
-at the Farmhouse, one grain to one flour. Prepared meals and tool tiers are
-separate work.
+at the Farmhouse, one grain to one flour. Prepared meals remain separate work.
+Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
+reduce the work still needed to till and tend, while wooden and iron sickles
+reduce harvest work; an iron sickle is faster than a wooden one. Each committed
+work tick wears one unit of the selected tool. Interrupted or refused work does
+not wear it. A tool in storage, on the ground, in delivery or inside a pot is
+not directly usable; it must first be carried at the top level.
+If wear breaks a selected tool before the field effect completes, the runtime
+stops that work in the same committed action. The crop stays at its earlier
+stage and the broken tool stays in the owner's cargo, so the checkpoint remains
+valid without waiting for another tick.
 
 Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
@@ -859,6 +923,28 @@ Shared fuel and equipment also require an unoccupied route to their collection
 point. Unreachable stock stays untouched and does not prevent an agent from
 using reachable supplies or gathering local fuel instead.
 
+Tools gate and speed real material work. A wooden pickaxe extracts finite
+stone, a stone pickaxe extracts iron ore, and an iron pickaxe extracts gold or
+diamonds. Axes improve tree-felling output; when no usable axe is available,
+agents can still gather one loose fallen-wood item by hand. Each gather action
+uses one shared plan for output, tree seeds and tool wear. The runtime checks
+that the whole planned load fits before it depletes ecology, then commits the
+inventory output and single-unit wear together. A full load or a refused action
+does not consume source stock or damage a tool.
+
+An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
+diamond mining from a reachable finite outcrop. The complete eight-item trial
+load must fit. The decision stops offering more once the adult and their
+household together hold eight of that material. These goods remain carried
+physical stock; ornament making and a special rare-goods market are later work.
+
+The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
+iron ore into separate refined iron, and repairs one carried worn tool at a
+time. Repair consumes the recipe materials carried by that tool's owner; it
+does not restore condition for free. Hammer use speeds building work, and an
+iron knife speeds food or other preparation recipes. Recipe and field records
+keep their exact selected tool lot through save and reload.
+
 ## Trees and planting
 
 Each tree is one map resource with one saved growth record
@@ -883,6 +969,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
+  Replanting selects stumps reachable from the acting agent, including on
+  disconnected islands, and skips stumps with no unoccupied route into reach.
 - **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
@@ -894,8 +982,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   [saves and replay](saves-and-replay.md#current-formats-and-older-worlds).
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
-  status. The map reads its sprites and stage names from it. Every entry is a
-  provisional code-drawn placeholder; the tree-seed item has no art yet.
+  status. The map reads its sprites and stage names from it. Broadleaf and
+  conifer mature, sapling and stump sprites and the three orchard stages are
+  approved art from the October 1 review; the tree-seed item has no art yet. The
+  [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
 

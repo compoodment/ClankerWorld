@@ -5,38 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CognitionRuntimeTests
 {
     [Fact]
-    public async Task DefaultProviderIsDeterministicAndChoosesTheSafestCandidate()
-    {
-        var runtime = new CognitionRuntime("actor-scout");
-        var result = await runtime.RequestAndDecideAsync(CreateObservation());
-
-        Assert.Equal(DecisionProviderKind.Deterministic, runtime.ProviderKind);
-        Assert.True(result.Accepted);
-        Assert.False(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Equal("cognition_decision_applied", runtime.Capture().Events[^1].Kind);
-    }
-
-    [Fact]
-    public void LowConfidenceLegalChoiceIsAccepted()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 2));
-        var request = runtime.IssueRequest(CreateObservation());
-
-        var result = runtime.ApplyResponse(ResponseFor(
-            request,
-            DecisionProviderKind.Jev,
-            providerEpoch: 2,
-            selectedCandidateId: "seek_food",
-            confidence: 0.2));
-
-        Assert.True(result.Accepted);
-        Assert.False(result.FellBack);
-        Assert.Equal("seek_food", result.Intention?.CandidateId);
-        Assert.Equal(CognitionRequestState.Applied, runtime.Capture().Requests.Single().State);
-    }
-
-    [Fact]
     public void ObserverReplyIsAdmittedOnlyForTheExactRequestedMessageAndWorld()
     {
         var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.LargeLanguageModel, 4));

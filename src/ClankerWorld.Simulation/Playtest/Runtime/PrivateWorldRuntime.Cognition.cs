@@ -587,6 +587,11 @@ public sealed partial class PrivateWorldRuntime
             GatherBlacksmithOre(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal))
+        {
+            GatherBlacksmithInput(inhabitantId, state, candidateId[GatherBlacksmithInputPrefix.Length..]);
+            return;
+        }
         if (candidateId == "deliver_smith_ore")
         {
             DeliverBlacksmithOre(inhabitantId, state);
@@ -594,8 +599,27 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
-            CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
+            var kind = candidateId == "collect_wooden_axe" ? "wooden_axe" :
+                candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe";
+            if (MayCollectToolFamily(inhabitantId, ToolProgressionRules.Find(kind)!.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
+        {
+            var kind = candidateId[CollectToolPrefix.Length..];
+            if (ToolProgressionRules.Find(kind) is { } tool && MayCollectToolFamily(inhabitantId, tool.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
+        {
+            RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RareMiningPrefix, StringComparison.Ordinal))
+        {
+            GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
@@ -606,6 +630,31 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
         {
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
+        if (candidateId == "collect_water_jug")
+        {
+            CollectWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "return_water_jug")
+        {
+            ReturnWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "store_food_in_pot")
+        {
+            StoreFoodInPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "take_food_from_pot")
+        {
+            TakeFoodFromPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId.StartsWith(FillWaterJugPrefix, StringComparison.Ordinal))
+        {
+            FillWaterJug(inhabitantId, state, candidateId[FillWaterJugPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
@@ -879,6 +928,7 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -898,7 +948,9 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
+            AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
+            AddRareMiningCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);

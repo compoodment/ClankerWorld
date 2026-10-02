@@ -600,16 +600,29 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
     }
 
+    // Refuse everything a save would refuse before the request touches live
+    // state, so a bad request cannot leave the world unable to save.
     private static void ValidateInstructionRequest(OwnerInstructionRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Text);
+        if (!IsValidInstructionIdentifier(request.IdempotencyKey.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction idempotency key must be at most 128 characters without control characters.");
+        if (!IsValidInstructionIdentifier(request.IssuerId.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction issuer ID must be at most 128 characters without control characters.");
+        if (request.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction kind must be suggestive or must_do.");
         var text = request.Text.Trim();
         if (text.Length > OwnerQueuedInstruction.MaximumTextLength || text.Any(char.IsControl))
             throw new ArgumentOutOfRangeException(nameof(request), "Instruction text must be at most 512 characters without control characters.");
     }
+
+    private static bool IsValidInstructionIdentifier(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= OwnerQueuedInstruction.MaximumIdentifierLength &&
+        !value.Any(char.IsControl);
 
     private static string ToWireValue(OwnerInstructionKind kind) => kind switch
     {
