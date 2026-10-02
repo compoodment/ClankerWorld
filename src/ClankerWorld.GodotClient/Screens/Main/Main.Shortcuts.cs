@@ -12,27 +12,6 @@ public partial class Main
 {
     private readonly PanelContainer controlsPanel = new();
 
-    private static readonly (string Keys, string Action)[] ControlsList =
-    [
-        ("Left click", "Select an agent or inspect a tile"),
-        ("Scroll wheel", "Zoom toward the pointer"),
-        ("Middle-drag", "Move the map"),
-        ("W A S D / arrows", "Move the map"),
-        ("+ / −", "Zoom in or out"),
-        ("Space or P", "Pause or resume"),
-        ("N / Shift+N", "Next or previous agent"),
-        ("C", "Center on the selected agent"),
-        ("H", "Back to the first Town"),
-        ("M", "Map overview"),
-        ("F", "Filters"),
-        ("I", "World Info"),
-        ("R", "Agents"),
-        ("T", "Towns"),
-        ("E", "Event Log"),
-        ("F1 or ?", "Show or hide this list"),
-        ("Esc", "Close the newest panel, or open the Pause Menu"),
-    ];
-
     private void BuildControlsPanel(Control content) => BuildControlsGroups(content);
 
     private void PositionControlsPanel()

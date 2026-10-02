@@ -267,7 +267,7 @@ public partial class Main
         ]),
     ];
 
-    /// <summary>A key drawn as a small raised keycap, or a mouse action with a mouse icon.</summary>
+    /// <summary>The controls list's two columns of grouped keycaps.</summary>
     private readonly HBoxContainer controlsColumns = new();
     private string? renderedControlsTheme;
 
