@@ -156,7 +156,7 @@ internal static class AgentKnowledgeRules
         bool ValidateMaterials(string? projectId, string actor, string kind, IReadOnlyList<AgentKnowledgeMaterial>? materials, bool completed)
         {
             if (!ValidText(projectId, 128) || !usedProjects.Add(projectId!) || materials is not { Count: >= 1 and <= 3 } ||
-                materials.Any(item => item is null || !ValidText(item.ReservationId, 256) || !ValidText(item.LotId, 512) ||
+                materials.Any(item => item is null || !ValidText(item.ReservationId, 256) || !ValidText(item.LotId, int.MaxValue) ||
                     item.Quantity <= 0 || !usedReservations.Add(item.ReservationId))) return false;
             var expected = WritingMaterials(kind);
             if (materials.Any(item => !expected.Any(input => input.Kind == item.ItemKind)) ||
