@@ -452,7 +452,9 @@ public sealed partial class PrivateWorldRuntimeTests
             item.Detail == HarvestInstructionActor);
         Assert.Contains(final.Events, item => item.Kind == "instruction_order_stale_decision" &&
             item.Detail == HarvestInstructionActor);
-        Assert.Equal(1, provider.CallCount);
+        Assert.Single(provider.Requests, request =>
+            request.OperativeOrderInstructionId == order.InstructionId ||
+            request.ObserverGuidance?.Any(message => message.InstructionId == order.InstructionId) == true);
         using var validated = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(final)));
         validated.Validate();

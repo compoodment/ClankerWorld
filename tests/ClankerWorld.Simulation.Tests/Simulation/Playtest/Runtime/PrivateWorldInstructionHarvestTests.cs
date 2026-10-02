@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntimeTests
     public async Task MustDoHarvestCompletesForBerriesAndFruitAndAdvancesQueueAfterReload(bool orchard, string itemKind)
     {
         var provider = new OrderCandidateRecordingProvider("harvest_food");
-        using var world = CreateHarvestInstructionWorld(orchard, provider);
+        using var world = CreateHarvestInstructionWorld(orchard, provider, hungerBasisPoints: 3_000);
         var before = world.ExportState();
         var actor = before.Inhabitants.Single(person => person.InhabitantId == HarvestInstructionActor);
         var target = orchard
@@ -241,7 +241,10 @@ public sealed partial class PrivateWorldRuntimeTests
         _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved));
     }
 
-    private static PrivateWorldRuntime CreateHarvestInstructionWorld(bool orchard, IDecisionProvider? provider = null)
+    private static PrivateWorldRuntime CreateHarvestInstructionWorld(
+        bool orchard,
+        IDecisionProvider? provider = null,
+        int? hungerBasisPoints = null)
     {
         var options = new GeographyOptions("audit-food-route-13", WorldSizePreset.Small);
         var world = new PrivateWorldRuntime(options.Seed,
@@ -279,6 +282,10 @@ public sealed partial class PrivateWorldRuntimeTests
             state.Society.Society.WorldTick, "firsthand");
         state = state with
         {
+            Inhabitants = hungerBasisPoints is { } fullness
+                ? state.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
+                    ? person with { HungerBasisPoints = fullness } : person).ToArray()
+                : state.Inhabitants,
             Knowledge = state.Knowledge! with { Facts = state.Knowledge.Facts.Append(knownSource).ToArray() },
         };
         if (orchard)

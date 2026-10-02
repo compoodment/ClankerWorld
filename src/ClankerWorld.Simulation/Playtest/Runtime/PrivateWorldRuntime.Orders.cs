@@ -275,7 +275,7 @@ public sealed partial class PrivateWorldRuntime
         if (instruction.Order?.TargetPosition is not null || instruction.Order?.TargetResourceId is not null)
             return "The requested food site isn't known or reachable right now.";
         return !CanExploreForOrder(person)
-            ? "The agent needs a safe place to rest before searching for food."
+            ? "The agent needs to be fed and warm before searching for food."
             : "No suitable food source is known yet.";
     }
 }

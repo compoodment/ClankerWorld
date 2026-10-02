@@ -311,20 +311,27 @@ public sealed class PersonalEquipmentTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var repair = Assert.IsType<EquipmentRepairWork>(world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair);
 
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("eat-during-repair", "owner:test", actor,
+        var working = world.ExportState();
+        var readyToEat = working with
+        {
+            Inhabitants = working.Inhabitants.Select(item => item.InhabitantId == actor
+                ? item with { HungerBasisPoints = 3_000 } : item).ToArray(),
+        };
+        using var ordered = PrivateWorldRuntime.Restore(readyToEat, Provider);
+        var order = ordered.SubmitInstruction(new OwnerInstructionRequest("eat-during-repair", "owner:test", actor,
             OwnerInstructionKind.MustDo, "eat berries"));
-        for (var tick = 0; tick < 3 && !(world.ExportState().CompletedInstructionIds ?? []).Contains(order.InstructionId); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        for (var tick = 0; tick < 3 && !(ordered.ExportState().CompletedInstructionIds ?? []).Contains(order.InstructionId); tick++)
+            Assert.True((await ordered.AdvanceOneTickAsync()).Advanced);
 
-        var after = world.ExportState();
+        var after = ordered.ExportState();
         Assert.Contains(order.InstructionId, after.CompletedInstructionIds ?? []);
         Assert.DoesNotContain(after.Society.Society.Inventory.Lots, lot => lot.Id == "order-berries");
         Assert.Null(after.Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair);
-        Assert.Equal(2, world.Society.Inventory.GetLot("order-cloth").Quantity);
+        Assert.Equal(2, ordered.Society.Inventory.GetLot("order-cloth").Quantity);
         Assert.All(repair.MaterialReservationIds, id =>
-            Assert.Equal(InventoryReservationState.Released, world.Society.Inventory.GetReservation(id).State));
+            Assert.Equal(InventoryReservationState.Released, ordered.Society.Inventory.GetReservation(id).State));
         Assert.Contains(after.Events, item => item.Kind == "equipment_repair_interrupted");
-        world.Validate();
+        ordered.Validate();
     }
 
     [Fact]
