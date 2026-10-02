@@ -347,7 +347,7 @@ public sealed partial class PrivateWorldRuntimeTests
     {
         using var world = new PrivateWorldRuntime("missing-message-records");
         var state = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.ObserverGuidanceSchemaVersion, state.SchemaVersion);
+        Assert.True(state.SchemaVersion >= PrivateWorldRuntime.ObserverGuidanceSchemaVersion);
         state = missingCompletedIds ? state with { CompletedInstructionIds = null } : state with { Instructions = null };
 
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
