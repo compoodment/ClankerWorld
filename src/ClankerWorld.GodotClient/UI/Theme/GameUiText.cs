@@ -204,6 +204,8 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
+            "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
+            "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
