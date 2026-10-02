@@ -165,7 +165,33 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided.
+carried inventory and current activity are not provided. Jev's routine request
+sends the same three needs as flat fields after `hunger_basis_points`:
+`warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
+their scales explained in its instructions.
+
+`ModelNeedWords` holds the agreed alternative from
+[#646](https://github.com/compoodment/ClankerWorld/issues/646): each need as a
+word followed by its whole scale, worst to best, with no exact value, such as
+`"fullness": "hungry (starving, hungry, fine, full; starving is worst, full is best)"`.
+Fullness is *full* from 70%, *fine* from 40%, *hungry* from 20% and *starving*
+below that, matching the comfortable and urgent food references. Warmth is
+*warm* from 60%, *chilly* from 35% and *freezing* below that. Illness is *well*
+below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: each
+step is where illness slows work further (the owner's choice on
+[#672](https://github.com/compoodment/ClankerWorld/issues/672)). In words, the
+personal request sends `fullness`, `self.warmth` and `self.illness` in place of
+the three `_basis_points` fields, in the same positions, and drops the numeric
+scale sentences; Jev's routine request sends `fullness`, `warmth` and `illness`
+the same way. Unknown warmth or illness stays `null`. Nothing else in either request changes, and
+the observation, its digest, admission and the simulation keep the exact values.
+
+Both adapters take a `needFormat` setting. `ModelNeedWords.DefaultFormat` is
+`Numbers`, so play sends numbers. Words were to become the default only if they
+did no worse than numbers with GLM 5.3 Flash and GPT 6 Luna; they did worse
+with GLM 5.3 Flash, and on October 2 the owner chose to keep numbers.
+[Need wording comparison](need-wording-comparison.md) describes the comparison
+harness and its results.
 
 Newly placed adults get one opportunity to choose personality and aspiration
 in the existing first personal-model action reply. Optional `chosen_personality`
@@ -603,6 +629,56 @@ recorded, living or dead, not from the client's agent ID. The saved birth tick
 holds the result, so loading never draws again. Year-based development worlds
 keep the 18-year adult age.
 
+Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRules`
+implements all-adult and representative councils from recorded living adult
+residents, independently of geometry and household affiliation. A separate
+`SettlementCouncil` remains the household-food steward prototype.
+
+The civic engine keeps final proposal votes, continuing candidate agreements,
+opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
+seats, fair draw order, ten-day terms and retry snapshots. A failed election may
+retry after one world day, or sooner when adult/candidate availability improves;
+withdrawals and departures do not themselves reset that wait. Council revisions
+cancel pending proposals without altering settled decisions. Admission requests
+merge by subject identity; ordinary text requests merge after case/whitespace
+normalization. Roster changes or independently supplied material circumstances
+allow earlier proposal reconsideration.
+
+`PrivateWorldRuntime.Governance` advances each Town on the normal tick path and
+rechecks authority when applying choices. `civic|...` actions let actors visit
+the public notice place, read posted notices, relay them within interaction
+range, nominate another resident, register their own consent and choose proposals
+or ballots. A nomination posts a notice; only the named agent's personal response
+can add agreement. Adults may request their own admission near the notice place,
+and residents may request admission of an unaffiliated adult nearby. The optional
+`civic_proposal` and `civic_ballot` structured response fields are carried only
+through admitted choices. Missing, stale or malformed responses cannot supply
+votes. A generic private thought or another actor naming a candidate supplies
+neither agreement nor approval. No polling provider calls are added, and Jev is
+optional.
+
+Formal civic acts require an admitted personal-model choice. Built-in decisions,
+failed replies and continued intentions supply no votes or candidate agreement.
+An explicitly chosen visit can continue moving locally; ballots may be revised
+on the agent's ordinary decision cadence.
+
+Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
+tokens. The runtime resolves these against current inhabitants before checking a
+ballot; saved candidates and choices retain the actual IDs.
+
+Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
+with read/relay provenance and readable names/world days. An actor receives no
+unseen civic dump. Owner observations project each council, its latest eight
+proposals, the current election and the latest archived election onto the normal
+Godot Towns page. Failed and cancelled outcomes remain visible; the complete
+authoritative proposal and election history stays in the checkpoint. Long Town
+readouts scroll within the available screen height. A passed ordinary law
+proposal records approval without creating new physical/legal powers. The
+`AdmissionApproval` result is available for #602; the engine does not perform
+membership, household, care-group or inventory transfers. Bounded civic lifecycle
+telemetry records Town identity and council/vote/status counts without proposal
+text, notices, names or per-read polling noise.
+
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
 open line, bending in 45° steps, never more than 45° from the heading it set out
@@ -668,6 +744,14 @@ pickup and delivery both check remaining space. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
+
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+
+Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
+
+Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
 
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
 House has a saved `Housing` record on their physical state: a pending request,
@@ -1039,6 +1123,29 @@ Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
 rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+## Developer tools readouts
+
+Developer tools (**F12** in the Godot client) read two diagnostics from the owner
+observation. Both come from the committed world, are never saved and are never
+read back by the simulation, so they cannot change a tick, a save or replay.
+
+- **`PlannedRoute`** on each living agent is the route `MoveToward` planned on
+  the agent's latest step: its reason code, destination and the tiles still
+  ahead. The observation sends at most 256 steps; `StepCount` gives the full
+  count. An agent waiting out a slow step keeps the route it was walking; one
+  that arrived, was blocked or did something else that tick has none. Each
+  proposed tick starts without routes and its commit replaces them. Loading a
+  checkpoint, switching worlds or restarting the host clears them until the
+  next tick.
+- **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
+  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  waiting for the runtime gate, hosted model calls between ticks and the
+  checkpoint save. It is null until the first tick after start, load or a
+  world switch, and the legacy fixture host never reports it.
+
+The client draws only the reported route; it never plans one. Frame time is
+measured in the client.
 
 ## Development and finished distribution
 

@@ -389,7 +389,9 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
                              "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
-                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked"))
+                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked" or
+                             "household_left" or "household_founded" or "personal_goods_collected" or "personal_goods_stored" or
+                             "borrowed_goods_returned" or "replacement_care_accepted" or "household_work_resumed"))
                 {
                     LogSettlementHousing(logger, result.WorldTick, worldEvent.Kind);
                 }
@@ -533,6 +535,31 @@ public sealed partial class PrivateWorldRuntimeService(
     private void LogTownEvent(PlaytestWorldEvent worldEvent)
     {
         if (logger is null) return;
+        var civicKind = worldEvent.Kind switch
+        {
+            "town_civic_council" => TownCivicTransitionKind.CouncilChanged,
+            "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
+            "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
+            "town_civic_proposal" => TownCivicTransitionKind.ProposalOpened,
+            "town_civic_result" => TownCivicTransitionKind.DecisionRecorded,
+            "town_civic_cancelled" => TownCivicTransitionKind.ElectionCancelled,
+            _ => (TownCivicTransitionKind?)null,
+        };
+        if (civicKind is { } civicTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 3);
+            var civicTown = fields.Length == 3 ? runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) : null;
+            if (civicTown?.Governance is { } governance)
+            {
+                var proposal = governance.Proposals.FirstOrDefault(p => p.Id == fields[1]);
+                var election = governance.Election?.Id == fields[1] ? governance.Election :
+                    governance.ElectionHistory.FirstOrDefault(e => e.Id == fields[1]);
+                TownTelemetry.Civic(logger, worldEvent.WorldTick, civicTown.Id, civicTransition,
+                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? "none",
+                    proposal?.Votes.Count(v => v.Yes) ?? 0, proposal?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? 0);
+            }
+            return;
+        }
         if (worldEvent.Kind == "town_layout_site_rejected")
         {
             var fields = worldEvent.Detail.Split('|', StringSplitOptions.None);

@@ -65,6 +65,7 @@ public sealed record CognitionAdmissionResult(
     string Outcome,
     CognitionIntention? Intention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
+    string? CivicProposal = null, IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionObserverGuidanceResult? ObserverGuidance = null);
 
 /// <summary>
@@ -268,6 +269,7 @@ public sealed class CognitionRuntime
                 "provider_decision",
                 intention,
                 response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
+                response.CivicProposal, response.CivicBallot,
                 observedGuidance);
         }
     }
