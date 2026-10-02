@@ -9,8 +9,18 @@ internal static class ArtContractChecks
     public static void Run()
     {
         var current = new ArtSet();
+        var approvedBuildings = new ArtSet();
+        new Proposed.Buildings.BuildingsProposal().Apply(approvedBuildings);
         foreach (var size in new[] { 16, 32 })
         {
+            foreach (var (width, height) in new[] { (1, 1), (1, 2), (2, 1) })
+                foreach (var side in Enum.GetValues<DoorSide>())
+                {
+                    var door = new BuildingDoor(side, 0);
+                    Equal(current.Building(BuildingKind.Store, width, height, size, door),
+                        approvedBuildings.Building(BuildingKind.Store, width, height, size, door),
+                        $"The playable Store must match its approved {width}x{height} drawing facing {side} at {size} px.");
+                }
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
                 Equal(current.Agent(0, 2, facing, (int)frame, size), AgentSprites.Sprite(0, 2, facing, frame, size),
                     $"The current scene must show the observed facing and frame at {size} px.");

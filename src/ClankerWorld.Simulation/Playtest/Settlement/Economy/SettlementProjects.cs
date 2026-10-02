@@ -794,7 +794,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         SetProject(inhabitantId, project with { Stage = "gathering", Blocker = $"Need {input.Amount} {input.ResourceId}" });
-        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(inhabitantId, input.ResourceId, source);
+        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source, useHarvestBonus);
     }
 
     private ToolGatheringPlan? ProjectMaterialHarvest(string actor, string itemKind, MapResource source,

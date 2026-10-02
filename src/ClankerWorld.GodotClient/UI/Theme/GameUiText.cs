@@ -182,6 +182,8 @@ public static class GameUiText
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
             "council_policy_adopted" or "settlement_trade_completed" or
+            "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
+            "store_stock_collected" or "store_stock_delivered" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or

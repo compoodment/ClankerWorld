@@ -279,8 +279,12 @@ public sealed record OwnerWorldPlacedBuilding(
     bool HasDominantFamily = false,
     bool IsOvercrowded = false)
 {
+    public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
+    string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
