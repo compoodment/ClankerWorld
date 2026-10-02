@@ -1318,7 +1318,8 @@ wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
 | --- | --- | --- |
 | Flour | 1 grain → 1 flour | Farmhouse; a real intermediate that can be stored, carried and sold separately. |
 | Simple meal | 2 potatoes/greens + 1 wood → 2 meals | House; everyday household cooking, using potatoes, wild greens or cultivated greens. |
-| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. Berries or fruit may improve a serving. |
+| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. |
+| Berry or fruit porridge | 1 grain + 1 berries/fruit + 1 water + 1 wood → 2 servings | House or Restaurant; named improved meals that can be eaten or sold. |
 | Bread | 2 flour + 1 water + 1 wood → 2 servings | House or Restaurant; keeps longer and travels well. |
 | Vegetable stew | 1 potato + 1 cultivated greens + 1 water + 1 wood → 2 servings | House or Restaurant; a substantial vegetable meal. |
 | Restaurant meal | 1 bread + 1 cultivated greens + 1 wood → 2 servings | Restaurant; better nourishment and dietary variety, sold on site. |
@@ -1446,6 +1447,14 @@ and sell finished meals; Clinics stock care goods and sell treatment. An
 optional Store receives goods by actual delivery before selling them. Market
 sellers carry goods into their stalls, trade with agents from any Town and
 carry remaining goods away.
+
+The first Restaurant version buys missing inputs for the recipes its household
+needs, with a provisional reserve for two batches. Usable stock already there,
+actual incoming deliveries and supplies an adult can physically collect reduce
+the shortage. Supplying one workplace must preserve the ingredients another
+still needs. An adult pays only with their personally owned carried goods, and
+cannot spend a needed Restaurant ingredient in a way that increases its
+shortage. Meal prices remain provisional barter terms tied to the recipe.
 
 **Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
 it until they leave. The Town does not assign stalls. Leaving frees the stall

@@ -170,13 +170,21 @@ public sealed class RestaurantBusinessPipelineTests
     [Theory]
     [InlineData(0, 1)]
     [InlineData(1, 0)]
-    public async Task RestaurantIngredientQuoteKeepsItsExactPairAndDoesNotOverbuyAMissingSinglePotato(
-        int restaurantPotatoes, int expectedPurchases)
+    public async Task RestaurantIngredientQuoteKeepsItsExactPairAndDoesNotOverbuyAMissingSingleGreensServing(
+        int restaurantGreens, int expectedPurchases)
     {
-        var fixture = CreateFixture(purchaseOnly: true, restaurantPotatoes: restaurantPotatoes, farmhousePotatoes: 2);
+        var fixture = CreateFixture(purchaseOnly: true, restaurantGreens: restaurantGreens, farmhouseGreens: 2);
+        // Farmhouse edible produce is quoted in pairs; raw potatoes are not.
+        // Satisfy the separate flour deficit in the initial premises so this
+        // control exercises only the exact greens quote and its remaining gap.
+        fixture = fixture with
+        {
+            State = WithInventory(fixture.State, InventoryFixture.AddLot(fixture.State.Society.Society.Inventory,
+                "restaurant-quote-flour", "flour", Beta, 4, storageBuildingId: fixture.Restaurant.InstanceId)),
+        };
         using var world = Restore(fixture);
         await Advance(world, 50);
-        var purchases = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook && trade.GoodsKind == "potatoes").ToArray();
+        var purchases = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook && trade.GoodsKind == "cultivated_greens").ToArray();
         Assert.Equal(expectedPurchases, purchases.Length);
         if (expectedPurchases > 0)
         {
@@ -184,14 +192,14 @@ public sealed class RestaurantBusinessPipelineTests
             Assert.Equal(2, offer.FirstQuantity);
             Assert.Equal(1, offer.SecondQuantity);
             Assert.Equal(DirectBarterState.Settled, offer.State);
-            Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Cook && lot.ItemKind == "potatoes")
+            Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Cook && lot.ItemKind == "cultivated_greens")
                 .Sum(lot => lot.Quantity));
         }
         else
         {
-            Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-farm-potatoes").Quantity);
-            Assert.Equal(Alpha, world.Society.Inventory.GetLot("restaurant-farm-potatoes").OwnerId);
-            Assert.Equal(fixture.Farmhouse.InstanceId, world.Society.Inventory.GetLot("restaurant-farm-potatoes").StorageBuildingId);
+            Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-farm-greens").Quantity);
+            Assert.Equal(Alpha, world.Society.Inventory.GetLot("restaurant-farm-greens").OwnerId);
+            Assert.Equal(fixture.Farmhouse.InstanceId, world.Society.Inventory.GetLot("restaurant-farm-greens").StorageBuildingId);
         }
         world.Validate();
     }
@@ -312,7 +320,8 @@ public sealed class RestaurantBusinessPipelineTests
 
     private static Fixture CreateFixture(string recipeLocalId = "bread", bool kitchenReady = false,
         bool purchaseOnly = false, bool householdOwnsPayment = false, int customerBallast = 0, bool customerNear = true,
-        int restaurantPotatoes = 2, int farmhousePotatoes = 0, string? inaccessibleSource = null)
+        int restaurantPotatoes = 2, int farmhousePotatoes = 0, string? inaccessibleSource = null,
+        int restaurantGreens = 2, int farmhouseGreens = 0)
     {
         using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new PipelineProvider("safe_idle"));
         var state = generated.ExportState();
@@ -389,8 +398,11 @@ public sealed class RestaurantBusinessPipelineTests
         if (farmhousePotatoes > 0)
             inventory = InventoryFixture.AddLot(inventory, "restaurant-farm-potatoes", "potatoes", Alpha, farmhousePotatoes,
                 storageBuildingId: farmhouse.InstanceId);
+        if (farmhouseGreens > 0)
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-farm-greens", "cultivated_greens", Alpha, farmhouseGreens,
+                storageBuildingId: farmhouse.InstanceId);
         foreach (var (kind, quantity) in new (string, int)[]
-            { ("grain", 2), ("fruit", 2), ("potatoes", restaurantPotatoes), ("cultivated_greens", 2) }.Where(item => item.Item2 > 0))
+            { ("grain", 2), ("fruit", 2), ("potatoes", restaurantPotatoes), ("cultivated_greens", restaurantGreens) }.Where(item => item.Item2 > 0))
             inventory = InventoryFixture.AddLot(inventory, "restaurant-raw-" + kind, kind, Beta, quantity,
                 storageBuildingId: restaurant.InstanceId);
         inventory = InventoryFixture.AddLot(inventory, JugId, InventoryContainerRules.WaterJug, Beta, 1,
