@@ -428,7 +428,7 @@ public sealed partial class PrivateWorldRuntime
         var handledOrders = orderActorsHandledThisTick.ToHashSet(StringComparer.Ordinal);
         var safe = new HashSet<string>(StringComparer.Ordinal)
         {
-            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food",
+            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food", "recover_household_delivery",
             "harvest_food", "seek_food",
             "wear_clothing", "tend_fire", "seek_warmth",
         };

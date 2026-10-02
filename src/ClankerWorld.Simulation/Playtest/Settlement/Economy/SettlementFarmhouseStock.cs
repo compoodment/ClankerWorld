@@ -168,7 +168,8 @@ public sealed partial class PrivateWorldRuntime
         if (HasActiveContainerReservation(inventory, choice.Carrier.Id))
             return null;
         var familyQuantity = ContainerFamilyQuantity(inventory, choice.Carrier.Id);
-        if (familyQuantity <= capacity && choice.ResourceQuantityLimit is null)
+        if (familyQuantity <= capacity && choice.ResourceQuantityLimit is null &&
+            !UnusableDeliveryStock(inventory, choice.Carrier))
             return new FarmStockHaulPlan(choice.Carrier, choice.Resource, 1,
                 choice.Resource.Quantity, MoveContainerFamily: true);
 
