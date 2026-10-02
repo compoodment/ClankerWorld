@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (RecoverableHouseholdDelivery(actor, state) is not null)
             candidates.Add(new("recover_household_delivery",
-                "Return spoiled delivery supplies to your household's pile at camp.", 18));
+                "Return unusable delivery supplies to your household's pile at camp.", 18));
     }
 
     private void RecoverHouseholdDelivery(string actor, PlaytestInhabitantState state)
@@ -125,7 +125,8 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.ContainerLotId is null &&
                 lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
-                    ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)
+                    ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
+                        !UnusableDeliveryStock(society.Checkpoint.Inventory, lot)
                     : AvailableLotQuantity(lot) > 0) &&
                 (!FarmFieldRules.IsFarmStock(lot.ItemKind) || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)

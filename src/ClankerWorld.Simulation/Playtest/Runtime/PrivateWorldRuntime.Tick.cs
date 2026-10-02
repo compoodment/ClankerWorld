@@ -265,11 +265,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void CancelPendingHosted(string inhabitantId)
+    private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
         RecordModelAttempt(inhabitantId, "canceled");
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
 

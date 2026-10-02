@@ -48,7 +48,7 @@ public sealed class WorldEventTextTests
             ("inhabitant_removed", id, "died"),
             ("inhabitant_building_proposed", id + ":house", "suggested a new building design"),
             ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
-                "returned spoiled delivery supplies to their household's pile at camp"),
+                "returned unusable delivery supplies to their household's pile at camp"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
                 "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
         };
@@ -148,6 +148,17 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId), null));
         Assert.Equal("Someone ate.", WorldEventText.Describe(new(3, 0, "food_consumed", ""), null));
         Assert.Equal("Someone planted something new.", WorldEventText.Describe(new(4, 0, "field_planted", ""), null));
+    }
+
+    [Theory]
+    [InlineData("used:812:limit:1000", "Model calls: 812 of 1,000 used across all worlds.")]
+    [InlineData("used:8:limit:10", "Model calls: 8 of 10 used across all worlds.")]
+    [InlineData("used:8", "Model calls: 80% of the limit used across all worlds.")]
+    public void ModelCallWarningNamesTheInstallationCountAndWhereToRaiseTheLimit(string detail, string count)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent("model_call_warning"));
+        Assert.Equal(count + " Your worlds pause at the limit; raise it in Settings → Game.",
+            WorldEventText.Describe(new(1, 0, "model_call_warning", detail), null));
     }
 
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>

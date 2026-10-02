@@ -162,8 +162,27 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.Contains(world.ExportState().Events,
             item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
 
+        var namingRequests = provider.ObservedRequests.ToArray();
+        Assert.Collection(namingRequests,
+            first =>
+            {
+                Assert.True(first.NeedsName);
+                Assert.False(first.IsNameRetry);
+            },
+            retry =>
+            {
+                Assert.True(retry.NeedsName);
+                Assert.True(retry.IsNameRetry);
+            });
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        Assert.Equal(2, provider.CallCount);
+        // Ordinary personal decisions can follow exhaustion when the world
+        // context changes; neither may reopen the completed naming attempt.
+        Assert.Equal(namingRequests, provider.ObservedRequests.Where(request => request.NeedsName || request.IsNameRetry).ToArray());
+        Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.DoesNotContain(world.ExportState().Society.Cognition.Queue,
+            entry => entry.InhabitantId == NameTargetId && entry.TriggerIds.Contains(
+                SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal));
     }
 
     [Fact]
