@@ -31,7 +31,7 @@ public partial class FittedLabel : Label
 
     public override void _Notification(int what)
     {
-        if (what is (int)NotificationResized or (int)NotificationThemeChanged) Fit();
+        if (what is (int)NotificationResized or (int)NotificationThemeChanged or (int)NotificationVisibilityChanged) Fit();
     }
 
     private void Fit()
@@ -39,7 +39,10 @@ public partial class FittedLabel : Label
         var width = Size.X;
         var font = GetThemeFont("font");
         var size = GetThemeFontSize("font_size");
-        Text = width <= 0 || font is null ? fullText : Shorten(fullText, width, text => font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X);
+        // A hidden label keeps only its minimum width, so keep the whole text until it is shown and laid out.
+        Text = width <= 0 || font is null || !IsVisibleInTree()
+            ? fullText
+            : Shorten(fullText, width, text => font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X);
     }
 
     /// <summary>The longest start of <paramref name="text"/> that fits with "..." after it, or the whole text if it fits.</summary>
