@@ -445,6 +445,8 @@ public partial class Main
         previewColumn.AddChild(worldPreviewFrame);
         worldPreviewStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         worldPreviewStatus.CustomMinimumSize = new Vector2(0, 64);
+        // Hovering the description shows the map's exact measurements.
+        worldPreviewStatus.MouseFilter = MouseFilterEnum.Pass;
         previewColumn.AddChild(worldPreviewStatus);
         worldAcceptUnmetTargets.Text = "Keep this map anyway";
         worldAcceptUnmetTargets.TooltipText = "Create this map even though it is less balanced than the game aims for.";

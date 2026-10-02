@@ -893,7 +893,7 @@ public partial class Main
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
                 if (worldPreviewStatus.Text.Contains("balanced", StringComparison.Ordinal) || !PlainWords() ||
                     worldPreviewStatus.TooltipText != "Forest 15% and mountains 10% of the land." ||
-                    worldAcceptUnmetTargets.Visible)
+                    worldPreviewStatus.MouseFilter == MouseFilterEnum.Ignore || worldAcceptUnmetTargets.Visible)
                     throw new InvalidOperationException("A map with no balance to aim for must show its measurements only in the tooltip, with no acceptance box.");
                 InvalidateWorldPreview(refresh: false);
                 var preset = CurrentWorldOptions();
