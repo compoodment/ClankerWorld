@@ -19,6 +19,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
+        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
@@ -359,6 +360,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
+        ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);

@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Planned game content
@@ -142,7 +142,7 @@ last axe is lost. The Workshop is not required at start.
 | 5.5 | Agreed | Porridge; bread; vegetable stew | Grain/water/fuel porridge; flour/water/fuel bread; potato/cultivated-greens/water/fuel stew. House or Restaurant; quantities and nutrition are provisional in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 5.6 | Agreed | Restaurant meal | Bread, cultivated greens and wood fuel at the Restaurant give better nourishment and variety; sold from actual on-site stock. |
 | 5.7 | Agreed | Milk; eggs | Products of accepted cows/chickens, **late-development** with livestock. No meat or hunting loop is assumed. |
-| 5.8 | Agreed | Bandage; medicine | Cut cloth into bandages at a House/Tailor Shop; Clinic turns medicinal herbs, water and fuel into medicine. Treat injuries or support illness recovery with physically carried supplies. No instant full-health restoration. |
+| 5.8 | Agreed | Bandage; medicine | Cut cloth into bandages at a House/Tailor Shop; Clinic turns medicinal herbs, water and fuel into medicine. **October 2 staging:** make, store and trade bandages now; injury causes and bandage treatment wait for the injury stage. Medicine supports gradual illness recovery with physically present supplies, without instant full-health restoration. |
 | 5.9 | Agreed | Medicinal herbs | Gather from a wild herb patch, carry to a Clinic and make medicine. |
 
 Food is physically stored in **Houses** or a business's own stock, not the
@@ -171,7 +171,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock; up to **six boats** moor there, three per side (October 1 art review). Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
-| 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Stocks bandages and medicine and sells care. Patients visit or caregivers deliver supplies; treatment consumes goods. Exact name, quantities and recovery rates remain open or provisional. |
+| 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Household-held care stock; the first Clinic is 1×2. Patients buy supplies or accepted caregivers deliver them; medicine consumes a real dose and supports gradual illness recovery. Bandage treatment is deferred. Quantities and recovery rates are provisional; see [Clinic supplies and illness care](towns.md#clinic-supplies-and-illness-care) and [current availability](../what-works.md#life-work-and-society). |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
 | 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
 
@@ -205,7 +205,7 @@ alternatives are not fixed by this roster.
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
 | 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
-| 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. No hostile predators. Recovery rates remain to be tuned. |
+| 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. **October 2 staging:** injury causes and bandage treatment are deferred; medicine supports existing illness. No hostile predators. Recovery rates remain to be tuned. |
 
 Animal slaughter, hunting, cavalry/war specialization, and named armor tiers
 are **not** assumed. Combat exists for interpersonal self-defense, crime, feuds

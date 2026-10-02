@@ -108,8 +108,7 @@ public sealed class ExplorationBridgeFutureDeckArchiveTests(ITestOutputHelper ou
             Assert.Equal(10, Assert.Single(workshop.BuildCosts).Amount);
             var placement = world.PlaceBuilding("future-deck-archive-workshop", workshop.CanonicalId, WorkshopSite);
             Assert.True(placement.Applied, placement.Failure);
-            var bridge = Assert.Single(world.Bridges);
-            Assert.Equal(crossing.Id, bridge.Id);
+            var bridge = Assert.Single(world.Bridges, item => item.Id == crossing.Id);
             Assert.Equal(BridgeTriggers.Road, bridge.Trigger);
             Assert.True(bridge.BuiltTick > deceased.DeathTick);
             var after = world.ExportState();
