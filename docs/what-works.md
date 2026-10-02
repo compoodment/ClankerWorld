@@ -231,8 +231,9 @@ usual personal-model turns. No extra paid calls poll for civic votes. Ordinary
 proposals need a strict council majority, with two yes votes required while
 representative seats are vacant. Proposal votes are final; election ballots
 may change before the one-day window closes. Council changes cancel unfinished
-proposals. The Towns page shows current councillors, candidates, election totals
-and pending, passed, rejected or cancelled proposals.
+proposals. The scrolling Towns page shows current councillors, candidates,
+election totals, the latest completed, failed or cancelled election, and eight
+recent pending, passed, rejected or cancelled proposals.
 
 A passed law proposal records approval; broader law powers, jurisdiction and
 enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).

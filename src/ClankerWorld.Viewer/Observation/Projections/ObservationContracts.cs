@@ -334,7 +334,10 @@ public sealed record ViewerTownElection(string Id, string Kind, string Stage, in
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
 public sealed record ViewerTownGovernance(string Form, string Fallback, IReadOnlyList<string> MemberNames,
     long? TermEndTick, long RetryTick, IReadOnlyList<string> WillingCandidateNames,
-    IReadOnlyList<ViewerCivicProposal> Proposals, ViewerTownElection? Election);
+    IReadOnlyList<ViewerCivicProposal> Proposals, ViewerTownElection? Election)
+{
+    public ViewerTownElection? LatestElection { get; init; }
+}
 
 public sealed record ViewerTownLandTitle(string Id, string TownId, IReadOnlyList<ViewerPosition> Tiles,
     long RecordedTick);

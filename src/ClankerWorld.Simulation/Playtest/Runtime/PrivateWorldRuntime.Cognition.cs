@@ -299,8 +299,7 @@ public sealed partial class PrivateWorldRuntime
                 ContinueProject(inhabitant.Id, state);
                 continue;
             }
-            if (runtimes[inhabitant.Id].CurrentIntention is not { } intention ||
-                !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId))
+            if (runtimes[inhabitant.Id].CurrentIntention is not { } intention)
             {
                 continue;
             }
@@ -311,9 +310,10 @@ public sealed partial class PrivateWorldRuntime
                 // toward the notice place continues locally between ordinary model turns.
                 var civic = intention.CandidateId.Split('|');
                 if (civic.Length == 5 && civic[2] == "visit" && intention.Provider == DecisionProviderKind.LargeLanguageModel)
-                    ApplyTownCivicCandidate(inhabitant.Id, intention.CandidateId);
+                    ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
     }

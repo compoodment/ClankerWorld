@@ -1170,7 +1170,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     private static string[]? ParseCivicBallot(JsonElement root)
     {
-        if (!root.TryGetProperty("civic_ballot", out var ballot)) return null;
+        if (!root.TryGetProperty("civic_ballot", out var ballot) || ballot.ValueKind == JsonValueKind.Null) return null;
         if (ballot.ValueKind != JsonValueKind.Array || ballot.GetArrayLength() > 3 ||
             ballot.EnumerateArray().Any(choice => choice.ValueKind != JsonValueKind.String))
             throw new InvalidDataException("The provider returned an invalid civic ballot.");

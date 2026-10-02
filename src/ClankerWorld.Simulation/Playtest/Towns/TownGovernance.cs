@@ -192,6 +192,8 @@ public static class TownGovernanceRules
             Sequence = state.Sequence + 1,
             Election = new(id, kind, "main", tick, tick + day, termEnd, seats, adults, candidates, [], [], [], [])
         };
+        if (candidates.Length < seats)
+            return FailElection(state, adults, tick, day);
         return Notice(state, "election", id, $"{kind} council election: choose up to {seats} distinct willing candidates " +
             $"({string.Join(", ", candidates)}). Voting closes at tick {tick + day}; ballots may change.", tick);
     }
@@ -299,13 +301,14 @@ public static class TownGovernanceRules
     private static TownGovernanceState CancelElection(TownGovernanceState state, long tick, string reason)
     {
         if (state.Election is not { } election) return state;
-        state = ArchiveElection(state, election with { Stage = "cancelled" }, tick);
-        return Notice(state, "cancelled", election.Id, reason, tick);
+        return ArchiveElection(state, election with { Stage = "cancelled" }, tick, reason);
     }
 
-    private static TownGovernanceState ArchiveElection(TownGovernanceState state, TownElection election, long tick) =>
+    private static TownGovernanceState ArchiveElection(TownGovernanceState state, TownElection election, long tick, string? reason = null) =>
         Notice(state with { Election = null, ElectionHistory = state.ElectionHistory.Append(election).ToArray() },
-            "result", election.Id, $"Council election {election.Stage}: {string.Join(", ", election.SettledSeats)}.", tick);
+            election.Stage == "cancelled" ? "cancelled" : "result", election.Id,
+            $"Council election {election.Stage}: {string.Join(", ", election.SettledSeats)}." +
+                (reason is null ? string.Empty : " " + reason), tick);
 
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
         string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day)
@@ -367,12 +370,23 @@ public static class TownGovernanceRules
     }
 
     public static TownGovernanceState LearnNotice(TownGovernanceState state, string actor, string noticeId, long tick, string? source = null)
+        => LearnNotices(state, actor, [noticeId], tick, source);
+
+    public static TownGovernanceState LearnNotices(TownGovernanceState state, string actor, IEnumerable<string> noticeIds,
+        long tick, string? source = null)
     {
-        if (!state.Notices.Any(n => n.Id == noticeId) || source is not null &&
-            !state.Knowledge.Any(k => k.AgentId == source && k.NoticeId == noticeId))
-            throw new InvalidOperationException("Civic knowledge requires an actual existing notice or informed relay.");
-        if (state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == noticeId)) return state;
-        return state with { Knowledge = state.Knowledge.Append(new TownCivicReceipt(actor, noticeId, tick, source)).ToArray() };
+        var existing = state.Notices.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        var known = state.Knowledge.Where(k => k.AgentId == actor).Select(k => k.NoticeId).ToHashSet(StringComparer.Ordinal);
+        var informed = source is null ? null : state.Knowledge.Where(k => k.AgentId == source)
+            .Select(k => k.NoticeId).ToHashSet(StringComparer.Ordinal);
+        var learned = new List<TownCivicReceipt>();
+        foreach (var id in noticeIds)
+        {
+            if (!existing.Contains(id) || informed is not null && !informed.Contains(id))
+                throw new InvalidOperationException("Civic knowledge requires an actual existing notice or informed relay.");
+            if (known.Add(id)) learned.Add(new(actor, id, tick, source));
+        }
+        return learned.Count == 0 ? state : state with { Knowledge = state.Knowledge.Concat(learned).ToArray() };
     }
 
     /// <summary>An approval for #602 to consume; this record itself grants no membership or goods access.</summary>

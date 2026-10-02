@@ -124,8 +124,9 @@ lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
-its Towns page also shows each Town's council, current election and proposal
-results. **Event Log** shows important events under a heading for each day, each with an
+its Towns page also shows each Town's council, current and latest settled election,
+and eight recent proposal results. Long Town readouts scroll. **Event Log** shows
+important events under a heading for each day, each with an
 icon for its kind. An event with a known location has a **Find** button that
 moves the camera there. Opening the log marks its new entries read; the ones
 that were new keep a small dot while it stays open. While the continuity rule

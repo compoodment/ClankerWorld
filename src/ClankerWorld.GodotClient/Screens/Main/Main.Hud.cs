@@ -30,6 +30,10 @@ public partial class Main
     private readonly PixelBadge agentsWarning = new() { Diameter = 7, Warning = true };
     private readonly Button worldInfoTownsTab = new();
     private readonly Button worldInfoWorldTab = new();
+    private readonly ScrollContainer townsScroll = new()
+    {
+        HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+    };
     private readonly VBoxContainer townsPage = new();
     private readonly VBoxContainer townList = new();
     private readonly Label townBorderHint = new();
@@ -378,12 +382,15 @@ public partial class Main
 
         townList.AddThemeConstantOverride("separation", 6);
         townsPage.AddThemeConstantOverride("separation", 8);
+        townsPage.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        townsPage.MinimumSizeChanged += QueueHudListsFit;
         townsPage.AddChild(townList);
         townBorderHint.ThemeTypeVariation = "DimLabel";
         townsPage.AddChild(townBorderHint);
         ConfigureTextPanel(worldDetails, 240);
         townsPage.AddChild(worldDetails);
-        body.AddChild(townsPage);
+        townsScroll.AddChild(townsPage);
+        body.AddChild(townsScroll);
         ConfigureTextPanel(worldInfoText, 300);
         body.AddChild(worldInfoText);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
@@ -394,15 +401,17 @@ public partial class Main
         ShowWorldInfoPage(towns: true);
     }
 
-    private bool WorldInfoShowsTowns => townsPage.Visible;
+    private bool WorldInfoShowsTowns => townsScroll.Visible;
 
     private void ShowWorldInfoPage(bool towns)
     {
-        townsPage.Visible = towns;
+        townsScroll.Visible = towns;
         worldInfoText.Visible = !towns;
         worldInfoTownsTab.SetPressedNoSignal(towns);
         worldInfoWorldTab.SetPressedNoSignal(!towns);
         worldInfoPanel.ResetSize();
+        FitHudLists();
+        QueueHudListsFit();
     }
 
     /// <summary>T opens World Info on its Towns page; pressing it again there closes it.</summary>
@@ -443,6 +452,7 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             });
             worldInfoPanel.ResetSize();
+            QueueHudListsFit();
             return;
         }
         foreach (var town in snapshot.Towns)
@@ -491,6 +501,8 @@ public partial class Main
         }
         // Shrink back to fit when the list gets shorter.
         worldInfoPanel.ResetSize();
+        FitHudLists();
+        QueueHudListsFit();
     }
 
     private string TownCivicText(OwnerWorldTown town, long tick)
@@ -506,13 +518,32 @@ public partial class Main
         if (council.Fallback == "demographic") lines.Add("Representation resumes at eight adult residents.");
         if (council.Election is { } election)
         {
-            lines.Add($"{Pretty(election.Kind)} election · {Pretty(election.Stage)} · {election.Seats} seats");
-            if (election.Stage != "ready") lines.Add("Voting closes " + DisplayWorldClock(election.DeadlineTick));
+            var stage = election.Stage switch
+            {
+                "main" => "Voting",
+                "runoff" => "Runoff voting",
+                "ready" => "Representatives chosen",
+                _ => "Voting has ended",
+            };
+            lines.Add($"{CivicElectionName(election.Kind)} · {stage} · {election.Seats} {(election.Seats == 1 ? "seat" : "seats")}");
+            if (election.Stage is "main" or "runoff") lines.Add("Voting closes " + DisplayWorldClock(election.DeadlineTick));
             lines.Add(election.Candidates.Count == 0 ? "No willing eligible candidates in this contest." :
-                string.Join(" · ", election.Candidates.Select(c => $"{c.Name}: {c.Votes} votes")));
+                string.Join(" · ", election.Candidates.Select(c => $"{c.Name}: {c.Votes} {(c.Votes == 1 ? "vote" : "votes")}")));
             if (election.SettledNames.Count > 0) lines.Add("Chosen: " + string.Join(", ", election.SettledNames));
+            if (election.Stage == "ready" && election.Kind == "regular" && council.TermEndTick is { } currentTermEnd && currentTermEnd > tick)
+                lines.Add("The chosen representatives take office when the current term ends.");
         }
         else if (council.RetryTick > tick) lines.Add("Election retry after " + DisplayWorldClock(council.RetryTick));
+        if (council.LatestElection is { } latest)
+        {
+            lines.Add(latest.Stage switch
+            {
+                "completed" => "Last election completed: " + string.Join(", ", latest.SettledNames),
+                "failed" => "The last election did not elect a supported council.",
+                "cancelled" => "The last election was cancelled.",
+                _ => "The last election has ended.",
+            });
+        }
         if (council.WillingCandidateNames.Count > 0) lines.Add("Willing candidates: " + string.Join(", ", council.WillingCandidateNames));
         foreach (var proposal in council.Proposals.TakeLast(8))
         {
@@ -522,6 +553,13 @@ public partial class Main
         }
         return string.Join("\n", lines);
     }
+
+    private static string CivicElectionName(string kind) => kind switch
+    {
+        "regular" => "Scheduled council election",
+        "replacement" => "Council vacancy election",
+        _ => "Council election",
+    };
 
     /// <summary>Every label in the Towns list, for checks and assistive reading.</summary>
     private string TownListText() => string.Join("\n",

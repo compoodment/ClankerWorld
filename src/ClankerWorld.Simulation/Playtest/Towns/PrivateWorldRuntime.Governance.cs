@@ -10,14 +10,56 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    private readonly Dictionary<string, CivicHistoryIndex> civicHistoryIndexes = new(StringComparer.Ordinal);
+
+    private sealed class CivicHistoryIndex
+    {
+        private static readonly IReadOnlySet<string> Empty = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, HashSet<string>> knownByActor = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, HashSet<string>> subjectsByActor = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, HashSet<(string Kind, string Subject)>> kindsByActor = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, TownCivicReceipt[]> recentByActor = new(StringComparer.Ordinal);
+        public TownGovernanceState State { get; }
+        public Dictionary<string, TownCivicNotice> Notices { get; }
+
+        public CivicHistoryIndex(TownGovernanceState state)
+        {
+            State = state;
+            Notices = state.Notices.ToDictionary(n => n.Id, StringComparer.Ordinal);
+            foreach (var actor in state.Knowledge.GroupBy(k => k.AgentId, StringComparer.Ordinal))
+            {
+                knownByActor[actor.Key] = actor.Select(k => k.NoticeId).ToHashSet(StringComparer.Ordinal);
+                subjectsByActor[actor.Key] = actor.Select(k => Notices[k.NoticeId].SubjectId).ToHashSet(StringComparer.Ordinal);
+                kindsByActor[actor.Key] = actor.Select(k => (Notices[k.NoticeId].Kind, Notices[k.NoticeId].SubjectId)).ToHashSet();
+                recentByActor[actor.Key] = actor.OrderByDescending(k => k.LearnedTick)
+                    .ThenByDescending(k => Notices[k.NoticeId].PostedTick).Take(3).ToArray();
+            }
+        }
+
+        public IReadOnlySet<string> Known(string actor) => knownByActor.TryGetValue(actor, out var known) ? known : Empty;
+        public bool Knows(string actor, string subject) => subjectsByActor.TryGetValue(actor, out var known) && known.Contains(subject);
+        public bool Knows(string actor, string kind, string subject) => kindsByActor.TryGetValue(actor, out var known) && known.Contains((kind, subject));
+        public TownCivicReceipt[] Recent(string actor) => recentByActor.TryGetValue(actor, out var recent) ? recent : [];
+    }
+
+    private CivicHistoryIndex CivicHistory(TownRuntimeState town)
+    {
+        if (!civicHistoryIndexes.TryGetValue(town.Id, out var history) || !ReferenceEquals(history.State, town.Governance))
+            civicHistoryIndexes[town.Id] = history = new CivicHistoryIndex(town.Governance!);
+        return history;
+    }
+
     private string[] TownAdults(TownRuntimeState town) => town.ResidentIds.Where(id =>
         society.Checkpoint.Inhabitants.Any(p => p.Id == id && p.Status == SocietyInhabitantStatus.Active &&
             p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)).Order(StringComparer.Ordinal).ToArray();
     private int CivicDay => worldSystems.Config.TicksPerDay;
     private string? CivicNote(string actor)
     {
-        var learned = towns.Where(t => t.Governance is not null).SelectMany(t => t.Governance!.Knowledge
-            .Where(k => k.AgentId == actor).Select(k => (Receipt: k, Notice: t.Governance.Notices.Single(n => n.Id == k.NoticeId), Town: t.Name)))
+        var learned = towns.Where(t => t.Governance is not null).SelectMany(t =>
+        {
+            var history = CivicHistory(t);
+            return history.Recent(actor).Select(k => (Receipt: k, Notice: history.Notices[k.NoticeId], Town: t.Name));
+        })
             .OrderByDescending(n => n.Receipt.LearnedTick).ThenByDescending(n => n.Notice.PostedTick).Take(3)
             .Select(n => (n.Receipt.SourceAgentId is { } source ? $"Heard from {society.Checkpoint.GetInhabitant(source).Name}: " : "Read Town notice: ") +
                 n.Town + ": " + ReadableCivicNotice(n.Notice.Text)).ToArray();
@@ -72,6 +114,8 @@ public sealed partial class PrivateWorldRuntime
         p.Id == token || CivicAgentToken(p.Id) == token)?.Id ?? token;
     private string CivicAction(string town, string kind, string subject = "", string choice = "") =>
         $"civic|{town}|{kind}|{(society.Checkpoint.Inhabitants.Any(p => p.Id == subject) ? CivicAgentToken(subject) : subject)}|{CivicAgentToken(choice)}";
+    private static string CivicRoundToken(TownElection election) =>
+        $"{election.Id}:{election.Stage}:{election.OpenedTick.ToString(CultureInfo.InvariantCulture)}";
 
     private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -80,12 +124,12 @@ public sealed partial class PrivateWorldRuntime
         foreach (var town in towns.Where(t => t.Governance is not null))
         {
             var state = town.Governance!;
+            var history = CivicHistory(town);
+            var known = history.Known(actor);
             var adults = TownAdults(town);
             var resident = adults.Contains(actor, StringComparer.Ordinal);
-            if (NearCivicBoard(actor, town) && state.Notices.Any(n =>
-                !state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == n.Id)))
+            if (NearCivicBoard(actor, town) && known.Count < state.Notices.Count)
                 candidates.Add(new(CivicAction(town.Id, "read"), $"Read the actual civic notices posted at {town.Name}.", 155));
-            var known = state.Notices.Where(n => state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == n.Id)).ToArray();
             if (resident)
             {
                 if (!NearCivicBoard(actor, town) && CivicBoard(town) is not null)
@@ -115,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (!towns.Any(t => t.ResidentIds.Contains(actor, StringComparer.Ordinal)) && AdultResident(actor) && NearCivicBoard(actor, town))
                 candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
-            foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && known.Any(n => n.SubjectId == p.Id)))
+            foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
                 if (proposal.AuthorId == actor)
                     candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {proposal.Text}", 190));
@@ -125,21 +169,33 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {proposal.Text} in {town.Name}.", 166));
             }
             if (state.Election is { Stage: "main" or "runoff" } election && election.Voters.Contains(actor, StringComparer.Ordinal) &&
-                known.Any(n => n.SubjectId == election.Id && n.Kind == (election.Stage == "main" ? "election" : "runoff")))
+                history.Knows(actor, election.Stage == "main" ? "election" : "runoff", election.Id))
             {
-                candidates.Add(new(CivicAction(town.Id, "ballot", election.Id), $"Submit or revise your {election.Stage} ballot in {town.Name}; choose up to {election.Seats} distinct IDs via civic_ballot. " +
+                candidates.Add(new(CivicAction(town.Id, "ballot", CivicRoundToken(election)), $"Submit or revise your {election.Stage} ballot in {town.Name}; choose up to {election.Seats} distinct IDs via civic_ballot. " +
                     $"Willing candidates: {string.Join(", ", election.Candidates.Select(id => society.Checkpoint.GetInhabitant(id).Name + " (" + CivicAgentToken(id) + ")"))}. Self-voting is allowed. " +
                     $"Voting closes on world day {election.DeadlineTick / CivicDay + 1}.", 165));
                 foreach (var id in election.Candidates)
-                    candidates.Add(new(CivicAction(town.Id, "single", election.Id, id), $"Submit or revise your ballot to support only {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}. Other previous choices are replaced.", 167));
+                    candidates.Add(new(CivicAction(town.Id, "single", CivicRoundToken(election), id), $"Submit or revise your ballot to support only {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}. Other previous choices are replaced.", 167));
             }
             foreach (var recipient in inhabitants.Values.Where(p => p.InhabitantId != actor &&
                 IsWithinInteractionRange(p.Position, inhabitants[actor].Position, ResourceInteractionRange)))
             {
-                if (!known.Any(n => !state.Knowledge.Any(k => k.AgentId == recipient.InhabitantId && k.NoticeId == n.Id))) continue;
+                var recipientKnows = history.Known(recipient.InhabitantId);
+                if (!known.Any(id => !recipientKnows.Contains(id))) continue;
                 candidates.Add(new(CivicAction(town.Id, "relay", recipient.InhabitantId), $"Relay the civic notices you actually learned in {town.Name} to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} nearby.", 180));
             }
         }
+    }
+
+    private void ContinueTownCivicVisit(string actor, string candidate)
+    {
+        var parts = candidate.Split('|');
+        if (parts.Length != 5 || parts[2] != "visit" || NeedsUrgentWarmth(inhabitants[actor])) return;
+        var town = towns.SingleOrDefault(t => t.Id == parts[1]);
+        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) ||
+            CivicBoard(town) is not { } destination ||
+            IsWithinInteractionRange(inhabitants[actor].Position, destination, ResourceInteractionRange)) return;
+        MoveToward(actor, inhabitants[actor], destination, "town_notices", ResourceInteractionRange);
     }
 
     private void ApplyTownCivicCandidate(string actor, string candidate, string? proposalText = null, IReadOnlyList<string>? ballot = null)
@@ -158,17 +214,19 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             state = TownGovernanceRules.Advance(state, town.Id, worldSeed, TownAdults(town), WorldTick, CivicDay);
+            if (parts[2] is "ballot" or "single" &&
+                (state.Election is not { } currentRound || CivicRoundToken(currentRound) != parts[3])) return;
             switch (parts[2])
             {
                 case "visit":
                     if (CivicBoard(town) is { } destination) MoveToward(actor, inhabitants[actor], destination, "town_notices", ResourceInteractionRange);
                     break;
                 case "read":
-                    foreach (var notice in state.Notices) state = TownGovernanceRules.LearnNotice(state, actor, notice.Id, WorldTick);
+                    state = TownGovernanceRules.LearnNotices(state, actor, state.Notices.Select(n => n.Id), WorldTick);
                     break;
                 case "relay":
-                    foreach (var notice in state.Notices.Where(n => state.Knowledge.Any(k => k.AgentId == actor && k.NoticeId == n.Id)))
-                        state = TownGovernanceRules.LearnNotice(state, parts[3], notice.Id, WorldTick, actor);
+                    var known = CivicHistory(town).Known(actor);
+                    state = TownGovernanceRules.LearnNotices(state, parts[3], state.Notices.Where(n => known.Contains(n.Id)).Select(n => n.Id), WorldTick, actor);
                     break;
                 case "nominate": state = TownGovernanceRules.Nominate(state, actor, parts[3], TownAdults(town), WorldTick); break;
                 case "request_admission":
@@ -193,13 +251,13 @@ public sealed partial class PrivateWorldRuntime
                 case "withdraw_proposal": state = TownGovernanceRules.WithdrawProposal(state, parts[3], actor, WorldTick); break;
                 case "ballot":
                     if (ballot is null) return;
-                    state = TownGovernanceRules.VoteElection(state, parts[3], actor, ballot.Select(ResolveCivicAgentToken).ToArray(), WorldTick); break;
-                case "single": state = TownGovernanceRules.VoteElection(state, parts[3], actor, [parts[4]], WorldTick); break;
+                    state = TownGovernanceRules.VoteElection(state, state.Election!.Id, actor, ballot.Select(ResolveCivicAgentToken).ToArray(), WorldTick); break;
+                case "single": state = TownGovernanceRules.VoteElection(state, state.Election!.Id, actor, [parts[4]], WorldTick); break;
             }
             state = TownGovernanceRules.Advance(state, town.Id, worldSeed, TownAdults(town), WorldTick, CivicDay);
             // Submitting and registering are actual notice interactions, so the actor knows their own posted notice.
-            foreach (var notice in state.Notices.Skip(town.Governance.Notices.Count))
-                state = TownGovernanceRules.LearnNotice(state, actor, notice.Id, WorldTick);
+            state = TownGovernanceRules.LearnNotices(state, actor,
+                state.Notices.Skip(town.Governance.Notices.Count).Select(n => n.Id), WorldTick);
             SaveTownGovernance(town, state);
             AppendEvent("town_civic_action", $"{town.Id}|{actor}|{parts[2]}", inhabitants[actor].Position);
         }

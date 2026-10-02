@@ -330,7 +330,6 @@ public sealed class TownGovernanceRuntimeTests
     [Theory]
     [InlineData("[7]")]
     [InlineData("[{}]")]
-    [InlineData("null")]
     [InlineData("[\"a\",\"b\",\"c\",\"d\"]")]
     public async Task MalformedStructuredCivicBallotFailsAsProviderData(string ballot)
     {

@@ -17,6 +17,7 @@ public sealed class OwnerWorldObservationStore
 {
     private const int AgentKnowledgeArtifactLimit = 8;
     private const int RecentClosedInstructionLimitPerAgent = 6;
+    public const int RecentCivicProposalLimit = 8;
     private static readonly string[] OwnerServerCapabilities =
     [
         "snapshot.read.v1",
@@ -214,6 +215,11 @@ public sealed class OwnerWorldObservationStore
             .ToArray();
         var inhabitantsById = state.Society.Society.Inhabitants
             .ToDictionary(item => item.Id, StringComparer.Ordinal);
+        ViewerTownElection ProjectElection(TownElection election) => new(election.Id, election.Kind, election.Stage,
+            election.Seats, election.DeadlineTick, election.Candidates.Select(id => new ViewerCivicCandidate(
+                id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id,
+                election.Ballots.Count(ballot => ballot.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
+            election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -368,12 +374,13 @@ public sealed class OwnerWorldObservationStore
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
-                        civic.Proposals.Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
+                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
-                        civic.Election is { } election ? new ViewerTownElection(election.Id, election.Kind, election.Stage,
-                            election.Seats, election.DeadlineTick, election.Candidates.Select(id => new ViewerCivicCandidate(
-                                id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id, election.Ballots.Count(b => b.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
-                            election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray()) : null) : null,
+                        civic.Election is { } election ? ProjectElection(election) : null)
+                    {
+                        LatestElection = civic.ElectionHistory.Count > 0
+                            ? ProjectElection(civic.ElectionHistory[^1]) : null,
+                    } : null,
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)

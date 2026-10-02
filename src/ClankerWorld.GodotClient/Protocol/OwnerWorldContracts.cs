@@ -144,7 +144,10 @@ public sealed record OwnerTownElection(string Id, string Kind, string Stage, int
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
 public sealed record OwnerTownGovernance(string Form, string Fallback, IReadOnlyList<string> MemberNames,
     long? TermEndTick, long RetryTick, IReadOnlyList<string> WillingCandidateNames,
-    IReadOnlyList<OwnerCivicProposal> Proposals, OwnerTownElection? Election);
+    IReadOnlyList<OwnerCivicProposal> Proposals, OwnerTownElection? Election)
+{
+    public OwnerTownElection? LatestElection { get; init; }
+}
 
 public sealed record OwnerWorldLandTitle(string Id, string TownId, IReadOnlyList<OwnerWorldPosition> Tiles,
     long RecordedTick);

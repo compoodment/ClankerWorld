@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -28,11 +29,12 @@ public static partial class TownGovernanceValidation
             !Unique(state.Proposals.Select(p => p.Id)) || state.ElectionHistory.Any(e => e is null) ||
             !Unique(state.ElectionHistory.Select(e => e.Id).Concat(state.Election is { } live ? [live.Id] : [])) ||
             state.Notices.Any(n => n is null) || !Unique(state.Notices.Select(n => n.Id)) ||
-            state.Knowledge.Any(k => k is null) || !Unique(state.Knowledge.Select(k => k.AgentId + "|" + k.NoticeId)))
+            state.Knowledge.Any(k => k is null) ||
+            state.Knowledge.Select(k => (k.AgentId, k.NoticeId)).Distinct().Count() != state.Knowledge.Count)
             throw new InvalidDataException("A Town's saved council, candidates or civic ledger is invalid.");
         foreach (var proposal in state.Proposals)
         {
-            if (string.IsNullOrWhiteSpace(proposal.Id) || !proposal.Id.StartsWith(town.Id + ":proposal:", StringComparison.Ordinal) ||
+            if (!ValidGeneratedId(proposal.Id, town.Id + ":proposal:", state.Sequence) ||
                 string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission") || !known.Contains(proposal.AuthorId) ||
                 proposal.Kind == "admission" && (proposal.SubjectId is null || !known.Contains(proposal.SubjectId)) ||
                 proposal.Kind == "law" && proposal.SubjectId is not null ||
@@ -41,6 +43,9 @@ public static partial class TownGovernanceValidation
                 proposal.OpenedTick < 0 || proposal.OpenedTick > tick || proposal.DeadlineTick != proposal.OpenedTick + day ||
                 proposal.Voters is null || proposal.Votes is null || !Unique(proposal.Voters) || proposal.Voters.Any(id => !known.Contains(id)) ||
                 proposal.RequiredYes < 1 || proposal.RequiredYes > Math.Max(2, proposal.Voters.Count) ||
+                // Zero/one-voter histories can come from either governing
+                // form; other rosters determine the threshold unambiguously.
+                proposal.Voters.Count >= 2 && proposal.RequiredYes != proposal.Voters.Count / 2 + 1 ||
                 proposal.Votes.Any(v => v is null || !proposal.Voters.Contains(v.AgentId, StringComparer.Ordinal) ||
                     proposal.Kind == "admission" && v.AgentId == proposal.SubjectId) || !Unique(proposal.Votes.Select(v => v.AgentId)) ||
                 proposal.Status is not ("pending" or "passed" or "rejected" or "cancelled" or "withdrawn") ||
@@ -58,7 +63,7 @@ public static partial class TownGovernanceValidation
         foreach (var election in state.ElectionHistory.Concat(state.Election is { } current ? [current] : []))
         {
             var active = state.Election?.Id == election.Id;
-            if (string.IsNullOrWhiteSpace(election.Id) || !election.Id.StartsWith(town.Id + ":election:", StringComparison.Ordinal) ||
+            if (!ValidGeneratedId(election.Id, town.Id + ":election:", state.Sequence) ||
                 election.Kind is not ("initial" or "regular" or "replacement") ||
                 election.Stage is not ("main" or "runoff" or "ready" or "completed" or "failed" or "cancelled") ||
                 active != (election.Stage is "main" or "runoff" or "ready") || election.OpenedTick < 0 || election.OpenedTick > tick ||
@@ -78,16 +83,54 @@ public static partial class TownGovernanceValidation
                         (c.FullTerm || election.Kind == "replacement" && c.RemainderTermEndTick == election.TermEndTick)))))
                 throw new InvalidDataException("A Town's saved election, consent, ballots or recorded draw is invalid.");
         }
-        foreach (var notice in state.Notices)
-            if (string.IsNullOrWhiteSpace(notice.Id) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
+        for (var index = 0; index < state.Notices.Count; index++)
+        {
+            var notice = state.Notices[index];
+            if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
                 notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
+        }
+        ValidateKnowledge(state, known, tick);
+    }
+
+    private static bool ValidGeneratedId(string id, string prefix, long sequence) =>
+        !string.IsNullOrWhiteSpace(id) && id.StartsWith(prefix, StringComparison.Ordinal) &&
+        long.TryParse(id.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var number) &&
+        number > 0 && number <= sequence && id == prefix + number.ToString(CultureInfo.InvariantCulture);
+
+    private static void ValidateKnowledge(TownGovernanceState state, HashSet<string> known, long tick)
+    {
+        var notices = state.Notices.ToDictionary(notice => notice.Id, StringComparer.Ordinal);
+        var receipts = state.Knowledge.ToDictionary(receipt => (receipt.AgentId, receipt.NoticeId));
         foreach (var receipt in state.Knowledge)
-            if (!known.Contains(receipt.AgentId) || !state.Notices.Any(n => n.Id == receipt.NoticeId && n.PostedTick <= receipt.LearnedTick) ||
+            if (!known.Contains(receipt.AgentId) || string.IsNullOrWhiteSpace(receipt.NoticeId) ||
+                !notices.TryGetValue(receipt.NoticeId, out var notice) || notice.PostedTick > receipt.LearnedTick ||
                 receipt.LearnedTick < 0 || receipt.LearnedTick > tick || receipt.SourceAgentId is { } source &&
-                    (!known.Contains(source) || !state.Knowledge.Any(k => k.AgentId == source && k.NoticeId == receipt.NoticeId && k.LearnedTick <= receipt.LearnedTick)))
+                    (source == receipt.AgentId || !known.Contains(source) ||
+                     !receipts.TryGetValue((source, receipt.NoticeId), out var sourceReceipt) ||
+                     sourceReceipt.LearnedTick > receipt.LearnedTick))
                 throw new InvalidDataException("Saved civic knowledge requires an actual notice or informed relay.");
+
+        // Same-tick relays are valid, but every chain must reach a direct read.
+        // Each receipt enters one path at most once; indexed lookups keep long
+        // saved ledgers linear and avoid recursion for long relay chains.
+        var rooted = new HashSet<(string AgentId, string NoticeId)>();
+        foreach (var receipt in state.Knowledge)
+        {
+            var key = (receipt.AgentId, receipt.NoticeId);
+            if (rooted.Contains(key)) continue;
+            var visiting = new HashSet<(string AgentId, string NoticeId)>();
+            while (!rooted.Contains(key))
+            {
+                if (!visiting.Add(key))
+                    throw new InvalidDataException("Saved civic relays must lead back to an actual notice read.");
+                var current = receipts[key];
+                if (current.SourceAgentId is not { } source) break;
+                key = (source, current.NoticeId);
+            }
+            rooted.UnionWith(visiting);
+        }
     }
 
     private static bool Unique(IEnumerable<string> ids) => ids.All(id => !string.IsNullOrWhiteSpace(id)) &&

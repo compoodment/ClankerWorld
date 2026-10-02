@@ -206,17 +206,19 @@ public sealed class TownGovernanceTests
     }
 
     [Fact]
-    public void RepresentativeVacanciesStillNeedTwoYesVotesAndReplacementKeepsTerm()
+    public void InsufficientReplacementCandidatesImmediatelyRestoreAllAdultCouncilAndVacanciesStillNeedTwoYesVotes()
     {
         var state = Elected();
         var adults = Adults.Where(id => id != "c").ToArray();
         state = Advance(state, 11, adults);
-        Assert.Equal("replacement", state.Election!.Kind);
-        Assert.Equal(1, state.Election.Seats);
-        state = TownGovernanceRules.Register(state, "d", false, state.TermEndTick, adults, 11);
-        // Registration after opening cannot enter this fixed contest; retry picks it up after failure.
-        state = Advance(state, 21, adults);
+        Assert.Null(state.Election);
+        var failed = Assert.Single(state.ElectionHistory, e => e.Kind == "replacement");
+        Assert.Equal("failed", failed.Stage);
+        Assert.Empty(failed.Candidates);
+        Assert.Equal(21, state.RetryTick);
         Assert.Equal("all_adult", state.Form);
+        Assert.Equal(adults, state.Members);
+        Assert.Null(state.TermEndTick);
         var vacant = Elected() with { Members = ["a"] };
         vacant = Proposal(vacant, Adults, 11);
         Assert.Equal(2, vacant.Proposals[0].RequiredYes);
@@ -237,6 +239,7 @@ public sealed class TownGovernanceTests
         Assert.Equal(110, state.TermEndTick);
         Assert.Null(state.Election);
         Assert.Equal("completed", state.ElectionHistory[^1].Stage);
+        state = TownGovernanceRules.Register(state, "e", true, null, adults, 99);
         state = Advance(state, 100, adults);
         Assert.Equal("regular", state.Election!.Kind);
         Assert.DoesNotContain("d", state.Election.Candidates);
@@ -333,6 +336,7 @@ public sealed class TownGovernanceTests
     {
         var state = Elected();
         state = TownGovernanceRules.Register(state, "d", false, state.TermEndTick, Adults, 90);
+        state = TownGovernanceRules.Register(state, "e", true, null, Adults, 90);
         state = Advance(state, 95, Adults.Where(id => id != "c").ToArray());
         Assert.Equal("replacement", state.Election!.Kind);
         state = TownGovernanceRules.VoteElection(state, state.Election.Id, "a", ["d"], 96);
@@ -342,6 +346,10 @@ public sealed class TownGovernanceTests
         Assert.DoesNotContain("d", state.Election.Candidates);
         Assert.Equal("cancelled", state.ElectionHistory[^1].Stage);
         Assert.Equal(["a", "b"], state.Members);
+        var cancelled = state.ElectionHistory[^1];
+        var cancellationNotice = Assert.Single(state.Notices, n => n.SubjectId == cancelled.Id && n.PostedTick == 100);
+        Assert.Equal("cancelled", cancellationNotice.Kind);
+        Assert.Contains("Regular voting", cancellationNotice.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -351,10 +359,84 @@ public sealed class TownGovernanceTests
         Assert.Empty(state.Candidates);
         Assert.Equal("nomination", Assert.Single(state.Notices).Kind);
         state = Advance(state, 0);
-        Assert.DoesNotContain("b", state.Election!.Candidates);
+        Assert.Null(state.Election);
+        Assert.Empty(Assert.Single(state.ElectionHistory).Candidates);
         state = TownGovernanceRules.Register(state, "b", true, null, Adults, 1);
-        Assert.DoesNotContain("b", state.Election!.Candidates); // Acceptance during voting applies to a later contest.
         Assert.True(Assert.Single(state.Candidates).FullTerm);
+        state = Advance(state, 1);
+        Assert.Null(state.Election);
+        state = TownGovernanceRules.Register(state, "c", true, null, Adults, 2);
+        state = TownGovernanceRules.Register(state, "d", true, null, Adults, 2);
+        state = Advance(state, 2);
+        Assert.Equal(["b", "c", "d"], state.Election!.Candidates);
+        state = TownGovernanceRules.Register(state, "e", true, null, Adults, 3);
+        Assert.DoesNotContain("e", state.Election!.Candidates); // Acceptance during voting applies to a later contest.
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TooFewWillingCandidatesFailImmediatelyAndWaitForRetryOrPositiveImprovement(int count)
+    {
+        var state = Advance(Registered(count), 0);
+        Assert.Null(state.Election);
+        var failed = Assert.Single(state.ElectionHistory);
+        Assert.Equal("failed", failed.Stage);
+        Assert.Equal(count, failed.Candidates.Count);
+        Assert.Empty(failed.Ballots);
+        Assert.Empty(failed.DrawOrder);
+        Assert.Equal(Day, state.RetryTick);
+        Assert.Equal("candidates", state.Fallback);
+        Assert.DoesNotContain(state.Notices, n => n.Kind == "election");
+        state = Advance(state, 1);
+        Assert.Single(state.ElectionHistory);
+        foreach (var id in Adults.Take(3).Skip(count))
+            state = TownGovernanceRules.Register(state, id, true, null, Adults, 2);
+        state = Advance(state, 2);
+        Assert.Equal("main", state.Election!.Stage);
+        Assert.Equal(["a", "b", "c"], state.Election.Candidates);
+        Assert.Equal(12, state.Election.DeadlineTick);
+    }
+
+    [Fact]
+    public void InsufficientRegularCandidatesRetainIncumbentsUntilTermEndAndAcceptImprovedFieldEarly()
+    {
+        var state = TownGovernanceRules.WithdrawCandidate(Elected(), "c", 90);
+        state = Advance(state, 100);
+        Assert.Null(state.Election);
+        Assert.Equal("representative", state.Form);
+        Assert.Equal(["a", "b", "c"], state.Members);
+        Assert.Equal(110, state.TermEndTick);
+        Assert.Equal("failed", state.ElectionHistory[^1].Stage);
+        var attempts = state.ElectionHistory.Count;
+        state = Advance(state, 101);
+        Assert.Equal(attempts, state.ElectionHistory.Count);
+        state = TownGovernanceRules.Register(state, "d", true, null, Adults, 102);
+        state = Advance(state, 102);
+        Assert.Equal("regular", state.Election!.Kind);
+        Assert.Equal(["a", "b", "d"], state.Election.Candidates);
+        Assert.Equal(["a", "b", "c"], state.Members);
+        Assert.Equal(110, state.TermEndTick);
+    }
+
+    [Fact]
+    public void BatchReadingAndInformedRelayPreserveNoticeHistoryReceiptOrderAndIdempotence()
+    {
+        var initial = Registered();
+        var ids = initial.Notices.Select(n => n.Id).ToArray();
+        var read = TownGovernanceRules.LearnNotices(initial, "a", ids, 1);
+        Assert.Equal(ids, read.Knowledge.Select(k => k.NoticeId));
+        Assert.All(read.Knowledge, k => Assert.Null(k.SourceAgentId));
+        var relayed = TownGovernanceRules.LearnNotices(read, "b", ids, 1, "a");
+        Assert.Equal(ids, relayed.Knowledge.Where(k => k.AgentId == "b").Select(k => k.NoticeId));
+        Assert.All(relayed.Knowledge.Where(k => k.AgentId == "b"), k => Assert.Equal("a", k.SourceAgentId));
+        Assert.Same(relayed, TownGovernanceRules.LearnNotices(relayed, "b", ids.Concat(ids), 2, "a"));
+        Assert.Equal(initial.Sequence, relayed.Sequence);
+        Assert.Equal(initial.Notices, relayed.Notices);
+        Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.LearnNotices(initial, "b", ids, 1, "a"));
+        Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.LearnNotices(read, "b", ids.Append("missing"), 1, "a"));
+        Assert.Equal(ids.Length, read.Knowledge.Count);
     }
 
     [Fact]

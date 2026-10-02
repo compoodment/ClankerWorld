@@ -653,8 +653,11 @@ ballot; saved candidates and choices retain the actual IDs.
 
 Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
 with read/relay provenance and readable names/world days. An actor receives no
-unseen civic dump. Owner observations project each council and its honest
-proposal/election state onto the normal Godot Towns page. A passed ordinary law
+unseen civic dump. Owner observations project each council, its latest eight
+proposals, the current election and the latest archived election onto the normal
+Godot Towns page. Failed and cancelled outcomes remain visible; the complete
+authoritative proposal and election history stays in the checkpoint. Long Town
+readouts scroll within the available screen height. A passed ordinary law
 proposal records approval without creating new physical/legal powers. The
 `AdmissionApproval` result is available for #602; the engine does not perform
 membership, household, care-group or inventory transfers. Bounded civic lifecycle
