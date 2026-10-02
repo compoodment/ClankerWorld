@@ -61,6 +61,13 @@ public sealed record OwnerWorldRoute(
     IReadOnlyList<OwnerWorldPosition> Steps,
     string TopologyManifestDigest);
 
+/// <summary>Developer tools: the route an agent is walking, as the server planned it; at most the first 256 steps.</summary>
+public sealed record OwnerWorldPlannedRoute(
+    string Reason,
+    OwnerWorldPosition Destination,
+    IReadOnlyList<OwnerWorldPosition> Steps,
+    int StepCount);
+
 public sealed record OwnerWorldSpatialKnowledge(
     OwnerWorldPosition CurrentTile,
     IReadOnlyList<OwnerWorldPosition> PerceivedTiles,
@@ -163,6 +170,9 @@ public sealed record OwnerWorldInhabitant(
     bool IsDraft)
 {
     public OwnerWorldPublicIntention? PublicIntention { get; init; }
+
+    /// <summary>Developer tools only; null when the agent is not walking anywhere or the host does not report it.</summary>
+    public OwnerWorldPlannedRoute? PlannedRoute { get; init; }
 
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
@@ -390,6 +400,8 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
+    /// <summary>Developer tools: how long the host took to work out the latest tick; null when not reported.</summary>
+    public double? LastTickMilliseconds { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldConversation> Conversations { get; init; } = [];

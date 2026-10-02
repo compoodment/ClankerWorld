@@ -1066,7 +1066,6 @@ public partial class Main
             returnToMainMenu = false;
             SetWorldMenuActionsVisible(true);
             pairingPanel.Hide();
-            developerScroll.Hide();
             gameMenuPanel.Show();
             var pauseActions = menuQuitToMainButton.GetParent<VBoxContainer>().GetChildren()
                 .OfType<Button>().Where(button => button.Visible).Select(button => button.Text).ToArray();
@@ -1085,18 +1084,16 @@ public partial class Main
             settingsButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (modLibraryPanel.Visible || !settingsPanel.Visible || !worldSettingsCategoryButton.Visible)
                 throw new InvalidOperationException("Settings action must open the in-world Game/World category view.");
-            developerToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (!developerScroll.Visible || settingsScroll.Visible || !settingsPanel.Visible)
-                throw new InvalidOperationException("Developer controls must stay inside Settings without adding a Pause Menu action.");
-            if (!developerToggleButton.ButtonPressed || gameSettingsCategoryButton.ButtonPressed ||
-                worldSettingsCategoryButton.ButtonPressed)
-                throw new InvalidOperationException("Developer tools must be the only selected Settings category.");
-            if (developerScroll.Size.X < 200 || !settingsPanel.GetGlobalRect().Encloses(developerScroll.GetGlobalRect()))
-                throw new InvalidOperationException("Developer controls must have usable width inside Settings at a narrow window.");
+            // Developer tools have their own F12 panel; Settings keeps only Game and World.
+            var settingsCategories = worldSettingsCategoryButton.GetParent().GetChildren().OfType<Button>()
+                .Where(button => button.Visible).Select(button => button.Text).ToArray();
+            if (!settingsCategories.SequenceEqual(new[] { "Game", "World" }) || gameMenuPanel.IsAncestorOf(developerBody) ||
+                gameMenuPanel.FindChildren("*", nameof(Button), recursive: true, owned: false)
+                    .OfType<Button>().Any(button => button.Text.Contains("Developer", StringComparison.Ordinal)))
+                throw new InvalidOperationException($"The Pause Menu must no longer hold Developer tools: {string.Join(", ", settingsCategories)}.");
             gameSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
-            if (developerScroll.Visible || !settingsScroll.Visible || !gameSettingsContent.Visible)
-                throw new InvalidOperationException("Game Settings must replace Developer tools in the same panel.");
+            if (!settingsScroll.Visible || !gameSettingsContent.Visible)
+                throw new InvalidOperationException("Game Settings must open in the Settings panel.");
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
@@ -3354,6 +3351,7 @@ public partial class Main
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
+            await VerifyDeveloperToolsAsync(occupied, founder);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });
@@ -3409,7 +3407,7 @@ public partial class Main
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
             await VerifyRefusedAgentRenameAsync();
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)

@@ -180,6 +180,17 @@ active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
 
+Press **F12** in a world to open **Developer tools** at the right edge of the
+screen, and again to close them; **Escape** closes them once nothing newer is
+open. Time keeps running. The panel shows the coordinates and facts of the last
+tile under the pointer, the frame time, the tick time (how long the server took
+to work out the latest step of world time) and how many agents are living.
+Choose an agent in its list to select them and move the camera to them, and
+turn on **Show planned path** to draw the route they are walking, as the server
+planned it. The panel also holds the aging override, recovery for a request
+whose reply was lost, paused world editing and paired-device management. The
+aging override and world editing need the world paused first.
+
 The optional model-call limit counts hosted call attempts across this
 installation, including failed, retried or abandoned attempts. It is not a
 currency budget or provider invoice. Reaching it pauses time. Add allowance or
