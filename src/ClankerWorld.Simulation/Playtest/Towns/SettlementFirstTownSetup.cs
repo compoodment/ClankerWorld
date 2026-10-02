@@ -48,6 +48,14 @@ public sealed partial class PrivateWorldRuntime
             var firstTownWasUnplaced = towns.Count == 0;
             worldSimulation = WorldContentSimulationState.Empty with { Buildings = placed };
             towns = [town];
+            townLandTitles = TownLandRightsRules.InitialTitles(map, town, WorldTick).ToList();
+            householdLandUseRights = TownLandRightsRules.InitialUseRights(map, town.Id,
+                placed.Where(building => building.HouseholdId is not null)
+                    .GroupBy(building => building.HouseholdId!, StringComparer.Ordinal)
+                    .Select(group => (group.Key, (IEnumerable<GridPoint>)group.SelectMany(building =>
+                        WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))),
+                WorldTick).ToList();
+            householdLandUseRequests = [];
             roadTiles = plan.RoadTiles.ToHashSet();
             ApplyInventoryTransition(_ => starterInventory);
             checkpointSchemaVersion = StateSchemaVersion;

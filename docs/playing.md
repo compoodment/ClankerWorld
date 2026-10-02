@@ -117,6 +117,8 @@ Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
 **Event Log** shows important events. Clicking an event with a known location
 moves the camera there. Opening the log marks its new entries read.
+While the continuity rule is on, the log offers **Add a newcomer**, which opens
+Add Agent. Opening the offer adds nobody and makes no paid model call.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -175,12 +177,21 @@ current world and any it cannot open. Double-click a card, or choose it and
 **Open World**. Open
 and Delete are unavailable while another world action finishes.
 
+To go back to an earlier save, choose the current world in Load World and
+**Load a save…**, then pick a save and **Load**. Your world as it was is saved
+first. Playing on from an older save starts a new **branch**, so the saves from
+the first version of events stay as they were. When a world has more than one
+branch, each save card names its branch, such as **Branch 2**, and each branch's
+newest save is marked **Latest**. Saves from before branches existed are listed
+as **Earlier saves**. To load a save of another world, open that world first.
+
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes
 no offline progress or change to a manual pause. An unfinished model call can
 be cancelled and retried later; the provider may charge for both attempts.
 
-To remove one snapshot, choose it in Load Save and choose **Delete**.
+To remove one snapshot, choose it in **Load a save…** or Save World and choose
+**Delete**.
 The confirmation names the snapshot; deletion is permanent and leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is

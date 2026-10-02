@@ -165,7 +165,7 @@ public partial class Main
             var assignedTown = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
             var household = snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == building.HouseholdId);
             var stored = building.StoredItems is { Count: > 0 }
-                ? string.Join(" · ", building.StoredItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))
+                ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
             // The terrain layer draws the roof. Buildings show no name on the map;
             // the marker keeps the hover help that names them.
@@ -176,7 +176,11 @@ public partial class Main
                 (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
                 (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
                 (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
-                (building.ExpansionState == "running" ? "\nExpanding storage" : "") +
+                (building.ExpansionState == "running"
+                    ? building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                        ? "\nHouse expansion underway · more storage and resident places when finished"
+                        : "\nExpanding storage"
+                    : "") +
                 (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }
