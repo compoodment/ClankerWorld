@@ -122,8 +122,8 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
         string? houseId = null) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == householdId && lot.ContainerLotId is null && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null &&
+            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.ContainerLotId is null &&
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
                     ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)
                     : AvailableLotQuantity(lot) > 0) &&
@@ -232,9 +232,11 @@ public sealed partial class PrivateWorldRuntime
             }
             var storedQuantity = Math.Min(1, AvailableLotQuantity(preparationTool));
             if (storedQuantity == 0 || StorageRoom(houseForPickup.InstanceId) == 0) return;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"house-preparation-tool:{WorldTick}:{actor}", actor, householdId, preparationTool.Id,
-                storedQuantity, "household_preparation_tool_stored", destinationStorageBuildingId: houseForPickup.InstanceId));
+            ApplyInventoryTransition(inventory => preparationTool.OwnerId == householdId
+                ? InventoryFixture.Relocate(inventory, $"house-preparation-tool:{WorldTick}:{actor}", preparationTool.Id,
+                    householdId, storedQuantity, storageBuildingId: houseForPickup.InstanceId)
+                : InventoryFixture.Transfer(inventory, $"house-preparation-tool:{WorldTick}:{actor}", actor, householdId,
+                    preparationTool.Id, storedQuantity, "household_preparation_tool_stored", destinationStorageBuildingId: houseForPickup.InstanceId));
             AppendEvent("household_preparation_tool_stored",
                 $"{actor}:{preparationTool.ItemKind}:{storedQuantity}:{houseForPickup.InstanceId}");
             return;
@@ -305,7 +307,8 @@ public sealed partial class PrivateWorldRuntime
         var equipment = inhabitants[actor].Equipment;
         var inventory = society.Checkpoint.Inventory;
         var spare = inventory.Lots
-            .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+            .Where(lot => (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)) &&
+                PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
                 lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId && lot.Id != equipment?.Repair?.LotId &&
@@ -367,11 +370,13 @@ public sealed partial class PrivateWorldRuntime
         {
             var lot = move.Lot;
             var quantity = move.TransferQuantity;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
-                "spare_cargo_stored", destination.StorageBuildingId,
-                destinationGroundPosition: destination.StorageBuildingId is null
-                    ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
+            ApplyInventoryTransition(inventory => lot.OwnerId == householdId
+                ? InventoryFixture.Relocate(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", lot.Id, householdId, quantity,
+                    storageBuildingId: destination.StorageBuildingId, groundPosition: destination.StorageBuildingId is null
+                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null)
+                : InventoryFixture.Transfer(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
+                    "spare_cargo_stored", destination.StorageBuildingId, destinationGroundPosition: destination.StorageBuildingId is null
+                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
             AppendEvent("spare_cargo_stored", $"{actor}:{lot.ItemKind}:{quantity}:{destination.StorageBuildingId ?? "camp"}");
         }
         return true;

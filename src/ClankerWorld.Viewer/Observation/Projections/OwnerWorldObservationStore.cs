@@ -63,9 +63,12 @@ public sealed class OwnerWorldObservationStore
         privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
         OwnerClientCapabilities.ToArray());
 
-    public ViewerWorldSnapshot GetSnapshot() => privateRuntime is not null
-        ? ToSnapshot(privateRuntime.ExportState())
-        : ToSnapshot(ownerRuntime!.Capture(0).Snapshot);
+    public ViewerWorldSnapshot GetSnapshot()
+    {
+        if (privateRuntime is null) return ToSnapshot(ownerRuntime!.Capture(0).Snapshot);
+        var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+        return ToSnapshot(state, diagnostics);
+    }
 
     public ViewerEventSlice GetEventsAfter(long afterEventId)
     {
@@ -94,8 +97,8 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var state = privateRuntime.ExportState();
-            var privateSnapshot = ToSnapshot(state, knownTerrainWorldId, knownTerrainDigest,
+            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
                 privateSnapshot,
@@ -197,7 +200,7 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
-    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state,
+    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
         string? knownTerrainWorldId = null, string? knownTerrainDigest = null,
         string? knownMapLayersDigest = null)
     {
@@ -294,8 +297,12 @@ public sealed class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
-                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
+                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
+                {
+                    PlannedRoute = ToPlannedRoute(diagnostics.PlannedRoutes.GetValueOrDefault(inhabitant.Id)),
+                })
                 .Concat(state.Society.Society.Inhabitants
                     .Where(inhabitant => inhabitant.Status == SocietyInhabitantStatus.Dead && deceasedById.ContainsKey(inhabitant.Id))
                     .Select(inhabitant => ToDeceasedInhabitant(state, inhabitant, deceasedById[inhabitant.Id])))
@@ -707,7 +714,8 @@ public sealed class OwnerWorldObservationStore
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState physical)
     {
-        var inventory = InventoryFor(state, inhabitant.Id);
+        var inventory = state.Society.Society.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, inhabitant.Id))
+            .GroupBy(lot => lot.ItemKind).Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray();
         var route = DeterminePlaytestRoute(state, physical, inventory);
         var perceived = KnownNearby(state.Map, physical.Position).ToArray();
         var known = KnownFixtureTopology(physical.Position, perceived, route);
@@ -724,6 +732,23 @@ public sealed class OwnerWorldObservationStore
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
+        var personalStored = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == inhabitant.Id &&
+            !PersonalEquipmentRules.IsCarried(lot, inhabitant.Id)).Sum(lot => lot.Quantity);
+        var borrowed = state.Society.Society.Inventory.Lots.Where(lot => lot.CarrierId == inhabitant.Id && lot.OwnerId != inhabitant.Id).Sum(lot => lot.Quantity);
+        decisionFactors.Add(new("personal-goods-awaiting-collection", $"{personalStored} units; ownership stays personal"));
+        decisionFactors.Add(new("borrowed-goods", $"{borrowed} units; ownership stays with the lender"));
+        if (physical.Departures?.Any(departure => departure.SharedProject is not null) == true)
+            decisionFactors.Add(new("departed-household-work", "Previous work stays recorded with its original household."));
+        var ownedBuildings = state.WorldSimulation!.Buildings.Where(building => building.HouseholdId == inhabitant.HouseholdId && inhabitant.HouseholdId is not null)
+            .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        var pausedWork = state.WorldSimulation.ProductionJobs.Count(job => job.State == WorldProductionJobState.Paused && ownedBuildings.Contains(job.BuildingInstanceId)) +
+            (state.WorldSimulation.BuildingExpansions ?? []).Count(job => job.State == WorldProductionJobState.Paused && ownedBuildings.Contains(job.BuildingInstanceId));
+        if (pausedWork > 0) decisionFactors.Add(new("paused-household-work", $"{pausedWork} jobs; members can take over at the site when the committed inputs are available to them."));
+        if (inhabitant.PrimaryCaregiverId is { } primary)
+            decisionFactors.Add(new("primary-caregiver", state.Society.Society.GetInhabitant(primary).Name));
+        var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
+            .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
+        if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
@@ -860,7 +885,7 @@ public sealed class OwnerWorldObservationStore
         return blocker switch
         {
             HousingBlockers.AwaitingAnswer => $"No home yet. Asked the {asked} household to live in their House; every adult member must agree.",
-            HousingBlockers.NoHousehold => "No home. Belongs to no household, so no House can be planned. A household with a House may agree to take them in.",
+            HousingBlockers.NoHousehold => "No home. Seek an accepting household with room for the complete care group first; otherwise start a household and build a House.",
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
@@ -1165,6 +1190,11 @@ public sealed class OwnerWorldObservationStore
 
         return new ViewerRoute("idle", null, null, [], state.Map.ManifestDigest);
     }
+
+    /// <summary>A planned route as the owner sees it, with at most <see cref="ViewerPlannedRoute.StepLimit"/> steps.</summary>
+    public static ViewerPlannedRoute? ToPlannedRoute(PlaytestPlannedRoute? route) => route is null ? null :
+        new ViewerPlannedRoute(route.Reason, ToPosition(route.Destination),
+            route.Steps.Take(ViewerPlannedRoute.StepLimit).Select(ToPosition).ToArray(), route.Steps.Count);
 
     private static bool IsWithinInteractionRange(GridPoint origin, GridPoint destination) =>
         Math.Abs(origin.X - destination.X) + Math.Abs(origin.Y - destination.Y) <= 1;

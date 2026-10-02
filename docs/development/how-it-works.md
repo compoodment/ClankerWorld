@@ -680,6 +680,14 @@ while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+
+Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
+
+Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
+
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
 House has a saved `Housing` record on their physical state: a pending request,
 recent refusals and the current blocker. Each tick `MaintainHousing` resolves
@@ -1050,6 +1058,29 @@ Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
 rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+## Developer tools readouts
+
+Developer tools (**F12** in the Godot client) read two diagnostics from the owner
+observation. Both come from the committed world, are never saved and are never
+read back by the simulation, so they cannot change a tick, a save or replay.
+
+- **`PlannedRoute`** on each living agent is the route `MoveToward` planned on
+  the agent's latest step: its reason code, destination and the tiles still
+  ahead. The observation sends at most 256 steps; `StepCount` gives the full
+  count. An agent waiting out a slow step keeps the route it was walking; one
+  that arrived, was blocked or did something else that tick has none. Each
+  proposed tick starts without routes and its commit replaces them. Loading a
+  checkpoint, switching worlds or restarting the host clears them until the
+  next tick.
+- **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
+  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  waiting for the runtime gate, hosted model calls between ticks and the
+  checkpoint save. It is null until the first tick after start, load or a
+  world switch, and the legacy fixture host never reports it.
+
+The client draws only the reported route; it never plans one. Frame time is
+measured in the client.
 
 ## Development and finished distribution
 

@@ -29,9 +29,16 @@ public sealed partial class PrivateWorldRuntime
         if (state.TravelCooldownTicks > 0)
         {
             inhabitants[inhabitantId] = state with { TravelCooldownTicks = state.TravelCooldownTicks - 1 };
+            KeepPlannedRoute(inhabitantId, reason, destination);
             return;
         }
 
+        if (state.Departures is { Count: > 0 } && MovingCareGroup(inhabitantId).Any(id => id != inhabitantId &&
+                !IsWithinInteractionRange(inhabitants[id].Position, state.Position, 2)))
+        {
+            RecordMovementBlocked(inhabitantId, state, "waiting_for_dependent");
+            return;
+        }
         var route = FindUnoccupiedRoute(inhabitantId, state.Position, destination, interactionRange);
         if (route.Count < 2)
         {
@@ -47,6 +54,7 @@ public sealed partial class PrivateWorldRuntime
             TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
+        RecordPlannedRoute(inhabitantId, reason, destination, route);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         WearCarryAid(inhabitantId);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
@@ -241,7 +249,7 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Contains(tag, StringComparer.Ordinal)))
         .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
 
-    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
+    private GridPoint HouseholdStockPosition(InventoryLot lot) => lot.CarrierId is { } carrier ? inhabitants[carrier].Position : lot.GroundPosition is { } ground ? new(ground.X, ground.Y)
         : lot.StorageBuildingId is { } buildingId
         ? worldSimulation.Buildings.Single(building => building.InstanceId == buildingId).Position
         : SettlementStoragePosition;
@@ -254,7 +262,7 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return null;
         var loose = PreferredFood(householdId, actor).FirstOrDefault(lot =>
-            (lot.StorageBuildingId is null ||
+            lot.CarrierId is null && (lot.StorageBuildingId is null ||
              householdId == lot.OwnerId) &&
             (IsWithinInteractionRange(position, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)) ||
              FindUnoccupiedRoute(actor, position, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)).Count > 0));
@@ -272,7 +280,7 @@ public sealed partial class PrivateWorldRuntime
     private bool TryCollectHouseholdServing(string actor, PlaytestInhabitantState state, InventoryLot food,
         string operationId, string purpose, string movementReason)
     {
-        if (FreeCarryCapacity(actor) < 1 || AvailableLotQuantity(food) < 1 ||
+        if (FreeCarryCapacity(actor) < 1 || AvailableLotQuantity(food) < 1 || food.CarrierId is not null ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId || food.OwnerId != householdId)
             return false;
         var supplyPoint = HouseholdStockPosition(food);

@@ -33,6 +33,8 @@ If New World asks for matching updates, update the game and have the server
 updated too. Keep your current device pairing; pairing again does not repair
 that version mismatch. You can still reconnect to the existing world.
 
+Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
+
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
@@ -163,6 +165,17 @@ and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
+
+Press **F12** in a world to open **Developer tools** at the right edge of the
+screen, and again to close them; **Escape** closes them once nothing newer is
+open. Time keeps running. The panel shows the coordinates and facts of the last
+tile under the pointer, the frame time, the tick time (how long the server took
+to work out the latest step of world time) and how many agents are living.
+Choose an agent in its list to select them and move the camera to them, and
+turn on **Show planned path** to draw the route they are walking, as the server
+planned it. The panel also holds the aging override, recovery for a request
+whose reply was lost, paused world editing and paired-device management. The
+aging override and world editing need the world paused first.
 
 The optional model-call limit counts hosted call attempts across this
 installation, including failed, retried or abandoned attempts. It is not a

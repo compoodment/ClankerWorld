@@ -230,7 +230,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var additions = new List<MapResource>();
         var townStorage = SettlementStoragePosition;
@@ -726,7 +726,9 @@ public sealed partial class PrivateWorldRuntime
         ContentQuantity input, string constructionOwner)
     {
         var project = state.Project!;
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
+        // Only the agent's own goods; borrowed household goods are not theirs to give.
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
+            PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
             lot.ContainerLotId is null && lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null &&
             AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
@@ -986,7 +988,7 @@ public sealed partial class PrivateWorldRuntime
             if (candidates.Any(candidate => candidate.Id == "assist:" + itemKind)) continue;
             if (!CanReceiveProjectAssistance(request)) continue;
             var hasCarriedMaterial = society.Checkpoint.Inventory.Lots.Any(lot =>
-                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
+                    lot.OwnerId == helperId && PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
                     lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0);
             if (hasCarriedMaterial || MaterialSource(itemKind, helperId) is { } source &&
@@ -1015,7 +1017,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         // A load already on its way into a household building is not spare.
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, helperId) &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == helperId &&
+            PersonalEquipmentRules.IsCarried(lot, helperId) &&
             lot.ContainerLotId is null && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
             AvailableLotQuantity(lot) > 0);
         if (carried is null)

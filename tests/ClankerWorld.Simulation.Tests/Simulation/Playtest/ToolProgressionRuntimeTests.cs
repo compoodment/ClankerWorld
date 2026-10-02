@@ -280,8 +280,9 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
         Assert.Contains(world.ExportState().Events, item =>
             item.Kind == "equipment_collected" && item.Detail == $"{actor}:{itemKind}");
+        // The household lends its tool: it stays household property while the agent carries it.
         var collected = Assert.Single(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == actor && lot.ItemKind == itemKind);
+            lot.OwnerId == "household:camp-alpha" && lot.CarrierId == actor && lot.ItemKind == itemKind);
         Assert.Equal(1, collected.Quantity);
         Assert.Null(collected.StorageBuildingId);
         Assert.Null(collected.GroundPosition);
