@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -38,6 +39,11 @@ public sealed partial class PrivateWorldRuntimeTests
             lot.OwnerId == HarvestInstructionActor && lot.ItemKind == itemKind && lot.Quantity == 4);
         Assert.Contains(harvest.InstructionId, state.CompletedInstructionIds ?? []);
         Assert.DoesNotContain(eat.InstructionId, state.CompletedInstructionIds ?? []);
+        var messages = new OwnerWorldObservationStore(world).GetSnapshot().Instructions;
+        var closedHarvest = Assert.Single(messages, item => item.InstructionId == harvest.InstructionId);
+        Assert.Equal("completed", closedHarvest.State);
+        Assert.Equal("finished", closedHarvest.Order!.Status);
+        Assert.Equal("queued", Assert.Single(messages, item => item.InstructionId == eat.InstructionId).State);
         var harvestRequest = Assert.Single(provider.Requests, request =>
             request.InhabitantId == HarvestInstructionActor);
         Assert.Contains(harvestRequest.Candidates, candidate => candidate.Id == "harvest_food" &&

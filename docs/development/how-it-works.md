@@ -126,7 +126,10 @@ every tick.
 
 Local order steps can continue while a hosted reply is pending. An accepted
 decision and a local continuation do not execute the same order twice in one
-tick. Urgent survival uses the normal unrestricted legal candidates before
+tick. If local work finishes first, a valid reply to that exact original
+request can still record that the model heard the message. Its old action is
+discarded before execution; cancelled or replaced tasks cannot use this path.
+Urgent survival uses the normal unrestricted legal candidates before
 resuming the task, and repeated eating respects the normal fullness threshold.
 Gathering and collecting household food check free carrying capacity before
 starting a step. A provider fallback leaves the order blocked for a bounded

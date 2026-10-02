@@ -48,7 +48,7 @@ public sealed partial class ViewerHttpTests
                     cancellation, OwnerHttpBinding.OrderCancelPayload(cancellation));
                 using var tampered = await client.PostAsJsonAsync(cancellationPath,
                     signed with { Action = cancellation with { OrderId = "another-order" } });
-                Assert.False(tampered.IsSuccessStatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, tampered.StatusCode);
                 Assert.Equal(beforeTamper, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
 
                 var unauthenticatedEnvelope = await CreateSignedRequestAsync(host, client, key, deviceId,
@@ -83,6 +83,10 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(orderReceipt.InstructionId, cancellationReceipt.OrderId);
                 Assert.Equal("cancelled", cancellationReceipt.Status);
                 Assert.True(cancellationReceipt.Changed);
+                var message = Assert.Single(new OwnerWorldObservationStore(runtime).GetSnapshot().Instructions,
+                    item => item.InstructionId == orderReceipt.InstructionId);
+                Assert.Equal("completed", message.State);
+                Assert.Equal("cancelled", message.Order!.Status);
 
                 var stateFile = host.Services.GetRequiredService<PrivateWorldStateFile>();
                 var saved = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(stateFile.Path));
