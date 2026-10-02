@@ -639,7 +639,7 @@ the protected government-change process. Its creation, term and elections are
 agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
 
-**Current implementation, not yet confirmed by computment:** the first
+**Current implementation:** the first
 accepted Town layout records title to the connected land inside its initial
 border, and later border growth makes room for the Town without adding title.
 That follows answer 19A, that a boundary change does not by itself change
@@ -649,12 +649,17 @@ assigned to each household; the shared Warehouse remains Town property.
 Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
-on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. Whether title grows with
-the Town, how much land comes with a starter use right, and whether reassigning
-a building should move its starter use right remain open. Because new grants
-use existing Town-owned land, the first answer decides where later households
-can receive use rights.
+on its footprint. Following the owner's October 2 answer on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426), reassigning a
+household building carries its existing footprint use right to the new
+household. The rest of a larger plot stays with its holder, even when the
+footprint splits it into separate plots. Town title and grant terms stay
+unchanged; disputed, expired or differently held rights prevent reassignment.
+A field does not override a use right, and disputed land is always refused.
+The owner also approved Council-controlled claims to adjoining unclaimed land
+and Council-approved requests for extra expansion tiles, recorded in
+[#768](https://github.com/compoodment/ClankerWorld/pull/768). Those actions
+remain separate implementation work; reassignment grants no new tiles.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
