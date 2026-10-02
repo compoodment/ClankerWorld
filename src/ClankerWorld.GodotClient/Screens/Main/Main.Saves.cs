@@ -428,7 +428,7 @@ public partial class Main
                 value => font.GetStringSize(value, HorizontalAlignment.Left, -1, size).X);
             if (title.Text != name) title.TooltipText = name;
             var began = lane.ForkSave?.Name ?? lane.Branch?.StartedFromName;
-            var origin = began is null ? string.Empty : $" · {lane.Title} began at ‘{began}’";
+            var origin = began is null ? string.Empty : $" · {lane.Title} began at \"{began}\"";
             text.AddChild(Line($"{DisplayWorldClock(chosen.WorldTick)} · Saved {GameUiText.SavedAgo(chosen.CreatedUtc, DateTimeOffset.Now)}{origin}", "DimLabel"));
             var grown = SaveTimelineLayout.BranchesFrom(manualSaveTimeline.Lanes, chosen);
             var grew = grown switch
@@ -453,7 +453,7 @@ public partial class Main
     {
         if (listedTimelinePosition is not { } position || manualSaveTimeline.NowLane is not { } lane) return null;
         var from = position.ContinuedFromId is { } id ? allListedManualSaves.FirstOrDefault(save => save.Id == id) : null;
-        var playing = from is null ? string.Empty : $"Playing on from ‘{(from.IsAutosave ? "Autosave" : from.Name)}’. ";
+        var playing = from is null ? string.Empty : $"Playing on from \"{(from.IsAutosave ? "Autosave" : from.Name)}\". ";
         var next = manualSaveLoadMode ? "Your next save" : "Your new save";
         return lane.IsUnsaved
             ? $"{playing}{next} starts Branch {lane.ColorNumber.ToString(CultureInfo.InvariantCulture)}, and your other saves stay as they are."
@@ -626,7 +626,7 @@ public partial class Main
                 if (IsLatestInBranch(save, allListedManualSaves)) tags.Add(new SlotTag("Latest"));
                 // The first card of each branch says where that branch began.
                 if (BranchKey(save) != previousBranch && save.Branch?.StartedFromName is { } from)
-                    detail += $" · Branched from ‘{from}’";
+                    detail += $" · Branched from \"{from}\"";
             }
             previousBranch = BranchKey(save);
             if (save.IsAutosave) tags.Add(new SlotTag("Automatic", Note: true));

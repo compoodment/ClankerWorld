@@ -101,7 +101,7 @@ public partial class Main
                 manualSaveViewChoice.Selected != 0 || manualSaveTimeline.Lanes.Count != 5 || manualSaveTimeline.NowLane?.IsUnsaved != true)
                 throw new InvalidOperationException("Load Save must open on the timeline, with its key and a row for the new branch.");
             if (!Details().Contains("You are here", StringComparison.Ordinal) ||
-                !Details().Contains("Playing on from ‘Before the flood’. Your next save starts Branch 4", StringComparison.Ordinal) ||
+                !Details().Contains("Playing on from \"Before the flood\". Your next save starts Branch 4", StringComparison.Ordinal) ||
                 !manualSaveLoadButton.Disabled)
                 throw new InvalidOperationException($"With nothing chosen, the card must say where the world continues: {Details()}.");
             var card = manualSaveCard.GetGlobalRect();
@@ -154,7 +154,7 @@ public partial class Main
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!manualSaveTimeline.Visible || !manualSaveNewBox.Visible || manualSaveList.Visible ||
                 manualSaveTimeline.Lanes.Count != 4 || manualSaveTimeline.NowLane?.Key != "a" ||
-                !Details().Contains("Playing on from ‘Big harvest’. Your new save continues Branch 1.", StringComparison.Ordinal))
+                !Details().Contains("Playing on from \"Big harvest\". Your new save continues Branch 1.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Save World must draw the timeline and say where the new save goes: {Details()}.");
             Click("auto");
             if (Chosen() is not null || !manualSaveOverwriteButton.Disabled)
