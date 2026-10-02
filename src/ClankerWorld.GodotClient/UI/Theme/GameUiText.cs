@@ -186,10 +186,12 @@ public static class GameUiText
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
+            "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
-            "housing_blocked" or "paused" or "resumed";
+            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
     /// <summary>
@@ -301,6 +303,23 @@ public static class GameUiText
             return normalized.StartsWith("lesson_decline:", StringComparison.Ordinal) || normalized == "lesson_cancel"
                 ? "turn down or stop a lesson" : "take a lesson";
         }
+        if (normalized.StartsWith("civic|", StringComparison.Ordinal))
+            return normalized.Split('|').ElementAtOrDefault(2) switch
+            {
+                "visit" => "visit the Town notice place",
+                "read" => "read Town notices",
+                "relay" => "relay Town notices",
+                "nominate" => "nominate a council candidate",
+                "request_admission" => "propose a newcomer's admission",
+                "register" or "remainder" => "agree to stand for council",
+                "withdraw_candidate" => "withdraw a candidacy",
+                "propose" => "propose a Town rule",
+                "admission" => "request Town admission",
+                "yes" or "no" => "vote on a Town proposal",
+                "withdraw_proposal" => "withdraw a proposal",
+                "ballot" or "single" => "cast a council election ballot",
+                _ => "take part in Town affairs",
+            };
         if (normalized.StartsWith("council_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("council_propose:", StringComparison.Ordinal) ? "suggest a food rule"

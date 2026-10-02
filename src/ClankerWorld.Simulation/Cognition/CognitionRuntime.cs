@@ -21,7 +21,8 @@ public sealed record CognitionIntention(
     long RunEpoch,
     long DecisionGeneration,
     string ObservationDigest,
-    CognitionUsage? Usage = null);
+    CognitionUsage? Usage = null,
+    string? OperativeOrderInstructionId = null);
 
 public sealed record CognitionRequestRecord(
     CognitionDecisionRequest Request,
@@ -64,6 +65,7 @@ public sealed record CognitionAdmissionResult(
     string Outcome,
     CognitionIntention? Intention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
+    string? CivicProposal = null, IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionObserverGuidanceResult? ObserverGuidance = null);
 
 /// <summary>
@@ -239,7 +241,8 @@ public sealed class CognitionRuntime
                 request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest,
-                response.Usage);
+                response.Usage,
+                request.Observation.OperativeOrderInstructionId);
             currentIntention = intention;
             RetireInFlight(CognitionRequestState.Applied, "provider_decision", intention, response.Usage);
             AppendEvent(request.Observation.WorldTick, "cognition_decision_applied", $"{response.Provider}:{candidate.Id}");
@@ -266,6 +269,7 @@ public sealed class CognitionRuntime
                 "provider_decision",
                 intention,
                 response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
+                response.CivicProposal, response.CivicBallot,
                 observedGuidance);
         }
     }
@@ -420,7 +424,8 @@ public sealed class CognitionRuntime
             request.Observation.WorldTick,
             request.Observation.RunEpoch,
             request.Observation.DecisionGeneration,
-            request.Observation.ObservationDigest);
+            request.Observation.ObservationDigest,
+            OperativeOrderInstructionId: request.Observation.OperativeOrderInstructionId);
         currentIntention = intention;
         RetireInFlight(CognitionRequestState.Fallback, reason, intention);
         AppendEvent(request.Observation.WorldTick, "cognition_fallback_applied", $"{reason}:{candidate.Id}");

@@ -168,6 +168,7 @@ public sealed class HouseholdBuildingPreparationDeliveryTests
             var spareTool = world.Society.Inventory.GetLot("prep-house-tool");
             Assert.Equal(Household, spareTool.OwnerId);
             Assert.Equal(house.InstanceId, spareTool.StorageBuildingId);
+            Assert.Null(spareTool.CarrierId);
             Assert.Equal(1, spareTool.Quantity);
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == "prep-house-tool" &&
                 lot.OwnerId == actor);
