@@ -168,8 +168,11 @@ public partial class Main
                 !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
                 terrainLayer.HouseholdPropertyTileCount != 1 ||
                 !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
-                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+                !TileCardText().Contains("Fertility\nGood", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Field · growing cultivated greens", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Household\nFarm household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("3 cultivated greens", StringComparison.Ordinal))
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must show on the tile card and fit at 200% interface size: " + TileCardText());
             householdPropertyFilter.ButtonPressed = false;
             selectedTile = null;
             selectedTilePanel.Hide();
@@ -1264,6 +1267,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyPanelParts();
+            VerifyMapPanels();
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
@@ -1433,8 +1437,13 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Selected-tile inspection must open inside the world view: map={mapCanvas.GetGlobalRect()} card={selectedTilePanel.GetGlobalRect()}.");
-            if (selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException($"Selected-tile facts must fit without an inner scrollbar: content={selectedTileText.GetContentHeight()} visible={selectedTileText.Size.Y}.");
+            // The card names the ground and lists each fact in plain words; climate has its own row.
+            if (tileTitle.Text != "Meadow" || tileSubtitle.Text != "Tile 1, 1" ||
+                !TileCardText().Contains("Climate\nTemperate", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Height\nMiddle · 123 of 255", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Town\nFirst Town", StringComparison.Ordinal) ||
+                selectedTilePanel.GetCombinedMinimumSize().Y > selectedTilePanel.Size.Y + 1)
+                throw new InvalidOperationException("The tile card must name the ground, give climate its own row and fit its facts: " + TileCardText());
             var ownedMap = sample with
             {
                 PlacedBuildings = [.. sample.PlacedBuildings,
@@ -1494,16 +1503,19 @@ public partial class Main
             selectedTile = new Vector2I(2, 2);
             selectedTilePanel.Show();
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Tile inspection must show the household property, its use right and Town title.");
+            // The visible card, not only the hidden plain text, must carry the land facts.
+            if (!TileCardText().Contains("Household\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Land title\nFirst Town", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("The tile card must show the household property, its use right and Town title: " + TileCardText());
             selectedTile = new Vector2I(1, 1);
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Pending use request: Other household", StringComparison.Ordinal) ||
+            if (!TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use request\nOther household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Disputed\nFounder's household; Other household", StringComparison.Ordinal) ||
                 !selectedTileText.Text.Contains("Disputed household claims: Founder's household; Other household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Tile inspection must list each household's use claim and the dispute.");
+                throw new InvalidOperationException("The tile card must list each household's use claim and the dispute: " + TileCardText());
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
