@@ -702,6 +702,7 @@ public sealed class OwnerWorldObservationStore
         };
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
         {
             decisionFactors.Add(new ViewerDecisionFactor("birth-model-provider", birthProvider));
@@ -842,7 +843,8 @@ public sealed class OwnerWorldObservationStore
             position,
             lastPhysical.HungerBasisPoints,
             [],
-            [
+            new ViewerDecisionFactor[]
+            {
                 new("personality", lastPhysical.Personality),
                 new("aspiration", lastPhysical.Aspiration),
                 new("age-band", inhabitant.AgeBand.ToString().ToLowerInvariant()),
@@ -855,7 +857,7 @@ public sealed class OwnerWorldObservationStore
                 new("will-heir", estate?.WillBeneficiaryId is { } heirId
                     ? state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == heirId)?.Name ?? heirId
                     : ""),
-            ],
+            }.Concat(IdentityMomentFactors(lastPhysical)).ToArray(),
             new ViewerRoute("deceased", null, null, [], string.Empty),
             new ViewerSpatialKnowledge(position, [position], [position]),
             IsDraft: false)
@@ -1030,6 +1032,15 @@ public sealed class OwnerWorldObservationStore
         SocietyRelationshipState.EndedByDeath => "ended_by_death",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+
+    private static IEnumerable<ViewerDecisionFactor> IdentityMomentFactors(PlaytestInhabitantState physical) =>
+        (physical.IdentityMoments ?? []).Where(moment => moment.Outcome == "accepted")
+            .Select(moment => new ViewerDecisionFactor("identity-change", moment.Reason + ": " +
+                string.Join("; ", new[]
+                {
+                    moment.Personality is null ? null : "Personality: " + moment.Personality,
+                    moment.Aspiration is null ? null : "Aspiration: " + moment.Aspiration,
+                }.Where(text => text is not null))));
 
     private static ViewerEquipment EquipmentFor(PrivateWorldRuntimeState state, PlaytestInhabitantState person)
     {

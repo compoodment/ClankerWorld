@@ -102,8 +102,16 @@ illness where known. It also gives their latest private thought, a few relevant
 memories and some places they know. Newly placed adults can choose their own
 personality and aspiration in their first personal-model reply. The choice is
 saved and shown on their profile. A missing or invalid choice keeps "undecided"
-and "find a purpose" without an extra call; later replies cannot overwrite it.
-Children's initial identity and later life changes are still unfinished. The household
+and "find a purpose" without an extra call; routine replies cannot overwrite it.
+At the middle of life, becoming a parent or elder, or losing a partner or
+parent, an agent gets one separate chance to reconsider its personality and
+aspiration using its selected personal model. Each kind of moment is offered
+once, for up to five extra model requests in a life. The agent may keep its
+current choices. Missing or invalid replies, a pause, disconnection or a reload
+while waiting keep the current identity and do not automatically retry the
+opportunity. Accepted changes and their reasons appear on the profile and
+survive saving. These moments never change names or choose a physical action.
+Children's initial identity is still unfinished. The household
 and Town are sent by their recorded names. Models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
