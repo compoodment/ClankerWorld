@@ -127,6 +127,17 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<OwnerWorldPosition> BorderTiles);
 
+public sealed record OwnerWorldLandTitle(string Id, string TownId, IReadOnlyList<OwnerWorldPosition> Tiles,
+    long RecordedTick);
+
+public sealed record OwnerWorldHouseholdLandUseRight(string Id, string TownId, string HouseholdId,
+    IReadOnlyList<OwnerWorldPosition> Tiles, long GrantedTick, string GrantSource, long? AgreedEndTick);
+
+public sealed record OwnerWorldHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
+    string RequestedByAgentId, IReadOnlyList<OwnerWorldPosition> Tiles, long RequestedTick,
+    long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
+    IReadOnlyList<OwnerWorldPosition> DisputedTiles);
+
 public sealed record OwnerWorldInhabitant(
     string Id,
     string DisplayName,
@@ -186,7 +197,9 @@ public sealed record OwnerWorldInstruction(
     string State,
     long SubmittedTick,
     long RunEpoch,
-    long SubmissionSequence);
+    long SubmissionSequence,
+    long? ObservedTick = null,
+    string? ObserverReply = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -260,7 +273,14 @@ public sealed record OwnerWorldPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null,
+    int? ResidentLimit = null,
+    int PermanentResidentCount = 0,
+    bool HasDominantFamily = false,
+    bool IsOvercrowded = false)
+{
+    public bool AllowsHouseholdOwner { get; init; }
+}
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -346,6 +366,9 @@ public sealed record OwnerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
+    public IReadOnlyList<OwnerWorldLandTitle> TownLandTitles { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHouseholdLandUseRight> HouseholdLandUseRights { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHouseholdLandUseRequest> HouseholdLandUseRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
@@ -437,7 +460,11 @@ public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, in
     }
 }
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
-    bool IsAutosave = false);
+    bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
+    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
+/// <summary>One version of a world's history; saves from before branches have none.</summary>
+public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
+    string? StartedFromName = null, long? StartedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
@@ -623,6 +650,20 @@ public sealed record OwnerBuildingPlacementAction(
     int X,
     int Y);
 
+public sealed record OwnerBuildingRemovalAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string WorldId);
+
+public sealed record OwnerBuildingReassignmentAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string? TargetTownId,
+    string? TargetHouseholdId,
+    string WorldId);
+
 public sealed record OwnerProductionStartAction(
     string RecipeId,
     string BuildingInstanceId,
@@ -634,6 +675,13 @@ public sealed record OwnerBuildingPlacementResult(
     string DefinitionId,
     OwnerWorldPosition Position,
     string? Failure);
+
+public sealed record OwnerBuildingManagementResult(
+    bool Applied,
+    string InstanceId,
+    string? Failure,
+    string? TownId = null,
+    string? HouseholdId = null);
 
 public sealed record OwnerProductionStartResult(
     bool Applied,

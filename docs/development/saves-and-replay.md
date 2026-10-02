@@ -56,6 +56,14 @@ choice after its inputs become unavailable; validation only accepts that flag
 on a paused project without a linked job. Older schemas carrying equipment
 records are refused. No migration is added.
 
+Private-world schema 38 retains a building's definition identity in completed
+or cancelled expansion history after an owner removes that building. A
+building with active production or expansion work cannot be removed or
+reassigned, and a household's last Farmhouse stays assigned until its field
+work finishes. Town membership, building assignments and physical inventory
+locations are validated together; older alpha saves need not load and no
+migration is provided.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -156,6 +164,25 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 40 saves each inhabitant's explicit domestic family unit
+and primary caregiver, plus the caregiver, intended home and actual birth home
+for an agreed parenthood plan. Birth records retain the caregiver and actual
+household. House resident counts and limits are derived from active household
+members, recorded family units and the completed building footprint; they are
+not separately mutable counters. Current-format roundtrips preserve pending
+family decisions and births without inferring a family group from ancestry or
+household membership. Older alpha checkpoints need not load; no migration is
+provided.
+
+Private-world schema 41 records each owner's exact pending message, target,
+submission identity, whether a personal model observed it, and its optional
+short reply. The one-fresh-decision prompt tick is scheduling state, not a read
+receipt. Accepted replies stay attached to the original message ID; pause,
+reload or a stale result cannot transfer them to a newer message. Current
+schema saves require the instruction and completion records and validate their
+target, ordering and tick bounds. Earlier alpha instruction records need not
+load; no message migration is provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -229,23 +256,35 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 37. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 44. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
-with ground harvest lots, bounded conversations with daily allowances, and
-selected garments/carry aids with timed equipment repairs and exact reservations.
-These fields retain their current validation and roundtrip behavior.
+with ground harvest lots, bounded conversations with daily allowances, personal
+equipment with timed repairs and exact reservations, reusable container lots
+with their contents, locations, owners and reservations, explicit domestic
+family and caregiver/birth-home records, owner messages with whether a personal
+model heard them and any short reply, tool-lot links for saved field and
+recipe work, per-agent life-moment identity opportunities with their outcomes,
+and connected Town-title plots, household use rights and pending use requests.
+Land records are checked against the saved map, Towns, households and one
+another before load. These fields retain their current validation and roundtrip
+behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
-Feature thresholds, such as schema 33 for a birth-model descriptor and schema 34
-for fields and ground lots, and schema 35 for conversations, record when those
-fields were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
+for fields and ground lots, schema 35 for conversations, schema 36 for terrain
+and weather generation, schema 37 for personal equipment, schema 38 for building
+assignments, schema 39 for reusable containers, schema 40 for domestic family
+and caregiver records, schema 41 for owner-message delivery, schema 42 for
+selected tools on saved field and recipe work, schema 43 for life-moment
+identity and schema 44 for Town land records, record when those fields or
+behaviors were introduced; they do not allow an earlier checkpoint schema past
+the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -269,6 +308,13 @@ current alpha cutoff.
 | Schema 35 | Bounded resumable agent conversations and daily participation budgets. Accepted public turns and session facts are saved; pending model replies and private prose are not. Older builds refuse these checkpoints instead of discarding conversations. |
 | Schema 36 | New-world patchy beaches, denser forests, desert-only cacti and the reduced default wet-weather preset. Earlier alpha checkpoints are refused and preserved rather than changing their saved map. |
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
+| Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
+| Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
+| Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
+| Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
+| Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
+| Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
+| Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -314,8 +360,9 @@ write cost are not yet measured.
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 these copies have no settled retention policy. Rotating autosaves are a separate
-mechanism and must not delete another world's checkpoints. Updating autosave
-configuration trims only that configured world, including rotation off.
+mechanism and must not delete another world's checkpoints, or another branch's.
+Updating autosave configuration trims only that configured world, including
+rotation off, and counts each branch's autosaves separately.
 
 Load and overwrite validate required manual-save metadata before creating a
 recovery backup or changing the active world. Malformed JSON, missing save
@@ -341,7 +388,7 @@ while the rest of the world list stays available.
 A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.
-- Named and rotating saves in `.manual`.
+- Named and rotating saves in `.manual`, with each world's branch record.
 - The adjacent `.autosave.json` schedule and saved-tick metadata.
 - The world catalog and its archived worlds.
 - Pairing authority, protected provider configuration and usage accounting.
@@ -357,6 +404,48 @@ The September 2026 internal-identifier reset was an explicitly approved
 pre-release fresh-save/new-pairing exception. It never permits deleting saves.
 During alpha an older save may stop loading, but it is refused with a reason and
 kept. Finished releases follow the migration promise in [Saves](../game-design/saves.md).
+
+### Save branches
+
+Loading an older save and playing on starts a new branch instead of mixing two
+histories in one list ([design](../game-design/saves.md#agreed)). Each save's
+metadata records its branch (an opaque ID, a number for display and the save it
+started from), its position within that branch and the save it continued from,
+with that save's creation time.
+A per-world record in `.manual` (`timeline-` plus a hash of the world ID) says
+which branch and save the running world continues from. Loading a save moves it
+to that save; every new save moves it to the new save. These are save metadata
+only: checkpoints, events and replay are unchanged.
+
+A new save continues the recorded branch unless something else on that branch
+has a higher position. Positions advance even while paused and survive deletion
+of intermediate saves, so equal world ticks do not mix separate histories.
+Otherwise the save starts a branch numbered
+one higher than any the world has used. Overwriting a slot moves it into the
+running world's branch; its recovery copy keeps the old branch and position.
+The fork decision uses the loaded save before rebinding it to that recovery copy.
+
+Before loading, the host saves the world being left as **Before loading**, so its
+unsaved progress stays on its own branch. After a successful load, the record
+keeps a fingerprint of the loaded world after the host's required pause, as well
+as the stored checkpoint's fingerprint. It skips the copy only when the world
+still matches that loaded state, the stored checkpoint remains readable and
+unchanged, and model routing and autosave choices match. Browsing running
+autosaves therefore does not create empty branches, while a missing or damaged
+checkpoint cannot replace a recovery copy. If loading fails, the branch record
+is restored along with the world.
+
+The branch record is written before a new save's metadata is published, so an
+interruption leaves it pointing at an unlisted save whose position still keeps the
+next save on the same branch. A missing or damaged record never blocks saving:
+the next save starts a new branch, with a warning in the log. A save whose own
+branch fields are damaged stays listed, without a branch. Saves made before
+branches existed have none either; Load World groups them as **Earlier saves**,
+and playing on from one starts a new branch. Autosave rotation leaves saves
+with damaged branch fields alone, since their histories cannot safely be
+grouped; genuinely branchless earlier autosaves still rotate together.
+Deleting a world removes its
+branch record with its saves.
 
 ## Validation boundaries
 

@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Content;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-/// <summary>Household House and on-site rope and basket crafts.</summary>
+/// <summary>The household-owned House and its on-site rope, basket and pottery crafts.</summary>
 public static class HouseContent
 {
     public const string PackageId = "clankerworld-house-v1";

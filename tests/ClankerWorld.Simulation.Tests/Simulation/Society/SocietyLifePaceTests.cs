@@ -195,7 +195,7 @@ public sealed class SocietyLifePaceTests
         society = SocietyFixture.SetLifePace(SocietyFixture.Pause(society).Checkpoint, 1_460).Checkpoint;
         society = SocietyFixture.AdvanceTo(SocietyFixture.Resume(society).Checkpoint, 1_000).Checkpoint;
         var birth = SocietyFixture.CommitBirth(society, new("baby", 1, "alice", "bob", "home", ["alice", "bob"],
-            ["alice", "bob"], "food", 1, society.WorldTick));
+            ["alice", "bob"], "food", 1, society.WorldTick, PrimaryCaregiverId: "alice"));
         society = birth.Checkpoint;
         var child = society.GetInhabitant(birth.CreatedId!);
         Assert.Equal(1_000, child.BirthTick);
