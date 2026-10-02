@@ -189,7 +189,19 @@ public sealed partial class PrivateWorldRuntime
         var townIds = towns.Where(item => item.BorderTiles.Contains(position) ||
                 TownLandRightsRules.IsCoveredByTownTitle(position, item.Id, townLandTitles))
             .Select(item => item.Id);
-        return AgentPlacementRules.Resolve(householdOwners, townIds);
+        var membership = AgentPlacementRules.Resolve(householdOwners, townIds);
+        // Only a household that holds a House has resident places to fill; one
+        // with only a Farmhouse or field can still take a new member.
+        if (membership.HouseholdPropertyOwnerId is { } householdId && HouseForHousehold(householdId) is not null)
+        {
+            var proposed = SocietyFixture.CreateFounder(agentId, "New agent", config: society.Checkpoint.Config) with
+            {
+                HouseholdId = householdId,
+            };
+            if (!CanFitHouseResident(householdId, proposed))
+                throw new InvalidOperationException("The household's House has no free resident place. Complete an expansion before placing another resident.");
+        }
+        return membership;
     }
 
     private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position)
@@ -231,6 +243,13 @@ public sealed partial class PrivateWorldRuntime
         {
             if (founderSetup is null || !society.Checkpoint.Inhabitants.Any(person => person.Id == agentId))
                 throw new ArgumentException("Choose an agent in this world.", nameof(agentId));
+            ArgumentNullException.ThrowIfNull(name);
+            var existing = society.Checkpoint.GetInhabitant(agentId);
+            if (existing.Name == name.Trim() && !existing.NeedsName) return false;
+            if (InhabitantNameRules.CanonicalKey(name) is null)
+                throw new ArgumentException("Choose a valid name.", nameof(name));
+            if (existing.Name != name.Trim() && InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
+                throw new InhabitantNameTakenException();
             var result = society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name));
             var changed = result.NewEvents is { Count: > 0 };
             if (changed) AppendEvent("agent_renamed", agentId);

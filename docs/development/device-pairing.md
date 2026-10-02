@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # Device pairing
@@ -107,6 +107,16 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+## Building ownership changes
+
+Building removal and reassignment payloads require the observed simulation world
+ID as well as the expected Town and household ownership. The host verifies that
+world ID under the runtime mutation gate before changing a building. A request
+formed for a previously selected world is refused without changing the active
+world or its saved checkpoint, even when both worlds use the same building IDs.
+A removal confirmation retains the world and owners shown when it opened;
+observation refreshes cannot silently authorize a different ownership change.
+
 ## Response-loss recovery
 
 Instructions and paused-authoring batches are server-idempotent, but a client
@@ -196,6 +206,13 @@ cover capacity recovery and signed owner availability; chunked-body enforcement
 is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
 
 ## Bounded owner actions
+
+Starting pairing, polling its status and activating the device each have a
+15-second deadline, or the HTTP client's shorter configured timeout. The
+deadline includes reading the response body after successful headers. A stalled
+body releases the connection controls so the player can try again; caller
+cancellation also stops the request. A lost activation reply can still be
+recovered through the existing active-pairing status check.
 
 Signed actions have a 15-second deadline over the complete challenge/sign/send/read
 operation, or the HTTP client's shorter configured timeout. Load World allows up

@@ -80,6 +80,32 @@ public sealed partial class DocumentationTests
         }
     }
 
+    [Fact]
+    public void ChangelogEntriesStartWithABullet()
+    {
+        var root = FindRepositoryRoot();
+        var entries = Directory
+            .EnumerateFiles(Path.Combine(root, "changes"), "*.md")
+            .Where(path => Path.GetFileName(path) != "README.md")
+            .Order(StringComparer.Ordinal);
+        var notBullets = new List<string>();
+        foreach (var path in entries)
+        {
+            // Match scripts/collect-changes.sh: drop CRs and leading empty lines, keep a BOM.
+            var text = Encoding.UTF8.GetString(File.ReadAllBytes(path))
+                .Replace("\r", "", StringComparison.Ordinal)
+                .TrimStart('\n');
+            if (!text.StartsWith("- ", StringComparison.Ordinal))
+            {
+                notBullets.Add(Relative(root, path));
+            }
+        }
+
+        Assert.True(
+            notBullets.Count == 0,
+            $"Changelog entries must start with a \"- \" bullet (see changes/README.md): {string.Join(", ", notBullets)}");
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

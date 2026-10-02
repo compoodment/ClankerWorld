@@ -5,8 +5,11 @@ namespace ClankerWorld.GodotClient.UI;
 /// <summary>
 /// Draws generated pixel art in 32-units-per-tile coordinates, scaled to the
 /// target resolution, with alpha blending and clipping to one image cell.
+/// With <paramref name="snap"/> set, every blended pixel is stored on the
+/// nearest 8-bit step (<see cref="PixelArt.Snap"/>), so approved art drawn
+/// with part-transparent colours matches its reviewed pictures exactly.
 /// </summary>
-internal readonly struct PixelCanvas(Image image, Rect2I cell, float unit)
+internal readonly struct PixelCanvas(Image image, Rect2I cell, float unit, bool snap = false)
 {
     public float Unit => unit;
 
@@ -164,6 +167,7 @@ internal readonly struct PixelCanvas(Image image, Rect2I cell, float unit)
     {
         if (x < 0 || y < 0 || x >= cell.Size.X || y >= cell.Size.Y) return;
         var target = cell.Position + new Vector2I(x, y);
-        image.SetPixelv(target, image.GetPixelv(target).Blend(color));
+        var blended = image.GetPixelv(target).Blend(color);
+        image.SetPixelv(target, snap ? PixelArt.Snap(blended) : blended);
     }
 }

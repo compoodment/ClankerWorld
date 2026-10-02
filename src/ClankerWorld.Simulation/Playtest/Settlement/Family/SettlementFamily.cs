@@ -46,8 +46,8 @@ public sealed partial class PrivateWorldRuntime
     private bool CanProposePartnership(string actor, string other) => actor != other &&
         AvailablePartner(actor) && AvailablePartner(other) &&
         !CloseKin(actor, other) &&
-        society.Checkpoint.GetInhabitant(actor).HouseholdId is { } household &&
-        society.Checkpoint.GetInhabitant(other).HouseholdId == household &&
+        society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
+        society.Checkpoint.GetInhabitant(other).HouseholdId is not null &&
         !Partnerships(actor).Any(item => (item.ProposerId == other || item.TargetId == other) &&
             WorldTick - Math.Max(item.ProposedTick, item.EffectiveTick) < worldSystems.Config.TicksPerDay) &&
         TrustScore(actor, other) > 0;
