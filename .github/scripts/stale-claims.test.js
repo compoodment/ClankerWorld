@@ -8,10 +8,15 @@ const hoursAgo = hours => new Date(Now - hours * 60 * 60 * 1000).toISOString();
 // A small fake of the GitHub API: issues and pull requests share numbers, as on GitHub.
 // `pushes` maps a branch to the times it was pushed, as the repository activity log reports them.
 function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}, pushes = {}, beforeCommit = () => {},
-  beforeRemove = () => {}, beforeAdd = () => {}, beforeComment = () => {} }) {
+  beforeRemove = () => {}, beforeAdd = () => {}, beforeComment = () => {}, remaining = undefined }) {
+  const lookups = [];
   const records = new Map();
   for (const issue of issues) records.set(issue.number, { pull_request: undefined, state: 'open', ...issue });
-  for (const pr of prs) records.set(pr.number, { state: 'open', draft: false, body: '', ...pr, pull_request: {} });
+  // Pull requests come from this repository unless a test gives head.repo itself.
+  for (const pr of prs) {
+    const head = { repo: { full_name: 'compoodment/ClankerWorld' }, ...pr.head };
+    records.set(pr.number, { state: 'open', draft: false, body: '', ...pr, head, pull_request: {} });
+  }
   const posted = [];
   const github = {
     rest: {
@@ -47,6 +52,7 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
       },
       repos: {
         getCommit: async ({ ref }) => {
+          lookups.push(['commit', ref]);
           beforeCommit({ ref, records, comments, events });
           if (!(ref in commits)) throw Object.assign(new Error('missing'), { status: 404 });
           return { data: { commit: { committer: { date: commits[ref] } } } };
@@ -55,6 +61,7 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
     },
     request: async (route, { ref }) => {
       if (route !== 'GET /repos/{owner}/{repo}/activity') throw new Error(`unexpected ${route}`);
+      lookups.push(['activity', ref]);
       if (pushes[ref] instanceof Error) throw pushes[ref];
       return { data: (pushes[ref] ?? []).map(timestamp => ({ activity_type: 'push', ref: `refs/heads/${ref}`, timestamp })).reverse() };
     },
@@ -68,15 +75,18 @@ function world({ issues = [], prs = [], comments = {}, events = {}, commits = {}
       throw new Error(`unexpected ${method}`);
     },
   };
+  if (remaining !== undefined) github.rest.rateLimit = { get: async () => ({ data: { resources: { core: { remaining } } } }) };
+  const warnings = [];
   const run = (dryRun = false) => releaseStaleClaims({
-    github, context: { repo: { owner: 'compoodment', repo: 'ClankerWorld' } }, core: { info() {} }, now: Now, dryRun,
+    github, context: { repo: { owner: 'compoodment', repo: 'ClankerWorld' } },
+    core: { info() {}, warning: message => warnings.push(message) }, now: Now, dryRun,
   });
-  return { records, posted, run };
+  return { records, posted, run, lookups, warnings, github };
 }
 
 const claimed = (number, hours) => ({ [number]: [{ event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(hours) }] });
 
-test('an issue claim with no work for 4 hours goes back to the queue', async () => {
+test('an issue claim with no pushed work goes back to the queue', async () => {
   const state = world({
     issues: [{ number: 1, labels: ['type:feature', 'priority:p2', 'status:in-progress'] }],
     events: claimed(1, 5),
@@ -87,6 +97,24 @@ test('an issue claim with no work for 4 hours goes back to the queue', async () 
   assert.equal(state.posted.length, 1);
   assert.match(state.posted[0].body, /Claim released/);
   assert.match(state.posted[0].body, /No pushed work was found/);
+});
+
+test('issue and review claims last 1.5 hours from the last push', async () => {
+  for (const [hours, kept] of [[1.4, true], [1.6, false]]) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress', 'status:has-pr'] }],
+      prs: [
+        { number: 8, draft: true, body: 'Closes #1', labels: [], created_at: hoursAgo(10), head: { sha: 'issue-head', ref: 'codex/1' } },
+        { number: 9, labels: ['status:reviewing', 'status:needs-review'], created_at: hoursAgo(10), head: { sha: 'review-head', ref: 'codex/9' } },
+      ],
+      events: { ...claimed(1, 10), 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(10) }] },
+      commits: { 'issue-head': hoursAgo(10), 'review-head': hoursAgo(10) },
+      pushes: { 'codex/1': [hoursAgo(hours)], 'codex/9': [hoursAgo(hours)] },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), kept, `issue at ${hours}h`);
+    assert.equal(state.records.get(9).labels.includes('status:reviewing'), kept, `review at ${hours}h`);
+  }
 });
 
 test('a recent commit on a linked draft keeps the claim', async () => {
@@ -114,7 +142,7 @@ test('a recent comment alone does not keep the claim, but a push to a branch nam
       2: [{ body: 'Working on branch `codex/2-fix`.', created_at: hoursAgo(9) }],
       3: [{ body: 'Working on branch `codex/3-fix`.', created_at: hoursAgo(9) }],
     },
-    commits: { 'codex/2-fix': hoursAgo(2), 'codex/3-fix': hoursAgo(9) },
+    commits: { 'codex/2-fix': hoursAgo(1), 'codex/3-fix': hoursAgo(9) },
     pushes: { 'codex/3-fix': [hoursAgo(9), hoursAgo(1)] },
   });
   await state.run();
@@ -167,7 +195,7 @@ test("the script's own comments never count as work, and a dry run changes nothi
   assert.deepEqual(real.records.get(1).labels, ['status:needs-pr']);
 });
 
-test('review claims are released after 2 hours without a push', async () => {
+test('review claims are released without a recent push', async () => {
   const reviewing = (number, hours) => ({ [number]: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(hours) }] });
   const state = world({
     prs: [
@@ -200,15 +228,43 @@ test('comments and edits keep no review claim, so claims cannot hold a place in 
   assert.match(state.posted.find(note => note.number === 9).body, /Review claim released: nothing was pushed/);
 });
 
-test('owner-wait review claims remain claimed', async () => {
+test('review claims are released even when waiting on the owner', async () => {
   const state = world({
     prs: [{ number: 9, labels: ['status:reviewing', 'status:needs-decision'], head: { sha: 'old', ref: 'codex/9' } }],
     events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(6) }] },
     commits: { old: hoursAgo(8) },
   });
   await state.run();
-  assert.ok(state.records.get(9).labels.includes('status:reviewing'));
-  assert.equal(state.posted.length, 0);
+  assert.ok(!state.records.get(9).labels.includes('status:reviewing'));
+  assert.ok(state.records.get(9).labels.includes('status:needs-decision'));
+  assert.match(state.posted.find(note => note.number === 9).body, /Review claim released/);
+});
+
+test('the review release note names the head the claim left', async () => {
+  const sha = '0123456789abcdef0123456789abcdef01234567';
+  const state = world({
+    prs: [{ number: 9, labels: ['status:reviewing', 'status:needs-review'], head: { sha, ref: 'codex/9' } }],
+    events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(3) }] },
+    commits: { [sha]: hoursAgo(4) },
+  });
+  await state.run();
+  assert.equal(state.posted.find(note => note.number === 9).body,
+    '<!-- claim-check -->\nReview claim released: nothing was pushed for 1.5 hours (head 01234567). ' +
+    'Anyone may claim it when they start reviewing, including the reviewer whose claim lapsed.');
+});
+
+test("an owner wait keeps an issue claim only from the issue or the claimant's own draft", async () => {
+  const pr = (number, issue, draft, ref) => ({ number, draft, body: `Refs #${issue}`, labels: ['status:needs-decision'],
+    created_at: hoursAgo(10), head: { sha: 'old', ref } });
+  const state = world({
+    issues: [1, 2, 3].map(number => ({ number, labels: ['status:in-progress'] })),
+    prs: [pr(7, 1, true, 'codex/1-part'), pr(8, 2, true, 'codex/design'), pr(9, 3, false, 'codex/3-part')],
+    events: { ...claimed(1, 8), ...claimed(2, 8), ...claimed(3, 8) }, commits: { old: hoursAgo(10) },
+  });
+  await state.run();
+  assert.ok(state.records.get(1).labels.includes('status:in-progress'), "the claimant's draft");
+  assert.deepEqual(state.records.get(2).labels, ['status:needs-pr'], "another agent's draft");
+  assert.deepEqual(state.records.get(3).labels, ['status:needs-pr'], 'a ready pull request');
 });
 
 test('a freshly opened draft keeps an issue claim even when its commit is older', async () => {
@@ -238,7 +294,7 @@ test('a recent push of older commits keeps the claim, but comments and edits on 
   }
 });
 
-test("pushes to another agent's ready pull request that mentions the issue keep no claim", async () => {
+test("pushes to another agent's draft or ready pull request that mentions the issue keep no claim", async () => {
   for (const draft of [true, false]) {
     const state = world({
       issues: [{ number: 1, labels: ['status:in-progress'] }],
@@ -248,7 +304,75 @@ test("pushes to another agent's ready pull request that mentions the issue keep 
       pushes: { 'codex/design': [hoursAgo(10), hoursAgo(0.1)] },
     });
     await state.run();
-    assert.equal(state.records.get(1).labels.includes('status:in-progress'), draft, `draft: ${draft}`);
+    assert.deepEqual(state.records.get(1).labels, ['status:needs-pr'], `draft: ${draft}`);
+    const note = state.posted.find(c => c.number === 1).body;
+    assert.doesNotMatch(note, /Continue draft/, `draft: ${draft}`);
+    assert.equal(state.posted.some(c => c.number === 9), false, `draft: ${draft}`);
+  }
+});
+
+test("a draft that only refers to the issue keeps the claim when it is the claimant's branch", async () => {
+  const cases = [
+    ['codex/1-part', [], true],
+    ['claude/issue-1-x', [], true],
+    ['codex/1', [], true],
+    ['1-fix', [], true],
+    ['claude/random', [{ body: 'Working on this on `claude/random`.', created_at: hoursAgo(8) }], true],
+    ['claude/random', [], false],
+    ['codex/12-fix', [], false],
+    ['codex/x-1-fix', [], false],
+  ];
+  for (const [ref, comments, kept] of cases) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress'] }],
+      prs: [{ number: 9, draft: true, body: 'Refs #1', labels: [], created_at: hoursAgo(10), head: { sha: 'abc', ref } }],
+      events: claimed(1, 8), commits: { abc: hoursAgo(9) }, comments: { 1: comments },
+      pushes: { [ref]: [hoursAgo(10), hoursAgo(0.1)] },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), kept, `${ref} named: ${comments.length > 0}`);
+  }
+});
+
+test("the release note names the claimant's own Refs draft, not another agent's", async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    prs: [
+      { number: 8, draft: true, body: 'Refs #1', labels: [], created_at: hoursAgo(10), head: { sha: 'other', ref: 'codex/design' } },
+      { number: 9, draft: true, body: 'Refs #1', labels: [], created_at: hoursAgo(10), head: { sha: 'mine', ref: 'codex/1-part' } },
+    ],
+    events: claimed(1, 8), commits: { other: hoursAgo(9), mine: hoursAgo(9) },
+    pushes: { 'codex/design': [hoursAgo(0.1)] },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:needs-pr']);
+  assert.match(state.posted.find(c => c.number === 1).body, /Continue draft #9 \(`codex\/1-part`\)/);
+  assert.ok(state.posted.some(c => c.number === 9));
+  assert.equal(state.posted.some(c => c.number === 8), false);
+});
+
+test('the release note names a ready pull request that refers to the issue, not its branch', async () => {
+  for (const withDraft of [false, true]) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress'] }],
+      prs: [
+        { number: 9, body: 'Refs #1', labels: [], created_at: hoursAgo(10), head: { sha: 'abc', ref: 'codex/1-work' } },
+        ...(withDraft ? [{ number: 10, draft: true, body: 'Closes #1', labels: [], created_at: hoursAgo(10),
+          head: { sha: 'def', ref: 'codex/1-rest' } }] : []),
+      ],
+      events: claimed(1, 8), commits: { abc: hoursAgo(9), def: hoursAgo(9), 'codex/1-work': hoursAgo(9) },
+      comments: { 1: [{ body: 'Working on this on branch `codex/1-work`.', created_at: hoursAgo(8) }] },
+      pushes: { 'codex/1-work': [hoursAgo(9), hoursAgo(0.1)] },
+    });
+    await state.run();
+    assert.deepEqual(new Set(state.records.get(1).labels),
+      new Set(withDraft ? ['status:needs-pr', 'status:has-pr'] : ['status:needs-pr']), `with draft: ${withDraft}`);
+    const note = state.posted.find(c => c.number === 1).body;
+    assert.match(note, /Ready pull request #9 refers to this issue and is with its reviewer: read what it says remains before starting, and don't push to its branch\./);
+    assert.doesNotMatch(note, /Check `codex\/1-work`/);
+    assert.doesNotMatch(note, /No pushed work was found/);
+    assert.equal(/Continue draft #10/.test(note), withDraft, `with draft: ${withDraft}`);
+    assert.equal(state.posted.some(c => c.number === 9), false);
   }
 });
 
@@ -302,6 +426,26 @@ test('a reclaim immediately before removal survives cleanup without a queue labe
   assert.equal(state.posted.length, 0);
 });
 
+test("an owner wait that starts on the claimant's draft during removal restores the claim", async () => {
+  for (const ref of ['codex/1-part', 'codex/design']) {
+    let waited = false;
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress'] }],
+      prs: [{ number: 9, draft: true, body: 'Refs #1', labels: [], head: { sha: 'old', ref } }],
+      events: claimed(1, 8), commits: { old: hoursAgo(8) },
+      beforeRemove({ issue_number, name, records }) {
+        if (issue_number === 1 && name === 'status:in-progress' && !waited) {
+          waited = true; records.get(9).labels = ['status:needs-decision'];
+        }
+      },
+    });
+    await state.run();
+    const own = ref === 'codex/1-part';
+    assert.deepEqual(state.records.get(1).labels, own ? ['status:in-progress'] : ['status:needs-pr'], ref);
+    assert.equal(state.posted.length, own ? 0 : 1, ref);
+  }
+});
+
 test('ready handoff during cleanup cannot restore needs-pr', async () => {
   let handedOff = false;
   const state = world({
@@ -345,6 +489,151 @@ test('the latest named branch is checked instead of five historical branches', a
   });
   await state.run();
   assert.ok(state.records.get(1).labels.includes('status:in-progress'));
+});
+
+test('file paths in comments cannot crowd out the claimed branch or be named as one', async () => {
+  const paths = ['docs/a.md', 'src/B.cs', '.github/workflows/', 'origin/main', 'docs/c.md', 'src/D/E.cs'];
+  for (const lastPush of [1, 5]) {
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 9),
+      comments: { 1: [
+        { body: 'Working on this on `codex/1-fix`.', created_at: hoursAgo(9) },
+        { body: `Touched ${paths.map(path => `\`${path}\``).join(', ')}.`, created_at: hoursAgo(2) },
+      ] },
+      commits: { 'codex/1-fix': hoursAgo(9) },
+      pushes: { 'codex/1-fix': [hoursAgo(9), hoursAgo(lastPush)] },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), lastPush === 1, `last push ${lastPush}h ago`);
+    if (lastPush === 5) {
+      const note = state.posted.find(c => c.number === 1).body;
+      assert.match(note, /Check `codex\/1-fix` for earlier work/);
+      assert.doesNotMatch(note, /docs\//);
+    }
+  }
+});
+
+test('the newest five real branches are checked, however many paths come first', async () => {
+  for (const [count, kept] of [[5, true], [6, false]]) {
+    const branches = Array.from({ length: count }, (_, index) => `codex/1-try-${index}`);
+    const state = world({
+      issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 9),
+      // The oldest named branch is the only one pushed recently.
+      comments: { 1: [...branches.map((name, index) => ({ body: `Now on \`${name}\`.`, created_at: hoursAgo(9 - index) })),
+        { body: `Touched ${Array.from({ length: 25 }, (_, index) => `\`docs/p${index}.md\``).join(', ')}.`, created_at: hoursAgo(2) }] },
+      commits: Object.fromEntries(branches.map(name => [name, hoursAgo(9)])),
+      pushes: { [branches[0]]: [hoursAgo(9), hoursAgo(1)] },
+    });
+    await state.run();
+    assert.equal(state.records.get(1).labels.includes('status:in-progress'), kept, `${count} branches`);
+  }
+});
+
+test('names that look like files are never looked up, and a fresh claim looks up no branches', async () => {
+  const stale = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 9),
+    comments: { 1: [{ body: 'On `codex/1-fix`; touched `docs/a.md`, `src/B.cs` and `.github/workflows/`.', created_at: hoursAgo(9) }] },
+    commits: { 'codex/1-fix': hoursAgo(9) }, pushes: { 'codex/1-fix': [hoursAgo(9)] },
+  });
+  await stale.run(true);
+  assert.ok(stale.lookups.length > 0);
+  assert.ok(stale.lookups.every(([, ref]) => ref === 'codex/1-fix'), JSON.stringify(stale.lookups));
+  const fresh = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 0.5),
+    comments: { 1: [{ body: 'On `codex/1-fix`.', created_at: hoursAgo(0.5) }] },
+    commits: { 'codex/1-fix': hoursAgo(0.5) },
+  });
+  await fresh.run();
+  assert.deepEqual(fresh.lookups, []);
+  assert.ok(fresh.records.get(1).labels.includes('status:in-progress'));
+});
+
+test('a failure part-way through a release puts the claim back', async () => {
+  const state = world({ issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 8) });
+  state.github.rest.issues.createComment = async () => { throw Object.assign(new Error('rate limited'), { status: 403 }); };
+  await assert.rejects(state.run(), /rate limited/);
+  assert.ok(state.records.get(1).labels.includes('status:in-progress'));
+});
+
+test('a run stops before releasing anything when the API budget is low', async () => {
+  const state = world({ issues: [{ number: 1, labels: ['status:in-progress'] }], events: claimed(1, 8), remaining: 20 });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
+  assert.match(state.warnings[0], /Stopping early/);
+});
+
+test('every branch of a stack named in the claim comment keeps each claim of the stack', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }, { number: 2, labels: ['status:in-progress'] }],
+    prs: [{ number: 9, draft: true, body: 'Closes #1', labels: [], head: { sha: 'abc', ref: 'claude/1-fix' } }],
+    events: { ...claimed(1, 3), ...claimed(2, 3) },
+    comments: { 2: [{ body: 'Stack: `claude/1-fix` then `claude/2-fix`.', created_at: hoursAgo(3) }] },
+    commits: { abc: hoursAgo(3), 'claude/1-fix': hoursAgo(3) },
+    pushes: { 'claude/1-fix': [hoursAgo(3), hoursAgo(0.2)] },
+  });
+  await state.run();
+  assert.ok(state.records.get(1).labels.includes('status:in-progress'));
+  assert.ok(state.records.get(2).labels.includes('status:in-progress'));
+});
+
+test('ending an owner wait restarts the clock instead of releasing the claim at once', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    events: { 1: [
+      { event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(4) },
+      { event: 'labeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(3) },
+      { event: 'unlabeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(0.05) },
+    ] },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
+});
+
+test('ending an owner wait on the claimant\'s draft restarts the clock too', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    prs: [{ number: 9, draft: true, body: 'Closes #1', labels: [], created_at: hoursAgo(5),
+      head: { sha: 'abc', ref: 'codex/1-fix' } }],
+    commits: { abc: hoursAgo(4.5) },
+    events: {
+      ...claimed(1, 6),
+      9: [
+        { event: 'labeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(4) },
+        { event: 'unlabeled', label: { name: 'status:needs-decision' }, created_at: hoursAgo(0.1) },
+      ],
+    },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
+});
+
+test('a review claim on a pull request from a deleted fork does not count pushes to main', async () => {
+  const state = world({
+    prs: [{ number: 9, labels: ['status:reviewing'], created_at: hoursAgo(10),
+      head: { sha: 'old', ref: 'main', repo: null } }],
+    commits: { old: hoursAgo(10) },
+    pushes: { main: [hoursAgo(0.2)] },
+    events: { 9: [{ event: 'labeled', label: { name: 'status:reviewing' }, created_at: hoursAgo(5) }] },
+  });
+  await state.run();
+  assert.ok(!state.records.get(9).labels.includes('status:reviewing'));
+});
+
+test('adding the claim label again after a release starts a fresh claim', async () => {
+  const state = world({
+    issues: [{ number: 1, labels: ['status:in-progress'] }],
+    events: { 1: [
+      { event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(8) },
+      { event: 'unlabeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(6) },
+      { event: 'labeled', label: { name: 'status:in-progress' }, created_at: hoursAgo(0.5) },
+    ] },
+  });
+  await state.run();
+  assert.deepEqual(state.records.get(1).labels, ['status:in-progress']);
+  assert.equal(state.posted.length, 0);
 });
 
 test('manual cleanup is restricted to main and checks out main explicitly', () => {
