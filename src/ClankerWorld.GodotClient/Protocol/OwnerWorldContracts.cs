@@ -127,6 +127,17 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<OwnerWorldPosition> BorderTiles);
 
+public sealed record OwnerWorldLandTitle(string Id, string TownId, IReadOnlyList<OwnerWorldPosition> Tiles,
+    long RecordedTick);
+
+public sealed record OwnerWorldHouseholdLandUseRight(string Id, string TownId, string HouseholdId,
+    IReadOnlyList<OwnerWorldPosition> Tiles, long GrantedTick, string GrantSource, long? AgreedEndTick);
+
+public sealed record OwnerWorldHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
+    string RequestedByAgentId, IReadOnlyList<OwnerWorldPosition> Tiles, long RequestedTick,
+    long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
+    IReadOnlyList<OwnerWorldPosition> DisputedTiles);
+
 public sealed record OwnerWorldInhabitant(
     string Id,
     string DisplayName,
@@ -355,6 +366,9 @@ public sealed record OwnerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
+    public IReadOnlyList<OwnerWorldLandTitle> TownLandTitles { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHouseholdLandUseRight> HouseholdLandUseRights { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHouseholdLandUseRequest> HouseholdLandUseRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;

@@ -32,7 +32,7 @@ test alone does not make it available in the game.
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
-| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and household/Town filters. General land claims are not recorded. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
+| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches and date/time formats. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
@@ -164,7 +164,7 @@ summaries remain unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Parenthood, life stages and death | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but founding or joining another Town, broader law, currencies and land disputes remain unfinished. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but leaving or changing a household, founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
 
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
 gold or diamond outcrop. The goods remain in their carried stock. Trial mining
@@ -183,14 +183,19 @@ remain unfinished. Memories do not automatically pass to children.
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
 building away from the Roads gets a new side street. Town borders and
-building-site ranking are provisional. Add Agent uses the recorded tile
-ownership: one household-owned building footprint sets the household, and one
-Town border also gives Town membership. Unclaimed land in one Town gives Town
-membership without a household; land outside a Town starts an independent
-household. Overlapping household footprints or Town borders are refused, and
-the server checks the preview against current records again when the adult is
-placed. Walking does not change membership. An adult with no household cannot
-build a House. Instead they can ask a household that holds a House with a free
+building-site ranking are provisional. The first accepted layout records Town
+title over its then-connected land; later border expansion does not add title.
+Starter household use rights cover the footprints of the buildings assigned to
+each household. Add Agent uses building/field ownership and recorded use
+rights, then Town title or border: one clear household claim sets the household,
+and land claimed by one Town gives Town membership. A building's current owner
+comes before another household's use right on its footprint, so a reassigned
+building places new agents with its new owner. A lone pending use request does
+not create household membership. Disputed land and other conflicting claims are
+refused for a new placement, but do not move existing residents or stop
+ordinary movement and work. The server checks the preview against current
+records again when the adult is placed. Walking does not change membership. An
+adult with no household cannot build a House. Instead they can ask a household that holds a House with a free
 resident place in their Town to take them in. Every adult member of that household must agree within
 the same short window as other proposals; one refusal or no answer ends the
 request, and that household is not asked again for two world days. Standing
