@@ -374,6 +374,16 @@ everything that is available in the current build. See [what works today](../wha
   relationships and memories; old conversation text remains as originally
   spoken rather than being rewritten to use the new name.
 
+**Existing agreed order handling, from September 30:** the agent card's
+**Speak to them** box sends a message as **Suggest** or **Order**. An order
+that asks for nothing the game can act on, such as "build a house" in the
+current prototype, is accepted and closed at once, and the Event Log says the
+agent did not understand it. It uses no model request and does not hold up
+later suggestions or orders to that agent. An order the game understands but
+that cannot be carried out yet, such as "eat" while the agent carries no food,
+keeps waiting, including across saves. It is checked again only when the agent
+next makes one of its usual decisions, never on every tick.
+
 **Current prototype status (October 1):** agents receive the original observer
 words and the understood task in their next ordinary personal-model request;
 sending a message does not create an extra request. The implemented order set

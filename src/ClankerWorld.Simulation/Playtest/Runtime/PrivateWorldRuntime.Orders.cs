@@ -121,6 +121,12 @@ public sealed partial class PrivateWorldRuntime
         var order = instruction.Order!;
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
+        // An order step interrupts timed repair work, as any other chosen action does.
+        if (inhabitants[actor].Equipment?.Repair is not null)
+        {
+            CancelEquipmentRepair(actor);
+            person = inhabitants[actor];
+        }
         switch (candidate.Id)
         {
             case "consume_food":

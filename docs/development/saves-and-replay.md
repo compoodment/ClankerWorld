@@ -64,7 +64,7 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
-Private-world schema 39 stores recognized food-order targets, progress, retry
+Private-world schema 43 stores recognized food-order targets, progress, retry
 state, cancellation receipts and their exact actor/world identity alongside the
 original owner instructions. Loading validates these records together so an
 unrelated action or a stale order cannot advance a replacement task. Alpha saves
@@ -263,7 +263,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 42. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 43. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -273,8 +273,9 @@ with ground harvest lots, bounded conversations with daily allowances, personal
 equipment with timed repairs and exact reservations, reusable container lots
 with their contents, locations, owners and reservations, explicit domestic
 family and caregiver/birth-home records, owner messages with whether a personal
-model heard them and any short reply, and tool-lot links for saved field and
-recipe work. These fields retain their current validation and roundtrip behavior.
+model heard them and any short reply, tool-lot links for saved field and recipe
+work, and food-order targets, progress, retry state and cancellation receipts.
+These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -283,10 +284,11 @@ Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 36 for terrain
 and weather generation, schema 37 for personal equipment, schema 38 for building
 assignments, schema 39 for reusable containers, schema 40 for domestic family
-and caregiver records, schema 41 for owner-message delivery, and schema 42 for
-selected tools on saved field and recipe work, record when those fields or
-behaviors were introduced; they do not allow an earlier checkpoint schema past
-the current alpha cutoff.
+and caregiver records, schema 41 for owner-message delivery, schema 42 for
+selected tools on saved field and recipe work, and schema 43 for food-order
+progress and cancellations, record when those fields or behaviors were
+introduced; they do not allow an earlier checkpoint schema past the current
+alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -315,6 +317,7 @@ the current alpha cutoff.
 | Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 | Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 | Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
+| Schema 43 | Recognized food orders keep their target, requested and completed units, retry state and status, plus cancellation receipts tied to the exact world, actor and order. Progress records the physical effect that earned it, so an unrelated action or a stale order cannot advance a replacement task. Earlier alpha checkpoints are refused and preserved; no order migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
