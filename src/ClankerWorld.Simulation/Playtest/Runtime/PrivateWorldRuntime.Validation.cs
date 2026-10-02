@@ -501,12 +501,15 @@ public sealed partial class PrivateWorldRuntime
                 item.InstructionId == cancellation.OrderId);
             if (cancellation is null || string.IsNullOrWhiteSpace(cancellation.IdempotencyKey) ||
                 cancellation.IdempotencyKey.Length > 128 || cancellation.IdempotencyKey.Any(char.IsControl) ||
+                cancellation.IdempotencyKey != cancellation.IdempotencyKey.Trim() ||
                 !cancellationKeys.Add(cancellation.IdempotencyKey) ||
                 string.IsNullOrWhiteSpace(cancellation.IssuerId) || cancellation.IssuerId.Length > 128 ||
-                cancellation.IssuerId.Any(char.IsControl) || cancellation.WorldId != worldId ||
+                cancellation.IssuerId.Any(char.IsControl) || cancellation.IssuerId != cancellation.IssuerId.Trim() ||
+                cancellation.WorldId != worldId ||
                 cancellation.TargetInhabitantId != instruction?.TargetInhabitantId ||
                 instruction?.Kind != OwnerInstructionKind.MustDo || instruction.Order is null ||
                 cancellation.Receipt is null || cancellation.Receipt.OrderId != cancellation.OrderId ||
+                cancellation.Receipt.Status is not ("finished" or "cancelled" or "not_understood") ||
                 cancellation.Receipt.Status != instruction.Order.Status ||
                 cancellation.Receipt.Changed && cancellation.Receipt.Status != "cancelled" ||
                 cancellation.Receipt.WorldTick < 0 || cancellation.Receipt.WorldTick > checkpoint.WorldTick ||

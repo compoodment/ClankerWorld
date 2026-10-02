@@ -63,7 +63,7 @@ public sealed partial class PrivateWorldRuntime
                     {
                         if (!society.Checkpoint.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active) ||
                             society.CurrentProviderEpoch(id) != pending.Request.ProviderEpoch ||
-                            society.Checkpoint.RunEpoch != pending.Request.Observation.RunEpoch)
+                            !IsOrderDecisionObservationCurrent(pending.Request.Observation))
                         {
                             CancelPendingHosted(id);
                         }
@@ -528,15 +528,7 @@ public sealed partial class PrivateWorldRuntime
                     if (!inhabitants.TryGetValue(id, out var physical)) continue;
                     var outcome = await item.Task.ConfigureAwait(false);
                     var request = item.Request;
-                    var completedRequestedOrder = request.Observation.OperativeOrderInstructionId is { } requestedOrderId &&
-                        request.Observation.WorldId == society.Checkpoint.WorldId &&
-                        request.Observation.RunEpoch == society.Checkpoint.RunEpoch &&
-                        request.Observation.ObserverGuidance?.Any(message => message.InstructionId == requestedOrderId &&
-                            message.TargetInhabitantId == id && message.Kind == "must_do") == true &&
-                        instructionsByIdempotency.Values.Any(instruction =>
-                            instruction.InstructionId == requestedOrderId && instruction.TargetInhabitantId == id &&
-                            instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order?.Status == "finished" &&
-                            completedInstructionIds.Contains(requestedOrderId));
+                    var completedRequestedOrder = IsFinishedOrderDecisionAwaitingReply(request.Observation);
                     var legal = completedRequestedOrder
                         ? request.Observation.Candidates.Select(candidate => candidate.Id)
                             .ToHashSet(StringComparer.Ordinal)

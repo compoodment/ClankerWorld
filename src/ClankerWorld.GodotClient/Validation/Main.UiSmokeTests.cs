@@ -2455,6 +2455,41 @@ public partial class Main
                 renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal) ||
                 !instructionCancelButton.Visible || instructionCancelButton.Text != "Cancel task")
                 throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
+            var queuedOrderSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-active-order", founder.Id, "must_do",
+                        "Eat three berries you carry.", "queued", 0, 0, 1,
+                        Order: new OwnerWorldInstructionOrder("consume_food", "doing", 3, 2, "food_items", false)),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-queued-order-{index}",
+                        founder.Id, "must_do", $"Gather berries from queued site {index}.", "queued", 0, 0, 1 + index,
+                        Order: new OwnerWorldInstructionOrder("harvest_food", "queued", 1, 0, "harvests", false))),
+                ],
+            };
+            RenderSelectedInhabitantCard(queuedOrderSnapshot);
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Doing · Eating food · 2/3 food items\n“You said: Eat three berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Gather berries from queued site 4.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Gather berries from queued site 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Gather berries from queued site 1.", StringComparison.Ordinal) ||
+                renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4 ||
+                !instructionCancelButton.Visible || PendingOrderToCancel(queuedOrderSnapshot, founder.Id)?.InstructionId != "message-active-order")
+                throw new InvalidOperationException($"Four queued orders must not hide the active task, its progress or the task Cancel targets: {renderedMessages}");
+            RenderSelectedInhabitantCard(queuedOrderSnapshot with
+            {
+                Instructions =
+                [
+                    .. queuedOrderSnapshot.Instructions,
+                    new OwnerWorldInstruction("message-new-suggestion", founder.Id, "suggestive",
+                        "Try the sunny riverbank next.", "queued", 0, 0, 6),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Eat three berries you carry.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion waiting for their personal model\n“You said: Try the sunny riverbank next.”", StringComparison.Ordinal) ||
+                renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4)
+                throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));
             var alreadyUnrecognized = OrderCancellationResultText(

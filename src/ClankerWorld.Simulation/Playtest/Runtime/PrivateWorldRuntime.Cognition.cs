@@ -26,7 +26,14 @@ public sealed partial class PrivateWorldRuntime
         var waitingHosted = society.PendingHostedInhabitantIds();
         var waitingOrderDecisions = cognitionState.Queue
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
-                entry.Observation.OperativeOrderInstructionId is not null)
+                entry.Observation.OperativeOrderInstructionId is not null &&
+                IsOrderDecisionObservationCurrent(entry.Observation))
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
+        var staleOrderDecisions = cognitionState.Queue
+            .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
+                entry.Observation.OperativeOrderInstructionId is not null &&
+                !IsOrderDecisionObservationCurrent(entry.Observation))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
@@ -81,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
                     .ToList();
             }
             var current = runtimes[inhabitant.Id].CurrentIntention;
-            if (!namingRetries.Contains(inhabitant.Id) &&
+            if (!namingRetries.Contains(inhabitant.Id) && !staleOrderDecisions.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;
@@ -196,6 +203,32 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private bool IsOrderDecisionObservationCurrent(InhabitantObservation observation) =>
+        observation.WorldId == society.Checkpoint.WorldId &&
+        observation.RunEpoch == society.Checkpoint.RunEpoch &&
+        (observation.OperativeOrderInstructionId == PendingInstructionFor(observation.InhabitantId)?.InstructionId ||
+            IsFinishedOrderDecisionAwaitingReply(observation));
+
+    private bool IsFinishedOrderDecisionAwaitingReply(InhabitantObservation observation)
+    {
+        if (observation.OperativeOrderInstructionId is not { } orderId ||
+            observation.WorldId != society.Checkpoint.WorldId ||
+            observation.RunEpoch != society.Checkpoint.RunEpoch)
+            return false;
+        var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+            item.InstructionId == orderId && item.TargetInhabitantId == observation.InhabitantId &&
+            item.Kind == OwnerInstructionKind.MustDo && item.Order?.Status == "finished" &&
+            item.ObserverReply is null && completedInstructionIds.Contains(orderId));
+        // Local work can finish while its original personal reply is held.
+        // Keep that exact message available for acknowledgement, never execution.
+        return instruction is not null && observation.ObserverGuidance?.Any(message =>
+            message.InstructionId == orderId && message.IssuerId == instruction.IssuerId &&
+            message.TargetInhabitantId == instruction.TargetInhabitantId && message.Kind == "must_do" &&
+            message.Text == instruction.Text && message.SubmittedTick == instruction.SubmittedTick &&
+            message.RunEpoch == instruction.RunEpoch && message.SubmissionSequence == instruction.SubmissionSequence &&
+            message.UnderstoodTask == UnderstoodTaskFor(instruction.Order?.Action) && message.ReplyAllowed) == true;
+    }
+
     private bool NeedsCognition(
         string inhabitantId,
         CognitionIntention? current,
@@ -215,6 +248,12 @@ public sealed partial class PrivateWorldRuntime
         {
             return true;
         }
+
+        // Cancellation or replacement ends an order-bound intention even when
+        // its generic food candidate remains legal for ordinary personal plans.
+        if (current?.OperativeOrderInstructionId is { } orderId &&
+            orderId != PendingInstructionFor(inhabitantId)?.InstructionId)
+            return true;
 
         if (PendingInstructionFor(inhabitantId) is { Order: { } order })
         {
@@ -361,6 +400,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+
+            if (intention.OperativeOrderInstructionId is not null &&
+                intention.OperativeOrderInstructionId != order?.InstructionId)
+                continue;
 
             if (intention.CandidateId.StartsWith("civic|", StringComparison.Ordinal))
             {

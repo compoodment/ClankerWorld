@@ -92,10 +92,7 @@ public partial class Main
             SetStatus("Wait for the world to load before cancelling an order.", good: false);
             return;
         }
-        var order = current.Baseline.Snapshot.Instructions
-            .Where(item => item.TargetInhabitantId == selectedInhabitantId &&
-                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
-            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        var order = PendingOrderToCancel(current.Baseline.Snapshot, selectedInhabitantId);
         if (order is null)
         {
             SetStatus("This agent has no waiting or active order to cancel.", good: false);

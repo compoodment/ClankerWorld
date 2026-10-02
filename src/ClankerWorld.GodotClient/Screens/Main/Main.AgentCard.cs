@@ -681,10 +681,12 @@ public partial class Main
             ? "None recorded yet."
             : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
                 .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
-        // Show the newest four, but never let newer closed messages hide one still open.
+        // Keep the task that Cancel task targets, then the newest open messages
+        // before closed ones, within the same four-message history.
+        var pendingOrder = PendingOrderToCancel(snapshot, inhabitant.Id);
         var recentInstructions = snapshot.Instructions
             .Where(item => item.TargetInhabitantId == inhabitant.Id)
-            .OrderBy(item => item.State == "completed")
+            .OrderBy(item => item.InstructionId == pendingOrder?.InstructionId ? 0 : item.State == "completed" ? 2 : 1)
             .ThenByDescending(item => item.SubmissionSequence)
             .Take(4)
             .OrderBy(item => item.SubmissionSequence)
@@ -697,9 +699,6 @@ public partial class Main
                 return $"{status}\n“You said: {item.Text}”{reply}";
             })
             .ToArray();
-        var pendingOrder = snapshot.Instructions.Where(item => item.TargetInhabitantId == inhabitant.Id &&
-                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
-            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
         instructionCancelButton.Visible = !isDeceased && pendingOrder is not null;
         instructionCancelButton.Disabled = isOwnerAction || pendingSubmission is not null || registration is null || deviceKey is null;
         SetPanelText(instructionHistory, recentInstructions.Length == 0
@@ -728,6 +727,11 @@ public partial class Main
         PositionSelectedInhabitantCard(snapshot);
         PositionAgentProfile();
     }
+
+    private static OwnerWorldInstruction? PendingOrderToCancel(OwnerWorldSnapshot snapshot, string? inhabitantId) =>
+        snapshot.Instructions.Where(item => item.TargetInhabitantId == inhabitantId &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
 
     private static string InstructionOrderSummary(OwnerWorldInstruction instruction)
     {
