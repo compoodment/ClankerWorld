@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace ClankerWorld.GodotClient.UI;
 
@@ -6,6 +7,30 @@ namespace ClankerWorld.GodotClient.UI;
 public static class WorldEventText
 {
     public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    private static string DescribeDeveloperEdit(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        try
+        {
+            var edit = JsonSerializer.Deserialize<OwnerDeveloperEditAction>(detail);
+            if (edit is null) return "Developer edit.";
+            var name = Name(snapshot, edit.AgentId);
+            var value = GameUiText.HumanizeIdentifier(edit.Value).ToLowerInvariant();
+            var change = edit.Operation switch
+            {
+                "set_need" => $"{name}'s {value} set to {edit.Amount}%",
+                "give_goods" => $"{name} received {edit.Amount} {value}",
+                "remove_goods" => $"removed {edit.Amount} {value} from {name}",
+                "add_skill" => $"added {value} skill to {name}",
+                "remove_skill" => $"removed {value} skill from {name}",
+                "start_partnership" => $"started a partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                "end_partnership" => $"ended the partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                _ => "saved a change",
+            };
+            return "Developer edit: " + change + ".";
+        }
+        catch (JsonException) { return "Developer edit."; }
+    }
 
     public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
         snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
@@ -25,6 +50,7 @@ public static class WorldEventText
 
         return worldEvent.Kind switch
         {
+            "developer_edit" => DescribeDeveloperEdit(worldEvent.Detail, snapshot),
             "world_created" => "A new world has begun.",
             "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",

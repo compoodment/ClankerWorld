@@ -68,6 +68,7 @@ public partial class Main
             ThemeTypeVariation = "DimLabel",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
+        BuildDeveloperEdits();
         BuildDeveloperLifePace();
         BuildDeveloperRecovery();
         BuildDeveloperAuthoring();

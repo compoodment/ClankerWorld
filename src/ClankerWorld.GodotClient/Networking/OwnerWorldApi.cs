@@ -264,6 +264,12 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentRename(action),
             action, deviceKey, cancellationToken);
 
+    public Task<OwnerControlReceipt> ApplyDeveloperEditAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerDeveloperEditAction action, IOwnerDeviceSigner signer, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerDeveloperEditAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerDeveloperEdit, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.DeveloperEdit(action),
+            action, signer, cancellationToken);
+
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {
