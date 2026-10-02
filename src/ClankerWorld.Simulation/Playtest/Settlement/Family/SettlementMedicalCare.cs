@@ -89,7 +89,8 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? MedicalSupplyAtHand(string caregiver) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.ItemKind == "medicine" && lot.ContainerLotId is null && lot.GroundPosition is null &&
             lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
-            (PersonalEquipmentRules.IsCarried(lot, caregiver) ||
+            // Borrowed or in-transit goods are only carried, not owned, so they are never a caregiver's dose.
+            (lot.OwnerId == caregiver && PersonalEquipmentRules.IsCarried(lot, caregiver) ||
              lot.OwnerId == HouseholdFor(caregiver) && lot.StorageBuildingId is { } buildingId &&
              worldSimulation.Buildings.Any(building => building.InstanceId == buildingId &&
                  building.HouseholdId == lot.OwnerId) &&

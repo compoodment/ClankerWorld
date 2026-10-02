@@ -66,6 +66,8 @@ public partial class Main
         RefreshTileHoverAtMouse();
         RenderWorldHud(snapshot);
         RenderWorldInfo(snapshot);
+        // The path follows the camera and zoom, and the short way round a wrapped seam.
+        if (developerPanel.Visible) RenderPlannedPath();
     }
 
     private static float CameraAxis(float centerTile, float stagePixels, float viewportPixels, float stride) =>
@@ -304,31 +306,45 @@ public partial class Main
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
         if (town is not null) lines.Add($"Town: {town.Name}");
+        // Title, use rights, requests and disputes go on the card under shorter names.
+        var landFacts = new List<(string Key, string Value)>();
         foreach (var title in titles)
         {
             var titleTown = snapshot.Towns.FirstOrDefault(item => item.Id == title.TownId);
             lines.Add($"Town land title: {titleTown?.Name ?? title.TownId}");
+            landFacts.Add(("Land title", titleTown?.Name ?? title.TownId));
         }
         foreach (var right in useRights)
-            lines.Add($"Household use right: {GameUiText.PartyName(snapshot, right.HouseholdId)}" +
-                (right.AgreedEndTick is { } endTick ? $" · agreed end {DisplayWorldClock(endTick)}" : string.Empty));
+        {
+            var holder = GameUiText.PartyName(snapshot, right.HouseholdId) +
+                (right.AgreedEndTick is { } endTick ? $" · agreed end {DisplayWorldClock(endTick)}" : string.Empty);
+            lines.Add($"Household use right: {holder}");
+            landFacts.Add(("Use right", holder));
+        }
         foreach (var request in useRequests)
         {
             var requester = snapshot.Inhabitants.FirstOrDefault(person => person.Id == request.RequestedByAgentId)?.DisplayName;
-            lines.Add($"Pending use request: {GameUiText.PartyName(snapshot, request.HouseholdId)}" +
-                (requester is null ? string.Empty : $" · filed by {requester}"));
+            var claimant = GameUiText.PartyName(snapshot, request.HouseholdId) +
+                (requester is null ? string.Empty : $" · filed by {requester}");
+            lines.Add($"Pending use request: {claimant}");
+            landFacts.Add(("Use request", claimant));
         }
         var landClaimants = useRights.Select(right => right.HouseholdId)
             .Concat(useRequests.Select(request => request.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (landClaimants.Length > 1)
-            lines.Add($"Disputed household claims: {string.Join("; ", landClaimants.Select(id => GameUiText.PartyName(snapshot, id)))}");
+        {
+            var claimants = string.Join("; ", landClaimants.Select(id => GameUiText.PartyName(snapshot, id)));
+            lines.Add($"Disputed household claims: {claimants}");
+            landFacts.Add(("Disputed", claimants));
+        }
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
         if (BridgeAt(snapshot, tile) is { } bridge)
             lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
+        RenderTileCard(snapshot, tile, town, landFacts, region?.Weather ?? snapshot.Authoring?.Weather, region?.SoilMoisture);
         SetPanelText(selectedTileText, string.Join('\n', lines));
         PositionSelectedTilePanel();
     }

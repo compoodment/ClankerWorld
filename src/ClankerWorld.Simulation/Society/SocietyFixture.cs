@@ -12,26 +12,37 @@ namespace ClankerWorld.Simulation.Society;
 /// </summary>
 public static partial class SocietyFixture
 {
+    /// <summary>
+    /// Creates an adult of the given age at world tick 0, or at the adult
+    /// threshold when no age is given. The age must lie in the arrival range.
+    /// </summary>
     public static SocietyInhabitant CreateFounder(
         string id,
         string name,
         string? providerBindingId = null,
         int healthBasisPoints = 10_000,
-        SocietyConfig? config = null)
+        SocietyConfig? config = null,
+        int? startingAge = null)
     {
         var effectiveConfig = config ?? new SocietyConfig();
         effectiveConfig.Validate();
+        var age = startingAge ?? effectiveConfig.FounderStartingAge;
+        if (age < effectiveConfig.FounderStartingAge || age > LatestArrivalAge(effectiveConfig))
+        {
+            throw new ArgumentOutOfRangeException(nameof(startingAge));
+        }
+
         return new SocietyInhabitant(
             NormalizeRequiredText(id, nameof(id)),
             NormalizeRequiredText(name, nameof(name)),
-            checked(-effectiveConfig.FounderStartingAge * effectiveConfig.TicksPerLifecycleAge),
+            checked(-age * effectiveConfig.TicksPerLifecycleAge),
             SocietyInhabitantStatus.Active,
-            effectiveConfig.AgeBandAt(effectiveConfig.FounderStartingAge),
+            effectiveConfig.AgeBandAt(age),
             ValidateBasisPoints(healthBasisPoints, nameof(healthBasisPoints)),
             null,
             NormalizeOptionalText(providerBindingId),
             SocietyWorkRole.Unassigned,
-            effectiveConfig.FounderStartingAge)
+            age)
         {
             DomesticFamilyUnitId = DomesticPersonUnit(id),
         };
@@ -211,10 +222,10 @@ public static partial class SocietyFixture
         var existingHousehold = home is null ? null :
             checkpoint.Households.FirstOrDefault(household => household.Id == home);
 
-        var age = checkpoint.Config.FounderStartingAge;
+        var age = AddedAdultArrivalAge(checkpoint);
         var lifeBirth = checked(checkpoint.LifeTickAt(checkpoint.WorldTick) -
             age * checkpoint.Config.TicksPerLifecycleAge);
-        var person = CreateFounder(id, "New agent", config: checkpoint.Config) with
+        var person = CreateFounder(id, "New agent", config: checkpoint.Config, startingAge: age) with
         {
             BirthTick = checkpoint.LifeClock is null ? lifeBirth : checkpoint.WorldTick,
             BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
@@ -466,7 +477,8 @@ public static partial class SocietyFixture
             Relationships = checkpoint.Relationships.Select(item => item.Id == relationship.Id ? revoked : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         };
-        next = RemoveRelationshipProjection(next, revoked);
+        next = RemoveRelationshipProjection(next, revoked,
+            relationship.Type == SocietyRelationshipType.Caregiver && relationship.State == SocietyRelationshipState.Accepted);
         if (revoked.Type == SocietyRelationshipType.Partnership)
             next = SplitPartnershipFamilyUnit(next, revoked);
         return Commit(next, "relationship_revoked", $"{relationshipId}:{actor}", relationshipId);
@@ -1377,7 +1389,9 @@ public static partial class SocietyFixture
                         DeathTick = deathTick,
                         DeathCause = cause,
                     }
-                    : item)
+                    : item.PrimaryCaregiverId == inhabitant.Id
+                        ? item with { PrimaryCaregiverId = null }
+                        : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
             Relationships = relationships,
             Estates = checkpoint.Estates.Append(new SocietyEstate(
@@ -1432,6 +1446,7 @@ public static partial class SocietyFixture
                     nextLots.AddRange(family.Select(member => member with
                     {
                         OwnerId = "settlement:communal",
+                        CarrierId = null,
                         StorageBuildingId = null,
                         DeliveryBuildingId = null,
                     }));
@@ -1471,6 +1486,7 @@ public static partial class SocietyFixture
                     {
                         Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",
                         OwnerId = beneficiaries[index],
+                        CarrierId = null,
                         Quantity = quantity,
                         ProvenanceLotId = preserveIdentity ? lot.ProvenanceLotId : lot.Id,
                         StorageBuildingId = null,
@@ -1516,7 +1532,7 @@ public static partial class SocietyFixture
                      (offer.FirstPartyId == ownerId || offer.SecondPartyId == ownerId)).ToArray())
             inventory = InventoryFixture.CancelDirectBarterOffer(inventory, offer.Id, offer.Revision, ownerId);
         var lots = inventory.Lots.Select(lot => lot.OwnerId == ownerId
-                ? lot with { OwnerId = estateId, StorageBuildingId = null, DeliveryBuildingId = null }
+                ? lot with { OwnerId = estateId, CarrierId = null, StorageBuildingId = null, DeliveryBuildingId = null }
                 : lot)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId &&
@@ -1635,26 +1651,40 @@ public static partial class SocietyFixture
 
     private static SocietyCheckpoint RemoveRelationshipProjection(
         SocietyCheckpoint checkpoint,
-        SocietyRelationship relationship)
+        SocietyRelationship relationship,
+        bool revokedAcceptedCare)
     {
         if (relationship.Type == SocietyRelationshipType.Partnership)
             return checkpoint;
         if (relationship.Type != SocietyRelationshipType.HouseholdMembership &&
-            relationship.Type != SocietyRelationshipType.Caregiver ||
-            relationship.HouseholdId is null)
+            relationship.Type != SocietyRelationshipType.Caregiver)
         {
             return checkpoint;
         }
 
-        var household = checkpoint.GetHousehold(relationship.HouseholdId);
-        return checkpoint with
-        {
-            Inhabitants = relationship.Type == SocietyRelationshipType.HouseholdMembership
+        var clearPrimaryCaregiver = revokedAcceptedCare && relationship.Type == SocietyRelationshipType.Caregiver &&
+            checkpoint.GetInhabitant(relationship.TargetId).PrimaryCaregiverId == relationship.ProposerId &&
+            !checkpoint.Relationships.Any(other => other.Type == SocietyRelationshipType.Caregiver &&
+                other.State == SocietyRelationshipState.Accepted && other.ProposerId == relationship.ProposerId &&
+                other.TargetId == relationship.TargetId);
+        var inhabitants = relationship.Type == SocietyRelationshipType.HouseholdMembership
+            ? checkpoint.Inhabitants.Select(item => item.Id == relationship.TargetId
+                    ? item with { HouseholdId = null }
+                    : item)
+                .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray()
+            : clearPrimaryCaregiver
                 ? checkpoint.Inhabitants.Select(item => item.Id == relationship.TargetId
-                        ? item with { HouseholdId = null }
+                        ? item with { PrimaryCaregiverId = null }
                         : item)
                     .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray()
-                : checkpoint.Inhabitants,
+                : checkpoint.Inhabitants;
+        if (relationship.HouseholdId is not { } householdId)
+            return clearPrimaryCaregiver ? checkpoint with { Inhabitants = inhabitants } : checkpoint;
+
+        var household = checkpoint.GetHousehold(householdId);
+        return checkpoint with
+        {
+            Inhabitants = inhabitants,
             Households = checkpoint.Households.Select(item => item.Id == household.Id
                     ? item with
                     {

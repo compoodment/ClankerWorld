@@ -32,7 +32,9 @@ public sealed class PairingBodyDeadlineTests
         if (callerCancels) cancellation.Cancel();
         try
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(TimeSpan.FromSeconds(2)));
+            // The 500 ms client timeout or the caller's cancellation must end the stalled read; the
+            // generous outer limit only stops a hang, and leaves room for a busy parallel test run.
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(TimeSpan.FromSeconds(10)));
         }
         finally { cancellation.Cancel(); }
         Assert.True(handler.Body.Cancelled);
