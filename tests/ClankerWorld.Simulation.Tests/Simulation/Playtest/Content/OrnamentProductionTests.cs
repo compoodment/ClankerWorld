@@ -31,7 +31,10 @@ public sealed class OrnamentProductionTests
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                Position = smith.Position, HungerBasisPoints = 9_000, Project = null, LastDecisionContext = null,
+                Position = smith.Position,
+                HungerBasisPoints = 9_000,
+                Project = null,
+                LastDecisionContext = null,
                 Equipment = (person.Equipment ?? new PersonalEquipment()) with
                 { OrnamentLotId = worn ? "smith-personal-ornament" : null },
             } : person).ToArray(),
@@ -69,7 +72,7 @@ public sealed class OrnamentProductionTests
     [Fact]
     public async Task AnIronPickMinesFiniteRareStockWhichWalksIntoActualOrnamentRecipesAcrossReload()
     {
-        using var generated = NormalPathWorld.CreateGenerated("ornament-rare-pipeline", _ => new Choices([]));
+        using var generated = NormalPathWorld.CreateGenerated("tool-rare-mining", _ => new Choices([]));
         var state = generated.ExportState();
         var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == Smith);
         var owner = smith.HouseholdId!;
@@ -97,8 +100,11 @@ public sealed class OrnamentProductionTests
             },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                Position = goldSource.Position, HungerBasisPoints = 10_000, Project = null,
-                LastDecisionContext = null, Equipment = new(CarryAidLotId: "ornament-basket"),
+                Position = goldSource.Position,
+                HungerBasisPoints = 10_000,
+                Project = null,
+                LastDecisionContext = null,
+                Equipment = new(CarryAidLotId: "ornament-basket"),
             } : person).ToArray(),
         };
         var choices = new Choices(["gather_rare_material:gold_ore"]);

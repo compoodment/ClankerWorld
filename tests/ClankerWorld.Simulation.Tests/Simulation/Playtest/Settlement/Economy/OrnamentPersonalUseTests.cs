@@ -163,8 +163,11 @@ public sealed class OrnamentPersonalUseTests
                 state.Inhabitants.All(person => person.Position != tile.Position) &&
                 state.Map.Resources.All(resource => resource.Position != tile.Position) &&
                 state.Map.CampObjects.All(item => item.Position != tile.Position)).Position;
-            state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == recipient
-                ? person with { Position = remote } : person).ToArray() };
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == recipient
+                ? person with { Position = remote } : person).ToArray()
+            };
         }
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Ornament, "gold_ornament",
             boundary == "foreign" ? recipient : boundary is "stored" or "promised" ? Alpha : actor, 1,
@@ -275,8 +278,9 @@ public sealed class OrnamentPersonalUseTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
         var continuing = Assert.Single(world.Fields).Work!;
-        Assert.Equal((actor, FarmWorkKind.Till, 7), (continuing.WorkerId, continuing.Kind, continuing.RemainingTicks));
-        Assert.Equal(9_500, world.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
+        // The current provisional wooden hoe completes two work units and wears by 1,000 per stroke.
+        Assert.Equal((actor, FarmWorkKind.Till, 6), (continuing.WorkerId, continuing.Kind, continuing.RemainingTicks));
+        Assert.Equal(9_000, world.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
         Assert.Equal(point, Physical(world, actor).Position);
         Assert.Null(Physical(world, actor).Equipment?.OrnamentLotId);
         Assert.Equal((actor, 1), (world.Society.Inventory.GetLot(Ornament).OwnerId,
@@ -308,19 +312,25 @@ public sealed class OrnamentPersonalUseTests
         if (boundary == "reserved")
             inventory = InventoryFixture.Reserve(inventory, "worn-malformed-reservation", actor, Ornament, 1, "other_owned_work", 120);
         else
-            inventory = inventory with { Lots = inventory.Lots.Select(lot => lot.Id != Ornament ? lot : boundary switch
+            inventory = inventory with
             {
-                "foreign" => lot with { OwnerId = recipient },
-                "stack" => lot with { Quantity = 2 },
-                "ground" => lot with { GroundPosition = new(Physical(worn, actor).Position.X, Physical(worn, actor).Position.Y) },
-                "stored" => lot with { OwnerId = Alpha, StorageBuildingId = House },
-                "promised" => lot with { DeliveryBuildingId = House },
-                "wrong-kind" => lot with { ItemKind = "wood" },
-                _ => lot,
-            }).ToArray() };
+                Lots = inventory.Lots.Select(lot => lot.Id != Ornament ? lot : boundary switch
+                {
+                    "foreign" => lot with { OwnerId = recipient },
+                    "stack" => lot with { Quantity = 2 },
+                    "ground" => lot with { GroundPosition = new(Physical(worn, actor).Position.X, Physical(worn, actor).Position.Y) },
+                    "stored" => lot with { OwnerId = Alpha, StorageBuildingId = House },
+                    "promised" => lot with { DeliveryBuildingId = House },
+                    "wrong-kind" => lot with { ItemKind = "wood" },
+                    _ => lot,
+                }).ToArray()
+            };
         state = WithInventory(state, inventory);
-        if (boundary == "unknown") state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Equipment = person.Equipment! with { OrnamentLotId = "missing-ornament" } } : person).ToArray() };
+        if (boundary == "unknown") state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Equipment = person.Equipment! with { OrnamentLotId = "missing-ornament" } } : person).ToArray()
+        };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state));
         Assert.Throws<InvalidDataException>(() => Restore(state));
     }
@@ -359,8 +369,11 @@ public sealed class OrnamentPersonalUseTests
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
-        var malformed = world.ExportState() with { DeceasedInhabitants = [dead with { LastPhysical = dead.LastPhysical with
-            { Equipment = (dead.LastPhysical.Equipment ?? new PersonalEquipment()) with { OrnamentLotId = Ornament } } }] };
+        var malformed = world.ExportState() with
+        {
+            DeceasedInhabitants = [dead with { LastPhysical = dead.LastPhysical with
+            { Equipment = (dead.LastPhysical.Equipment ?? new PersonalEquipment()) with { OrnamentLotId = Ornament } } }]
+        };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(malformed));
     }
 
