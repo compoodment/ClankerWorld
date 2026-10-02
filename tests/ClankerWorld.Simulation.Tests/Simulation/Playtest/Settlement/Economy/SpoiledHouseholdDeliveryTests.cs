@@ -60,7 +60,7 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         // Resume the actual in-flight state with the same admitted policy.
         // No intention, stock, position, reservation or delivery pointer is reset.
         var bytes = PrivateWorldRuntimeCodec.Encode(pickupWorld.ExportState());
-        var recoveryChoices = DeliveryPolicy();
+        var recoveryChoices = choices;
         using var recovered = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, recoveryChoices);
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor,
             DeliveryPolicy());

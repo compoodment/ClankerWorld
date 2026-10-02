@@ -14,12 +14,12 @@ public sealed partial class SpoiledHouseholdDeliveryTests
     public async Task ARealFourUnitPotFamilyRecoversTogetherAndDiscardedDeliveryDoesNotMoveAnyStock()
     {
         var (state, actor, camp) = await PickedUpPot();
-        using var world = Restore(state, actor, DeliveryPolicy());
+        var choices = DeliveryPolicy();
+        using var world = Restore(state, actor, choices);
         for (var tick = 0; tick < 8 && world.Society.Inventory.GetLot(PotGreens).FreshnessBasisPoints > 0; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         AssertSpoiledCarriedFamily(world, actor);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        var choices = DeliveryPolicy();
         using var recovered = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, choices);
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, DeliveryPolicy());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(recovered.ExportState()));
