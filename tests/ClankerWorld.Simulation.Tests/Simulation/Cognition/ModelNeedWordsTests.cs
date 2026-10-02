@@ -72,17 +72,10 @@ public sealed class ModelNeedWordsTests
     [Fact]
     public async Task PersonalRequestsDescribeEveryNeedInWordsWithoutExactValues()
     {
-        var handler = new RecordingHandler(PersonalReply);
-        using var client = new HttpClient(handler);
-        var provider = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-test-key",
-            new Uri("https://model.test/v1/chat/completions"), "test-model", needFormat: ModelNeedFormat.Words);
-
-        await provider.DecideAsync(new CognitionDecisionRequest("words", 2, Observation(3_917, 5_123, 2_731)));
-
-        using var body = JsonDocument.Parse(handler.Body!);
-        var system = body.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
-        var input = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
+        var (system, input) = await PersonalRequestAsync(ModelNeedFormat.Words, Observation(3_917, 5_123, 2_731));
+        var (_, numbersInput) = await PersonalRequestAsync(ModelNeedFormat.Numbers, Observation(3_917, 5_123, 2_731));
         using var question = JsonDocument.Parse(input);
+        using var numbersQuestion = JsonDocument.Parse(numbersInput);
         var self = question.RootElement.GetProperty("self");
         Assert.Equal("hungry (starving, hungry, fine, full; starving is worst, full is best)",
             question.RootElement.GetProperty("fullness").GetString());
@@ -98,9 +91,8 @@ public sealed class ModelNeedWordsTests
         Assert.Null(RetiredWording.Find(system));
         Assert.Null(RetiredWording.Find(input));
         // Only how needs are shown changes; the rest of the request keeps its fields and order.
-        Assert.Equal(["agent_id", "fullness", "needs_name", "name_retry", "needs_personality", "needs_aspiration",
-                "self", "candidates", "retrieved_memories", "known_map_facts"],
-            question.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(FieldsWithNeedsInWords(numbersQuestion.RootElement), FieldNames(question.RootElement));
+        Assert.Equal(FieldsWithNeedsInWords(numbersQuestion.RootElement.GetProperty("self")), FieldNames(self));
         Assert.Equal("Aster Vale", self.GetProperty("name").GetString());
         Assert.Equal("seek_food", question.RootElement.GetProperty("candidates")[1].GetProperty("id").GetString());
     }
@@ -159,8 +151,9 @@ public sealed class ModelNeedWordsTests
         Assert.Contains("whole scale from worst to best", instructions, StringComparison.Ordinal);
         Assert.DoesNotContain("10000", instructions, StringComparison.Ordinal);
         Assert.Null(RetiredWording.Find(instructions));
-        Assert.Equal(["agent_id", "fullness", "warmth", "illness", "household", "town", "housing", "candidates", "memory_compaction_candidates"],
-            state.EnumerateObject().Select(property => property.Name));
+        var (numbersBody, _) = await JevRequestAsync(ModelNeedFormat.Numbers, Observation(1_917, 5_123, 2_731));
+        using var numbersDocument = JsonDocument.Parse(numbersBody);
+        Assert.Equal(FieldsWithNeedsInWords(numbersDocument.RootElement.GetProperty("state")), FieldNames(state));
     }
 
     [Theory]
@@ -212,6 +205,32 @@ public sealed class ModelNeedWordsTests
         Assert.Contains("illness_basis_points is 0 well to 10000 severely ill", instructions, StringComparison.Ordinal);
         Assert.Null(RetiredWording.Find(instructions));
     }
+
+    private static async Task<(string System, string Input)> PersonalRequestAsync(ModelNeedFormat format, InhabitantObservation observation)
+    {
+        var handler = new RecordingHandler(PersonalReply);
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-test-key",
+            new Uri("https://model.test/v1/chat/completions"), "test-model", needFormat: format);
+
+        await provider.DecideAsync(new CognitionDecisionRequest("words", 2, observation));
+
+        using var body = JsonDocument.Parse(handler.Body!);
+        var messages = body.RootElement.GetProperty("messages");
+        return (messages[0].GetProperty("content").GetString()!, messages[1].GetProperty("content").GetString()!);
+    }
+
+    private static string[] FieldNames(JsonElement request) => request.EnumerateObject().Select(property => property.Name).ToArray();
+
+    /// <summary>The numbers request's field order with each need field renamed to its words field.</summary>
+    private static string[] FieldsWithNeedsInWords(JsonElement numbersRequest) => numbersRequest.EnumerateObject()
+        .Select(property => property.Name switch
+        {
+            "hunger_basis_points" => "fullness",
+            "warmth_basis_points" => "warmth",
+            "illness_basis_points" => "illness",
+            var name => name,
+        }).ToArray();
 
     private static async Task<(string Body, string Instructions)> JevRequestAsync(ModelNeedFormat? format, InhabitantObservation observation)
     {
