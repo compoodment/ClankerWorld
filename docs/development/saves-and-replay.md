@@ -174,6 +174,15 @@ family decisions and births without inferring a family group from ancestry or
 household membership. Older alpha checkpoints need not load; no migration is
 provided.
 
+Private-world schema 41 records each owner's exact pending message, target,
+submission identity, whether a personal model observed it, and its optional
+short reply. The one-fresh-decision prompt tick is scheduling state, not a read
+receipt. Accepted replies stay attached to the original message ID; pause,
+reload or a stale result cannot transfer them to a newer message. Current
+schema saves require the instruction and completion records and validate their
+target, ordering and tick bounds. Earlier alpha instruction records need not
+load; no message migration is provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -247,7 +256,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 40. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 41. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -255,19 +264,20 @@ building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
 equipment with timed repairs and exact reservations, reusable container lots
-with their contents, locations, owners and reservations, and explicit domestic
-family and caregiver/birth-home records. These fields retain their current
-validation and roundtrip behavior.
+with their contents, locations, owners and reservations, explicit domestic
+family and caregiver/birth-home records, and owner messages with whether a
+personal model heard them and any short reply. These fields retain their
+current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 37 for personal
-equipment, schema 39 for reusable containers, and schema 40 for domestic family
-and caregiver records, record when those fields were
-introduced; they do not allow an earlier checkpoint schema past the current
-alpha cutoff.
+equipment, schema 39 for reusable containers, schema 40 for domestic family
+and caregiver records and schema 41 for owner-message delivery, record when
+those fields were introduced; they do not allow an earlier checkpoint schema
+past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -294,6 +304,7 @@ alpha cutoff.
 | Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
 | Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
 | Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
+| Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

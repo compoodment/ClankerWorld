@@ -119,11 +119,17 @@ Those facts survive a refresh and save/reload. The paired Windows/model-wait
 check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
-**Order**. This is a basic version. The game understands only orders to gather
-food, eat or go toward food. The agent's model does not see the words. An order
-the game can't act on closes at once, and the Event Log says the agent didn't
-understand it. An order that can't be carried out yet waits without extra model
-requests. The card does not yet show which orders are still waiting.
+**Order**. This is a basic version. The next ordinary request to the agent's
+personal planning model can include the exact words; the card keeps them under
+**Your messages** and shows whether the model heard them, whether an order is
+still open, and any short reply separately from private thoughts. The game
+understands only orders to gather food, eat or go toward food. An order the game
+can't act on closes at once, and the Event Log says the agent did not
+understand it. An order that can't be carried out yet waits without extra
+model requests. A deterministic local choice does not claim the model heard a
+message. Suggestions do not block recognized orders. Hands-on Windows
+paired-client checks remain pending in the
+[playtest list](../playtest/586-observer-guidance.md).
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
