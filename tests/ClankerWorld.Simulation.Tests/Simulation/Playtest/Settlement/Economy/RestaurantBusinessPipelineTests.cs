@@ -423,8 +423,18 @@ public sealed class RestaurantBusinessPipelineTests
         {
             var sale = Assert.Single(sales);
             Assert.True(sale.ProposedTick >= arrivedTick!.Value);
-            Assert.Equal(DirectBarterState.Settled, world.Society.Inventory.GetOffer(sale.OfferId).State);
-            Assert.Equal("porridge", world.Inhabitants.Single(person => person.InhabitantId == fixture.Customer).Survival?.LastMealKind);
+            var offer = world.Society.Inventory.GetOffer(sale.OfferId);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+            Assert.Equal(2, offer.FirstQuantity);
+            Assert.Equal(1, offer.SecondQuantity);
+            var purchased = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == fixture.Customer &&
+                lot.ItemKind == "porridge" && (lot.Id == offer.FirstLotId || lot.ProvenanceLotId == offer.FirstLotId));
+            Assert.Equal(2, purchased.Quantity);
+            Assert.True(PersonalEquipmentRules.IsCarried(purchased, fixture.Customer));
+            var payment = world.Society.Inventory.GetLot("restaurant-customer-payment");
+            Assert.Equal(1, payment.Quantity);
+            Assert.Equal(Beta, payment.OwnerId);
+            Assert.Equal(fixture.Restaurant.InstanceId, payment.StorageBuildingId);
         }
         else
         {

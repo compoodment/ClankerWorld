@@ -3,9 +3,10 @@ stew from ingredients carried into their House. A Restaurant can cook grain and
 vegetable meals and improve bread into a more nourishing Restaurant meal.
 Restaurant adults visit shops in their Town to buy missing ingredients using their own
 carried goods, while keeping the ingredients their Restaurant still needs.
-Purchases must be carried in before cooking. Customers can buy the finished
-meals, including berry and fruit porridge, without gaining private stock or
-cooking access. A trial offer exchanges two cooked servings for one wood;
+Purchases must be carried in before cooking. Customers can walk to a Restaurant
+in their Town and buy the finished meals, including berry and fruit porridge,
+without gaining private stock or cooking access. A trial offer exchanges two
+cooked servings for one wood;
 barter rates remain provisional.
 Water and wood are real inputs, and water jugs remain reusable. Cooked food
 spoils, with pots slowing that loss; raw grain, potatoes and flour keep their
