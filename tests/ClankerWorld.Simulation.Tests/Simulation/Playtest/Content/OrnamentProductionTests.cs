@@ -147,6 +147,31 @@ public sealed class OrnamentProductionTests
             (resumed.Society.Inventory.GetLot(plain).ItemKind, resumed.Society.Inventory.GetLot(plain).OwnerId,
                 resumed.Society.Inventory.GetLot(plain).StorageBuildingId, resumed.Society.Inventory.GetLot(plain).Quantity));
         Assert.DoesNotContain(resumed.Society.Inventory.Lots, lot => lot.ItemKind == OrnamentContent.Gold);
+        var promisedWood = Assert.Single(resumed.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "wood" && lot.DeliveryBuildingId == Smith);
+        Assert.Equal(4, promisedWood.Quantity);
+        var miningPerson = resumed.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Equal(16, PersonalEquipmentRules.Capacity(resumed.Society.Inventory, actor, miningPerson.Equipment));
+        Assert.Equal(9, PersonalEquipmentRules.CarriedQuantity(resumed.Society.Inventory, actor, miningPerson.Equipment));
+        Assert.Equal(7, PersonalEquipmentRules.FreeCapacity(resumed.Society.Inventory, actor, miningPerson.Equipment));
+        choices.Preferences = ["haul_household_stock"];
+        await Until(resumed, () => resumed.Society.Inventory.GetLot(promisedWood.Id).StorageBuildingId == Smith, 40);
+        var storedWood = resumed.Society.Inventory.GetLot(promisedWood.Id);
+        Assert.Equal((owner, Smith, 4), (storedWood.OwnerId, storedWood.StorageBuildingId, storedWood.Quantity));
+        Assert.Null(storedWood.DeliveryBuildingId);
+        choices.Preferences = ["haul_smith_input"];
+        await Until(resumed, () => resumed.Society.Inventory.GetLot(rawGold.Id).StorageBuildingId == Smith, 96);
+        var remainingGold = resumed.Society.Inventory.GetLot(rawGold.Id);
+        Assert.Equal((owner, Smith, 4, rawGold.ProvenanceLotId),
+            (remainingGold.OwnerId, remainingGold.StorageBuildingId, remainingGold.Quantity, remainingGold.ProvenanceLotId));
+        Assert.Null(remainingGold.DeliveryBuildingId);
+        Assert.Equal(4, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "gold_ore").Sum(lot => lot.Quantity));
+        Assert.Equal(storedWood, resumed.Society.Inventory.GetLot(promisedWood.Id) with
+        { LastProcessedTick = storedWood.LastProcessedTick });
+        var readyMiner = resumed.Inhabitants.Single(person => person.InhabitantId == actor);
+        Assert.Equal("ornament-basket", readyMiner.Equipment!.CarryAidLotId);
+        Assert.True(PersonalEquipmentRules.IsCarried(resumed.Society.Inventory.GetLot("ornament-pick"), actor));
+        Assert.True(PersonalEquipmentRules.FreeCapacity(resumed.Society.Inventory, actor, readyMiner.Equipment) >= 8);
         var beforeDiamond = diamondSources.ToDictionary(source => source.Id,
             source => resumed.WorldSystems.Ecology.GetResource(source.Id).Quantity);
         choices.Preferences = ["gather_rare_material:diamond"];

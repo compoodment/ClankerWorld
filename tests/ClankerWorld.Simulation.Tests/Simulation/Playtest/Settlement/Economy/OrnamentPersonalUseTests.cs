@@ -71,6 +71,42 @@ public sealed class OrnamentPersonalUseTests
         world.Validate();
     }
 
+    [Fact]
+    public async Task WearingAnOrnamentAlsoRecordsTheOwnerMessageAndReplyAcrossReload()
+    {
+        var state = Prepared(local: true);
+        var actor = Actor(state);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            Ornament, "gold_ornament", Alpha, 1, storageBuildingId: House));
+        const string reply = "I chose a gold ornament to wear.";
+        using var world = Restore(state, actor,
+            new OrnamentChoices("wear_ornament:", DecisionProviderKind.LargeLanguageModel, observerReply: reply));
+        var receipt = world.SubmitInstruction(new("ornament-owner-message", "owner:test", actor,
+            OwnerInstructionKind.Suggestive, "Tell me what you chose to wear."));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(Ornament, Physical(world, actor).Equipment!.OrnamentLotId);
+        Assert.Equal((actor, 1), (world.Society.Inventory.GetLot(Ornament).OwnerId,
+            world.Society.Inventory.GetLot(Ornament).Quantity));
+        var result = world.ExportState();
+        var observed = Assert.Single(result.Instructions!, message => message.InstructionId == receipt.InstructionId);
+        Assert.Equal(world.WorldTick, observed.ObservedTick);
+        Assert.Equal(reply, observed.ObserverReply);
+        Assert.Contains(receipt.InstructionId, result.CompletedInstructionIds!);
+        Assert.Single(result.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail.StartsWith(receipt.InstructionId + ":wear_ornament:", StringComparison.Ordinal));
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(result);
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(observed, Assert.Single(replay.ExportState().Instructions!,
+            message => message.InstructionId == receipt.InstructionId));
+        Assert.Equal(Ornament, Physical(replay, actor).Equipment!.OrnamentLotId);
+        Assert.Single(replay.ExportState().Events, item => item.Kind == "ornament_worn");
+        replay.Validate();
+    }
+
     [Theory]
     [InlineData("foreign-household")]
     [InlineData("full-hands")]
@@ -420,7 +456,7 @@ public sealed class OrnamentPersonalUseTests
         PrivateWorldRuntime.Restore(state, id => id == actor && provider is not null ? provider : new OrnamentChoices());
 
     private sealed class OrnamentChoices(string prefix = "safe_idle", DecisionProviderKind kind = DecisionProviderKind.Deterministic,
-        bool fail = false, string? destination = null) : IDecisionProvider
+        bool fail = false, string? destination = null, string? observerReply = null) : IDecisionProvider
     {
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 0;
@@ -435,7 +471,12 @@ public sealed class OrnamentPersonalUseTests
                 ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
-                request.Observation.ObservationDigest, selected.Id, 1, new Dictionary<string, double> { [selected.Id] = 1 }));
+                request.Observation.ObservationDigest, selected.Id, 1, new Dictionary<string, double> { [selected.Id] = 1 })
+            {
+                ObserverReplies = observerReply is null ? null : request.Observation.ObserverGuidance?
+                    .Where(message => message.ReplyAllowed)
+                    .Select(message => new CognitionObserverReply(message.InstructionId, observerReply)).ToArray(),
+            });
         }
     }
 }

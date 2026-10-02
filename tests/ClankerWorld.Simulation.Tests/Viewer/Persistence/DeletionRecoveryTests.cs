@@ -26,7 +26,9 @@ public sealed class DeletionRecoveryTests
             }
             var reopened = new ManualWorldSaveStore(path);
             reopened.RecoverDeletions();
-            Assert.Empty(Directory.GetFiles(path + ".manual"));
+            // Only the world's own branch record remains; the world itself still exists.
+            var remaining = Assert.Single(Directory.GetFiles(path + ".manual"));
+            Assert.StartsWith("timeline-", Path.GetFileName(remaining), StringComparison.Ordinal);
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -56,7 +58,9 @@ public sealed class DeletionRecoveryTests
             Assert.Single(catalog.Capture().Worlds);
             Assert.Empty(saves.List(target.Society.WorldId));
             Assert.Equal(keepBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(keep.Id)));
-            Assert.Equal(2, Directory.GetFiles(path + ".manual").Length);
+            // The kept world's save, its metadata and its own branch record remain.
+            Assert.Equal(3, Directory.GetFiles(path + ".manual").Length);
+            Assert.Single(Directory.GetFiles(path + ".manual", "timeline-*.json"));
             var reopened = new WorldCatalogStore(path, active.ExportState(), [], settings);
             Assert.Single(reopened.Capture().Worlds);
             Assert.Throws<FileNotFoundException>(() => reopened.Read(entry.Id));

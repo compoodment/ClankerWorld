@@ -336,6 +336,11 @@ public sealed partial class PrivateWorldRuntime
                 inventory.Lots.Any(lot => lot.Id == offer.SecondLotId && lot.ItemKind != trade.PaymentKind) ||
                 offer.FirstPartyId != trade.SellerHouseholdId ||
                 offer.SecondPartyId != trade.BuyerId || offer.FirstPartyId == offer.SecondPartyId ||
+                offer.State == DirectBarterState.Open &&
+                    !offer.AcceptedBy.SequenceEqual([trade.BuyerId], StringComparer.Ordinal) ||
+                offer.State == DirectBarterState.Settled &&
+                    !offer.AcceptedBy.SequenceEqual(new[] { offer.FirstPartyId, offer.SecondPartyId }
+                        .Order(StringComparer.Ordinal), StringComparer.Ordinal) ||
                 offer.State == DirectBarterState.Settled && (trade.SellerActorId is null ||
                     !societyState.Inhabitants.Any(person => person.Id == trade.SellerActorId)) ||
                 trade.SellerActorId is not null && offer.State != DirectBarterState.Settled ||

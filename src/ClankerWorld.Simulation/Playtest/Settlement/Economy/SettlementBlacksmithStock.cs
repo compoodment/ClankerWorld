@@ -108,6 +108,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
+            StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) == 0 ||
             BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore"))
             return;
         if (PersonalSmithOre(actor) is not null)
@@ -154,12 +155,14 @@ public sealed partial class PrivateWorldRuntime
         var stocked = BlacksmithOreStocked(householdId, blacksmith.InstanceId);
         var target = BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore");
         if (stocked >= target) return;
+        var quantity = Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId),
+            Math.Min(target - stocked, AvailableLotQuantity(ore)));
+        if (quantity <= 0) return;
         if (state.Position != blacksmith.Position)
         {
             MoveToward(actor, state, blacksmith.Position, "smith_ore", 0);
             return;
         }
-        var quantity = Math.Min(target - stocked, AvailableLotQuantity(ore));
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-ore-delivery:{WorldTick}:{actor}", actor, householdId, ore.Id,
             quantity, "smith_ore_delivered", blacksmith.InstanceId));
@@ -283,6 +286,8 @@ public sealed partial class PrivateWorldRuntime
             }
             return;
         }
+        if (StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) == 0)
+            return;
         var input = BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor);
         if (input is null)
         {
@@ -323,6 +328,8 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor) is not { } input)
             return;
+        var room = StorageRoomAfterInboundDeliveries(blacksmith.InstanceId);
+        if (room == 0) return;
         if (input.OwnerId == actor)
         {
             if (state.Position != blacksmith.Position)
@@ -336,7 +343,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             var targetPersonal = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
             var personalQuantity = Math.Min(targetPersonal - stockedPersonal - incomingPersonal,
-                Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(input)));
+                Math.Min(room, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(input))));
             if (personalQuantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, input.Id,
@@ -360,7 +367,7 @@ public sealed partial class PrivateWorldRuntime
         var target = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
         var quantity = Math.Min(HouseHaulLoadQuantity,
             Math.Min(target - stocked - incoming, AvailableLotQuantity(input)));
-        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+        quantity = Math.Min(quantity, Math.Min(room, FreeCarryCapacity(actor)));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-input-pickup:{WorldTick}:{actor}", input.OwnerId, actor, input.Id,

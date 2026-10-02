@@ -167,7 +167,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. It may also sell spare refined iron. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
-| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls and adds them from Town materials when sellers need them. Exact plot placement remains open. Trading admits any Town's agents. |
+| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls: a new Market comes with a starter set, and the Town builds more on the plaza when sellers need them, using Town materials (see [Towns](towns.md#agreed-content-and-building-sizes)). Plot reservation and how the plaza grows remain open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock; up to **six boats** moor there, three per side (October 1 art review). Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
@@ -200,7 +200,7 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Quantities and speed are provisional; queueing and who grants visitor permission remain open. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional; queueing remains open. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
@@ -272,9 +272,8 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: exact Port
-clearance, visitor-permission authority and boat queueing; Market plot
-placement; currency and
+Still open: exact Port clearance and boat queueing; Market plot reservation
+and how the plaza grows; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;
 and late-development invention/mod art generation and fallback. Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery

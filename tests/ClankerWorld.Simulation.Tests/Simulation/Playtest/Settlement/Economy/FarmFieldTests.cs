@@ -125,6 +125,57 @@ public sealed class FarmFieldTests
         Assert.Equal(active.Fields, restored.Fields);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t ")]
+    [InlineData("unknown-field-worker")]
+    public void SavedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-restore");
+        using var world = Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        var active = world.ExportState();
+        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
+        var field = Assert.Single(active.Fields!);
+        Assert.NotNull(field.Work);
+        var damaged = active with
+        {
+            Fields = [field with { Work = field.Work with { WorkerId = workerId! } }],
+        };
+
+        Assert.Throws<InvalidDataException>(() => Restore(damaged));
+
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
+        Assert.Equal(active.Fields, restored.Fields);
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t ")]
+    [InlineData("unknown-field-worker")]
+    public void EncodedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-codec");
+        using var world = Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        var active = world.ExportState();
+        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
+        var document = JsonNode.Parse(healthyBytes)!;
+        document["state"]!["fields"]![0]!["work"]!["workerId"] = workerId;
+        var damagedBytes = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damagedBytes));
+
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
+        Assert.Equal(active.Fields, restored.Fields);
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
