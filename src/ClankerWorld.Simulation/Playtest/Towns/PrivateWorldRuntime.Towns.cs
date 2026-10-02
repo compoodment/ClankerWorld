@@ -186,7 +186,19 @@ public sealed partial class PrivateWorldRuntime
             .Select(building => building.HouseholdId)
             .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position)).Select(item => item.Id);
-        return AgentPlacementRules.Resolve(householdOwners, townIds);
+        var membership = AgentPlacementRules.Resolve(householdOwners, townIds);
+        // Only a household that holds a House has resident places to fill; one
+        // with only a Farmhouse or field can still take a new member.
+        if (membership.HouseholdPropertyOwnerId is { } householdId && HouseForHousehold(householdId) is not null)
+        {
+            var proposed = SocietyFixture.CreateFounder(agentId, "New agent", config: society.Checkpoint.Config) with
+            {
+                HouseholdId = householdId,
+            };
+            if (!CanFitHouseResident(householdId, proposed))
+                throw new InvalidOperationException("The household's House has no free resident place. Complete an expansion before placing another resident.");
+        }
+        return membership;
     }
 
     private static void EnsurePlacementIsUnambiguous(AgentPlacementResolution membership)

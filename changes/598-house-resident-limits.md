@@ -1,0 +1,1 @@
+- Houses now have a limit on permanent residents, set by their size and family make-up, and expanding a House adds places. A baby always joins its main caregiver's home, even if that makes the home overcrowded.

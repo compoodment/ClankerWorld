@@ -6,4 +6,4 @@
 
 - Medicine consumes one real dose and reduces illness gradually. Adults choose named caregivers through a fresh personal-model decision and may revoke permission. Self-care and a dependent's accepted caregiver use their existing authority. Buying supplies or sharing a household grants no private-stock or treatment access; Jev, failed replies, repeated intentions and owner orders cannot grant adult permission.
 
-- A treatment course and its permission survive saving and reopening. Interruption stops the remaining effect without refunding the spent dose. Death releases live inventory claims while preserving completed consumption receipts. This draft uses private-world schema 42 above its parent's schema 41; older alpha saves are refused and preserved without migration.
+- A treatment course and its permission survive saving and reopening. Interruption stops the remaining effect without refunding the spent dose. Death releases live inventory claims while preserving completed consumption receipts. This draft uses private-world schema 44 above its parent's schema 43; older alpha saves are refused and preserved without migration.

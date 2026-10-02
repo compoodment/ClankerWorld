@@ -66,12 +66,33 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Owner instructions are suggestions (**Suggest** on the agent card,
-`Suggestive`) or orders (**Order**, `MustDo`).
-The model does not receive their text. `InstructionCandidate` reads whole words
-only: *harvest* or *gather* means `harvest_food`; *berry* means `seek_food`;
-*eat*, *food* or *hungry* means `consume_food`; and *go*, *travel* or *move*
-means `seek_food`, so travel always heads toward food. A few plain inflections
-such as *gathering* and *berries* also count.
+`Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
+planning request for that agent can include the exact original words with an
+outside-observer label. The request contains only messages for its target
+agent. Guidance bypasses Jev's routine route, while adults still use their
+normal planning assignment or inherited world planning provider. A child
+without an explicit personal-model choice and an agent whose planning model is
+set to deterministic stay local; neither receives a forced hosted call.
+
+A submitted message is checked before it changes the world. Its idempotency key
+and issuer ID must each be at most 128 characters with no control characters,
+its kind must be a suggestion or an order, and its text must be at most 512
+characters. A request that fails these checks is refused with a validation
+error; the world, its message numbering and its save stay unchanged. These are
+the same limits a save applies, so an accepted message cannot leave the world
+unable to save.
+
+`InstructionCandidate` reads whole words only: *harvest* or *gather* means
+`harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
+`consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel
+always heads toward food. A few plain inflections such as *gathering* and
+*berries* also count. A recognized order includes that understood task beside
+the original wording, but the host still checks current legal choices and
+whether the physical action actually succeeds. Text about a place or resource
+does not create map knowledge. A personal model can return a short optional
+reply tied to one exact message ID; that reply is saved separately from private
+thoughts and conversation speech. A local deterministic choice does not mark a
+message as heard.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -82,18 +103,32 @@ instructions to that agent.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses: acquiring food or orchard fruit, eating, or taking a travel
-step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
-including across reload. Travel completion here is one step, not a full-route
-goal. Instructions to one agent apply in submission order, so a pending order
-holds later ones back. A Suggestion completes at the agent's next accepted
-decision, whatever that decision is.
+step. An unrelated action, blocked movement or unavailable food leaves the
+instruction pending, including across reload. Travel completion here is one
+step, not a full-route goal. Recognized orders to one agent apply in submission
+order, so a pending order holds later orders back. Suggestions do not block
+orders. A suggestion completes only after the addressed personal model accepts
+a request containing it; local choices and provider failures do not claim it
+was heard.
 
-A pending instruction prompts one fresh decision: it schedules cognition only
-until the agent has an accepted intention observed after the submission tick.
-After that, `NeedsCognition` applies its usual rules. For example, active agents
-reevaluate every 30 ticks, and idle agents reevaluate when their legal choices
-change or after 300 ticks. An order that cannot progress therefore cannot
-request a decision, or a paid model call, on every tick.
+A newly submitted message triggers one fresh cognition request. Its prompt
+marker only prevents a new request every tick; it is not a read receipt. The
+same pending message remains available on the agent's later ordinary planning
+requests until a personal-model result is accepted. After the fresh request,
+`NeedsCognition` applies its usual rules. For example, active agents reevaluate
+every 30 ticks, and idle agents reevaluate when their legal choices change or
+after 300 ticks. A blocked order therefore cannot request a paid model call on
+every tick.
+
+The owner snapshot sends every open message, plus the six most recently
+submitted closed messages for each agent, whether or not a personal model heard
+them. An order the game could not act on, or one carried out by local rules,
+therefore still appears on the agent card as closed and not heard. The card
+shows up to four messages per agent, newest first by submission but always
+preferring open messages over closed ones, then lists them in the order they
+were sent. Newer closed messages therefore cannot hide an order that is still
+waiting. The save keeps
+every message; only the snapshot is bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -580,7 +615,8 @@ requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
-ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+ranks no site), `awaiting_answer` and `overcrowded` (the household's House
+has more permanent residents than places). The code is shown on the owner's agent
 card and sent to the agent's own model as a `housing` line in its self context.
 An adult with no household is offered `household_ask:{household}` for each
 household that holds a House in the same Town, has an adult who can answer and
@@ -602,9 +638,25 @@ have a household are never offered a request in the current implementation.
 including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
 are agreed but remain implementation work in
 [#593](https://github.com/compoodment/ClankerWorld/issues/593).
-The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
-and overcrowding relocation are follow-ups in
-[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+
+**House resident capacity** (`HouseResidentCapacityRules`). A completed House
+provides three permanent-resident places per footprint tile, or four per tile
+when one explicitly recorded domestic family unit has at least two residents
+and a strict majority of the House's residents. The unit is saved separately
+from ancestry; traveling residents and infants count, dead people and invited
+storm guests do not. Joining a household is offered only when the proposed
+resident fits after their arrival is counted. The server checks again after
+unanimous admission, and Add Agent checks the selected household property
+before placement. A birth always goes to the primary caregiver's current
+household, even when that puts the House over its limit; the building card,
+agent context and the newborn's saved housing status show the resulting need.
+An unavailable House is recorded the same way without delaying birth. This
+status gives dependents no adult admission or construction choices. House
+expansion can start for a
+storage need or when there is no resident place, but added places use only the
+completed footprint. Unfinished expansion does not reserve room for another
+resident. The game does not yet relocate people who already live in an
+overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 A recipe project that finds its work site busy waits with the blocker "Waiting

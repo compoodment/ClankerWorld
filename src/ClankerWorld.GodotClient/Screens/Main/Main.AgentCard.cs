@@ -39,6 +39,7 @@ public partial class Main
     private readonly PixelMeter profileIllnessMeter = new() { Kind = MeterKind.Illness, Caption = "Illness", CaptionWidth = 50 };
     private readonly Label thoughtsHeading = new() { ThemeTypeVariation = "SectionLabel" };
     private readonly VBoxContainer speakSection = new();
+    private readonly RichTextLabel instructionHistory = new();
     private readonly Button instructionSuggestButton = new();
     private readonly Button instructionOrderButton = new();
     private readonly PanelContainer thoughtsInset = new() { ThemeTypeVariation = "InsetPanel" };
@@ -266,6 +267,7 @@ public partial class Main
         var speakRow = new HBoxContainer();
         speakRow.AddThemeConstantOverride("separation", 4);
         instructionText.PlaceholderText = "Say something…";
+        instructionText.MaxLength = 512;
         instructionText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         instructionText.TextSubmitted += submitted => _ = SubmitInstructionAsync();
         speakRow.AddChild(instructionText);
@@ -274,6 +276,9 @@ public partial class Main
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
         speakRow.AddChild(submitInstructionButton);
         speakSection.AddChild(speakRow);
+        speakSection.AddChild(new Label { Text = "YOUR MESSAGES", ThemeTypeVariation = "SectionLabel" });
+        ConfigureTextPanel(instructionHistory, 105);
+        speakSection.AddChild(instructionHistory);
         selectedAgentOverview.AddChild(speakSection);
         body.AddChild(selectedAgentOverview);
 
@@ -516,6 +521,7 @@ public partial class Main
             SetPanelText(inhabitantDetails, string.Empty);
             SetPanelText(inhabitantSocialDetails, string.Empty);
             SetPanelText(privateThoughtHistory, string.Empty);
+            SetPanelText(instructionHistory, string.Empty);
             SetPanelText(memoryHistory, string.Empty);
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
@@ -659,6 +665,27 @@ public partial class Main
             ? "None recorded yet."
             : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
                 .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
+        // Show the newest four, but never let newer closed messages hide one still open.
+        var recentInstructions = snapshot.Instructions
+            .Where(item => item.TargetInhabitantId == inhabitant.Id)
+            .OrderBy(item => item.State == "completed")
+            .ThenByDescending(item => item.SubmissionSequence)
+            .Take(4)
+            .OrderBy(item => item.SubmissionSequence)
+            .Select(item =>
+            {
+                var status = item.Kind == "must_do"
+                    ? item.State == "completed"
+                        ? item.ObservedTick is null ? "Order closed · not reported as heard" : "Heard by their personal model · order closed"
+                        : item.ObservedTick is null ? "Order pending · waiting for their personal model" : "Heard by their personal model · order pending"
+                    : item.ObservedTick is null ? "Suggestion waiting for their personal model" : "Suggestion heard by their personal model";
+                var reply = item.ObserverReply is null ? string.Empty : $"\nAgent reply: “{item.ObserverReply}”";
+                return $"{status}\n“You said: {item.Text}”{reply}";
+            })
+            .ToArray();
+        SetPanelText(instructionHistory, recentInstructions.Length == 0
+            ? "No messages yet."
+            : string.Join("\n\n", recentInstructions));
 
         var people = inhabitant.Relationships.Select(relationship => GameUiText.RelationshipSummary(
                 relationship.Type, relationship.State, GameUiText.PartyName(snapshot, relationship.OtherPartyId), relationship.Direction))
