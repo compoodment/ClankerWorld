@@ -265,7 +265,15 @@ public partial class Main
         var hydrology = WorldTerrainMap.HydrologyName(terrainMap.HydrologyAt(tile.X, tile.Y));
         var surface = WorldTerrainMap.SurfaceName(terrainMap.SurfaceAt(tile.X, tile.Y));
         var vegetation = WorldTerrainMap.VegetationName(terrainMap.VegetationAt(tile.X, tile.Y));
-        var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
+        var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||
+            snapshot.TownLandTitles.Any(title => title.TownId == item.Id &&
+                title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)));
+        var titles = snapshot.TownLandTitles.Where(title =>
+            title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var useRights = snapshot.HouseholdLandUseRights.Where(right =>
+            right.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var useRequests = snapshot.HouseholdLandUseRequests.Where(request =>
+            request.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
         var propertyOwnerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
             tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId ??
@@ -296,6 +304,25 @@ public partial class Main
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
         if (town is not null) lines.Add($"Town: {town.Name}");
+        foreach (var title in titles)
+        {
+            var titleTown = snapshot.Towns.FirstOrDefault(item => item.Id == title.TownId);
+            lines.Add($"Town land title: {titleTown?.Name ?? title.TownId}");
+        }
+        foreach (var right in useRights)
+            lines.Add($"Household use right: {GameUiText.PartyName(snapshot, right.HouseholdId)}" +
+                (right.AgreedEndTick is { } endTick ? $" · agreed end {DisplayWorldClock(endTick)}" : string.Empty));
+        foreach (var request in useRequests)
+        {
+            var requester = snapshot.Inhabitants.FirstOrDefault(person => person.Id == request.RequestedByAgentId)?.DisplayName;
+            lines.Add($"Pending use request: {GameUiText.PartyName(snapshot, request.HouseholdId)}" +
+                (requester is null ? string.Empty : $" · filed by {requester}"));
+        }
+        var landClaimants = useRights.Select(right => right.HouseholdId)
+            .Concat(useRequests.Select(request => request.HouseholdId))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (landClaimants.Length > 1)
+            lines.Add($"Disputed household claims: {string.Join("; ", landClaimants.Select(id => GameUiText.PartyName(snapshot, id)))}");
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
