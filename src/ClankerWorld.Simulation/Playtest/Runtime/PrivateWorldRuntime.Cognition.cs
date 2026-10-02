@@ -36,6 +36,9 @@ public sealed partial class PrivateWorldRuntime
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
             var operativeOrder = PendingInstructionFor(inhabitant.Id);
+            if (HasWaitingIdentityMoment(physical) && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+                !IsConversationBusy(inhabitant.Id))
+                continue;
             if (FarmWorkFor(inhabitant.Id) is not null && operativeOrder is null &&
                 !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !ShouldDispatchConversationChoice(inhabitant.Id))
@@ -96,7 +99,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -547,6 +550,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyTradeCandidate(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith("business_", StringComparison.Ordinal))
+        {
+            ApplyBusinessCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId == "haul_household_stock")
         {
             HaulHouseholdStock(inhabitantId, state);
@@ -929,6 +937,7 @@ public sealed partial class PrivateWorldRuntime
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
+            AddBusinessCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {

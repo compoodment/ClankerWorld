@@ -17,6 +17,9 @@ public sealed partial class PrivateWorldRuntime
     private bool HasFamilyDecision(string actor) => ReadyForBriefInteraction(actor) && Partnerships(actor).Any(item =>
         item.State == SocietyRelationshipState.Proposed && item.TargetId == actor);
 
+    // Close relatives cannot become partners or plan a child: parents and children, grandparents and grandchildren
+    // at any depth, full and half siblings, and aunts or uncles with their nieces or nephews. Only biological
+    // parentage counts, so first cousins, shared households and caregivers do not.
     private bool CloseKin(string actor, string other)
     {
         var parentage = society.Checkpoint.Relationships.Where(item =>
@@ -38,9 +41,11 @@ public sealed partial class PrivateWorldRuntime
             }
             return false;
         }
-        return HasAncestor(parentage, actor, other) || HasAncestor(parentage, other, actor) ||
-            parentage.Where(item => item.TargetId == actor).Select(item => item.ProposerId)
-                .Intersect(parentage.Where(item => item.TargetId == other).Select(item => item.ProposerId), StringComparer.Ordinal).Any();
+        IEnumerable<string> ParentsOf(string child) => parentage.Where(item => item.TargetId == child).Select(item => item.ProposerId);
+        bool Siblings(string first, string second) => ParentsOf(first).Intersect(ParentsOf(second), StringComparer.Ordinal).Any();
+        bool AuntOrUncle(string elder, string younger) => ParentsOf(younger).Any(parent => parent != elder && Siblings(elder, parent));
+        return HasAncestor(parentage, actor, other) || HasAncestor(parentage, other, actor) || Siblings(actor, other) ||
+            AuntOrUncle(actor, other) || AuntOrUncle(other, actor);
     }
 
     private bool CanProposePartnership(string actor, string other) => actor != other &&

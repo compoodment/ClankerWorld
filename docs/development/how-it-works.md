@@ -158,12 +158,35 @@ in the existing first personal-model action reply. Optional `chosen_personality`
 and `chosen_aspiration` strings are trimmed, limited to 256 characters and
 refused if they contain control characters. An accepted personal reply consumes
 the opportunity even if either field is missing or invalid; the placeholder
-stays without an additional model attempt. Later replies cannot overwrite it.
+stays without an additional model attempt. Routine replies cannot overwrite it.
 The pending opportunity is checkpointed, so pause/reload discards late replies
 and preserves an unconsumed choice. It selects the personal planner rather than
 Jev's routine router. Choice events contain only the agent ID; chosen text stays
-in that agent's saved state and later self context, not runtime logs. Children
-and identity changes later in life remain separate work.
+in that agent's saved state and later self context, not runtime logs. Children's
+initial identity remains separate work.
+
+The runtime records five named identity opportunities: midlife (half the
+configured maximum life, day 30 by default), parenthood, loss of a partner,
+loss of a biological parent, and becoming an elder. Each kind is recorded
+once per agent. After the initial identity choice, and outside urgent needs
+or another model turn, a separate request gives only the current identity and
+the named moment. It requires that agent's personal planner, never a world
+default or Jev. The existing installation usage meter reserves the call.
+The request has a 15-second timeout; accepted optional fields are limited to
+256 characters each and contain no control characters. Invalid fields refuse
+the entire change. An absent, declined, failed or interrupted reply consumes
+the opportunity without retry. With no selected personal model it keeps the
+identity without a call.
+
+Life-moment replies are admitted at the live tick commit boundary, rechecking
+the actor, current identity, run epoch and selected provider. Pause and presence
+loss cancel outstanding requests. A saved in-flight opportunity becomes
+interrupted when play resumes; death finalizes it in the deceased archive.
+The moment record saves accepted fields and timing. Events contain only agent
+IDs and the moment kind; runtime logs record only that an agent changed its
+identity. Accepted text appears in the owner profile and later self context.
+The offline bounded test reaches all five moments, observes exactly five
+requests, and confirms that more ticks and a reload add none.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
 *inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the
@@ -543,6 +566,16 @@ Later placement inside the saved border establishes residence; walking does
 not change it. Children inherit the resident parent's Town; death removes the
 resident. Owned-building placement establishes household membership.
 
+Founders and added adults arrive at a seeded age from day 15 to day 25 in
+day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
+per world seed and gives the founder in each placement position its day, so
+the four founders never share a day, the same seed repeats their ages, and a
+founder placed after an undo gets the undone position's age. `AddAdult` draws
+an added adult's day from the world seed and the number of inhabitants already
+recorded, living or dead, not from the client's agent ID. The saved birth tick
+holds the result, so loading never draws again. Year-based development worlds
+keep the 18-year adult age.
+
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
 open line, bending in 45° steps, never more than 45° from the heading it set out
@@ -599,8 +632,8 @@ touching sites ranked first. This provisional reading of "next to" keeps a Silo
 possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
 adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
-kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
-it follows the same rules once its content exists.
+kinds are listed in `HouseholdBuildingKinds`. The optional Store uses the same
+household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
@@ -660,6 +693,44 @@ resident. The game does not yet relocate people who already live in an
 overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
+**Continuity rule** (`SettlementContinuity`). The owner's answer on
+[#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
+numbers: the rule is on while fewer than eight active agents are not
+elders, and a couple may say "not yet" for two world days
+(`2 × TicksPerDay`). The checkpoint saves whether the rule was on at the last
+check and, per eligible couple, the tick at which their "not yet" ends. A new
+world appends `continuity_rule_on` when it is created; each tick
+`MaintainContinuity`, after `MaintainParenthood`, compares the live count with
+the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
+(detail `non_elders:{count}`) only when it changes, so reloading never repeats
+one.
+
+While the rule is on, an eligible couple is an accepted partnership that
+also passes the ordinary parenthood checks (both adults or elders, both with
+a household, not close kin) where neither partner is a parent or caregiver of
+a living infant. A couple first gets a deadline when it becomes eligible, and
+loses it when it stops being eligible or the rule turns off. Until the
+deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
+`parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
+candidates are neither offered nor applied. A couple held by the rule may
+propose while caring for an older child. At the deadline the server moves an
+existing plan to `preparing`, or creates a new plan for the partner who last
+asked (else the first by ID), and appends `continuity_plan_proceeded`.
+A new plan records that parent
+as its primary caregiver and their current household as its intended home.
+Resuming an accepted or postponed plan preserves its original initiating
+parent, request tick, selected caregiver and intended home. Birth still follows
+the caregiver's current household, including after a move or when its House
+is full. A plan past its deadline does not expire: it waits for the usual food,
+shelter and readiness checks. The rule only reads accepted partnerships and
+never proposes or accepts one.
+
+Each partner's self context carries a `continuity` note saying the rule and
+the hours left; a single agent's stays empty. Loading checks the flag and
+couples: known partner IDs in order, no couples while the rule is off, and no
+deadline more than two world days ahead. These events are logged as
+`settlement_family`; the two transitions are also Event Log lines.
+
 A recipe project that finds its work site busy waits with the blocker "Waiting
 for a free work site". While anyone waits, no one else is offered a new recipe
 for the same workstation design, so the waiting agent gets the next turn
@@ -706,6 +777,29 @@ belongings while they have no legal trade response. The society transaction
 checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
+
+**Household shops** bind an inventory barter offer to its actual business and
+holding household in `BusinessTradeState`. Offers use unreserved goods in that
+building and payment already carried by the adult customer. The inventory
+remains the only authority for quantities, acceptance and lot reservations;
+the business binding keeps the transaction location and readable outcome.
+Positive net incoming space is held for both parties, alongside production and
+inbound delivery space. Both traders must reach the shop before the household
+accepts and the inventory transfers anything. Payment is placed in that exact
+building; the purchase becomes personal cargo. Cancelled, expired or
+invalidated offers release their reservations without transporting goods.
+Buyers compare usable tool tiers and garment protection in the current weather.
+Their best usable tool in each family, equipped clothing and carrying aids, and
+the active equipment repair target are excluded from payment.
+Customers receive transaction access only. Store stocking first moves actual
+surplus into carried delivery lots, then uses ordinary household hauling to
+reach the Store. A remote House, field or Warehouse is never sale stock.
+Store stocking also keeps each adult's best usable work tool. Optional shelf
+restocking waits behind gathering materials needed by household work.
+Rates, the eight-unit shelf target and four-unit carried loads are provisional.
+Blacksmiths can sell real refined iron for another household's tool work.
+Market stalls, tool orders, meals and care remain tracked in #564 and its
+domain issues; currency remains later work.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded

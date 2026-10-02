@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # The interface, art and audio
@@ -90,9 +90,9 @@ everything that is available in the current build. See [what works today](../wha
   notification proposal; an agent's inspectable info panel is not an event
   notice.
 - World Info should let the player inspect discovered capabilities and other
-  world information. Filters should reveal established Town land claims,
-  household use areas and property, Town borders, and similar world facts.
-  The UI must not invent ownership or borders that agents have not established.
+  world information. Separate map filters show Town title, household land use,
+  disputed land, household property and Town borders. The UI must not invent
+  ownership or borders that agents have not established.
 - **Agreed on September 30:** World Info lists discovered capabilities from
   recorded discoveries only. When nothing has been discovered it says
   **No recorded discoveries**, rather than listing every built-in recipe as
@@ -193,6 +193,48 @@ everything that is available in the current build. See [what works today](../wha
   a relationship. Every direct edit is written to the Event Log as a developer
   edit, so playtest results are not mixed up with normal play. Time tools, such
   as stepping one tick, are not in the first set.
+- **Agreed after the October 2 panel review:** computment accepted redesigns
+  of the panels that had not been touched yet, shown as before-and-after game
+  screenshots, with these changes of their own:
+  - The selected-tile card is headed by the ground (Meadow, Forest) with a
+    picture of the tile. **Climate** is its own labelled row, so it cannot be
+    read as describing the whole world.
+  - The Agents list shows a portrait row per agent with **Hungry**, **Cold**
+    and **Ill** tags. The Event Log has an icon per kind of event, a heading
+    per day and a **Find** button kept clear of the scrollbar. The controls
+    list draws keys as keycaps with the letter centred on the key.
+  - World Info's World page is a "today" card and a grid of counts with icons.
+    Its Towns page shows residents' portraits, stores as item slots and
+    projects with progress bars, without the note about Town borders.
+  - Memories has tabs and a card per entry with a five-step sureness meter.
+    The Family Tree uses small portrait boxes and opens beside the Profile.
+  - The Profile's model line names the model's provider plainly instead of
+    "chosen by". Model choices are labelled **Provider**, **API key** and
+    **Model**, and an agent's model settings link to the main model settings
+    instead of offering to delete a key. Add an agent says **Click on land to
+    place them**.
+  - The Mod Library lists mods as cards with a status tag. Confirmation
+    dialogs centre their text and have a framed close button inside the frame.
+    Status messages show a tick or a warning sign.
+  - Load Save draws a world's save branches as a large timeline with the
+    chosen save described underneath and the list behind a **Timeline / List**
+    switch (option C of three, for #680). After two more rounds of drawings,
+    computment chose this look:
+    - Each branch is a thick line in its own colour, with a numbered badge and
+      its save count on the left. A new branch bends down from the save it
+      grew from.
+    - A thin season bar runs across the top, with a tick per day, each
+      season's icon and name ("Spring · year 2") and day numbers where there
+      is room. A faint wash of each season's colour sits behind the lanes.
+    - Older saves are open points with a dot of the branch's colour, and
+      autosaves are small diamonds. Each branch's newest save is a solid point
+      under a small hanging banner in the branch's colour.
+    - Save names sit in small tags below the line, or above it when the space
+      below is taken. The chosen save's tag turns orange, with corner marks
+      around its point.
+    - **You are here** is an orange camp marker at the end of a dotted line.
+    - The row above the timeline holds a key to the points (newest on its
+      branch, save, autosave) beside the switch, instead of a line of counts.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -248,6 +290,11 @@ everything that is available in the current build. See [what works today](../wha
   Town borders show as a pale dashed line along the border's edge (option B of
   four looks). Add Agent placement still shows Town borders and household
   property while placing, without switching the Filters on.
+- **Agreed on October 1:** stripe land with competing household claims, and
+  clicking a tile lists each household's claim.
+- Following the Filters above, Town title and household use rights show as
+  separate overlays; the tile list also names the Town title, and Add Agent
+  placement shows these records.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player
@@ -275,7 +322,7 @@ everything that is available in the current build. See [what works today](../wha
   tells the player if the placement changed. If claims or Towns overlap so that
   the answer is ambiguous, the placement is refused and the game explains why.
   It is never decided by list order or distance. How claims and use rights
-  work is in
+  work, and how Add Agent currently reads them, is in
   [Town land and household use rights](towns.md#town-land-and-household-use-rights).
 - Selecting an agent opens an **interactive info popup near that agent**. The
   player can change that agent's provider and model there, including choosing
@@ -346,11 +393,14 @@ everything that is available in the current build. See [what works today](../wha
   two sacks" finishes after two sacks; "Keep gathering food" continues until
   cancelled. Emergency interruptions preserve the outstanding task, quantity
   or ongoing instruction.
-- A **new Order replaces the previous order by default**, including an ongoing
+- A **recognized new Order replaces the previous order by default**, including an ongoing
   or waiting order. The player can explicitly choose **Queue** to have the
   new order done afterward instead. Pending and ongoing orders can be
   cancelled. For example, "Make two sacks" replaces "Keep gathering food"
   unless the player chooses Queue.
+- **Agreed on October 2:** an order the game cannot understand leaves the
+  current order running. The failed new instruction is reported as not
+  understood; a typo does not cancel a task already in progress.
 - The agent's own model sees an order's **original words and the task the
   game understood** in its next ordinary request. The wording supplies
   context, such as why the household needs food; it does not let the model
