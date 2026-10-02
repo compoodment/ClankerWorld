@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # How the game works
@@ -718,10 +718,11 @@ the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
 one.
 
 While the rule is on, an eligible couple is an accepted partnership that
-also passes the ordinary parenthood checks (both adults or elders, both with
-a household, not close kin) where neither partner is a parent or caregiver of
-a living infant. A couple first gets a deadline when it becomes eligible, and
-loses it when it stops being eligible or the rule turns off. Until the
+also passes the ordinary parenthood checks (both adults, since elders cannot
+have children; both with a household; not close kin) where neither partner is
+a parent or caregiver of a living infant. A couple first gets a deadline when
+it becomes eligible, and loses it when it stops being eligible or the rule
+turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may

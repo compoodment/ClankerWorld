@@ -804,7 +804,7 @@ public static partial class SocietyFixture
         var firstParent = checkpoint.GetInhabitant(request.FirstParentId);
         var secondParent = checkpoint.GetInhabitant(request.SecondParentId);
         var household = checkpoint.GetHousehold(request.HouseholdId);
-        if (!IsAdult(firstParent) || !IsAdult(secondParent) ||
+        if (!CanHaveChildren(firstParent) || !CanHaveChildren(secondParent) ||
             !request.ConsentingParentIds.OrderBy(item => item, StringComparer.Ordinal)
                 .SequenceEqual(new[] { firstParent.Id, secondParent.Id }.OrderBy(item => item, StringComparer.Ordinal)) ||
             !HasActivePartnership(checkpoint, firstParent.Id, secondParent.Id) ||
@@ -1773,6 +1773,10 @@ public static partial class SocietyFixture
     private static bool IsAdult(SocietyInhabitant inhabitant) =>
         inhabitant.Status == SocietyInhabitantStatus.Active &&
         inhabitant.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder;
+
+    // Elders may care for a child but cannot be its parents.
+    private static bool CanHaveChildren(SocietyInhabitant inhabitant) =>
+        inhabitant.Status == SocietyInhabitantStatus.Active && inhabitant.AgeBand == SocietyAgeBand.Adult;
 
     private static void EnsureActive(SocietyCheckpoint checkpoint, string id)
     {
