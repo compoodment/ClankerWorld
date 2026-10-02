@@ -173,8 +173,13 @@ pauses once the adult and household hold eight of that material; ornament
 making remains unfinished.
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
-death by day 60 from birth. Added adults begin at a nonzero age. These are
-playtest values, not settled population balance.
+death by day 60 from birth. Nobody dies of old age before day 45; from then
+the daily chance starts at 1% and rises a quarter of a point a day. Each
+founder and each adult added later arrives at an age from day 15 to day 25,
+chosen from the world seed. The four founders always get different ages, and
+the same seed gives the same founder ages in placement order. The agent card
+shows the age, such as **Adult · 19 days**. These are playtest values, not
+settled population balance.
 
 A world cannot die out only because every couple keeps declining children.
 While fewer than eight agents who are not elders are alive (infants, children
