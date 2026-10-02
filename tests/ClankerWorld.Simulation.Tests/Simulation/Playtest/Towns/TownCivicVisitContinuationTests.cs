@@ -30,7 +30,6 @@ public sealed class TownCivicVisitContinuationTests
             {
                 Position = person.InhabitantId == visitor ? start : person.Position,
                 HungerBasisPoints = 8_000,
-                Survival = new SurvivalCondition(),
                 TravelCooldownTicks = 0,
             }).ToArray(),
         }, id => id == visitor ? provider : new ActionCoverageRecorder(chooseIdle: true));

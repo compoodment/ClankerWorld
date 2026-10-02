@@ -82,8 +82,12 @@ public sealed class TownGovernanceProjectionTests
         var initial = generated.ExportState();
         const int day = 10;
         var oldDay = initial.Society.Society.Config.TicksPerWorldDay;
+        var initialTown = initial.Towns![0];
         using var clock = PrivateWorldRuntime.Restore(initial with
         {
+            // AddAgent can record an unsuccessful election at the original day
+            // length. The shorter clock starts with its own civic history.
+            Towns = [initialTown with { Governance = TownGovernanceState.Create(initialTown.ResidentIds) }],
             WorldSystems = RegionalWeatherRules.Initialize(initial.WorldSystems! with
             {
                 Config = initial.WorldSystems.Config with { TicksPerDay = day },
