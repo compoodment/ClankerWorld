@@ -380,6 +380,69 @@ public sealed class HandcartRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Fact]
+    public async Task BlacksmithHaulsLeaveABuildersCartMaterialsWithThem()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("cart-materials-kept", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
+        var inventory = state.Society.Society.Inventory;
+        inventory = InventoryFixture.AddLot(inventory, "kept-wood", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "kept-rope", "rope", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "stock-fittings", "iron_fittings", smith.HouseholdId!, 2,
+            groundPosition: new(smith.Position.X, smith.Position.Y));
+        // The Blacksmith once took a builder's carried cart wood into its stock, and the builder
+        // collected it back for the cart, round and round, so neither the cart nor anything else got done.
+        var chooser = new CartChooser("haul_smith_input");
+        using var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
+            id => id == actor ? chooser : new CartChooser("safe_idle"));
+        await Until(world, () => chooser.Offered.Contains("collect_handcart_material:iron_fittings"), 20);
+        for (var tick = 0; tick < 20; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            world.Validate();
+        }
+
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "smith_input_delivered" &&
+            item.Detail.Contains(":kept-", StringComparison.Ordinal));
+        foreach (var (lotId, quantity) in new[] { ("kept-wood", 4), ("kept-rope", 1) })
+        {
+            var lot = world.Society.Inventory.GetLot(lotId);
+            Assert.Equal(quantity, lot.Quantity);
+            Assert.True(ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor);
+        }
+    }
+
+    [Fact]
+    public async Task NobodyCollectsCartMaterialsForASetTheyCannotFinish()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("cart-set-unfinished", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
+        var site = new InventoryGroundPosition(smith.Position.X, smith.Position.Y);
+        Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot => lot.ItemKind == "iron_fittings");
+        var inventory = state.Society.Society.Inventory;
+        inventory = InventoryFixture.AddLot(inventory, "stock-wood", "wood", smith.HouseholdId!, 4, groundPosition: site);
+        inventory = InventoryFixture.AddLot(inventory, "stock-rope", "rope", smith.HouseholdId!, 1, groundPosition: site);
+        var unfinished = new CartChooser("safe_idle");
+        using (var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
+                   id => id == actor ? unfinished : new CartChooser("safe_idle")))
+            await Until(world, () => unfinished.Offered.Count > 0, 20);
+        // Without fittings anywhere, wood and rope taken for a cart would only sit in the builder's hands.
+        Assert.DoesNotContain(unfinished.Offered, id => id.StartsWith("collect_handcart_material:", StringComparison.Ordinal));
+
+        inventory = InventoryFixture.AddLot(inventory, "stock-fittings", "iron_fittings", smith.HouseholdId!, 2, groundPosition: site);
+        var complete = new CartChooser("safe_idle");
+        using var finishable = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
+            id => id == actor ? complete : new CartChooser("safe_idle"));
+        await Until(finishable, () => complete.Offered.Count > 0, 20);
+        Assert.Contains("collect_handcart_material:wood", complete.Offered);
+        Assert.Contains("collect_handcart_material:iron_fittings", complete.Offered);
+        Assert.Contains("collect_handcart_material:rope", complete.Offered);
+    }
+
     private static PrivateWorldRuntimeState AtPosition(PrivateWorldRuntimeState state, string actor,
         GridPoint position, InventoryCheckpoint inventory) => state with
         {

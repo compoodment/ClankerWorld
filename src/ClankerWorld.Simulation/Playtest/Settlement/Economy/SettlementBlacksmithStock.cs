@@ -183,7 +183,7 @@ public sealed partial class PrivateWorldRuntime
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
                 .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
-                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+                    lot.ContainerLotId is null && lot.ItemKind == kind && SpareCarriedQuantity(actor, lot) > 0 &&
                     !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
@@ -214,7 +214,7 @@ public sealed partial class PrivateWorldRuntime
                     (lot.OwnerId == householdId || lot.OwnerId == actor) && lot.ItemKind == kind &&
                     lot.StorageBuildingId != blacksmithId && lot.DeliveryBuildingId != blacksmithId &&
                     lot.ContainerLotId is null &&
-                    AvailableLotQuantity(lot) > 0))
+                    (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) > 0))
                 continue;
             if (MaterialSource(kind, actor) is { } source)
                 return (kind, source);
@@ -344,7 +344,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             var targetPersonal = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
             var personalQuantity = Math.Min(targetPersonal - stockedPersonal - incomingPersonal,
-                Math.Min(room, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(input))));
+                Math.Min(room, Math.Min(HouseHaulLoadQuantity, SpareCarriedQuantity(actor, input))));
             if (personalQuantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, input.Id,

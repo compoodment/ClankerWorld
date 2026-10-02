@@ -1288,7 +1288,10 @@ fuel, planting seeds or equipped gear. Loading a partial quantity preserves
 the untouched remainder's original location and reservations.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
-wood, fittings and rope. Exact inputs are reserved through the production job;
+wood, fittings and rope. An adult collects them from household or Town
+Warehouse stock only while the whole set is carried or in that stock, and the
+Blacksmith and Store hauls leave the carried set with them rather than
+returning it to stock. Exact inputs are reserved through the production job;
 the personal cart appears on the work site's ground after completion. Repair
 consumes three carried material reservations atomically. Unloading can retain
 damaged goods on the ground and works after the cart breaks. Property transfer

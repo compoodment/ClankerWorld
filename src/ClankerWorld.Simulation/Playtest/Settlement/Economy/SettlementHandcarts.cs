@@ -23,6 +23,47 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsHandcartRecipe(RecipeDefinition recipe) => recipe.Outputs.Any(output => output.ResourceId == InventoryContainerRules.Handcart);
 
+    /// <summary>
+    /// The cart recipe while the actor may build their own cart: no cart yet, none being built, and every
+    /// material either carried already or in stock they may collect, so nobody holds on to a set they cannot finish.
+    /// </summary>
+    private RecipeDefinition? HandcartToBuild(string actor)
+    {
+        var recipe = worldContent.Recipes.FirstOrDefault(IsHandcartRecipe);
+        var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        return recipe is not null && household is not null && AdultResident(actor) && BlacksmithForHousehold(household) is not null &&
+            !society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor) &&
+            !worldSimulation.ProductionJobs.Any(job => job.WorkerId == actor && job.RecipeId == recipe.CanonicalId &&
+                job.State == WorldProductionJobState.Running) &&
+            recipe.Inputs.All(input => HasOrMayCollect(actor, household, input.ResourceId, input.Amount))
+            ? recipe : null;
+    }
+
+    private int CarriedMaterialQuantity(string actor, string kind) => society.Checkpoint.Inventory.Lots
+        .Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && lot.ItemKind == kind)
+        .Sum(AvailableLotQuantity);
+
+    private bool HasOrMayCollect(string actor, string household, string kind, int amount)
+    {
+        var missing = amount - CarriedMaterialQuantity(actor, kind);
+        if (missing <= 0) return true;
+        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.CarrierId is null &&
+            lot.ContainerLotId is null && lot.ItemKind == kind).Sum(AvailableLotQuantity);
+        // Town Warehouse stock is checked last: reaching it needs a route.
+        return stock >= missing || stock + AvailableWarehouseStock(actor, kind).Sum(AvailableLotQuantity) >= missing;
+    }
+
+    // A would-be cart builder keeps the materials they carry for it. Household hauls take only what is
+    // beyond that, or they would return it to stock as fast as the builder collects it from there.
+    private int SpareCarriedQuantity(string actor, InventoryLot lot)
+    {
+        var kept = lot.OwnerId == actor && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
+            worldContent.Recipes.FirstOrDefault(IsHandcartRecipe) is { } cart
+            ? cart.Inputs.Where(input => input.ResourceId == lot.ItemKind).Sum(input => input.Amount) : 0;
+        if (kept == 0 || HandcartToBuild(actor) is null) return AvailableLotQuantity(lot);
+        return Math.Min(AvailableLotQuantity(lot), Math.Max(0, CarriedMaterialQuantity(actor, lot.ItemKind) - kept));
+    }
+
     private static bool IsHandcartCargo(InventoryCheckpoint inventory, InventoryLot lot) => lot.ContainerLotId is { } id &&
         inventory.Lots.Any(container => container.Id == id && container.ItemKind == InventoryContainerRules.Handcart);
 
@@ -94,17 +135,12 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState person)
     {
         var inventory = society.Checkpoint.Inventory;
-        var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        var craftRecipe = worldContent.Recipes.FirstOrDefault(IsHandcartRecipe);
-        if (craftRecipe is not null && household is not null && BlacksmithForHousehold(household) is not null &&
-            !inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor) &&
-            !worldSimulation.ProductionJobs.Any(job => job.WorkerId == actor && job.RecipeId == craftRecipe.CanonicalId && job.State == WorldProductionJobState.Running))
+        if (HandcartToBuild(actor) is { } craftRecipe)
         {
             foreach (var input in craftRecipe.Inputs)
             {
-                var carried = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                    lot.OwnerId == actor && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity);
-                if (carried < input.Amount && FreeCarryCapacity(actor) > 0 && SharedItem(input.ResourceId, actor) is not null)
+                if (CarriedMaterialQuantity(actor, input.ResourceId) < input.Amount && FreeCarryCapacity(actor) > 0 &&
+                    SharedItem(input.ResourceId, actor) is not null)
                     candidates.Add(new(CollectCartMaterialPrefix + input.ResourceId,
                         $"Collect nearby {input.ResourceId.Replace('_', ' ')} and carry it to build a handcart at your household Blacksmith.", 25));
             }
@@ -178,15 +214,13 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(CollectCartMaterialPrefix, StringComparison.Ordinal))
         {
             var kind = candidateId[CollectCartMaterialPrefix.Length..];
-            var recipe = worldContent.Recipes.FirstOrDefault(IsHandcartRecipe);
-            var input = recipe?.Inputs.FirstOrDefault(item => item.ResourceId == kind);
+            var input = HandcartToBuild(actor)?.Inputs.FirstOrDefault(item => item.ResourceId == kind);
             if (input is null || input.Value.Amount <= 0 || SharedItem(kind, actor) is not { } stock) return true;
             var source = HouseholdStockPosition(stock);
             if (!IsWithinInteractionRange(person.Position, source, HouseholdStockInteractionRange(stock)))
             { MoveToward(actor, person, source, "handcart_material", HouseholdStockInteractionRange(stock)); return true; }
-            var carried = society.Checkpoint.Inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                lot.OwnerId == actor && lot.ItemKind == kind).Sum(AvailableLotQuantity);
-            var quantity = Math.Min(input.Value.Amount - carried, Math.Min(AvailableLotQuantity(stock), FreeCarryCapacity(actor)));
+            var quantity = Math.Min(input.Value.Amount - CarriedMaterialQuantity(actor, kind),
+                Math.Min(AvailableLotQuantity(stock), FreeCarryCapacity(actor)));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"cart-material:{WorldTick}:{actor}",
                 stock.OwnerId, actor, stock.Id, quantity, "handcart_material_collected"));
