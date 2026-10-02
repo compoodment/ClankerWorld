@@ -262,8 +262,12 @@ public sealed record ViewerPlacedBuilding(
     bool HasDominantFamily = false,
     bool IsOvercrowded = false)
 {
+    public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
+    string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
 
 public sealed record ViewerProductionJob(
     string JobId,

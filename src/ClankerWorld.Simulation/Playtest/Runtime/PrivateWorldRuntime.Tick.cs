@@ -316,6 +316,7 @@ public sealed partial class PrivateWorldRuntime
         bridgeTraffic = proposed.bridgeTraffic;
         conversations = proposed.conversations;
         conversationBudgets = proposed.conversationBudgets;
+        businessTrades = proposed.businessTrades;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -404,6 +405,7 @@ public sealed partial class PrivateWorldRuntime
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
+            StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -479,6 +481,7 @@ public sealed partial class PrivateWorldRuntime
             WearEquippedClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
+            MaintainBusinessTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
             CancelFieldWorkForUnavailableWorkers();
