@@ -79,8 +79,9 @@ public partial class Main
         var todayText = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         todayText.AddThemeConstantOverride("separation", 0);
         todayText.AddChild(new Label { Text = DisplayWorldClock(snapshot.WorldTick), ThemeTypeVariation = "HeadingLabel" });
+        // A season date already names the season, so only the weather follows it.
         var conditions = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(weather)} here"
+            ? (DatesShowSeason ? "" : $"{Pretty(authoring.Season)} · ") + $"{Pretty(weather)} here"
             : "Season and weather not reported";
         if (snapshot.CalendarPace is { } pace) conditions += $" · {pace.DaysPerYear}-day years";
         todayText.AddChild(new Label { Text = conditions, ThemeTypeVariation = "DimLabel" });
