@@ -1,8 +1,3 @@
-# Night and colder nights
-
-Prepared for [#673](https://github.com/compoodment/ClankerWorld/issues/673).
-These Windows checks remain pending; automated checks do not replace them.
-
 - In a new world, watch a full day from the clock in the top bar. Night should run from about 19:12 to 04:48 (roughly 2 min 24 s of a six-minute day), with the map fading darker over about 15 seconds at dusk and lighter at dawn, not in sudden jumps. ([#673](https://github.com/compoodment/ClankerWorld/issues/673))
 - At full night, zoom all the way out and all the way in, in both the Light and Dark themes. Water, sand, grass, forest, mountains, snow, roads, fields and buildings should all still be easy to tell apart, and agent names, map labels, chat bubbles, the selected-tile outline, the hover readout and every panel should be as readable as by day. Say if the night looks too dark or too faint to notice. ([#673](https://github.com/compoodment/ClankerWorld/issues/673))
 - During a rain or snow night, check that the falling weather and the night darkening look right together. ([#673](https://github.com/compoodment/ClankerWorld/issues/673))

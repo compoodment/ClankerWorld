@@ -22,6 +22,15 @@ public sealed partial class PrivateWorldRuntime
                         InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
                     throw new InvalidDataException("Equipped goods must be one physically carried, unreserved unit owned by that person.");
             }
+            if (equipment.OrnamentLotId is { } ornamentId)
+            {
+                var ornament = PersonalEquipmentRules.EquippedUnit(society.Inventory, person.InhabitantId, ornamentId);
+                if (ornament is null || ornament.ContainerLotId is not null ||
+                    !PersonalEquipmentRules.IsOrnament(ornament.ItemKind) ||
+                    society.Inventory.Reservations.Any(item => item.LotId == ornamentId && item.State is
+                        InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+                    throw new InvalidDataException("A worn ornament must be one unreserved, personally carried unit owned by its wearer.");
+            }
             if (equipment.Repair is not { } repair) continue;
             var target = society.Inventory.Lots.FirstOrDefault(lot => lot.Id == repair.LotId);
             var building = simulation?.Buildings.FirstOrDefault(item => item.InstanceId == repair.BuildingId);
@@ -58,6 +67,9 @@ public sealed partial class PrivateWorldRuntime
     {
         static bool InvalidId(string? id) => id is not null && (string.IsNullOrWhiteSpace(id) || id.Any(char.IsControl));
         if (schema < PersonalEquipmentSchemaVersion || InvalidId(equipment.ClothingLotId) || InvalidId(equipment.CarryAidLotId) ||
+            InvalidId(equipment.OrnamentLotId) || equipment.OrnamentLotId is not null &&
+            (schema < OrnamentEquipmentSchemaVersion || equipment.OrnamentLotId == equipment.ClothingLotId ||
+             equipment.OrnamentLotId == equipment.CarryAidLotId) ||
             equipment.ClothingLotId is not null && equipment.ClothingLotId == equipment.CarryAidLotId ||
             equipment.Repair is { } repair &&
             (InvalidId(repair.LotId) || InvalidId(repair.BuildingId) || repair.LotId is null || repair.BuildingId is null ||

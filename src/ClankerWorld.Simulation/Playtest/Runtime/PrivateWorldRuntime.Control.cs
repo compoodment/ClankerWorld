@@ -43,6 +43,14 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Infants cannot carry out owner instructions; direct care through an adult caregiver.", nameof(request));
             }
 
+            var text = request.Text.Trim();
+            var hasPendingOrder = PendingInstructionFor(targetId) is not null;
+            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text) : null;
+            if (parsedOrder is not null && !request.Queue)
+                ReplacePendingOrders(targetId);
+            if (parsedOrder is not null)
+                parsedOrder = parsedOrder with { Status = request.Queue && hasPendingOrder ? "queued" : "waiting" };
+
             var sequence = nextInstructionSequence++;
             var instruction = new OwnerQueuedInstruction(
                 $"private-instruction-{sequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}",
@@ -50,11 +58,14 @@ public sealed partial class PrivateWorldRuntime
                 request.IssuerId.Trim(),
                 targetId,
                 request.Kind,
-                request.Text.Trim(),
+                text,
                 WorldTick,
                 society.Checkpoint.RunEpoch,
                 sequence,
-                OwnerInstructionState.Queued);
+                OwnerInstructionState.Queued,
+                Queue: request.Queue,
+                Order: request.Kind != OwnerInstructionKind.MustDo ? null : parsedOrder ??
+                    new OwnerInstructionOrder("unknown", "not_understood", 0, 0, "none", false));
             instructionsByIdempotency.Add(instruction.IdempotencyKey, instruction);
             var receipt = new OwnerInstructionReceipt(
                 instruction.InstructionId,
@@ -65,6 +76,60 @@ public sealed partial class PrivateWorldRuntime
             instructionReceipts.Add(instruction.IdempotencyKey, receipt);
             AppendEvent("instruction_queued", $"{instruction.InstructionId}:{ToWireValue(instruction.Kind)}");
             CloseOrdersNotUnderstood(targetId);
+            return receipt;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public OwnerOrderControlReceipt CancelOrder(OwnerOrderCancelRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateOrderCancelRequest(request);
+        gate.Wait();
+        try
+        {
+            var key = request.IdempotencyKey.Trim();
+            if (orderCancellations.TryGetValue(key, out var existing))
+            {
+                if (!Matches(existing, request))
+                    throw new InvalidOperationException("An idempotency key cannot be reused for a different order cancellation.");
+                return existing.Receipt;
+            }
+            if (!string.Equals(request.WorldId.Trim(), society.Checkpoint.WorldId, StringComparison.Ordinal))
+                throw new InvalidOperationException("The cancellation belongs to another world.");
+            var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+                item.InstructionId == request.OrderId.Trim());
+            if (instruction is null || instruction.Kind != OwnerInstructionKind.MustDo ||
+                instruction.TargetInhabitantId != request.TargetInhabitantId.Trim())
+                throw new ArgumentException("The order does not belong to this active agent in this world.", nameof(request));
+
+            var changed = instruction.Order is { } order && IsActiveOrder(order.Status) &&
+                !completedInstructionIds.Contains(instruction.InstructionId);
+            var status = instruction.Order?.Status ?? "not_understood";
+            if (changed)
+            {
+                instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+                {
+                    Order = instruction.Order! with
+                    {
+                        Status = "cancelled",
+                        BlockedReason = null,
+                        WaitForDecisionAfterFailure = false,
+                    },
+                };
+                completedInstructionIds.Add(instruction.InstructionId);
+                status = "cancelled";
+                AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
+            }
+            var receipt = new OwnerOrderControlReceipt(
+                instruction.InstructionId, status, changed, WorldTick, nextEventId - 1);
+            orderCancellations.Add(key, new OwnerOrderCancellation(
+                key, request.IssuerId.Trim(), request.WorldId.Trim(), request.TargetInhabitantId.Trim(),
+                request.OrderId.Trim(), receipt));
+            checkpointSchemaVersion = StateSchemaVersion;
             return receipt;
         }
         finally
@@ -113,22 +178,96 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    // Provider startup and synchronous cancellation completions can reserve or
+    // finish a model call on the thread holding this nonreentrant runtime gate.
+    [ThreadStatic] private static PrivateWorldRuntime? providerInvocationUnderGate;
+
+    /// <summary>
+    /// True while this thread invokes a provider or its cancellation callbacks
+    /// under the runtime gate. Code reached from those callbacks must not wait
+    /// for this nonreentrant gate.
+    /// </summary>
+    public bool IsInvokingProviderUnderGateOnThisThread => ReferenceEquals(providerInvocationUnderGate, this);
+
+    private void CancelProviderCall(CancellationTokenSource cancellation, bool underRuntimeGate)
+    {
+        var outerInvocation = providerInvocationUnderGate;
+        if (underRuntimeGate) providerInvocationUnderGate = this;
+        try
+        {
+            cancellation.Cancel();
+        }
+        finally
+        {
+            providerInvocationUnderGate = outerInvocation;
+        }
+    }
+
     public void Pause()
     {
         gate.Wait();
         try
         {
-            var wasPaused = society.Checkpoint.IsPaused;
-            var result = society.Pause();
-            if (!wasPaused && result.Checkpoint.IsPaused)
-            {
-                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-                foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-                foreach (var id in pendingConversationTurns.Keys.ToArray())
-                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
-                SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
-                AppendEvent("paused", "owner_request");
-            }
+            PauseCore();
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Pauses like <see cref="Pause"/>, but returns false without pausing if
+    /// the runtime stays busy for <paramref name="wait"/> or this thread is
+    /// invoking a provider or its cancellation callbacks under the runtime gate.
+    /// </summary>
+    public bool TryPause(TimeSpan wait)
+    {
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
+        try
+        {
+            PauseCore();
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private void PauseCore()
+    {
+        var wasPaused = society.Checkpoint.IsPaused;
+        var result = society.Pause();
+        if (!wasPaused && result.Checkpoint.IsPaused)
+        {
+            foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+            foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            CancelIdentityMoments();
+            foreach (var id in pendingConversationTurns.Keys.ToArray())
+                CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
+            SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
+            AppendEvent("paused", "owner_request");
+        }
+    }
+
+    /// <summary>
+    /// Writes the installation's 80% model-call warning into this world's
+    /// Event Log. The count and limit stay in installation accounting; the
+    /// event only records what the player was told, like a pause. Returns
+    /// false, recording nothing, when the runtime stays busy for
+    /// <paramref name="wait"/> or this thread invokes a provider or its
+    /// cancellation callbacks under the runtime gate.
+    /// </summary>
+    public bool TryRecordModelCallWarning(long attempts, long attemptLimit, TimeSpan wait)
+    {
+        if (attemptLimit < 1 || attempts < 1 || attempts > attemptLimit)
+            throw new ArgumentOutOfRangeException(nameof(attempts), "A model-call warning needs a used count within a positive limit.");
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
+        try
+        {
+            AppendEvent("model_call_warning", FormattableString.Invariant($"used:{attempts}:limit:{attemptLimit}"));
+            return true;
         }
         finally
         {
@@ -159,66 +298,90 @@ public sealed partial class PrivateWorldRuntime
     private OwnerQueuedInstruction? PendingInstructionFor(string inhabitantId) =>
         instructionsByIdempotency.Values
             .Where(item => item.TargetInhabitantId == inhabitantId &&
+                item.Kind == OwnerInstructionKind.MustDo &&
+                item.Order is not null && IsActiveOrder(item.Order.Status) &&
                 !completedInstructionIds.Contains(item.InstructionId))
             .OrderBy(item => item.SubmissionSequence)
             .FirstOrDefault();
 
-    private static readonly HashSet<string> HarvestInstructionWords =
-        new(StringComparer.Ordinal) { "harvest", "harvests", "harvesting", "gather", "gathers", "gathering" };
-    private static readonly HashSet<string> BerryInstructionWords =
-        new(StringComparer.Ordinal) { "berry", "berries" };
-    private static readonly HashSet<string> EatInstructionWords =
-        new(StringComparer.Ordinal) { "eat", "eats", "eating", "food", "hungry" };
-    private static readonly HashSet<string> TravelInstructionWords =
-        new(StringComparer.Ordinal) { "go", "goes", "going", "travel", "travels", "traveling", "travelling", "move", "moves", "moving" };
-
-    private static string? InstructionCandidate(string text)
+    private void ReplacePendingOrders(string inhabitantId)
     {
-        // Whole words only, so "heat" is not "eat" and "good" is not "go".
-        var words = InstructionWords(text);
-        if (words.Overlaps(HarvestInstructionWords))
+        foreach (var instruction in instructionsByIdempotency.Values
+                     .Where(item => item.TargetInhabitantId == inhabitantId &&
+                         item.Kind == OwnerInstructionKind.MustDo && item.Order is { } order &&
+                         IsActiveOrder(order.Status) && !completedInstructionIds.Contains(item.InstructionId))
+                     .OrderBy(item => item.SubmissionSequence).ToArray())
         {
-            return "harvest_food";
+            instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+            {
+                Order = instruction.Order! with
+                {
+                    Status = "cancelled",
+                    BlockedReason = "Replaced by a newer order.",
+                    WaitForDecisionAfterFailure = false,
+                },
+            };
+            completedInstructionIds.Add(instruction.InstructionId);
+            AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
-
-        if (words.Overlaps(BerryInstructionWords))
-        {
-            return "seek_food";
-        }
-
-        if (words.Overlaps(EatInstructionWords))
-        {
-            return "consume_food";
-        }
-
-        if (words.Overlaps(TravelInstructionWords))
-        {
-            return "seek_food";
-        }
-
-        return null;
+        checkpointSchemaVersion = StateSchemaVersion;
     }
 
-    private static HashSet<string> InstructionWords(string text)
-    {
-        var words = new HashSet<string>(StringComparer.Ordinal);
-        var start = -1;
-        for (var index = 0; index <= text.Length; index++)
-        {
-            if (index < text.Length && char.IsLetter(text[index]))
-            {
-                if (start < 0) start = index;
-                continue;
-            }
+    private static bool IsActiveOrder(string status) =>
+        status is "queued" or "waiting" or "doing" or "interrupted" or "blocked";
 
-            if (start >= 0)
-            {
-                words.Add(text[start..index].ToLowerInvariant());
-                start = -1;
-            }
+    private bool HasNewObserverGuidanceFor(string inhabitantId) =>
+        ObserverGuidanceInstructionsFor(inhabitantId).Any(item => item.GuidancePromptedTick is null);
+
+    private OwnerQueuedInstruction[] ObserverGuidanceInstructionsFor(string inhabitantId)
+    {
+        var messages = instructionsByIdempotency.Values
+            .Where(item => item.TargetInhabitantId == inhabitantId &&
+                !completedInstructionIds.Contains(item.InstructionId) &&
+                (item.Kind == OwnerInstructionKind.Suggestive ||
+                    item.InstructionId == PendingInstructionFor(inhabitantId)?.InstructionId))
+            .OrderBy(item => item.SubmissionSequence)
+            .ToList();
+        var selected = messages.Take(InhabitantObservation.MaximumObserverGuidanceCount).ToList();
+        if (messages.Count > selected.Count &&
+            PendingInstructionFor(inhabitantId) is { } operativeOrder &&
+            selected.All(item => item.InstructionId != operativeOrder.InstructionId))
+        {
+            selected[^1] = operativeOrder;
+            selected.Sort((left, right) => left.SubmissionSequence.CompareTo(right.SubmissionSequence));
         }
 
-        return words;
+        return selected.ToArray();
+    }
+
+    private CognitionObserverGuidance[] ObserverGuidanceFor(string inhabitantId) =>
+        ObserverGuidanceInstructionsFor(inhabitantId)
+            .Select(item => new CognitionObserverGuidance(
+                item.InstructionId,
+                item.IssuerId,
+                item.TargetInhabitantId,
+                ToWireValue(item.Kind),
+                item.Text,
+                item.SubmittedTick,
+                item.RunEpoch,
+                item.SubmissionSequence,
+                item.Kind == OwnerInstructionKind.MustDo
+                    ? UnderstoodTaskFor(item.Order?.Action)
+                    : null,
+                item.ObserverReply is null))
+            .ToArray();
+
+    private static string? UnderstoodTaskFor(string? candidate) => candidate switch
+    {
+        "consume_food" => "eat one carried food item",
+        "seek_food" => "travel within gathering range of an available food source",
+        "harvest_food" => "gather several food servings from a nearby food source",
+        _ => null,
+    };
+
+    private OwnerInstructionOrder? ParseInstructionOrder(string text)
+    {
+        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
     }
 
     // A direct order that names no action the game can carry out is closed
@@ -229,28 +392,69 @@ public sealed partial class PrivateWorldRuntime
                      .Where(item => item.TargetInhabitantId == inhabitantId &&
                          item.Kind == OwnerInstructionKind.MustDo &&
                          !completedInstructionIds.Contains(item.InstructionId) &&
-                         InstructionCandidate(item.Text) is null)
+                         item.Order?.Action == "unknown")
                      .OrderBy(item => item.SubmissionSequence)
                      .ToArray())
         {
+            instructionsByIdempotency[order.IdempotencyKey] = order with
+            {
+                Order = order.Order! with { Status = "not_understood" },
+            };
             completedInstructionIds.Add(order.InstructionId);
             AppendEvent("instruction_not_understood", $"{inhabitantId}:{order.InstructionId}");
         }
+        checkpointSchemaVersion = StateSchemaVersion;
     }
 
     private static bool Matches(OwnerQueuedInstruction existing, OwnerInstructionRequest request) =>
         existing.IssuerId == request.IssuerId.Trim() &&
         existing.TargetInhabitantId == request.TargetInhabitantId.Trim() &&
         existing.Kind == request.Kind &&
-        existing.Text == request.Text.Trim();
+        existing.Text == request.Text.Trim() &&
+        existing.Queue == request.Queue;
 
+    private static bool Matches(OwnerOrderCancellation existing, OwnerOrderCancelRequest request) =>
+        existing.IssuerId == request.IssuerId.Trim() &&
+        existing.WorldId == request.WorldId.Trim() &&
+        existing.TargetInhabitantId == request.TargetInhabitantId.Trim() &&
+        existing.OrderId == request.OrderId.Trim();
+
+    private static void ValidateOrderCancelRequest(OwnerOrderCancelRequest request)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.WorldId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OrderId);
+        foreach (var value in new[] { request.IdempotencyKey, request.IssuerId, request.WorldId,
+                     request.TargetInhabitantId, request.OrderId })
+            if (value.Trim().Length > 128 || value.Any(char.IsControl))
+                throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
+    }
+
+    // Refuse everything a save would refuse before the request touches live
+    // state, so a bad request cannot leave the world unable to save.
     private static void ValidateInstructionRequest(OwnerInstructionRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Text);
+        if (!IsValidInstructionIdentifier(request.IdempotencyKey.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction idempotency key must be at most 128 characters without control characters.");
+        if (!IsValidInstructionIdentifier(request.IssuerId.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction issuer ID must be at most 128 characters without control characters.");
+        if (request.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction kind must be suggestive or must_do.");
+        var text = request.Text.Trim();
+        if (text.Length > OwnerQueuedInstruction.MaximumTextLength || text.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction text must be at most 512 characters without control characters.");
     }
+
+    private static bool IsValidInstructionIdentifier(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= OwnerQueuedInstruction.MaximumIdentifierLength &&
+        !value.Any(char.IsControl);
 
     private static string ToWireValue(OwnerInstructionKind kind) => kind switch
     {

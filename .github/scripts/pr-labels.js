@@ -578,3 +578,4 @@ module.exports.closingIssueNumbers = closingIssueNumbers;
 module.exports.referencedIssueNumbers = referencedIssueNumbers;
 module.exports.typeLabel = typeLabel;
 module.exports.areaLabels = areaLabels;
+module.exports.isDocumentation = isDocumentation;

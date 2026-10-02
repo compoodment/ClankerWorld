@@ -105,7 +105,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         // Movement still obeys the ordinary travel delay, weather, occupancy,
-        // narrow-river and mountain rules. Only a completed step joins memory.
+        // river-wading and mountain rules. Only a completed step joins memory.
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], next.Value, "explore");
         var moved = inhabitants[actor];
@@ -182,7 +182,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private static void ValidateExploration(SettlementExploration? exploration, SeededMap map, long worldTick)
+    private static void ValidateExploration(SettlementExploration? exploration, SeededMap map,
+        IEnumerable<BridgeState> bridges, long worldTick)
     {
         if (exploration is null) return;
         if (exploration.VisitedTiles is null || exploration.OutingPath is null ||
@@ -193,9 +194,28 @@ public sealed partial class PrivateWorldRuntime
             exploration.VisitedTiles.Any(point => !map.IsPassable(point)) ||
             exploration.OutingPath.Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Any(point => !map.IsPassable(point)) ||
-            (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0) ||
-            exploration.OutingPath.Zip(exploration.OutingPath.Skip(1),
-                (first, second) => map.CanFootStep(first, second)).Any(legal => !legal))
+            (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0))
             throw new InvalidDataException("The saved local exploration record is invalid.");
+
+        SeededMap? beforeOuting = null;
+        for (var index = 1; index < exploration.OutingPath.Count; index++)
+        {
+            var first = exploration.OutingPath[index - 1];
+            var second = exploration.OutingPath[index];
+            if (map.CanFootStep(first, second)) continue;
+            // These are committed outward steps, or remaining return waypoints.
+            // A later deck can forbid an earlier wade through its tile. Bridges
+            // built on the outing's first tick may also have appeared after a
+            // step; only earlier ticks prove a deck existed throughout the trip.
+            beforeOuting ??= MapWithBridges(map, bridges.Where(bridge => bridge.BuiltTick < exploration.LastOutingTick));
+            if (!beforeOuting.CanFootStep(first, second))
+                throw new InvalidDataException("The saved local exploration record is invalid.");
+        }
+    }
+
+    private static SeededMap MapWithBridges(SeededMap map, IEnumerable<BridgeState> bridges)
+    {
+        var decks = RiverBridgeRules.Decks(bridges);
+        return RiverBridgeRules.SameDecks(map.BridgeDecks, decks) ? map : map with { BridgeDecks = decks };
     }
 }
