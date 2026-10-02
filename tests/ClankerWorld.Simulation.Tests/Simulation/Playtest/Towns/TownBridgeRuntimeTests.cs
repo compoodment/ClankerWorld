@@ -19,7 +19,7 @@ public sealed class TownBridgeRuntimeTests
 {
     private const string GrowthSeed = "town-bridge-5";
     private static readonly GridPoint GrowthTownSite = new(86, 3);
-    private static readonly GridPoint GrowthBuildingSite = new(89, 5);
+    private static readonly GridPoint GrowthBuildingSite = new(89, 6);
     private const string GrowthBridgeId = "bridge-90-3-ew-2";
     private static readonly GridPoint RunOnTownSite = new(85, 5);
     private static readonly GridPoint RunOnBuildingSite = new(89, 4);

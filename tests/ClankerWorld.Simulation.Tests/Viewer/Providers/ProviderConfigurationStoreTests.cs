@@ -117,6 +117,44 @@ public sealed class ProviderConfigurationStoreTests
     }
 
     [Fact]
+    public async Task GuidanceUsesAdultPlanningInheritanceButLeavesUnconfiguredChildAndOffAdultLocal()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-guidance-routing-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "world-jev-secret", false));
+            _ = store.Configure(new("planning", "openai", "world-planner", "world-planner-secret", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var adultObservation = GuidanceObservation() with { RequiresPersonalProvider = false };
+
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(adultObservation));
+            _ = await router.DecideAsync(new("adult-guidance", router.ProviderEpoch, adultObservation));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("world-planner", handler.LastModel);
+            Assert.DoesNotContain("world-jev-secret", handler.LastBody, StringComparison.Ordinal);
+            Assert.Equal(1, handler.RequestCount);
+
+            var unconfiguredChild = GuidanceObservation() with { RequiresPersonalProvider = true };
+            Assert.Equal(DecisionProviderKind.Deterministic, router.KindFor(unconfiguredChild));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                (await router.DecideAsync(new("child-guidance", router.ProviderEpoch, unconfiguredChild))).Provider);
+            Assert.Equal(1, handler.RequestCount);
+
+            _ = store.Configure(new("planning", PlayerDecisionProviders.Deterministic,
+                null, null, false, "inhabitant-test"));
+            var offRouter = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic, offRouter.KindFor(adultObservation));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                (await offRouter.DecideAsync(new("adult-guidance-off", offRouter.ProviderEpoch, adultObservation))).Provider);
+            Assert.Equal(1, handler.RequestCount);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public void OwnerCanChangeOneRoleWithoutOverwritingTheOtherBirthRoute()
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-child-role-override-");
@@ -883,6 +921,16 @@ public sealed class ProviderConfigurationStoreTests
             5_000,
             candidates);
     }
+
+    private static InhabitantObservation GuidanceObservation() => RequestObservation(strategic: false) with
+    {
+        WorldId = "world-provider-test",
+        ObserverGuidance =
+        [
+            new CognitionObserverGuidance("private-instruction-0000000001", "owner:test", "inhabitant-test",
+                "suggestive", "Try berries near the shore.", 12, 0, 1, null, true),
+        ],
+    };
 
     private sealed class FixedHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {

@@ -148,6 +148,11 @@ public sealed partial class PrivateWorldRuntime
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
                 new InventoryLot("wood:camp-alpha", "wood", HouseholdId, 48, 10_000, 10_000, 0),
                 new InventoryLot("tools:camp-alpha", "tool", HouseholdId, 4, 10_000, 10_000, 0),
+                ..(startPace == WorldStartPace.Legacy ? new InventoryLot[]
+                {
+                    new("legacy-wooden-axe:camp-alpha", "wooden_axe", HouseholdId, 1, 10_000, 10_000, 0),
+                    new("legacy-wooden-pickaxe:camp-alpha", "wooden_pickaxe", HouseholdId, 1, 10_000, 10_000, 0),
+                } : []),
                 ..(startPace == WorldStartPace.FounderSetup ? new InventoryLot[]
                 {
                     new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),
@@ -238,6 +243,9 @@ public sealed partial class PrivateWorldRuntime
         {
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
+                         .Where(item => item.Outcome is "waiting" or "requested").ToArray())
+                FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
                 id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
             inhabitants.Remove(id);

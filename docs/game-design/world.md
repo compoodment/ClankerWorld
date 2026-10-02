@@ -60,13 +60,18 @@ everything that is available in the current build. See [what works today](../wha
 - **Private-server deployment starts with a written checklist.** A staged
   deployment command for the private server waits until the local package
   works.
+- **Agreed on October 1
+  ([#638](https://github.com/compoodment/ClankerWorld/issues/638)):** a new
+  world starts only when every founder has a personal model and a working key.
+  Opening the game, creating a world and previewing it still need no key, and
+  founders do not start on built-in rules instead.
 
 ### Still to decide
 
 Exact Windows version and architecture support; update design; local credential
 storage and diagnostics export; save migration between deployments;
-performance requirements and packaging tests; on-demand credential validation;
-and the new-world starting-agent setup when no key exists yet. These are
+performance requirements and packaging tests; and on-demand credential
+validation. These are
 implementation choices to prove, not reasons to reopen the agreed player-local
 distribution goal, the companion-process host or the first package.
 
@@ -103,43 +108,64 @@ distribution goal, the companion-process host or the first package.
 - The finished game offers an **optional AI-usage limit** alongside
   a visible usage meter. When the limit is reached, it pauses the world and
   asks before making further paid model calls; it does not cap the fictional
-  population. Whether the limit applies per world or across the installation,
-  its accounting unit, period/reset behavior, warning levels, and
-  provider-bill accuracy remain to be designed. The playtest UI's `Model limit`
+  population. The playtest UI's `Model limit`
   wording is confusing; describe it in ordinary terms as a count of paid
   model-call attempts, clarify that reaching it pauses time, and do not imply
   a precise currency or token budget.
+- **How the limit counts, agreed on October 1
+  ([#639](https://github.com/compoodment/ClankerWorld/issues/639)):** one
+  limit covers the whole installation, every world included, because the bill
+  belongs to the player's keys. It counts model-call attempts, including failed,
+  retried and abandoned ones; tokens may be shown as information but are not
+  limited. It never resets by itself: the player raises or clears it. One
+  Event Log warning appears at 80% of the limit. The control belongs in
+  **Game** settings, not World settings, and loading an older save never
+  rolls the count back.
 - **The current prototype's 24-real-minute day is rejected as ClankerWorld's
   finished-game pace.** It was an implementation choice, not a user-approved
   design decision.
 - **Accepted starting pace for playtesting:** a custom **40-day year** with
   four **10-day seasons**, initially one six-real-minute day, one real hour per
-  season, and four real hours per year. Four 10-day months can support the
-  chosen numeric date display. A six-hour maximum life from birth would then
+  season, and four real hours per year. Each 10-day month is one season, so
+  dates use season names by default, such as **Autumn 2, Year 1**, with numeric
+  dates as a setting
+  ([Interface and art](interface-and-art.md#main-menu-world-view-and-controls)).
+  A six-hour maximum life from birth would then
   span at most 60 world days, 1.5 years, or six seasons. These numbers may be
   changed after playtesting; they are not final performance or pacing promises.
   This custom calendar supersedes the earlier 365-day preference.
 - **Leaning toward:** biological age corresponds to elapsed world/calendar time,
-  but its display and life-stage milestones need rethinking for short lives.
-  Night should occupy more of each cycle relative to daylight than in the
-  earlier proposed split; its exact share is not decided. Night affects
+  but its life-stage milestones need rethinking for short lives. Night affects
   temperature and weather, without a sleep/energy requirement or a separate
   night-only travel, visibility, work or social restriction. Weather itself
   can still affect agents under the ordinary weather rules.
+- **Agreed on October 1
+  ([#640](https://github.com/compoodment/ClankerWorld/issues/640)):** ages show
+  as life stage plus days, such as **Adult · 22 days** ([Agents and social
+  life](agents-and-families.md#life-stages-to-try-in-playtesting)).
+- **Night length, agreed on October 1
+  ([#641](https://github.com/compoodment/ClankerWorld/issues/641)):** night is
+  **40% of every world day**, the same all year: about 3 min 36 s of daylight
+  and 2 min 24 s of night in a six-minute day, with short dawn and dusk fades.
+  In the first version night lowers outdoor warmth and darkens the map gently,
+  keeping it readable. Night effects on weather and night length that changes
+  with the seasons come later, after colder nights are playtested. The warmth
+  drop is provisional balance.
 
 ### Still to decide
 
 Playtest the accepted starting pace and revise it if days, seasons, or agent
-lives feel rushed or slow. Still open: month/season names, the daylight/night
-split, detailed stage effects, sunrise/sunset and seasonal variation, provider
+lives feel rushed or slow. Still open: detailed stage effects, how much
+colder night is, seasonal night length, night's effect on weather, provider
 work at pause/quit boundaries, safe routine activity for a stalled agent, and
 how to communicate provider delays without freezing the world.
 
 Provider cost is unknown until agent call rates, token use, model choices, and
 population are measured. Representative tests can measure this before the
 entire game is complete; nominal calendar speed alone does not determine
-model spend. The usage meter and optional stop are accepted, but their
-accounting details need design and playtesting.
+model spend. The usage meter and optional stop are accepted, and how they
+count is agreed above; the 80% warning level may be tuned, and its wording
+still needs playtesting.
 
 ## Maps, plants and weather
 
@@ -249,7 +275,9 @@ accounting details need design and playtesting.
   Roads exist and influence travel and building placement. **Mountain and peak
   tiles cannot hold construction**—including buildings, farms and roads.
   Agents may cross **mountain** tiles, but more slowly; **peak** tiles are
-  impassable. Exact mountain travel cost remains open.
+  impassable. **Agreed on October 1
+  ([#628](https://github.com/compoodment/ClankerWorld/issues/628)):** crossing
+  a mountain tile costs twice as much as grass.
 - In the intended finished game, agents can **move diagonally** on the 2D tile
   map, and roads can also run diagonally. The playable foot route finder now
   supports diagonal steps at 141% of cardinal entry cost and requires both
@@ -297,19 +325,40 @@ subject to measurement and playtesting.
 
 Forest and mountain areas should form readable regions. The generator uses
 connected-region size only to break ties between equally good candidates; it
-does not impose a minimum patch size. Region measurement joins diagonal
+does not impose a minimum forest patch size. Region measurement joins diagonal
 neighbors and wraps east/west only when the selected map wraps, never across
 the north or south map edge.
 
+**Agreed on October 1, 2026
+([#628](https://github.com/compoodment/ClankerWorld/issues/628)):** mountains
+generate as **a few large massifs** instead of many small patches, because a
+mountain should read as one whole landform. Each massif has a centre, a long
+axis and a size, so it reads as a range rather than a round blob. Small leftover
+patches are flattened, peaks form each massif's crest, and the hill band around
+it widens with the massif's size. This replaces the earlier rule that the
+generator imposes no minimum mountain patch size.
+
+Massifs leave the earlier rules in place: the agreed **5–12% mountain** target
+for Balanced Normal worlds, and hills at today's grass walking cost. The number
+of massifs (for example 1–2 on Small and 2–4 on Medium), their minimum size and
+how far hills reach stay provisional until computment reviews generated maps. A
+start far from stone may need a rule that keeps stone within reach of the first
+Town; that is checked when the generator is built.
+
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
-than dry ground. The world automatically adds bridges at sufficiently used
-crossings. A generated Road may also **create a bridge immediately** where its
-route meets a bridgeable river; it need not wait for traffic there. Once a
-bridge is placed, no redundant bridge is added over the **same crossing/river**.
+than dry ground. **Agreed on October 1
+([#649](https://github.com/compoodment/ClankerWorld/issues/649)):** agents may
+also wade rivers **two tiles wide**, more slowly than a one-tile river, so every
+river the game can bridge can also be crossed on foot. Wider rivers, lakes and
+the sea still need boats. The world automatically adds bridges at sufficiently
+used crossings, including two-tile ones. A generated Road may also **create a
+bridge immediately** where its route meets a bridgeable river; it need not
+wait for traffic there. Once a bridge is placed, no redundant bridge is added
+over the **same crossing/river**.
 Spacing compares the actual connected banks, with no fixed radius, so a needed
 bridge over a separate nearby stream is never blocked. A river is bridgeable up
 to two tiles wide; wider water is not bridged, and bridges cost no materials.
-Crossing rules for wider or deeper water remain open. The
+How fast agents wade a two-tile river is provisional balance. The
 initial traffic threshold and permanent Road/bridge rule are recorded in
 [Towns](towns.md#how-roads-and-bridges-appear). Town site planning and Road
 generation must be designed together.
@@ -334,7 +383,11 @@ a journey, return to the departure Port when it is usable. Otherwise the boat
 and traveler wait safely, keeping their carried goods together until a safe
 return or arrival becomes possible.
 
-Who grants a visitor permission remains to decide. Exact recipes, costs,
+**Agreed on October 1, 2026
+([#411](https://github.com/compoodment/ClankerWorld/issues/411)):** a visitor
+may use a Town's boat when its Council votes to allow it. A Town may also adopt
+a standing law that grants that permission, using the same Council process.
+Exact recipes, costs,
 travel speed and queueing remain open for implementation and playtesting.
 Later transport inventions do not silently change this first-stage Port rule.
 
@@ -468,6 +521,7 @@ These remain open; they are not new decisions.
    and first package. Still to prove: the same simulation and save behavior in
    both deployments, without creating a second, divergent game.
 
-- **Night and weather details.** Night affects temperature and weather, with
-    no sleep/energy gate or independent night-only restrictions. Decide exact
-    temperature and weather effects alongside the day/night split.
+- **Night and weather details.** Night is 40% of each day and, at first, lowers
+    warmth only, with no sleep/energy gate or independent night-only
+    restrictions. Decide how much colder night is, and night's later effect
+    on weather, after playtesting.

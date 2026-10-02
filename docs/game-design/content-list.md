@@ -44,7 +44,7 @@ perspective; no parallel isometric art set is planned.
 | --- | --- | --- | --- |
 | 1.1 | Agreed | Ground surfaces | Meadow/grass, forest floor, sand/beach, dry scrub, rocky upland, snow/tundra, and fertile/cultivated soil. Climate, elevation, surface and vegetation remain separate data, not one tile type per combination. |
 | 1.2 | Agreed | Water | Ocean, lake, continuous river, shoreline/water edge; shallow one-tile river crossing distinct enough to read. Depth/flow variants only if they affect crossing rules. |
-| 1.3 | Agreed | Elevation | Mountain and peak terrain silhouettes/edges; neither allows construction. Mountains are passable more slowly; peaks cannot be traversed. Exact slow-down is open. |
+| 1.3 | Agreed | Elevation | Mountain and peak terrain silhouettes/edges; neither allows construction. Mountains are passable at twice the walking cost of grass; peaks cannot be traversed. |
 | 1.4 | Agreed | Ground transitions | Coasts, river banks/corners, grass–sand, grass–snow, and rocky boundaries. On worlds with optional east/west wrapping, terrain and rivers continue correctly across the map's right/left edge; this is a map rule, not a separate texture family. |
 | 1.5 | Agreed | Seasons and weather | Spring/summer/autumn/winter palette treatment; clouds, rain, snow and a severe storm effect. Weather is regional. Night affects temperature/weather, not sleep, travel, visibility, work or social rules; a cosmetic night tint is accepted without a visibility penalty. |
 | 1.6 | Agreed | Surface texture variation | Roughly two subtle textures per terrain type—e.g. clean grass and grass with small tufts/stones. Little leaves, stones and similar details live mainly inside the texture, not as many individually placed objects. Shoreline effects/edges may need their own pieces. |
@@ -94,7 +94,7 @@ are provisional. Farm planning responds to population, yield and stored reserves
 | --- | --- | --- | --- |
 | 3.1 | Agreed | Wood | Trees and hand-gathered fallen wood → tools, buildings, fuel, carts and boats. One wood item initially; split logs/planks only when useful. |
 | 3.2 | Agreed | Stone | Outcrops → stone tools and construction. |
-| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). Offering refined metal directly from the Blacksmith remains a separate business-catalogue choice. |
+| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). The Blacksmith may also sell spare refined iron from its stock ([#651](https://github.com/compoodment/ClankerWorld/issues/651)). |
 | 3.4 | Agreed | Gold / diamond / ornament | Iron pickaxe extracts rare deposits. The Blacksmith makes gold ornaments, optionally set with a diamond, for wearing, gifts and trade; no gold standard or diamond tool tier. |
 | 3.5 | Agreed | Plant fiber / cloth | Fiber plants → the Tailor Shop turns plant fiber into a real **cloth intermediate** → the Tailor Shop turns cloth into clothing; cloth can be held and traded as its own stock. Recipe numbers are provisional (see 6.8). |
 | 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
@@ -119,17 +119,17 @@ an endless ore ladder merely because they are conventional crafting-game items.
 | 4.5 | Agreed | Sickle | Wood-and-iron tool speeds crop harvesting; exact advantage is provisional. |
 | 4.6 | Agreed | Knife | Iron tool speeds food preparation and suitable crafting; any combat use follows the combat design. |
 | 4.7 | Agreed | Everyday clothing | Basic, cold-protective and wet-protective clothing are gameplay equipment. Agents **keep the same map sprite appearance regardless of worn clothing**; separate worn-outfit sprite sets are not needed. Clothing has item icons/effects. |
-| 4.8 | Agreed | Carry aid | House-made fiber/rope basket and Tailor-made cloth/rope sack share one equipped carrying slot. Blacksmith-made wood/iron-fittings/rope handcart is a visible vehicle that can be pulled, parked, repaired and transferred. Capacities are provisional. |
+| 4.8 | Agreed | Carry aid | House-made fiber/rope basket and Tailor-made cloth/rope sack share one equipped carrying slot. Blacksmith-made wood/iron-fittings/rope handcart is a visible vehicle that can be pulled, parked, repaired and transferred. Capacities are provisional. The handcart faces eight directions like agents. |
 
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
 Blacksmith, plus **eight food portions in each House** and **at least one
 usable wooden axe and one usable wooden pickaxe** in the communal Warehouse,
-and **one garment** for each starting agent, kept in their House.
-The game automatically assigns the Farmhouse and Blacksmith to the two
-starting households, one productive building each. Optional extra supplies
-and later ownership transfers remain **open**. Wooden replacement tools come
-from wood at the Blacksmith; fallen wood can be gathered by hand if the last
-axe is lost. The Workshop is not required at start.
+and **one garment** for each starting agent, kept in their House. The game
+automatically assigns the Farmhouse and Blacksmith to the two starting
+households, one productive building each. There are no optional extra supplies
+for now; later ownership transfers remain **open**. Wooden replacement tools
+come from wood at the Blacksmith; fallen wood can be gathered by hand if the
+last axe is lost. The Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
@@ -164,12 +164,12 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, held by a starting household. Household-held, **not communal**: the holding household works there and sells directly from it, and any adult resident of that household may use it. A Farmhouse household may also build a Silo and an optional Store. |
 | 6.5 | Agreed | Farm fields | Prepared/seeded/growing/ready/harvested states for each accepted crop, not visible building interiors. |
 | 6.6 | Agreed | Private farm Silo: 1×1 | Separate private farm-work stock **next to the Farmhouse**, which the Farmhouse household may build; exact adjacency/placement rule and storage capacity open. |
-| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
+| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. It may also sell spare refined iron. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
-| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. Reserve an approximately **10×12 clear plot** for stalls to spawn. Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Plot reservation, stall ownership and how new stalls fill the plot remain open. Trading admits any Town's agents. |
+| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls: a new Market comes with a starter set, and the Town builds more on the plaza when sellers need them, using Town materials (see [Towns](towns.md#agreed-content-and-building-sizes)). Plot reservation and how the plaza grows remain open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
-| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock. Exact clearance/approach rule open. |
+| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock; up to **six boats** moor there, three per side (October 1 art review). Exact clearance/approach rule open. |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Stocks bandages and medicine and sells care. Patients visit or caregivers deliver supplies; treatment consumes goods. Exact name, quantities and recovery rates remain open or provisional. |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
@@ -200,9 +200,9 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Quantities and speed are provisional; queueing and who grants visitor permission remain open. |
-| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. |
-| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional; queueing remains open. |
+| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
+| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
 | 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
 | 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. No hostile predators. Recovery rates remain to be tuned. |
@@ -254,8 +254,9 @@ scope**; this roster therefore has no audio production list.
 - **Buildings:** support the decided footprint sizes exactly. Add construction,
   expanded, damaged or abandoned states only if the simulation can produce
   them; do not multiply every building by speculative decorative variants.
-- **Scale/style:** 32×32 logical ground tiles, PNG runtime assets and **straight
-  top-down** view are the decided direction; trees and multi-tile buildings can
+- **Scale/style:** 32×32 logical ground tiles, art drawn in code and a **straight
+  top-down** view are the decided direction (see the
+  [pixel-art style guide](../development/art-style.md)); trees and multi-tile buildings can
   span anchored transparent images. Palette, character sprite size, animation
   count and a reference scene remain open. Isometric is only a possible future
   visual experiment, not the production target.
@@ -271,10 +272,8 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: optional starter supplies beyond the guaranteed minima; whether a
-Blacksmith offers refined metal directly in its business catalogue; exact Port
-clearance, visitor-permission authority and boat queueing; Market plot
-reservation, stall ownership and construction; currency and
+Still open: exact Port clearance and boat queueing; Market plot reservation
+and how the plaza grows; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;
 and late-development invention/mod art generation and fallback. Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery
