@@ -36,12 +36,24 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>One open request of one's own at a time, in any Town; a resident of another Town may ask to move.</summary>
     private bool MayRequestOwnAdmission(string actor, TownRuntimeState town) =>
         AdultResident(actor) && TownForResident(actor) != town.Id && !HasPendingAdmission(actor) &&
-        ApprovedAdmission(town, actor) is null;
+        ApprovedAdmission(town, actor) is null && !AdmissionRetryWaits(town, actor);
 
     /// <summary>A resident may ask the council to admit an unaffiliated adult; the adult must still accept.</summary>
     private bool MayBeSponsoredForAdmission(string nominee, TownRuntimeState town) =>
         AdultResident(nominee) && TownForResident(nominee) is null && !HasPendingAdmission(nominee) &&
-        ApprovedAdmission(town, nominee) is null;
+        ApprovedAdmission(town, nominee) is null && !AdmissionRetryWaits(town, nominee);
+
+    /// <summary>
+    /// A refused or withdrawn request for the same newcomer waits one unpaused
+    /// world day unless the council changed, matching the proposal rules, so
+    /// the choice is not offered while it would only be refused.
+    /// </summary>
+    private bool AdmissionRetryWaits(TownRuntimeState town, string subject) =>
+        town.Governance is { } state &&
+        state.Proposals.LastOrDefault(proposal => proposal.RequestKey == "admission:" + subject) is
+        { Status: "rejected" or "withdrawn", SettledTick: { } settled } previous &&
+        WorldTick < settled + CivicDay && previous.CouncilRevision == state.Revision &&
+        previous.Circumstances == "council:" + state.Revision;
 
     /// <summary>An adult standing in a Town they do not belong to may walk to its notice place; walking registers nothing.</summary>
     private bool MayVisitAsNewcomer(string actor, TownRuntimeState town) =>
@@ -53,7 +65,7 @@ public sealed partial class PrivateWorldRuntime
         TownForResident(actor) is var current && current == record.PreviousTownId && current != town.Id &&
         // Their own undecided request elsewhere is answered first, so one choice cannot move them twice.
         !towns.Any(other => other.Id != town.Id && PendingAdmission(other, actor) is { } pending && pending.AuthorId == actor) &&
-        CivicHistory(town).Knows(actor, record.ProposalId);
+        CivicHistory(town).Knows(actor, "result", record.ProposalId);
 
     private string AdmissionRequestText(string actor, TownRuntimeState town)
     {
@@ -194,7 +206,7 @@ public sealed partial class PrivateWorldRuntime
         var known = towns.Where(town => town.Governance is not null).ToDictionary(town => town.Id, CivicHistory, StringComparer.Ordinal);
         return TownMembershipText.Describe(towns, society.Checkpoint, actor, CivicDay,
             TownMembershipText.TownsWithWarehouse(worldSimulation, worldContent),
-            (town, proposalId) => known.TryGetValue(town.Id, out var history) && history.Knows(actor, proposalId));
+            (town, kind, subject) => known.TryGetValue(town.Id, out var history) && history.Knows(actor, kind, subject));
     }
 
     private static void ValidateTownAdmissions(IReadOnlyList<TownRuntimeState> savedTowns, SocietyCheckpoint society, int schemaVersion)
@@ -255,47 +267,51 @@ public static class TownMembershipText
             .Select(building => building.TownId!).ToHashSet(StringComparer.Ordinal);
     }
 
-    /// <param name="knows">Whether this reader may see a Town's admission proposal; the owner sees all, an agent only what they learned.</param>
+    /// <param name="knows">Whether this reader learned a Town notice of the given kind and subject; the owner sees all,
+    /// an agent only what they read or were told.</param>
     public static string? Describe(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society, string agentId,
-        int ticksPerDay, IReadOnlySet<string> townsWithWarehouse, Func<TownRuntimeState, string, bool>? knows = null)
+        int ticksPerDay, IReadOnlySet<string> townsWithWarehouse, Func<TownRuntimeState, string, string, bool>? knows = null)
     {
         ArgumentNullException.ThrowIfNull(towns);
         ArgumentNullException.ThrowIfNull(society);
         ArgumentNullException.ThrowIfNull(townsWithWarehouse);
         var person = society.Inhabitants.FirstOrDefault(item => item.Id == agentId);
         if (person is not { Status: SocietyInhabitantStatus.Active }) return null;
-        knows ??= (_, _) => true;
+        knows ??= (_, _, _) => true;
         var adult = person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder;
         var home = towns.SingleOrDefault(town => town.ResidentIds.Contains(agentId, StringComparer.Ordinal));
+        var council = home?.Governance?.Form == "representative" ? "vote in its council elections" : "sit and vote on its council";
         var text = home is null
             ? adult ? "Town: none · no council vote or Warehouse access; a Town council must approve admission at its notice place"
                 : "Town: none · follows their primary caregiver's Town"
             : !adult ? $"Town: resident of {home.Name} with their primary caregiver · council rights begin at adulthood"
             : townsWithWarehouse.Contains(home.Id)
-                ? $"Town: resident of {home.Name} · may vote and collect its Warehouse stock in person, housed or not"
-                : $"Town: resident of {home.Name} · may vote, housed or not; it has no Warehouse yet";
+                ? $"Town: resident of {home.Name} · may {council} and collect its Warehouse stock in person, housed or not"
+                : $"Town: resident of {home.Name} · may {council}, housed or not; it has no Warehouse yet";
         if (adult && AdmissionStatus(towns, agentId, home?.Id, society.WorldTick, ticksPerDay, knows) is { } status)
             text += " · " + status;
         return text.Length > MaximumLength ? text[..MaximumLength] : text;
     }
 
     private static string? AdmissionStatus(IReadOnlyList<TownRuntimeState> towns, string agentId, string? homeId,
-        long worldTick, int ticksPerDay, Func<TownRuntimeState, string, bool> knows)
+        long worldTick, int ticksPerDay, Func<TownRuntimeState, string, string, bool> knows)
     {
         var day = Math.Max(1, ticksPerDay);
         string Day(long tick) => "world day " + (tick / day + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
             if (town.Governance?.Proposals.FirstOrDefault(proposal => proposal.Kind == "admission" &&
-                    proposal.SubjectId == agentId && proposal.Status == "pending") is { } pending && knows(town, pending.Id))
+                    proposal.SubjectId == agentId && proposal.Status == "pending") is { } pending && knows(town, "proposal", pending.Id))
                 return $"admission to {town.Name} pending until {Day(pending.DeadlineTick)}; grants nothing yet";
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
             if (town.Admissions?.LastOrDefault(record => record.SubjectId == agentId &&
-                    record.Status == PrivateWorldRuntime.AdmissionApproved) is { } approved && knows(town, approved.ProposalId))
+                    record.Status == PrivateWorldRuntime.AdmissionApproved) is { } approved && knows(town, "result", approved.ProposalId))
                 return $"{town.Name}'s council approved admission; not accepted yet";
         var closed = towns.Where(town => town.Id != homeId).SelectMany(town => (town.Governance?.Proposals ?? [])
                 .Where(proposal => proposal.Kind == "admission" && proposal.SubjectId == agentId &&
                     proposal.Status is "rejected" or "cancelled" && worldTick - proposal.SettledTick < day &&
-                    knows(town, proposal.Id))
+                    // A refusal is posted as the proposal's result; a cancellation as the next council notice.
+                    (proposal.Status == "rejected" ? knows(town, "result", proposal.Id)
+                        : knows(town, "council", "council:" + (proposal.CouncilRevision + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))))
                 .Select(proposal => (Town: town, Proposal: proposal)))
             .OrderByDescending(item => item.Proposal.SettledTick).FirstOrDefault();
         return closed.Proposal switch
