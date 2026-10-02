@@ -70,15 +70,33 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
 
             // The path is historical; it must remain valid checkpoint data even
             // though future movement must obey the newly built bridge's axis.
-            var saved = PrivateWorldRuntimeCodec.Encode(after);
+            var previousRecovery = File.ReadAllBytes(file.Path);
+            byte[]? saved = null;
+            PrivateWorldRuntime? direct = null;
+            var encodeFailure = Record.Exception(() => saved = PrivateWorldRuntimeCodec.Encode(after));
+            var restoreFailure = Record.Exception(() => direct = PrivateWorldRuntime.Restore(after, Provider));
+            var saveFailure = Record.Exception(() => file.Save(world));
+            output.WriteLine($"Encode={encodeFailure?.Message ?? "success"}; direct restore={restoreFailure?.Message ?? "success"}; recovery write={saveFailure?.Message ?? "success"}.");
+            if (saveFailure is not null) Assert.Equal(previousRecovery, File.ReadAllBytes(file.Path));
+            if (direct is not null)
+            {
+                using (direct)
+                    if (saved is not null) Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(direct.ExportState()));
+            }
+            Assert.Null(encodeFailure);
+            Assert.Null(restoreFailure);
+            Assert.Null(saveFailure);
+            Assert.NotNull(saved);
             using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
             Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-            using var direct = PrivateWorldRuntime.Restore(after, Provider);
-            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(direct.ExportState()));
-            file.Save(world);
             using var recovery = file.LoadOrCreate(Seed);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
-            for (var tick = 0; tick < 8; tick++)
+            // A discarded prepared tick cannot move the committed scout or
+            // alter its saved historical record after this topology change.
+            var committed = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+            Assert.Equal(committed, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+            for (var tick = 0; tick < 128 && Scout(world, actor).Exploration!.OutingPath.Count > 0; tick++)
             {
                 var previous = Scout(world, actor).Position;
                 var map = world.ExportState().Map;
@@ -86,8 +104,35 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
                 Assert.True((await recovery.AdvanceOneTickAsync()).Advanced);
                 var current = Scout(world, actor).Position;
                 if (previous != current) Assert.True(map.CanFootStep(previous, current));
+                Assert.All(exploration.VisitedTiles, point => Assert.Contains(point, Scout(world, actor).Exploration!.VisitedTiles));
+                Assert.All(before.Knowledge.Facts, fact => Assert.Contains(fact, world.ExportState().Knowledge!.Facts));
                 Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
             }
+            var result = world.ExportState();
+            var returned = Scout(world, actor).Exploration!;
+            Assert.Empty(returned.OutingPath);
+            var terminal = Assert.Single(result.Events, item =>
+                item.Kind == "exploration_completed" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal) ||
+                item.Kind == "exploration_aborted" && item.Detail == actor + ":return_blocked");
+            if (terminal.Kind == "exploration_completed") Assert.Equal(Start, Scout(world, actor).Position);
+            Assert.DoesNotContain(result.Events, item => item.Kind == "exploration_aborted" && item.Detail == actor + ":interrupted_movement");
+            var artifact = Assert.Single(result.Knowledge!.Artifacts, item => item.CreatorId == actor);
+            Assert.NotEmpty(returned.OutingDiscoveries!);
+            Assert.Equal(returned.OutingDiscoveries!.Distinct(), artifact.Facts.Select(fact => fact.Position));
+            Assert.All(artifact.Facts, fact =>
+            {
+                Assert.Equal(actor, fact.OwnerId);
+                Assert.Equal(actor, fact.DiscovererId);
+                Assert.Equal("firsthand", fact.Acquisition);
+                Assert.Contains(fact, result.Knowledge.Facts);
+            });
+            var physicalMap = Assert.Single(result.Society.Society.Inventory.Lots, lot => lot.Id == artifact.LotId);
+            Assert.Equal((actor, artifact.Kind, 1), (physicalMap.OwnerId, physicalMap.ItemKind, physicalMap.Quantity));
+            Assert.Null(physicalMap.StorageBuildingId);
+            Assert.Null(physicalMap.DeliveryBuildingId);
+            Assert.Null(physicalMap.GroundPosition);
+            Assert.Null(physicalMap.ContainerLotId);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(result), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
         }
         finally
         {
