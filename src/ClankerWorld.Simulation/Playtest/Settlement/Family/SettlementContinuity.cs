@@ -115,7 +115,12 @@ public sealed partial class PrivateWorldRuntime
                 .OrderByDescending(id => inhabitants[id].Parenthood is { } previous &&
                     previous.PartnerId == (id == first ? second : first) ? previous.RequestedTick : -1)
                 .ThenBy(id => id, StringComparer.Ordinal).First();
-            SetParenthood(owner, new(owner == first ? second : first, "preparing", WorldTick, WorldTick));
+            var partner = owner == first ? second : first;
+            var previous = inhabitants[owner].Parenthood;
+            SetParenthood(owner, previous is { Stage: "postponed" } && previous.PartnerId == partner
+                ? previous with { Stage = "preparing" }
+                : new(partner, "preparing", WorldTick, WorldTick,
+                    PrimaryCaregiverId: owner, IntendedHouseholdId: HouseholdFor(owner)));
             checkpointSchemaVersion = StateSchemaVersion;
         }
         AppendEvent("continuity_plan_proceeded", owner);
