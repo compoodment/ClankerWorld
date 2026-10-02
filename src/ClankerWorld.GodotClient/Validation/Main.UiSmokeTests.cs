@@ -1648,15 +1648,7 @@ public partial class Main
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
-            // The tiny fixture map is centred. Give it room beside Add Agent
-            // so these map-hover checks do not point through the panel itself.
-            var placementWindowSize = displayWindow.Size;
-            var placementRenderSize = displayWindow.ContentScaleSize;
-            displayWindow.Size = new Vector2I(2560, 720);
-            displayWindow.ContentScaleSize = displayWindow.Size;
-            for (var frame = 0; frame < 3; frame++)
-                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            ApplyResponsiveLayout();
+            var placementMapStagePosition = mapStage.Position;
             placingAddedAgent = true;
             founderSetupPanel.Show();
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
@@ -1673,11 +1665,15 @@ public partial class Main
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             void HoverPlacementTile(int x, int y)
             {
-                var pointer = mapStage.Position + new Vector2(x * (currentTileSize + TileGap) + currentTileSize / 2f,
-                    y * (currentTileSize + TileGap) + currentTileSize / 2f);
+                // Pin this fixture tile to clear map space before hovering it.
+                // The four-tile map can otherwise sit underneath Add Agent,
+                // and headless windows may clamp requested physical sizes.
+                var pointer = new Vector2(24, mapCanvas.Size.Y - 24);
                 var globalPointer = mapCanvas.GetGlobalTransform() * pointer;
                 if (!mapCanvas.GetGlobalRect().HasPoint(globalPointer) || founderSetupPanel.GetGlobalRect().HasPoint(globalPointer))
                     throw new InvalidOperationException($"Placement hover must target visible map outside Add Agent: tile={x},{y}, pointer={globalPointer}, panel={founderSetupPanel.GetGlobalRect()}.");
+                mapStage.Position = pointer - new Vector2(x * (currentTileSize + TileGap) + currentTileSize / 2f,
+                    y * (currentTileSize + TileGap) + currentTileSize / 2f);
                 UpdateTileHover(pointer);
             }
             HoverPlacementTile(2, 2);
@@ -1761,11 +1757,7 @@ public partial class Main
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-            displayWindow.Size = placementWindowSize;
-            displayWindow.ContentScaleSize = placementRenderSize;
-            for (var frame = 0; frame < 3; frame++)
-                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            ApplyResponsiveLayout();
+            mapStage.Position = placementMapStagePosition;
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
                 terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
                 terrainLayer.DisputedLandTileCount != 0)
