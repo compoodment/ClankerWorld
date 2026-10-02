@@ -574,6 +574,210 @@ public sealed class ToolProgressionRuntimeTests
         resumed.Validate();
     }
 
+    [Fact]
+    public async Task BlacksmithDeliversAlreadyCarriedRecipeInputAtFullCapacityAcrossReload()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("smith-full-carried-input",
+            _ => new CandidateProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building =>
+            building.InstanceId == "first-town-blacksmith");
+        var household = smith.HouseholdId!;
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory with { Lots = [], Reservations = [] },
+            "personal-blacksmith-wood", "wood", actor, 8);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = smith.Position,
+                    HungerBasisPoints = 9_000,
+                    Equipment = null,
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                } : person).ToArray(),
+        };
+        Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(inventory, actor, null));
+
+        var chooser = new CandidateProvider("haul_smith_input");
+        using var hauling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        Assert.True((await hauling.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains("haul_smith_input"));
+        var remaining = hauling.Society.Inventory.GetLot("personal-blacksmith-wood");
+        Assert.Equal((actor, (string?)null, 4),
+            (remaining.OwnerId, remaining.StorageBuildingId, remaining.Quantity));
+        Assert.Equal(4, hauling.Society.Inventory.Lots.Where(lot => lot.OwnerId == household &&
+            lot.StorageBuildingId == smith.InstanceId && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Contains(hauling.ExportState().Events, item => item.Kind == "smith_input_delivered" &&
+            item.Detail == $"{actor}:personal-blacksmith-wood:4:{smith.InstanceId}");
+        Assert.Equal(8, hauling.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(hauling.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        resumed.Validate();
+    }
+
+    [Fact]
+    public async Task MultiMaterialToolRepairDoesNotCollectAnInputWhenTheCompleteLoadCannotFit()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("tool-repair-multi-capacity-blocked",
+            _ => new CandidateProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building =>
+            building.InstanceId == "first-town-blacksmith");
+        var household = smith.HouseholdId!;
+        var house = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == household &&
+            setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                .Tags.Contains("house"));
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with { Lots = [], Reservations = [] };
+        inventory = InventoryFixture.AddLot(inventory, "repair-target", "iron_pickaxe", actor, 1,
+            conditionBasisPoints: 5_000);
+        inventory = InventoryFixture.AddLot(inventory, "reserved-repair-ballast", "fiber", actor, 6);
+        inventory = InventoryFixture.AddLot(inventory, "shared-repair-wood", "wood", household, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "shared-repair-iron", "iron", household, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.Reserve(inventory, "held-repair-ballast", actor,
+            "reserved-repair-ballast", 6, "pending_trade", state.Society.Society.WorldTick + 1_000);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = house.Position,
+                    HungerBasisPoints = 9_000,
+                    Equipment = null,
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                } : person).ToArray(),
+        };
+        Assert.Equal(1, PersonalEquipmentRules.FreeCapacity(inventory, actor, null));
+
+        var candidateId = "repair_tool:repair-target";
+        var chooser = new CandidateProvider(candidateId);
+        using var preparing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 4; tick++)
+            Assert.True((await preparing.AdvanceOneTickAsync()).Advanced);
+
+        Assert.NotEmpty(chooser.ObservedCandidateSets);
+        Assert.DoesNotContain(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
+        Assert.Equal((actor, 5_000), (preparing.Society.Inventory.GetLot("repair-target").OwnerId,
+            preparing.Society.Inventory.GetLot("repair-target").ConditionBasisPoints));
+        Assert.Equal((household, house.InstanceId, 1),
+            (preparing.Society.Inventory.GetLot("shared-repair-wood").OwnerId,
+                preparing.Society.Inventory.GetLot("shared-repair-wood").StorageBuildingId,
+                preparing.Society.Inventory.GetLot("shared-repair-wood").Quantity));
+        Assert.Equal((household, house.InstanceId, 1),
+            (preparing.Society.Inventory.GetLot("shared-repair-iron").OwnerId,
+                preparing.Society.Inventory.GetLot("shared-repair-iron").StorageBuildingId,
+                preparing.Society.Inventory.GetLot("shared-repair-iron").Quantity));
+        Assert.Equal(InventoryReservationState.Reserved,
+            preparing.Society.Inventory.GetReservation("held-repair-ballast").State);
+        Assert.DoesNotContain(preparing.ExportState().Events, item => item.Kind == "equipment_collected" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(preparing.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        resumed.Validate();
+    }
+
+    [Fact]
+    public async Task MultiMaterialToolRepairCollectsBothInputsAndCompletesAcrossReload()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("tool-repair-multi-capacity-fit",
+            _ => new CandidateProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building =>
+            building.InstanceId == "first-town-blacksmith");
+        var household = smith.HouseholdId!;
+        var house = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == household &&
+            setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                .Tags.Contains("house"));
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with { Lots = [], Reservations = [] };
+        inventory = InventoryFixture.AddLot(inventory, "repair-target", "iron_pickaxe", actor, 1,
+            conditionBasisPoints: 5_000);
+        inventory = InventoryFixture.AddLot(inventory, "shared-repair-wood", "wood", household, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "shared-repair-iron", "iron", household, 1,
+            storageBuildingId: house.InstanceId);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = house.Position,
+                    HungerBasisPoints = 9_000,
+                    Equipment = null,
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                } : person).ToArray(),
+        };
+
+        var candidateId = "repair_tool:repair-target";
+        var chooser = new CandidateProvider(candidateId);
+        using var preparing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        for (var tick = 0; tick < 20 && !preparing.ExportState().Events.Any(item =>
+                 item.Kind == "equipment_collected" && item.Detail == actor + ":wood"); tick++)
+            Assert.True((await preparing.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(preparing.ExportState().Events, item => item.Kind == "equipment_collected" &&
+            item.Detail == actor + ":wood");
+        Assert.Equal((actor, 1), (preparing.Society.Inventory.GetLot("shared-repair-wood").OwnerId,
+            preparing.Society.Inventory.GetLot("shared-repair-wood").Quantity));
+        Assert.Equal((household, house.InstanceId),
+            (preparing.Society.Inventory.GetLot("shared-repair-iron").OwnerId,
+                preparing.Society.Inventory.GetLot("shared-repair-iron").StorageBuildingId));
+        Assert.Equal(5_000, preparing.Society.Inventory.GetLot("repair-target").ConditionBasisPoints);
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(preparing.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        for (var tick = 0; tick < 240 && !resumed.ExportState().Events.Any(item => item.Kind == "tool_repaired" &&
+                 item.Detail == actor + ":repair-target:" + smith.InstanceId); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(resumed.ExportState().Events, item => item.Kind == "equipment_collected" &&
+            item.Detail == actor + ":iron");
+        Assert.Contains(resumed.ExportState().Events, item => item.Kind == "tool_repaired" &&
+            item.Detail == actor + ":repair-target:" + smith.InstanceId);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("repair-target").ConditionBasisPoints);
+        var repairReservations = resumed.Society.Inventory.Reservations
+            .Where(item => item.Purpose == "equipment_repair").ToArray();
+        Assert.Equal(2, repairReservations.Length);
+        Assert.All(repairReservations, item => Assert.Equal(InventoryReservationState.Completed, item.State));
+        resumed.Validate();
+
+        var completedBytes = PrivateWorldRuntimeCodec.Encode(resumed.ExportState());
+        using var completedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(completedBytes),
+            _ => new CandidateProvider("safe_idle"));
+        Assert.Equal(completedBytes, PrivateWorldRuntimeCodec.Encode(completedReload.ExportState()));
+        completedReload.Validate();
+    }
+
     private sealed class WorkChoiceRecorder : IDecisionProvider
     {
         private readonly DeterministicDecisionProvider chooser = new();

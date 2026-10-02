@@ -186,8 +186,7 @@ public sealed partial class PrivateWorldRuntime
         if (candidateTools.Length == 0)
             return;
         var repairableTools = candidateTools.Where(item => item.Materials.Count > 0 &&
-                item.Materials.All(input => CanPrepareRepairInput(actor, input.ResourceId, item.Tool.Id,
-                    item.Materials)))
+                CanPrepareRepairInputs(actor, item.Tool.Id, item.Materials))
             .ToArray();
         if (repairableTools.Length == 0 || !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
             FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
@@ -201,23 +200,50 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool CanPrepareRepairInput(string actor, string itemKind, string repairToolId,
+    private bool CanPrepareRepairInputs(string actor, string repairToolId,
         IReadOnlyList<ContentQuantity> repairMaterials)
     {
-        var requiredAmount = repairMaterials.Single(input => input.ResourceId == itemKind).Amount;
-        if (HasCarriedMaterial(actor, itemKind, requiredAmount))
-            return true;
         if (!inhabitants.TryGetValue(actor, out var state)) return false;
 
+        var inventory = society.Checkpoint.Inventory;
         var protectedMaterials = CarriedRepairMaterialLotIds(actor, repairMaterials);
-        if (SharedItem(itemKind, actor) is not null)
-            return CanMakeRoomForToolRepairInput(actor, state, repairToolId, requiredAmount, null, protectedMaterials);
+        var harvestToolIds = new List<string>();
+        var requiredCarryUnits = 0;
+        foreach (var input in repairMaterials)
+        {
+            var carried = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
+                    lot.ItemKind == input.ResourceId)
+                .Sum(AvailableLotQuantity);
+            var missing = Math.Max(0, input.Amount - carried);
+            if (missing == 0) continue;
 
-        if (MaterialSource(itemKind, actor) is not { } source ||
-            ProjectMaterialHarvest(actor, itemKind, source) is not { } plan)
-            return false;
-        return CanMakeRoomForToolRepairInput(actor, state, repairToolId,
-            checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, protectedMaterials);
+            if (SharedItem(input.ResourceId, actor) is { } shared)
+            {
+                if (AvailableLotQuantity(shared) < missing)
+                    return false;
+                requiredCarryUnits = checked(requiredCarryUnits + missing);
+                continue;
+            }
+
+            if (MaterialSource(input.ResourceId, actor) is not { } source ||
+                ProjectMaterialHarvest(actor, input.ResourceId, source) is not { } plan)
+                return false;
+            requiredCarryUnits = checked(requiredCarryUnits + plan.Quantity + plan.TreeSeedQuantity);
+            if (plan.ToolLotId is not null)
+                harvestToolIds.Add(plan.ToolLotId);
+        }
+
+        var missingCarryUnits = checked(requiredCarryUnits - FreeCarryCapacity(actor));
+        if (missingCarryUnits <= 0)
+            return true;
+
+        var protectedLotIds = protectedMaterials.Append(repairToolId).Concat(harvestToolIds)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        var primaryProtectedLotId = harvestToolIds.FirstOrDefault() ?? repairToolId;
+        var cargo = SpareCargoForFood(actor, missingCarryUnits, primaryProtectedLotId,
+            protectedLotIds.Where(id => id != primaryProtectedLotId).ToArray());
+        return cargo.Count > 0 && SpareCargoDestination(actor, state,
+            cargo.Sum(move => move.PhysicalQuantity)) is not null;
     }
 
     private string[] CarriedRepairMaterialLotIds(string actor, IReadOnlyList<ContentQuantity> repairMaterials)
@@ -227,18 +253,6 @@ public sealed partial class PrivateWorldRuntime
                 ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && kinds.Contains(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0)
             .Select(lot => lot.Id).ToArray();
-    }
-
-    private bool CanMakeRoomForToolRepairInput(string actor, PlaytestInhabitantState state,
-        string repairToolId, int requiredUnits, string? harvestToolId, IReadOnlyList<string> protectedMaterials)
-    {
-        var missing = checked(requiredUnits - FreeCarryCapacity(actor));
-        if (missing <= 0) return true;
-        var protectedLotIds = protectedMaterials.Append(repairToolId)
-            .Where(id => id != harvestToolId).ToArray();
-        var cargo = SpareCargoForFood(actor, missing, harvestToolId ?? repairToolId, protectedLotIds);
-        return cargo.Count > 0 && SpareCargoDestination(actor, state,
-            cargo.Sum(move => move.PhysicalQuantity)) is not null;
     }
 
     private bool MakeRoomForToolRepairInput(string actor, PlaytestInhabitantState state,

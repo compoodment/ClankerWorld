@@ -267,10 +267,8 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (!AdultResident(actor) || householdId is null || FreeCarryCapacity(actor) == 0 ||
-            CarriedHouseDelivery(actor) is not null ||
-            BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor) is not { } input)
+        if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
+            BlacksmithForHousehold(householdId) is not { } blacksmith)
         {
             if (AdultResident(actor) && householdId is not null && CarriedHouseDelivery(actor) is null &&
                 BlacksmithForHousehold(householdId) is { } gatheringSmith &&
@@ -284,6 +282,22 @@ public sealed partial class PrivateWorldRuntime
             }
             return;
         }
+        var input = BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor);
+        if (input is null)
+        {
+            if (BlacksmithInputToGather(householdId, blacksmith.InstanceId, actor) is { } missing)
+            {
+                var candidateId = missing.ItemKind == "iron_ore"
+                    ? "gather_smith_ore" : GatherBlacksmithInputPrefix + missing.ItemKind;
+                candidates.Add(new CognitionCandidate(candidateId,
+                    $"Gather {missing.ItemKind.Replace('_', ' ')} for the household Blacksmith.", 30,
+                    missing.Source.Id));
+            }
+            return;
+        }
+        if (input.OwnerId != actor && FreeCarryCapacity(actor) == 0)
+            return;
+
         var source = HouseholdStockPosition(input);
         var range = HouseholdStockInteractionRange(input);
         if (input.OwnerId == actor)
