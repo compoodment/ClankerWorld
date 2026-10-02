@@ -156,8 +156,10 @@ commits, the Windows build, the date, the screen resolution and the interface
 size it picked; ask the owner for missing details only when a check failed. Say
 whether each check passed, failed or could not be run, with what you did and
 saw. Leave out private keys, pairing codes, agent thoughts and raw model
-replies. Link each failure to its own issue; one passing check does not close a
-report with several problems.
+replies. The agent receiving the owner's chat report updates the playtest
+checklist and records these build details in any linked Bug or Implementation
+issues, labelled `from:playtest`; do not create a separate report issue. Follow
+the [playtest results procedure](../../playtest/README.md#keeping-the-list-current).
 
 Do not deploy, change credentials or modify the active playtest save just to
 run a check; that needs the owner's separate go-ahead. Use a disposable world

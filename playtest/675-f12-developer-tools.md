@@ -1,7 +1,3 @@
-# Developer tools on F12
-
-Pending for [#675](https://github.com/compoodment/ClankerWorld/issues/675). No Windows playtest is claimed.
-
 - In a running world, press F12. Developer tools open at the right edge and time keeps running; press F12 again to close them. F1 lists F12. ([#675](https://github.com/compoodment/ClankerWorld/issues/675))
 - Open the Pause Menu and Settings. There is no Developer tools category any more, only Game and World. ([#675](https://github.com/compoodment/ClankerWorld/issues/675))
 - With the panel open, move the pointer over the map. The tile's coordinates and facts follow the pointer, and frame time, tick time and the number of living agents show sensible numbers. ([#675](https://github.com/compoodment/ClankerWorld/issues/675))

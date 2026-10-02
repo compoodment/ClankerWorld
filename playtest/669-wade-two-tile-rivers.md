@@ -1,7 +1,3 @@
-# Wading two-tile rivers
-
-From [#669](https://github.com/compoodment/ClankerWorld/issues/669).
-
 - Watch an agent head for food or work across a river two tiles wide. It wades straight across from bank to bank, more slowly than across a one-tile river, and never walks along the river or cuts diagonally through the water. ([#669](https://github.com/compoodment/ClankerWorld/issues/669))
 - Look for rivers three or more tiles wide, lakes and the sea near agents. Agents walk around them or stay on their side; they never wade in. ([#669](https://github.com/compoodment/ClankerWorld/issues/669))
 - Watch agents who keep wading across the same two-tile crossing. After six crossings by at least two agents within two world days, a plank bridge appears across both water tiles, and agents then walk over it at normal speed. ([#669](https://github.com/compoodment/ClankerWorld/issues/669))

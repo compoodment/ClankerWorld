@@ -1,7 +1,3 @@
-# House resident places and expansion
-
-Hands-on checks for [#598](https://github.com/compoodment/ClankerWorld/issues/598), after its change is merged.
-
 - Fill a 1×1 House with three unrelated permanent residents and check that an adult with no household is not offered a request to join it; Add Agent on another property owned by that household should also refuse the extra resident. ([#598](https://github.com/compoodment/ClankerWorld/issues/598))
 - Establish a recorded family group in a 1×1 House and check that it gets four places only while at least two residents in that group remain a strict majority. Try an admission that would remove the majority; it should not use the family limit. ([#598](https://github.com/compoodment/ClankerWorld/issues/598))
 - Send one resident away and invite a storm guest. The resident count should still include the traveler and should not increase for the guest. ([#598](https://github.com/compoodment/ClankerWorld/issues/598))
