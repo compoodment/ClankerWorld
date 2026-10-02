@@ -25,7 +25,9 @@ public sealed partial class PrivateWorldRuntime
             var ordinal = setup.FounderIds.Count + 1;
             var householdId = ordinal <= 2 ? HouseholdId : SecondHouseholdId;
             var name = $"Founder {ordinal}";
-            var founder = SocietyFixture.CreateFounder(founderId, name, config: society.Checkpoint.Config);
+            var config = society.Checkpoint.Config;
+            var founder = SocietyFixture.CreateFounder(founderId, name, config: config,
+                startingAge: SocietyFixture.FounderArrivalAge(config, worldSeed, setup.FounderIds.Count));
             society.Apply(checkpoint => SocietyFixture.PlaceFounder(checkpoint, founder, householdId));
             inhabitants.Add(founderId, new PlaytestInhabitantState(founderId, position, 6_500, 0,
                 "undecided", "find a purpose", IdentityChoicePending: true));
