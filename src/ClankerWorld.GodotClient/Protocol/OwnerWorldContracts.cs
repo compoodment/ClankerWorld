@@ -143,6 +143,7 @@ public sealed record OwnerWorldInhabitant(
 
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
+    public OwnerWorldEquipment? Equipment { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -166,6 +167,9 @@ public sealed record OwnerWorldInhabitant(
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
     int NutritionBasisPoints, string? LastMealKind);
+public sealed record OwnerWorldEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
+    int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,
@@ -256,7 +260,10 @@ public sealed record OwnerWorldPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null);
+    string? ExpansionFailure = null)
+{
+    public bool AllowsHouseholdOwner { get; init; }
+}
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -623,6 +630,20 @@ public sealed record OwnerBuildingPlacementAction(
     int X,
     int Y);
 
+public sealed record OwnerBuildingRemovalAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string WorldId);
+
+public sealed record OwnerBuildingReassignmentAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string? TargetTownId,
+    string? TargetHouseholdId,
+    string WorldId);
+
 public sealed record OwnerProductionStartAction(
     string RecipeId,
     string BuildingInstanceId,
@@ -634,6 +655,13 @@ public sealed record OwnerBuildingPlacementResult(
     string DefinitionId,
     OwnerWorldPosition Position,
     string? Failure);
+
+public sealed record OwnerBuildingManagementResult(
+    bool Applied,
+    string InstanceId,
+    string? Failure,
+    string? TownId = null,
+    string? HouseholdId = null);
 
 public sealed record OwnerProductionStartResult(
     bool Applied,

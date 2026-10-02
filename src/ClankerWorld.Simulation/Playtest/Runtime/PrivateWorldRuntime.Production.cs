@@ -182,15 +182,34 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
+    private bool HasCarriedUnreservedQuantities(string actor, IReadOnlyList<ContentQuantity> quantities)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var requested in quantities.GroupBy(item => item.ResourceId, StringComparer.Ordinal))
+        {
+            var available = inventory.Lots
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                    lot.DeliveryBuildingId is null && lot.ItemKind == requested.Key)
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            if (available < requested.Sum(item => (long)item.Amount))
+                return false;
+        }
+
+        return true;
+    }
+
     private string BuildingConstructionOwner(string actor, BuildingDefinition definition)
     {
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) return actor;
         if (!definition.Tags.Any(IsHouseholdBuildingTag)) return HouseholdId;
-        // Existing household supplies remain usable; new supplies stay personally
-        // carried until a household has a physical House to receive them.
-        return HouseForHousehold(household) is not null || HasAvailableQuantities(definition.BuildCosts, household)
-            ? household : actor;
+        if (definition.Tags.Contains("house", StringComparer.Ordinal) && HouseForHousehold(household) is null &&
+            HasCarriedUnreservedQuantities(actor, definition.BuildCosts))
+            return actor;
+
+        // The household stages a multi-load first House at camp. When its
+        // complete cost is already on the builder, preserve direct delivery.
+        return household;
     }
 
     private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
@@ -251,6 +270,8 @@ public sealed partial class PrivateWorldRuntime
         ArgumentNullException.ThrowIfNull(transition);
         society.Apply(checkpoint =>
         {
+            var equipmentBefore = inhabitants.Values.ToDictionary(person => person.InhabitantId,
+                person => person.Equipment, StringComparer.Ordinal);
             var updated = transition(checkpoint.Inventory);
             foreach (var building in worldSimulation.Buildings)
             {
@@ -260,6 +281,13 @@ public sealed partial class PrivateWorldRuntime
                 var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
+            }
+            foreach (var person in inhabitants.Values)
+            {
+                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]);
+                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment);
+                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
+                    throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
         });
