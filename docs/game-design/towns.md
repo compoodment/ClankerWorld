@@ -511,8 +511,12 @@ and invented content are not silently approved. In particular:
   **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
   eight stalls", and 5×4 lost the open column on each side that it needed.
   The stalls stand in two back-to-back rows of four, each facing an aisle,
-  with a path from the hall's door down the middle. Town Hall is
-  **3×4**. These are building/plot footprints, not interior rooms.
+  with a path from the hall's door down the middle. **Agreed on
+  October 1, 2026:** the Town owns the stalls. A new Market comes with a
+  starter set; when sellers need more, the Town builds them on the plaza as
+  Town building projects, using Town materials. The size of the starter set
+  stays provisional. Town Hall is **3×4**. These are building/plot
+  footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. **Agreed after
