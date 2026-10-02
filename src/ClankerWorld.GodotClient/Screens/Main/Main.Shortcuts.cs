@@ -12,46 +12,7 @@ public partial class Main
 {
     private readonly PanelContainer controlsPanel = new();
 
-    private static readonly (string Keys, string Action)[] ControlsList =
-    [
-        ("Left click", "Select an agent or inspect a tile"),
-        ("Scroll wheel", "Zoom toward the pointer"),
-        ("Middle-drag", "Move the map"),
-        ("W A S D / arrows", "Move the map"),
-        ("+ / −", "Zoom in or out"),
-        ("Space or P", "Pause or resume"),
-        ("N / Shift+N", "Next or previous agent"),
-        ("C", "Center on the selected agent"),
-        ("H", "Back to the first Town"),
-        ("M", "Map overview"),
-        ("F", "Filters"),
-        ("I", "World Info"),
-        ("R", "Agents"),
-        ("T", "Towns"),
-        ("E", "Event Log"),
-        ("F12", "Developer tools"),
-        ("F1 or ?", "Show or hide this list"),
-        ("Esc", "Close the newest panel, or open the Pause Menu"),
-    ];
-
-    private void BuildControlsPanel(Control content)
-    {
-        var grid = new GridContainer { Columns = 2 };
-        grid.AddThemeConstantOverride("h_separation", 18);
-        grid.AddThemeConstantOverride("v_separation", 5);
-        foreach (var (keys, action) in ControlsList)
-        {
-            var keyLabel = new Label { Text = keys };
-            keyLabel.ThemeTypeVariation = "KeyLabel";
-            grid.AddChild(keyLabel);
-            grid.AddChild(new Label { Text = action });
-        }
-        AddClosablePanelContents(controlsPanel, "Controls", grid);
-        controlsPanel.ZIndex = 85;
-        controlsPanel.Resized += PositionControlsPanel;
-        controlsPanel.Hide();
-        content.AddChild(controlsPanel);
-    }
+    private void BuildControlsPanel(Control content) => BuildControlsGroups(content);
 
     private void PositionControlsPanel()
     {

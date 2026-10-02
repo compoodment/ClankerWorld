@@ -40,8 +40,9 @@ public partial class Main
         RenderMap(world);
         try
         {
-            if (!ControlsList.Any(row => row.Keys == "F12" && row.Action == "Developer tools") ||
-                !controlsPanel.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Any(label => label.Text == "F12"))
+            var controlLabels = controlsPanel.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Select(label => label.Text).ToArray();
+            if (!ControlGroups.SelectMany(group => group.Rows).Any(row => row.Keys is ["F12"] && row.Action == "Developer tools") ||
+                !controlLabels.Contains("F12") || !controlLabels.Contains("Developer tools"))
                 throw new InvalidOperationException("The F1 controls list must name F12 for Developer tools.");
 
             // Behind the Pause Menu, F12 does nothing.
