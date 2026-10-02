@@ -168,8 +168,11 @@ public partial class Main
                 !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
                 terrainLayer.HouseholdPropertyTileCount != 1 ||
                 !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
-                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+                !TileCardText().Contains("Fertility\nGood", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Field · growing cultivated greens", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Household\nFarm household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("3 cultivated greens", StringComparison.Ordinal))
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must show on the tile card and fit at 200% interface size: " + TileCardText());
             householdPropertyFilter.ButtonPressed = false;
             selectedTile = null;
             selectedTilePanel.Hide();
@@ -812,6 +815,7 @@ public partial class Main
         try
         {
             VerifyEventLogAgentNames();
+            await VerifyNewcomerOfferAsync();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -1263,6 +1267,7 @@ public partial class Main
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
             VerifyPanelParts();
+            VerifyMapPanels();
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
@@ -1432,8 +1437,13 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Selected-tile inspection must open inside the world view: map={mapCanvas.GetGlobalRect()} card={selectedTilePanel.GetGlobalRect()}.");
-            if (selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException($"Selected-tile facts must fit without an inner scrollbar: content={selectedTileText.GetContentHeight()} visible={selectedTileText.Size.Y}.");
+            // The card names the ground and lists each fact in plain words; climate has its own row.
+            if (tileTitle.Text != "Meadow" || tileSubtitle.Text != "Tile 1, 1" ||
+                !TileCardText().Contains("Climate\nTemperate", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Height\nMiddle · 123 of 255", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Town\nFirst Town", StringComparison.Ordinal) ||
+                selectedTilePanel.GetCombinedMinimumSize().Y > selectedTilePanel.Size.Y + 1)
+                throw new InvalidOperationException("The tile card must name the ground, give climate its own row and fit its facts: " + TileCardText());
             var ownedMap = sample with
             {
                 PlacedBuildings = [.. sample.PlacedBuildings,
@@ -1493,16 +1503,19 @@ public partial class Main
             selectedTile = new Vector2I(2, 2);
             selectedTilePanel.Show();
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Tile inspection must show the household property, its use right and Town title.");
+            // The visible card, not only the hidden plain text, must carry the land facts.
+            if (!TileCardText().Contains("Household\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Land title\nFirst Town", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("The tile card must show the household property, its use right and Town title: " + TileCardText());
             selectedTile = new Vector2I(1, 1);
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal) ||
-                !selectedTileText.Text.Contains("Pending use request: Other household", StringComparison.Ordinal) ||
+            if (!TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use request\nOther household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Disputed\nFounder's household; Other household", StringComparison.Ordinal) ||
                 !selectedTileText.Text.Contains("Disputed household claims: Founder's household; Other household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Tile inspection must list each household's use claim and the dispute.");
+                throw new InvalidOperationException("The tile card must list each household's use claim and the dispute: " + TileCardText());
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
@@ -2542,10 +2555,11 @@ public partial class Main
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            VerifyEventRows();
             // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var zoomBeforeWheel = cameraZoom;
-            var overEventLog = eventLog.GetGlobalRect().GetCenter();
+            var overEventLog = eventScroll.GetGlobalRect().GetCenter();
             GetViewport().PushInput(new InputEventMouseMotion { Position = overEventLog, GlobalPosition = overEventLog }, true);
             for (var turn = 0; turn < 40; turn++)
                 GetViewport().PushInput(new InputEventMouseButton
@@ -3066,7 +3080,17 @@ public partial class Main
             };
             RenderMap(rosterMap);
             RenderInhabitantList(rosterMap);
-            if (inhabitantList.ItemCount != 4 || !inhabitantList.Visible ||
+            // The cards show who is doing what and who needs help; the hidden text list keeps the same order for selection.
+            if (rosterCards.ItemCount != 3 || !rosterCards.Visible || inhabitantList.Visible ||
+                rosterCards.GetItemTitle(0) != "Ilya" || rosterCards.GetItemTitle(1) != "Rowan" || rosterCards.GetItemTitle(2) != "Mira" ||
+                !RosterCardText(1).Contains("Looking for food", StringComparison.Ordinal) ||
+                !RosterCardText(1).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                RosterCardText(0).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                !RosterCardText(2).Contains("Died", StringComparison.Ordinal) ||
+                !rosterSummaryLabel.Text.Contains("1 hungry", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents list must show a card per agent, living first, with activity and a Hungry tag: " +
+                    string.Join(" | ", Enumerable.Range(0, rosterCards.ItemCount).Select(RosterCardText)));
+            if (inhabitantList.ItemCount != 4 ||
                 !inhabitantList.GetItemText(0).StartsWith("Ilya", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("looking for food", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("very hungry", StringComparison.Ordinal) ||
@@ -3084,7 +3108,7 @@ public partial class Main
                 throw new InvalidOperationException($"Choosing a living agent in the roster must bring them into view: camera={cameraCenterTiles}.");
             selectedInhabitantId = null;
             RenderInhabitantList(rosterMap with { Inhabitants = [] });
-            if (inhabitantList.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
+            if (inhabitantList.Visible || rosterCards.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
@@ -3293,6 +3317,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!controlsPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(controlsPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"F1 must open the controls list inside the world view: map={mapCanvas.GetGlobalRect()} controls={controlsPanel.GetGlobalRect()}.");
+            VerifyControlsKeycaps();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");

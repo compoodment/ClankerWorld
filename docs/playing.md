@@ -76,11 +76,20 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
-click it or drag its view rectangle to move the camera. **Filters** controls the
-saved Town border and household-owned building overlays. Both start off. Town
-borders show as a pale dashed line. While you place a founder or an added
-agent, the map shows both without turning Filters on.
+Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Map, which marks each Town and agent; click it or drag its view rectangle to
+move the camera. The label in the corner names the ground under the pointer
+beside a small picture of it. Click a tile to open its card: the ground with a
+picture of the tile, its height, climate, weather and soil, its Town, any land
+title, household use right, pending use request or dispute, the household that
+owns it, and anything on it, such as a tree, a field or goods left on the
+ground.
+
+**Filters** turns map overlays on and off: Town borders, household property,
+Town land title, household land use and disputed land. Each one says what it
+draws, and all start off. Town borders show as a pale dashed line. While you
+place a founder or an added agent, the map shows all of them without turning
+Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
@@ -115,8 +124,15 @@ lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
-**Event Log** shows important events. Clicking an event with a known location
-moves the camera there. Opening the log marks its new entries read.
+**Event Log** shows important events under a heading for each day, each with an
+icon for its kind. An event with a known location has a **Find** button that
+moves the camera there. Opening the log marks its new entries read; the ones
+that were new keep a small dot while it stays open. While the continuity rule
+is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
+Opening the offer adds nobody and makes no paid model call. **Agents** lists
+everyone with their portrait and what they are doing, and tags anyone
+**Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
+double-click it to open their Profile.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -142,7 +158,8 @@ Jev and the current model-usage controls. Main Menu Settings exposes Game
 Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
-Press **F1** or **?** for the in-game controls list. With no menu or text field
+Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
+and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.

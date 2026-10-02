@@ -744,28 +744,48 @@ public static class UiTheme
         return ImageTexture.CreateFromImage(image);
     }
 
-    /// <summary>A pixel on/off switch: a knob sitting left on a plain track, or right on a green one.</summary>
+    /// <summary>
+    /// A pixel on/off switch: a sunken track with rounded ends and a raised
+    /// wooden knob, sitting left on a plain track or right on a green one.
+    /// </summary>
     private static ImageTexture Switch(UiPalette p, bool on, bool disabled)
     {
         const int Width = 36;
         const int Height = 20;
         var image = Image.CreateEmpty(Width, Height, false, Image.Format.Rgba8);
         var edge = on ? p.PrimaryEdge : p.FieldEdge;
-        var fill = on ? p.Primary : p.Field;
+        var fill = on ? p.Primary : p.FieldDisabled;
+        var shadow = on ? p.PrimaryDark : p.PaperEdge;
         for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
             {
                 var ex = Math.Min(x, Width - 1 - x);
                 var ey = Math.Min(y, Height - 1 - y);
-                image.SetPixel(x, y, ex < 2 || ey < 2 ? edge : fill);
+                // Rounded ends: leave the outermost corner pixels clear.
+                if (ex + ey < 2) continue;
+                var color = ex < 2 || ey < 2 || ex + ey < 4 ? edge : y == 2 ? shadow : fill;
+                image.SetPixel(x, y, color);
             }
-        var knobLeft = on ? Width - 16 : 4;
-        for (var y = 4; y < Height - 4; y++)
-            for (var x = knobLeft; x < knobLeft + 12; x++)
+        const int KnobWidth = 14;
+        var knobLeft = on ? Width - KnobWidth - 2 : 2;
+        for (var y = 2; y < Height - 2; y++)
+            for (var x = knobLeft; x < knobLeft + KnobWidth; x++)
             {
-                var edgeHere = x == knobLeft || x == knobLeft + 11 || y == 4 || y == Height - 5;
-                image.SetPixel(x, y, on ? p.PrimaryInk : edgeHere ? p.ButtonEdge : p.Button);
+                var kx = Math.Min(x - knobLeft, knobLeft + KnobWidth - 1 - x);
+                var ky = Math.Min(y - 2, Height - 3 - y);
+                if (kx + ky < 1) continue;
+                var color = kx < 1 || ky < 1 ? p.ButtonEdge
+                    : y == 3 ? p.ButtonLight
+                    : y >= Height - 5 ? p.ButtonDark
+                    : p.Button;
+                image.SetPixel(x, y, color);
             }
+        // Two grip lines on the knob.
+        for (var y = 7; y < Height - 7; y++)
+        {
+            image.SetPixel(knobLeft + 5, y, p.ButtonDark);
+            image.SetPixel(knobLeft + 8, y, p.ButtonDark);
+        }
         if (disabled) Fade(image);
         return ImageTexture.CreateFromImage(image);
     }
