@@ -1,7 +1,3 @@
-# Season dates
-
-Pending after merge from [#674](https://github.com/compoodment/ClankerWorld/issues/674).
-
 - On the paired world: open a world after updating. The top bar shows the date as a season and day, such as Autumn 2, Year 1 · 14:20, followed by the weather but not the season name again. The Event Log, World Info, Save World and Load World show dates the same way. ([#674](https://github.com/compoodment/ClankerWorld/issues/674))
 - Open Settings → Game and change **Date display** to DD-MM-YYYY, MM-DD-YYYY and YYYY-MM-DD, then back to Season, with both 24-hour and 12-hour **Time display**. Each choice changes the top bar at once, the season name returns beside the weather while a numeric date is shown, and the choice is still there after restarting the game. ([#674](https://github.com/compoodment/ClankerWorld/issues/674))
 - With a season date and the 12-hour clock, make the game window as narrow as it goes. The top bar's date stays readable and nothing overlaps. ([#674](https://github.com/compoodment/ClankerWorld/issues/674))
