@@ -1648,6 +1648,15 @@ public partial class Main
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
+            // The tiny fixture map is centred. Give it room beside Add Agent
+            // so these map-hover checks do not point through the panel itself.
+            var placementWindowSize = displayWindow.Size;
+            var placementRenderSize = displayWindow.ContentScaleSize;
+            displayWindow.Size = new Vector2I(2560, 720);
+            displayWindow.ContentScaleSize = displayWindow.Size;
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            ApplyResponsiveLayout();
             placingAddedAgent = true;
             founderSetupPanel.Show();
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
@@ -1662,16 +1671,25 @@ public partial class Main
             var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
                 founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
+            void HoverPlacementTile(int x, int y)
+            {
+                var pointer = mapStage.Position + new Vector2(x * (currentTileSize + TileGap) + currentTileSize / 2f,
+                    y * (currentTileSize + TileGap) + currentTileSize / 2f);
+                var globalPointer = mapCanvas.GetGlobalTransform() * pointer;
+                if (!mapCanvas.GetGlobalRect().HasPoint(globalPointer) || founderSetupPanel.GetGlobalRect().HasPoint(globalPointer))
+                    throw new InvalidOperationException($"Placement hover must target visible map outside Add Agent: tile={x},{y}, pointer={globalPointer}, panel={founderSetupPanel.GetGlobalRect()}.");
+                UpdateTileHover(pointer);
+            }
+            HoverPlacementTile(2, 2);
             if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership: " + founderSetupHint.Text);
+            HoverPlacementTile(0, 0);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
+            HoverPlacementTile(3, 3);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(3, 0);
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
 
@@ -1733,16 +1751,21 @@ public partial class Main
                 throw new InvalidOperationException("A pointer inside Add Agent must keep the last visible placement preview.");
             founderModelPicker.Choice.GetPopup().Popup();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(0, 0);
             if (founderSetupHint.Text != placementPreview)
                 throw new InvalidOperationException("An open model popup must not preview the map behind it.");
             founderModelPicker.Choice.GetPopup().Hide();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(0, 0);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
+            displayWindow.Size = placementWindowSize;
+            displayWindow.ContentScaleSize = placementRenderSize;
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            ApplyResponsiveLayout();
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
                 terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
                 terrainLayer.DisputedLandTileCount != 0)
