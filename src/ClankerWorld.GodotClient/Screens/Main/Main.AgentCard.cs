@@ -425,7 +425,7 @@ public partial class Main
             thoughtsReaderText.PushColor(DimText);
             thoughtsReaderText.AddText(clock.Time + "  ");
             thoughtsReaderText.Pop();
-            thoughtsReaderText.AddText(text);
+            thoughtsReaderText.AddText(GameUiText.PlainEllipses(text));
         }
         FitTextPanel(thoughtsReaderText);
     }
@@ -666,6 +666,8 @@ public partial class Main
                 details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
             if (equipment.CarryAidKind is { } aid)
                 details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.OrnamentKind is { } ornament)
+                details.Add($"Wearing {GameUiText.ItemName(ornament).ToLowerInvariant()}");
             if (equipment.RepairItemKind is { } repairItem)
                 details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
         }
@@ -716,7 +718,7 @@ public partial class Main
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
         privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {inhabitant.RecentPrivateThoughts[^1].Text}";
+            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {GameUiText.PlainEllipses(inhabitant.RecentPrivateThoughts[^1].Text)}";
         // Keep the task that Cancel task targets, then the newest open messages
         // before closed ones, within the same four-message history.
         var pendingOrder = PendingOrderToCancel(snapshot, inhabitant.Id);

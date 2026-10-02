@@ -456,6 +456,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsOrnamentCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
@@ -507,7 +513,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         _ = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
-        if (ApplyMedicalConsentDecision(decision))
+        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision))
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
@@ -618,6 +624,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (IsOrnamentCandidate(candidateId)) return;
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -494,8 +495,38 @@ public sealed record EcologyResource(
 
 public sealed record EcologyState(IReadOnlyList<EcologyResource> Resources)
 {
-    public EcologyResource GetResource(string id) =>
-        Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+    // Source scans look up thousands of IDs a tick, so a linear search per ID
+    // grows with the square of the resource count. Each state gets one index;
+    // `with` makes a new state, so an index never outlives its list.
+    private static readonly ConditionalWeakTable<EcologyState, Dictionary<string, int>> Indexes = new();
+
+    public EcologyResource GetResource(string id)
+    {
+        var index = Indexes.GetValue(this, static state => IndexById(state.Resources));
+        if (id is not null && index.TryGetValue(id, out var position) && position >= 0 &&
+            position < Resources.Count && Resources[position] is { } resource &&
+            string.Equals(resource.Id, id, StringComparison.Ordinal))
+        {
+            return resource;
+        }
+
+        // Missing and duplicate IDs keep the original error.
+        return Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+    }
+
+    private static Dictionary<string, int> IndexById(IReadOnlyList<EcologyResource> resources)
+    {
+        var index = new Dictionary<string, int>(resources.Count, StringComparer.Ordinal);
+        for (var position = 0; position < resources.Count; position++)
+        {
+            if (resources[position]?.Id is not { } id)
+                continue;
+            // A duplicate ID is marked rather than indexed, so its lookup fails as before.
+            index[id] = index.ContainsKey(id) ? -1 : position;
+        }
+
+        return index;
+    }
 }
 
 public sealed record EcologyHarvestResult(

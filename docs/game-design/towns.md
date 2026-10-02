@@ -1376,12 +1376,27 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
 | Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
-| Gold | Extract from a gold-bearing outcrop with an iron pickaxe and carry to the Blacksmith. | Ornaments, gifts and trade goods. |
+| Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
 The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
+
+An ornament remains a real owned item when worn. Wearing it changes neither
+protection nor carrying capacity, and does not change the agent's map appearance.
+Removing it leaves the same unit in carried stock. A named gift or barter moves
+actual goods to a nearby recipient through the existing inventory authority;
+foreign, reserved or promised goods remain protected. Production and shop
+exchanges use the same local-stock, receiving-space and private-access rules as
+other Blacksmith work. Ornament deterioration is not part of this stage.
+
+The ornament trial uses 2 gold ore and 1 wood to refine 1 gold in 24 work ticks;
+2 refined gold make 1 gold ornament in 24 work ticks; 1 gold ornament and
+1 diamond make 1 diamond ornament in 28 work ticks. All these quantities and
+work times remain provisional. Wearing, removing and giving an ornament are
+deliberate choices through a fresh accepted personal-model response. Jev,
+fallbacks, repeated intentions and owner orders do not make those choices.
 
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
