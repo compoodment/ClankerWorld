@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # What works today
@@ -94,11 +94,11 @@ Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant
 memories and some places they know. Jev's routine choices also see fullness,
-warmth and illness. Needs are still sent as exact numbers. Describing them in
-plain words on a stated scale, such as "hungry (starving, hungry, fine, full;
+warmth and illness. Needs are sent as exact numbers. Describing them in plain
+words on a stated scale, such as "hungry (starving, hungry, fine, full;
 starving is worst, full is best)", is built for personal models and Jev but
-stays switched off until it has been compared with the numbers using real
-models ([#672](https://github.com/compoodment/ClankerWorld/issues/672)).
+switched off: compared with real models, it did worse than numbers with one of
+the two models tried ([#672](https://github.com/compoodment/ClankerWorld/issues/672)).
 Newly placed adults can choose their own personality and aspiration in their
 first personal-model reply. The choice is saved and shown on their profile. A
 missing or invalid choice keeps "undecided" and "find a purpose" without an

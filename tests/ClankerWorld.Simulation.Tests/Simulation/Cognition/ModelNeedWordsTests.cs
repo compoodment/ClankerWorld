@@ -126,7 +126,7 @@ public sealed class ModelNeedWordsTests
     }
 
     [Fact]
-    public async Task NumbersStayTheDefaultUntilTheWordsAreCompared()
+    public async Task NumbersStayTheDefault()
     {
         Assert.Equal(ModelNeedFormat.Numbers, ModelNeedWords.DefaultFormat);
         var handler = new RecordingHandler(PersonalReply);

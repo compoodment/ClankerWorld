@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Agents, families and social life
@@ -313,6 +313,11 @@ another sprite family at first.
   illness already slows an agent's work and travel. Jev's routine requests
   describe all three needs (fullness, warmth and illness) the same way as the
   personal model's requests, not fullness alone.
+- **Needs stay numbers, the owner's answer of October 2 on
+  [#672](https://github.com/compoodment/ClankerWorld/issues/672):** compared
+  with real models, the words did no worse than numbers with GPT 6 Luna but
+  clearly worse with GLM 5.3 Flash, so models keep seeing exact numbers. The
+  words stay built but switched off, and no further comparison is planned.
 
 ### Still to decide
 

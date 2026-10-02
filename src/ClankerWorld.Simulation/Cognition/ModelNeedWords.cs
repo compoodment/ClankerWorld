@@ -22,8 +22,8 @@ public enum ModelNeedFormat
 public static class ModelNeedWords
 {
     /// <summary>
-    /// Requests keep today's numbers until the words have been compared with
-    /// them against a real model, as the #646 decision requires.
+    /// Requests keep numbers: in the #672 comparison the words did worse with
+    /// one of the two models, and the owner chose to keep numbers.
     /// </summary>
     public const ModelNeedFormat DefaultFormat = ModelNeedFormat.Numbers;
 

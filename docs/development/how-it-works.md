@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # How the game works
@@ -137,10 +137,9 @@ the same way. Unknown warmth or illness stays `null`. Nothing else in either req
 the observation, its digest, admission and the simulation keep the exact values.
 
 Both adapters take a `needFormat` setting. `ModelNeedWords.DefaultFormat` is
-still `Numbers`: the decision requires a controlled comparison with a real
-model before words become the default, so play sends numbers until then. The
-owner will switch to words if they do no worse than numbers with GLM 5.3 Flash
-and GPT 6 Luna.
+`Numbers`, so play sends numbers. Words were to become the default only if they
+did no worse than numbers with GLM 5.3 Flash and GPT 6 Luna; they did worse
+with GLM 5.3 Flash, and on October 2 the owner chose to keep numbers.
 [Need wording comparison](need-wording-comparison.md) describes the comparison
 harness and its results.
 

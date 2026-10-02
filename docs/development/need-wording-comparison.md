@@ -1,8 +1,8 @@
 ---
 title: Need wording comparison
 type: prototype-report
-status: active
-updated: 2026-10-01
+status: complete
+updated: 2026-10-02
 ---
 
 # Need wording comparison
@@ -14,7 +14,8 @@ words must be compared with today's numbers in a controlled comparison before
 they become the default. [#672](https://github.com/compoodment/ClankerWorld/issues/672)
 built the words and this comparison. In the
 [model-backed run](#model-backed-results), words did no worse than numbers with
-GPT 6 Luna but clearly worse with GLM 5.3 Flash, so play keeps sending numbers.
+GPT 6 Luna but clearly worse with GLM 5.3 Flash, so the owner chose to keep
+sending numbers.
 [How it works](how-it-works.md#model-inputs-usage-and-memories) describes the
 two request formats.
 
@@ -134,9 +135,10 @@ The owner's rule was to make words the default only if they did no worse with
 both models. They did no worse with GPT 6 Luna but clearly worse with GLM 5.3
 Flash, so the default stays numbers. Each model ran once per arm, so the
 difference may partly be run-to-run noise, but GLM's gap (about four times as
-much freezing) is far larger than Luna's. Whether to keep numbers or adjust
-the words and compare again is waiting on the owner
-([#672](https://github.com/compoodment/ClankerWorld/issues/672)).
+much freezing) is far larger than Luna's. On 2 October the owner chose to keep
+numbers and not adjust the words for another run
+([#672](https://github.com/compoodment/ClankerWorld/issues/672)). The words
+stay in the code, switched off.
 
 ## Running the model-backed comparison
 
@@ -144,7 +146,9 @@ The owner has chosen how this is settled
 ([#672](https://github.com/compoodment/ClankerWorld/issues/672)): a later
 session given the owner's keys runs it at the default length with two models,
 **GLM 5.3 Flash** on Ollama Cloud and **GPT 6 Luna** on OpenAI. The words
-become the default if they do no worse than numbers.
+would become the default if they did no worse than numbers. The
+[results](#model-backed-results) above settled it for numbers; these commands
+are kept for anyone who repeats the run.
 
 The run makes paid calls, so it only starts when asked. Set
 `CLANKERWORLD_NEED_WORDING_PROVIDER` to `ollama` or `openai` to use that
@@ -195,8 +199,7 @@ depend on the model: the owner's sample in
 2,800 per call. A model's choices vary from run to run, so one run per arm is a
 first look rather than proof; repeats make a difference more convincing.
 
-Record each model's table here with the model ID and date, then change
-`ModelNeedWords.DefaultFormat` if the words did no worse.
+Record each model's table here with the model ID and date.
 
 ## Limits
 
