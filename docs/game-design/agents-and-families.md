@@ -192,28 +192,6 @@ everything that is available in the current build. See [what works today](../wha
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
 
-### Dependent care after loss of the last active primary caregiver
-
-- The birth record keeps the caregiver chosen for that birth as history. The
-  child's current primary caregiver remains that person while they still
-  provide care. If they die or end that care, the current caregiver is cleared;
-  the child's family group stays the same while waiting for someone to accept.
-  A second accepted caregiver does not take over or change the child's domestic
-  family group by itself. If the current primary caregiver is no longer
-  available, an explicit care assignment may make an already accepted caregiver
-  the new primary; the child then follows that caregiver's current domestic
-  family group for housing counts without changing residence or parentage.
-- If a dependent's last active primary caregiver dies, the game asks living
-  biological relatives first, then adults in the dependent's household, then
-  adult residents of their Town. The first adult who explicitly accepts becomes
-  the current primary caregiver. A child moves to that adult's household only
-  when its completed House has a free resident place and both belong to the
-  same Town; Town membership and birth parentage remain unchanged. A cross-Town
-  acceptance records care but leaves the child's household in place until
-  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
-  allow a move. Until acceptance, the child stays where they are, nearby adults
-  may still feed them, and the player can see and order care for the unmet
-  guardian need. The one-day interval for each group is provisional.
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not
@@ -230,6 +208,29 @@ everything that is available in the current build. See [what works today](../wha
   continuity rule is on, the Event Log says the world is at risk and offers
   **Add a newcomer**, which opens Add Agent. Travellers arriving on their own
   may be reconsidered later if worlds feel too closed.
+
+### Dependent care after loss of the last active primary caregiver
+
+- The birth record keeps the caregiver chosen for that birth as history. The
+  child's current primary caregiver remains that person while they still
+  provide care. If they die or end that care, the current caregiver is cleared;
+  the child's family group stays the same while waiting for someone to accept.
+  A second accepted caregiver does not take over or change the child's domestic
+  family group by itself. If the current primary caregiver is no longer
+  available, an explicit care assignment may make an already accepted caregiver
+  the new primary; the child then follows that caregiver's current domestic
+  family group for housing counts without changing residence or parentage.
+- If a dependent's last active primary caregiver dies or ends care, the game
+  asks living biological relatives first, then adults in the dependent's household, then
+  adult residents of their Town. The first adult who explicitly accepts becomes
+  the current primary caregiver. A child moves to that adult's household only
+  when its completed House has a free resident place and both belong to the
+  same Town; Town membership and birth parentage remain unchanged. A cross-Town
+  acceptance records care but leaves the child's household in place until
+  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
+  allow a move. Until acceptance, the child stays where they are, nearby adults
+  may still feed them, and the player can see and order care for the unmet
+  guardian need. The one-day interval for each group is provisional.
 
 ### Agreed starter Town and remaining choices
 

@@ -155,6 +155,18 @@ is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
 
+Player renames reuse `InhabitantNameRules`, including NFC normalization,
+collapsed Unicode whitespace and `OrdinalIgnoreCase` comparison. The runtime
+checks all other recorded inhabitants, living or deceased, under the same
+world gate that commits the rename. A taken name returns `name_taken` from
+the signed owner endpoint; the client translates only that refusal into a
+name-specific explanation. The Profile's open name field then keeps the
+refused text through ordinary refreshes (`RefusedAgentRename`) until the
+player edits or closes it, renames successfully, or another agent or world is
+shown; its name labels always follow the host's snapshot. An unchanged name
+is a no-op. No name check rewrites saved dialogue or identity references, and
+player choices still supersede late model naming replies.
+
 The response must select a legal candidate. Any finite confidence from 0 to 1
 is accepted; confidence does not veto the choice or a valid chosen name.
 The personal prompt asks for no probability map. Both parsers accept its

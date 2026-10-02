@@ -285,6 +285,10 @@ internal static partial class OwnerEndpoints
                 return Results.Ok(new OwnerAgentRenameReceipt(action.AgentId,
                     runtime.Society.GetInhabitant(action.AgentId).Name, changed));
             }
+            catch (ClankerWorld.Simulation.Society.InhabitantNameTakenException exception)
+            {
+                return Results.Conflict(new OwnerControlFailure("name_taken", exception.Message));
+            }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });

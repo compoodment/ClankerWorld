@@ -83,9 +83,11 @@ panel keeps showing the selected provider and model with a setup message.
 
 Schema 41 saves an unresolved dependent-guardian search, including its current
 relative, household or Town stage, start tick and offered adults. Acceptance is
-an explicit adult action; the saved primary caregiver and household membership
-change together, while the original birth record and Town membership remain
-historical. Loading validates the stage, times, and adult references. Replaying
+an explicit adult action that changes the saved current primary caregiver.
+Household membership changes in that same action only when a completed House
+in the child's Town has room; otherwise it stays unchanged. The original birth
+record and Town membership stay unchanged. Loading validates the stage, times,
+and adult references. Replaying
 from a pending request reaches the same acceptance opportunities and preserves
 the single guardian-needed event. Older alpha saves without this state are
 refused; no migration is added.

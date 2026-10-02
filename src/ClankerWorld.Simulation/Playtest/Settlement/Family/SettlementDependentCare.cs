@@ -21,7 +21,6 @@ public sealed partial class PrivateWorldRuntime
     private bool NeedsCaregiver(string child) => inhabitants.ContainsKey(child) &&
         society.Checkpoint.GetInhabitant(child).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
         !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child);
-
     private bool CanAcceptGuardian(string adult, string child, bool ordered = false) => AdultResident(adult) &&
         ReadyForBriefInteraction(adult) &&
         NeedsCaregiver(child) && (ordered || inhabitants[child].GuardianSearch is { } search &&
@@ -113,7 +112,6 @@ public sealed partial class PrivateWorldRuntime
     private static bool GuardianTargetCharacter(char value, bool isIdentifier) =>
         char.IsLetterOrDigit(value) || value == '_' || value == '-' || isIdentifier && value == ':' ||
         !isIdentifier && value is '\'' or '’';
-
     private bool EligibleCaregiver(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
         society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
         society.Checkpoint.GetInhabitant(child).HouseholdId == household;
