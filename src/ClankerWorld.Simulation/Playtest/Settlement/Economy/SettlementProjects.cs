@@ -921,16 +921,20 @@ public sealed partial class PrivateWorldRuntime
         // A source scan observes one inventory snapshot. Reuse tool availability
         // during that scan; gathering rechecks the actual tool and capacity.
         var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        // Sort the cheap matches, then check tools and routes nearest first. A
+        // Small world can hold thousands of trees; the nearest usable one wins
+        // either way, so checking every one first only costs time.
         return map.Resources
-        .Where(resource =>
-            (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
-            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
-            map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position))
-        .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
-        .ThenBy(resource => resource.Id, StringComparer.Ordinal)
-            .FirstOrDefault(resource => IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
-            FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0);
+            .Where(resource =>
+                (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
+                resources.GetValueOrDefault(resource.Id) == ResourceState.Available)
+            .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
+            .ThenBy(resource => resource.Id, StringComparer.Ordinal)
+            .FirstOrDefault(resource =>
+                CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
+                map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position) &&
+                (IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
+                 FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0));
     }
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
