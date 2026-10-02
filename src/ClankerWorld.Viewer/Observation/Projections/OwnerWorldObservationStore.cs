@@ -851,7 +851,9 @@ public sealed class OwnerWorldObservationStore
                     : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
                     : person.Parenthood.Stage == "postponed" ? "Parenthood put off for now."
                     : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
-                .Concat(inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
+                .Concat(physical.GuardianSearch is not null
+                    ? ["Needs a guardian. No adult has accepted care yet; nearby adults may still feed them."]
+                    : inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
                     !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
                         edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
                         state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
