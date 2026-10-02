@@ -16,6 +16,7 @@ namespace ClankerWorld.Viewer.Observation;
 public sealed class OwnerWorldObservationStore
 {
     private const int AgentKnowledgeArtifactLimit = 8;
+    private const int RecentClosedInstructionLimitPerAgent = 6;
     private static readonly string[] OwnerServerCapabilities =
     [
         "snapshot.read.v1",
@@ -213,6 +214,8 @@ public sealed class OwnerWorldObservationStore
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
+        var completedInstructionIds = (state.CompletedInstructionIds ?? []).ToHashSet(StringComparer.Ordinal);
+        var visibleInstructions = ProjectPrivateInstructions(state, completedInstructionIds);
         var first = activeInhabitants.FirstOrDefault();
         ViewerActor? actor = null;
         if (first is not null)
@@ -400,18 +403,19 @@ public sealed class OwnerWorldObservationStore
                 campWeather.ToString().ToLowerInvariant(),
                 state.WorldSystems?.Climate.Season.ToString().ToLowerInvariant() ?? "spring",
                 []),
-            Instructions = (state.Instructions ?? [])
-                .Where(instruction => !(state.CompletedInstructionIds ?? []).Contains(instruction.InstructionId, StringComparer.Ordinal))
-                .OrderBy(instruction => instruction.SubmissionSequence)
+            Instructions = visibleInstructions
                 .Select(instruction => new ViewerInstruction(
                     instruction.InstructionId,
                     instruction.TargetInhabitantId,
                     ToWireValue(instruction.Kind),
                     instruction.Text,
-                    ToWireValue(instruction.State),
+                    completedInstructionIds.Contains(instruction.InstructionId)
+                        ? "completed" : ToWireValue(instruction.State),
                     instruction.SubmittedTick,
                     instruction.RunEpoch,
-                    instruction.SubmissionSequence))
+                    instruction.SubmissionSequence,
+                    instruction.ObservedTick,
+                    instruction.ObserverReply))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -533,6 +537,27 @@ public sealed class OwnerWorldObservationStore
                 .ToArray(),
         };
     }
+
+    // Every open message stays visible. Closed messages are bounded to each
+    // agent's newest few, whether or not a personal model heard them: an order
+    // the game could not act on, or one done by local rules, still belongs on
+    // the card. Newest means latest submitted, the order the card reads them in.
+    private static OwnerQueuedInstruction[] ProjectPrivateInstructions(
+        PrivateWorldRuntimeState state,
+        HashSet<string> completedInstructionIds) =>
+        (state.Instructions ?? [])
+            .GroupBy(instruction => instruction.TargetInhabitantId, StringComparer.Ordinal)
+            .SelectMany(group =>
+            {
+                var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
+                var recentClosed = group
+                    .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId))
+                    .OrderByDescending(instruction => instruction.SubmissionSequence)
+                    .Take(RecentClosedInstructionLimitPerAgent);
+                return pending.Concat(recentClosed);
+            })
+            .OrderBy(instruction => instruction.SubmissionSequence)
+            .ToArray();
 
     private static string ConversationStatus(AgentConversationStatus status) => status switch
     {
