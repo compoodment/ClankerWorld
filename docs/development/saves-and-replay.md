@@ -64,6 +64,42 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
+Schema 46 adds the low-population continuity rule: whether it was on at the
+last check, so its Event Log transitions are not repeated after loading, and
+each eligible couple's deadline for saying "not yet" to a child. A parenthood
+plan may also be in the new `postponed` stage. Loading refuses a checkpoint
+without this state, couples while the rule is off, unknown or unordered
+partner IDs, duplicate couples, and a deadline more than two world days after
+the saved clock. Current-format roundtrips keep the flag and deadlines, and a
+replay from a postponed plan reaches the same plan and checkpoint. Older
+schemas are refused. No migration is added.
+
+Private-world schema 48 adds independent saved Town governance. It records the
+current council and fallback cause, term/retry schedules, personal full-term or
+remainder-term candidacy agreements, proposal identity/windows/final votes,
+current election and settled history, ballot revisions, runoff eligibility,
+recorded fair draw order, posted notices and actor-owned read/relay receipts.
+A founded Town missing its governance, duplicate votes, unsupported winners,
+invalid civic references or inconsistent proposal thresholds are refused as
+bad checkpoint data. Founder setup may have no civic state until Start World.
+
+Current-format roundtrips preserve windows and accepted choices, including
+paused proposals, independent two-Town decisions and election ballots. Prepared
+ticks rejected before commit leave no civic change. Delayed replies revalidate
+the exact current contest/proposal and actor authority; cancelled votes cannot
+revive after owner membership changes. Draws use a named world-local PCG stream
+with unbiased selection and save the actual order, so loading does not reroll
+an accepted outcome. Older alpha saves are visibly refused and preserved; no
+migration is provided. Admission approval remains a saved decision for #602 to
+consume separately, with no stock or household-access effect.
+
+Private-world schema 49 stores recognized food-order targets, progress, retry
+state, cancellation receipts and their exact actor/world identity alongside the
+original owner instructions. Loading validates these records together so an
+unrelated action or a stale order cannot advance a replacement task. Alpha saves
+must use the current checkpoint schema; older saves are refused without
+migration and remain unchanged.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -191,18 +227,19 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-The Clinic draft raises the private-world schema to 46 above its parent's 45.
-Each living inhabitant may record named adult medical permissions and an
-active medicine course. The course binds its patient and caregiver to the
-actual completed inventory reservation for the consumed dose, including the
-supply lot, owner and start time. Strict validation checks permission, identity
-and progress; it refuses a mismatched or already closed receipt. Completed or
-interrupted courses close that receipt's medical purpose without releasing or
-refunding goods, so renewed permission cannot restore a spent effect. Death
-cleanup preserves completed receipts while releasing live claims. Archived
-physical profiles retain permission history but cannot retain active treatment.
-No schema 45 migration is provided; older alpha saves are refused and preserved.
-The number is provisional until the stacked merge order is reconciled.
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+
+Private-world schema 50 lets each living inhabitant record named adult medical
+permissions and an active medicine course. The course binds its patient and
+caregiver to the actual completed inventory reservation for the consumed dose,
+including the supply lot, owner and start time. Strict validation checks
+permission, identity and progress; it refuses a mismatched or already closed
+receipt. Completed or interrupted courses close that receipt's medical purpose
+without releasing or refunding goods, so renewed permission cannot restore a
+spent effect. Death cleanup preserves completed receipts while releasing live
+claims. Archived physical profiles retain permission history but cannot retain
+active treatment. No migration is provided; older alpha saves are refused and
+preserved.
 
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
@@ -273,14 +310,35 @@ matching its ID and design), refuses overlapping decks, a bridge landing on a
 building, resource or camp object, and a Road bridge whose two entrances are
 not both Road tiles. It does not need the Town or building that caused the
 bridge. Traffic evidence must be recent, within its per-agent bound, for real
-unbridged one-tile crossings, and any open wade must match where that agent
-stands. A save that fails these checks is refused with a reason and kept.
+unbridged crossings of one or two river tiles, and any open wade must match
+where that agent stands, in either water tile of a two-tile crossing. A save
+that fails these checks is refused with a reason and kept. Two-tile wading and
+its evidence use the existing fields and crossing IDs, so the schema number
+does not change. An older build refuses, and keeps, a save that places an
+agent, a map memory, an exploration path or traffic evidence in a two-tile
+river.
+
+Scouting waypoints record already walked steps, rather than permission to
+repeat those steps now. Loading checks each ordered edge against the current
+bridge map or against the same terrain with only bridges built strictly before
+the outing's `LastOutingTick`. A bridge built on the outing's start tick is
+excluded from that older graph because it may have appeared later in the same
+tick. Bridges that predate the outing remain, so an impossible sideways step
+across an existing deck is not excused by removing it.
+
+For a deceased agent's archived outing, the first graph includes only bridges
+built at or before `DeathTick`; a bridge built on a later tick cannot make a
+fabricated old step legal. Record bounds, coordinates, times and discovery uniqueness remain
+checked. Saving and loading keep the recorded path, visits and discoveries
+without clearing them to hide a topology change. Actual scouting and return
+movement always use today's bridge map, with its legal axes, detours and
+blocked-return behavior. These checks use existing timestamps and add no saved
+fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 46 in the Clinic draft, provisionally
-above its parent's schema 45. The minimum supported schema is the same value,
-so older alpha checkpoints are refused with a reason and left unchanged; no
-private-world migration runs. The current schema also includes
+`PrivateWorldRuntime.StateSchemaVersion` 50. The minimum supported schema is
+the same value, so older alpha checkpoints are refused with a reason and left
+unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
@@ -291,10 +349,13 @@ family and caregiver/birth-home records, owner messages with whether a personal
 model heard them and any short reply, tool-lot links for saved field and
 recipe work, per-agent life-moment identity opportunities with their outcomes,
 connected Town-title plots, household use rights and pending use requests,
-physical shop exchanges beside their exact inventory offers, and medical
-permission and consumed-dose progress. Land records are checked against the
-saved map, Towns, households and one another before load. These fields retain
-their current validation and roundtrip behavior.
+physical shop exchanges beside their exact inventory offers,
+the continuity rule's state with each eligible couple's deadline, food-order
+targets, progress, retry state and cancellation receipts, and medical
+permission and consumed-dose progress.
+Land records are checked against the saved map, Towns, households and one
+another before load. These fields retain their current validation and roundtrip
+behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -306,9 +367,12 @@ assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
 identity, schema 44 for Town land records, schema 45 for physical shop
-exchanges, and provisional schema 46 for medical permission and consumed-dose
-progress, record when those fields or behaviors were introduced; they do not
-allow an earlier checkpoint schema past the current alpha cutoff.
+exchanges, schema 46 for continuity, schema 47 for household departures and
+physical custody, schema 48 for Town councils, schema 49 for food-order
+progress and cancellations, and schema 50 for medical permission and
+consumed-dose progress record when those fields or behaviors were
+introduced; they do not allow an earlier checkpoint schema past the
+current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -340,7 +404,11 @@ allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
 | Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 | Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
-| Schema 46, provisional Clinic draft | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
+| Schema 46 | The continuity rule's saved on/off state and each eligible couple's "not yet" deadline, plus the `postponed` parenthood stage. A missing or inconsistent rule state is refused. Earlier schemas cannot carry it. |
+| Schema 47 | Household departure records, once-only physical food allowances, care groups and personal collection rights; optional carrier IDs keep custody separate from property. Production jobs capture their owner at start. Paused private work preserves its original inputs and pause time for a remaining member to resume. Older alpha checkpoints are refused and preserved. |
+| Schema 48 | Independent Town councils, personal candidacy agreements, proposal windows and final votes, current and archived elections, recorded runoff draws, notices and actor-owned read/relay receipts. Founded Towns require valid governance. Earlier alpha checkpoints are refused and preserved; no civic state is inferred or migrated. |
+| Schema 49 | Recognized food orders keep their target, requested and completed units, retry state and status, plus cancellation receipts tied to the exact world, actor and order. Progress records the physical effect that earned it, so an unrelated action or a stale order cannot advance a replacement task. Earlier alpha checkpoints are refused and preserved; no order migration is added. |
+| Schema 50 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

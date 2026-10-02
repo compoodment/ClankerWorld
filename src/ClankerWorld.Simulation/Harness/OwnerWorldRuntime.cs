@@ -36,7 +36,50 @@ public sealed record OwnerInstructionRequest(
     string IssuerId,
     string TargetInhabitantId,
     OwnerInstructionKind Kind,
-    string Text);
+    string Text,
+    bool Queue = false);
+
+/// <summary>
+/// Authoritative progress for the small set of order tasks currently supported
+/// by the private-world simulation. The original instruction text remains on
+/// its own message record; this typed state is the physical task the host understood.
+/// </summary>
+public sealed record OwnerInstructionOrder(
+    string Action,
+    string Status,
+    int RequestedUnits,
+    int CompletedUnits,
+    string ProgressUnit,
+    bool RepeatUntilCancelled,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool QuantityIsExplicit = false,
+    string? TargetFoodKind = null,
+    string? TargetResourceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? TargetPosition = null,
+    string? BlockedReason = null,
+    string? LastEffectId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WaitForDecisionAfterFailure = false);
+
+public sealed record OwnerOrderCancelRequest(
+    string IdempotencyKey,
+    string IssuerId,
+    string WorldId,
+    string TargetInhabitantId,
+    string OrderId);
+
+public sealed record OwnerOrderControlReceipt(
+    string OrderId,
+    string Status,
+    bool Changed,
+    long WorldTick,
+    long LatestEventId);
+
+public sealed record OwnerOrderCancellation(
+    string IdempotencyKey,
+    string IssuerId,
+    string WorldId,
+    string TargetInhabitantId,
+    string OrderId,
+    OwnerOrderControlReceipt Receipt);
 
 /// <summary>
 /// The authoritative queued record retained by the world runtime.
@@ -54,7 +97,9 @@ public sealed record OwnerQueuedInstruction(
     OwnerInstructionState State,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ObservedTick = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ObserverReply = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? GuidancePromptedTick = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? GuidancePromptedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Queue = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerInstructionOrder? Order = null)
 {
     public const int MaximumTextLength = 512;
     public const int MaximumIdentifierLength = 128;
@@ -701,7 +746,8 @@ public sealed class OwnerWorldRuntime
                 world.Identity.WorldTick,
                 runEpoch,
                 sequence,
-                OwnerInstructionState.Queued);
+                OwnerInstructionState.Queued,
+                Queue: request.Queue);
             instructionsByIdempotency.Add(queued.IdempotencyKey, queued);
             AppendGlobalEvent("instruction_queued", $"{queued.InstructionId}:{ToWireValue(queued.Kind)}");
             var receipt = new OwnerInstructionReceipt(
@@ -1912,7 +1958,8 @@ public sealed class OwnerWorldRuntime
         string.Equals(instruction.IssuerId, request.IssuerId.Trim(), StringComparison.Ordinal) &&
         string.Equals(instruction.TargetInhabitantId, request.TargetInhabitantId.Trim(), StringComparison.Ordinal) &&
         instruction.Kind == request.Kind &&
-        string.Equals(instruction.Text, request.Text.Trim(), StringComparison.Ordinal);
+        string.Equals(instruction.Text, request.Text.Trim(), StringComparison.Ordinal) &&
+        instruction.Queue == request.Queue;
 
     private static bool Matches(
         AppliedAuthoringBatch applied,

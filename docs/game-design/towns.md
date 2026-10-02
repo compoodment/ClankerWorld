@@ -238,9 +238,11 @@ other guardianship cases still need their own decisions.
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
 
-Adult departure, personal ownership, limited collection access, the food
-allowance and solo formation are implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593). Wills and a
+Adult departure, personal ownership, limited physical collection, the once-only
+food allowance, care-group moves and solo formation are implemented through
+[#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
+notice and relocation selection remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). Wills and a
 guardian for a child whose last caregiver dies are agreed in [Agents and
 families](agents-and-families.md#starting-agents-families-and-life-stages);
 other guardianship cases remain separate choices in [Agents and
@@ -556,8 +558,31 @@ materials in hand. There is no Town-wide limit on how many of a kind exist
 until playtests show agents overbuilding. Only the household that holds the
 Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
 exception**: a household may plan it, and once it is built the Town holds it.
-Other buildings the Town shares wait for governance. Any Town resident may plan
-the Warehouse's expansion once its stock is nearly full.
+Other shared buildings use the Council-approved Town projects below. Any Town
+resident may still plan the Warehouse's expansion once its stock is nearly full.
+
+### Shared Town projects
+
+**Agreed by the owner on October 2, 2026 ([#760](https://github.com/compoodment/ClankerWorld/issues/760)):**
+an adult Town resident may propose a named shared construction project with
+its site and material budget. The legitimate current Council must approve it
+through the ordinary proposal and majority procedure before residents may
+spend Town materials or start that project. Pending votes follow the Council's
+existing membership and ballot rules; proposing a project grants no permission.
+
+This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
+communal boats at a Port. Resident adults physically supply and build the
+approved project with real materials. Approval creates no goods, transfers no
+private stock and grants no access to household or personal supplies. Private
+donations need separate consent and the ordinary physical transfer rules.
+
+Permission is bound to the approved project, site and material budget. A
+different site or larger budget needs another approval. Ownership, land rights,
+routes, carrying room, storage, work and reservations still apply. Cancelling
+or blocking a project must preserve its goods and safely release unspent
+reservations. This is a supported construction effect; free-form law text
+cannot execute it. The existing resident rule for Warehouse expansion stays
+in place. Costs, quantities and work times remain provisional for playtesting.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -1439,9 +1464,9 @@ these item pipelines. See [combat](agents-and-families.md#combat) and
 **Owner decision on October 2, 2026:** "Defer injury causes; build supplies now."
 This stage makes, stores and trades bandages, but does not create injuries or
 apply bandages to a patient. Medicine uses the existing illness system and
-supports recovery gradually. The Clinic draft implements this scope in the
-normal private-world path; its merge, validation and Windows playtest remain
-tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
+supports recovery gradually. The Clinic implements this scope in the normal
+private-world path; its Windows playtest is pending, and the later injury stage
+stays tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
 [current availability](../what-works.md#life-work-and-society).
 
 The first Clinic is a household-held 1×2 building. Trial construction uses

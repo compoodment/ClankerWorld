@@ -54,6 +54,7 @@ public partial class Main
         RenderWorldDetails(snapshot);
         RenderModLibrary(snapshot);
         RenderEventLog();
+        RenderDeveloperTools(snapshot);
         RefreshControlAvailability();
     }
 
@@ -124,6 +125,12 @@ public partial class Main
         var mapWidth = terrainMap.Width;
         var mapHeight = terrainMap.Height;
         worldOverview.WrapsEastWest = snapshot.WrapsEastWest;
+        worldOverview.Backdrop = UiTheme.Current.Inset;
+        worldOverview.AtlasEdge = UiTheme.Current.WoodEdge;
+        worldOverview.SetMarkers(
+            snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
+            snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
+                .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
