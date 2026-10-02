@@ -407,7 +407,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var instruction in instructions)
         {
             if (instruction is null || string.IsNullOrWhiteSpace(instruction.InstructionId) ||
-                instruction.InstructionId.Length > 128 ||
+                instruction.InstructionId.Length > OwnerQueuedInstruction.MaximumIdentifierLength ||
                 instruction.InstructionId != $"private-instruction-{instruction.SubmissionSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}" ||
                 !instructionIds.Add(instruction.InstructionId) ||
                 !IsValidInstructionIdentifier(instruction.IdempotencyKey) ||

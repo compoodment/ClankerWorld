@@ -340,6 +340,19 @@ public sealed partial class PrivateWorldRuntimeTests
         world.Validate();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CurrentSaveWithoutItsMessageRecordsIsRefused(bool missingCompletedIds)
+    {
+        using var world = new PrivateWorldRuntime("missing-message-records");
+        var state = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.ObserverGuidanceSchemaVersion, state.SchemaVersion);
+        state = missingCompletedIds ? state with { CompletedInstructionIds = null } : state with { Instructions = null };
+
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
+    }
+
     [Fact]
     public void AgentCardKeepsTheLatestClosedMessagesEvenWhenNoPersonalModelHeardThem()
     {
