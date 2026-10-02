@@ -12,9 +12,9 @@ words on a stated scale instead of exact numbers
 ([#646](https://github.com/compoodment/ClankerWorld/issues/646)), and that the
 words must be compared with today's numbers in a controlled comparison before
 they become the default. [#672](https://github.com/compoodment/ClankerWorld/issues/672)
-built the words and this comparison. **Only the offline half has been run.** It
-cannot show whether words change a model's choices, so play still sends numbers
-until the [model-backed run](#running-the-model-backed-comparison) is recorded.
+built the words and this comparison. In the
+[model-backed run](#model-backed-results), words did worse than numbers with
+GLM 5.3 Flash, so play keeps sending numbers.
 [How it works](how-it-works.md#model-inputs-usage-and-memories) describes the
 two request formats.
 
@@ -88,6 +88,29 @@ three numbers, and every request in the words arm carried all three words and
 none of the numbers. No call failed. Words made each request 156 to 158
 characters (about 2%) longer: 7,554 against 7,710 characters on average in the
 360-tick clear run.
+
+## Model-backed results
+
+Run on 1 and 2 October on this branch after merging main (with #615), at 360
+ticks, one run per weather and arm. Starving, hungry, freezing and unwell
+columns count agent-ticks. The model-backed run does not measure request size.
+
+### GLM 5.3 Flash on Ollama Cloud (`glm-5.3-flash`)
+
+| Weather | Needs as | Decisions | Survival choices | Time under a survival choice | Starving | Hungry or worse | Freezing | Unwell or worse | Peak illness | Food | Meals | Deaths | Failed calls | Input/output tokens |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| Clear | Numbers | 116 | 9.5% (11) | 1.5% | 0 | 12 | 0 | 0 | 0% | 32/32/36 | 4 | 0 | 0 | 165,389/52,325 |
+| Clear | Words | 128 | 9.4% (12) | 1.3% | 0 | 193 | 0 | 0 | 0% | 32/32/44 | 4 | 0 | 0 | 183,448/63,221 |
+| Rain | Numbers | 146 | 41.8% (61) | 51.7% | 0 | 124 | 155 | 0 | 0% | 32/28/32 | 4 | 0 | 1 | 211,832/70,067 |
+| Rain | Words | 94 | 57.4% (54) | 59.0% | 0 | 394 | 461 | 0 | 0% | 32/32/41 | 3 | 0 | 0 | 142,258/38,929 |
+| Storm | Numbers | 154 | 24.0% (37) | 33.3% | 0 | 77 | 12 | 0 | 0% | 32/28/36 | 4 | 0 | 1 | 213,092/68,018 |
+| Storm | Words | 84 | 41.7% (35) | 39.3% | 0 | 87 | 243 | 0 | 0% | 32/32/40 | 4 | 0 | 0 | 115,844/31,420 |
+
+**Words did worse with GLM 5.3 Flash.** Nobody starved, fell ill or died in
+either arm, but with words agents spent 704 agent-ticks freezing against 167
+with numbers, and 674 hungry or worse against 213. They picked survival
+choices more often yet still stayed cold and hungry for longer, and made fewer
+decisions in rain and storm. Two calls failed, both in the numbers arm.
 
 ## Running the model-backed comparison
 
