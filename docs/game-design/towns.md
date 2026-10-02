@@ -238,9 +238,11 @@ other guardianship cases still need their own decisions.
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
 
-Adult departure, personal ownership, limited collection access, the food
-allowance and solo formation are implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593). Wills and a
+Adult departure, personal ownership, limited physical collection, the once-only
+food allowance, care-group moves and solo formation are implemented through
+[#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
+notice and relocation selection remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). Wills and a
 guardian for a child whose last caregiver dies are agreed in [Agents and
 families](agents-and-families.md#starting-agents-families-and-life-stages);
 other guardianship cases remain separate choices in [Agents and

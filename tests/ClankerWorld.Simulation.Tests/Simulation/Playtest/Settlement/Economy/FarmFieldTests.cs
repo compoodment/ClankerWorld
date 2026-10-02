@@ -396,6 +396,11 @@ public sealed class FarmFieldTests
         var birth = society.LifeTickAt(society.WorldTick) - years * society.Config.TicksPerLifecycleAge;
         state = state with
         {
+            Towns = state.Towns!.Select(town => town with
+            {
+                Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed,
+                    town.ResidentIds.Where(id => id != actor || allowed), society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+            }).ToArray(),
             Society = state.Society with
             {
                 Society = society with

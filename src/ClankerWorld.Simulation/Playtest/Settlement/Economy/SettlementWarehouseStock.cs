@@ -56,7 +56,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => CanReachSharedItem(actor, lot));
 
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+        .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
             AvailableLotQuantity(lot) > WarehouseLoadQuantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

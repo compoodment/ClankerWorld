@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Playing the current game
@@ -32,6 +32,8 @@ If the server changes, forget the old registration and pair again.
 If New World asks for matching updates, update the game and have the server
 updated too. Keep your current device pairing; pairing again does not repair
 that version mismatch. You can still reconnect to the existing world.
+
+Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
 ## Create your first Town
 
@@ -76,11 +78,20 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the overview;
-click it or drag its view rectangle to move the camera. **Filters** controls the
-saved Town border and household-owned building overlays. Both start off. Town
-borders show as a pale dashed line. While you place a founder or an added
-agent, the map shows both without turning Filters on.
+Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Map, which marks each Town and agent; click it or drag its view rectangle to
+move the camera. The label in the corner names the ground under the pointer
+beside a small picture of it. Click a tile to open its card: the ground with a
+picture of the tile, its height, climate, weather and soil, its Town, any land
+title, household use right, pending use request or dispute, the household that
+owns it, and anything on it, such as a tree, a field or goods left on the
+ground.
+
+**Filters** turns map overlays on and off: Town borders, household property,
+Town land title, household land use and disputed land. Each one says what it
+draws, and all start off. Town borders show as a pale dashed line. While you
+place a founder or an added agent, the map shows all of them without turning
+Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
@@ -101,10 +112,24 @@ thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
 
-**Suggest** opens a **Suggestion** and **Order** opens a **Direct order**. Their
-model does not read your words yet. A direct order works only when it asks them to gather
-or harvest food, eat, or go somewhere, and "go" currently means walking toward
-food. [What works today](what-works.md#agents-and-their-models) has the details.
+**Suggest** shares an idea with the agent's own planning model. **Order** gives
+it a task. A new suggestion or recognized order asks for one fresh planning
+decision; any short reply comes in that same response. Following an order does
+not add a model request for every step or tick.
+
+Food orders can eat carried food, collect accessible household food to eat,
+travel to a food source, or gather berries, fruit or wild greens. Use simple
+phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
+berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
+waits until the agent is hungry enough, and gathering needs enough carrying
+space. A recognized new order replaces the current one unless you turn on
+**Queue**. Use **Cancel task** to stop a waiting or active order.
+
+An instruction the game cannot understand leaves the current order running.
+Unsupported requests, such as "build a house" or "gather wood," close as not
+understood and appear in the Event Log. Recognized orders follow normal access
+and survival rules. [What works today](what-works.md#agents-and-their-models)
+has the details.
 
 Click a building to outline it and open a small card beside it: who owns it,
 what is being made there or who is inside, and what it stores, shown as item
@@ -115,8 +140,17 @@ lives there. Back (or **Escape**) returns to the small card.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
-**Event Log** shows important events. Clicking an event with a known location
-moves the camera there. Opening the log marks its new entries read.
+its Towns page also shows each Town's council, current and latest settled election,
+and eight recent proposal results. Long Town readouts scroll. **Event Log** shows
+important events under a heading for each day, each with an
+icon for its kind. An event with a known location has a **Find** button that
+moves the camera there. Opening the log marks its new entries read; the ones
+that were new keep a small dot while it stays open. While the continuity rule
+is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
+Opening the offer adds nobody and makes no paid model call. **Agents** lists
+everyone with their portrait and what they are doing, and tags anyone
+**Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
+double-click it to open their Profile.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -126,6 +160,21 @@ starts an independent household. If household owners or Town borders overlap,
 choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
+
+Town residents make civic choices through their normal personal-model turns.
+Adults can agree to stand for election, visit their Town's public notice place
+near its founding site, read notices, relay what they learned to someone nearby,
+submit a proposal and vote. A traveler can miss notices; being a resident does
+not automatically teach them every proposal or candidate. You inspect the
+process in World Info rather than voting for the agents.
+
+An ordinary proposal stays open for one unpaused world day unless its result
+is settled earlier. A four-person council needs three yes votes, and an elected
+three-seat council needs two. Silence supplies no approval. Election ballots
+may change until closing, while cast proposal votes are final. Pausing stops
+these windows and council terms. Passed admission requests are recorded, but
+the separate process for joining a Town has not been connected yet; approval
+alone gives no household place or access to stored goods.
 
 ## Pause, settings and controls
 
@@ -142,10 +191,22 @@ Jev and the current model-usage controls. Main Menu Settings exposes Game
 Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
-Press **F1** or **?** for the in-game controls list. With no menu or text field
+Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
+and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
+
+Press **F12** in a world to open **Developer tools** at the right edge of the
+screen, and again to close them; **Escape** closes them once nothing newer is
+open. Time keeps running. The panel shows the coordinates and facts of the last
+tile under the pointer, the frame time, the tick time (how long the server took
+to work out the latest step of world time) and how many agents are living.
+Choose an agent in its list to select them and move the camera to them, and
+turn on **Show planned path** to draw the route they are walking, as the server
+planned it. The panel also holds the aging override, recovery for a request
+whose reply was lost, paused world editing and paired-device management. The
+aging override and world editing need the world paused first.
 
 The optional model-call limit counts hosted call attempts across this
 installation, including failed, retried or abandoned attempts. It is not a

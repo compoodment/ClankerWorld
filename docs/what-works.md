@@ -34,6 +34,7 @@ test alone does not make it available in the game.
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
+| Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. Logged direct edits are not built yet ([#677](https://github.com/compoodment/ClankerWorld/issues/677)), and there are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches and date/time formats. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
@@ -99,7 +100,13 @@ that setting is saved, and a cleared child continues with built-in choices.
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
 illness where known. It also gives their latest private thought, a few relevant
-memories and some places they know. Newly placed adults can choose their own
+memories and some places they know. Jev's routine choices also see fullness,
+warmth and illness. Needs are sent as exact numbers. Describing them in plain
+words on a stated scale, such as "hungry (starving, hungry, fine, full;
+starving is worst, full is best)", is built for personal models and Jev but
+switched off: compared with real models, it did worse than numbers with one of
+the two models tried ([#672](https://github.com/compoodment/ClankerWorld/issues/672)).
+Newly placed adults can choose their own
 personality and aspiration in their first personal-model reply. The choice is
 saved and shown on their profile. A missing or invalid choice keeps "undecided"
 and "find a purpose" without an extra call; routine replies cannot overwrite it.
@@ -127,17 +134,38 @@ Those facts survive a refresh and save/reload. The paired Windows/model-wait
 check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
-**Order**. This is a basic version. The next ordinary request to the agent's
-personal planning model can include the exact words; the card keeps them under
-**Your messages** and shows whether the model heard them, whether an order is
-still open, and any short reply separately from private thoughts. The game
-understands only orders to gather food, eat or go toward food. An order the game
-can't act on closes at once, and the Event Log says the agent did not
-understand it. An order that can't be carried out yet waits without extra
-model requests. A deterministic local choice does not claim the model heard a
-message. Suggestions do not block recognized orders. Hands-on Windows
-paired-client checks remain pending in the
-[playtest list](../playtest/586-observer-guidance.md).
+**Order**. A new suggestion or recognized order asks for one fresh decision from
+the agent's planning model containing the exact words; a queued order reaches it when that order
+becomes active. Any brief reply comes in the same response, without a separate
+acknowledgement request. Order steps do not cause requests every tick.
+The card keeps them under **Your messages** and shows whether the model heard
+them, whether an order is still open, and any short reply separately from
+private thoughts.
+
+Orders currently cover eating carried food, collecting accessible household
+food to eat, going to a known food source or discovering one through ordinary
+exploration, and gathering berries, fruit or wild greens from a matching source.
+Examples include "eat 3 berries", "gather two berries", "gather berries from
+berry-patch", "go to berries at (12, 4)" and "keep gathering food until
+cancelled". Quantities count food actually eaten or gathered; travel finishes
+on arrival at the food source. Eating waits until the agent is hungry enough,
+and a full load blocks gathering with a reason.
+
+A recognized new order replaces the active and queued orders unless **Queue**
+is selected. **Cancel task** stops a waiting or active order. An instruction
+the game cannot understand preserves the current task and its queue. Explicit
+source names must match exactly; the game does not quietly choose another
+source or food. Unsupported, mixed, negated or incomplete requests close as not
+understood and appear in the Event Log. The parser also refuses counted travel
+such as "go get 2 berries" instead of guessing a task. A recognized task that
+cannot be done yet stays pending, with model retries on the usual schedule.
+Urgent survival can interrupt it before it resumes; waiting for a model reply
+does not stop the agent from following its task or handling an urgent need.
+Deterministic local choices do not claim the model heard a message, and
+suggestions do not block recognized orders. Hands-on Windows paired-client
+checks remain pending in the
+[playtest list](../playtest/586-observer-guidance.md) and the
+[food-order checklist](../playtest/587-food-orders.md).
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
@@ -164,8 +192,8 @@ summaries remain unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers or clothing that protects them better in the current weather. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking or household membership. Market stalls, tool-making orders, Restaurants and Clinics remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Barter rates and shelf sizes are provisional. |
-| Parenthood, life stages and death | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but leaving or changing a household, founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
+| Parenthood, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. Recorded multiple Towns can be saved and validated, but founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
 
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
 gold or diamond outcrop. The goods remain in their carried stock. Trial mining
@@ -181,10 +209,59 @@ the same seed gives the same founder ages in placement order. The agent card
 shows the age, such as **Adult · 19 days**. These are playtest values, not
 settled population balance.
 
+A world cannot die out only because every couple keeps declining children.
+While fewer than eight agents who are not elders are alive (infants, children
+and adults all count), the **continuity rule** is on. A new world starts with
+it on, and the Event Log says when it turns on or off. Once eight non-elders
+are alive it turns off and ordinary refusal returns.
+
+While the rule is on in a started world, the Event Log keeps a warning that
+the world is at risk and offers **Add a newcomer**. This opens the usual
+Add Agent controls, where you choose the key, model and placement. Opening the
+offer adds nobody and makes no paid model call. The offer disappears once the
+rule turns off; nobody arrives on their own.
+
+While the rule is on, a partnered couple with no infant may say "not yet" to a
+child, but not refuse: two world days after the rule first applies to them,
+their plan goes ahead as if both had agreed. Preparation still takes time, and
+the birth still needs food and shelter; a plan the rule sent ahead waits for
+them instead of expiring. Such a couple may also plan another child once their
+youngest has left infancy, without waiting for that child to grow up. Each
+partner's own model request explains the rule and how long is left. The rule
+never creates a partnership, and choosing a partner stays voluntary. The
+threshold and two days are provisional; a check based on the real risk of the
+world dying out comes later. This has automated checks but no Windows playtest
+yet.
+
 On death, a bounded final model choice can leave the estate to the household or
 name one living recipient for the whole estate. Interrupted or invalid choices
 use the household path. Per-item bequests, debts, minors and inheritance law
 remain unfinished. Memories do not automatically pass to children.
+
+Each founded Town has its own council. Its recorded living adult residents
+include travelers and adults without a home; visitors gain no vote. All adults
+govern initially. At eight adults the Town opens elections for three willing
+representatives, with ten-day terms, vacancy contests and one cutoff runoff
+followed by a saved draw when needed. A Town with an elected council keeps
+representation at seven adults and returns to all adults at three or fewer.
+
+Agents personally register willingness, visit the public notice place near the
+Town's founding site, read actual notices and relay learned information nearby.
+They submit ordinary social-law or admission proposals and cast votes in their
+usual personal-model turns. No extra paid calls poll for civic votes. Ordinary
+proposals need a strict council majority, with two yes votes required while
+representative seats are vacant. Proposal votes are final; election ballots
+may change before the one-day window closes. Council changes cancel unfinished
+proposals. The scrolling Towns page shows current councillors, candidates,
+election totals, the latest completed, failed or cancelled election, and eight
+recent pending, passed, rejected or cancelled proposals.
+
+A passed law proposal records approval; broader law powers, jurisdiction and
+enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).
+Admission approval is recorded for the separate Town-membership work
+([#602](https://github.com/compoodment/ClankerWorld/issues/602)); it grants neither
+membership, household admission nor goods access today. Windows civic pacing
+and visual checks remain pending.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
@@ -201,7 +278,7 @@ not create household membership. Disputed land and other conflicting claims are
 refused for a new placement, but do not move existing residents or stop
 ordinary movement and work. The server checks the preview against current
 records again when the adult is placed. Walking does not change membership. An
-adult with no household cannot build a House. Instead they can ask a household that holds a House with a free
+adult with no household first asks a household that holds a House with a free
 resident place in their Town to take them in. Every adult member of that household must agree within
 the same short window as other proposals; one refusal or no answer ends the
 request, and that household is not asked again for two world days. Standing
@@ -209,15 +286,23 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials, no
-legal site or an overcrowded House. [Solo formation and departure](game-design/towns.md#household-membership),
-with [personal goods and dependent care](game-design/towns.md#household-goods-and-departure),
-are agreed but not implemented ([#593](https://github.com/compoodment/ClankerWorld/issues/593)).
+legal site or an overcrowded House. Adults may leave without a vote and keep personal ownership of goods stored
+at the old House. Collection and returning borrowed work tools require travel
+and carrying space. A departure allocates up to two available, unreserved
+ready-to-eat portions once; collection and reload do not repeat that allowance.
+Dependent children keep their primary caregiver and move as a care group unless
+another adult explicitly accepts primary care. Existing homes must accept the
+whole group and have enough completed places. If no suitable home accepts them,
+one adult can start a household and pursue a House through the usual materials,
+legal-site and work rules. No House or materials are supplied for free. Leaving
+preserves Town membership and an empty household's property. See the
+[departure rules](game-design/towns.md#household-goods-and-departure).
 The agreed [House resident limits and expansion](game-design/towns.md#house-resident-capacity-and-relocation)
 are implemented by [#598](https://github.com/compoodment/ClankerWorld/issues/598).
 Relocation for existing overcrowding remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
-Until solo formation works, an adult nobody takes in relies on clothing and
-natural storm cover. This is a basic
+Until a household formed alone builds its House, its adult relies on clothing
+and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
@@ -257,9 +342,13 @@ Choosing a conversation interrupts a repair and releases its unspent materials.
 
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
-diagonal steps, one-tile river crossings and slower mountain travel. Peaks are
-impassable; mountains and peaks cannot hold construction. Town streets take
-diagonals where the land allows.
+diagonal steps and slower mountain travel. Agents wade straight across rivers
+one or two tiles wide, from bank to bank: a one-tile river at half walking
+speed, and a two-tile river at a provisional third of walking speed. Wider
+rivers, lakes and the sea cannot be crossed on foot, and there are no boats
+yet. Wading two-tile rivers has not been checked in hands-on Windows play.
+Peaks are impassable; mountains and peaks cannot hold construction. Town
+streets take diagonals where the land allows.
 
 In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
@@ -273,10 +362,10 @@ game yet ([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
 Worlds generated before this change no longer load; they are refused and their
 saves are kept.
 
-Bridges are a basic version. Where agents often wade across the same one-tile
-river (six crossings by at least two agents within two world days), a bridge
-appears. It is drawn on the map, named on the tile card and hover readout, and
-walked at dry-ground speed. When a Town grows, a new side street or a street
+Bridges are a basic version. Where agents often wade across the same river
+crossing, one or two tiles wide (six crossings by at least two agents within
+two world days), a bridge appears across it. It is drawn on the map, named on
+the tile card and hover readout, and walked at dry-ground speed. When a Town grows, a new side street or a street
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
