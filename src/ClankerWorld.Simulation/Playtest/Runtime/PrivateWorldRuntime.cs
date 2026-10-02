@@ -20,8 +20,9 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 46;
+    public const int StateSchemaVersion = 49;
     public const int ObserverGuidanceSchemaVersion = 41;
+    public const int OrderLifecycleSchemaVersion = 49;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
@@ -64,6 +65,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
     private Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
+        new(StringComparer.Ordinal);
+    private Dictionary<string, OwnerOrderCancellation> orderCancellations =
         new(StringComparer.Ordinal);
     private HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
     private List<PlaytestWorldEvent> events = [];
@@ -340,6 +343,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
+        runtime.orderCancellations.Clear();
         runtime.completedInstructionIds.Clear();
         foreach (var instruction in state.Instructions ?? [])
         {
@@ -364,6 +368,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             runtime.completedInstructionIds.Add(completedInstructionId);
         }
 
+        foreach (var cancellation in state.OrderCancellations ?? [])
+        {
+            if (!runtime.orderCancellations.TryAdd(cancellation.IdempotencyKey, cancellation))
+            {
+                runtime.Dispose();
+                throw new InvalidDataException("The private-world order cancellation idempotency keys are duplicated.");
+            }
+        }
+
         runtime.nextInstructionSequence = runtime.instructionsByIdempotency.Count == 0
             ? 1
             : checked(runtime.instructionsByIdempotency.Values.Max(item => item.SubmissionSequence) + 1);
@@ -382,11 +395,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public void Dispose()
     {
-        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-        CancelIdentityMoments();
+        // Disposal does not hold the runtime gate; its provider callbacks can
+        // still apply their usage effects synchronously before the gate closes.
+        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id, underRuntimeGate: false);
+        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id, underRuntimeGate: false);
+        CancelIdentityMoments(underRuntimeGate: false);
         foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
-            AgentConversationInterruption.Disconnected);
+            AgentConversationInterruption.Disconnected, underRuntimeGate: false);
         society.Dispose();
         gate.Dispose();
         tickGate.Dispose();
@@ -450,12 +465,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
-        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity);
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
+        orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
+            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray());
 
-    private void AppendEvent(string kind, string detail)
+    private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {
-        GridPoint? position = null;
-        for (var length = detail.Length; length > 0; length = detail.LastIndexOf(':', length - 1))
+        GridPoint? position = eventPosition;
+        for (var length = detail.Length; position is null && length > 0; length = detail.LastIndexOf(':', length - 1))
         {
             var prefix = detail[..length];
             if (inhabitants.TryGetValue(prefix, out var living))

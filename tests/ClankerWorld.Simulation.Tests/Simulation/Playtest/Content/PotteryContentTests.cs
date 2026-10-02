@@ -821,6 +821,58 @@ public sealed class PotteryContentTests
     }
 
     [Fact]
+    public async Task UrgentOwnerOrderCanTakeFoodFromAnAccessibleHouseholdPot()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("urgent-owner-order-pot-food", _ => new IdleProvider());
+        for (var tick = 0; tick < 8; tick++)
+            Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        const string householdId = "household:camp-alpha";
+        const string potId = "urgent-owner-order-pot";
+        var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor &&
+                !(lot.OwnerId == householdId && InventoryContainerRules.IsFood(lot.ItemKind))).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, potId, InventoryContainerRules.StoragePot,
+            householdId, 1, storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "urgent-owner-order-pot-berries", "berries",
+            householdId, 2, storageBuildingId: house.InstanceId, containerLotId: potId);
+        state = SetActorCondition(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Council = new(state.Inhabitants[0].InhabitantId, "open", 0),
+        }, actor, 0, house.Position);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? new IdleProvider() : new IdleProvider());
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("urgent-pot-order", "owner:test",
+            actor, OwnerInstructionKind.MustDo, "gather berries from berry-patch"));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var after = world.ExportState();
+        Assert.Single(after.Events, item => item.Kind == "food_taken_from_pot" &&
+            item.Detail.StartsWith(actor + ":" + potId + ":", StringComparison.Ordinal));
+        Assert.Equal(1, Assert.Single(after.Society.Society.Inventory.Lots,
+            lot => lot.Id == "urgent-owner-order-pot-berries").Quantity);
+        Assert.Contains(after.Society.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "berries" && lot.Quantity == 1 && lot.ContainerLotId is null);
+        Assert.Equal("interrupted", Assert.Single(after.Instructions!, item => item.InstructionId == order.InstructionId)
+            .Order!.Status);
+        Assert.DoesNotContain(after.Events, item => item.Kind == "food_consumed" && item.Detail == actor);
+        world.Validate();
+    }
+
+    [Fact]
     public async Task AVesselTooLargeToHaulDoesNotHideOtherLooseHouseholdStock()
     {
         using var setup = NormalPathWorld.CreateGenerated("oversized-loose-jug", _ => new IdleProvider());

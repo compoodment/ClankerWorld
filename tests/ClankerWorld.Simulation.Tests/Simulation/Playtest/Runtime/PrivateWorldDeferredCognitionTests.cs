@@ -253,7 +253,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     {
         var provider = new SequencedHostedProvider(
             [new NameReply("Taken Name"), new NameReply("Retry Name")], holdSecond: true);
-        using var world = CreateNameTestWorld("rename-queued-name-retry", provider);
+        using var world = CreateNameTestWorld("rename-queued-name-retry", provider, quietOthers: true);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         world.StartWorld();
         await world.AdvanceOneTickNonBlockingAsync();
@@ -278,7 +278,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         };
         var freshProvider = new SequencedHostedProvider(new NameReply("Unexpected Retry"));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)),
-            id => id == NameTargetId ? freshProvider : new DeterministicDecisionProvider());
+            id => id == NameTargetId ? freshProvider : new QuietDecisionProvider());
         Assert.True(restored.RenameAgent(NameTargetId, "Player Name"));
         var queued = restored.ExportState().Society.Cognition.Queue.SingleOrDefault(entry => entry.InhabitantId == NameTargetId);
         if (otherWork) Assert.Equal(["other_work"], queued!.TriggerIds);
@@ -462,17 +462,31 @@ public sealed class PrivateWorldDeferredCognitionTests
 
     private static PrivateWorldRuntime CreateNameTestWorld(
         string seed,
-        IDecisionProvider provider)
+        IDecisionProvider provider,
+        bool quietOthers = false)
     {
         var world = new PrivateWorldRuntime(seed, id => id == NameTargetId
                 ? provider
-                : new DeterministicDecisionProvider(),
+                : quietOthers ? new QuietDecisionProvider() : new DeterministicDecisionProvider(),
             startPace: WorldStartPace.FounderSetup);
         world.PlaceFounder(NameTargetId, new GridPoint(0, 0));
         world.PlaceFounder(NameOwnerId, new GridPoint(1, 2));
         world.PlaceFounder("founder:cccccccccccccccccccccccccccccccc", new GridPoint(2, 2));
         world.PlaceFounder("founder:dddddddddddddddddddddddddddddddd", new GridPoint(3, 2));
         return world;
+    }
+
+    private sealed class QuietDecisionProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+                observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, "safe_idle", 1,
+                observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == "safe_idle" ? 1d : 0d, StringComparer.Ordinal)));
+        }
     }
 
     private sealed record NameReply(

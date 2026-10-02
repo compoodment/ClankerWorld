@@ -33,6 +33,7 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSkill>? Skills = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementDeparture>? Departures = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AgentIdentityMoment>? IdentityMoments = null);
 
@@ -110,7 +111,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdLandUseRight>? HouseholdLandUseRights = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdLandUseRequest>? HouseholdLandUseRequests = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BusinessTradeState>? BusinessTrades = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementContinuity? Continuity = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementContinuity? Continuity = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<OwnerOrderCancellation>? OrderCancellations = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

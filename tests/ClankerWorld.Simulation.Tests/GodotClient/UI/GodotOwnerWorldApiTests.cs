@@ -3,6 +3,7 @@ using OwnerHttpBinding = ClankerWorld.Viewer.Control.OwnerHttpBinding;
 using ServerReconnectAction = ClankerWorld.Viewer.Control.OwnerReconnectAction;
 using ServerDeviceManagementAction = ClankerWorld.Viewer.Control.OwnerDeviceManagementAction;
 using ServerInstructionAction = ClankerWorld.Viewer.Control.OwnerInstructionAction;
+using ServerOrderCancelAction = ClankerWorld.Viewer.Control.OwnerOrderCancelAction;
 using ServerPairingApprovalAction = ClankerWorld.Viewer.Control.OwnerPairingApprovalAction;
 using ServerProviderConfigurationAction = ClankerWorld.Viewer.Control.OwnerProviderConfigurationAction;
 using ServerProviderModelListAction = ClankerWorld.Viewer.Control.OwnerProviderModelListAction;
@@ -254,25 +255,61 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Same(accepted, session.Current);
     }
 
-    [Fact]
-    public void InstructionPayloadMatchesViewerOwnerProtocolByteForByte()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InstructionPayloadMatchesViewerOwnerProtocolByteForByte(bool queue)
     {
         var clientAction = new OwnerInstructionAction(
             IdempotencyKey: "instruction-01",
             TargetInhabitantId: "camp-alpha",
             Kind: "must-do",
             Text: "Gather wood before dusk.",
-            WorldId: "world-A");
+            WorldId: "world-A",
+            Queue: queue);
         var serverAction = new ServerInstructionAction(
             clientAction.IdempotencyKey,
             clientAction.TargetInhabitantId,
             clientAction.Kind,
             clientAction.Text,
-            clientAction.WorldId);
+            clientAction.WorldId,
+            queue);
 
         var clientPayload = OwnerWorldActionPayload.Instruction(clientAction);
         var serverPayload = OwnerHttpBinding.InstructionPayload(serverAction);
 
+        var expected = string.Join('\n',
+            queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
+            "world-id=d29ybGQtQQ",
+            "idempotency-key=aW5zdHJ1Y3Rpb24tMDE",
+            "target-inhabitant-id=Y2FtcC1hbHBoYQ",
+            "kind=bXVzdC1kbw",
+            "text=R2F0aGVyIHdvb2QgYmVmb3JlIGR1c2su" + (queue ? "\nqueue=true" : string.Empty));
+        Assert.Equal(expected, clientPayload);
+        Assert.Equal(serverPayload, clientPayload);
+    }
+
+    [Fact]
+    public void OrderCancellationPayloadMatchesViewerOwnerProtocolByteForByte()
+    {
+        var clientAction = new OwnerOrderCancelAction(
+            "cancel-01", "camp-alpha", "private-instruction-0000000042", "world-A");
+        var serverAction = new ServerOrderCancelAction(
+            clientAction.IdempotencyKey,
+            clientAction.TargetInhabitantId,
+            clientAction.OrderId,
+            clientAction.WorldId);
+
+        var clientPayload = OwnerWorldActionPayload.OrderCancel(clientAction);
+        var serverPayload = OwnerHttpBinding.OrderCancelPayload(serverAction);
+
+        var expected = string.Join('\n',
+            "clankerworld.owner-order-cancel.v1",
+            "world-id=d29ybGQtQQ",
+            "idempotency-key=Y2FuY2VsLTAx",
+            "target-inhabitant-id=Y2FtcC1hbHBoYQ",
+            "order-id=cHJpdmF0ZS1pbnN0cnVjdGlvbi0wMDAwMDAwMDQy");
+        Assert.Equal(expected, clientPayload);
         Assert.Equal(serverPayload, clientPayload);
     }
 

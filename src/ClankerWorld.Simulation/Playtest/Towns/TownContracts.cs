@@ -16,7 +16,8 @@ public sealed record TownRuntimeState(
     IReadOnlyList<string> ResidentIds,
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<GridPoint> BorderTiles,
-    GridPoint? OriginSite = null);
+    GridPoint? OriginSite = null,
+    TownGovernanceState? Governance = null);
 
 /// <summary>
 /// A Town's border keeps about <see cref="SpareTileMargin"/> tiles of spare

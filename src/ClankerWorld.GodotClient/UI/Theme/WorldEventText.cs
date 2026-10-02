@@ -1,8 +1,15 @@
+using System.Globalization;
+
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>Player event descriptions, derived without rewriting accepted history.</summary>
 public static class WorldEventText
 {
+    public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
+        snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
+
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
@@ -13,6 +20,8 @@ public static class WorldEventText
             IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "Building";
         var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
+        var civicTownId = worldEvent.Detail.Split('|', 3)[0];
+        var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
 
         return worldEvent.Kind switch
         {
@@ -74,6 +83,12 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "town_civic_council" => $"{civicTownName}'s council changed.",
+            "town_civic_election" => $"{civicTownName}'s council election opened.",
+            "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
+            "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
+            "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
+            "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
@@ -83,6 +98,13 @@ public static class WorldEventText
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
+            "household_work_resumed" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} took over paused household work at its building.",
+            "household_left" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} left their household and may collect their personal belongings.",
+            "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
+            "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
+            "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
+            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned borrowed household goods.",
+            "replacement_care_accepted" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} explicitly accepted primary care of a dependent.",
             "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
             "housing_request_refused" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not agree to let {LeadingName(snapshot, worldEvent.Detail)} move in.",
@@ -90,8 +112,20 @@ public static class WorldEventText
             "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
+            "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    /// <summary>The installation's one warning at 80% of its model-call limit.</summary>
+    private static string DescribeModelCallWarning(string[] parts)
+    {
+        var count = parts.Length == 4 && parts[0] == "used" && parts[2] == "limit" &&
+            long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var used) &&
+            long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
+            ? string.Create(CultureInfo.InvariantCulture, $"{used:N0} of {limit:N0}")
+            : "80% of the limit";
+        return $"Model calls: {count} used across all worlds. Your worlds pause at the limit; raise it in Settings → Game.";
     }
 
     private static string DescribeSkill(string detail, OwnerWorldSnapshot? snapshot)

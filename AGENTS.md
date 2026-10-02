@@ -34,8 +34,9 @@ computment reads your chat replies, not GitHub comments, issues or pull request
 descriptions. Put whatever you need from them in your reply: a decision, an
 owner task, a go-ahead for something outside your job, or a problem you cannot
 solve. Give the options and your recommendation, highest priority first. Then
-record the answer yourself: a design choice in its game-design chapter, and a
-short comment on the issue saying it was the owner's answer. In the same step,
+record the answer yourself: a design choice in its game-design chapter, a
+workflow choice in CONTRIBUTING or its linked developer page, and a short
+comment on the issue saying it was the owner's answer. In the same step,
 remove `status:needs-decision` from the issue and from any pull request that
 waited on it. If nobody holds the issue (no `status:in-progress`) and it is not
 a decision or owner task, add `status:needs-pr` too.
@@ -151,6 +152,12 @@ What each job adds:
   or claim; say so in the pull request. Turn agreed work into Implementation
   issues: reuse an older issue if one covers it, and give new ones their
   [labels](CONTRIBUTING.md#labels), including `status:needs-pr`.
+  Implementation may start after the owner's explicit design approval, but
+  its pull request waits for the design pull request to merge, as described in
+  [Decisions](CONTRIBUTING.md#close-issues-when-the-work-merges).
+  When the owner requests a release, the preparing session also performs
+  the post-merge verification, tagging and publication steps in
+  [Releasing](docs/development/releasing.md#release-gate).
 
 ## Find the right source
 

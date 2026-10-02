@@ -168,6 +168,13 @@ public sealed record OwnerInstructionAction(
     string TargetInhabitantId,
     string Kind,
     string Text,
+    string WorldId,
+    bool Queue = false);
+
+public sealed record OwnerOrderCancelAction(
+    string IdempotencyKey,
+    string TargetInhabitantId,
+    string OrderId,
     string WorldId);
 
 /// <summary>
@@ -455,12 +462,21 @@ public static class OwnerHttpBinding
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v2",
+        action.Queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
-        $"text={EncodeRequired(action.Text, nameof(action.Text))}");
+        $"text={EncodeRequired(action.Text, nameof(action.Text))}" +
+            (action.Queue ? "\nqueue=true" : string.Empty));
+
+    public static string OrderCancelPayload(OwnerOrderCancelAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-order-cancel.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
+        $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
+        $"order-id={EncodeRequired(action.OrderId, nameof(action.OrderId))}");
 
     public static string AuthoringPayload(OwnerAuthoringBatchAction action)
     {
