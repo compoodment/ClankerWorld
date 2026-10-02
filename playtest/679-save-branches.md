@@ -1,7 +1,3 @@
-# Save branches
-
-Pending after merge from [#679](https://github.com/compoodment/ClankerWorld/issues/679).
-
 - On the paired world: save as **Before the flood**, play on for a while and save as **Big harvest**. Quit to Menu, open Load World, choose the current world and **Load a save…**. Both saves are listed, and loading **Before the flood** warns that playing on starts a new branch. ([#679](https://github.com/compoodment/ClankerWorld/issues/679))
 - On the paired world: after loading **Before the flood**, play on and save as **Hungry winter**. In **Load a save…**, the saves show as Branch 1 and Branch 2: **Big harvest** stays in Branch 1, **Hungry winter** is in Branch 2, and each branch's newest save is marked Latest. ([#679](https://github.com/compoodment/ClankerWorld/issues/679))
 - On the paired world: load **Big harvest**, the latest save of Branch 1, and play on. Your next save joins Branch 1 instead of starting a third branch. ([#679](https://github.com/compoodment/ClankerWorld/issues/679))

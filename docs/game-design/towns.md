@@ -194,10 +194,11 @@ The household's existing limit of one planned House remains separate from the
 number of people in its family. Splitting into two households does not erase
 parentage or other family relationships. Care during a living adult's departure
 is agreed below. Town affiliation follows the
-[Town membership rules](#town-membership). A child whose last caregiver dies
-follows the
-[agreed guardian rule](agents-and-families.md#starting-agents-families-and-life-stages);
-other guardianship cases still need their own decisions.
+[Town membership rules](#town-membership). When a dependent loses their last
+active primary caregiver, the agreed care sequence is in [Agents and
+families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Any move between Towns still follows the admission rules in issue
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
 
 ### Household goods and departure
 
@@ -242,8 +243,12 @@ Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
 [#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
 notice and relocation selection remain separate work in
-[#599](https://github.com/compoodment/ClankerWorld/issues/599). Wills and a
-guardian for a child whose last caregiver dies are agreed in [Agents and
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
+response to losing a dependent's last active primary caregiver is described in
+[Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Cross-Town moves after accepted care still follow Town admission rules in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602). Wills are agreed
+in [Agents and
 families](agents-and-families.md#starting-agents-families-and-life-stages);
 other guardianship cases remain separate choices in [Agents and
 families](agents-and-families.md#still-to-decide).
@@ -1538,13 +1543,12 @@ These remain open; they are not new decisions.
    ownership, collection access, the food allowance and care during a living
    adult's departure. [Town membership](#town-membership) settles recorded
    affiliation, homeless residents, ordinary newcomer approval and dependent
-   children. [Borders, abandonment and
-   salvage](#borders-abandoned-towns-and-salvage) settle the empty-Town
-   exception and communal access. The [agreed guardian
-   rule](agents-and-families.md#starting-agents-families-and-life-stages)
-   settles care for a child whose last caregiver dies. Other guardianship
-   cases, private abandoned-property transfers and remaining border
-   assignment/dispute cases stay open.
+   children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
+   settle the empty-Town exception and communal access. Cross-Town dependent
+   moves still follow admission rules in issue
+   [#602](https://github.com/compoodment/ClankerWorld/issues/602); private
+   abandoned-property transfers and remaining border assignment or dispute
+   cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details

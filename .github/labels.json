@@ -4,7 +4,6 @@
     { "name": "type:feature", "color": "0e8a16", "description": "Agreed work to build or change.", "aliases": ["type:implementation", "enhancement"] },
     { "name": "type:decision", "color": "7057ff", "description": "A choice the owner needs to make before work can go ahead.", "aliases": [] },
     { "name": "type:experiment", "color": "fbca04", "description": "Try something small and measure it before committing.", "aliases": ["type:prototype"] },
-    { "name": "type:playtest", "color": "1d76db", "description": "A playtest report. Checks still wanted after a merge go in playtest/, not in an issue.", "aliases": [] },
     { "name": "type:docs", "color": "c5def5", "description": "Documentation only.", "aliases": ["documentation"] },
     { "name": "type:tooling", "color": "006b75", "description": "CI, tests, build scripts, refactors and how-we-work changes.", "aliases": ["type:test"] },
 
@@ -26,6 +25,7 @@
     { "name": "status:merging", "color": "1a7f37", "description": "Taking its turn to merge: in its final CI run on current main. Others wait to merge.", "aliases": [] },
     { "name": "status:parked", "color": "cfd3d7", "description": "Closed for now; agreed work for a later stage. Search closed issues to find it again.", "aliases": [] },
     { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a repository setting or key. Playtest checks go in playtest/.", "aliases": [] },
+    { "name": "owner-priority", "color": "5319e7", "description": "The owner chose this priority in chat; nobody else moves it.", "aliases": [] },
     { "name": "priority:p0", "color": "b60205", "description": "Broken now (crash, lost saves or keys, security, can't play) or a how-we-work change. Do first.", "aliases": ["priority:blocker", "gate:blocker", "severity:data-loss"] },
     { "name": "priority:p1", "color": "d93f0b", "description": "Next up: hurts normal play, or needed for the next playtest.", "aliases": [] },
     { "name": "priority:p2", "color": "e4e669", "description": "Normal: agreed features and ordinary bugs. The default.", "aliases": [] },
@@ -34,5 +34,5 @@
     { "name": "regression", "color": "e11d21", "description": "Something that used to work broke.", "aliases": [] },
     { "name": "from:playtest", "color": "5ebeff", "description": "Found while playing the game.", "aliases": [] }
   ],
-  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel", "status:needs-playtest"]
+  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel", "status:needs-playtest", "type:playtest"]
 }

@@ -32,6 +32,7 @@ public sealed class RestaurantBusinessPipelineTests
         Assert.Equal(fixture.Cook, baking.WorkerId);
         Assert.Equal(fixture.Restaurant.InstanceId, baking.BuildingInstanceId);
         Assert.Equal(2, world.BusinessTrades.Count(trade => trade.BuyerId == fixture.Cook && trade.GoodsKind == "flour"));
+        var paymentIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var trade in world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook))
         {
             var offer = world.Society.Inventory.GetOffer(trade.OfferId);
@@ -40,18 +41,27 @@ public sealed class RestaurantBusinessPipelineTests
             Assert.Equal(1, offer.SecondQuantity);
             Assert.Equal("berries", trade.PaymentKind);
             Assert.Equal(Alpha, trade.SellerHouseholdId);
-            Assert.Equal(fixture.Miller, trade.SellerActorId);
+            Assert.NotNull(trade.SellerActorId);
+            var seller = world.Society.GetInhabitant(trade.SellerActorId);
+            Assert.Equal(Alpha, seller.HouseholdId);
+            Assert.Equal(SocietyInhabitantStatus.Active, seller.Status);
+            Assert.True(seller.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
             Assert.Equal(new[] { Alpha, fixture.Cook }.Order(StringComparer.Ordinal), offer.AcceptedBy);
             var producedFlour = Assert.Single(world.WorldSimulation.ProductionJobs,
                 job => offer.FirstLotId == job.JobId + ":output:00");
             Assert.Equal(fixture.MillRecipe.CanonicalId, producedFlour.RecipeId);
+            Assert.Equal(fixture.Miller, producedFlour.WorkerId);
             Assert.Equal(WorldProductionJobState.Completed, producedFlour.State);
-            var paymentId = "restaurant-buyer-payment#barter:" + offer.Id;
+            var splitPaymentId = offer.SecondLotId + "#barter:" + offer.Id;
+            var paymentId = world.Society.Inventory.Lots.Any(lot => lot.Id == splitPaymentId)
+                ? splitPaymentId : offer.SecondLotId;
+            Assert.True(paymentIds.Add(paymentId));
             var payment = world.Society.Inventory.GetLot(paymentId);
             Assert.Equal(Alpha, payment.OwnerId);
             Assert.Equal(fixture.Farmhouse.InstanceId, payment.StorageBuildingId);
             Assert.Equal(1, payment.Quantity);
         }
+        Assert.Equal(2, paymentIds.Count);
         Assert.Equal(4, world.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
         Assert.Equal(fixture.House.InstanceId, world.Society.Inventory.GetLot("restaurant-house-flour").StorageBuildingId);
         Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-house-wood").Quantity);

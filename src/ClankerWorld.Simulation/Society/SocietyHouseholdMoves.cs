@@ -2,10 +2,18 @@ namespace ClankerWorld.Simulation.Society;
 
 public static partial class SocietyFixture
 {
-    public static IReadOnlyList<string> MovingCareGroup(SocietyCheckpoint checkpoint, string adultId) =>
-        checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
-            (person.Id == adultId || IsYoungerDependent(person) && person.PrimaryCaregiverId == adultId))
+    /// <summary>
+    /// The adult and the dependents in their primary care who share their household. A guardian whose
+    /// dependent stayed in another household, because the House was full or in another Town, moves alone.
+    /// </summary>
+    public static IReadOnlyList<string> MovingCareGroup(SocietyCheckpoint checkpoint, string adultId)
+    {
+        var home = checkpoint.GetInhabitant(adultId).HouseholdId;
+        return checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+                (person.Id == adultId || IsYoungerDependent(person) && person.PrimaryCaregiverId == adultId &&
+                    person.HouseholdId == home))
             .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
+    }
 
     /// <summary>Membership ends together; location, ancestry, property and care stay intact.</summary>
     public static SocietyOperationResult LeaveHousehold(SocietyCheckpoint checkpoint, string adultId)
@@ -56,7 +64,8 @@ public static partial class SocietyFixture
         var adult = checkpoint.GetInhabitant(adultId);
         var child = checkpoint.GetInhabitant(childId);
         if (!IsAdult(adult) || !IsYoungerDependent(child) || child.Status != SocietyInhabitantStatus.Active ||
-            adult.HouseholdId is null || adult.HouseholdId != child.HouseholdId || child.PrimaryCaregiverId == adultId)
+            adult.HouseholdId is null || adult.HouseholdId != child.HouseholdId || child.PrimaryCaregiverId == adultId ||
+            !HasActivePrimaryCaregiver(checkpoint, childId))
             return Reject(checkpoint, "care_assignment_rejected", "replacement_not_eligible");
         var edgeId = $"replacement-care:{adultId}:{childId}:{checkpoint.WorldTick}";
         if (checkpoint.Relationships.Any(edge => edge.Id == edgeId))

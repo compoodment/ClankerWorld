@@ -96,6 +96,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
         ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
@@ -366,6 +367,7 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
         ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
