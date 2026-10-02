@@ -38,6 +38,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
         Assert.True(before.Map.CanFootStep(Start, FirstWater));
         Assert.True(before.Map.CanFootStep(FirstWater, SecondWater));
         Assert.Empty(world.Bridges);
+        Assert.Empty(before.Knowledge!.Artifacts);
         Assert.Contains(before.Events, item => item.Kind == "exploration_started" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
         Assert.Contains(before.Knowledge!.Facts, item => item.OwnerId == actor && item.Position == FirstWater);
         var beforeBytes = PrivateWorldRuntimeCodec.Encode(before);
@@ -128,10 +129,14 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             });
             var physicalMap = Assert.Single(result.Society.Society.Inventory.Lots, lot => lot.Id == artifact.LotId);
             Assert.Equal((actor, artifact.Kind, 1), (physicalMap.OwnerId, physicalMap.ItemKind, physicalMap.Quantity));
+            Assert.Equal(artifact.Facts.Count == 1 ? "field_record" : "field_map", artifact.Kind);
+            Assert.Equal((10_000, 10_000), (physicalMap.ConditionBasisPoints, physicalMap.FreshnessBasisPoints));
+            Assert.Null(physicalMap.ProvenanceLotId);
             Assert.Null(physicalMap.StorageBuildingId);
             Assert.Null(physicalMap.DeliveryBuildingId);
             Assert.Null(physicalMap.GroundPosition);
             Assert.Null(physicalMap.ContainerLotId);
+            output.WriteLine($"Actual terminal={terminal.Kind}; tick={artifact.CreatedTick}; artifact={artifact.Kind}; quantity={physicalMap.Quantity}; facts={artifact.Facts.Count}.");
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(result), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
         }
         finally
