@@ -324,8 +324,12 @@ target applies; otherwise use one map. Identify the chosen candidate in the
 exact preview so Create World uses that same map. If none meets its eligible
 targets, show the selected coverage and all candidate results, then let the
 player choose another seed or explicitly accept the misses; do not silently
-substitute a different map. Larger-size targets and preview latency remain
-subject to measurement and playtesting.
+substitute a different map. **Agreed on October 2:** computment found the
+preview's numbers hard to read, so the preview describes the map in plain
+words ("Plenty of forest and some mountain ranges") and says when it has less
+or more forest or mountains than a balanced world. The measured shares and
+every candidate's results stay in its tooltip. Larger-size targets and
+preview latency remain subject to measurement and playtesting.
 
 Forest and mountain areas should form readable regions. The generator uses
 connected-region size only to break ties between equally good candidates; it

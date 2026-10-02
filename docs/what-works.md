@@ -49,9 +49,12 @@ second holds the Blacksmith. The player presses Start World explicitly.
 
 Default Balanced Small/Medium previews measure forests and mountains against
 dry land and try at most three deterministic maps for the Normal settings. The
-preview shows every candidate's coverage and creates the exact selected map.
-If a selected map misses a target, Create World stays unavailable until the
-player accepts the displayed result or changes the seed. Uniform Dry and
+preview describes the selected map in plain words, such as "Plenty of forest
+and some mountain ranges", and its tooltip gives the measured shares of every
+map tried. Create World makes that exact map. If the map has less or more
+forest or mountains than a balanced world, the preview says so, and Create
+World stays unavailable until the player ticks **Keep this map anyway** or
+changes the seed. Uniform Dry and
 polar-only settings do not use those trial bands; each band applies only while
 its own forest or mountain control is Normal. This is connected to the normal
 owner/server path; the current measurements are

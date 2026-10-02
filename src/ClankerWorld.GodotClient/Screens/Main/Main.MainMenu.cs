@@ -446,8 +446,8 @@ public partial class Main
         worldPreviewStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         worldPreviewStatus.CustomMinimumSize = new Vector2(0, 64);
         previewColumn.AddChild(worldPreviewStatus);
-        worldAcceptUnmetTargets.Text = "I accept this map's displayed coverage misses";
-        worldAcceptUnmetTargets.TooltipText = "Create this exact map even though one or more default Balanced trial targets are missed.";
+        worldAcceptUnmetTargets.Text = "Keep this map anyway";
+        worldAcceptUnmetTargets.TooltipText = "Create this map even though it is less balanced than the game aims for.";
         worldAcceptUnmetTargets.Hide();
         worldAcceptUnmetTargets.Toggled += _ => RefreshWorldMenuAvailability();
         previewColumn.AddChild(worldAcceptUnmetTargets);
@@ -845,53 +845,67 @@ public partial class Main
 
     private void SetWorldPreviewStatus(OwnerWorldPreview result)
     {
-        var coverage = result.Coverage;
-        if (coverage is null)
-        {
-            worldPreviewStatus.Text = $"Map preview · {result.ResourceSites} resource sites. " +
-                "You will choose where your first Town goes after creating the world.";
-            worldAcceptUnmetTargets.ButtonPressed = false;
-            worldAcceptUnmetTargets.Hide();
-            return;
-        }
-
-        var selected = $"Candidate #{coverage.Attempt}: {coverage.ForestPercent:F1}% forest and " +
-            $"{coverage.MountainPercent:F1}% mountains across {coverage.DryLandTiles:N0} dry-land tiles.";
-        if (!coverage.TargetsApplicable)
-        {
-            worldPreviewStatus.Text = selected + " No trial targets apply to these settings.";
-            worldAcceptUnmetTargets.ButtonPressed = false;
-            worldAcceptUnmetTargets.Hide();
-        }
+        var (text, details) = WorldPreviewSummary(result);
+        worldPreviewStatus.Text = text;
+        worldPreviewStatus.TooltipText = details;
+        if (result.Coverage is { TargetsApplicable: true, MeetsTargets: false }) worldAcceptUnmetTargets.Show();
         else
         {
-            var targetNames = new List<string>(2);
-            if (coverage.ForestTargetApplicable) targetNames.Add("forest (20–40%)");
-            if (coverage.MountainTargetApplicable) targetNames.Add("mountains (5–12%)");
-            var candidateResults = string.Join(" · ", result.Candidates.Select(candidate =>
-            {
-                var outcome = candidate.MeetsTargets
-                    ? "meets applicable targets"
-                    : "misses " + string.Join(", ", candidate.UnmetTargets);
-                return $"#{candidate.Attempt} F {candidate.ForestPercent:F1}% / M {candidate.MountainPercent:F1}% ({outcome})";
-            }));
-            if (coverage.MeetsTargets)
-            {
-                var targetWord = targetNames.Count == 1 ? "target" : "targets";
-                worldPreviewStatus.Text = $"{selected} Met applicable Normal {targetWord}: " +
-                    string.Join(" and ", targetNames) + $". Candidate results: {candidateResults}.";
-                worldAcceptUnmetTargets.ButtonPressed = false;
-                worldAcceptUnmetTargets.Hide();
-            }
-            else
-            {
-                worldPreviewStatus.Text = selected + " Missed: " + string.Join("; ", coverage.UnmetTargets) +
-                    $". Candidate results: {candidateResults}. Choose a new seed or accept these misses.";
-                worldAcceptUnmetTargets.Show();
-            }
+            worldAcceptUnmetTargets.ButtonPressed = false;
+            worldAcceptUnmetTargets.Hide();
         }
-        worldPreviewStatus.Text += $" {result.ResourceSites} resource sites; you will choose where your first Town goes after creation.";
     }
+
+    /// <summary>
+    /// The preview described in words, such as "Plenty of forest and some mountain
+    /// ranges, on 15,568 tiles of land", with the exact measurements in its tooltip.
+    /// A map that misses the balance the default settings aim for says so plainly.
+    /// </summary>
+    internal static (string Text, string Details) WorldPreviewSummary(OwnerWorldPreview result)
+    {
+        var gather = $"{result.ResourceSites.ToString("N0", CultureInfo.InvariantCulture)} places to gather food and materials.";
+        if (result.Coverage is not { } coverage) return (gather, string.Empty);
+        var land = coverage.DryLandTiles.ToString("N0", CultureInfo.InvariantCulture);
+        var text = $"{ForestAmount(coverage.ForestPercent)} and {MountainAmount(coverage.MountainPercent)}, on {land} tiles of land. ";
+        List<string> misses = [];
+        if (coverage.ForestTargetApplicable && !coverage.ForestTargetMet)
+            misses.Add(coverage.ForestPercent < ForestBand.Min ? "less forest" : "more forest");
+        if (coverage.MountainTargetApplicable && !coverage.MountainTargetMet)
+            misses.Add(coverage.MountainPercent < MountainBand.Min ? "fewer mountains" : "more mountains");
+        if (misses.Count > 0)
+            text += $"It has {string.Join(" and ", misses)} than a balanced world. Try another seed, or keep this map below. ";
+        var details = $"Forest {Percent(coverage.ForestPercent)} and mountains {Percent(coverage.MountainPercent)} of the land.";
+        if (coverage.TargetsApplicable)
+            details += $" A balanced world has {ForestBand.Min}–{ForestBand.Max}% forest and {MountainBand.Min}–{MountainBand.Max}% mountains.";
+        // Every map tried, when there was a choice, so a miss can be checked against the others.
+        if (result.Candidates.Count > 1)
+            details += $" Closest of {result.Candidates.Count.ToString(CultureInfo.InvariantCulture)} maps tried: " +
+                string.Join("; ", result.Candidates.Select(candidate =>
+                    $"{Percent(candidate.ForestPercent)} forest, {Percent(candidate.MountainPercent)} mountains")) + ".";
+        return (text + gather, details);
+    }
+
+    // The default Balanced settings aim for these shares of dry land; the host chooses the closest map.
+    private static readonly (int Min, int Max) ForestBand = (20, 40);
+    private static readonly (int Min, int Max) MountainBand = (5, 12);
+
+    private static string Percent(double value) => value.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+
+    private static string ForestAmount(double percent) => percent switch
+    {
+        < 5 => "Almost no forest",
+        < 20 => "Some forest",
+        <= 40 => "Plenty of forest",
+        _ => "Thick forest",
+    };
+
+    private static string MountainAmount(double percent) => percent switch
+    {
+        < 1 => "no mountains to speak of",
+        < 5 => "a few mountains",
+        <= 12 => "some mountain ranges",
+        _ => "many mountains",
+    };
 
     private async Task CreateSelectedWorldAsync()
     {
