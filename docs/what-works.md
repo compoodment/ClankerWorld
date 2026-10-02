@@ -138,12 +138,13 @@ summaries remain unfinished.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine and Clinic effects are not active gameplay. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use a hoe to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Grain mills into flour at the Farmhouse; prepared meals and improved tool tiers are separate work. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes basic tools and mines reachable ore; a Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Quantities, work times, yields and farm planning remain provisional. |
+| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. Fresh water has no active cooking, medicine-making or animal-care use yet. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo or Tailor Shop it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. The Town's shared buildings and Store are not offered yet. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check room before adding someone. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding does not yet relocate anyone. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
-| Parenthood, guardians and life stages | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named parent-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. If the last caregiver dies, living relatives, household adults and then Town residents are asked in order. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” and nearby adults may still feed them. The child moves only into an accepting adult's household with a free House place. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Leaving or changing a household, multiple Town founding, broader law, currencies and land disputes remain unfinished. |
+| Parenthood, guardians and life stages | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named parent-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. If the last caregiver dies, living relatives, household adults and then Town residents are asked in order. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” and nearby adults may still feed them. The child moves only into an accepting adult's household in the same known Town when its House has room; otherwise the child's current household stays unchanged. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but founding or joining another Town, broader law, currencies and land disputes remain unfinished. |
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are
@@ -228,13 +229,13 @@ In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
 sand. Forests show small groves on darker forest floor, where every tile holds
 a tree, among scattered trees on forest grass. A band of hills rings each
-mountain area. Hills are drawn over the ground and cost the same to walk and
-build on as grass. These are the first version of the September 29 terrain
-direction: their numbers are provisional until computment reviews generated
-maps, and they have not been checked by hand in the Windows game yet
-([#461](https://github.com/compoodment/ClankerWorld/issues/461)). Worlds
-generated before this change no longer load; they are refused and their saves
-are kept.
+mountain area. Hills are drawn as soft foothill shading over the ground and
+cost the same to walk and build on as grass. These are the first version of the
+September 29 terrain direction: their numbers are provisional until computment
+reviews generated maps, and they have not been checked by hand in the Windows
+game yet ([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
+Worlds generated before this change no longer load; they are refused and their
+saves are kept.
 
 Bridges are a basic version. Where agents often wade across the same one-tile
 river (six crossings by at least two agents within two world days), a bridge
@@ -271,12 +272,22 @@ Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, sto
 haze/flashes. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
-Ground, buildings, agents and natural objects use provisional code-drawn pixel
-art. The interface uses wooden frames and parchment panels, with pixel fonts:
+The map uses the pixel art approved in the October 1 art review: every ground
+type, with mountains, peaks and hills drawn from the world's elevation as one
+landform spanning many tiles, and snow that thins into frost at its edges;
+water; Roads and plank bridges, with streets running up to each bridge; trees
+and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
+desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
+its stage; every current building; item icons; and the interface icons.
+Agents face the way they last moved and show walking steps, and carrying,
+working, talking or hurt poses chosen from what the game already knows about
+them. A mountain range near the camera can show the earlier per-tile art for
+a moment while its relief is drawn. Picked, harvested and per-site depleted
+states are drawn but need the game to track them. The interface uses wooden
+frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
-the ClankerWorld logo over an animated pixel-art valley that follows the Light
-or Dark theme. None of
-this is a finished production art catalogue. Mineral/clay sites exist; some
+the ClankerWorld logo over an animated pixel-art valley with snowy mountains
+that follows the Light or Dark theme. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 
 ## Saves, keys and inventions

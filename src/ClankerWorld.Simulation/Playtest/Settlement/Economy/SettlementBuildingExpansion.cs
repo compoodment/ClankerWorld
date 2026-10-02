@@ -13,7 +13,8 @@ public sealed record BuildingExpansionJob(
     int ExpectedRevision, GridPoint ExpectedPosition, GridPoint TargetPosition,
     BuildingFootprintRevision TargetFootprint, long StartedTick, long CompletionTick,
     WorldProductionJobState State, IReadOnlyList<string> InputReservationIds,
-    string? Failure = null);
+    string? Failure = null,
+    string? DefinitionId = null);
 
 public static class BuildingStorageRules
 {
@@ -419,7 +420,8 @@ public sealed partial class PrivateWorldRuntime
         IReadOnlyList<string> reservations = [];
         ApplyInventoryTransition(inventory => ReserveExpansionMaterials(inventory, actor, building, costs, jobId, completion, out reservations));
         var job = new BuildingExpansionJob(jobId, buildingId, actor, owner, building.Footprint?.Revision ?? 0,
-            building.Position, shape.Position, shape.Footprint, WorldTick, completion, WorldProductionJobState.Running, reservations);
+            building.Position, shape.Position, shape.Footprint, WorldTick, completion, WorldProductionJobState.Running, reservations,
+            DefinitionId: building.DefinitionId);
         worldSimulation = worldSimulation with
         {
             BuildingExpansions = (worldSimulation.BuildingExpansions ?? []).Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),

@@ -64,8 +64,8 @@ everything that is available in the current build. See [what works today](../wha
   access, terrain, resources, land-use rights, and Town context. A Town holds
   title to its formally claimed land; households can receive recorded rights
   to use particular sites without owning the land itself. Land rights can be
-  disputed; sharing and grant terms still need definition. Monetary land
-  values and purchase prices become meaningful after currencies exist. Agents
+  disputed; permission, transfers and case procedures are agreed below. Monetary
+  land values and purchase prices become meaningful after currencies exist. Agents
   can later buy/sell transferable property or rights through valid processes.
   Roads help travel and influence site choice.
 - The world system must validate hard physical building constraints such as
@@ -94,7 +94,14 @@ everything that is available in the current build. See [what works today](../wha
   building and road (tuned in playtests) and follows the Town's shape rather
   than a rectangle, so there is room, and a reason, to build inside it.
   Removing a building does not automatically shrink the existing border;
-  later construction may expand it. Assignment and overlap handling remain open.
+  later construction may expand it. A Warehouse keeps its recorded Town access
+  if its footprint is outside that Town's border. Moving a Warehouse to a
+  different recorded Town updates that building assignment but does not move
+  either Town's border or transfer land title. Reassigning a private building
+  changes its household owner while preserving its recorded Town assignment.
+  Town identity and current resident membership are separate: the founding
+  roster is historical provenance, while each living resident belongs to at
+  most one recorded Town.
   When its last resident leaves or dies, the Town becomes **abandoned**, not
   erased. Its identity, buildings, border and infrastructure remain in the
   world, and later residents can revive that same Town under the
@@ -407,7 +414,16 @@ election procedures follow separately in
   may still collect stock under the usual physical pickup rules. Do not suspend
   access merely because of geometry or grant it to a neighboring Town.
   Reassignment remains a separate validated change; it cannot erase stock or
-  bypass the agreed removal/reassignment safeguards.
+  bypass the agreed removal/reassignment safeguards. Moving one updates both
+  Towns' assigned-building records and leaves their borders unchanged.
+- **Owner building changes preserve physical state.** The owner may remove a
+  placed building or reassign its household/Town owner through a signed action.
+  Removal and reassignment are refused while the building has stored or
+  inbound stock, or active production/expansion work. Completed work history is
+  retained after removal. Removing a building keeps its Town border and Roads;
+  changing a private building's household owner never changes its Town title
+  or assignment. Removing or reassigning a House clears its shelter-only guest
+  invitations. An action against an outdated owner record is refused.
 - **An empty Town permits public salvage of unreserved communal stock.** When
   no recorded living residents remain, any agent may physically collect that
   stock, including from its Warehouse, within carrying and availability limits.
@@ -478,13 +494,23 @@ and invented content are not silently approved. In particular:
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
-  Market's main building is **2×2** with separate **1×1 stalls** and an
-  approximately **10×12 clear stall-reservation area**. Town Hall is
+  Market's main building is **2×2** with separate **1×1 stalls**.
+  **Agreed after the October 1 art review:** the Market building is a hall
+  without stalls, and its stalls stand on an open plaza of packed earth around
+  it, the same ground as Roads laid as an area rather than as streets. The
+  market need not be as large as the earlier approximately 10×12 reservation;
+  how the plaza grows remains open. For eight stalls computment settled on a
+  **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
+  eight stalls", and 5×4 lost the open column on each side that it needed.
+  The stalls stand in two back-to-back rows of four, each facing an aisle,
+  with a path from the hall's door down the middle. Town Hall is
   **3×4**. These are building/plot footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
-  space along both long sides of that three-tile water section. A legal land
-  approach and clear docking space are required. Boats are communal Town
+  space along both long sides of that three-tile water section. **Agreed after
+  the October 1 art review:** a Port can hold up to **six moored boats**,
+  three along each long side. A legal land approach and clear docking space
+  are required. Boats are communal Town
   property, usable by residents or visitors with permission; the first
   [boat journey](world.md#first-boat-and-port-travel) needs a completed Port at
   each end. Exact queue and construction-cost rules remain open.
@@ -567,7 +593,7 @@ model text cannot rewrite these records. The first Town begins with a council,
 not an assumed mayor. Residents can later approve creating an elected mayor
 through the protected government-change process. Its creation, term and
 elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
-specific adjudication procedures remain open.
+[Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -583,8 +609,8 @@ with an optional agreed end date; households may transfer permission by
 agreement without mayor approval for every transfer. The elected mayor makes
 the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
-transfers. Evidence, hearings, specific adjudication outcomes and handling
-conflicts of interest remain their own decision topic.
+transfers. Evidence, hearings, outcomes and conflicts of interest follow the
+agreed [case procedure](#land-hearings-and-rulings).
 
 ### How Roads and bridges appear
 
@@ -655,7 +681,7 @@ Further structure effects; exact configurations and unchosen footprints;
 building
 inspection fields, access to other non-residential
 buildings, reservations and queues;
-land adjudication and changes to claim boundaries; Town borders and
+changes to claim boundaries; Town borders and
 cross-Town jurisdiction; currency/land pricing;
 transport progression; other terrain eligibility,
 travel effects; advanced resource/tool tiers,
@@ -889,8 +915,8 @@ Town membership and admission integration in
   cutting physically impossible or introduce a new world power.
 - **Local conduct laws apply to visitors within the Town's jurisdiction.**
   A visiting lumberjack is subject to the protected-grove rule without
-  becoming a resident. Whether ignorance of a law affects consequences
-  remains part of the enforcement interview.
+  becoming a resident. Notice and ignorance follow the
+  [nonviolent enforcement rules](#nonviolent-law-enforcement).
 - **Territorial laws apply on the Town's formally claimed land, or a
   specified site within it.** A drawn border alone cannot extend authority
   over another claim. Household use plots can fall under Town law without
@@ -1030,11 +1056,167 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   an office that was never validly established.
 
 These choices settle creation, ordinary-government boundaries, tenure,
-vacancies, ballot handling and scheduling. Land evidence, hearings, specific
-outcomes, conflicts of interest and review of decisions remain separate from
-this office design. Law, government-change and office implementation is tracked
-in [#631](https://github.com/compoodment/ClankerWorld/issues/631), after the
-ordinary council and formal land-record foundations.
+vacancies, ballot handling and scheduling. Land cases and wider nonviolent
+enforcement are agreed separately below. Law, government-change and office
+implementation is tracked in
+[#631](https://github.com/compoodment/ClankerWorld/issues/631), after the ordinary
+council and formal land-record foundations.
+
+### Land hearings and rulings
+
+**Agreed with the owner on October 1, answers 64A–69A.** The operating details
+below were also settled under the owner's instruction to choose recommendations
+for complete topics and report a short summary, rather than ask each choice.
+
+- **Affected households, competing use-right applicants and the legitimate
+  Town government may file a case.** Identify the plot, disagreement and
+  requested outcome; an adult household member can file without committing
+  the household to surrendering rights, waiving another adult's response or
+  transferring goods. Town filings need its recorded governing
+  authority. An agreed permission expiry opens a review automatically. Filing
+  or supplying testimony does not itself grant rights. Equivalent filings join
+  the existing case without resetting its clock.
+- **Use sourced evidence, rather than an omniscient judge.** Recorded rights,
+  agreements, applicable laws, submitted statements, witness accounts and actual
+  observations may enter the case through legitimate inspection or communication.
+  Distinguish allegations, observations and verified records. Preserve sources
+  and the adjudicator's reasons; neither player inspection nor an agent's claim
+  gives other agents knowledge of unseen events.
+- **Give every affected party one unpaused world day from recorded formal
+  notice publication to answer, initially.** Actual notices or relays supply
+  awareness; publication does not imply receipt. Early closure needs actual
+  answers or explicit waivers from all affected household adults and the Town's authorized
+  representative where it is a party. A household without an eligible
+  representative has not waived its response, and adverse use-right changes
+  wait until it has a legitimate adult representative. Preserve its current
+  or provisional rights; this does not invent new guardianship. Silence is
+  neither consent nor proof. A new affected party or material change to the
+  rights at issue needs a revised notice and a full fresh day before a ruling.
+  Repeated wording and duplicate filings do not create a new window. A traveling, represented party
+  can miss the published deadline; absence alone is not evidence against them.
+- **Rulings may confirm, renew, alter or end use permissions under applicable
+  law, including choosing between competing households despite an objection.**
+  Record the authority, evidence and exact bounded change, and validate it
+  against the current plot and rights. Expired permission remains provisional
+  until a valid ruling; conflicting formal transfers remain blocked. Preserve
+  Town title, household membership, private buildings, owned crops and goods.
+  A ruling neither physically evicts occupants nor grants private-building
+  access. Consensual household transfers retain their ordinary agreed route.
+  Where the evidence does not support changing rights, preserve the current
+  valid record and reject the unsupported request rather than choose an
+  arbitrary winner.
+- **A conflicted mayor stands aside for that case.** This includes their own
+  household, a direct personal stake, or acting as a party or its representative.
+  Shared Town membership alone is not a conflict. Elect a willing, eligible
+  adult Town resident without that conflict as acting mayor for this case only,
+  using the agreed mayoral voting rules and election scheduler. Candidacy
+  consent must cover this case; the role gives no general leadership powers
+  and ends when the case closes or eligibility, willingness or its authorized
+  mandate ends. Regular mayor succession does not replace a valid acting judge
+  mid-case. If a replacement is needed, preserve the file and completed response
+  periods. Affected adults retain their ordinary voting rights; recusal restricts
+  adjudicators. If nobody qualifies, the case remains pending.
+  Two disputing founding households may therefore have no independent adult
+  available. The council cannot quietly appoint itself as judge.
+- **A settled case can reopen only for material new evidence or a demonstrated
+  procedural error.** The valid, non-conflicted adjudicator assesses the grounds;
+  an allegation alone is not a demonstrated error. Preserve the old ruling and
+  history, include current affected right-holders, and hold a fresh hearing.
+  Reopening does not roll rights back: keep the current valid record until a
+  new bounded correction is adopted. Disagreement or a new mayor alone does not
+  justify rehearing. A successor inherits pending files and completed notice
+  periods rather than restarting every case. They read the case through
+  authorized access rather than inherit the previous agent's private memories.
+
+Nonconflicting new grants on existing Town-owned land use ordinary legitimate
+Town approval and beneficiary-household acceptance; they need no routine mayor
+hearing. Voluntary grants or transfers require explicit agreement from the
+current adult members of each household whose use rights are granted or
+surrendered, with at least one legitimate adult signatory per household.
+Silence is not agreement; filing alone supplies none. Existing
+automatic starter allocations remain the setup exception. A disputed change
+uses the lawful hearing route instead of pretending every party consented.
+
+Pending cases, conflicts, responses, evidence, notices, rulings and corrections
+are durable Town records. Revalidate current adjudicator authority and conflicts
+before resolution. Without a valid adjudicator, keep the case pending and its
+existing safeguards; do not invent a winner or erase it after save/reload.
+Implementation follows the formal rights and mayor foundations in
+[#633](https://github.com/compoodment/ClankerWorld/issues/633).
+
+### Nonviolent law enforcement
+
+**Decided on October 1 under the owner's delegated design authority.** This
+settles the initial nonviolent enforcement process. Physical enforcement and
+combat consequences belong to the later combat stage.
+
+- **A violation becomes known through observation, inspection or communication.**
+  A witness, affected party or Town government may report a specific act,
+  location, time, applicable law and available evidence. Reports remain
+  allegations until assessed. Keep the actual world event separate from an
+  adjudicator's finding: agents and courts can be mistaken without rewriting
+  what happened. Agents use ordinary personal-model turns; add no paid polling
+  or automatic awareness of hidden violations.
+  Investigators may inspect public records, ask witnesses and observe accessible
+  sites. Private buildings, stock and memories retain their existing access
+  and consent rules; the office grants no general search power.
+- **Law notices matter, but ignorance does not repeal the rule.** Publish laws
+  and provide actual notices at relevant sites and ordinary contacts. Apply the
+  law and jurisdiction in force when the act happened. For a first incident
+  without credible evidence of prior notice, initially favor explanation and a
+  warning; proven harm may still warrant a request to restore it. A claim of
+  ignorance is evidence to assess, not automatic immunity or proof of knowledge.
+- **Non-land adjudication needs its own resident-approved mandate.** The land
+  mayor does not automatically gain these powers. Extend the elected office
+  through the protected government-change process, with the scope explicit and
+  the officeholder's consent to added duties. Keeping the same willing holder
+  does not reset their term. Before valid handover, the council may mediate and
+  offer advice, while formal enforcement cases remain pending. Reuse the land
+  hearing, evidence, notice, recusal and reopening rules for this mandate.
+- **Record a reasoned finding before an adverse formal consequence.** Require
+  the available evidence to make the violation more likely than not, as the
+  initial civil standard, with reasons and uncertainty recorded. Silence, rumor
+  alone or refusal to confess is insufficient. An unsupported accusation closes
+  without an adverse finding and may reopen on material evidence; lack of proof
+  does not itself prove that the reporter lied. The game validates authority,
+  procedure and supported action scope, rather than turning the judge's opinion
+  into an omniscient world fact.
+- **Initial consequences are explanation, warning, recorded censure and requests
+  for restitution, repair or voluntary public service.** State who is asked to
+  do what and why. Initially allow one unpaused world day from the recorded
+  offer notice publication to accept, decline or counteroffer, with actual
+  communication supplying awareness. A restorative agreement needs the responsible adult's
+  explicit consent, feasible named work or goods, and a recorded deadline;
+  initially offer completion within three unpaused world days after recorded
+  acceptance, with another feasible period by agreement. Ordinary spoken
+  promises remain outside this formal agreement record. Return or repair uses
+  real goods, ownership, carrying and work rules; no automatic debit,
+  teleportation, forced labor or replacement goods appear.
+- **Track actual compliance without multiplying penalties.** A declined or
+  unanswered voluntary offer is not a new offense; record those states separately.
+  Accepted work can be pending, completed or overdue; inability to perform
+  permits renegotiation rather than automatic escalation. Merge reports of the
+  same act and law into one case.
+  Repeated distinct conduct can support a new case, with fresh evidence and
+  hearing. A finding can inform agents who actually learn it, but grants no
+  universal reputation score or compulsory boycott.
+- **Keep civic and household safeguards intact.** This initial process does
+  not expel Town residents, remove officeholders, confiscate private or shared
+  stock, cut resident Warehouse access, detain people or separate care groups.
+  Office changes use the protected government route; land permission changes
+  use the authorized land case. Caregiver duties, personal retrieval rights,
+  reservations and dependent needs still constrain any voluntarily agreed work.
+  Children get caregiver-supported notice and responses, with explanation and
+  restorative offers appropriate to their normal abilities. Kinship or shared
+  housing does not make another person liable; adults consent to work or goods
+  they contribute rather than being charged for a child's act automatically.
+
+Visitors may be reported for local conduct inside jurisdiction, with the same
+notice and hearing safeguards. Requests made to them do not create Town
+membership or reach into another Town's title. Cross-Town enforcement, money
+fines, detention and physical coercion need their later designs.
+Implementation of this initial process is tracked in
+[#635](https://github.com/compoodment/ClankerWorld/issues/635).
 
 ### Still to decide
 
@@ -1051,14 +1233,16 @@ The protected resident vote and handover are agreed in
 [Government-change procedure and safeguards](#government-change-procedure-and-safeguards).
 Mayor creation, terms, vacancies and elections are agreed in
 [The mayor's office and elections](#the-mayors-office-and-elections).
-Still open: how a violation is witnessed, investigated, enforced, or punished;
-specific land adjudication procedures;
-taxes, inheritance, and interaction between conflicting Towns. Agents
-should know only laws or violations they have learned about in-world.
+Land case procedures are agreed in [Land hearings and rulings](#land-hearings-and-rulings).
+Initial discovery, hearings and consequences are agreed in
+[Nonviolent law enforcement](#nonviolent-law-enforcement).
+Still open: taxes, inheritance, interaction between conflicting Towns and
+later physical enforcement. Agents should know only laws or violations they
+have learned about in-world.
 Law and government choices in
 [#619](https://github.com/compoodment/ClankerWorld/issues/619) are settled;
-land case procedures are the next decision topic in
-[#630](https://github.com/compoodment/ClankerWorld/issues/630).
+land case choices in [#630](https://github.com/compoodment/ClankerWorld/issues/630)
+are also settled.
 
 ## Item and resource pipelines
 
@@ -1132,9 +1316,11 @@ The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
 
-A storage pot slows spoilage for the food within its limited capacity. A water
-jug holds a limited quantity of water. Both remain after their contents are
-used; filling, emptying and carrying them must preserve the vessel and its goods.
+A storage pot slows spoilage for the food within its limited capacity, a trial
+8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
+Both remain after their contents are used; filling, emptying and carrying them
+must preserve the vessel and its goods. Adults dig clay from a finite clay bank
+and make either vessel at a household House.
 
 #### Tools, clothing and transport
 
@@ -1240,11 +1426,11 @@ grants. A Store cannot sell goods from a remote House, farm or Warehouse.
 
 These remain open; they are not new decisions.
 
-- **Law-making and enforcement details.** The core distinction is settled:
-   agent-created laws can be broken, while the simulation protects physical
-   facts and validated ownership changes. Define how laws are adopted,
-   discovered, enforced, and disputed—including conflicting inheritance rules
-   and illegal occupation—without granting models authority over engine facts.
+- **Later law and property interactions.** Adoption, law scope, land hearings
+   and initial nonviolent enforcement are agreed above. Agent-created laws
+   remain breakable while the simulation protects physical facts and validated
+   ownership changes. Cross-Town enforcement, conflicting inheritance rules
+   and later physical responses to illegal occupation still need their designs.
 
 - **Starter economy and tool bootstrap.** The first Town guarantees two
    Houses, a Warehouse, Farmhouse and Blacksmith. Each House starts with eight
