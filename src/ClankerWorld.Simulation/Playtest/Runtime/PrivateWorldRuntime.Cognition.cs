@@ -514,6 +514,11 @@ public sealed partial class PrivateWorldRuntime
             HaulHouseholdStock(inhabitantId, state);
             return;
         }
+        if (candidateId == "recover_household_delivery")
+        {
+            RecoverHouseholdDelivery(inhabitantId, state);
+            return;
+        }
         if (candidateId == "store_household_food")
         {
             StoreHouseholdFood(inhabitantId, state);
@@ -836,8 +841,6 @@ public sealed partial class PrivateWorldRuntime
         var shouldGatherFood = wantsFood && FreeCarryCapacity(inhabitantId) > 0;
         var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
-        if (foodSource is not null && FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(foodSource))
-            foodSource = null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
@@ -890,6 +893,7 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddRecoverHouseholdDeliveryCandidate(candidates, inhabitantId, state);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
             AddBusinessCandidates(candidates, inhabitantId);
         }

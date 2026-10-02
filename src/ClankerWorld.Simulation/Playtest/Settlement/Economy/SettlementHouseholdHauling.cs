@@ -15,9 +15,58 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.DeliveryBuildingId is not null &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
-                    ? !HasActiveContainerReservation(inventory, lot.Id)
+                    ? !HasActiveContainerReservation(inventory, lot.Id) && !UnusableDeliveryStock(inventory, lot)
                     : AvailableLotQuantity(lot) > 0))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    private static bool UnusableDeliveryStock(InventoryCheckpoint inventory, InventoryLot root) =>
+        root.ConditionBasisPoints == 0 || root.FreshnessBasisPoints == 0 ||
+        InventoryContainerRules.IsContainer(root.ItemKind) && inventory.Lots.Any(lot =>
+            lot.ContainerLotId == root.Id && (lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0));
+
+    private InventoryLot? RecoverableHouseholdDelivery(string actor, PlaytestInhabitantState state)
+    {
+        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
+            !IsWithinInteractionRange(state.Position, SettlementStoragePosition, ResourceInteractionRange) &&
+            FindUnoccupiedRoute(actor, state.Position, SettlementStoragePosition, ResourceInteractionRange).Count == 0)
+            return null;
+        var inventory = society.Checkpoint.Inventory;
+        var equipment = state.Equipment;
+        return inventory.Lots.Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                lot.ContainerLotId is null && lot.Quantity > 0 && lot.DeliveryBuildingId is { } destinationId &&
+                worldSimulation.Buildings.Any(building => building.InstanceId == destinationId && building.HouseholdId == householdId) &&
+                lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId && lot.Id != equipment?.Repair?.LotId &&
+                lot.ItemKind is not ("field_map" or "field_record") &&
+                UnusableDeliveryStock(inventory, lot) && !HasActiveContainerReservation(inventory, lot.Id))
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    private void AddRecoverHouseholdDeliveryCandidate(List<CognitionCandidate> candidates, string actor,
+        PlaytestInhabitantState state)
+    {
+        if (RecoverableHouseholdDelivery(actor, state) is not null)
+            candidates.Add(new("recover_household_delivery",
+                "Return spoiled delivery supplies to your household's pile at camp.", 18));
+    }
+
+    private void RecoverHouseholdDelivery(string actor, PlaytestInhabitantState state)
+    {
+        if (RecoverableHouseholdDelivery(actor, state) is not { } stock)
+            return;
+        var camp = SettlementStoragePosition;
+        if (!IsWithinInteractionRange(state.Position, camp, ResourceInteractionRange))
+        {
+            MoveToward(actor, state, camp, "recover_household_delivery", ResourceInteractionRange);
+            return;
+        }
+        var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId!;
+        var quantity = InventoryContainerRules.IsContainer(stock.ItemKind) ? 1 : stock.Quantity;
+        var physicalQuantity = HouseDeliveryPhysicalQuantity(society.Checkpoint.Inventory, stock);
+        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
+            $"house-delivery-recovery:{WorldTick}:{actor}:{stock.Id}", actor, householdId, stock.Id, quantity,
+            "household_delivery_recovered", destinationGroundPosition: new InventoryGroundPosition(camp.X, camp.Y)));
+        AppendEvent("household_delivery_recovered", $"{actor}:{stock.Id}:{physicalQuantity}:camp");
     }
 
     private int HouseDeliveryRoom(InventoryLot carried)
@@ -57,12 +106,12 @@ public sealed partial class PrivateWorldRuntime
         if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId) is { } building &&
             IsFarmStorage(building))
             room = Math.Min(room, FarmStorageFree(destinationId));
-        var capacity = Math.Min(HouseHaulLoadQuantity, Math.Min(FreeCarryCapacity(actor), room));
+        var capacity = Math.Min(FreeCarryCapacity(actor), room);
         if (capacity == 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
             ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity ? 1 : 0
-            : Math.Min(capacity, AvailableLotQuantity(stock));
+            : Math.Min(HouseHaulLoadQuantity, Math.Min(capacity, AvailableLotQuantity(stock)));
     }
 
     /// <summary>
@@ -223,6 +272,15 @@ public sealed partial class PrivateWorldRuntime
         if (cargo.Count == 0 ||
             SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
             return;
+        var existing = candidates.FindIndex(candidate => candidate.Id == "make_room_for_food");
+        if (existing >= 0)
+        {
+            candidates[existing] = candidates[existing] with
+            {
+                DeterministicPriority = Math.Min(candidates[existing].DeterministicPriority, priority),
+            };
+            return;
+        }
         candidates.Add(new("make_room_for_food",
             "Set down spare supplies with your household so food fits in your load.", priority,
             destination.StorageBuildingId));
@@ -230,12 +288,11 @@ public sealed partial class PrivateWorldRuntime
 
     private int FoodRoomMissing(string actor, PlaytestInhabitantState state)
     {
-        var potFoodAvailable = society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
-            HouseForHousehold(householdId) is { } house && FindFoodInPot(householdId, house.InstanceId) is not null &&
-            FindUnoccupiedRoute(actor, state.Position, house.Position, 0).Count > 0;
-        var required = potFoodAvailable ? 1
-            : AvailableFoodSource(actor, state.Position) is { } source ? FoodHarvestCarryUnits(source)
-            : AvailableSharedFood(actor) is not null ? 1 : 0;
+        var required = state.HungerBasisPoints < 7_000 && !PreferredFood(actor, actor).Any()
+            ? MinimumFoodPickupCarryUnits(actor, state.Position, forDependent: false) : 0;
+        var dependentRequired = CaregiverFoodCarryRequirement(actor, state);
+        if (dependentRequired > 0)
+            required = required > 0 ? Math.Min(required, dependentRequired) : dependentRequired;
         return Math.Max(0, required - FreeCarryCapacity(actor));
     }
 
@@ -251,7 +308,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
-                lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
+                lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId && lot.Id != equipment?.Repair?.LotId &&
                 lot.ItemKind is not ("field_map" or "field_record") &&
                 !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
                     reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
