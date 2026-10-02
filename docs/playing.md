@@ -68,6 +68,8 @@ Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**
 You can save both providers' keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
+**Open model settings** in that panel opens the agent's model in World
+Settings, where you can also delete a saved key.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
 an agent's Model panel. This sends one real request and counts toward the
