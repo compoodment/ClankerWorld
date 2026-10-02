@@ -89,7 +89,6 @@ internal static class CookedBirthFixture
                 Position = person.InhabitantId == parents[0].Id ? house.Position :
                     person.InhabitantId == parents[1].Id ? partnerPoint : person.Position,
                 HungerBasisPoints = 10_000,
-                Survival = new SurvivalCondition(),
             }).ToArray(),
             WorldSystems = state.WorldSystems! with
             {

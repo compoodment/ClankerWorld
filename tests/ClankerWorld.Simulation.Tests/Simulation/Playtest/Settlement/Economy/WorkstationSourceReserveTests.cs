@@ -63,9 +63,9 @@ public sealed class WorkstationSourceReserveTests
             "zz-spare-camp-wood", "wood", fixture.Household, 1);
         var choices = new Choices("supply_workstation:wood", "haul_household_stock");
         using var world = Restore(FarmFieldTests.WithInventory(fixture.State, inventory), fixture.Actor, choices);
-        await AdvanceUntil(world, () => world.Society.Inventory.Lots.Any(lot =>
-            lot.ProvenanceLotId == "zz-spare-camp-wood" && lot.StorageBuildingId == fixture.Restaurant.InstanceId), 96);
-        var supplied = Assert.Single(world.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "zz-spare-camp-wood");
+        await AdvanceUntil(world, () => world.Society.Inventory.GetLot("zz-spare-camp-wood").StorageBuildingId ==
+            fixture.Restaurant.InstanceId, 96);
+        var supplied = world.Society.Inventory.GetLot("zz-spare-camp-wood");
         Assert.Equal((fixture.Household, 1), (supplied.OwnerId, supplied.Quantity));
         Assert.Equal(2, world.Society.Inventory.GetLot("reserve-source-wood").Quantity);
         Assert.Equal(fixture.House.InstanceId, world.Society.Inventory.GetLot("reserve-source-wood").StorageBuildingId);
@@ -280,7 +280,7 @@ public sealed class WorkstationSourceReserveTests
         inventory = InventoryFixture.AddLot(inventory, "mixed-surplus-grain", "grain", fixture.Household, 1,
             storageBuildingId: fixture.House.InstanceId, containerLotId: "a-mixed-surplus-pot");
         inventory = InventoryFixture.AddLot(inventory, "mixed-spoiling-berries", "berries", fixture.Household, 2,
-            freshnessBasisPoints: 1, storageBuildingId: fixture.House.InstanceId, containerLotId: "a-mixed-surplus-pot");
+            freshnessBasisPoints: 0, storageBuildingId: fixture.House.InstanceId, containerLotId: "a-mixed-surplus-pot");
         using var world = Restore(FarmFieldTests.WithInventory(fixture.State, inventory), fixture.Actor,
             new Choices("supply_workstation:grain", "haul_household_stock"));
         await AdvanceUntil(world, () => world.Society.Inventory.GetLot("a-mixed-surplus-pot").OwnerId == fixture.Actor, 32);
