@@ -115,6 +115,49 @@ public sealed class MedicalTreatmentConsentTests
     }
 
     [Fact]
+    public async Task FreshMedicalConsentAlsoRecordsTheExactOwnerSuggestionAndReplyAcrossReload()
+    {
+        var state = PreparedState();
+        var patient = state.Inhabitants[0].InhabitantId;
+        var caregiver = state.Inhabitants[1].InhabitantId;
+        const string messageText = "Tell me who you would ask for medical help.";
+        const string replyText = "I chose my neighbor as a caregiver.";
+        var selected = "medical_allow:" + caregiver;
+        var choice = new MedicalChoiceProvider(selected, observerReply: replyText);
+        using var world = Restore(state, patient, choice);
+        var receipt = world.SubmitInstruction(new("medical-consent-suggestion", "owner:test", patient,
+            OwnerInstructionKind.Suggestive, messageText));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(choice.Offered, candidate => candidate.Id == selected);
+        var prompted = Assert.Single(choice.Guidance, message => message.InstructionId == receipt.InstructionId);
+        Assert.Equal((patient, "suggestive", messageText),
+            (prompted.TargetInhabitantId, prompted.Kind, prompted.Text));
+        Assert.Equal([caregiver], Physical(world, patient).MedicalConsent!.CaregiverIds);
+        var result = world.ExportState();
+        var observed = Assert.Single(result.Instructions!, message => message.InstructionId == receipt.InstructionId);
+        Assert.Equal(world.WorldTick, observed.ObservedTick);
+        Assert.Equal(replyText, observed.ObserverReply);
+        Assert.Contains(receipt.InstructionId, result.CompletedInstructionIds!);
+        Assert.Single(result.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail == receipt.InstructionId + ":" + selected);
+
+        var saved = PrivateWorldRuntimeCodec.Encode(result);
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        var restored = replay.ExportState();
+        var restoredMessage = Assert.Single(restored.Instructions!, message => message.InstructionId == receipt.InstructionId);
+        Assert.Equal(observed, restoredMessage);
+        Assert.Equal([caregiver], Physical(replay, patient).MedicalConsent!.CaregiverIds);
+        Assert.Single(restored.CompletedInstructionIds!, id => id == receipt.InstructionId);
+        Assert.Single(restored.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail == receipt.InstructionId + ":" + selected);
+        Assert.Single(restored.Events, item => item.Kind == "medical_care_allowed");
+        replay.Validate();
+    }
+
+    [Fact]
     public async Task RevocationNeedsAFreshPersonalChoiceAndStopsTheConsumedDoseWithoutRefund()
     {
         var state = PreparedState();
@@ -515,21 +558,28 @@ public sealed class MedicalTreatmentConsentTests
         world.Inhabitants.Single(person => person.InhabitantId == actor);
 
     private sealed class MedicalChoiceProvider(string selected, DecisionProviderKind kind = DecisionProviderKind.LargeLanguageModel,
-        bool fail = false) : IDecisionProvider
+        bool fail = false, string? observerReply = null) : IDecisionProvider
     {
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 0;
         public List<CognitionCandidate> Offered { get; } = [];
+        public List<CognitionObserverGuidance> Guidance { get; } = [];
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
             Offered.AddRange(request.Observation.Candidates);
+            Guidance.AddRange(request.Observation.ObserverGuidance ?? []);
             if (fail) throw new InvalidOperationException("medical provider fixture unavailable");
             var choice = request.Observation.Candidates.Any(candidate => candidate.Id == selected) ? selected : "safe_idle";
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
-                request.Observation.ObservationDigest, choice, 1, new Dictionary<string, double> { [choice] = 1 }));
+                request.Observation.ObservationDigest, choice, 1, new Dictionary<string, double> { [choice] = 1 })
+            {
+                ObserverReplies = observerReply is null ? null : request.Observation.ObserverGuidance?
+                    .Where(message => message.ReplyAllowed)
+                    .Select(message => new CognitionObserverReply(message.InstructionId, observerReply)).ToArray(),
+            });
         }
     }
 }
