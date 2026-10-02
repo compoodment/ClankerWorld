@@ -227,7 +227,12 @@ public sealed partial class PrivateWorldRuntime
         string? conversationChoiceContext = null)
     {
         var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
-            string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+            // Optional advance permission remains available on ordinary decisions;
+            // a healthy idle agent need not wake merely because someone walks past.
+            string.Join('|', candidates.Where(candidate =>
+                    !candidate.Id.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal) ||
+                    state.Survival is { IllnessBasisPoints: >= 2_500 })
+                .Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
         return conversationChoiceContext is null
             ? context
             : $"{context}|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}";
