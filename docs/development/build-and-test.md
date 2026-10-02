@@ -93,7 +93,8 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 ```
 
 The first command records each test's duration locally in
-`TestResults/timings.trx`; the second lists the tests job 1 would run.
+`tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
+the tests job 1 would run.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
