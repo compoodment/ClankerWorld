@@ -1354,8 +1354,10 @@ wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
 
 Harvests stay at their field until collected; they do not appear remotely in a
 Silo. Grain and planting stock enter private farm storage. Ready food goes into
-House or business stock. Dry grain keeps substantially longer than flour,
-bread or cooked meals and supports a winter reserve. Food stays out of the
+House or business stock. Raw grain, potatoes and flour keep their freshness in
+the current trial. Greens, bread and cooked meals spoil, with a usable storage
+pot slowing the loss. These storage and nourishment rules remain provisional.
+Food stays out of the
 communal resource Warehouse.
 
 Farm production responds to population, expected yield and stored reserves.
@@ -1386,7 +1388,10 @@ it does not select gold as a universal currency or add a diamond tool tier.
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
 Both remain after their contents are used; filling, emptying and carrying them
-must preserve the vessel and its goods. Adults dig clay from a finite clay bank
+must preserve the vessel and its goods. A filled vessel moves as one family
+only when its entire load fits and moving every ingredient leaves the source's
+needed reserve intact. Active claims still prevent its movement.
+Adults dig clay from a finite clay bank
 and make either vessel at a household House. Houses and Restaurants consume
 fresh water from these jugs for porridge,
 bread and stew, leaving the jug ready for refilling. Medicine-making and

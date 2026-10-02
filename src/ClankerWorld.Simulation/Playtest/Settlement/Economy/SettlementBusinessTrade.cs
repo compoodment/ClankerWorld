@@ -191,16 +191,23 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind is not ("field_map" or "field_record"));
     }
 
-    private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
+    private bool MayVisitTownBusiness(string buyer, PlacedBuilding building)
     {
         if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
             TownForResident(buyer) is not { } townId || building.TownId != townId ||
-            HouseholdFor(buyer) is not { } householdId || building.HouseholdId is not { } seller ||
-            seller == householdId || !society.Checkpoint.Households.Any(household => household.Id == seller) ||
+            building.HouseholdId is not { } seller || seller == HouseholdFor(buyer) ||
+            !society.Checkpoint.Households.Any(household => household.Id == seller) ||
             !inhabitants.Keys.Any(actor => AdultResident(actor) && HouseholdFor(actor) == seller) ||
             IsWithinInteractionRange(inhabitants[buyer].Position, building.Position, ResourceInteractionRange) ||
             society.Checkpoint.Inventory.Offers.Any(offer => offer.State == DirectBarterState.Open &&
                 (offer.FirstPartyId == buyer || offer.SecondPartyId == buyer))) return false;
+        return true;
+    }
+
+    private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
+    {
+        if (!MayVisitTownBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
+        var townId = TownForResident(buyer);
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return false;
         // A Town shop's location and kind can motivate a visit. Its private
@@ -211,6 +218,21 @@ public sealed partial class PrivateWorldRuntime
             .SelectMany(site => worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId)
                 .SelectMany(recipe => recipe.Inputs)).Select(input => input.ResourceId).Distinct(StringComparer.Ordinal);
         return inputs.Any(itemKind => BusinessRules.MaySell(kind, itemKind) && RestaurantInputDemand(buyer, itemKind) > 0) &&
+            BusinessPaymentLots(buyer, building).Any(payment => RestaurantInputDemand(buyer, payment.ItemKind, 1) ==
+                RestaurantInputDemand(buyer, payment.ItemKind)) &&
+            FindUnoccupiedRoute(buyer, inhabitants[buyer].Position, building.Position, ResourceInteractionRange).Count > 0;
+    }
+
+    private bool RestaurantMealShopTrip(string buyer, PlacedBuilding building)
+    {
+        if (!MayVisitTownBusiness(buyer, building)) return false;
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        if (BusinessRules.KindOf(definition) != "restaurant") return false;
+        // The menu describes possible meals, never whether the private shelf
+        // holds them. Exact available goods and payment are checked on site.
+        var mealKinds = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == building.DefinitionId)
+            .SelectMany(recipe => recipe.Outputs).Select(output => output.ResourceId).Distinct(StringComparer.Ordinal);
+        return mealKinds.Any(kind => BusinessRules.MaySell("restaurant", kind) && WantsTradeFoodKind(buyer, kind)) &&
             BusinessPaymentLots(buyer, building).Any(payment => RestaurantInputDemand(buyer, payment.ItemKind, 1) ==
                 RestaurantInputDemand(buyer, payment.ItemKind)) &&
             FindUnoccupiedRoute(buyer, inhabitants[buyer].Position, building.Position, ResourceInteractionRange).Count > 0;
@@ -279,6 +301,10 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("business_shop:" + building.InstanceId,
                     "Visit this Town shop to ask about missing Restaurant ingredients; any offer is checked there.",
                     14, building.InstanceId));
+            else if (RestaurantMealShopTrip(actor, building))
+                candidates.Add(new("business_shop:" + building.InstanceId,
+                    "Visit this Restaurant to ask about a meal; any offer is checked there.",
+                    14, building.InstanceId));
     }
 
     private void ApplyBusinessCandidate(string actor, PlaytestInhabitantState state, string candidate)
@@ -294,7 +320,7 @@ public sealed partial class PrivateWorldRuntime
             if (building is null) return;
             if (!IsWithinInteractionRange(state.Position, building.Position, ResourceInteractionRange))
             {
-                if (RestaurantIngredientShopTrip(actor, building))
+                if (RestaurantIngredientShopTrip(actor, building) || RestaurantMealShopTrip(actor, building))
                     MoveToward(actor, state, building.Position, "business_shop", ResourceInteractionRange);
                 return;
             }

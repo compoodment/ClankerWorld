@@ -14,6 +14,11 @@ public sealed partial class PrivateWorldRuntime
         (offer.FirstPartyId == actor || offer.SecondPartyId == actor) &&
         !offer.AcceptedBy.Contains(actor, StringComparer.Ordinal));
 
+    private bool WantsTradeFoodKind(string actor, string kind) => IsEdibleFood(kind) &&
+        inhabitants[actor].HungerBasisPoints < 8_500 &&
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity) < 2;
+
     private bool WantsTradeItem(string actor, InventoryLot item)
     {
         var state = inhabitants[actor];
@@ -29,13 +34,13 @@ public sealed partial class PrivateWorldRuntime
             return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
         }
 
-        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
-            .Sum(AvailableLotQuantity);
         if (IsEdibleFood(kind))
         {
             // Keeping a small trade reserve is different from taking a food errand.
-            return owned < 2 && state.HungerBasisPoints < 8_500;
+            return WantsTradeFoodKind(actor, kind);
         }
+        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity);
         if (kind is "tool" or "clothing")
         {
             return owned == 0;

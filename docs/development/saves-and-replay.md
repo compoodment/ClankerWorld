@@ -352,9 +352,8 @@ recipe work, per-agent life-moment identity opportunities with their outcomes,
 connected Town-title plots, household use rights and pending use requests,
 physical shop exchanges beside their exact inventory offers,
 the continuity rule's state with each eligible couple's deadline, food-order
-progress and cancellations, schema 50 for guardian searches, and schema 51
-for named last meals record when those fields or behaviors were introduced;
-they do not allow an earlier checkpoint schema past the current alpha cutoff.
+targets, progress, retry state and cancellation receipts, staged guardian
+searches, and concrete last-meal names for nourishment and dietary variety.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
