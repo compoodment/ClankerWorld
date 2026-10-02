@@ -106,6 +106,18 @@ public partial class Main
             SetUiTheme((int)UiTheme.Parse(themeBefore));
             if (!restyled)
                 throw new InvalidOperationException("Suggest and Order must take the new theme's pressed style when the theme changes.");
+            // An order's Queue and Cancel task buttons fit beside the switch without widening the Profile.
+            var profileWidth = agentProfilePanel.Size.X;
+            instructionOrderButton.ButtonPressed = true;
+            instructionCancelButton.Visible = true;
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var widened = agentProfilePanel.Size.X;
+            var buttonsInside = new Control[] { instructionQueueToggle, instructionCancelButton }
+                .All(button => agentProfilePanel.GetGlobalRect().Grow(1).Encloses(button.GetGlobalRect()));
+            instructionSuggestButton.ButtonPressed = true;
+            instructionCancelButton.Visible = false;
+            if (widened > profileWidth + 1 || !buttonsInside)
+                throw new InvalidOperationException($"Queue and Cancel task must wrap inside the Profile instead of widening it: before={profileWidth} after={widened}.");
 
             OpenMemories();
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
