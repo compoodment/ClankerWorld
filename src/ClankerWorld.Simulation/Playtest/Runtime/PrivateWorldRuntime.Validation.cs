@@ -83,6 +83,7 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
+        ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -361,6 +362,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
+        ValidateContinuity(state.Continuity, state.Society.Society, state.SchemaVersion);
         ContentPackageRegistry.Restore(state.Content);
         WorldSystemsRules.Validate(state.WorldSystems);
         if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||

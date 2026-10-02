@@ -164,7 +164,7 @@ summaries remain unfinished.
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers or clothing that protects them better in the current weather. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking or household membership. Market stalls, tool-making orders, Restaurants and Clinics remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Barter rates and shelf sizes are provisional. |
-| Parenthood, life stages and death | Basic version | Consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Parenthood, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. Infant care, child talk/play/help and age restrictions are enforced. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns, household property and government | Basic version | First-Town membership/borders, building ownership, household stores, shared-food council, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Recorded multiple Towns can be saved and validated, but leaving or changing a household, founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
 
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
@@ -180,6 +180,24 @@ chosen from the world seed. The four founders always get different ages, and
 the same seed gives the same founder ages in placement order. The agent card
 shows the age, such as **Adult · 19 days**. These are playtest values, not
 settled population balance.
+
+A world cannot die out only because every couple keeps declining children.
+While fewer than eight agents who are not elders are alive (infants, children
+and adults all count), the **continuity rule** is on. A new world starts with
+it on, and the Event Log says when it turns on or off. Once eight non-elders
+are alive it turns off and ordinary refusal returns.
+
+While the rule is on, a partnered couple with no infant may say "not yet" to a
+child, but not refuse: two world days after the rule first applies to them,
+their plan goes ahead as if both had agreed. Preparation still takes time, and
+the birth still needs food and shelter; a plan the rule sent ahead waits for
+them instead of expiring. Such a couple may also plan another child once their
+youngest has left infancy, without waiting for that child to grow up. Each
+partner's own model request explains the rule and how long is left. The rule
+never creates a partnership, and choosing a partner stays voluntary. The
+threshold and two days are provisional; a check based on the real risk of the
+world dying out comes later. This has automated checks but no Windows playtest
+yet.
 
 On death, a bounded final model choice can leave the estate to the household or
 name one living recipient for the whole estate. Interrupted or invalid choices

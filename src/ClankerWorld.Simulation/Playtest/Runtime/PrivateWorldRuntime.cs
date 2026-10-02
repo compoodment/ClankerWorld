@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 45;
+    public const int StateSchemaVersion = 46;
     public const int ObserverGuidanceSchemaVersion = 41;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public const int ReusableContainerSchemaVersion = 39;
     public const int ToolProgressionSchemaVersion = 42;
     public const int LifeMomentIdentitySchemaVersion = 43;
+    public const int ContinuitySchemaVersion = 46;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
@@ -178,6 +179,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
+        StartContinuityRule();
     }
 
     /// <summary>Creates a world from the already previewed deterministic map.</summary>
@@ -315,6 +317,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
+        runtime.continuity = state.Continuity!;
         runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
@@ -447,7 +450,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
-        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades);
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity);
 
     private void AppendEvent(string kind, string detail)
     {
