@@ -135,14 +135,14 @@ public sealed class OrnamentProductionTests
         Assert.Equal((owner, Smith, rawGold.Id, 4), (deliveredGold.OwnerId, deliveredGold.StorageBuildingId,
             deliveredGold.ProvenanceLotId, deliveredGold.Quantity));
         choices.Preferences = [];
-        var firstGold = await Produce(resumed, actor, "refine-gold", 24,
+        var firstGold = await Produce(resumed, actor, choices, "refine-gold", 24,
             [(deliveredGold.Id, 2), ("ornament-fuel", 1)]);
-        var secondGold = await Produce(resumed, actor, "refine-gold", 24,
+        var secondGold = await Produce(resumed, actor, choices, "refine-gold", 24,
             [(deliveredGold.Id, 2), ("ornament-fuel", 1)]);
         Assert.DoesNotContain(resumed.Society.Inventory.Lots, lot => lot.Id is "ornament-fuel" || lot.Id == deliveredGold.Id);
         Assert.Equal(4, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "gold_ore").Sum(lot => lot.Quantity));
         Assert.Equal(2, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == OrnamentContent.Gold).Sum(lot => lot.Quantity));
-        var plain = await Produce(resumed, actor, "gold-ornament", 24, [(firstGold, 1), (secondGold, 1)]);
+        var plain = await Produce(resumed, actor, choices, "gold-ornament", 24, [(firstGold, 1), (secondGold, 1)]);
         Assert.Equal((OrnamentContent.GoldOrnament, owner, Smith, 1),
             (resumed.Society.Inventory.GetLot(plain).ItemKind, resumed.Society.Inventory.GetLot(plain).OwnerId,
                 resumed.Society.Inventory.GetLot(plain).StorageBuildingId, resumed.Society.Inventory.GetLot(plain).Quantity));
@@ -160,7 +160,7 @@ public sealed class OrnamentProductionTests
         var onSiteDiamond = Assert.Single(resumed.Society.Inventory.Lots, lot => lot.ItemKind == "diamond" && lot.StorageBuildingId == Smith);
         Assert.Equal((owner, diamonds.Id, 2), (onSiteDiamond.OwnerId, onSiteDiamond.ProvenanceLotId, onSiteDiamond.Quantity));
         choices.Preferences = [];
-        var finished = await Produce(resumed, actor, "set-diamond", 28, [(plain, 1), (onSiteDiamond.Id, 1)]);
+        var finished = await Produce(resumed, actor, choices, "set-diamond", 28, [(plain, 1), (onSiteDiamond.Id, 1)]);
         Assert.Equal((OrnamentContent.DiamondOrnament, owner, Smith, 1),
             (resumed.Society.Inventory.GetLot(finished).ItemKind, resumed.Society.Inventory.GetLot(finished).OwnerId,
                 resumed.Society.Inventory.GetLot(finished).StorageBuildingId, resumed.Society.Inventory.GetLot(finished).Quantity));
@@ -260,13 +260,22 @@ public sealed class OrnamentProductionTests
             PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(resumed.ExportState()))));
     }
 
-    private static async Task<string> Produce(PrivateWorldRuntime world, string actor, string localId,
+    private static async Task<string> Produce(PrivateWorldRuntime world, string actor, Choices choices, string localId,
         int workTicks, (string LotId, int Quantity)[] expectedInputs)
     {
         var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == localId);
-        var started = world.StartProduction(recipe.CanonicalId, Smith, actor);
-        Assert.True(started.Applied, started.Failure);
-        var job = world.WorldSimulation.ProductionJobs.Single(item => item.JobId == started.JobId);
+        var earlierJobs = world.WorldSimulation.ProductionJobs.Select(job => job.JobId).ToHashSet(StringComparer.Ordinal);
+        var recipeCandidate = "build:recipe:" + recipe.CanonicalId;
+        choices.Preferences = [recipeCandidate];
+        await Until(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
+            !earlierJobs.Contains(job.JobId) && job.RecipeId == recipe.CanonicalId && job.WorkerId == actor), 96);
+        var job = Assert.Single(world.WorldSimulation.ProductionJobs, item =>
+            !earlierJobs.Contains(item.JobId) && item.RecipeId == recipe.CanonicalId && item.WorkerId == actor);
+        Assert.Contains(recipeCandidate, choices.Selected);
+        Assert.Equal(Smith, job.BuildingInstanceId);
+        Assert.Equal(world.WorldSimulation.Buildings.Single(building => building.InstanceId == Smith).Position,
+            world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
+        Assert.Equal(WorldProductionJobState.Running, job.State);
         Assert.Equal(workTicks, job.CompletionTick - job.StartedTick);
         var reservations = job.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
         Assert.Equal(expectedInputs.Length, reservations.Length);
@@ -275,7 +284,8 @@ public sealed class OrnamentProductionTests
                 item.State == InventoryReservationState.Reserved);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new Choices([]));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => id == actor ? choices : new Choices([]));
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         for (var tick = 1; tick < workTicks; tick++)
         {
@@ -286,7 +296,8 @@ public sealed class OrnamentProductionTests
         Assert.All(reservations, item => Assert.Equal(InventoryReservationState.Completed,
             world.Society.Inventory.GetReservation(item.Id).State));
         Assert.All(reservations, item => Assert.Equal(world.Society.GetInhabitant(actor).HouseholdId, item.OwnerId));
-        return started.JobId + ":output:00";
+        choices.Preferences = [];
+        return job.JobId + ":output:00";
     }
 
     private static async Task Until(PrivateWorldRuntime world, Func<bool> complete, int limit)
