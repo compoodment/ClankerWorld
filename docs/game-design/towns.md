@@ -313,6 +313,12 @@ resident counts.
   the completed footprint before acting so a death, departure, expansion or
   new family relationship cannot cause an unnecessary eviction. Continue
   relocating eligible adults only until the remaining residents fit.
+- **A sole caregiver is not given notice, agreed on October 2.** If the only
+  adult who could be asked to leave an overcrowded House is the sole caregiver
+  of a dependent child, nobody gets notice, and the caregiver and child are not
+  given notice together as a group either. The House stays visibly overcrowded
+  with a plan to expand or split, and the caregiver may still choose to leave
+  with the child.
 - **One unpaused world day of notice for displaced adults** is the initial
   trial period. During notice they look for a suitable
   accepting household with room; otherwise they may form their own household
