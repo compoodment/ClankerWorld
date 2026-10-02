@@ -640,9 +640,11 @@ public partial class Main
     {
         if (!buildingDetailsPanel.Visible) return;
         buildingDetailsPanel.CustomMinimumSize = new Vector2(Math.Min(BuildingDetailsWidth, Math.Max(1, UiSize.X - 28)), 0);
-        var header = buildingDetailsHeader.GetCombinedMinimumSize().Y;
-        // Panel margins and the gap under the header.
-        var room = UiSize.Y - HudTop - 14 - header - 28;
+        // Measure the fixed header, themed frame, margins and gap together;
+        // a guessed padding total can let a long shop history run off screen.
+        var fixedHeight = buildingDetailsPanel.GetCombinedMinimumSize().Y -
+            buildingDetailsScroll.GetCombinedMinimumSize().Y;
+        var room = UiSize.Y - HudTop - 14 - fixedHeight;
         buildingDetailsScroll.CustomMinimumSize = new Vector2(0,
             Math.Max(60, Math.Min(buildingDetailsContent.GetCombinedMinimumSize().Y, room)));
         buildingDetailsPanel.Size = buildingDetailsPanel.GetCombinedMinimumSize();

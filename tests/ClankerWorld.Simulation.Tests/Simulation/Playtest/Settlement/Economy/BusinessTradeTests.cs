@@ -648,6 +648,96 @@ public sealed class BusinessTradeTests
         competing.Validate();
     }
 
+    [Theory]
+    [InlineData("wood", 0, false, 0)]
+    [InlineData("wood", 1, false, 1)]
+    [InlineData("wood", 2, true, 0)]
+    [InlineData("wood", 3, true, 1)]
+    [InlineData("iron_ore", 0, false, 0)]
+    [InlineData("iron_ore", 1, false, 1)]
+    [InlineData("iron_ore", 2, true, 0)]
+    [InlineData("iron_ore", 3, true, 1)]
+    public async Task BlacksmithCarriedInputDeliveryRespectsPhysicalAndPromisedReceivingSpaceAcrossReload(
+        string itemKind, int physicalRoom, bool pendingExchange, int expectedDelivered)
+    {
+        var (state, buyer, seller, shopId) = CreateShopState();
+        var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == shopId);
+        var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == shop.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(definition, shop)!.Value;
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != seller &&
+                (lot.StorageBuildingId != shopId || lot.Id == "shop-axe")).ToArray(),
+        };
+        // Only the tested input is missing. Other recipe inputs cannot hide it
+        // behind a different dedicated supply candidate.
+        foreach (var (kind, quantity) in new[] { ("wood", 6), ("stone", 4), ("iron_ore", 4), ("iron", 4) })
+            if (kind != itemKind)
+                inventory = InventoryFixture.AddLot(inventory, "delivery-stock-" + kind, kind,
+                    shop.HouseholdId!, quantity, storageBuildingId: shopId);
+        inventory = InventoryFixture.AddLot(inventory, "direct-shop-input", itemKind, seller, 4);
+        var stored = inventory.Lots.Where(lot => lot.StorageBuildingId == shopId).Sum(lot => lot.Quantity);
+        inventory = InventoryFixture.AddLot(inventory, "delivery-space-ballast", "clay", shop.HouseholdId!,
+            capacity - stored - physicalRoom, storageBuildingId: shopId);
+        string? offerId = null;
+        if (pendingExchange)
+        {
+            var proposedTick = state.Society.Society.WorldTick;
+            offerId = $"business-trade:{proposedTick}:{buyer}:{shopId}";
+            inventory = InventoryFixture.AcceptDirectBarterOffer(
+                InventoryFixture.CreateDirectBarterOffer(inventory,
+                    new(offerId, 1, shop.HouseholdId!, buyer, "shop-axe", 1, "buyer-payment", 3,
+                        proposedTick + 120)), offerId, 1, buyer);
+            state = state with
+            {
+                BusinessTrades = [new(offerId, shopId, shop.HouseholdId!, buyer, shop.Position,
+                    proposedTick, "wooden_axe", "wood")],
+            };
+        }
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == seller ? person with
+            {
+                Position = shop.Position,
+                Equipment = null,
+                Project = null,
+                TravelCooldownTicks = 0,
+                LastDecisionContext = null,
+                HungerBasisPoints = 8_000,
+            } : person).ToArray(),
+        };
+        var candidate = itemKind == "wood" ? "haul_smith_input" : "deliver_smith_ore";
+        var provider = new ShopProvider(candidate);
+        using var delivering = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == seller ? provider : new ShopProvider("safe_idle"));
+        var quantityBefore = TotalQuantity(delivering.Society.Inventory, itemKind);
+        for (var step = 0; step < 35; step++)
+            Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
+        var remaining = delivering.Society.Inventory.GetLot("direct-shop-input");
+        Assert.Equal((seller, 4 - expectedDelivered, (string?)null),
+            (remaining.OwnerId, remaining.Quantity, remaining.StorageBuildingId));
+        Assert.Equal(capacity - physicalRoom + expectedDelivered,
+            delivering.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == shopId).Sum(lot => lot.Quantity));
+        Assert.Equal(quantityBefore, TotalQuantity(delivering.Society.Inventory, itemKind));
+        if (expectedDelivered == 0)
+            Assert.DoesNotContain(candidate, provider.Seen);
+        else
+            Assert.Contains(candidate, provider.Seen);
+        if (offerId is not null)
+        {
+            Assert.Equal(DirectBarterState.Open, delivering.Society.Inventory.GetOffer(offerId).State);
+            Assert.All(delivering.Society.Inventory.Reservations.Where(reservation =>
+                    reservation.Purpose == "barter:" + offerId),
+                reservation => Assert.Equal(InventoryReservationState.Reserved, reservation.State));
+        }
+        delivering.Validate();
+        var bytes = PrivateWorldRuntimeCodec.Encode(delivering.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            _ => new ShopProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     [Fact]
     public async Task FullCustomerCannotReserveMoreProduceThanTheirPaymentFrees()
     {
