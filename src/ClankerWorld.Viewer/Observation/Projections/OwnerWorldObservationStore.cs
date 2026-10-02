@@ -777,6 +777,10 @@ public sealed class OwnerWorldObservationStore
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
         if (HousingDetail(state, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
+                state.WorldSystems!.Config.TicksPerDay,
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+            decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
         {

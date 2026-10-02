@@ -367,6 +367,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
+        ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);

@@ -116,7 +116,7 @@ public sealed partial class PrivateWorldRuntime
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
                 HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
-                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id));
+                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
