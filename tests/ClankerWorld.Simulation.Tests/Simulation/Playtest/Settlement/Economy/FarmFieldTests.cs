@@ -115,7 +115,7 @@ public sealed class FarmFieldTests
         using var world = Restore(state);
         Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
         var active = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.ToolProgressionSchemaVersion, active.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, active.SchemaVersion);
         Assert.NotNull(Assert.Single(active.Fields!).Work!.HoeLotId);
         Assert.Throws<InvalidDataException>(() => Restore(active with
         {
