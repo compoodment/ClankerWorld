@@ -3390,10 +3390,16 @@ public partial class Main
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
-                KnowledgeArtifacts = [new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
-                    "Field map · 2 sites", 2, "Mira",
-                    [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira"),
-                     new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")])],
+                KnowledgeArtifacts =
+                [
+                    new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
+                        "Field map · 2 sites", 2, "Mira",
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira"),
+                         new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
+                    new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
+                        "Book · 1 site", 3, "Mira",
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                ],
             };
             var historicalSnapshot = sample with
             {
@@ -3421,6 +3427,7 @@ public partial class Main
             if (!memoriesPanel.Visible ||
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3431,6 +3438,10 @@ public partial class Main
                 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
             knownEvents[101] = new OwnerWorldEvent(101, 2, "inhabitant_removed", deceased.Id,
                 deathDestination);
+            knownEvents[102] = new OwnerWorldEvent(102, 3, "agent_knowledge_artifact_created",
+                deceased.Id + "|knowledge-artifact-000002|book|1", formerPosition);
+            knownEvents[103] = new OwnerWorldEvent(103, 4, "agent_knowledge_artifact_read",
+                "agent:other|" + deceased.Id + "|knowledge-artifact-000003|1", formerPosition);
             RenderEventLog();
             if (!eventLog.GetParsedText().Contains("died.", StringComparison.Ordinal) ||
                 eventLog.GetParsedText().Contains("scroll-sentinel", StringComparison.Ordinal) ||
@@ -3438,6 +3449,12 @@ public partial class Main
                 gameSettingsContent.GetChildren().OfType<Label>()
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
+            if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
+                throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
             if (!eventsPanel.Visible || !agentProfilePanel.Visible)
                 throw new InvalidOperationException("The Event Log and the agent's Profile must remain available together.");
