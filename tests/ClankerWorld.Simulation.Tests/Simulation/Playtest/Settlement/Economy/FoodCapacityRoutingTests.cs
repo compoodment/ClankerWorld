@@ -235,6 +235,22 @@ public sealed class FoodCapacityRoutingTests
         {
             Society = state.Society with { Society = society with { Inventory = inventory } },
         }, actor, 1_000);
+        if (age != SocietyAgeBand.Adult)
+        {
+            var town = Assert.Single(state.Towns!);
+            Assert.Equal("founded", town.FoundingState);
+            var governance = Assert.IsType<TownGovernanceState>(town.Governance);
+            Assert.Equal("all_adult", governance.Form);
+            var adults = town.ResidentIds.Where(id => society.Inhabitants.Any(person =>
+                person.Id == id && person.Status == SocietyInhabitantStatus.Active &&
+                person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))
+                .Order(StringComparer.Ordinal).ToArray();
+            var updated = TownGovernanceRules.Advance(governance, town.Id, state.WorldSeed,
+                adults, society.WorldTick, state.WorldSystems!.Config.TicksPerDay);
+            Assert.Equal(adults, updated.Members);
+            Assert.DoesNotContain(actor, updated.Members);
+            state = state with { Towns = [town with { Governance = updated }] };
+        }
         var choices = new FoodCapacityTestFixture.Choices("collect_shared_food", "consume_food");
         using var world = FoodCapacityTestFixture.Restore(state, actor, choices);
         var observedTake = false;
