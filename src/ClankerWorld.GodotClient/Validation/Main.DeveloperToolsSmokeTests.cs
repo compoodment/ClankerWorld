@@ -58,6 +58,7 @@ public partial class Main
                 throw new InvalidOperationException("F12 must open Developer tools over the world without opening the Pause Menu or pausing.");
             var tools = new Control[]
             {
+                developerEditKind, developerEditValue, developerEditAmount, developerEditOther, developerEditApply,
                 lifePaceChoice, applyLifePaceButton, retryPendingSubmissionButton, forgetPendingSubmissionButton,
                 authoringKind, authoringId, submitAuthoringButton, pairingApprovalId, approvePairingButton,
                 refreshDevicesButton, pairedDeviceList, revokeDeviceButton,
@@ -104,6 +105,33 @@ public partial class Main
             var after = cameraCenterTiles.DistanceTo(new Vector2(0.5f, 3.5f));
             if (selectedInhabitantId != other.Id || after >= before || after > 1)
                 throw new InvalidOperationException($"Choosing an agent must select them and move the camera to them: selected={selectedInhabitantId} distance {before} → {after}.");
+
+            // Direct edits follow the selected living agent and require pause.
+            var paused = world with { Authoring = new(true, 0, 0, 0, "initial", "current", "clear", "spring", []) };
+            RenderDeveloperEdits(paused with { Authoring = paused.Authoring! with { IsPaused = false } }, actionDisabled: false);
+            if (!developerEditApply.Disabled)
+                throw new InvalidOperationException("Direct edits must be unavailable in a running world.");
+            RenderDeveloperEdits(paused, actionDisabled: false);
+            if (developerEditApply.Disabled || developerEditAgent.Text != "Selected: Mira" || developerEditKind.ItemCount != 7)
+                throw new InvalidOperationException("Paused Developer tools must offer all seven edits for the selected agent.");
+            developerEditKind.Select(5);
+            ConfigureDeveloperEdit();
+            RenderDeveloperEdits(paused, actionDisabled: false);
+            if (!developerEditOther.Visible || developerEditValue.Visible || developerEditAmount.Visible ||
+                developerEditOther.ItemCount != 1 || developerEditOther.GetSelectedMetadata().AsString() != walker.Id)
+                throw new InvalidOperationException("Partnership edits must select another living agent.");
+            developerEditKind.Select(3);
+            ConfigureDeveloperEdit();
+            if (developerEditValue.ItemCount != 4 || developerEditOther.Visible || developerEditAmount.Visible)
+                throw new InvalidOperationException("Skill edits must offer the four supported skills without quantity or partner fields.");
+            developerEditKind.Select(0);
+            ConfigureDeveloperEdit();
+            RenderDeveloperEdits(paused with { Inhabitants = [other with { Lifecycle = "dead" }] }, actionDisabled: false);
+            if (!developerEditApply.Disabled)
+                throw new InvalidOperationException("Historical profiles cannot be edited.");
+            RenderDeveloperEdits(paused, actionDisabled: true);
+            if (!developerEditApply.Disabled)
+                throw new InvalidOperationException("Direct edits must be unavailable without owner action access.");
 
             // Show planned path draws the selected agent's reported route, and nothing else.
             developerPathToggle.ButtonPressed = true;

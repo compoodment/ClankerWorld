@@ -628,3 +628,25 @@ roots and their digest-addressed chains before removing unreferenced segments.
 Unpublished generations conservatively count as roots. Corrupt roots defer history
 cleanup, preserving other saves. This is ordinary file deletion, not secure disk
 erasure, and does not remove copies in external backups.
+
+## Developer edits
+
+A paused developer edit changes existing need, inventory, skill or partnership
+state and appends one `developer_edit` event whose JSON detail is the complete
+`PrivateWorldDeveloperEdit` command. No checkpoint fields or schema version
+change. Existing save validation still applies to the entire proposed world;
+older readers can load the same state representation, though they do not offer
+the edit UI or describe the new event kind.
+
+The event ID supplies deterministic lot and relationship IDs. Reapplying its
+command to the same paused baseline reproduces the checkpoint; replay tests
+also compare resumed ticks after a save/load roundtrip. The event carries the
+world ID and expected latest event ID. An exact retry found in hot event history
+returns already applied without another grant or event. After history compaction,
+the old event precondition refuses that retry instead of applying it again.
+
+The host writes the validated proposal through the checkpoint's atomic file
+replacement before accepting it in memory. A failed write preserves the live
+state and the prior save, and the original command can be retried. Tests cover
+this rollback, stale/wrong-world refusals, field binding in signed requests,
+and the generated-world path for every supported edit category.

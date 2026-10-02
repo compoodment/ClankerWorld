@@ -39,6 +39,7 @@ public sealed partial class PrivateWorldRuntime
                 proposed.ApplyDeveloperEditCore(edit);
                 proposed.AppendEvent("developer_edit", detail);
                 proposed.Validate();
+                ValidateStateForCodec(proposed.CaptureState());
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or InvalidDataException)
             {
@@ -70,6 +71,7 @@ public sealed partial class PrivateWorldRuntime
                 if (edit.Amount is < 0 or > 100)
                     throw new ArgumentOutOfRangeException(nameof(edit), "Needs must be between 0 and 100 percent.");
                 var survival = person.Survival ?? new SurvivalCondition();
+                if (edit.Value != "fullness") survivalState ??= new SettlementSurvivalState(WorldTick, []);
                 inhabitants[actor] = edit.Value switch
                 {
                     "fullness" => person with { HungerBasisPoints = edit.Amount * 100 },
@@ -84,7 +86,14 @@ public sealed partial class PrivateWorldRuntime
                     throw new ArgumentException("Choose a supported good and a quantity from 1 to 100.");
                 if (edit.Amount > FreeCarryCapacity(actor))
                     throw new InvalidOperationException("The agent cannot carry that many goods.");
-                ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, id, edit.Value, actor, edit.Amount));
+                var individualVessels = InventoryContainerRules.IsContainer(edit.Value);
+                var lotsToAdd = individualVessels ? edit.Amount : 1;
+                for (var index = 0; index < lotsToAdd; index++)
+                {
+                    var lotId = lotsToAdd == 1 ? id : id + ":" + index;
+                    ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory, lotId, edit.Value, actor,
+                        individualVessels ? 1 : edit.Amount));
+                }
                 break;
             case "remove_goods":
                 if (edit.Amount is < 1 or > 100)
@@ -103,10 +112,7 @@ public sealed partial class PrivateWorldRuntime
                 {
                     var amount = Math.Min(remaining, PhysicalUnreservedQuantity(lot));
                     if (amount == 0) continue;
-                    var reservation = id + ":remove:" + remaining;
-                    ApplyInventoryTransition(inventory => InventoryFixture.ConsumeReservation(
-                        InventoryFixture.Reserve(inventory, reservation, actor, lot.Id, amount, "developer_edit", WorldTick),
-                        reservation));
+                    ApplyInventoryTransition(inventory => InventoryFixture.Discard(inventory, actor, lot.Id, amount));
                     remaining -= amount;
                     if (remaining == 0) break;
                 }
@@ -115,6 +121,9 @@ public sealed partial class PrivateWorldRuntime
             case "remove_skill":
                 if (!Enum.TryParse<SettlementSkillKind>(edit.Value, true, out var skill) || !Enum.IsDefined(skill))
                     throw new ArgumentException("Choose building, farming, crafting or smithing.");
+                var hasSkill = person.Skills?.Any(item => item.Kind == skill) == true;
+                if (hasSkill == (edit.Operation == "add_skill"))
+                    throw new InvalidOperationException(hasSkill ? "The agent already has that skill." : "The agent does not have that skill.");
                 var skills = (person.Skills ?? []).Where(item => item.Kind != skill).ToList();
                 if (edit.Operation == "add_skill")
                     skills.Add(person.Skills?.FirstOrDefault(item => item.Kind == skill) ?? new SettlementSkill(skill, WorldTick));
@@ -122,6 +131,7 @@ public sealed partial class PrivateWorldRuntime
                 break;
             case "start_partnership":
             case "end_partnership":
+                if (edit.Value != "partnership") throw new ArgumentException("Choose partnership as the relationship type.");
                 var other = edit.OtherAgentId;
                 if (other is null || other == actor || !AdultResident(actor) || !AdultResident(other))
                     throw new InvalidOperationException("Choose two different living adults.");
