@@ -210,8 +210,9 @@ summaries remain unfinished.
 
 Restaurant trading uses the normal private-world path; its
 [Windows playtest checklist](../playtest/561-concrete-meals.md) is pending.
-Adults walk to shops in their own Town before checking the exact goods and
-terms. A visit reveals no private stock remotely and transfers nothing.
+Restaurant adults visit ingredient shops in their Town, and adult residents
+visit its Restaurants for meals. Exact goods and terms are checked after
+arrival; a visit reveals no private stock remotely and transfers nothing.
 An adult from the household holding a Restaurant buys ingredients it actually
 lacks, such as flour milled at another household's Farmhouse. Usable supplies
 already there or actually deliverable reduce the shortage; private House

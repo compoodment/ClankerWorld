@@ -1487,8 +1487,9 @@ actual incoming deliveries and supplies an adult can physically collect reduce
 the shortage. Supplying one workplace must preserve the ingredients another
 still needs. An adult pays only with their personally owned carried goods, and
 cannot spend a needed Restaurant ingredient in a way that increases its
-shortage. Adults may visit shops in their own Town to find ingredients or
-Restaurant meals; the trip reveals no remote private stock. Exact goods and
+shortage. Restaurant adults may visit ingredient shops in their Town, and
+adult residents may visit its Restaurants for meals. The trip reveals no
+remote private stock. Exact goods and
 terms are checked after arrival, and both traders must meet before settlement.
 The House remains the heating hearth; Restaurant wood is a cooking input.
 Meal prices remain provisional barter terms tied to the recipe.
