@@ -127,11 +127,13 @@ public partial class Main
     /// <summary>What this agent remembers, believes and has mapped, newest first, for the Memories panel.</summary>
     private void RenderMemoryCards(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
     {
+        // A belief names its subject by looking them up, so a rename must redraw it too.
+        string? SubjectName(string? id) => id is null ? null : snapshot.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName;
         var signature = string.Join("|", inhabitant.Id, UiTheme.Current.Name, displayPreferences.DateStyle, observedCalendarPace, displayPreferences.UseTwelveHourClock,
             string.Join(",", inhabitant.RecentMemories.Select(item => $"{item.WorldTick}:{item.Summary}:{item.SubjectName}:{item.Visibility}")),
-            string.Join(",", inhabitant.RecentBeliefs.Select(item => $"{item.WorldTick}:{item.Statement}:{item.Provenance}:{item.ConfidenceBasisPoints}:{item.SourceAgentName}:{item.AboutInhabitantId}:{item.IsCorrected}:{item.CorrectedTick}")),
+            string.Join(",", inhabitant.RecentBeliefs.Select(item => $"{item.WorldTick}:{item.Statement}:{item.Provenance}:{item.ConfidenceBasisPoints}:{item.SourceAgentName}:{item.AboutInhabitantId}:{SubjectName(item.AboutInhabitantId)}:{item.IsCorrected}:{item.CorrectedTick}")),
             string.Join(",", inhabitant.RecentKnowledgeFacts.Select(item => $"{item.WorldTick}:{item.X}:{item.Y}:{item.Terrain}:{string.Join('+', item.ResourceKinds)}:{item.Acquisition}:{item.SourceAgentName}:{item.DiscovererName}")),
-            string.Join(",", inhabitant.KnowledgeArtifacts.Select(item => $"{item.Id}:{item.Title}:{item.Sites.Count}")));
+            string.Join(",", inhabitant.KnowledgeArtifacts.Select(item => $"{item.Id}:{item.Title}:{item.CreatorName}:{item.Sites.Count}")));
         if (signature == renderedMemoryCards) return;
         renderedMemoryCards = signature;
         memoryCardEntries.Clear();
@@ -155,7 +157,7 @@ public partial class Main
                 "hearsay" => "Heard it from someone",
                 _ => "Worked it out",
             };
-            var subject = item.AboutInhabitantId is { } id ? snapshot.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName : null;
+            var subject = SubjectName(item.AboutInhabitantId);
             memoryCardEntries.Add(new(item.WorldTick, MemoryKind.Belief, () =>
             {
                 var meta = new List<Control>

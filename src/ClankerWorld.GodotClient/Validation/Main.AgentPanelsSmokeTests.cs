@@ -121,6 +121,16 @@ public partial class Main
             if (memoryCards.GetChildCount() != 1 || !MemoryCardsText().Contains("Wren is saving seed", StringComparison.Ordinal))
                 throw new InvalidOperationException("A Memories tab must show only its own kind.");
             TabButton(0).EmitSignal(BaseButton.SignalName.Pressed);
+            // A belief names its subject as they are called now, even after a rename.
+            var believer = mira with
+            {
+                RecentBeliefs = [.. mira.RecentBeliefs, new OwnerWorldAgentBelief(4, "Keeps the spare axe by the door.", "firsthand", 9_000, null, null, null, rowan.Id, false, null)],
+            };
+            RenderSelectedInhabitantCard(snapshot with { Inhabitants = [believer, rowan, pip] });
+            RenderSelectedInhabitantCard(snapshot with { Inhabitants = [believer, rowan with { DisplayName = "Rowan Ash" }, pip] });
+            if (!MemoryCardsText().Contains("about Rowan Ash", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A belief card must follow its subject's new name: {MemoryCardsText().ReplaceLineEndings(" / ")}");
+            RenderSelectedInhabitantCard(snapshot);
             if (!GetViewportRect().Encloses(memoriesPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Memories must stay on screen: {memoriesPanel.GetGlobalRect()}");
 
