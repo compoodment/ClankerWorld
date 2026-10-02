@@ -1,0 +1,1 @@
+- Preserve previously walked scouting paths when a later bridge changes the crossing. Keep the scout's recorded visits and discoveries when saving or loading, including in a deceased profile. Returning scouts still follow routes that are legal now, and impossible saved steps are refused.

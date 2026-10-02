@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Saves and replay
@@ -279,6 +279,23 @@ its evidence use the existing fields and crossing IDs, so the schema number
 does not change. An older build refuses, and keeps, a save that places an
 agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
+
+Scouting waypoints record already walked steps, rather than permission to
+repeat those steps now. Loading checks each ordered edge against the current
+bridge map or against the same terrain with only bridges built strictly before
+the outing's `LastOutingTick`. A bridge built on the outing's start tick is
+excluded from that older graph because it may have appeared later in the same
+tick. Bridges that predate the outing remain, so an impossible sideways step
+across an existing deck is not excused by removing it.
+
+For a deceased agent's archived outing, the first graph includes only bridges
+built at or before `DeathTick`; a bridge built on a later tick cannot make a
+fabricated old step legal. Record bounds, coordinates, times and discovery uniqueness remain
+checked. Saving and loading keep the recorded path, visits and discoveries
+without clearing them to hide a topology change. Actual scouting and return
+movement always use today's bridge map, with its legal axes, detours and
+blocked-return behavior. These checks use existing timestamps and add no saved
+fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
 `PrivateWorldRuntime.StateSchemaVersion` 47. The minimum supported schema is
