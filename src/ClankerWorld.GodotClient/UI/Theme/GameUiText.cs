@@ -181,6 +181,7 @@ public static class GameUiText
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "continuity_rule_on" or "continuity_rule_off" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
@@ -282,7 +283,8 @@ public static class GameUiText
         if (normalized.StartsWith("parent_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("parent_propose:", StringComparison.Ordinal) ? "talk about having a child"
-                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child" : "decide against having a child";
+                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child"
+                : normalized.StartsWith("parent_postpone:", StringComparison.Ordinal) ? "put off having a child" : "decide against having a child";
         }
         if (normalized.StartsWith("partner_", StringComparison.Ordinal))
         {

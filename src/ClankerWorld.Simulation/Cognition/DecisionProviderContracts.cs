@@ -100,12 +100,13 @@ public sealed record CognitionKnowledgeFact(
 /// <summary>
 /// Actor-owned context only; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
+/// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null);
+    string? EquipmentNote = null, string? ContinuityNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -242,7 +243,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
-            self.EquipmentNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -650,6 +651,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
                 housing = request.Observation.Self?.HousingNote,
+                continuity = request.Observation.Self?.ContinuityNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -896,6 +898,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
                         "Housing, when present, says why you have no home of your own. " +
+                        "Continuity, when present, is this world's rule on having a child with your partner while few people live here. " +
                         "Return JSON only, with fields " +
                         "selected_candidate_id (string), confidence (number 0..1), " +
                         "and optional " +
@@ -944,6 +947,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             town = self.TownName,
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
+                            continuity = self.ContinuityNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

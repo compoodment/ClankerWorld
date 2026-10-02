@@ -705,6 +705,44 @@ resident. The game does not yet relocate people who already live in an
 overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
+**Continuity rule** (`SettlementContinuity`). The owner's answer on
+[#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
+numbers: the rule is on while fewer than eight active agents are not
+elders, and a couple may say "not yet" for two world days
+(`2 × TicksPerDay`). The checkpoint saves whether the rule was on at the last
+check and, per eligible couple, the tick at which their "not yet" ends. A new
+world appends `continuity_rule_on` when it is created; each tick
+`MaintainContinuity`, after `MaintainParenthood`, compares the live count with
+the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
+(detail `non_elders:{count}`) only when it changes, so reloading never repeats
+one.
+
+While the rule is on, an eligible couple is an accepted partnership that
+also passes the ordinary parenthood checks (both adults or elders, both with
+a household, not close kin) where neither partner is a parent or caregiver of
+a living infant. A couple first gets a deadline when it becomes eligible, and
+loses it when it stops being eligible or the rule turns off. Until the
+deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
+`parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
+candidates are neither offered nor applied. A couple held by the rule may
+propose while caring for an older child. At the deadline the server moves an
+existing plan to `preparing`, or creates a new plan for the partner who last
+asked (else the first by ID), and appends `continuity_plan_proceeded`.
+A new plan records that parent
+as its primary caregiver and their current household as its intended home.
+Resuming an accepted or postponed plan preserves its original initiating
+parent, request tick, selected caregiver and intended home. Birth still follows
+the caregiver's current household, including after a move or when its House
+is full. A plan past its deadline does not expire: it waits for the usual food,
+shelter and readiness checks. The rule only reads accepted partnerships and
+never proposes or accepts one.
+
+Each partner's self context carries a `continuity` note saying the rule and
+the hours left; a single agent's stays empty. Loading checks the flag and
+couples: known partner IDs in order, no couples while the rule is off, and no
+deadline more than two world days ahead. These events are logged as
+`settlement_family`; the two transitions are also Event Log lines.
+
 A recipe project that finds its work site busy waits with the blocker "Waiting
 for a free work site". While anyone waits, no one else is offered a new recipe
 for the same workstation design, so the waiting agent gets the next turn

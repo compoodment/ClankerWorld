@@ -380,6 +380,7 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
                              "partnership_refused" or "partnership_ended" or "partnership_expired" or
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
+                             "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))

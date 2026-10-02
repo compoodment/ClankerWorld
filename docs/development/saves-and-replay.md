@@ -64,6 +64,16 @@ work finishes. Town membership, building assignments and physical inventory
 locations are validated together; older alpha saves need not load and no
 migration is provided.
 
+Schema 46 adds the low-population continuity rule: whether it was on at the
+last check, so its Event Log transitions are not repeated after loading, and
+each eligible couple's deadline for saying "not yet" to a child. A parenthood
+plan may also be in the new `postponed` stage. Loading refuses a checkpoint
+without this state, couples while the rule is off, unknown or unordered
+partner IDs, duplicate couples, and a deadline more than two world days after
+the saved clock. Current-format roundtrips keep the flag and deadlines, and a
+replay from a postponed plan reaches the same plan and checkpoint. Older
+schemas are refused. No migration is added.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -269,7 +279,7 @@ agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 45. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 46. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -282,7 +292,8 @@ family and caregiver/birth-home records, owner messages with whether a personal
 model heard them and any short reply, tool-lot links for saved field and
 recipe work, per-agent life-moment identity opportunities with their outcomes,
 connected Town-title plots, household use rights and pending use requests,
-and physical shop exchanges beside their exact inventory offers.
+physical shop exchanges beside their exact inventory offers,
+and the continuity rule's state with each eligible couple's deadline.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
@@ -296,9 +307,10 @@ and weather generation, schema 37 for personal equipment, schema 38 for building
 assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
-identity, schema 44 for Town land records and schema 45 for physical shop
-exchanges, record when those fields or behaviors were introduced; they do not
-allow an earlier checkpoint schema past the current alpha cutoff.
+identity, schema 44 for Town land records, schema 45 for physical shop
+exchanges and schema 46 for continuity, record when those fields or behaviors
+were introduced; they do not allow an earlier checkpoint schema past the
+current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -330,6 +342,7 @@ allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
 | Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 | Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
+| Schema 46 | The continuity rule's saved on/off state and each eligible couple's "not yet" deadline, plus the `postponed` parenthood stage. A missing or inconsistent rule state is refused. Earlier schemas cannot carry it. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

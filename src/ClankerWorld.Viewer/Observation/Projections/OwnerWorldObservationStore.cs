@@ -795,8 +795,11 @@ public sealed class OwnerWorldObservationStore
                 .Concat(BusinessTradeNotes(state, inhabitant))
                 .Concat(state.Inhabitants.Where(person => person.Parenthood is { } plan &&
                     (person.InhabitantId == inhabitant.Id || plan.PartnerId == inhabitant.Id)).Select(person =>
-                    person.Parenthood!.Stage == "preparing" ? "Preparing for parenthood; food, shelter and both parents' consent are still required."
+                    person.Parenthood!.Stage == "preparing" ? ContinuityPlanDue(state, person.InhabitantId, person.Parenthood.PartnerId)
+                        ? "Preparing for parenthood under the continuity rule; food and shelter are still required."
+                        : "Preparing for parenthood; food, shelter and both parents' consent are still required."
                     : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
+                    : person.Parenthood.Stage == "postponed" ? "Parenthood put off for now."
                     : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
                 .Concat(inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
                     !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
@@ -808,6 +811,11 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    /// <summary>The continuity rule has sent this couple's plan ahead; their two days of "not yet" are up.</summary>
+    private static bool ContinuityPlanDue(PrivateWorldRuntimeState state, string owner, string partner) =>
+        state.Continuity?.Couples.Any(couple => couple.DeadlineTick <= state.Society.Society.WorldTick &&
+            (couple.FirstPartnerId == owner && couple.SecondPartnerId == partner ||
+             couple.FirstPartnerId == partner && couple.SecondPartnerId == owner)) == true;
     private static ViewerBusinessTrade[] BusinessTradesAt(PrivateWorldRuntimeState state, string buildingId) =>
         (state.BusinessTrades ?? []).Where(trade => trade.BuildingInstanceId == buildingId)
             .OrderByDescending(trade => state.Society.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
