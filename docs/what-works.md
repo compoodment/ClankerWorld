@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # What works today
@@ -163,6 +163,16 @@ berry-patch", "go to berries at (12, 4)" and "keep gathering food until
 cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
+
+Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
+or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
+finish only on the requested tile, and wait when it is occupied or unreachable.
+Each order is one trip; repeated or counted tile trips are not understood.
+The target survives queueing, urgent survival interruptions and save/reload.
+Giving coordinates does not create firsthand map knowledge; actual travel
+and observation still supply it. Non-food gathering/carrying, farming, cooking,
+crafting, repair and construction orders remain in
+[#587](https://github.com/compoodment/ClankerWorld/issues/587).
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

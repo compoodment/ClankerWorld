@@ -549,6 +549,13 @@ public sealed partial class PrivateWorldRuntime
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
 
+        if (order.Action == "move_to")
+            return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "arrivals" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? MovementOrderEffectId(destination) : null);
+
         if (order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
             order.RequestedUnits is < 1 or > 1000 || order.CompletedUnits is < 0 or > 1_000_000 ||
             order.Status == "finished" && (order.RepeatUntilCancelled || order.CompletedUnits < order.RequestedUnits) ||

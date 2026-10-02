@@ -1,0 +1,3 @@
+- On the paired world, give an agent the Order **Move to tile (12, 4)** using a reachable tile's coordinates. Check that the agent walks there, the displayed task stays active during travel, and it finishes only on that tile. ([#587](https://github.com/compoodment/ClankerWorld/issues/587))
+- Queue a return trip, save during the first journey, and reload. Check that the first destination stays unchanged and the return trip begins after arrival. ([#587](https://github.com/compoodment/ClankerWorld/issues/587))
+- Order a trip to an occupied tile, then cancel it. Check that the blocked reason is visible and freeing the tile does not restart the cancelled trip. ([#587](https://github.com/compoodment/ClankerWorld/issues/587))

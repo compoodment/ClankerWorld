@@ -1125,6 +1125,7 @@ public sealed class OwnerWorldObservationStore
     private static string PublicIntentionSummary(string candidateId) => candidateId switch
     {
         "seek_food" => "looking for food",
+        "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",

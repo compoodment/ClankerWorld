@@ -223,7 +223,7 @@ public sealed partial class PrivateWorldRuntimeTests
     private static OwnerInstructionOrder CancellationOrder(PrivateWorldRuntimeState state, string orderId) =>
         Assert.Single(state.Instructions!, instruction => instruction.InstructionId == orderId).Order!;
 
-    private sealed class CancellationPlanningProvider(bool holdFirstOrder = false) : IDecisionProvider
+    private sealed class CancellationPlanningProvider(bool holdFirstOrder = false, string orderCandidate = "seek_food") : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
@@ -246,7 +246,7 @@ public sealed partial class PrivateWorldRuntimeTests
                 Returned.TrySetResult(true);
             }
             return HostedResponse(request, Kind, ProviderEpoch,
-                request.Observation.OperativeOrderInstructionId is null ? "safe_idle" : "seek_food");
+                request.Observation.OperativeOrderInstructionId is null ? "safe_idle" : orderCandidate);
         }
     }
 }

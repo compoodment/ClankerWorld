@@ -230,7 +230,8 @@ public sealed record InhabitantObservation(
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
                     ("eat one carried food item" or "travel within gathering range of an available food source" or
-                        "gather several food servings from a nearby food source") ||
+                        "gather several food servings from a nearby food source" or
+                        "travel to the exact tile named in this order") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
         }
