@@ -7,8 +7,8 @@ public static partial class ProviderUsageTelemetry
     public static partial void AccountingBlocked(ILogger logger);
 
     [LoggerMessage(EventId = 2281, Level = LogLevel.Warning,
-        Message = "provider_usage_limit_reached outcome=paused scope=installation tick={WorldTick}")]
-    public static partial void LimitReached(ILogger logger, long worldTick);
+        Message = "provider_usage_limit_reached outcome={Outcome} scope=installation tick={WorldTick}")]
+    public static partial void LimitReached(ILogger logger, string outcome, long worldTick);
 
     [LoggerMessage(EventId = 2288, Level = LogLevel.Warning,
         Message = "provider_usage_warning outcome={Outcome} scope=installation attempts={Attempts} limit={AttemptLimit} tick={WorldTick}")]

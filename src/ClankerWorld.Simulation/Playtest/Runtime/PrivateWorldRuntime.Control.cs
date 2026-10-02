@@ -113,22 +113,24 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    // Set while this thread starts a conversation provider call under the
+    // runtime gate: the provider runs here until its first await and may
+    // reserve a model call, whose handlers must not wait for the gate.
+    [ThreadStatic] private static PrivateWorldRuntime? providerStartUnderGate;
+
+    /// <summary>
+    /// True while this thread holds the runtime gate to start a provider call.
+    /// The gate is not reentrant, so code reached from that call must not wait
+    /// for this runtime.
+    /// </summary>
+    public bool IsStartingProviderCallOnThisThread => ReferenceEquals(providerStartUnderGate, this);
+
     public void Pause()
     {
         gate.Wait();
         try
         {
-            var wasPaused = society.Checkpoint.IsPaused;
-            var result = society.Pause();
-            if (!wasPaused && result.Checkpoint.IsPaused)
-            {
-                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-                foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-                foreach (var id in pendingConversationTurns.Keys.ToArray())
-                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
-                SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
-                AppendEvent("paused", "owner_request");
-            }
+            PauseCore();
         }
         finally
         {
@@ -137,17 +139,52 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
+    /// Pauses like <see cref="Pause"/>, but returns false without pausing if
+    /// the runtime stays busy for <paramref name="wait"/> or this thread is
+    /// starting a provider call under the runtime gate.
+    /// </summary>
+    public bool TryPause(TimeSpan wait)
+    {
+        if (IsStartingProviderCallOnThisThread || !gate.Wait(wait)) return false;
+        try
+        {
+            PauseCore();
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private void PauseCore()
+    {
+        var wasPaused = society.Checkpoint.IsPaused;
+        var result = society.Pause();
+        if (!wasPaused && result.Checkpoint.IsPaused)
+        {
+            foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+            foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            foreach (var id in pendingConversationTurns.Keys.ToArray())
+                CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
+            SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
+            AppendEvent("paused", "owner_request");
+        }
+    }
+
+    /// <summary>
     /// Writes the installation's 80% model-call warning into this world's
     /// Event Log. The count and limit stay in installation accounting; the
     /// event only records what the player was told, like a pause. Returns
     /// false, recording nothing, when the runtime stays busy for
-    /// <paramref name="wait"/>.
+    /// <paramref name="wait"/> or this thread is starting a provider call
+    /// under the runtime gate.
     /// </summary>
     public bool TryRecordModelCallWarning(long attempts, long attemptLimit, TimeSpan wait)
     {
         if (attemptLimit < 1 || attempts < 1 || attempts > attemptLimit)
             throw new ArgumentOutOfRangeException(nameof(attempts), "A model-call warning needs a used count within a positive limit.");
-        if (!gate.Wait(wait)) return false;
+        if (IsStartingProviderCallOnThisThread || !gate.Wait(wait)) return false;
         try
         {
             AppendEvent("model_call_warning", FormattableString.Invariant($"used:{attempts}:limit:{attemptLimit}"));

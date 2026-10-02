@@ -219,75 +219,35 @@ if (isPrivateWorld) _ = app.Services.GetRequiredService<WorldCatalogStore>();
 if (app.Services.GetRequiredService<ProviderUsageStore>().Capture().AccountingError is not null)
     ProviderUsageTelemetry.AccountingBlocked(app.Logger);
 ProviderCredentialTelemetry.Ready(app.Logger, OperatingSystem.IsWindows() ? "windows_current_user" : "private_file_permissions");
-app.Services.GetRequiredService<ProviderUsageStore>().LimitReached += () =>
+var providerUsage = app.Services.GetRequiredService<ProviderUsageStore>();
+if (isPrivateWorld)
 {
-    if (isPrivateWorld)
-    {
-        var runtime = app.Services.GetRequiredService<PrivateWorldRuntime>();
-        runtime.Pause();
-        app.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
-        ProviderUsageTelemetry.LimitReached(app.Logger, runtime.WorldTick);
-    }
-    else
+    var usageEffects = new Lazy<ProviderUsageWorldEffects>(() => new ProviderUsageWorldEffects(
+        app.Services.GetRequiredService<PrivateWorldRuntime>(),
+        app.Services.GetRequiredService<PrivateWorldStateFile>(),
+        app.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate,
+        app.Logger));
+    providerUsage.LimitReached += () => usageEffects.Value.PauseAtLimit();
+    providerUsage.WarningReached += warning => usageEffects.Value.RecordWarning(warning);
+}
+else
+{
+    providerUsage.LimitReached += () =>
     {
         var runtime = app.Services.GetRequiredService<OwnerWorldRuntime>();
         if (runtime.Pause("provider_usage_limit"))
             app.Services.GetRequiredService<OwnerWorldStateFile>().Save(runtime);
-        ProviderUsageTelemetry.LimitReached(app.Logger, 0);
-    }
-};
-app.Services.GetRequiredService<ProviderUsageStore>().WarningReached += warning =>
-{
-    if (!isPrivateWorld)
-    {
+        ProviderUsageTelemetry.LimitReached(app.Logger, "paused", 0);
+    };
+    // The fixture world has no Event Log line for this; the log still records it.
+    providerUsage.WarningReached += warning =>
         ProviderUsageTelemetry.WarningReached(app.Logger, "logged_only", warning.Attempts, warning.AttemptLimit, 0);
-        return;
-    }
-    // The reserving thread may hold the runtime gate (a conversation turn
-    // reserves inside a tick) or be raced by a world load, so it only takes
-    // gates that are free. Otherwise another task waits for them.
-    if (!RecordModelCallWarning(warning, TimeSpan.Zero))
-        _ = Task.Run(() => RecordModelCallWarning(warning, Timeout.InfiniteTimeSpan));
-};
+}
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapOwnerEndpoints(isPrivateWorld);
 
 app.Run();
-
-// Adds the one 80% warning to the active world's Event Log and saves it, so a
-// paused world cannot lose it. Load and world selection hold the mutation
-// gate, so the line lands in one whole world. False means a gate was busy.
-bool RecordModelCallWarning(ProviderUsageWarning warning, TimeSpan wait)
-{
-    var outcome = "failed";
-    var tick = 0L;
-    object? mutationGate = null;
-    var entered = false;
-    try
-    {
-        mutationGate = app.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate;
-        Monitor.TryEnter(mutationGate, wait, ref entered);
-        var runtime = app.Services.GetRequiredService<PrivateWorldRuntime>();
-        if (!entered || !runtime.TryRecordModelCallWarning(warning.Attempts, warning.AttemptLimit, wait))
-            return false;
-        tick = runtime.WorldTick;
-        // A failed save leaves the line for the world's next save.
-        outcome = "event_log_unsaved";
-        app.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
-        outcome = "event_log";
-    }
-    catch (Exception exception) when (exception is not OutOfMemoryException)
-    {
-        // Reported below with the outcome reached.
-    }
-    finally
-    {
-        if (entered) Monitor.Exit(mutationGate!);
-    }
-    ProviderUsageTelemetry.WarningReached(app.Logger, outcome, warning.Attempts, warning.AttemptLimit, tick);
-    return true;
-}
 
 public partial class Program;

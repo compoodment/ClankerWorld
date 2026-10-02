@@ -584,7 +584,19 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             var cancellation = new CancellationTokenSource();
-            var task = RunConversationProviderAsync(provider, request, cancellation.Token);
+            // The provider runs on this gate-holding thread until its first
+            // await, which comes after it reserves a paid model call.
+            var outerStart = providerStartUnderGate;
+            providerStartUnderGate = this;
+            Task<ConversationTurnOutcome> task;
+            try
+            {
+                task = RunConversationProviderAsync(provider, request, cancellation.Token);
+            }
+            finally
+            {
+                providerStartUnderGate = outerStart;
+            }
             conversations[conversations.FindIndex(item => item.Id == started.Id)] = started;
             pendingConversationTurns.Add(started.Id, new PendingConversationTurn(
                 request, task, cancellation, providerEpoch));
