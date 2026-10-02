@@ -439,6 +439,11 @@ shields and basic armor wood/cloth/iron crafting paths at the Blacksmith, with
 equipping, wear, repair and replacement. Computment's agreement here was
 qualified (“if I get what you mean”).
 
+**Parked on October 1, 2026
+([#568](https://github.com/compoodment/ClankerWorld/issues/568)):** crafting,
+equipping and repairing combat gear waits until combat itself is designed. The
+pipelines above stay agreed but are not built before then.
+
 ### Still to decide
 
 Detailed injuries and recovery rates, escape/surrender, law enforcement, war
