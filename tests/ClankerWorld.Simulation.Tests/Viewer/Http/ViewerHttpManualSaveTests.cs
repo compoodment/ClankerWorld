@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
@@ -165,6 +166,7 @@ public sealed partial class ViewerHttpTests
             string firstId;
             string generatedId;
             string deviceId;
+            PrivateWorldRuntimeState generatedLandState;
             using (var host = new ViewerWebApplicationFactory(directory.FullName, null,
                        privateWorld: true, legacyPrivateWorld: false))
             using (var client = host.CreateClient())
@@ -277,6 +279,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(5, runtime.WorldSimulation.Buildings.Count);
                 Assert.NotEmpty(runtime.RoadTiles);
                 Assert.Equal(new GridPoint(preview.Camp.X, preview.Camp.Y), Assert.Single(runtime.Towns).OriginSite);
+                generatedLandState = runtime.ExportState();
                 Assert.Contains(townLog.Messages, message => message.Contains(
                     "first_town_layout outcome=accepted world_tick=0", StringComparison.Ordinal));
                 Assert.DoesNotContain(townLog.Messages, message => message.Contains(
@@ -383,11 +386,16 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
                 File.WriteAllBytes(firstPath, originalBytes);
 
+                var originalCheckpoint = PrivateWorldRuntimeCodec.Decode(originalBytes);
+                Assert.NotEqual(JsonSerializer.Serialize(originalCheckpoint.TownLandTitles),
+                    JsonSerializer.Serialize(generatedLandState.TownLandTitles));
+
                 var select = new OwnerManualSaveAction("select-world", firstId);
                 using var selected = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/select", select,
                     OwnerHttpBinding.ManualSavePayload(select));
                 Assert.Equal(HttpStatusCode.OK, selected.StatusCode);
+                AssertSavedTownLandRecordsMatch(originalCheckpoint, runtime.ExportState());
                 Assert.Null(runtime.ExportState().Geography);
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
@@ -398,6 +406,7 @@ public sealed partial class ViewerHttpTests
                     "/api/v1/owner/worlds/select", returnToGenerated,
                     OwnerHttpBinding.ManualSavePayload(returnToGenerated));
                 Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+                AssertSavedTownLandRecordsMatch(generatedLandState, runtime.ExportState());
             }
 
             using var restarted = new ViewerWebApplicationFactory(directory.FullName, null,
@@ -410,6 +419,8 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(HttpStatusCode.OK, signedListAfterRestart.StatusCode);
             var restoredCatalog = restarted.Services.GetRequiredService<WorldCatalogStore>().Capture();
             Assert.Equal(generatedId, restoredCatalog.ActiveId);
+            AssertSavedTownLandRecordsMatch(generatedLandState,
+                restarted.Services.GetRequiredService<PrivateWorldRuntime>().ExportState());
             Assert.Equal(2, restoredCatalog.Worlds.Count);
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
@@ -876,5 +887,16 @@ public sealed partial class ViewerHttpTests
             else Assert.False(File.Exists(sourcePath));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    private static void AssertSavedTownLandRecordsMatch(PrivateWorldRuntimeState expected,
+        PrivateWorldRuntimeState actual)
+    {
+        Assert.Equal(JsonSerializer.Serialize(expected.TownLandTitles),
+            JsonSerializer.Serialize(actual.TownLandTitles));
+        Assert.Equal(JsonSerializer.Serialize(expected.HouseholdLandUseRights),
+            JsonSerializer.Serialize(actual.HouseholdLandUseRights));
+        Assert.Equal(JsonSerializer.Serialize(expected.HouseholdLandUseRequests),
+            JsonSerializer.Serialize(actual.HouseholdLandUseRequests));
     }
 }

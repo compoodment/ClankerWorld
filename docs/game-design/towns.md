@@ -609,13 +609,31 @@ building. The generator should not preselect a fixed lifetime building count.
 
 The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
-The Town border alone does not silently take over another claim or transfer a
-building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. The first Town begins with a council,
-not an assumed mayor. Residents can later approve creating an elected mayor
-through the protected government-change process. Its creation, term and
-elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+A plot is a connected group of land tiles and can include empty land. The Town
+border alone does not silently take over another claim or transfer a building,
+its stock or a household's private goods. Physical occupation or model text
+cannot rewrite these records. The first Town begins with a council, not an
+assumed mayor. Residents can later approve creating an elected mayor through
+the protected government-change process. Its creation, term and elections are
+agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
+
+**Current implementation, not yet confirmed by computment:** the first
+accepted Town layout records title to the connected land inside its initial
+border, and later border growth makes room for the Town without adding title.
+That follows answer 19A, that a boundary change does not by itself change
+title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
+Starter household use rights cover only the footprints of the buildings
+assigned to each household; the shared Warehouse remains Town property.
+Add Agent treats a recorded use right as household property and Town title
+like a Town border; a single pending request gives no household. A household
+building's current owner comes before another household's undisputed use right
+on its footprint, so reassigning a building does not block placement there. A
+field does not, and disputed land is always refused. Whether title grows with
+the Town, how much land comes with a starter use right, and whether reassigning
+a building should move its starter use right remain open. Because new grants
+use existing Town-owned land, the first answer decides where later households
+can receive use rights.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -632,7 +650,10 @@ agreement without mayor approval for every transfer. The elected mayor makes
 the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
-agreed [case procedure](#land-hearings-and-rulings).
+agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
+on the map, and inspecting a tile lists each household's claim. Approval,
+consent, transfer and case actions are not built yet
+([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
 

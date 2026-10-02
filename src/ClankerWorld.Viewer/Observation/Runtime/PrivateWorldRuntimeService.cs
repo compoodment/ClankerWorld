@@ -44,6 +44,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
 
+    [LoggerMessage(EventId = 2288, Level = LogLevel.Information,
+        Message = "agent_identity_changed tick={WorldTick} inhabitant={InhabitantId}")]
+    private static partial void LogIdentityChanged(ILogger logger, long worldTick, string inhabitantId);
+
     [LoggerMessage(EventId = 2255, Level = LogLevel.Information,
         Message = "estate_will tick={WorldTick} estate={EstateId} deceased={DeceasedId} outcome={Outcome} reason={Reason}")]
     private static partial void LogEstateWill(ILogger logger, long worldTick, string estateId, string deceasedId, string outcome, string reason);
@@ -294,6 +298,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "agent_identity_revised"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is not null) LogIdentityChanged(logger, worldEvent.WorldTick, actor);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal) ||
                              item.Kind is "bridge_built" or "traffic_bridge_not_built"))
                     LogTownEvent(worldEvent);

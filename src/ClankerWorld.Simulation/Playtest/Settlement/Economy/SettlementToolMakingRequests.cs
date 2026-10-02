@@ -288,8 +288,12 @@ public sealed partial class PrivateWorldRuntime
                 }
                 var project = inhabitants[worker].Project;
                 if (request.JobId is null && project?.ToolMakingRequestId == request.Id)
-                    request = request with { JobId = project.JobId, Blocker = project.JobId is null
-                        ? ToolMakingInputBlocker(request, project) : project.Blocker };
+                    request = request with
+                    {
+                        JobId = project.JobId,
+                        Blocker = project.JobId is null
+                        ? ToolMakingInputBlocker(request, project) : project.Blocker
+                    };
                 if (request.JobId is { } jobId)
                 {
                     var job = worldSimulation.ProductionJobs.FirstOrDefault(job => job.JobId == jobId);
@@ -312,8 +316,12 @@ public sealed partial class PrivateWorldRuntime
                 if (linkedTrade is not null)
                 {
                     var offer = society.Checkpoint.Inventory.GetOffer(linkedTrade.OfferId);
-                    SetToolRequest(request with { OfferId = offer.Id, Status = offer.State == DirectBarterState.Settled
-                        ? ToolMakingRequestStatus.Fulfilled : ToolMakingRequestStatus.Offered },
+                    SetToolRequest(request with
+                    {
+                        OfferId = offer.Id,
+                        Status = offer.State == DirectBarterState.Settled
+                        ? ToolMakingRequestStatus.Fulfilled : ToolMakingRequestStatus.Offered
+                    },
                         offer.State == DirectBarterState.Settled ? "tool_request_completed" : null);
                     continue;
                 }
@@ -339,8 +347,11 @@ public sealed partial class PrivateWorldRuntime
         if (retired.Count > 0)
         {
             toolMakingRequests.RemoveAll(request => retired.Contains(request.Id));
-            worldSimulation = worldSimulation with { ProductionJobs = worldSimulation.ProductionJobs.Select(job =>
-                job.ToolMakingRequestId is { } id && retired.Contains(id) ? job with { ToolMakingRequestId = null } : job).ToArray() };
+            worldSimulation = worldSimulation with
+            {
+                ProductionJobs = worldSimulation.ProductionJobs.Select(job =>
+                job.ToolMakingRequestId is { } id && retired.Contains(id) ? job with { ToolMakingRequestId = null } : job).ToArray()
+            };
         }
     }
 }

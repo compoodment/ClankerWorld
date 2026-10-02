@@ -183,7 +183,7 @@ schema saves require the instruction and completion records and validate their
 target, ordering and tick bounds. Earlier alpha instruction records need not
 load; no message migration is provided.
 
-Private-world schema 43 records each physical shop exchange beside its inventory
+Private-world schema 45 records each physical shop exchange beside its inventory
 offer: the shop, holding household, customer, transaction position and time,
 item kinds, seller who completed it and any cancellation reason. Inventory
 offers retain the exact quantities and lot reservations. Pending exchanges and
@@ -191,7 +191,7 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-The Clinic draft raises the private-world schema to 44 above its parent's 43.
+The Clinic draft raises the private-world schema to 46 above its parent's 45.
 Each living inhabitant may record named adult medical permissions and an
 active medicine course. The course binds its patient and caregiver to the
 actual completed inventory reservation for the consumed dose, including the
@@ -201,11 +201,11 @@ interrupted courses close that receipt's medical purpose without releasing or
 refunding goods, so renewed permission cannot restore a spent effect. Death
 cleanup preserves completed receipts while releasing live claims. Archived
 physical profiles retain permission history but cannot retain active treatment.
-No schema 43 migration is provided; older alpha saves are refused and preserved.
+No schema 45 migration is provided; older alpha saves are refused and preserved.
 The number is provisional until the stacked merge order is reconciled.
 
-The ornament draft targets private-world schema 45 above its Clinic parent's
-44. It adds an optional exact ornament-lot selection to the existing personal
+The ornament draft targets private-world schema 47 above its Clinic parent's
+46. It adds an optional exact ornament-lot selection to the existing personal
 equipment record, without introducing combat equipment or a second inventory.
 Current-format checks must reject a foreign, reserved, stored or otherwise
 ineligible selected unit and preserve intermediate refining, diamond setting,
@@ -288,10 +288,11 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 48 in the tool-making draft, provisionally above its ornament parent (47) and Clinic ancestor (46). The minimum
-supported schema is the same value, so older alpha checkpoints are refused
-with a reason and left unchanged; no private-world migration runs. The current
-schema also includes
+`PrivateWorldRuntime.StateSchemaVersion` 48 in the tool-making draft,
+provisionally above its ornament parent (47) and Clinic ancestor (46). The
+minimum supported schema is the same value, so older alpha checkpoints are
+refused with a reason and left unchanged; no private-world migration runs.
+The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
@@ -300,8 +301,12 @@ equipment with timed repairs and exact reservations, reusable container lots
 with their contents, locations, owners and reservations, explicit domestic
 family and caregiver/birth-home records, owner messages with whether a personal
 model heard them and any short reply, tool-lot links for saved field and
-recipe work, physical shop exchanges beside their exact inventory offers,
-and medical permission and consumed-dose progress.
+recipe work, per-agent life-moment identity opportunities with their outcomes,
+connected Town-title plots, household use rights and pending use requests,
+physical shop exchanges beside their exact inventory offers, medical
+permission and consumed-dose progress, selected personal ornaments, and bounded
+tool-making requests linked to ordinary production and barter. Land records are
+checked against the saved map, Towns, households and one another before load.
 These fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
@@ -312,10 +317,12 @@ for fields and ground lots, schema 35 for conversations, schema 36 for terrain
 and weather generation, schema 37 for personal equipment, schema 38 for building
 assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
-selected tools on saved field and recipe work, schema 43 for physical shop
-exchanges, provisional schema 44 for medical permission and consumed-dose
-progress, and provisional schema 45 for selected ornaments, record when those
-fields or behaviors were introduced; they do not
+selected tools on saved field and recipe work, schema 43 for life-moment
+identity, schema 44 for Town land records, schema 45 for physical shop
+exchanges, provisional schema 46 for medical permission and consumed-dose
+progress, provisional schema 47 for selected ornaments, and provisional schema
+48 for tool-making requests, record when those fields or behaviors were
+introduced; they do not
 allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
@@ -345,9 +352,12 @@ allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 | Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 | Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
-| Schema 43 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
-| Schema 44, provisional Clinic draft | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
-
+| Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
+| Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
+| Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
+| Schema 46, provisional Clinic draft | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
+| Schema 47, provisional ornament draft | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
+| Schema 48, provisional tool-making draft | Bounded requests bind their customer, selling household, actual Blacksmith, accepted worker and ordinary production/offer history. Completed work requires exact full input receipts; purchase status must agree with the real inventory offer. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making draft format
 
@@ -360,12 +370,22 @@ Saved tool requests keep their requester, selling household, actual Blacksmith,
 existing recipe, status, worker and real production/offer links. Active and
 terminal lists remain bounded; selected production plans retain the exact
 request identity. Loading checks these links against the canonical production
-and barter records, including real completed output. A request is neither an
+and barter records. Every linked job must retain its exact input reservations,
+matching the whole recipe and selling household; completed work requires
+completed consumption receipts. Ready work must bind a completed job, and an
+offer must name that job's actual output and the same customer and shop.
+
+Offered, fulfilled and terminal purchase history must agree with the actual
+open, settled or cancelled inventory offer. A late withdrawal cannot turn an
+already settled purchase into a withdrawn request. Retiring bounded terminal
+history also clears its job link, so a job cannot retain an orphaned request.
+Withdrawal creates no refund or ownership transfer: materials, unfinished work
+and an unbought tool remain household property. A request is neither an
 inventory lot nor payment authority. Reload must preserve in-progress work and
 offer status without double production, duplicate payment or new ownership.
 Earlier alpha checkpoints are refused and left unchanged. Current-format
-integrity and byte-exact roundtrip remain required; execution is still pending
-for this outside preparation.
+integrity and byte-exact roundtrip remain required. Final integrated verification
+and the hands-on playtest remain pending.
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

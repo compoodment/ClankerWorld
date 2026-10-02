@@ -4,4 +4,4 @@
 
 - Putting on, taking off and giving an ornament are deliberate fresh personal-model choices. Jev, failed replies, repeated intentions and owner orders cannot give away an agent's ornament.
 
-- The draft targets private-world schema 45 above the Clinic parent's schema 44. Saving must preserve the selected ornament, work and transfers; older alpha saves are refused and preserved without migration. No combat, universal money or new art is included.
+- The draft targets private-world schema 47 above the Clinic parent's schema 46. Saving must preserve the selected ornament, work and transfers; older alpha saves are refused and preserved without migration. No combat, universal money or new art is included.

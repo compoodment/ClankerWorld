@@ -183,6 +183,9 @@ public sealed record InhabitantObservation(
     [JsonIgnore]
     public string? ConversationChoiceContext { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? IdentityMoment { get; init; }
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(InhabitantId);
@@ -220,6 +223,12 @@ public sealed record InhabitantObservation(
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
         }
+
+        if (IdentityMoment is { } moment && (string.IsNullOrWhiteSpace(moment) ||
+            moment.Length > 128 || moment.Any(char.IsControl) || !RequiresPersonalProvider ||
+            !NeedsPersonality || !NeedsAspiration || NeedsName || Candidates.Count != 1 ||
+            Candidates[0].Id != "identity_optional"))
+            throw new ArgumentException("The life-moment identity request is invalid.", nameof(IdentityMoment));
 
         if (HungerBasisPoints is < 0 or > 10_000)
         {
@@ -877,7 +886,14 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 new
                 {
                     role = "system",
-                    content = "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
+                    content = request.Observation.IdentityMoment is not null
+                        ? "You are one agent reflecting on the named life moment in identity_moment. " +
+                            "Self contains your current saved personality and aspiration. You may keep both or change either, in character. " +
+                            "Return JSON only: selected_candidate_id must be identity_optional, confidence a number from 0 to 1. " +
+                            "Optional chosen_personality and chosen_aspiration must each be at most 256 characters with no control characters. " +
+                            "Omit them to keep your identity. This request chooses no physical action and cannot change your name. " +
+                            "Keep the reply short and include no reasoning."
+                        : "You are one agent living in a world with other agents, acting from your own needs and knowledge. Choose exactly one legal candidate. hunger_basis_points says how well fed you are: 10000 is full and 0 is starving. " +
                         "Self context is your saved identity and condition, not other agents' private information. " +
                         "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. " +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
@@ -921,6 +937,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         name_retry = request.Observation.IsNameRetry,
                         needs_personality = request.Observation.NeedsPersonality,
                         needs_aspiration = request.Observation.NeedsAspiration,
+                        identity_moment = request.Observation.IdentityMoment,
                         self = request.Observation.Self is { } self ? new
                         {
                             name = self.Name, life_stage = self.LifeStage,
@@ -1040,6 +1057,14 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 nameProperty.ValueKind == JsonValueKind.String
                     ? CognitionDecisionResponse.NormalizeChosenName(nameProperty.GetString())
                     : null;
+            if (request.Observation.IdentityMoment is not null)
+            {
+                foreach (var field in new[] { "chosen_personality", "chosen_aspiration" })
+                    if (answerRoot.TryGetProperty(field, out var value) && value.ValueKind != JsonValueKind.Null &&
+                        (value.ValueKind != JsonValueKind.String ||
+                            CognitionDecisionResponse.NormalizeIdentityText(value.GetString()) is null))
+                        throw new InvalidDataException("The optional life-moment identity reply is invalid.");
+            }
             var chosenPersonality = answerRoot.TryGetProperty("chosen_personality", out var personalityProperty) &&
                 personalityProperty.ValueKind == JsonValueKind.String
                     ? CognitionDecisionResponse.NormalizeIdentityText(personalityProperty.GetString()) : null;

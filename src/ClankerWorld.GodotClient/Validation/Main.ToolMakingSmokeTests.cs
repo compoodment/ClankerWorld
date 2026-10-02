@@ -58,13 +58,19 @@ public partial class Main
                 facts.Contains(requestId, StringComparison.Ordinal) || facts.Contains(recipeId, StringComparison.Ordinal))
                 throw new InvalidOperationException("The Blacksmith card must show its named source, requester, recipe and missing-input reason without raw identities.");
 
-            RenderBuildingCard(snapshot with { PlacedBuildings = [shop with
-                { ToolMakingRequests = [request with { Blocker = full }] }] });
+            RenderBuildingCard(snapshot with
+            {
+                PlacedBuildings = [shop with
+                { ToolMakingRequests = [request with { Blocker = full }] }]
+            });
             facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
             if (!facts.Contains(full, StringComparison.Ordinal) || facts.Contains(missing, StringComparison.Ordinal))
                 throw new InvalidOperationException("Refreshing a tool request must replace its missing-input reason with the actual full-storage reason.");
-            RenderBuildingCard(snapshot with { PlacedBuildings = [shop with
-                { ToolMakingRequests = [request with { Status = "ready", Blocker = null }] }] });
+            RenderBuildingCard(snapshot with
+            {
+                PlacedBuildings = [shop with
+                { ToolMakingRequests = [request with { Status = "ready", Blocker = null }] }]
+            });
             facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
             if (!facts.Contains("Tool ready · payment still to be agreed", StringComparison.Ordinal) || facts.Contains(full, StringComparison.Ordinal))
                 throw new InvalidOperationException("A finished tool must clear the blocker while preserving that payment still needs agreement.");

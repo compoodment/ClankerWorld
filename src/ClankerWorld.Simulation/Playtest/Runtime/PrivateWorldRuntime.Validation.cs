@@ -73,6 +73,8 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateTowns(towns, map, founderSetup, society.Checkpoint, worldSimulation, worldContent);
+        TownLandRightsRules.ValidateRecords(map, WorldTick, towns, townLandTitles,
+            householdLandUseRights, householdLandUseRequests, society.Checkpoint);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -89,6 +91,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateProficiency(inhabitant);
             ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), WorldTick);
             ValidatePrivateThoughts(inhabitant.RecentThoughts, WorldTick);
+            AgentIdentityMoment.Validate(inhabitant.IdentityMoments, WorldTick, checkpointSchemaVersion);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -293,8 +296,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
-            state.Bridges is null || state.BridgeTraffic is null)
-            throw new InvalidDataException("The current private-world checkpoint is missing required Town, map-knowledge, Road or bridge state.");
+            state.Bridges is null || state.BridgeTraffic is null || state.TownLandTitles is null ||
+            state.HouseholdLandUseRights is null || state.HouseholdLandUseRequests is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing required Town, land-rights, map-knowledge, Road or bridge state.");
         if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
             state.WorldSimulation is null || state.AssetReservations is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
@@ -357,6 +361,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.Society.Society.WorldTick);
             ValidatePrivateThoughts(person.RecentThoughts, state.Society.Society.WorldTick);
+            AgentIdentityMoment.Validate(person.IdentityMoments, state.Society.Society.WorldTick, state.SchemaVersion);
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
@@ -384,6 +389,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("A House references a missing household.");
         ValidateTowns(state.Towns, state.Map, state.FounderSetup,
             state.Society.Society, state.WorldSimulation, state.WorldContent);
+        TownLandRightsRules.ValidateRecords(state.Map, state.Society.Society.WorldTick, state.Towns,
+            state.TownLandTitles, state.HouseholdLandUseRights, state.HouseholdLandUseRequests,
+            state.Society.Society);
         ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
@@ -542,6 +550,7 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.Equipment?.OrnamentLotId is not null)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
+            AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));

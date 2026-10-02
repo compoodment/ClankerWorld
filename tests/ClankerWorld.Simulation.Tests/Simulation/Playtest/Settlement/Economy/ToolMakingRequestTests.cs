@@ -177,7 +177,8 @@ public sealed class ToolMakingRequestTests
         {
             Id = "tool-making-request:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
                 new[] { request.RequesterId, request.BuildingInstanceId, request.RecipeId, tick.ToString(System.Globalization.CultureInfo.InvariantCulture) })))),
-            RequestedTick = tick, LastTransitionTick = state.Society.Society.WorldTick,
+            RequestedTick = tick,
+            LastTransitionTick = state.Society.Society.WorldTick,
             Status = ToolMakingRequestStatus.Refused,
         };
         var history = Enumerable.Range(0, 33).Select(HistoryAt).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
@@ -195,18 +196,24 @@ public sealed class ToolMakingRequestTests
             state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
         state = state with
         {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = state.Society.Society.Inventory with
+            Society = state.Society with
             {
-                Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id == input.Id
-                    ? lot with { StorageBuildingId = householdHouse.InstanceId } : lot).ToArray(),
-            } } },
+                Society = state.Society.Society with
+                {
+                    Inventory = state.Society.Society.Inventory with
+                    {
+                        Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id == input.Id
+                            ? lot with { StorageBuildingId = householdHouse.InstanceId } : lot).ToArray(),
+                    }
+                }
+            },
         };
         using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
         await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
         state = Roundtrip(placing);
         using var accepting = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices("tool_request_accept:"));
         await Until(accepting, world => Assert.Single(world.ToolMakingRequests) is
-            { Status: ToolMakingRequestStatus.Accepted, Blocker: not null }, 96);
+        { Status: ToolMakingRequestStatus.Accepted, Blocker: not null }, 96);
         var request = Assert.Single(accepting.ToolMakingRequests);
         Assert.Contains("wood", request.Blocker!, StringComparison.Ordinal);
         Assert.Null(request.JobId);
@@ -225,11 +232,17 @@ public sealed class ToolMakingRequestTests
             state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
         state = state with
         {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = state.Society.Society.Inventory with
+            Society = state.Society with
             {
-                Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id == "smith-input"
-                    ? lot with { StorageBuildingId = house.InstanceId } : lot).ToArray(),
-            } } },
+                Society = state.Society.Society with
+                {
+                    Inventory = state.Society.Society.Inventory with
+                    {
+                        Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id == "smith-input"
+                            ? lot with { StorageBuildingId = house.InstanceId } : lot).ToArray(),
+                    }
+                }
+            },
         };
         using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
         await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
@@ -438,7 +451,9 @@ public sealed class ToolMakingRequestTests
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 Position = person.InhabitantId == buyer ? customerPosition : person.InhabitantId == seller ? sellerPosition : person.Position,
-                HungerBasisPoints = 8_000, LastDecisionContext = null, Project = null,
+                HungerBasisPoints = 8_000,
+                LastDecisionContext = null,
+                Project = null,
                 Equipment = person.InhabitantId == buyer ? null : person.Equipment,
             }).ToArray(),
         };
