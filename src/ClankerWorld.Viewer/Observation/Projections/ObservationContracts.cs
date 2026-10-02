@@ -307,6 +307,17 @@ public sealed record ViewerTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<ViewerPosition> BorderTiles);
 
+public sealed record ViewerTownLandTitle(string Id, string TownId, IReadOnlyList<ViewerPosition> Tiles,
+    long RecordedTick);
+
+public sealed record ViewerHouseholdLandUseRight(string Id, string TownId, string HouseholdId,
+    IReadOnlyList<ViewerPosition> Tiles, long GrantedTick, string GrantSource, long? AgreedEndTick);
+
+public sealed record ViewerHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
+    string RequestedByAgentId, IReadOnlyList<ViewerPosition> Tiles, long RequestedTick,
+    long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
+    IReadOnlyList<ViewerPosition> DisputedTiles);
+
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
 /// <summary>
@@ -367,6 +378,9 @@ public sealed record ViewerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
+    public IReadOnlyList<ViewerTownLandTitle> TownLandTitles { get; init; } = [];
+    public IReadOnlyList<ViewerHouseholdLandUseRight> HouseholdLandUseRights { get; init; } = [];
+    public IReadOnlyList<ViewerHouseholdLandUseRequest> HouseholdLandUseRequests { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;

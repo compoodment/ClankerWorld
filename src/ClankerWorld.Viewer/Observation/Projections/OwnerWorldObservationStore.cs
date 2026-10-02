@@ -356,6 +356,28 @@ public sealed class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray()))
                 .ToArray(),
+            TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => new ViewerTownLandTitle(item.Id, item.TownId,
+                    item.Tiles.Select(ToPosition).ToArray(), item.RecordedTick)).ToArray(),
+            HouseholdLandUseRights = (state.HouseholdLandUseRights ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => new ViewerHouseholdLandUseRight(item.Id, item.TownId, item.HouseholdId,
+                    item.Tiles.Select(ToPosition).ToArray(), item.GrantedTick, item.GrantSource, item.AgreedEndTick))
+                .ToArray(),
+            HouseholdLandUseRequests = (state.HouseholdLandUseRequests ?? [])
+                .OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item =>
+                {
+                    var claimants = item.Tiles.SelectMany(tile => TownLandRightsRules.ClaimantsAt(tile,
+                            state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))
+                        .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                    var disputedTiles = item.Tiles.Where(tile => TownLandRightsRules.IsDisputed(tile,
+                            state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))
+                        .OrderBy(tile => tile.Y).ThenBy(tile => tile.X).ToArray();
+                    return new ViewerHouseholdLandUseRequest(item.Id, item.TownId, item.HouseholdId,
+                        item.RequestedByAgentId, item.Tiles.Select(ToPosition).ToArray(), item.RequestedTick,
+                        item.AgreedEndTick, disputedTiles.Length > 0, claimants,
+                        disputedTiles.Select(ToPosition).ToArray());
+                }).ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),
             Bridges = (state.Bridges ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)

@@ -1227,7 +1227,9 @@ public partial class Main
                     Convert.ToBase64String(Enumerable.Repeat((byte)3, 16).ToArray())),
                 Towns = [new OwnerWorldTown("town:first", "First Town", "founding", 0,
                     ["founder:1", "founder:2", "founder:3", "founder:4"], [],
-                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1)])],
+                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1), new(2, 2), new(3, 3)])],
+                TownLandTitles = [new("title:first", "town:first",
+                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1), new(2, 2), new(3, 3)], 0)],
                 PlacedBuildings = [new("test-hall", "test-definition", new(0, 2), 0, "Test hall", ["shelter"], 2, 1)],
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
@@ -1436,13 +1438,32 @@ public partial class Main
                 PlacedBuildings = [.. sample.PlacedBuildings,
                     new("test-house", "house", new(2, 2), 0, "House", ["shelter"], 2, 1,
                         HouseholdId: "household:one")],
-                Stockpiles = [new("household:one", "Founder's household", [])],
+                Stockpiles =
+                [
+                    new("household:one", "Founder's household", []),
+                    new("household:two", "Other household", []),
+                ],
+                HouseholdLandUseRights = [new("right:one", "town:first", "household:one",
+                    [new(2, 2)], 0, "starter_allocation", null),
+                    new("right:disputed", "town:first", "household:one",
+                        [new(1, 1)], 0, "starter_allocation", null)],
+                HouseholdLandUseRequests =
+                [
+                    new("request:disputed", "town:first", "household:two", "founder:4",
+                        [new(1, 1)], 1, null, true,
+                        ["household:one", "household:two"], [new(1, 1)]),
+                    new("request:open", "town:first", "household:two", "founder:4",
+                        [new(3, 3)], 1, null, false, ["household:two"], []),
+                ],
             };
             RenderMap(ownedMap);
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                townLandTitleFilter.ButtonPressed || householdLandUseFilter.ButtonPressed || disputedLandFilter.ButtonPressed ||
                 terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
+                terrainLayer.DisputedLandTileCount != 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
-                throw new InvalidOperationException("Map Filters must start off, with no Town borders or property drawn.");
+                throw new InvalidOperationException("Map Filters must start off, with no Town or household land records drawn.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!filtersPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(filtersPanel.GetGlobalRect()))
@@ -1452,6 +1473,18 @@ public partial class Main
                 !townBorderHint.Text.Contains("dashed line", StringComparison.Ordinal))
                 throw new InvalidOperationException("Turning on Town borders must draw them and explain the dashed line.");
             townBorderFilter.ButtonPressed = false;
+            townLandTitleFilter.ButtonPressed = true;
+            if (terrainLayer.TownLandTitleTileCount == 0)
+                throw new InvalidOperationException("Turning on Town land title must tint and outline titled land.");
+            townLandTitleFilter.ButtonPressed = false;
+            householdLandUseFilter.ButtonPressed = true;
+            if (terrainLayer.HouseholdLandUseTileCount < 2 || terrainLayer.DisputedLandTileCount != 0)
+                throw new InvalidOperationException("The household land-use filter must show recorded rights and pending requests separately from disputes.");
+            householdLandUseFilter.ButtonPressed = false;
+            disputedLandFilter.ButtonPressed = true;
+            if (terrainLayer.DisputedLandTileCount != 1)
+                throw new InvalidOperationException("The disputed-land filter must show only the tiles with competing claims.");
+            disputedLandFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
@@ -1459,16 +1492,27 @@ public partial class Main
             selectedTile = new Vector2I(2, 2);
             selectedTilePanel.Show();
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal))
+                throw new InvalidOperationException("Tile inspection must show the household property, its use right and Town title.");
+            selectedTile = new Vector2I(1, 1);
+            RenderTileInspection(ownedMap);
+            if (!selectedTileText.Text.Contains("Household use right: Founder's household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Pending use request: Other household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Disputed household claims: Founder's household; Other household", StringComparison.Ordinal))
+                throw new InvalidOperationException("Tile inspection must list each household's use claim and the dispute.");
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
-                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0)
-                throw new InvalidOperationException("Add Agent placement must show Town borders and property without switching Filters on.");
+                townLandTitleFilter.ButtonPressed || householdLandUseFilter.ButtonPressed || disputedLandFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
+                terrainLayer.TownLandTitleTileCount == 0 || terrainLayer.HouseholdLandUseTileCount == 0 ||
+                terrainLayer.DisputedLandTileCount == 0)
+                throw new InvalidOperationException("Add Agent placement must show recorded Town and household claims without switching Filters on.");
             ResetAddAgentPlacementHint();
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1476,14 +1520,46 @@ public partial class Main
                 founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: no Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must preview recorded household property without inferring Town membership.");
+            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership.");
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Unclaimed Town land must preview Town residency without invented household membership.");
+                throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
+            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 0.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+
+            PreviewAddAgentPlacement(ownedMap with { Resources = [] }, new Vector2I(1, 1));
+            if (!founderSetupHint.Text.Contains("overlap here", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a tile with disputed household land-use claims.");
+
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:empty", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Household: Other household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                Fields = [new(new(0, 0), "household:one", "growing", "cultivated_greens", 67, null, null)],
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:tilled", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("overlap here", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A field must not override another household's use right; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [new("right:previous", "town:first", "household:two",
+                    [new(2, 2)], 0, "starter_allocation", null)],
+                HouseholdLandUseRequests = [],
+            }, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A building's owner must come before another household's use right; preview was '{founderSetupHint.Text}'.");
 
             var overlappingProperties = ownedMap with
             {
@@ -1492,9 +1568,9 @@ public partial class Main
                         HouseholdId: "household:two")],
             };
             PreviewAddAgentPlacement(overlappingProperties, new Vector2I(2, 2));
-            if (!founderSetupHint.Text.Contains("Household property overlaps", StringComparison.Ordinal) ||
+            if (!founderSetupHint.Text.Contains("Household property or land claims overlap", StringComparison.Ordinal) ||
                 !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must refuse a footprint claimed by two households.");
+                throw new InvalidOperationException($"Add Agent must refuse two households' conflicting land claims; preview was '{founderSetupHint.Text}'.");
 
             var secondTown = sample.Towns[0] with { Id = "town:second", Name = "Second Town" };
             PreviewAddAgentPlacement(sample with { Towns = [.. sample.Towns, secondTown] }, new Vector2I(0, 0));
@@ -1524,8 +1600,10 @@ public partial class Main
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0)
-                throw new InvalidOperationException("Leaving Add Agent placement must hide overlays the Filters leave off.");
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
+                terrainLayer.DisputedLandTileCount != 0)
+                throw new InvalidOperationException("Leaving Add Agent placement must hide land overlays the Filters leave off.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             RenderMap(sample);
             selectedTile = new Vector2I(1, 1);

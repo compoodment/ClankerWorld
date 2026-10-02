@@ -183,7 +183,7 @@ schema saves require the instruction and completion records and validate their
 target, ordering and tick bounds. Earlier alpha instruction records need not
 load; no message migration is provided.
 
-Private-world schema 44 records each physical shop exchange beside its inventory
+Private-world schema 45 records each physical shop exchange beside its inventory
 offer: the shop, holding household, customer, transaction position and time,
 item kinds, seller who completed it and any cancellation reason. Inventory
 offers retain the exact quantities and lot reservations. Pending exchanges and
@@ -264,7 +264,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 44. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 45. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -276,8 +276,11 @@ with their contents, locations, owners and reservations, explicit domestic
 family and caregiver/birth-home records, owner messages with whether a personal
 model heard them and any short reply, tool-lot links for saved field and
 recipe work, per-agent life-moment identity opportunities with their outcomes,
-and physical shop exchanges beside their exact inventory offers. These fields
-retain their current validation and roundtrip behavior.
+connected Town-title plots, household use rights and pending use requests,
+and physical shop exchanges beside their exact inventory offers.
+Land records are checked against the saved map, Towns, households and one
+another before load. These fields retain their current validation and roundtrip
+behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -288,9 +291,9 @@ and weather generation, schema 37 for personal equipment, schema 38 for building
 assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
-identity and schema 44 for physical shop exchanges, record when those fields or
-behaviors were introduced; they do not allow an earlier checkpoint schema past
-the current alpha cutoff.
+identity, schema 44 for Town land records and schema 45 for physical shop
+exchanges, record when those fields or behaviors were introduced; they do not
+allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -320,7 +323,8 @@ the current alpha cutoff.
 | Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 | Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
 | Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
-| Schema 44 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
+| Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
+| Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
