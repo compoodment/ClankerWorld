@@ -97,7 +97,7 @@ public sealed partial class PrivateWorldRuntime
         BlacksmithInputTargets(blacksmithId).FirstOrDefault(item => item.ItemKind == itemKind).Target;
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
+        .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
             lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
             AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -181,12 +181,12 @@ public sealed partial class PrivateWorldRuntime
                     lot.ItemKind == kind).Sum(AvailableLotQuantity);
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
-                .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                     lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
-                .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != blacksmithId &&
+                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != blacksmithId &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

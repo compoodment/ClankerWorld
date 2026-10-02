@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                BusinessContent.Create(),
+                BusinessContent.Create(), CareContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -335,7 +335,7 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
             var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
             if (worldSimulation.ProductionJobs.Count(item => item.BuildingInstanceId == placed.InstanceId &&
-                    item.State == WorldProductionJobState.Running) >= buildingDefinition.Capacity)
+                    (item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)) >= buildingDefinition.Capacity)
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
             var workPosition = placed.Position;
 
@@ -380,6 +380,7 @@ public sealed partial class PrivateWorldRuntime
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
+            var productionOwner = ProductionOwnerFor(placed, normalizedWorkerId);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -388,7 +389,7 @@ public sealed partial class PrivateWorldRuntime
                     recipe.Inputs,
                     $"{jobId}:input",
                     completionTick,
-                    ProductionOwnerFor(placed, normalizedWorkerId),
+                    productionOwner,
                     out reservationIds,
                     onSiteHouseholdRecipe ? placed!.InstanceId : null);
                 return reserved;
@@ -402,7 +403,8 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
-                reservationIds.ToArray(), knife?.ToolLotId);
+                reservationIds.ToArray(), knife?.ToolLotId)
+            { OwnerId = productionOwner };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),

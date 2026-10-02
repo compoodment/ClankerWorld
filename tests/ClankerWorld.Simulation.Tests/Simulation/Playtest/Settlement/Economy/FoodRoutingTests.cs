@@ -17,7 +17,7 @@ public sealed class FoodRoutingTests
         var options = new GeographyOptions("audit-food-route-13", WorldSizePreset.Small);
         using var setup = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = setup.ExportState().Map;
-        var anchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var anchor = NormalPathWorld.FindStartingTownSite(map);
         setup.InitializeFirstTownContent();
         setup.AcceptFirstTownLayout(anchor);
         var buildings = setup.WorldSimulation.Buildings.SelectMany(building =>

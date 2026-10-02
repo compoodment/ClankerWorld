@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Agents, families and social life
@@ -87,7 +87,13 @@ everything that is available in the current build. See [what works today](../wha
   may pair. Only biological parentage counts, not a shared household or
   caregiving.
 - Agents can become a couple and then marry, but **a couple may have a baby
-  without marrying first**. Marriage is not a birth requirement. When agents
+  without marrying first**. Marriage is not a birth requirement. **Agreed with
+  computment on October 2:** to marry, one partner proposes face to face in an
+  ordinary conversation, and the other accepts or declines with their own
+  model. An accepted proposal is saved as a marriage, and the surname
+  conversation below follows; the couple does not register with the Town
+  Council. Building this is tracked in
+  [#784](https://github.com/compoodment/ClankerWorld/issues/784). When agents
   marry, both partners must share one of their existing surnames, chosen by them
   in a dedicated conversation. That
   conversation is initiated even if they are far apart in the world: a narrow
@@ -194,13 +200,6 @@ everything that is available in the current build. See [what works today](../wha
   becomes visibly overcrowded instead. The caregiver and birth home are saved
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
-- The birth record keeps the caregiver chosen for that birth as history. The
-  child's current primary caregiver remains that person while they are active.
-  A second accepted caregiver does not take over or change the child's domestic
-  family group by itself. If the current primary caregiver is no longer
-  available, an explicit care assignment may make an already accepted caregiver
-  the new primary; the child then follows that caregiver's current domestic
-  family group for housing counts without changing residence or parentage.
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not
@@ -217,6 +216,32 @@ everything that is available in the current build. See [what works today](../wha
   continuity rule is on, the Event Log says the world is at risk and offers
   **Add a newcomer**, which opens Add Agent. Travellers arriving on their own
   may be reconsidered later if worlds feel too closed.
+
+### Dependent care after loss of the last active primary caregiver
+
+- The birth record keeps the caregiver chosen for that birth as history. The
+  child's current primary caregiver remains that person while they still
+  provide care. If they die or end that care, the current caregiver is cleared;
+  the child's family group stays the same while waiting for someone to accept.
+  A second accepted caregiver does not take over or change the child's domestic
+  family group by itself. If the current primary caregiver is no longer
+  available, an explicit care assignment may make an already accepted caregiver
+  the new primary; the child then follows that caregiver's current domestic
+  family group for housing counts without changing residence or parentage.
+- If a dependent's last active primary caregiver dies or ends care, the game
+  asks living biological relatives first, then adults in the dependent's household, then
+  adult residents of their Town. Each wider group is added to those already
+  asked, so a relative who missed the first day can still accept. The first adult who explicitly accepts becomes
+  the current primary caregiver. A child moves to that adult's household only
+  when its completed House has a free resident place and both belong to the
+  same Town; Town membership and birth parentage remain unchanged. A cross-Town
+  acceptance records care but leaves the child's household in place until
+  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
+  allow a move. Until acceptance, the child stays where they are, nearby adults
+  may still feed them, and the player can see the unmet guardian need and
+  suggest an adult in a message. Ordering an adult to take the child in waits
+  for the order list in [issue #587](https://github.com/compoodment/ClankerWorld/issues/587).
+  The one-day interval for each group is provisional.
 
 ### Agreed starter Town and remaining choices
 
@@ -385,17 +410,27 @@ another sprite family at first.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 - **How a model sees its needs, agreed on October 1
-  ([#646](https://github.com/compoodment/ClankerWorld/issues/646)):** a request
-  describes each need in words, not exact numbers, and always shows the whole
-  scale from worst to best, so the model cannot misread how serious a word is.
-  For example: "Fullness: hungry (starving, hungry, fine, full; starving is
-  worst, full is best)". The words follow the agreed comfort and urgency
-  levels. The exact words and cut-offs are still provisional, for example:
-  fullness **full** at 70% or more, **fine** at 40–69%, **hungry** at 20–39%
-  and **starving** below 20%; warmth **warm** at 60% or more, **chilly** at
-  35–59% and **freezing** below 35%. Illness uses the same kind of scale; its
-  words are set when it is built. Compare the words against
-  today's numbers in a controlled comparison before they become the default.
+  ([#646](https://github.com/compoodment/ClankerWorld/issues/646)) and settled
+  on October 2 ([#672](https://github.com/compoodment/ClankerWorld/issues/672)):**
+  models keep seeing exact numbers. The owner chose this after a comparison
+  with real models ([need wording comparison](../development/need-wording-comparison.md)):
+  describing needs in words did no worse than numbers with GPT 6 Luna but
+  clearly worse with GLM 5.3 Flash. The words stay built but switched off, and
+  no further comparison is planned. Switched on, a request describes each need
+  in words and always shows the whole scale from worst to best, so the model
+  cannot misread how serious a word is, for example "Fullness: hungry
+  (starving, hungry, fine, full; starving is worst, full is best)". The words
+  follow the agreed comfort and urgency levels, and the exact words and
+  cut-offs stay provisional: fullness **full** at 70% or more, **fine** at
+  40–69%, **hungry** at 20–39% and **starving** below 20%; warmth **warm** at
+  60% or more, **chilly** at 35–59% and **freezing** below 35%; illness, the
+  owner's answer of October 1 on #672, **very ill, ill, unwell, well**,
+  changing at 25%, 50% and 75% illness, where illness already slows an agent's
+  work and travel.
+- **Jev sees all three needs, the owner's answer of October 1 on
+  [#672](https://github.com/compoodment/ClankerWorld/issues/672):** Jev's
+  routine requests describe fullness, warmth and illness the same way as the
+  personal model's requests, not fullness alone.
 
 ### Still to decide
 

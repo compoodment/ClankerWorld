@@ -233,16 +233,27 @@ public sealed class AgentLifeMomentIdentityTests
         society.Apply(current => SocietyFixture.Kill(current, partnerId, SocietyDeathCause.Accident));
         society.Apply(current => SocietyFixture.Kill(current, parentId, SocietyDeathCause.Accident));
         var dead = new[] { partnerId, parentId };
+        var postDeath = society.ExportState();
         state = state with
         {
-            Society = society.ExportState(),
+            Society = postDeath,
             Inhabitants = state.Inhabitants.Where(item => !dead.Contains(item.InhabitantId)).ToArray(),
             DeceasedInhabitants = dead.Select(id => new PlaytestDeceasedInhabitantState(id, tick,
                 checkpoint.AgeAt(checkpoint.GetInhabitant(id), tick),
                 state.Inhabitants.Single(item => item.InhabitantId == id))).ToArray(),
-            Towns = state.Towns!.Select(town => town with
+            Towns = state.Towns!.Select(town =>
             {
-                ResidentIds = town.ResidentIds.Where(id => !dead.Contains(id)).ToArray(),
+                var residents = town.ResidentIds.Where(id => !dead.Contains(id)).ToArray();
+                var adults = residents.Where(id => postDeath.Society.Inhabitants.Any(person => person.Id == id &&
+                    person.Status == SocietyInhabitantStatus.Active &&
+                    person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder));
+                // Settle council membership after both deaths without replacing its history.
+                return town with
+                {
+                    ResidentIds = residents,
+                    Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed,
+                        adults, postDeath.Society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+                };
             }).ToArray(),
         };
         var provider = new ImmediateIdentityProvider();

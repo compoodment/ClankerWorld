@@ -18,6 +18,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var state = inhabitants[actor];
         var kind = item.ItemKind;
+        if (MedicalSupplyWanted(actor, kind)) return true;
         if (kind is "field_map" or "field_record")
         {
             // An agent can offer a record they physically hold; a prospective

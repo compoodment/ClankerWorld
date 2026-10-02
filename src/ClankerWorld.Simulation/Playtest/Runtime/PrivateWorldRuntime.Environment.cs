@@ -242,13 +242,20 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            if (society.Checkpoint.Inventory.Lots.Any(lot => lot.CarrierId == id))
+            {
+                var position = inhabitants[id].Position;
+                ApplyInventoryTransition(inventory => InventoryFixture.DropCarrierGoods(inventory, id,
+                    new InventoryGroundPosition(position.X, position.Y)));
+            }
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
             foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
                          .Where(item => item.Outcome is "waiting" or "requested").ToArray())
                 FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with { MedicalTreatment = null }));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

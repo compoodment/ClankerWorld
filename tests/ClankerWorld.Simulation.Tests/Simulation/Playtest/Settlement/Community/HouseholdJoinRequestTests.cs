@@ -371,13 +371,14 @@ public sealed class HouseholdJoinRequestTests
         var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         var agent = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Equal(Alpha, world.AddAgent(agent, house.Position));
-        provider.Choices[agent] = "household_";
+        provider.Choices[agent] = "safe_idle";
         await AdvanceUntil(world, () => provider.Offered.ContainsKey(agent));
         for (var tick = 0; tick < 5; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         Assert.Equal(Alpha, world.Society.GetInhabitant(agent).HouseholdId);
-        Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("household_", StringComparison.Ordinal));
+        Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("household_ask:", StringComparison.Ordinal));
+        Assert.Contains("household_leave", provider.Offered[agent].Keys);
         Assert.Contains("House: 3/3 permanent places (is full)", provider.HousingNotes[agent], StringComparison.Ordinal);
         Assert.Contains("inside; absences still count", provider.HousingNotes[agent], StringComparison.Ordinal);
         Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == agent).Housing);
@@ -596,7 +597,7 @@ public sealed class HouseholdJoinRequestTests
         {
             await AdvanceUntil(unstocked, () => Housing(unstocked, agent)?.Blocker == HousingBlockers.MissingMaterials, 5);
             Assert.DoesNotContain(provider.Offered.GetValueOrDefault(agent)?.Keys.ToArray() ?? [],
-                id => id.StartsWith("household_", StringComparison.Ordinal));
+                id => id.StartsWith("household_ask:", StringComparison.Ordinal));
             Assert.Contains(unstocked.ExportState().Events, item => item.Kind == "housing_blocked" && item.Detail == $"{agent}:missing_materials");
             Assert.Contains("lacks the materials", new OwnerWorldObservationStore(unstocked).GetSnapshot().Inhabitants
                 .Single(person => person.Id == agent).DecisionFactors.Single(factor => factor.Key == "housing").Detail, StringComparison.Ordinal);
@@ -776,7 +777,7 @@ public sealed class HouseholdJoinRequestTests
         var map = state.Map;
         var definitions = world.WorldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var footprints = world.WorldSimulation.Buildings
-            .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position))
+            .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
             .ToHashSet();
         var roads = world.RoadTiles.ToHashSet();
         return map.Tiles.Select(tile => tile.Position)

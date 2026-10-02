@@ -30,9 +30,12 @@ public partial class Main
     private readonly PixelBadge agentsWarning = new() { Diameter = 7, Warning = true };
     private readonly Button worldInfoTownsTab = new();
     private readonly Button worldInfoWorldTab = new();
+    private readonly ScrollContainer townsScroll = new()
+    {
+        HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+    };
     private readonly VBoxContainer townsPage = new();
     private readonly VBoxContainer townList = new();
-    private readonly Label townBorderHint = new();
     private string? renderedTownList;
     private string? eventsWorldId;
     private long lastSeenEventId = long.MinValue;
@@ -294,6 +297,7 @@ public partial class Main
         }
         RefreshMenuIcons();
         RefreshAgentCardIcons();
+        FillControlsGroups();
     }
 
     /// <summary>Pause control, agent count and warning, climate and the unread count.</summary>
@@ -316,6 +320,8 @@ public partial class Main
         if (snapshot.Authoring is { } authoring)
         {
             seasonLabel.Text = Pretty(authoring.Season);
+            // A season date already names the season, so only the weather follows it.
+            seasonIcon.Visible = seasonLabel.Visible = !DatesShowSeason;
             weatherLabel.Text = Pretty(WeatherAtCamera(snapshot));
             climateBox.Visible = Size.X >= 1100;
         }
@@ -377,14 +383,10 @@ public partial class Main
 
         townList.AddThemeConstantOverride("separation", 6);
         townsPage.AddThemeConstantOverride("separation", 8);
+        townsPage.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        townsPage.MinimumSizeChanged += QueueHudListsFit;
         townsPage.AddChild(townList);
-        townBorderHint.ThemeTypeVariation = "DimLabel";
-        townsPage.AddChild(townBorderHint);
-        ConfigureTextPanel(worldDetails, 240);
-        townsPage.AddChild(worldDetails);
-        body.AddChild(townsPage);
-        ConfigureTextPanel(worldInfoText, 300);
-        body.AddChild(worldInfoText);
+        BuildWorldInfoPages(body);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
         worldInfoPanel.CustomMinimumSize = new Vector2(420, 0);
         worldInfoPanel.ZIndex = 80;
@@ -393,15 +395,17 @@ public partial class Main
         ShowWorldInfoPage(towns: true);
     }
 
-    private bool WorldInfoShowsTowns => townsPage.Visible;
+    private bool WorldInfoShowsTowns => townsScroll.Visible;
 
     private void ShowWorldInfoPage(bool towns)
     {
-        townsPage.Visible = towns;
-        worldInfoText.Visible = !towns;
+        townsScroll.Visible = towns;
+        worldStatsPage.Visible = !towns;
         worldInfoTownsTab.SetPressedNoSignal(towns);
         worldInfoWorldTab.SetPressedNoSignal(!towns);
         worldInfoPanel.ResetSize();
+        FitHudLists();
+        QueueHudListsFit();
     }
 
     /// <summary>T opens World Info on its Towns page; pressing it again there closes it.</summary>
@@ -421,12 +425,8 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}")) +
-            "|" + displayPreferences.DateFormat + "|" + UiTheme.Current.Name;
-        townBorderHint.Visible = snapshot.Towns.Count > 0;
-        townBorderHint.Text = townBorderFilter.ButtonPressed
-            ? "Town borders show as a dashed line on the map."
-            : "Town borders are hidden. Turn them on in Filters.";
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}")) +
+            "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         if (renderedTownList == signature) return;
         renderedTownList = signature;
         foreach (var child in townList.GetChildren())
@@ -442,6 +442,7 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             });
             worldInfoPanel.ResetSize();
+            QueueHudListsFit();
             return;
         }
         foreach (var town in snapshot.Towns)
@@ -466,13 +467,22 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
+            text.AddChild(ResidentPortraits(snapshot, town));
+            if (town.Governance is not null)
+                text.AddChild(new Label
+                {
+                    Text = TownCivicText(town, snapshot.WorldTick),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
             line.AddChild(text);
             var show = new Button
             {
                 Text = "Show",
                 TooltipText = $"Move the map to {town.Name}.",
-                Icon = PixelIcons.Themed(PixelGlyph.Map, UiTheme.Current.Primary, 2),
+                Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                 Disabled = town.BorderTiles.Count == 0,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
             };
             StyleButton(show);
             var townId = town.Id;
@@ -483,7 +493,65 @@ public partial class Main
         }
         // Shrink back to fit when the list gets shorter.
         worldInfoPanel.ResetSize();
+        FitHudLists();
+        QueueHudListsFit();
     }
+
+    private string TownCivicText(OwnerWorldTown town, long tick)
+    {
+        if (town.Governance is not { } council) return "";
+        var lines = new List<string>
+        {
+            council.Form == "representative" ? "Council: elected representatives" : "Council: all adult residents",
+            council.MemberNames.Count == 0 ? "No adult councillors." : string.Join(", ", council.MemberNames),
+        };
+        if (council.TermEndTick is { } termEnd) lines.Add("Term ends " + DisplayWorldClock(termEnd));
+        if (council.Fallback == "candidates") lines.Add("All adults govern while the Town seeks a supported council.");
+        if (council.Fallback == "demographic") lines.Add("Representation resumes at eight adult residents.");
+        if (council.Election is { } election)
+        {
+            var stage = election.Stage switch
+            {
+                "main" => "Voting",
+                "runoff" => "Runoff voting",
+                "ready" => "Representatives chosen",
+                _ => "Voting has ended",
+            };
+            lines.Add($"{CivicElectionName(election.Kind)} · {stage} · {election.Seats} {(election.Seats == 1 ? "seat" : "seats")}");
+            if (election.Stage is "main" or "runoff") lines.Add("Voting closes " + DisplayWorldClock(election.DeadlineTick));
+            lines.Add(election.Candidates.Count == 0 ? "No willing eligible candidates in this contest." :
+                string.Join(" · ", election.Candidates.Select(c => $"{c.Name}: {c.Votes} {(c.Votes == 1 ? "vote" : "votes")}")));
+            if (election.SettledNames.Count > 0) lines.Add("Chosen: " + string.Join(", ", election.SettledNames));
+            if (election.Stage == "ready" && election.Kind == "regular" && council.TermEndTick is { } currentTermEnd && currentTermEnd > tick)
+                lines.Add("The chosen representatives take office when the current term ends.");
+        }
+        else if (council.RetryTick > tick) lines.Add("Election retry after " + DisplayWorldClock(council.RetryTick));
+        if (council.LatestElection is { } latest)
+        {
+            lines.Add(latest.Stage switch
+            {
+                "completed" => "Last election completed: " + string.Join(", ", latest.SettledNames),
+                "failed" => "The last election did not elect a supported council.",
+                "cancelled" => "The last election was cancelled.",
+                _ => "The last election has ended.",
+            });
+        }
+        if (council.WillingCandidateNames.Count > 0) lines.Add("Willing candidates: " + string.Join(", ", council.WillingCandidateNames));
+        foreach (var proposal in council.Proposals.TakeLast(8))
+        {
+            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: {proposal.Text}");
+            lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
+                (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
+        }
+        return string.Join("\n", lines);
+    }
+
+    private static string CivicElectionName(string kind) => kind switch
+    {
+        "regular" => "Scheduled council election",
+        "replacement" => "Council vacancy election",
+        _ => "Council election",
+    };
 
     /// <summary>Every label in the Towns list, for checks and assistive reading.</summary>
     private string TownListText() => string.Join("\n",
