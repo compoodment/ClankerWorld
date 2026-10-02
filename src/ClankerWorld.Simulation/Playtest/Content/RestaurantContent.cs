@@ -12,9 +12,9 @@ public static class RestaurantContent
     public static BuildingDefinition Restaurant1x2()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.0:restaurant-1x2-porridge-bread-stew-meals")));
-        return new BuildingDefinition(digest, "restaurant-1x2", ContentVersion.Parse("1.0.0"),
-            "Restaurant", 1, 2, 1, [new("wood", 8), new("stone", 2)], ["restaurant", "cooking", "food-stock"]);
+            Encoding.UTF8.GetBytes("clankerworld-restaurant-v1:1.0.1:restaurant-1x2-porridge-bread-stew-meals")));
+        return new BuildingDefinition(digest, "restaurant-1x2", ContentVersion.Parse("1.0.1"),
+            "Restaurant", 1, 2, 1, [new("wood", 8), new("stone", 2)], ["restaurant", "food-stock"]);
     }
 
     public static ContentPackageManifest Create()
@@ -28,6 +28,6 @@ public static class RestaurantContent
         return StarterContent.BuildManifest(PackageId, restaurant.Version, restaurant.PackageDigest,
             [restaurant], recipes,
             [new ContentDependency(HouseContent.PackageId,
-                new ContentVersionRange(restaurant.Version, ContentVersion.Parse("2.0.0")))]);
+                new ContentVersionRange(ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")))]);
     }
 }

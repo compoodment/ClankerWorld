@@ -13,14 +13,14 @@ public static class HouseCookingContent
     public static ContentPackageManifest Create()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("clankerworld-house-cooking-v1:1.0.0:potatoes-greens-porridge-bread-stew")));
-        var version = ContentVersion.Parse("1.0.0");
+            Encoding.UTF8.GetBytes("clankerworld-house-cooking-v1:1.0.1:potatoes-greens-porridge-bread-stew")));
+        var version = ContentVersion.Parse("1.0.1");
         var houseDefinitions = ContentDefinitionPayloadCodec.ApplyPackage(
             new DeclarativeWorldContentState([], []), HouseContent.Create());
         return StarterContent.BuildManifest(PackageId, version, digest, [],
             Recipes(digest, version, HouseContent.House1x1().CanonicalId, true),
             [new ContentDependency(HouseContent.PackageId,
-                new ContentVersionRange(version, ContentVersion.Parse("2.0.0")))], houseDefinitions);
+                new ContentVersionRange(ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")))], houseDefinitions);
     }
 
     internal static IReadOnlyList<RecipeDefinition> Recipes(string digest, ContentVersion version,

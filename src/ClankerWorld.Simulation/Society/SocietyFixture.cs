@@ -796,7 +796,8 @@ public static partial class SocietyFixture
         {
             return existing.Revision == request.Revision &&
                 existing.PrimaryCaregiverId == request.PrimaryCaregiverId &&
-                existing.HouseholdId == request.HouseholdId
+                existing.HouseholdId == request.HouseholdId &&
+                BirthFoodRequestMatches(checkpoint.Inventory, request)
                 ? new SocietyOperationResult(checkpoint, existing.ChildId, [])
                 : Reject(checkpoint, "birth_rejected", $"{request.Id}:revision_conflict");
         }
@@ -819,26 +820,28 @@ public static partial class SocietyFixture
             return Reject(checkpoint, "birth_rejected", $"{request.Id}:readiness_or_consent");
         }
 
-        var sourceLot = checkpoint.Inventory.GetLot(request.FoodLotId);
-        if (sourceLot.OwnerId != request.HouseholdId &&
-            sourceLot.OwnerId != firstParent.Id && sourceLot.OwnerId != secondParent.Id)
-        {
-            return Reject(checkpoint, "birth_rejected", $"{request.Id}:food_access");
-        }
-
         InventoryCheckpoint inventory;
         try
         {
-            var reservationId = $"birth:{request.Id}:food";
-            inventory = InventoryFixture.Reserve(
-                checkpoint.Inventory,
-                reservationId,
-                sourceLot.OwnerId,
-                request.FoodLotId,
-                request.FoodQuantity,
-                $"birth:{request.Id}",
-                checkpoint.WorldTick);
-            inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
+            var food = request.FoodContributions ?? [new(request.FoodLotId, request.FoodQuantity)];
+            var sources = food.Select(item => checkpoint.Inventory.GetLot(item.LotId)).ToArray();
+            if (sources.Any(lot => lot.OwnerId != request.HouseholdId &&
+                lot.OwnerId != firstParent.Id && lot.OwnerId != secondParent.Id))
+                return Reject(checkpoint, "birth_rejected", $"{request.Id}:food_access");
+
+            inventory = checkpoint.Inventory;
+            var reservationIds = new string[food.Count];
+            for (var index = 0; index < food.Count; index++)
+            {
+                var reservationId = request.FoodContributions is null
+                    ? $"birth:{request.Id}:food"
+                    : $"birth:{request.Id}:food:{index.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}";
+                reservationIds[index] = reservationId;
+                inventory = InventoryFixture.Reserve(inventory, reservationId, sources[index].OwnerId,
+                    food[index].LotId, food[index].Quantity, $"birth:{request.Id}", checkpoint.WorldTick);
+            }
+            foreach (var reservationId in reservationIds)
+                inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
         }
         catch (InvalidOperationException)
         {
@@ -1843,6 +1846,32 @@ public static partial class SocietyFixture
         {
             throw new ArgumentOutOfRangeException(nameof(request));
         }
+        if (request.FoodContributions is { } food &&
+            (food.Count is < 1 or > 4 || food.Any(item => item is null ||
+                string.IsNullOrWhiteSpace(item.LotId) || item.Quantity <= 0) ||
+             food.Select(item => item.LotId).Distinct(StringComparer.Ordinal).Count() != food.Count ||
+             !food.Select(item => item.LotId).SequenceEqual(food.Select(item => item.LotId).Order(StringComparer.Ordinal)) ||
+             food[0].LotId != request.FoodLotId || food.Sum(item => (long)item.Quantity) != request.FoodQuantity))
+            throw new ArgumentException("Birth food contributions must be distinct, ordered, positive and total the requested quantity.", nameof(request));
+    }
+
+    private static bool BirthFoodRequestMatches(InventoryCheckpoint inventory, SocietyBirthRequest request)
+    {
+        var prefix = $"birth:{request.Id}:food:";
+        var receipts = inventory.Reservations.Where(item => item.Purpose == $"birth:{request.Id}" &&
+                item.Id.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        if (request.FoodContributions is not { } food)
+            return receipts.Length == 0;
+        if (inventory.Reservations.Any(item => item.Id == $"birth:{request.Id}:food") || receipts.Length != food.Count)
+            return false;
+        for (var index = 0; index < food.Count; index++)
+            if (receipts[index].Id != prefix + index.ToString("D2", System.Globalization.CultureInfo.InvariantCulture) ||
+                receipts[index].State != InventoryReservationState.Completed ||
+                receipts[index].Purpose != $"birth:{request.Id}" ||
+                receipts[index].LotId != food[index].LotId || receipts[index].Quantity != food[index].Quantity)
+                return false;
+        return true;
     }
 
     private static void ValidateInhabitants(

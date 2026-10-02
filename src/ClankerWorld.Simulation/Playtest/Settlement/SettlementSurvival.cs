@@ -52,10 +52,10 @@ public sealed partial class PrivateWorldRuntime
 {
     private SettlementSurvivalState? survivalState;
     private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
-        { "food", "fruit", "berries", "wild_greens", "cultivated_greens", "potatoes", "grain", "flour",
+        { "food", "fruit", "berries", "wild_greens", "cultivated_greens",
             "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" };
     private static readonly IReadOnlyDictionary<string, int> FoodSpoilageRates =
-        new Dictionary<string, int>(StringComparer.Ordinal) { ["grain"] = 1, ["flour"] = 3, ["bread"] = 2 };
+        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2 };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;

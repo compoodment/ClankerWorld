@@ -176,25 +176,28 @@ public sealed class ConcreteMealTests
     }
 
     [Fact]
-    public async Task DryGrainLastsLongerThanFlourBreadAndMealsButStillSpoilsInProtectedPots()
+    public async Task RawFarmStockKeepsItsFreshnessWhileBreadAndCookedMealsSpoilInPots()
     {
         var (state, actor, household, site, _) = Prepared("house-meal", false);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "grain-test-pot",
             InventoryContainerRules.StoragePot, household, 1, storageBuildingId: site.InstanceId);
-        foreach (var kind in new[] { "grain", "flour", "bread", "stew" })
+        foreach (var kind in new[] { "grain", "flour", "potatoes", "bread", "stew" })
             inventory = InventoryFixture.AddLot(inventory, "decay-test-" + kind, kind, household, 1,
                 storageBuildingId: site.InstanceId, containerLotId: "grain-test-pot");
         using var world = Restore(FarmFieldTests.WithInventory(state, inventory));
         for (var tick = 0; tick < 16; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var grain = world.Society.Inventory.GetLot("decay-test-grain").FreshnessBasisPoints;
-        var flour = world.Society.Inventory.GetLot("decay-test-flour").FreshnessBasisPoints;
+        foreach (var kind in new[] { "grain", "flour", "potatoes" })
+            Assert.Equal(10_000, world.Society.Inventory.GetLot("decay-test-" + kind).FreshnessBasisPoints);
         var bread = world.Society.Inventory.GetLot("decay-test-bread").FreshnessBasisPoints;
         var stew = world.Society.Inventory.GetLot("decay-test-stew").FreshnessBasisPoints;
-        Assert.InRange(grain, bread + 1, 9_999);
-        Assert.True(bread > flour);
-        Assert.True(flour > stew);
+        Assert.InRange(bread, 1, 9_999);
+        Assert.InRange(stew, 1, bread - 1);
         using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
-        Assert.Equal(grain, resumed.Society.Inventory.GetLot("decay-test-grain").FreshnessBasisPoints);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("decay-test-grain").FreshnessBasisPoints);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("decay-test-flour").FreshnessBasisPoints);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("decay-test-potatoes").FreshnessBasisPoints);
+        Assert.Equal(bread, resumed.Society.Inventory.GetLot("decay-test-bread").FreshnessBasisPoints);
+        Assert.Equal(stew, resumed.Society.Inventory.GetLot("decay-test-stew").FreshnessBasisPoints);
     }
 
     [Fact]
@@ -254,7 +257,14 @@ public sealed class ConcreteMealTests
             Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != other).ToArray(),
             Towns = state.Towns!.Select(town => town with
             {
-                ResidentIds = town.ResidentIds.Where(id => id != other).ToArray()
+                ResidentIds = town.ResidentIds.Where(id => id != other).ToArray(),
+                Governance = town.Governance is { } governance ? TownGovernanceRules.Advance(governance,
+                    town.Id, state.WorldSeed, town.ResidentIds.Where(id => id != other &&
+                        society.Checkpoint.Inhabitants.Any(person => person.Id == id &&
+                            person.Status == SocietyInhabitantStatus.Active &&
+                            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))
+                        .Order(StringComparer.Ordinal).ToArray(), society.Checkpoint.WorldTick,
+                    state.WorldSystems!.Config.TicksPerDay) : null,
             }).ToArray()
         };
         var inventory = state.Society.Society.Inventory with
@@ -379,6 +389,122 @@ public sealed class ConcreteMealTests
         using var savedMeal = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(eating.ExportState())));
         Assert.Equal("porridge", savedMeal.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.LastMealKind);
         Assert.Equal(InventoryReservationState.Reserved, savedMeal.Society.Inventory.GetReservation(reserve.Id).State);
+    }
+
+    [Fact]
+    public async Task AColdCookFuelsTheHouseWhileRestaurantWoodOnlyPaysForItsRecipe()
+    {
+        var (state, actor, household, restaurant, recipe) = Prepared("porridge", true);
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "actual-hearth-fuel",
+            "wood", actor, 2);
+        state = SettlementWeatherTestFixture.WithWeather(FarmFieldTests.WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = house.Position, Survival = new SurvivalCondition(3_000) }
+                : person).ToArray(),
+        }, ClankerWorld.Simulation.World.WeatherKind.Snow);
+        string[] choices = ["tend_fire", "seek_warmth", "build:recipe:" + recipe.CanonicalId];
+        using var world = Restore(state, actor, choices);
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
+            job.RecipeId == recipe.CanonicalId && job.State == WorldProductionJobState.Completed), 90);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "fire_fuelled" && item.Detail == house.InstanceId);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "fire_fuelled" && item.Detail == restaurant.InstanceId);
+        Assert.DoesNotContain(world.ExportState().Survival!.Fires, fire => fire.BuildingId == restaurant.InstanceId);
+        Assert.Equal(1, world.Society.Inventory.GetLot("actual-hearth-fuel").Quantity);
+        var job = Assert.Single(world.WorldSimulation.ProductionJobs, item => item.RecipeId == recipe.CanonicalId);
+        var cookingWood = Assert.Single(job.InputReservationIds.Select(world.Society.Inventory.GetReservation),
+            reservation => reservation.LotId == "meal-test-input-wood");
+        Assert.Equal((1, InventoryReservationState.Completed), (cookingWood.Quantity, cookingWood.State));
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == "meal-test-input-wood");
+        var meal = world.Society.Inventory.GetLot(job.JobId + ":output:00");
+        Assert.Equal(("porridge", household, restaurant.InstanceId, 2),
+            (meal.ItemKind, meal.OwnerId, meal.StorageBuildingId, meal.Quantity));
+        Assert.Equal(restaurant.InstanceId, world.Society.Inventory.GetLot("meal-test-jug").StorageBuildingId);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => new Chooser(id == actor ? choices : []));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ExactCookedFoodOrderSelectsItsRealServingWithoutEatingOtherOrClaimedStock(
+        bool inPot, bool claimed)
+    {
+        var (state, actor, household, house, recipe) = Prepared("porridge", false);
+        const string wrongFoodId = "a-order-other-food";
+        const string potId = "exact-order-pot";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, wrongFoodId,
+            "berries", household, 1, storageBuildingId: house.InstanceId);
+        if (inPot)
+        {
+            inventory = InventoryFixture.AddLot(inventory, potId, InventoryContainerRules.StoragePot,
+                household, 1, storageBuildingId: house.InstanceId);
+            inventory = InventoryFixture.PutIntoContainer(inventory, "order-store-berries", household,
+                potId, wrongFoodId, 1);
+        }
+        state = SettlementWeatherTestFixture.WithWeather(FarmFieldTests.WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { HungerBasisPoints = 3_000, Survival = new SurvivalCondition(LastMealKind: "porridge") }
+                : person).ToArray(),
+        }, ClankerWorld.Simulation.World.WeatherKind.Clear);
+        using var cooking = Restore(state);
+        var job = cooking.StartProduction(recipe.CanonicalId, house.InstanceId, actor);
+        Assert.True(job.Applied, job.Failure);
+        await AdvanceUntil(cooking, () => cooking.WorldSimulation.ProductionJobs.Any(item =>
+            item.JobId == job.JobId && item.State == WorldProductionJobState.Completed), 30);
+        var cooked = cooking.Society.Inventory.GetLot(job.JobId + ":output:00");
+        Assert.Equal(2, cooked.Quantity);
+        state = cooking.ExportState();
+        inventory = state.Society.Society.Inventory;
+        if (inPot)
+            inventory = InventoryFixture.PutIntoContainer(inventory, "order-store-porridge", household,
+                potId, cooked.Id, 2);
+        if (claimed)
+            inventory = InventoryFixture.Reserve(inventory, "order-protected-meals", household,
+                cooked.Id, 2, "independent-food-claim", long.MaxValue);
+        using var world = Restore(FarmFieldTests.WithInventory(state, inventory));
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("eat-real-porridge", "owner:test",
+            actor, OwnerInstructionKind.MustDo, "eat porridge"));
+        var submitted = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var reloaded = Restore(PrivateWorldRuntimeCodec.Decode(submitted));
+        Assert.Equal(submitted, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        for (var tick = 0; tick < 8; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
+                PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        }
+        var finished = world.ExportState();
+        var savedOrder = Assert.Single(finished.Instructions!, item => item.InstructionId == order.InstructionId).Order!;
+        Assert.Equal("porridge", savedOrder.TargetFoodKind);
+        Assert.Equal(claimed ? "blocked" : "finished", savedOrder.Status);
+        Assert.Equal(claimed ? 0 : 1, savedOrder.CompletedUnits);
+        Assert.Equal(claimed ? 2 : 1, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "porridge")
+            .Sum(lot => lot.Quantity));
+        Assert.Equal(1, world.Society.Inventory.GetLot(wrongFoodId).Quantity);
+        if (inPot)
+        {
+            var pot = world.Society.Inventory.GetLot(potId);
+            Assert.Equal((household, house.InstanceId, 1), (pot.OwnerId, pot.StorageBuildingId, pot.Quantity));
+            Assert.Equal(potId, world.Society.Inventory.GetLot(wrongFoodId).ContainerLotId);
+        }
+        if (claimed)
+            Assert.Equal(InventoryReservationState.Reserved,
+                world.Society.Inventory.GetReservation("order-protected-meals").State);
+        else
+            Assert.Equal("porridge", world.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.LastMealKind);
+        world.Validate();
     }
 
     private static (PrivateWorldRuntimeState State, string Actor, string Household, PlacedBuilding Site,

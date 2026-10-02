@@ -339,7 +339,8 @@ or deliveries can still prevent removing or reassigning its destination.
 
 Spoiled food cannot be eaten. Households do not yet clear spoiled food from
 pots automatically, and there is no discard control. Raw grain, potatoes and
-flour still need the separate cooking work before they can become meals.
+flour keep their freshness and need separate cooking work before they become
+meals. Bread and other cooked food spoil; storage pots slow that loss.
 
 Before the first House, builders carry their construction materials to the camp
 pile in loads. A helper meets the adult who requested materials and transfers only
