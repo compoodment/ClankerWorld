@@ -70,6 +70,8 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(origin, CancellationActorPosition(world.ExportState()));
         Assert.Equal(0, CancellationOrder(world.ExportState(), first.InstructionId).CompletedUnits);
+        Assert.DoesNotContain(world.ExportState().Knowledge!.Facts, fact =>
+            fact.OwnerId == HarvestInstructionActor && fact.Position == destination);
         world.Pause();
         var directory = Directory.CreateTempSubdirectory("clankerworld-movement-order-");
         try
@@ -232,6 +234,13 @@ public sealed partial class PrivateWorldRuntimeTests
                         } : person).ToArray(),
                 },
             },
+            // The fixture changes an adult into a child, so the all-adult
+            // Council must exclude them before this checkpoint can load.
+            Towns = initial.Towns!.Select(town => town with
+            {
+                Governance = TownGovernanceState.Create(town.ResidentIds.Where(id =>
+                    id != HarvestInstructionActor && checkpoint.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)),
+            }).ToArray(),
         };
         using var world = RestoreMovementWorld(initial);
         var destination = MovementOrderDestination(initial);

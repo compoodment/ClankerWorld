@@ -105,6 +105,8 @@ unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
 travel cooldowns and illness delays. An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
+Completed steps record bounded firsthand facts only for the actor's actual
+position; submission and waiting steps reveal no remote destination facts.
 Children and adolescents can walk under an order; infants still cannot take
 instructions. The normal queue, cancellation, stale-reply and survival rules
 apply without a separate model request for each step.

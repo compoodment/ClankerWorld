@@ -148,7 +148,10 @@ public sealed partial class PrivateWorldRuntime
         {
             case "move_to" when order.Action == "move_to" && order.TargetPosition is { } destination:
                 MoveToward(actor, person, destination, "owner_order_move");
-                if (inhabitants[actor].Position == destination)
+                var reached = inhabitants[actor].Position;
+                if (reached != person.Position || reached == destination)
+                    RecordKnowledgeFact(actor, reached);
+                if (reached == destination)
                     CreditOrderEffect(instruction, MovementOrderEffectId(destination), 1);
                 return;
             case "consume_food":
