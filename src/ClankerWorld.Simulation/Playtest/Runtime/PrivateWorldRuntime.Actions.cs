@@ -29,6 +29,7 @@ public sealed partial class PrivateWorldRuntime
         if (state.TravelCooldownTicks > 0)
         {
             inhabitants[inhabitantId] = state with { TravelCooldownTicks = state.TravelCooldownTicks - 1 };
+            KeepPlannedRoute(inhabitantId, reason, destination);
             return;
         }
 
@@ -53,6 +54,7 @@ public sealed partial class PrivateWorldRuntime
             TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
+        RecordPlannedRoute(inhabitantId, reason, destination, route);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         WearCarryAid(inhabitantId);
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");

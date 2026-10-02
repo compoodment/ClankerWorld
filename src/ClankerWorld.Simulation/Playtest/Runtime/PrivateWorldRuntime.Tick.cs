@@ -42,6 +42,7 @@ public sealed partial class PrivateWorldRuntime
         {
             PrivateWorldRuntimeState baseline;
             long baselineEventId;
+            IReadOnlyDictionary<string, PlaytestPlannedRoute> routesBefore;
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
             PendingConversationTurn[] completedConversationTurns = [];
@@ -103,6 +104,7 @@ public sealed partial class PrivateWorldRuntime
                     .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
+                routesBefore = plannedRoutes;
             }
             finally
             {
@@ -115,11 +117,15 @@ public sealed partial class PrivateWorldRuntime
             // The baseline was captured from this committed runtime under the
             // gate. Clone its mutable systems without regenerating or
             // revalidating millions of immutable terrain tiles each tick.
+            // The timing is a Developer tools readout only, never world state.
+            var tickStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             using var proposed = RestoreCore(baseline, providerFactory,
                 maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
+            proposed.previousPlannedRoutes = routesBefore;
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
+            var tickMilliseconds = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(tickStarted).TotalMilliseconds, 1);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             var gateHeld = true;
             try
@@ -169,6 +175,8 @@ public sealed partial class PrivateWorldRuntime
                     IsConversationTurnProviderCurrent);
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
                 CommitPreparedTick(proposed);
+                plannedRoutes = proposed.plannedRoutes;
+                lastTickMilliseconds = tickMilliseconds;
                 foreach (var item in completedIdentityMoments)
                 {
                     pendingIdentityMoments.Remove(item.Request.Observation.InhabitantId);
@@ -347,6 +355,9 @@ public sealed partial class PrivateWorldRuntime
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                // Routes and timing described the world as it was; the next tick measures again.
+                plannedRoutes = new(StringComparer.Ordinal);
+                lastTickMilliseconds = null;
             }
             finally { gate.Release(); }
         }
@@ -374,6 +385,9 @@ public sealed partial class PrivateWorldRuntime
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                // Routes and timing described the world as it was; the next tick measures again.
+                plannedRoutes = new(StringComparer.Ordinal);
+                lastTickMilliseconds = null;
             }
             finally { gate.Release(); }
         }
