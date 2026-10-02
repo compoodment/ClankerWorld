@@ -214,14 +214,13 @@ public sealed record SeededMap(
             // Between the two river tiles of a crossing, with dry banks
             // straight behind and ahead.
             if (originIsRiver && destinationIsRiver)
-                return IsDryBank(Step(origin, -dx, -dy)) && IsDryBank(Step(destination, dx, dy));
+                return IsTwoTileLine(origin, dx, dy);
             // Between a bank and the water: the crossing runs on from the
             // bank through one river tile, or two, to a dry bank opposite.
             var (river, bank) = originIsRiver ? (origin, destination) : (destination, origin);
             var (outX, outY) = originIsRiver ? (dx, dy) : (-dx, -dy);
             var beyond = Step(river, -outX, -outY);
-            return IsDryBank(bank) && (IsDryBank(beyond) ||
-                IsRiverWater(beyond) && IsDryBank(Step(beyond, -outX, -outY)));
+            return IsDryBank(bank) && (IsDryBank(beyond) || IsTwoTileLine(river, -outX, -outY));
         }
         if (!IsDiagonalFootStep(origin, destination)) return true;
         // Both orthogonal shoulders must be traversable. A diagonal cannot
@@ -387,7 +386,21 @@ public sealed record SeededMap(
         (IsTwoTileLine(point, 1, 0) || IsTwoTileLine(Step(point, -1, 0), 1, 0) ||
             IsTwoTileLine(point, 0, 1) || IsTwoTileLine(Step(point, 0, -1), 0, 1));
 
+    // A tile that also lies on a two-tile line across the other axis is a
+    // corner of a river one tile thick that runs diagonally. Wading through it
+    // would turn inside the water and walk along the channel, so neither line
+    // through such a tile counts as a crossing.
     private bool IsTwoTileLine(GridPoint first, int dx, int dy)
+    {
+        var second = Step(first, dx, dy);
+        return IsBankToBankPair(first, dx, dy) &&
+            !HasBankToBankPair(first, dy, dx) && !HasBankToBankPair(second, dy, dx);
+    }
+
+    private bool HasBankToBankPair(GridPoint point, int dx, int dy) =>
+        IsBankToBankPair(point, dx, dy) || IsBankToBankPair(Step(point, -dx, -dy), dx, dy);
+
+    private bool IsBankToBankPair(GridPoint first, int dx, int dy)
     {
         var second = Step(first, dx, dy);
         return IsRiverWater(first) && IsRiverWater(second) &&

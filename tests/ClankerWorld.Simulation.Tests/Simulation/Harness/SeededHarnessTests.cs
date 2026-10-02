@@ -267,6 +267,30 @@ public sealed class SeededHarnessTests
     }
 
     [Fact]
+    public void ARiverOneTileThickRunningDiagonallyIsNotWadedAlongItsChannel()
+    {
+        // A staircase river: each pair of neighbouring water tiles has dry
+        // land at both ends of its own line, but the channel runs diagonally.
+        var water = new HashSet<GridPoint>
+        {
+            new(1, 6), new(1, 5), new(2, 5), new(2, 4), new(3, 4), new(3, 3), new(4, 3), new(4, 2), new(5, 2),
+        };
+        var map = TerrainMap(8, 8, point => water.Contains(point) ? TerrainKind.River : TerrainKind.Meadow);
+
+        // Its end tiles are ordinary one-tile crossings; the corners between
+        // them cannot be waded, so nobody turns inside the water.
+        Assert.All(water.Where(tile => tile != new GridPoint(1, 6) && tile != new GridPoint(5, 2)),
+            tile => Assert.False(map.IsPassable(tile)));
+        Assert.True(map.CanFootStep(new GridPoint(0, 6), new GridPoint(1, 6)));
+        Assert.False(map.CanFootStep(new GridPoint(1, 6), new GridPoint(1, 5)));
+        Assert.False(map.CanFootStep(new GridPoint(1, 5), new GridPoint(2, 5)));
+        Assert.False(map.CanFootStep(new GridPoint(0, 5), new GridPoint(1, 5)));
+        // A route across the land never passes through the river's corners.
+        var route = DeterministicRouteFinder.Find(map, new GridPoint(1, 7), new GridPoint(6, 2));
+        Assert.DoesNotContain(route, tile => water.Contains(tile) && tile != new GridPoint(1, 6) && tile != new GridPoint(5, 2));
+    }
+
+    [Fact]
     public void RiversThreeTilesWideLakesAndTheSeaStayImpassableOnFoot()
     {
         var wide = TerrainMap(7, 3, point => point.X is >= 2 and <= 4 ? TerrainKind.River : TerrainKind.Meadow);

@@ -397,7 +397,10 @@ dry-ground speed, where one tile of water separates dry banks, and
 `SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
 takes two. The two-tile speed is provisional. A third water tile in the line,
 or any lake or ocean tile, means there is no crossing there: wider rivers,
-lakes and the sea need boats. A built bridge makes its river tiles walkable at
+lakes and the sea need boats. A two-tile line through a tile that also lies on
+a two-tile line across the other axis does not count either: that tile is a
+corner of a river one tile thick that runs diagonally, and wading it would turn
+inside the water and walk along the channel. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
