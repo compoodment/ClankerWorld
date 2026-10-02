@@ -139,14 +139,19 @@ starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
 
 The owner snapshot sends every open message, plus the six most recently
-submitted closed messages for each agent, whether or not a personal model heard
-them. An order the game could not act on, or one carried out by local rules,
-therefore still appears on the agent card as closed and not heard. The card
-shows up to four messages per agent, newest first by submission but always
-preferring open messages over closed ones, then lists them in the order they
-were sent. Newer closed messages therefore cannot hide an order that is still
-waiting. The save keeps
-every message; only the snapshot is bounded.
+submitted closed orders and, separately, the six most recently submitted closed
+suggestions for each agent, whether or not a personal model heard them. An
+order the game could not act on, or one carried out by local rules, therefore
+still appears on the agent card as closed and not heard, and heard suggestions
+cannot push the latest closed orders out. **Your messages** shows up to four
+messages per agent, newest first by submission but always preferring open
+messages over closed ones, then lists them in the order they were sent. Newer
+closed messages therefore cannot hide an order that is still waiting. The
+card's order line and the **All orders** reader read the same snapshot: the
+oldest open order is the current one, the other open orders follow in
+submission order, and closed orders come newest first. The client keeps no
+order list of its own. The save keeps every message; only the snapshot is
+bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture

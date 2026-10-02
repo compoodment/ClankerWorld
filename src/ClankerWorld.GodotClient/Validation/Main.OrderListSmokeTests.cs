@@ -67,8 +67,14 @@ public partial class Main
                     throw new InvalidOperationException($"The order checks expected the interface the game picks for {size}, not {uiLayer.Factor * 100}%.");
                 RenderMap(snapshot);
                 selectedInhabitantId = ilya.Id;
-                agentProfileRequested = false;
                 ordersPanel.Hide();
+                // The Profile's width with no orders, so the order line and All orders can be checked not to widen it.
+                agentProfileRequested = true;
+                RenderSelectedInhabitantCard(snapshot with { Instructions = [] });
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                PositionAgentProfile();
+                var profileWidth = agentProfilePanel.GetGlobalRect().Size.X;
+                agentProfileRequested = false;
                 RenderSelectedInhabitantCard(snapshot);
                 for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 PositionSelectedInhabitantCard(snapshot);
@@ -87,10 +93,13 @@ public partial class Main
                 var profile = agentProfilePanel.GetGlobalRect();
                 agentOverviewScroll.EnsureControlVisible(allOrdersButton);
                 for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                // A Profile taller than the screen scrolls, and its scroll bar and gap add the same width they always do.
+                var scrollBar = agentOverviewScroll.GetVScrollBar();
+                var scrollWidth = scrollBar.Visible ? scrollBar.GetGlobalRect().Size.X + SettingsScrollGap * factor : 0;
                 if (profileOrderLabel.Text != current || !profileOrderLabel.IsVisibleInTree() || !allOrdersButton.IsVisibleInTree() ||
-                    !GetViewportRect().Grow(1).Encloses(profile) || profile.Size.X > (AgentProfileWidth + 1) * factor ||
+                    !GetViewportRect().Grow(1).Encloses(profile) || profile.Size.X > profileWidth + scrollWidth + factor ||
                     !profile.Grow(1).Encloses(allOrdersButton.GetGlobalRect()))
-                    throw new InvalidOperationException($"The Profile must show the current order and an All orders button without widening, at {size}: profile={profile} button={allOrdersButton.GetGlobalRect()}.");
+                    throw new InvalidOperationException($"The Profile must show the current order and an All orders button without widening, at {size}: {profileOrderLabel.Text} profile={profile} width without orders={profileWidth} scroll bar and gap={scrollWidth} button={allOrdersButton.GetGlobalRect()}.");
 
                 allOrdersButton.GrabFocus();
                 if (!allOrdersButton.HasFocus())
