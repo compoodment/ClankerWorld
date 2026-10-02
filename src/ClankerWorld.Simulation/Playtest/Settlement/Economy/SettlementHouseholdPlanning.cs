@@ -125,8 +125,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// A carried project tool is kept at home until preparation materials have
-    /// room to travel. Building work can collect it again from the household.
+    /// Store a spare generic tool at home so preparation materials have room
+    /// to travel. Building work uses an available hammer or proceeds by hand.
     /// </summary>
     private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
     {
