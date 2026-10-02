@@ -1,6 +1,6 @@
-- Added a saved, staged guardian search when a dependent loses their last active
-  primary caregiver. Adults must explicitly accept care. The child stays in the
-  current home until an accepting adult in the same Town has a completed House
-  with room; cross-Town acceptance records care but leaves any move to the Town
-  admission rules in issue #602. Birth history and parentage remain unchanged,
-  and owner logs expose event kinds without private names.
+- When a child loses their last caregiver, the game asks adult relatives first,
+  then adults in the child's home, then other adults in the same Town. An adult
+  must choose to help. A child moves into that adult's home only when its
+  completed House has room and both homes are in the same Town; otherwise the
+  child stays where they are. A child who still needs a guardian remains visible,
+  and nearby adults can still feed them. Birth and parent records stay intact.
