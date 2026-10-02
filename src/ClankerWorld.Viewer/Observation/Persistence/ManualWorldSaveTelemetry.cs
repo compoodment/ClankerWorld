@@ -18,6 +18,14 @@ public static partial class ManualWorldSaveTelemetry
         Message = "manual_save outcome=overwritten save={SaveId} backup={BackupId} tick={WorldTick}")]
     public static partial void Overwritten(ILogger logger, string saveId, string backupId, long worldTick);
 
+    [LoggerMessage(EventId = 2258, Level = LogLevel.Information,
+        Message = "manual_save outcome=branch_started branch={BranchNumber} from_save={FromSaveId}")]
+    public static partial void BranchStarted(ILogger logger, int branchNumber, string fromSaveId);
+
+    [LoggerMessage(EventId = 2259, Level = LogLevel.Warning,
+        Message = "manual_save outcome=branch_record_ignored reason=invalid next_save=new_branch")]
+    public static partial void InvalidTimeline(ILogger logger);
+
     [LoggerMessage(EventId = 2252, Level = LogLevel.Warning,
         Message = "manual_save outcome=rejected operation={Operation} reason={Reason}")]
     public static partial void Rejected(ILogger logger, string operation, string reason);
