@@ -477,7 +477,11 @@ public sealed class OwnerWorldObservationStore
                     (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
                         .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
                     (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
-                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure)
+                {
+                    AllowsHouseholdOwner = buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags
+                        .Any(HouseholdBuildingKinds.IsKindTag) == true,
+                })
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
@@ -708,8 +712,10 @@ public sealed class OwnerWorldObservationStore
                 : null,
             Survival = physical.Survival is { } survival
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
-                    inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
+                    PersonalEquipmentRules.EquippedUnit(state.Society.Society.Inventory, inhabitant.Id, physical.Equipment?.ClothingLotId) is
+                    { ConditionBasisPoints: > 0 },
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
+            Equipment = EquipmentFor(state, physical),
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -983,6 +989,19 @@ public sealed class OwnerWorldObservationStore
         SocietyRelationshipState.EndedByDeath => "ended_by_death",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+
+    private static ViewerEquipment EquipmentFor(PrivateWorldRuntimeState state, PlaytestInhabitantState person)
+    {
+        var inventory = state.Society.Society.Inventory;
+        var garment = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.ClothingLotId);
+        var aid = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.CarryAidLotId);
+        var repair = person.Equipment?.Repair;
+        return new(PersonalEquipmentRules.CarriedQuantity(inventory, person.InhabitantId, person.Equipment),
+            PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment),
+            garment?.ItemKind, garment?.ConditionBasisPoints / 100, aid?.ItemKind, aid?.ConditionBasisPoints / 100,
+            inventory.Lots.FirstOrDefault(lot => lot.Id == repair?.LotId)?.ItemKind,
+            repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks);
+    }
 
     private static ViewerInventoryEntry[] InventoryFor(
         PrivateWorldRuntimeState state,

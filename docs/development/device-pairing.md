@@ -107,6 +107,16 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+## Building ownership changes
+
+Building removal and reassignment payloads require the observed simulation world
+ID as well as the expected Town and household ownership. The host verifies that
+world ID under the runtime mutation gate before changing a building. A request
+formed for a previously selected world is refused without changing the active
+world or its saved checkpoint, even when both worlds use the same building IDs.
+A removal confirmation retains the world and owners shown when it opened;
+observation refreshes cannot silently authorize a different ownership change.
+
 ## Response-loss recovery
 
 Instructions and paused-authoring batches are server-idempotent, but a client
