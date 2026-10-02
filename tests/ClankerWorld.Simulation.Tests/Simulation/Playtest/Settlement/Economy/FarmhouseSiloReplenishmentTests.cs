@@ -13,13 +13,14 @@ public sealed class FarmhouseSiloReplenishmentTests
     [Fact]
     public async Task StoredSiloGrainIsActuallyCarriedToAnEmptyFarmhouseForMillingAcrossReload()
     {
-        var setup = await Prepare("silo-replenishment", growField: false);
+        var setup = await Prepare("silo-replenishment", growField: false, isolateStoredGrain: true);
         var inventory = InventoryFixture.AddLot(setup.State.Society.Society.Inventory,
             "silo-grain", FarmFieldRules.Grain, setup.Household, 8, storageBuildingId: setup.Silo);
         using var world = Restore(FarmFieldTests.WithInventory(setup.State, inventory), setup.Actor,
             "haul_farm_grain", "haul_household_stock");
         var mill = world.WorldContent.Recipes.Single(recipe => recipe.LocalId == "mill-grain");
         Assert.False(world.StartProduction(mill.CanonicalId, setup.Farmhouse, setup.Actor).Applied);
+        AssertUnrelatedHouseCargoClaims(world, setup);
         var initialRoutes = DescribeFarmStockRoutes(world, setup);
         await Until(world, () => CarriedGrain(world, setup) is not null, 96, "Silo grain pickup",
             () => "Initial farm stock/routes:\n" + initialRoutes + "\nFinal farm stock/routes:\n" + DescribeFarmStockRoutes(world, setup));
@@ -43,6 +44,7 @@ public sealed class FarmhouseSiloReplenishmentTests
         Assert.Equal((setup.Household, carried.Id, 1, InventoryReservationState.Completed),
             (receipt.OwnerId, receipt.LotId, receipt.Quantity, receipt.State));
         Assert.Equal(1, delivery.Society.Inventory.GetLot(job.JobId + ":output:00").Quantity);
+        AssertUnrelatedHouseCargoClaims(delivery, setup);
         using var restored = Reload(delivery, setup.Actor, "safe_idle");
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(delivery.ExportState()),
             PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
@@ -231,7 +233,7 @@ public sealed class FarmhouseSiloReplenishmentTests
     private sealed record Setup(PrivateWorldRuntimeState State, string Actor, string Household,
         GridPoint Point, string Farmhouse, string Silo, string House);
 
-    private static async Task<Setup> Prepare(string seed, bool growField)
+    private static async Task<Setup> Prepare(string seed, bool growField, bool isolateStoredGrain = false)
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer(seed);
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
@@ -281,14 +283,16 @@ public sealed class FarmhouseSiloReplenishmentTests
         {
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId != farmhouse.InstanceId).ToArray(),
         };
-        if (growField)
+        if (growField || isolateStoredGrain)
         {
             // Silo construction has actually spent its costs. Keep unrelated
-            // camp supplies claimed so this directed delivery proof cannot
-            // fill the House with tools/wood before its actual flour arrives.
+            // camp supplies claimed for this directed delivery proof. The raw
+            // Silo case also preserves its starter planting stock here: new
+            // seed/produce hauls and a continuing House haul are separate work.
             foreach (var stock in inventory.Lots.Where(lot => lot.OwnerId == household &&
+                         lot.CarrierId is null &&
                          lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
-                         lot.ContainerLotId is null && !FarmFieldRules.IsFarmStock(lot.ItemKind) &&
+                         lot.ContainerLotId is null && (isolateStoredGrain || !FarmFieldRules.IsFarmStock(lot.ItemKind)) &&
                          !InventoryContainerRules.IsContainer(lot.ItemKind)).ToArray())
             {
                 var quantity = PersonalEquipmentRules.AvailableQuantity(inventory, stock);
