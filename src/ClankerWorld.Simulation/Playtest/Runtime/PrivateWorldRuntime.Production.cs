@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -150,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
             if (placed.HouseholdId is null && definition.Tags.Any(IsHouseholdBuildingTag))
                 continue;
             var activeJobs = worldSimulation.ProductionJobs.Count(item =>
-                item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+                item.BuildingInstanceId == placed.InstanceId && item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused);
             if (activeJobs < definition.Capacity &&
                 (actorId is null || FindUnoccupiedRoute(actorId, inhabitants[actorId].Position, placed.Position, 0).Count > 0))
             {
@@ -238,7 +238,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
@@ -277,15 +277,19 @@ public sealed partial class PrivateWorldRuntime
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
                 if (BuildingStorageRules.Capacity(definition, building) is not { } capacity) continue;
-                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
-                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity) +
+                    ReservedBusinessStorageSpace(building.InstanceId, checkpoint.Inventory);
+                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity) +
+                    ReservedBusinessStorageSpace(building.InstanceId, updated);
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
             }
             foreach (var person in inhabitants.Values)
             {
-                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]);
-                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment);
+                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]) +
+                    ReservedBusinessCarrySpace(person.InhabitantId, checkpoint.Inventory);
+                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment) +
+                    ReservedBusinessCarrySpace(person.InhabitantId, updated);
                 if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
                     throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }
@@ -461,8 +465,12 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventoryState = society.Checkpoint.Inventory;
         var inputs = job.InputReservationIds.Select(inventoryState.GetReservation).ToArray();
-        if (inputs.Any(reservation => reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
-            reservation.ExpiryTick < targetTick || inventoryState.Lots.FirstOrDefault(lot => lot.Id == reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 }))
+        var knifePlan = job.ToolLotId is null ? null : ToolProgressionRules.PlanWorkForLot(inventoryState,
+            job.WorkerId, ToolFamily.Knife, job.ToolLotId);
+        var inputUnusable = inputs.Any(reservation =>
+            reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            reservation.ExpiryTick < targetTick || inventoryState.Lots.FirstOrDefault(lot => lot.Id == reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 });
+        if (inputUnusable || job.ToolLotId is not null && knifePlan is null)
         {
             ApplyInventoryTransition(inventory =>
             {
@@ -472,12 +480,12 @@ public sealed partial class PrivateWorldRuntime
                 }
                 return inventory;
             });
-            AppendEvent("production_input_unusable", job.JobId);
+            AppendEvent(inputUnusable ? "production_input_unusable" : "production_tool_unusable", job.JobId);
             return false;
         }
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
-        var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
+        var productionOwner = job.OwnerId ?? throw new InvalidDataException("A production job has no recorded owner.");
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -500,7 +508,8 @@ public sealed partial class PrivateWorldRuntime
                         : null);
             }
 
-            return current;
+            return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,
+                targetTick, [knifePlan]);
         });
         CreditCompletedWork(job.WorkerId, "crafting", SkillForRecipe(recipe));
         return true;

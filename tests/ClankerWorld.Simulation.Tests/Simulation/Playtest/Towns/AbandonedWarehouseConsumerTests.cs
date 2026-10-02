@@ -178,8 +178,11 @@ public sealed class AbandonedWarehouseConsumerTests
         var choice = "expand_building:" + house.InstanceId;
         Assert.Contains(Candidates(world, actor), item => item.Id == choice);
         Choose(world, actor, choice);
-        Assert.Equal(1, Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "wood").Quantity);
-        Assert.Equal(7, world.Society.Inventory.GetLot("salvage-stock").Quantity);
+        // The expansion collects one full carried load (its cost of 4) for delivery to the House.
+        var carried = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "wood");
+        Assert.Equal(house.InstanceId, carried.DeliveryBuildingId);
+        Assert.Equal(4, carried.Quantity);
+        Assert.Equal(4, world.Society.Inventory.GetLot("salvage-stock").Quantity);
         Assert.Empty(world.WorldSimulation.BuildingExpansions ?? []);
         AssertRoundTrip(world);
     }
@@ -201,8 +204,12 @@ public sealed class AbandonedWarehouseConsumerTests
             state = state with
             {
                 Towns = state.Towns!.Select(town => town.Id == QuietTown
-                    ? town with { ResidentIds = [returning] }
-                    : town with { ResidentIds = town.ResidentIds.Where(id => id != returning).ToArray() }).ToArray(),
+                    ? town with { ResidentIds = [returning], Governance = TownGovernanceState.Create([returning]) }
+                    : town with
+                    {
+                        ResidentIds = town.ResidentIds.Where(id => id != returning).ToArray(),
+                        Governance = TownGovernanceState.Create(town.ResidentIds.Where(id => id != returning))
+                    }).ToArray(),
             };
         }
         else if (change == "occupied")
@@ -237,7 +244,7 @@ public sealed class AbandonedWarehouseConsumerTests
         var firstTown = state.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
         var border = state.Map.Tiles.Select(tile => tile.Position)
             .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
-        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border]);
+        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]));
         var inventory = state.Society.Society.Inventory;
         var removed = inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId ||
                 lot.OwnerId == household && (lot.ItemKind == kind || PersonalEquipmentRules.IsGarment(lot.ItemKind) ||
@@ -280,7 +287,7 @@ public sealed class AbandonedWarehouseConsumerTests
 
     private static List<CognitionCandidate> Candidates(PrivateWorldRuntime world, string actor) =>
         (List<CognitionCandidate>)typeof(PrivateWorldRuntime).GetMethod("CreateCandidates", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor)])!;
+            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor), true])!;
 
     private static void Choose(PrivateWorldRuntime world, string actor, string choice) =>
         typeof(PrivateWorldRuntime).GetMethod("ApplyCandidate", BindingFlags.Instance | BindingFlags.NonPublic)!

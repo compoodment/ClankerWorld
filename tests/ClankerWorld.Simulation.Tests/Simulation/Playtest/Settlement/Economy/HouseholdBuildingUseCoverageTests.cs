@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 
@@ -27,6 +28,15 @@ public sealed class HouseholdBuildingUseCoverageTests
         using var setup = NormalPathWorld.CreateGenerated(seed, _ => recorder);
         var state = setup.ExportState();
         var farmingHousehold = setup.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse").HouseholdId!;
+        // This checks permission to mill available grain, independently of
+        // which crop the normal chooser grows to meet the food shortage.
+        var inventory = InventoryFixture.AddLot(
+            state.Society.Society.Inventory, "coverage-milling-grain", "grain", farmingHousehold, 1,
+            storageBuildingId: "first-town-farmhouse");
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
         // Work is demand-driven. Start with a real shortage rather than
         // requiring unnecessary crop work while starter rations are plentiful.
         using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(state, farmingHousehold),

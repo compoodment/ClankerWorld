@@ -22,7 +22,8 @@ public partial class Main
                 "household_membership", "accepted", "household", 1)],
         };
         var house = new OwnerWorldPlacedBuilding("test-house", "sha256:test/house", new(2, 2), 0, "House", ["house"], 2, 1,
-            "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3));
+            "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3),
+            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running");
         var buildingMap = baseMap with
         {
             WorldTick = 30,
@@ -58,11 +59,14 @@ public partial class Main
             !facts.Contains("Owner\nFounder's household", StringComparison.Ordinal) ||
             !facts.Contains("Used by\nFounder's household", StringComparison.Ordinal) ||
             !facts.Contains("Built\n", StringComparison.Ordinal) ||
+            !facts.Contains("Permanent residents\n2 / 8 places", StringComparison.Ordinal) ||
+            !facts.Contains("Family limit\nOne family is most of the household · 4 places per tile", StringComparison.Ordinal) ||
+            !facts.Contains("Expansion\nWork in progress · current resident places remain until completion", StringComparison.Ordinal) ||
             !facts.Contains("Door\nSouth side", StringComparison.Ordinal) ||
             !buildingWorkSection.Visible || buildingWorkRows.GetChildCount() != 1 ||
             buildingDetailsStorage.Summary != "3 kinds · 7 items" || buildingDetailsStorage.SlotCount != 3 ||
             !buildingPeopleText.Text.Contains("Inside: Oren", StringComparison.Ordinal) ||
-            !buildingPeopleText.Text.Contains("Home of Founder's household: Oren", StringComparison.Ordinal) ||
+            !buildingPeopleText.Text.Contains("Permanent residents (including travelers): Oren", StringComparison.Ordinal) ||
             !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
@@ -75,7 +79,8 @@ public partial class Main
                 {
                     StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)],
                     Width = 2, Height = 2, StorageCapacity = 256, StoredQuantity = 11, FootprintRevision = 2,
-                    InvitedGuests = ["Lina"], ExpansionState = "completed",
+                    InvitedGuests = ["Lina"], ExpansionState = "completed", ResidentLimit = 16,
+                    PermanentResidentCount = 17, HasDominantFamily = true, IsOvercrowded = true,
                 }],
             ProductionJobs = [],
         });
@@ -85,12 +90,69 @@ public partial class Main
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
             !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
+            !facts.Contains("Permanent residents\n17 / 16 places", StringComparison.Ordinal) ||
+            !facts.Contains("Crowding\nOver the limit · nobody new can move in until there is room", StringComparison.Ordinal) ||
             !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
             throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
+        var store = house with
+        {
+            DefinitionId = "sha256:test/store",
+            DisplayName = "Store",
+            Tags = ["store", "storage"],
+            Width = 1,
+            Height = 2,
+            Entrance = new(3, 2),
+            ResidentLimit = null,
+            PermanentResidentCount = 0,
+            HasDominantFamily = false,
+            IsOvercrowded = false,
+            ExpansionState = null,
+            ExpansionFailure = null,
+            Trades = [new("trade-ui-test", "Lina", "wooden_axe", 1, "wood", 3, "open", null)],
+        };
+        var storeMap = buildingMap with { PlacedBuildings = [store], ProductionJobs = [] };
+        RenderBuildingCard(storeMap);
+        facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+        quickText = string.Join('\n', buildingQuickStatus.FindChildren("*", "Label", owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
+            !facts.Contains("waiting for both traders at the shop", StringComparison.Ordinal) ||
+            !facts.Contains("household stock and other uses remain private", StringComparison.Ordinal) ||
+            facts.Contains("Permanent residents", StringComparison.Ordinal) ||
+            facts.Contains("Family limit", StringComparison.Ordinal) ||
+            facts.Contains("Expansion", StringComparison.Ordinal) ||
+            !quickText.Contains("1 customer exchange waiting", StringComparison.Ordinal) ||
+            BuildingSprites.KindFor(["store", "storage"]) != BuildingKind.Store)
+            throw new InvalidOperationException("A shop card must show exact terms, transaction progress and limited customer access.");
+        var busyStore = store with
+        {
+            Trades = Enumerable.Range(1, 8).Select(index => new OwnerWorldBusinessTrade(
+                "trade-ui-" + index, "Customer " + index, "wooden_pickaxe", 1, "wood", 3, "open", null)).ToArray(),
+        };
+        RenderBuildingCard(storeMap with { PlacedBuildings = [busyStore] });
         ApplyResponsiveLayout();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
-            throw new InvalidOperationException($"Building Details must stay inside the view: {buildingDetailsPanel.GetGlobalRect()}.");
+        if (!GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
+            buildingDetailsContent.Size.Y <= buildingDetailsScroll.Size.Y ||
+            buildingDetailsScroll.GetVScrollBar().MaxValue <= buildingDetailsScroll.GetVScrollBar().Page)
+            throw new InvalidOperationException($"Eight shop exchanges must scroll inside Building Details: {buildingDetailsPanel.GetGlobalRect()}.");
+        buildingDetailsScroll.ScrollVertical = int.MaxValue;
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (buildingDetailsScroll.ScrollVertical <= 0 ||
+            !buildingDetailsPanel.GetGlobalRect().Encloses(buildingDetailsHeader.GetGlobalRect()))
+            throw new InvalidOperationException("Shop history must remain reachable while the Building Details header stays visible.");
+        RenderBuildingCard(storeMap with
+        {
+            PlacedBuildings = [store with { Trades = [store.Trades[0] with { Status = "settled" }] }],
+        });
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+        quickText = string.Join('\n', buildingQuickStatus.FindChildren("*", "Label", owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!facts.Contains("completed · purchase carried away, payment stored here", StringComparison.Ordinal) ||
+            quickText.Contains("customer exchange waiting", StringComparison.Ordinal) ||
+            !GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
+            throw new InvalidOperationException("Settling a shop exchange must refresh its outcome and remove the waiting count without hiding Details.");
 
         // Escape closes open top-bar panels first, so keep Filters out of the way.
         var filtersWereOpen = filtersPanel.Visible;

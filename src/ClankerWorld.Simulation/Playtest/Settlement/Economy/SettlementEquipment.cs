@@ -8,8 +8,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private int FreeCarryCapacity(string actor) => PersonalEquipmentRules.FreeCapacity(
-        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
+    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.FreeCapacity(
+        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
 
     private string EquipmentNote(string actor)
     {
@@ -42,18 +42,20 @@ public sealed partial class PrivateWorldRuntime
             (PersonalEquipmentRules.IsCarried(item, actor) ? 1 : 0);
         var capacity = carryAid ? item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
             : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
-        return after <= before || after <= capacity;
+        return after <= before && capacity >= PersonalEquipmentRules.Capacity(inventory, actor, equipment) ||
+            after + ReservedBusinessCarrySpace(actor) <= capacity;
     }
 
     private int MissingRepairInputUnits(string actor, InventoryLot item) =>
         PersonalEquipmentRules.RepairMaterials(item.ItemKind).Sum(input => Math.Max(0, input.Amount -
-            society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+            society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
                 lot.DeliveryBuildingId is null && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity)));
 
     private IEnumerable<InventoryLot> PrivateEquipmentSources(string actor) => society.Checkpoint.Inventory.Lots
+        // Borrowed goods, carried by this agent or by another member, are not theirs to take.
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
-            (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == HouseholdFor(actor) &&
-                CanReachSharedItem(actor, lot)))
+            (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
+                lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && CanReachSharedItem(actor, lot)))
         .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
@@ -79,7 +81,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private InventoryLot? WornEquipment(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.Quantity == 1 && PersonalEquipmentRules.IsCarried(lot, actor) &&
+        .Where(lot => lot.Quantity == 1 && lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && lot.ConditionBasisPoints <= 4_000 &&
             (PersonalEquipmentRules.IsGarment(lot.ItemKind) || PersonalEquipmentRules.IsCarryAid(lot.ItemKind)) &&
             society.Checkpoint.Inventory.Reservations.All(item => item.LotId != lot.Id || item.State is not
@@ -101,7 +103,7 @@ public sealed partial class PrivateWorldRuntime
             MissingRepairInputUnits(actor, worn) <= FreeCarryCapacity(actor) &&
             EquipmentRepairSite(actor, worn) is { } site &&
             FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0 &&
-            PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedItem(actor, input.ResourceId) ||
+            PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedOwnItem(actor, input.ResourceId) ||
                 SharedItem(input.ResourceId, actor) is not null))
             candidates.Add(new("repair_equipment", $"Bring materials to repair the worn {worn.ItemKind.Replace('_', ' ')}.", 12, site.InstanceId));
     }
@@ -167,7 +169,7 @@ public sealed partial class PrivateWorldRuntime
         if (MissingRepairInputUnits(actor, target) > FreeCarryCapacity(actor)) return;
         foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
         {
-            if (!HasCarriedItem(actor, input.ResourceId))
+            if (!HasCarriedOwnItem(actor, input.ResourceId))
             {
                 CollectEquipment(actor, person, input.ResourceId);
                 return;
@@ -184,7 +186,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
             {
                 var material = inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).First(lot =>
-                    PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                    lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                     lot.ItemKind == input.ResourceId && PersonalEquipmentRules.AvailableQuantity(inventory, lot) >= input.Amount);
                 var id = $"repair:{WorldTick}:{actor}:{input.ResourceId}";
                 inventory = InventoryFixture.Reserve(inventory, id, actor, material.Id, input.Amount,

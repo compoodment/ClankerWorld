@@ -3,12 +3,13 @@ using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-/// <summary>One completed wade from one bank of a narrow crossing to the other.</summary>
+/// <summary>One completed wade from one bank of a one- or two-tile crossing to the other.</summary>
 public sealed record BridgeTrafficCrossing(string CrossingId, string AgentId, long Tick);
 
 /// <summary>
-/// An agent standing in the river partway across a narrow crossing. It becomes
-/// evidence only if the agent's next step reaches the opposite bank.
+/// An agent standing in the river partway across a one- or two-tile crossing.
+/// It stays open while the agent steps between that crossing's river tiles,
+/// and becomes evidence only if a step out of the water reaches the opposite bank.
 /// </summary>
 public sealed record BridgeTrafficWade(string AgentId, string CrossingId, GridPoint EntryBank);
 
@@ -29,8 +30,9 @@ public sealed record BridgeTrafficState(
 /// back never add evidence, and walking on a Road or an existing bridge is not
 /// wading. A bridge appears after <see cref="CrossingThreshold"/> completed
 /// crossings by at least <see cref="DistinctAgentThreshold"/> agents within
-/// <see cref="WindowDays"/> world days at the same narrow crossing (the
-/// owner's initial playtest threshold).
+/// <see cref="WindowDays"/> world days at the same crossing of one or two
+/// river tiles (the owner's initial playtest threshold, which applies to
+/// both widths).
 /// </summary>
 public static class BridgeTrafficRules
 {
@@ -58,19 +60,24 @@ public static class BridgeTrafficRules
         var inProgress = state.InProgress.Where(item => item.AgentId != agentId).ToList();
         var completed = state.Completed.ToList();
         if (state.InProgress.FirstOrDefault(item => item.AgentId == agentId) is { } wade &&
-            RiverBridgeRules.TryResolve(map, wade.CrossingId, out var waded) &&
-            waded!.Span.Contains(from) && to == Opposite(waded, wade.EntryBank))
+            RiverBridgeRules.TryResolve(map, wade.CrossingId, out var waded) && waded!.Span.Contains(from))
         {
-            completed.Add(new BridgeTrafficCrossing(wade.CrossingId, agentId, tick));
-            var excess = completed.Where(item => item.CrossingId == wade.CrossingId && item.AgentId == agentId)
-                .OrderByDescending(item => item.Tick).Skip(MaximumCrossingsPerAgent).ToHashSet();
-            completed.RemoveAll(excess.Contains);
+            if (to == Opposite(waded, wade.EntryBank))
+            {
+                completed.Add(new BridgeTrafficCrossing(wade.CrossingId, agentId, tick));
+                var excess = completed.Where(item => item.CrossingId == wade.CrossingId && item.AgentId == agentId)
+                    .OrderByDescending(item => item.Tick).Skip(MaximumCrossingsPerAgent).ToHashSet();
+                completed.RemoveAll(excess.Contains);
+            }
+            // A step to the other river tile of a two-tile crossing is still
+            // the same wade; any other step ends it.
+            else if (waded.Span.Contains(to))
+                inProgress.Add(wade);
         }
         if (map.IsRiverWater(to) && !map.IsBridgeDeck(to) && !map.IsRiverWater(from) &&
             CardinalStep(map, from, to) is { } step &&
-            RiverBridgeRules.TryFindCrossing(map, from, step.X, step.Y, out var entered) &&
-            entered!.Span.Count == 1)
-            inProgress.Add(new BridgeTrafficWade(agentId, entered.Id, from));
+            RiverBridgeRules.TryFindCrossing(map, from, step.X, step.Y, out var entered))
+            inProgress.Add(new BridgeTrafficWade(agentId, entered!.Id, from));
         return Canonical(inProgress, completed);
     }
 
@@ -114,7 +121,7 @@ public static class BridgeTrafficRules
             state.Completed.Where(item => item.CrossingId != crossingId).ToList());
     }
 
-    /// <summary>Checks untrusted saved evidence: bounded, recent, and only for real unbridged narrow crossings.</summary>
+    /// <summary>Checks untrusted saved evidence: bounded, recent, and only for real unbridged crossings.</summary>
     public static void Validate(BridgeTrafficState state, SeededMap map, long tick, int ticksPerDay,
         IReadOnlySet<string> knownAgents, IReadOnlyDictionary<string, GridPoint> activePositions,
         IEnumerable<BridgeState> bridges)
@@ -124,15 +131,14 @@ public static class BridgeTrafficRules
             throw new InvalidDataException("Saved bridge traffic evidence is missing.");
         var bridged = bridges.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         var window = WindowTicks(ticksPerDay);
-        bool IsOpenNarrowCrossing(string id, out RiverCrossing? crossing) =>
-            RiverBridgeRules.TryResolve(map, id, out crossing, ignoreBuiltDecks: true) &&
-            crossing!.Span.Count == 1 && !bridged.Contains(id);
+        bool IsOpenCrossing(string id, out RiverCrossing? crossing) =>
+            RiverBridgeRules.TryResolve(map, id, out crossing, ignoreBuiltDecks: true) && !bridged.Contains(id);
         var wading = new HashSet<string>(StringComparer.Ordinal);
         foreach (var wade in state.InProgress)
         {
             if (wade is null || !wading.Add(wade.AgentId) ||
                 !activePositions.TryGetValue(wade.AgentId, out var position) ||
-                !IsOpenNarrowCrossing(wade.CrossingId, out var crossing) ||
+                !IsOpenCrossing(wade.CrossingId, out var crossing) ||
                 !crossing!.Span.Contains(position) ||
                 wade.EntryBank != crossing.EntranceA && wade.EntryBank != crossing.EntranceB)
                 throw new InvalidDataException("Saved bridge traffic contains an invalid crossing in progress.");
@@ -142,7 +148,7 @@ public static class BridgeTrafficRules
         {
             if (crossing is null || !knownAgents.Contains(crossing.AgentId) ||
                 crossing.Tick < 0 || crossing.Tick > tick || tick - crossing.Tick >= window ||
-                !IsOpenNarrowCrossing(crossing.CrossingId, out _) ||
+                !IsOpenCrossing(crossing.CrossingId, out _) ||
                 !seen.Add((crossing.CrossingId, crossing.AgentId, crossing.Tick)))
                 throw new InvalidDataException("Saved bridge traffic contains an invalid or expired crossing.");
         }

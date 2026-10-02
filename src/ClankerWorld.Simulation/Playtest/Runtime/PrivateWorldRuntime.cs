@@ -20,11 +20,16 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 39;
+    public const int StateSchemaVersion = 49;
+    public const int ObserverGuidanceSchemaVersion = 41;
+    public const int OrderLifecycleSchemaVersion = 49;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
     public const int ReusableContainerSchemaVersion = 39;
+    public const int ToolProgressionSchemaVersion = 42;
+    public const int LifeMomentIdentitySchemaVersion = 43;
+    public const int ContinuitySchemaVersion = 46;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
@@ -61,6 +66,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         new(StringComparer.Ordinal);
     private Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
         new(StringComparer.Ordinal);
+    private Dictionary<string, OwnerOrderCancellation> orderCancellations =
+        new(StringComparer.Ordinal);
     private HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
     private List<PlaytestWorldEvent> events = [];
     private long nextEventId = 1;
@@ -71,6 +78,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private long jevPolicyRevision;
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
+    private List<TownLandTitleRecord> townLandTitles = [];
+    private List<HouseholdLandUseRight> householdLandUseRights = [];
+    private List<HouseholdLandUseRequest> householdLandUseRequests = [];
     private HashSet<GridPoint> roadTiles = [];
     private List<AgentConversation> conversations = [];
     private List<AgentConversationDailyBudget> conversationBudgets = [];
@@ -172,6 +182,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
+        StartContinuityRule();
     }
 
     /// <summary>Creates a world from the already previewed deterministic map.</summary>
@@ -212,6 +223,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public FounderSetupState? FounderSetup => founderSetup;
 
     public IReadOnlyList<TownRuntimeState> Towns => towns
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<TownLandTitleRecord> TownLandTitles => townLandTitles
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRight> HouseholdLandUseRights => householdLandUseRights
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRequest> HouseholdLandUseRequests => householdLandUseRequests
         .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
 
     public IReadOnlyList<GridPoint> RoadTiles => roadTiles.OrderBy(item => item.Y).ThenBy(item => item.X).ToArray();
@@ -285,15 +305,22 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.townLandTitles = state.TownLandTitles!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRights = state.HouseholdLandUseRights!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRequests = state.HouseholdLandUseRequests!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.roadTiles = state.RoadTiles!.ToHashSet();
         runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic!;
         runtime.conversations = state.Conversations!.ToList();
         runtime.conversationBudgets = state.ConversationBudgets!.ToList();
+        runtime.businessTrades = state.BusinessTrades!.ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
+        runtime.continuity = state.Continuity!;
         runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
@@ -316,6 +343,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
+        runtime.orderCancellations.Clear();
         runtime.completedInstructionIds.Clear();
         foreach (var instruction in state.Instructions ?? [])
         {
@@ -340,6 +368,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             runtime.completedInstructionIds.Add(completedInstructionId);
         }
 
+        foreach (var cancellation in state.OrderCancellations ?? [])
+        {
+            if (!runtime.orderCancellations.TryAdd(cancellation.IdempotencyKey, cancellation))
+            {
+                runtime.Dispose();
+                throw new InvalidDataException("The private-world order cancellation idempotency keys are duplicated.");
+            }
+        }
+
         runtime.nextInstructionSequence = runtime.instructionsByIdempotency.Count == 0
             ? 1
             : checked(runtime.instructionsByIdempotency.Values.Max(item => item.SubmissionSequence) + 1);
@@ -360,6 +397,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
         foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+        CancelIdentityMoments();
         foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
             AgentConversationInterruption.Disconnected);
         society.Dispose();
@@ -424,12 +462,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray());
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
+        orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
+            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray());
 
-    private void AppendEvent(string kind, string detail)
+    private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {
-        GridPoint? position = null;
-        for (var length = detail.Length; length > 0; length = detail.LastIndexOf(':', length - 1))
+        GridPoint? position = eventPosition;
+        for (var length = detail.Length; position is null && length > 0; length = detail.LastIndexOf(':', length - 1))
         {
             var prefix = detail[..length];
             if (inhabitants.TryGetValue(prefix, out var living))
