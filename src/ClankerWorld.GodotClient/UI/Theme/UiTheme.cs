@@ -261,6 +261,13 @@ public static class UiTheme
         // The chosen card in a list of worlds or saves.
         theme.SetTypeVariation("InsetPanelSelected", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanelSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 8));
+        // The same three, tighter, for rows in a long list such as the Agents list.
+        theme.SetTypeVariation("InsetRow", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRow", Box(p.Inset, p.InsetEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowSelected", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 5));
         // The tray holding a row of linked choice buttons such as Low, Normal and High.
         theme.SetTypeVariation("SegmentedPanel", "PanelContainer");
         theme.SetStylebox("panel", "SegmentedPanel", Box(p.Field, p.FieldEdge, 2, contentMargin: 2));
