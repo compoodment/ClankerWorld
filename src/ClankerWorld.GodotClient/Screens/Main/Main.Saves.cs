@@ -297,6 +297,7 @@ public partial class Main
         manualSaveViewRow.AddChild(manualSaveViewChoice);
         body.AddChild(manualSaveViewRow);
         manualSaveTimeline.SaveChosen += ChooseTimelineSave;
+        // Double-click loads in Load Save, as in the list.
         manualSaveTimeline.SaveActivated += id =>
         {
             ChooseTimelineSave(id);
@@ -304,40 +305,48 @@ public partial class Main
         };
         body.AddChild(manualSaveTimeline);
         manualSaveDetails.ThemeTypeVariation = "InsetRow";
+        // Wrapped text has its height only after layout, so the timeline refits then.
+        manualSaveDetails.Resized += () => Callable.From(FitManualSaveTimeline).CallDeferred();
         body.AddChild(manualSaveDetails);
     }
 
-    /// <summary>Whether Load Save is drawing its timeline rather than the list.</summary>
-    private bool ManualSaveTimelineShown => manualSaveLoadMode && !manualSaveShowsList && listedManualSaves.Length > 0;
+    /// <summary>Whether Load Save or Save World is drawing its timeline rather than the list.</summary>
+    private bool ManualSaveTimelineShown => !manualSaveShowsList && listedManualSaves.Length > 0;
 
     /// <summary>
-    /// Shows the timeline or the list. Load Save widens to hold the timeline,
+    /// Shows the timeline or the list. The panel is wide enough for the timeline,
     /// and the timeline gives up height so the panel stays on screen.
     /// </summary>
     private void ApplyManualSaveView()
     {
         var timeline = ManualSaveTimelineShown;
-        var switchable = manualSaveLoadMode && listedManualSaves.Length > 0;
+        var switchable = listedManualSaves.Length > 0;
         manualSaveViewRow.Visible = switchable;
         manualSaveKey.Visible = timeline;
         manualSaveViewLabel.Visible = switchable && !timeline;
         manualSaveSectionLabel.Visible = !switchable;
+        // The card under the timeline carries the status line's advice instead.
+        manualSaveStatus.Visible = !timeline;
         manualSaveViewChoice.Select(manualSaveShowsList ? 1 : 0);
         manualSaveTimeline.Visible = timeline;
         manualSaveDetails.Visible = timeline;
         manualSaveList.Visible = !timeline;
-        manualSaveCard.CustomMinimumSize = new Vector2(manualSaveLoadMode ? ManualSaveTimelineWidth() : 520, 0);
+        manualSaveCard.CustomMinimumSize = new Vector2(ManualSaveTimelineWidth(), 0);
         if (timeline) Callable.From(FitManualSaveTimeline).CallDeferred();
     }
 
     private float ManualSaveTimelineWidth() => MathF.Floor(Math.Clamp(manualSaveOverlay.Size.X - 40, 520, 900));
 
+    // The card's frame and padding around its contents, which stay the same at any width.
+    private float ManualSaveCardFrame() => manualSaveTimeline.GetParent() is Control body && body.Size.X > 0 && manualSaveCard.Size.X > body.Size.X
+        ? manualSaveCard.Size.X - body.Size.X
+        : 40;
+
     private void FitManualSaveTimeline()
     {
         if (!manualSaveTimeline.IsVisibleInTree()) return;
         var others = manualSaveCard.GetCombinedMinimumSize().Y - manualSaveTimeline.GetCombinedMinimumSize().Y;
-        var chrome = manualSaveTimeline.GetThemeStylebox("panel").GetMinimumSize().Y;
-        manualSaveTimeline.SetMaximumHeight(manualSaveOverlay.Size.Y - 24 - others - chrome);
+        manualSaveTimeline.SetMaximumHeight(manualSaveOverlay.Size.Y - 16 - others);
     }
 
     private void ChooseTimelineSave(string id)
@@ -384,7 +393,10 @@ public partial class Main
                 text.AddChild(new Label { Text = "You are here", ThemeTypeVariation = "HeadingLabel" });
                 text.AddChild(Line(readout, "DimLabel"));
             }
-            text.AddChild(Line("Choose a save on the timeline to see it here. Double-click a save to load it.", readout is null ? "" : "DimLabel"));
+            text.AddChild(Line(manualSaveLoadMode
+                    ? "Choose a save to see it here, and double-click to load it. Your current world is saved first."
+                    : "Name your save above and choose Save, or choose a save on the timeline to replace it.",
+                readout is null ? "" : "DimLabel"));
         }
         else
         {
@@ -425,7 +437,9 @@ public partial class Main
                 1 => "Another branch grew from here. ",
                 _ => $"{grown.ToString(CultureInfo.InvariantCulture)} other branches grew from here. ",
             };
-            text.AddChild(Line(latest
+            text.AddChild(Line(!manualSaveLoadMode
+                ? $"{grew}Overwrite replaces it with the world as it is now and keeps the old version as a recovery copy."
+                : latest
                 ? $"{grew}Playing on from here continues {lane.Title}."
                 : $"{grew}Playing on from it starts a new branch; your later saves stay as they are."));
         }
@@ -440,9 +454,10 @@ public partial class Main
         if (listedTimelinePosition is not { } position || manualSaveTimeline.NowLane is not { } lane) return null;
         var from = position.ContinuedFromId is { } id ? allListedManualSaves.FirstOrDefault(save => save.Id == id) : null;
         var playing = from is null ? string.Empty : $"Playing on from ‘{(from.IsAutosave ? "Autosave" : from.Name)}’. ";
+        var next = manualSaveLoadMode ? "Your next save" : "Your new save";
         return lane.IsUnsaved
-            ? $"{playing}Your next save starts Branch {lane.ColorNumber.ToString(CultureInfo.InvariantCulture)}, and your other saves stay as they are."
-            : $"{playing}Your next save continues {lane.Title}.";
+            ? $"{playing}{next} starts Branch {lane.ColorNumber.ToString(CultureInfo.InvariantCulture)}, and your other saves stay as they are."
+            : $"{playing}{next} continues {lane.Title}.";
     }
 
     /// <summary>Asks the host where the running world continues. An older host cannot say, so the timeline marks nothing.</summary>
@@ -487,9 +502,9 @@ public partial class Main
     }
 
     /// <summary>
-    /// Opens Save World or Load Save and reads the world's saves. Load Save also
-    /// asks where the running world continues, for the timeline's You are here
-    /// marker. A test that supplies the save list supplies that answer too, or none.
+    /// Opens Save World or Load Save and reads the world's saves, and asks where
+    /// the running world continues, for the timeline's You are here marker. A
+    /// test that supplies the save list supplies that answer too, or none.
     /// </summary>
     private async Task OpenManualSavesAsync(bool loadMode, Func<CancellationToken, Task<ManualWorldSave[]>>? fetch = null,
         Func<CancellationToken, Task<SaveTimelinePosition?>>? fetchPosition = null)
@@ -513,7 +528,7 @@ public partial class Main
             readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
         fetchPosition ??= fetch is not null ? _ => Task.FromResult<SaveTimelinePosition?>(null)
             : async token => await ownerApi.GetSaveTimelinePositionAsync(ResolveWorldUri(), authority, deviceId, signer, token);
-        var position = loadMode ? ReadTimelinePositionAsync(fetchPosition, read.Token) : Task.FromResult<SaveTimelinePosition?>(null);
+        var position = ReadTimelinePositionAsync(fetchPosition, read.Token);
         try
         {
             var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
@@ -576,13 +591,17 @@ public partial class Main
         RefreshManualSaveAvailability();
     }
 
-    /// <summary>Draws the listed saves on Load Save's timeline, nothing chosen yet.</summary>
+    /// <summary>
+    /// Draws the world's saves on the timeline, nothing chosen yet. Save World
+    /// shows autosaves too, for where the world has been, but they cannot be
+    /// overwritten, so they cannot be chosen there.
+    /// </summary>
     private void RenderManualSaveTimeline()
     {
-        if (manualSaveLoadMode && listedManualSaves.Length > 0)
-            manualSaveTimeline.Show(listedManualSaves, listedTimelinePosition, SaveTimelineCalendar.From(observedCalendarPace),
-                observationSession.Current?.Baseline.Snapshot.WorldTick ?? listedManualSaves.Max(save => save.WorldTick),
-                ManualSaveTimelineWidth());
+        if (listedManualSaves.Length > 0)
+            manualSaveTimeline.Show(allListedManualSaves, listedTimelinePosition, SaveTimelineCalendar.From(observedCalendarPace),
+                observationSession.Current?.Baseline.Snapshot.WorldTick ?? allListedManualSaves.Max(save => save.WorldTick),
+                ManualSaveTimelineWidth() - ManualSaveCardFrame(), manualSaveLoadMode ? null : save => !save.IsAutosave);
         ApplyManualSaveView();
         RenderManualSaveDetails();
     }

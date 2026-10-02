@@ -234,8 +234,10 @@ or choose **Allow 100 more calls**, then resume separately.
 
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
-you like. To overwrite a save, choose its card, then **Overwrite**, and confirm;
-typing the same name does not overwrite it. World Settings offers rotating
+you like. The card under the timeline says whether the new save continues a
+branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
+and confirm; typing the same name does not overwrite it. Autosaves can't be
+overwritten. World Settings offers rotating
 autosaves as well as automatic recovery. **Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
@@ -243,12 +245,21 @@ current world and any it cannot open. Double-click a card, or choose it and
 and Delete are unavailable while another world action finishes.
 
 To go back to an earlier save, choose the current world in Load World and
-**Load a save…**, then pick a save and **Load**. Your world as it was is saved
-first. Playing on from an older save starts a new **branch**, so the saves from
-the first version of events stay as they were. When a world has more than one
-branch, each save card names its branch, such as **Branch 2**, and each branch's
-newest save is marked **Latest**. Saves from before branches existed are listed
-as **Earlier saves**. To load a save of another world, open that world first.
+**Load a save…**, then pick a save and **Load**, or double-click it. Your world
+as it was is saved first. Playing on from an older save starts a new **branch**,
+so the saves from the first version of events stay as they were. To load a save
+of another world, open that world first.
+
+Load Save and Save World open on a **timeline** of the world's saves: a line for
+each branch across the world's days, with the seasons along the top. A new
+branch bends down from the save it grew from. Each branch's newest save has a
+small banner, older saves are open circles and autosaves are small diamonds;
+the key above the timeline shows which is which. **You are here** marks the
+world as it is now, at the end of its branch, or on a dotted **New branch** row
+when your next save will start one. Click a save to see it described
+underneath; the arrow keys also move between saves. **List** shows the saves as
+cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes

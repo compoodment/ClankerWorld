@@ -1,0 +1,1 @@
+- Load Save and Save World show a world's saves as a timeline: a line for each branch across the seasons, a banner on each branch's newest save, and **You are here** where the running world is. Click a save to see it described underneath, or switch to **List** for the cards grouped by branch.

@@ -183,14 +183,16 @@ public static class SaveTimelineLayout
 /// </summary>
 public partial class SaveTimeline : PanelContainer
 {
-    public const float NamesWidth = 112;
+    public const float NamesWidth = 128;
 
     private readonly SaveTimelineNames names = new();
     private readonly ScrollContainer scroll = new();
     private readonly SaveTimelineRows rows = new();
     private float maximumHeight = float.MaxValue;
-    // Until the player scrolls or chooses a save, the newest end stays in view as the layout settles.
-    private bool keepNewestInView;
+    private bool scrollsSideways;
+    // Until the player scrolls or chooses a save, this point stays in view as the layout settles:
+    // You are here when the host said where the world is, otherwise the newest end.
+    private Vector2? opening;
 
     public event Action<string>? SaveChosen;
     public event Action<string>? SaveActivated;
@@ -205,6 +207,9 @@ public partial class SaveTimeline : PanelContainer
         row.AddChild(names);
         row.AddChild(new VSeparator());
         scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        // The rows fill the view, so the seasons run to its edge when the history is short.
+        rows.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        rows.SizeFlagsVertical = SizeFlags.ExpandFill;
         scroll.AddChild(rows);
         row.AddChild(scroll);
         AddChild(row);
@@ -217,21 +222,18 @@ public partial class SaveTimeline : PanelContainer
         }
         scroll.GetHScrollBar().ValueChanged += _ => Follow();
         scroll.GetVScrollBar().ValueChanged += _ => Follow();
-        scroll.GetHScrollBar().Changed += () =>
+        scroll.GetHScrollBar().Changed += ShowOpening;
+        scroll.GetVScrollBar().Changed += ShowOpening;
+        void Scrolled(InputEvent input)
         {
-            if (keepNewestInView) scroll.ScrollHorizontal = (int)scroll.GetHScrollBar().MaxValue;
-        };
-        scroll.GuiInput += input =>
-        {
-            if (input is InputEventMouseButton { Pressed: true }) keepNewestInView = false;
-        };
-        scroll.GetHScrollBar().GuiInput += input =>
-        {
-            if (input is InputEventMouseButton { Pressed: true }) keepNewestInView = false;
-        };
+            if (input is InputEventMouseButton { Pressed: true }) opening = null;
+        }
+        scroll.GuiInput += Scrolled;
+        scroll.GetHScrollBar().GuiInput += Scrolled;
+        scroll.GetVScrollBar().GuiInput += Scrolled;
         rows.Chosen += (id, activate, fromKeyboard) =>
         {
-            keepNewestInView = false;
+            opening = null;
             if (fromKeyboard) Reveal(id);
             SaveChosen?.Invoke(id);
             if (activate) SaveActivated?.Invoke(id);
@@ -240,15 +242,20 @@ public partial class SaveTimeline : PanelContainer
         scroll.Resized += () => rows.ViewWidth = scroll.Size.X;
     }
 
+    /// <summary>The drawn rows, for the smoke checks to click on.</summary>
+    internal SaveTimelineRows Rows => rows;
     public IReadOnlyList<SaveTimelineLane> Lanes => rows.Lanes;
     public string? SelectedId => rows.SelectedId;
     public SaveTimelineLane? NowLane => rows.NowLane;
     public float PixelsPerDay => rows.PixelsPerDay;
     public float ContentHeight => rows.CustomMinimumSize.Y;
 
-    /// <summary>Draws these saves. The running world is marked when the host said where it continues.</summary>
+    /// <summary>
+    /// Draws these saves. The running world is marked when the host said where it
+    /// continues. Saves <paramref name="canChoose"/> refuses are drawn but cannot be chosen.
+    /// </summary>
     public void Show(IReadOnlyList<ManualWorldSave> saves, SaveTimelinePosition? position,
-        SaveTimelineCalendar calendar, long nowTick, float width)
+        SaveTimelineCalendar calendar, long nowTick, float width, Func<ManualWorldSave, bool>? canChoose = null)
     {
         ArgumentNullException.ThrowIfNull(saves);
         ArgumentNullException.ThrowIfNull(calendar);
@@ -257,28 +264,39 @@ public partial class SaveTimeline : PanelContainer
         rows.NowLane = SaveTimelineLayout.NowLane(lanes, position);
         rows.Calendar = calendar;
         rows.NowTick = nowTick;
+        rows.CanChoose = canChoose;
         rows.SelectedId = null;
         // Fit the whole history when it is short; a long one scrolls, newest in view.
         var days = saves.Select(save => calendar.Day(save.WorldTick)).Append(calendar.Day(nowTick)).ToArray();
         var span = Math.Max(1, MathF.Ceiling(days.Max()) - MathF.Floor(days.Min()) + 1);
-        rows.PixelsPerDay = Math.Clamp((width - NamesWidth - 48 - SaveTimelineRows.EndRoom) / span, 14, 66);
+        // The rows' share of the width: less the names, the divider and this panel's frame.
+        var visible = width - NamesWidth - 8 - GetThemeStylebox("panel").GetMinimumSize().X;
+        rows.PixelsPerDay = Math.Clamp((visible - 28 - SaveTimelineRows.EndRoom) / span, 14, 66);
         rows.Refresh();
+        scrollsSideways = rows.CustomMinimumSize.X > visible;
         names.QueueRedraw();
         SetMaximumHeight(maximumHeight);
-        keepNewestInView = true;
-        scroll.ScrollVertical = 0;
-        Callable.From(() =>
-        {
-            if (keepNewestInView) scroll.ScrollHorizontal = (int)scroll.GetHScrollBar().MaxValue;
-        }).CallDeferred();
+        opening = rows.NowPosition() ?? new Vector2(rows.CustomMinimumSize.X, 0);
+        Callable.From(ShowOpening).CallDeferred();
     }
 
-    /// <summary>Limits the timeline's height; more branches than fit scroll.</summary>
+    private void ShowOpening()
+    {
+        if (opening is not { } point) return;
+        scroll.ScrollHorizontal = (int)Math.Max(0, point.X - scroll.Size.X * 0.6f);
+        scroll.ScrollVertical = (int)Math.Max(0, point.Y - scroll.Size.Y / 2);
+    }
+
+    /// <summary>Limits the whole timeline's height, frame included; more branches than fit scroll.</summary>
     public void SetMaximumHeight(float height)
     {
         maximumHeight = height;
-        var wanted = rows.CustomMinimumSize.Y + 14;
-        scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Clamp(wanted, Math.Min(wanted, 120), height)));
+        // Room for the sideways scroll bar only when the history is wider than the view.
+        if (scroll.Size.X > 0) scrollsSideways = rows.CustomMinimumSize.X > scroll.Size.X;
+        var wanted = rows.CustomMinimumSize.Y + (scrollsSideways ? 14 : 0);
+        var least = Math.Min(wanted, 120);
+        var room = height - GetThemeStylebox("panel").GetMinimumSize().Y;
+        scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Clamp(wanted, least, Math.Max(least, room))));
     }
 
     /// <summary>Chooses a save without reporting it, scrolling it into view.</summary>
@@ -287,7 +305,7 @@ public partial class SaveTimeline : PanelContainer
         rows.SelectedId = id;
         rows.QueueRedraw();
         if (id is null) return;
-        keepNewestInView = false;
+        opening = null;
         Reveal(id);
     }
 
@@ -392,6 +410,7 @@ public partial class SaveTimelineRows : Control
     public float ViewLeft { get; set; }
     public float ViewTop { get; set; }
     public float ViewWidth { get; set; }
+    public Func<ManualWorldSave, bool>? CanChoose { get; set; }
 
     /// <summary>A save was chosen, whether it should load, and whether the keyboard chose it.</summary>
     public event Action<string, bool, bool>? Chosen;
@@ -447,7 +466,8 @@ public partial class SaveTimelineRows : Control
             AcceptEvent();
             return;
         }
-        var ordered = Lanes.SelectMany(lane => lane.Points).OrderBy(save => points[save.Id].X)
+        var ordered = Lanes.SelectMany(lane => lane.Points).Where(save => CanChoose?.Invoke(save) ?? true)
+            .OrderBy(save => points[save.Id].X)
             .ThenBy(save => points[save.Id].Y).ToArray();
         if (ordered.Length == 0) return;
         var current = Array.FindIndex(ordered, save => save.Id == SelectedId);
@@ -506,6 +526,9 @@ public partial class SaveTimelineRows : Control
         var font = GetThemeFont("font", "Label");
         var size = GetThemeFontSize("font_size", "Label");
         DrawSeasonWash(p);
+        // The new branch's dotted bend goes under any branch that left the same save.
+        if (NowLane is { IsUnsaved: true, ForkSave: { } fork, Parent: { } parent } lane)
+            Corner(SaveTimelineLayout.BranchColor(lane.ColorNumber), X(Calendar.Day(fork.WorldTick)), LaneY(parent.Index), LaneY(lane.Index), dotted: true);
         DrawBranches();
         DrawNow(p, font, size);
         DrawSaves(p, font, size);
@@ -579,7 +602,8 @@ public partial class SaveTimelineRows : Control
                     nameEnd = at + width + 2;
                 }
             }
-            else if ((dayOfSeason + 1) % every == 0 && left + 2 > nameEnd && (length - dayOfSeason) * PixelsPerDay > 34)
+            // A day number keeps clear of the season's name, so it never reads as part of a date.
+            else if ((dayOfSeason + 1) % every == 0 && left > nameEnd + 10 && (length - dayOfSeason) * PixelsPerDay > 34)
                 DrawString(font, new Vector2(left + 2, ViewTop + 24), (dayOfSeason + 1).ToString(CultureInfo.InvariantCulture),
                     HorizontalAlignment.Left, -1, size, p.InkMuted);
         }
@@ -618,7 +642,7 @@ public partial class SaveTimelineRows : Control
         const int Half = Thick / 2;
         var bottom = y - Radius;
         if (!dotted) DrawRect(new Rect2(forkX - Half, parentY, Thick, bottom - parentY), color);
-        else for (var top = parentY + 8; top < bottom; top += 7)
+        for (var top = parentY + 8; dotted && top < bottom; top += 7)
             DrawRect(new Rect2(forkX - Half, top, Thick, Math.Min(4, bottom - top)), color);
         var centerX = forkX + Radius;
         var centerY = y - Radius;
@@ -633,26 +657,27 @@ public partial class SaveTimelineRows : Control
 
     // ---- the running world ----------------------------------------------
 
+    /// <summary>Where the dotted line toward You are here starts.</summary>
+    private float? NowLineStart()
+    {
+        if (NowLane is not { } lane) return null;
+        if (lane.IsUnsaved)
+            return lane.ForkSave is { } fork && lane.Parent is not null ? X(Calendar.Day(fork.WorldTick)) + Radius : null;
+        return lane.Points.Count > 0 ? X(Calendar.Day(lane.Points[^1].WorldTick)) + 10 : null;
+    }
+
+    /// <summary>The You are here marker's centre, or null when the timeline marks nothing.</summary>
+    public Vector2? NowPosition() => NowLineStart() is { } fromX && NowLane is { } lane
+        ? new Vector2(Math.Max(X(Calendar.Day(NowTick)), fromX + 22), LaneY(lane.Index))
+        : null;
+
     /// <summary>An orange camp marker at the end of a dotted line from where the world continues.</summary>
     private void DrawNow(UiPalette p, Font font, int size)
     {
-        if (NowLane is not { } lane) return;
+        if (NowLane is not { } lane || NowLineStart() is not { } fromX || NowPosition() is not { } now) return;
         var color = SaveTimelineLayout.BranchColor(lane.ColorNumber);
-        var y = LaneY(lane.Index);
-        float fromX;
-        if (lane.IsUnsaved)
-        {
-            if (lane.ForkSave is not { } fork || lane.Parent is not { } parent) return;
-            var forkX = X(Calendar.Day(fork.WorldTick));
-            Corner(color, forkX, LaneY(parent.Index), y, dotted: true);
-            fromX = forkX + Radius;
-        }
-        else
-        {
-            if (lane.Points.Count == 0) return;
-            fromX = X(Calendar.Day(lane.Points[^1].WorldTick)) + 10;
-        }
-        var nowX = Math.Max(X(Calendar.Day(NowTick)), fromX + 22);
+        var y = now.Y;
+        var nowX = now.X;
         for (var x = fromX; x < nowX - 9; x += 7) DrawRect(new Rect2(x, y - 1, 4, 3), color);
         var marker = Sprite("now", () =>
         {
@@ -685,7 +710,8 @@ public partial class SaveTimelineRows : Control
                 var x = X(Calendar.Day(save.WorldTick));
                 var latest = lane.IsLatest(save);
                 var selected = save.Id == SelectedId;
-                hits.Add((new Rect2(x - 10, y - 12, 20, 24), save.Id));
+                var choosable = CanChoose?.Invoke(save) ?? true;
+                if (choosable) hits.Add((new Rect2(x - 10, y - 12, 20, 24), save.Id));
                 if (save.IsAutosave)
                 {
                     DrawTexture(Sprite("autosave", () => Diamond(7, p.Ink, p.Paper)), new Vector2(x - 3, y - 3));
@@ -716,7 +742,7 @@ public partial class SaveTimelineRows : Control
                 var text = SaveTimelineLayout.Shorten(save.Name, TagTextWidth, Measure);
                 var rect = Tag(font, size, text, new Vector2(tagX, below ? y + 9 : y - 31),
                     selected ? p.Ember : p.Paper, selected ? p.EmberInk : p.Ink, selected ? p.EmberDark : p.PaperEdge);
-                hits.Add((rect, save.Id));
+                if (choosable) hits.Add((rect, save.Id));
                 if (below) belowEnd = rect.End.X;
                 else aboveEnd = rect.End.X;
             }
@@ -884,7 +910,7 @@ public partial class SaveTimelineKeyIcon : Control
             kind = value;
             CustomMinimumSize = value switch
             {
-                SaveTimelineKeyKind.Newest => new Vector2(16, 38),
+                SaveTimelineKeyKind.Newest => new Vector2(16, 34),
                 SaveTimelineKeyKind.Save => new Vector2(14, 16),
                 _ => new Vector2(10, 16),
             };
