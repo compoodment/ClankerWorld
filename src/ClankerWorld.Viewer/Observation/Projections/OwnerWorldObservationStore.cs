@@ -789,7 +789,7 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
-    private static IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequestsAt(PrivateWorldRuntimeState state, string building) =>
+    private static ViewerToolMakingRequest[] ToolMakingRequestsAt(PrivateWorldRuntimeState state, string building) =>
         (state.ToolMakingRequests ?? []).Where(request => request.BuildingInstanceId == building)
             .OrderBy(request => ToolMakingRequestRules.IsTerminal(request.Status))
             .ThenByDescending(request => request.LastTransitionTick).ThenBy(request => request.Id, StringComparer.Ordinal).Take(8)

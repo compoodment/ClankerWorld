@@ -235,7 +235,7 @@ public sealed class ToolMakingRequestTests
         await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
         state = Roundtrip(placing);
         using var world = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
-        Assert.Empty(world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == shop.InstanceId || lot.DeliveryBuildingId == shop.InstanceId));
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.StorageBuildingId == shop.InstanceId || lot.DeliveryBuildingId == shop.InstanceId);
         Assert.Null(Assert.Single(world.ToolMakingRequests).JobId);
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var removed = world.RemoveBuilding(shop.InstanceId, shop.TownId, shop.HouseholdId);
@@ -268,7 +268,7 @@ public sealed class ToolMakingRequestTests
         await Until(working, world => Assert.Single(world.ToolMakingRequests).Status == ToolMakingRequestStatus.Ready, 160);
         var request = Assert.Single(working.ToolMakingRequests);
         Assert.Contains(request.WorkerId!, providers.Keys);
-        Assert.Single(working.ExportState().Events.Where(item => item.Kind == "tool_request_accepted"));
+        Assert.Single(working.ExportState().Events, item => item.Kind == "tool_request_accepted");
         var job = Assert.Single(working.WorldSimulation.ProductionJobs, item => item.RecipeId == request.RecipeId);
         Assert.Equal(request.JobId, job.JobId);
         Assert.Equal(request.Id, job.ToolMakingRequestId);
@@ -278,6 +278,118 @@ public sealed class ToolMakingRequestTests
         Assert.Equal(4, working.Society.Inventory.GetLot("existing-private-tools").Quantity);
         Assert.Equal(1, working.Society.Inventory.GetLot(job.JobId + ":output:00").Quantity);
         _ = Roundtrip(working);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ACommissionJobMustRetainAllItsActualInputReceipts(bool splitInput, bool completed)
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        if (splitInput)
+        {
+            var inventory = state.Society.Society.Inventory with
+            {
+                Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.Id != "smith-input").ToArray(),
+            };
+            inventory = InventoryFixture.AddLot(inventory, "smith-input-a", "wood", shop.HouseholdId!, 2, storageBuildingId: shop.InstanceId);
+            inventory = InventoryFixture.AddLot(inventory, "smith-input-b", "wood", shop.HouseholdId!, 1, storageBuildingId: shop.InstanceId);
+            state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        }
+        using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
+        await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
+        state = Roundtrip(placing);
+        using var making = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices("tool_request_accept:", "tool_request_work:"));
+        await Until(making, world => Assert.Single(world.ToolMakingRequests).JobId is not null &&
+            (!completed || Assert.Single(world.ToolMakingRequests).Status == ToolMakingRequestStatus.Ready), 160);
+        state = Roundtrip(making);
+        var request = Assert.Single(state.ToolMakingRequests!);
+        var job = Assert.Single(state.WorldSimulation!.ProductionJobs, job => job.JobId == request.JobId);
+        Assert.Equal(completed ? WorldProductionJobState.Completed : WorldProductionJobState.Running, job.State);
+        Assert.Equal(splitInput ? 2 : 1, job.InputReservationIds.Count);
+        var receipts = job.InputReservationIds.Select(state.Society.Society.Inventory.GetReservation).ToArray();
+        Assert.Equal(3, receipts.Sum(receipt => receipt.Quantity));
+        Assert.All(receipts, receipt =>
+        {
+            Assert.Equal(shop.HouseholdId, receipt.OwnerId);
+            Assert.Equal(job.JobId + ":input", receipt.Purpose);
+            Assert.Equal(completed ? InventoryReservationState.Completed : InventoryReservationState.Reserved, receipt.State);
+        });
+        PrivateWorldRuntimeState WithReceiptIds(IReadOnlyList<string> ids) => state with
+        {
+            WorldSimulation = state.WorldSimulation with
+            {
+                ProductionJobs = state.WorldSimulation.ProductionJobs.Select(candidate => candidate.JobId == job.JobId
+                    ? candidate with { InputReservationIds = ids } : candidate).ToArray(),
+            },
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(WithReceiptIds([])));
+        if (splitInput)
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(WithReceiptIds([job.InputReservationIds[0]])));
+        var changedPurpose = state.Society.Society.Inventory with
+        {
+            Reservations = state.Society.Society.Inventory.Reservations.Select(receipt => receipt.Id == receipts[0].Id
+                ? receipt with { Purpose = "another-work-input" } : receipt).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = changedPurpose } },
+        }));
+    }
+
+    [Fact]
+    public async Task WithdrawalAfterProductionLeavesSpentMaterialsAndTheFinishedToolWithTheSmith()
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        var woodBefore = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity);
+        using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
+        await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
+        state = Roundtrip(placing);
+        using var making = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices("tool_request_accept:", "tool_request_work:"));
+        await Until(making, world => Assert.Single(world.ToolMakingRequests).Status == ToolMakingRequestStatus.Ready, 160);
+        state = Roundtrip(making);
+        var request = Assert.Single(state.ToolMakingRequests!);
+        var job = Assert.Single(state.WorldSimulation!.ProductionJobs, job => job.JobId == request.JobId);
+        Assert.Equal(WorldProductionJobState.Completed, job.State);
+        var receipt = Assert.Single(state.Society.Society.Inventory.Reservations, receipt => job.InputReservationIds.Contains(receipt.Id));
+        Assert.Equal("smith-input", receipt.LotId);
+        Assert.Equal(shop.HouseholdId, receipt.OwnerId);
+        Assert.Equal(3, receipt.Quantity);
+        Assert.Equal(InventoryReservationState.Completed, receipt.State);
+        Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot => lot.Id == "smith-input");
+        var output = state.Society.Society.Inventory.GetLot(job.JobId + ":output:00");
+        var payment = state.Society.Society.Inventory.GetLot("request-payment");
+        Assert.Equal(shop.HouseholdId, output.OwnerId);
+        Assert.Equal(shop.InstanceId, output.StorageBuildingId);
+        Assert.Equal(1, output.Quantity);
+        Assert.Equal(buyer, payment.OwnerId);
+        Assert.Equal(3, payment.Quantity);
+        Assert.Empty(state.Society.Society.Inventory.Offers);
+        using var withdrawing = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
+        using var replay = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
+        for (var step = 0; step < 301 && Assert.Single(withdrawing.ToolMakingRequests).Status != ToolMakingRequestStatus.Withdrawn; step++)
+        {
+            Assert.True((await withdrawing.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(withdrawing.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal(ToolMakingRequestStatus.Withdrawn, Assert.Single(withdrawing.ToolMakingRequests).Status);
+        Assert.Single(withdrawing.ExportState().Events, item => item.Kind == "tool_request_withdrawn");
+        Assert.Null(Assert.Single(withdrawing.ToolMakingRequests).OfferId);
+        Assert.Empty(withdrawing.Society.Inventory.Offers);
+        // Normal inventory processing advances both nonperishable lots' clock;
+        // withdrawal must preserve every other physical stock field.
+        Assert.Equal(output with { LastProcessedTick = withdrawing.WorldTick }, withdrawing.Society.Inventory.GetLot(output.Id));
+        Assert.Equal(payment with { LastProcessedTick = withdrawing.WorldTick }, withdrawing.Society.Inventory.GetLot(payment.Id));
+        Assert.Equal(receipt, withdrawing.Society.Inventory.GetReservation(receipt.Id));
+        Assert.Equal(JsonSerializer.Serialize(job), JsonSerializer.Serialize(
+            Assert.Single(withdrawing.WorldSimulation.ProductionJobs, item => item.JobId == job.JobId)));
+        Assert.DoesNotContain(withdrawing.Society.Inventory.Reservations, reservation => reservation.LotId == payment.Id);
+        Assert.DoesNotContain(withdrawing.Society.Inventory.Lots, lot => lot.Id == "smith-input");
+        Assert.Equal(woodBefore - 3, withdrawing.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        _ = Roundtrip(withdrawing);
     }
 
     private static async Task Until(PrivateWorldRuntime world, Func<PrivateWorldRuntime, bool> done, int limit)

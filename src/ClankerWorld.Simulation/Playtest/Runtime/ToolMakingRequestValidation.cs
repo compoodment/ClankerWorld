@@ -60,6 +60,7 @@ public sealed partial class PrivateWorldRuntime
                 var job = simulation.ProductionJobs.FirstOrDefault(job => job.JobId == jobId);
                 if (!accepted || job is null || job.ToolMakingRequestId != request.Id || job.WorkerId != request.WorkerId || job.RecipeId != request.RecipeId ||
                     job.BuildingInstanceId != request.BuildingInstanceId || job.StartedTick < request.AcceptedTick.GetValueOrDefault() ||
+                    !HasCompleteToolMakingInputs(job, recipe, societyState.Inventory) ||
                     job.InputReservationIds.Any(id => !societyState.Inventory.Reservations.Any(receipt => receipt.Id == id &&
                         receipt.OwnerId == request.SellerHouseholdId && (job.State != WorldProductionJobState.Completed ||
                             receipt.State == InventoryReservationState.Completed))) ||
@@ -102,5 +103,27 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in simulation.ProductionJobs.Where(job => job.ToolMakingRequestId is not null))
             if (!requests.Any(request => request.Id == job.ToolMakingRequestId && request.JobId == job.JobId))
                 throw new InvalidDataException("A production job has no matching tool request history.");
+    }
+
+    private static bool HasCompleteToolMakingInputs(WorldProductionJob job, RecipeDefinition? recipe, InventoryCheckpoint inventory)
+    {
+        var purpose = job.JobId + ":input";
+        var receipts = inventory.Reservations.Where(receipt => receipt.Purpose == purpose).ToArray();
+        if (receipts.Length == 0 || job.InputReservationIds is not { Count: > 0 } ||
+            !job.InputReservationIds.Order(StringComparer.Ordinal).SequenceEqual(receipts.Select(receipt => receipt.Id).Order(StringComparer.Ordinal)))
+            return false;
+        if (recipe is null) return true;
+        var matched = 0;
+        for (var index = 0; index < recipe.Inputs.Count; index++)
+        {
+            var input = recipe.Inputs[index];
+            var group = receipts.Where(receipt => receipt.Id == purpose + ":quantity:" +
+                index.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":lot:" + receipt.LotId).ToArray();
+            if (group.Sum(receipt => (long)receipt.Quantity) != input.Amount || group.Any(receipt =>
+                inventory.Lots.Any(lot => lot.Id == receipt.LotId && lot.ItemKind != input.ResourceId)))
+                return false;
+            matched += group.Length;
+        }
+        return matched == receipts.Length;
     }
 }

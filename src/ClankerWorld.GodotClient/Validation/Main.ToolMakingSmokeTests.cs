@@ -57,11 +57,6 @@ public partial class Main
                 !facts.Contains("Household accepted", StringComparison.Ordinal) || !facts.Contains(missing, StringComparison.Ordinal) ||
                 facts.Contains(requestId, StringComparison.Ordinal) || facts.Contains(recipeId, StringComparison.Ordinal))
                 throw new InvalidOperationException("The Blacksmith card must show its named source, requester, recipe and missing-input reason without raw identities.");
-            selectedInhabitantId = customerId;
-            agentProfileRequested = true;
-            RenderSelectedInhabitantCard(snapshot);
-            if (!inhabitantDetails.GetParsedText().Contains("River Blacksmith accepted your stone pickaxe request.", StringComparison.Ordinal))
-                throw new InvalidOperationException("The agent card must show its own request note from the wire.");
 
             RenderBuildingCard(snapshot with { PlacedBuildings = [shop with
                 { ToolMakingRequests = [request with { Blocker = full }] }] });
@@ -74,6 +69,11 @@ public partial class Main
             if (!facts.Contains("Tool ready · payment still to be agreed", StringComparison.Ordinal) || facts.Contains(full, StringComparison.Ordinal))
                 throw new InvalidOperationException("A finished tool must clear the blocker while preserving that payment still needs agreement.");
 
+            selectedInhabitantId = customerId;
+            agentProfileRequested = true;
+            RenderSelectedInhabitantCard(snapshot);
+            if (!inhabitantDetails.GetParsedText().Contains("River Blacksmith accepted your stone pickaxe request.", StringComparison.Ordinal))
+                throw new InvalidOperationException("The agent card must show its own request note from the wire.");
             OwnerWorldEvent[] events = [
                 new(1, 1, "tool_request_placed", customerId + ":" + requestId),
                 new(2, 1, "tool_request_accepted", smithId + ":" + requestId),
