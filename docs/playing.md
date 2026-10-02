@@ -117,6 +117,8 @@ Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **World Info** includes Towns and their residents;
 **Event Log** shows important events. Clicking an event with a known location
 moves the camera there. Opening the log marks its new entries read.
+While the continuity rule is on, the log offers **Add a newcomer**, which opens
+Add Agent. Opening the offer adds nobody and makes no paid model call.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.

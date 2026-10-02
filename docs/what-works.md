@@ -193,6 +193,12 @@ and adults all count), the **continuity rule** is on. A new world starts with
 it on, and the Event Log says when it turns on or off. Once eight non-elders
 are alive it turns off and ordinary refusal returns.
 
+While the rule is on in a started world, the Event Log keeps a warning that
+the world is at risk and offers **Add a newcomer**. This opens the usual
+Add Agent controls, where you choose the key, model and placement. Opening the
+offer adds nobody and makes no paid model call. The offer disappears once the
+rule turns off; nobody arrives on their own.
+
 While the rule is on, a partnered couple with no infant may say "not yet" to a
 child, but not refuse: two world days after the rule first applies to them,
 their plan goes ahead as if both had agreed. Preparation still takes time, and
