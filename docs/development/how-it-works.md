@@ -370,7 +370,10 @@ and four work ticks for a record, one paper and six work ticks for a map, or
 two paper, one cloth and twelve work ticks for a book. Each artifact holds at
 most nine sites. Writing reserves real personal materials and creates one
 distinct physical lot only when the work completes. Saved progress and
-material reservations survive interruption and reload.
+material reservations survive temporary interruptions and reload. If the
+writer or copying source becomes unavailable, or the artifact limit is
+reached, the unfinished work releases its unused supplies. The agent's Profile
+shows the writing or copying progress.
 
 Reading or sharing a held artifact teaches only its recorded sites to the
 actual recipient, retaining the original discoverer and the source artifact.

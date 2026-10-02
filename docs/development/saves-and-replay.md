@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Saves and replay
@@ -435,6 +435,7 @@ current alpha cutoff.
 | Schema 50 | Staged dependent-guardian searches with their current stage, timing and offered adults, so consent remains ordered and replayable. Older builds refuse the checkpoint rather than infer or discard a search. |
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
+| Schema 53 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -461,10 +462,17 @@ to the household default on the next active tick. Failure/deadline does likewise
 Estate settlement waits for the pending will and commits once. Per-lot bequests,
 debts, minors and inheritance-law policy remain open.
 
-A quantity-one physical map or field record retains its lot ID when inherited.
+A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
+
+Writing projects save their exact learned contents and input reservations;
+reloading does not invent supplies or finish the work. Copies preserve the
+original discoverers and the source artifact while naming the actual writer.
+Each completed artifact has its own quantity-one inventory lot and consumed
+input receipts, so a retry cannot reuse another artifact's payment. Paper
+production uses the ordinary household recipe and reusable-vessel state.
 
 Inventory lot splits leave all actively reserved stock in the original lot,
 including production and barter commitments. Only the unreserved remainder can
