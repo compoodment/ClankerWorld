@@ -55,6 +55,30 @@ public partial class Main
             if (!profileActivityLabel.Text.Contains("Model: Ready", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Jev made their latest choice.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A choice Jev made must be said plainly: {profileActivityLabel.Text} / {inhabitantDetails.Text}");
+            // At 200% on this small window, four messages make the Profile taller than the screen:
+            // its details scroll inside it and the panel stays on screen.
+            var factor = uiLayer.Factor;
+            SetUiFactor(2);
+            try
+            {
+                RenderSelectedInhabitantCard(snapshot with
+                {
+                    Instructions = [.. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"agent-panels-message-{index}", mira.Id,
+                        "suggestive", $"Message {index}: please carry clay from the river bank to the kiln before dusk, and store the pots.",
+                        "completed", 0, 0, index, index, "I will do that."))],
+                });
+                for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                PositionAgentProfile();
+                var profileBottom = agentProfilePanel.Position.Y + agentProfilePanel.Size.Y;
+                if (profileBottom > UiSize.Y + 0.5f || !agentOverviewScroll.Visible ||
+                    selectedAgentOverview.GetCombinedMinimumSize().Y <= agentOverviewScroll.Size.Y ||
+                    agentOverviewGap.GetThemeConstant("margin_right") != SettingsScrollGap)
+                    throw new InvalidOperationException($"A tall Profile must scroll its details and stay on screen: bottom {profileBottom} of {UiSize.Y}.");
+            }
+            finally
+            {
+                SetUiFactor(factor);
+            }
             RenderSelectedInhabitantCard(snapshot);
 
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

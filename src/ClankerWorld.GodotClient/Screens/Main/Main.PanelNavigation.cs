@@ -265,14 +265,14 @@ public partial class Main
             GetViewport().GuiGetFocusOwner()!.ReleaseFocus();
             return true;
         }
-        if (worldMenuOverlay.Visible)
-        {
-            if (!worldMenuBusy) worldMenuOverlay.Hide();
-            return true;
-        }
         if (manualSaveOverlay.Visible)
         {
             manualSaveOverlay.Hide();
+            return true;
+        }
+        if (worldMenuOverlay.Visible)
+        {
+            if (!worldMenuBusy) worldMenuOverlay.Hide();
             return true;
         }
         if (gameMenuPanel.Visible)

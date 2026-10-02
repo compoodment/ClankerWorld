@@ -212,6 +212,7 @@ public partial class Main : Control
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private string? renamingAgentId;
+    private readonly RefusedAgentRename refusedAgentRename = new();
     private bool isRefreshing;
     private CancellationTokenSource? refreshCancellation;
     private int successfulRefreshCount;

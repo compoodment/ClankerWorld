@@ -7,7 +7,9 @@ public enum FarmFieldStage { Preparing, Prepared, Planted, Growing, Ready, Harve
 public enum FarmWorkKind { Till, Plant, Tend, Harvest }
 
 public sealed record FarmFieldWork(string WorkerId, FarmWorkKind Kind, int RemainingTicks,
-    long LastWorkedTick, string? SeedReservationId = null, string? Crop = null);
+    long LastWorkedTick, string? SeedReservationId = null, string? Crop = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HoeLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SickleLotId = null);
 
 public sealed record FarmFieldState(GridPoint Position, string HouseholdId, FarmFieldStage Stage,
     string? Crop = null, long PlantedTick = 0, long ReadyTick = 0, bool Tended = false, int Cycle = 0,
@@ -38,7 +40,12 @@ public static class FarmFieldRules
         _ => throw new ArgumentOutOfRangeException(nameof(crop)),
     };
     public static bool IsFarmStock(string item) => item is Grain or Potatoes or GrainSeed or GreensSeed or OrchardSeed or "flour";
-    public static int WorkTicks(FarmWorkKind kind) => kind == FarmWorkKind.Till ? 8 : 4;
+    public static int WorkTicks(FarmWorkKind kind) => kind switch
+    {
+        FarmWorkKind.Till => 8,
+        FarmWorkKind.Tend => 5,
+        _ => 4,
+    };
     public static int HarvestQuantity(string crop, int fertility) =>
         (crop == Potatoes ? 5 : 4) + fertility / 25;
     public static long GrowthTicks(int ticksPerDay, int fertility) => Math.Max(12, ticksPerDay * (150L - fertility) / 200);

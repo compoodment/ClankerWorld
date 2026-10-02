@@ -17,6 +17,7 @@ public sealed class ExpiredBlockedHouseholdBuildTests
     {
         using var setup = NormalPathWorld.CreateGenerated("expired-household-recipe-inputs", _ => new IdleProvider());
         var state = setup.ExportState();
+        var projectStartedTick = state.Society.Society.WorldTick;
         var blacksmith = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
         var household = blacksmith.HouseholdId!;
         var recipe = setup.WorldContent.Recipes.Single(item => item.LocalId == "wooden-axe");
@@ -26,8 +27,7 @@ public sealed class ExpiredBlockedHouseholdBuildTests
         var members = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == household)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var inventory = state.Society.Society.Inventory;
-        var removedWood = inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
-                (lot.OwnerId == household || members.Contains(lot.OwnerId)))
+        var removedWood = inventory.Lots.Where(lot => lot.ItemKind == "wood")
             .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
         inventory = inventory with
         {
@@ -49,11 +49,28 @@ public sealed class ExpiredBlockedHouseholdBuildTests
                 var capacity = PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment);
                 Assert.InRange(cargo, 0, capacity);
                 if (cargo < capacity)
-                    inventory = InventoryFixture.AddLot(inventory, "full-carrier:" + person.InhabitantId, "stone",
+                    inventory = InventoryFixture.AddLot(inventory, "full-carrier:" + person.InhabitantId, "clay",
                         person.InhabitantId, capacity - cargo);
             }
         }
-        var resourceKinds = state.Map.Resources.Where(resource => resource.Kind is "construction" or "wood")
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+
+        // Let the ordinary tick-one settlement-resource bootstrap run first so
+        // its fallen-wood cache is included in the exhausted-source fixture.
+        using (var bootstrap = PrivateWorldRuntime.Restore(state, _ => new IdleProvider()))
+        {
+            Assert.True((await bootstrap.AdvanceOneTickAsync()).Advanced);
+            state = bootstrap.ExportState();
+        }
+        inventory = state.Society.Society.Inventory;
+        var woodSourceIds = state.Map.Resources.Where(resource => resource.Kind is "construction" or "wood" ||
+                resource.NaturalObjectKind == "fallen_wood")
             .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
         state = state with
         {
@@ -61,7 +78,7 @@ public sealed class ExpiredBlockedHouseholdBuildTests
             {
                 Society = state.Society.Society with { Inventory = inventory },
             },
-            Resources = state.Resources.Select(resource => resourceKinds.Contains(resource.ResourceId)
+            Resources = state.Resources.Select(resource => woodSourceIds.Contains(resource.ResourceId)
                 ? resource with { State = ResourceState.Depleted }
                 : resource).ToArray(),
             WorldSystems = state.WorldSystems! with
@@ -69,7 +86,7 @@ public sealed class ExpiredBlockedHouseholdBuildTests
                 Ecology = state.WorldSystems.Ecology with
                 {
                     Resources = state.WorldSystems.Ecology.Resources.Select(resource =>
-                        resource.Kind is "construction" or "wood"
+                        woodSourceIds.Contains(resource.Id)
                             ? resource with { Quantity = 0, State = EcologyResourceState.Depleted, NextRegenerationDay = 100 }
                             : resource).ToArray(),
                 },
@@ -81,9 +98,9 @@ public sealed class ExpiredBlockedHouseholdBuildTests
                     HungerBasisPoints = 9_500,
                     LastDecisionContext = null,
                     Project = new SettlementProject(candidateId, recipe.DisplayName,
-                        state.Society.Society.WorldTick, "blocked", 4,
+                        projectStartedTick, "blocked", 4,
                         "Waiting for ingredients at this household building",
-                        LastTransitionTick: state.Society.Society.WorldTick),
+                        LastTransitionTick: projectStartedTick),
                 }
                 : members.Contains(person.InhabitantId)
                     ? person with { HungerBasisPoints = 9_500 }
