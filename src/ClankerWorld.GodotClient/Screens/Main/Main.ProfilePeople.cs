@@ -72,7 +72,7 @@ public partial class Main
             Row(PixelIcons.Texture(PixelGlyph.Person, p.Ink, p.Primary, 1), "Trusts", standing.SubjectName,
                 Sureness(standing.Trust * 1000, $"Trust {standing.Trust} of 10"));
         foreach (var note in inhabitant.SocialNotes)
-            profilePeople.AddChild(new Label { Text = note, ThemeTypeVariation = "DimLabel", AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(240, 0) });
+            profilePeople.AddChild(new Label { Text = GameUiText.PlainEllipses(note), ThemeTypeVariation = "DimLabel", AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(240, 0) });
         if (profilePeople.GetChildCount() == 0)
             profilePeople.AddChild(new Label { Text = "No close relationships yet.", ThemeTypeVariation = "DimLabel" });
     }

@@ -391,7 +391,7 @@ public partial class Main
 
             picker.SetModel("gpt-6-luna");
             var stale = picker.BeginLoading("gpt-6-luna");
-            if (!Items().Contains("Loading models…", StringComparison.Ordinal) || picker.Model != "gpt-6-luna")
+            if (!Items().Contains("Loading models...", StringComparison.Ordinal) || picker.Model != "gpt-6-luna")
                 throw new InvalidOperationException($"A loading model list must keep the current model: {Items()}.");
             var lookup = picker.BeginLoading("gpt-6-luna");
             if (picker.IsLatest(stale) || !picker.IsLatest(lookup))
@@ -694,7 +694,7 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
-            worldSelectionList.Placeholder != "Checking saved worlds…" ||
+            worldSelectionList.Placeholder != "Checking saved worlds..." ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
@@ -1411,6 +1411,7 @@ public partial class Main
             await VerifySeasonDatesAsync(sample);
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
+            VerifyPlainEllipses("in rows added after startup");
             VerifyConsistentButtons();
             VerifyPanelParts();
             VerifyMapPanels();
@@ -3627,6 +3628,8 @@ public partial class Main
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
             await VerifyRefusedAgentRenameAsync();
+            VerifyAgentTextEllipses();
+            VerifyPlainEllipses("after every panel has been shown");
             GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
             GetTree().Quit();
         }
