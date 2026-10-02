@@ -178,11 +178,11 @@ public sealed class AbandonedWarehouseConsumerTests
         var choice = "expand_building:" + house.InstanceId;
         Assert.Contains(Candidates(world, actor), item => item.Id == choice);
         Choose(world, actor, choice);
-        // The expansion collects one carried load for delivery to the House.
+        // The expansion collects one full carried load (its cost of 4) for delivery to the House.
         var carried = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "wood");
         Assert.Equal(house.InstanceId, carried.DeliveryBuildingId);
-        Assert.InRange(carried.Quantity, 1, 4);
-        Assert.Equal(8 - carried.Quantity, world.Society.Inventory.GetLot("salvage-stock").Quantity);
+        Assert.Equal(4, carried.Quantity);
+        Assert.Equal(4, world.Society.Inventory.GetLot("salvage-stock").Quantity);
         Assert.Empty(world.WorldSimulation.BuildingExpansions ?? []);
         AssertRoundTrip(world);
     }
