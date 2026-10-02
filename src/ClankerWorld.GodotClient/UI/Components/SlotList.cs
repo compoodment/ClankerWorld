@@ -44,6 +44,20 @@ public partial class SlotList : ScrollContainer
 
     public int ItemCount => items.Count;
 
+    /// <summary>Shorter rows with the name in the body lettering, for long lists such as the Agents list.</summary>
+    public bool Compact
+    {
+        get => compact;
+        set
+        {
+            compact = value;
+            cards.AddThemeConstantOverride("separation", value ? 4 : 6);
+        }
+    }
+
+    private bool compact;
+    private string Style(string state) => (compact ? "InsetRow" : "InsetPanel") + state;
+
     /// <summary>Shown in place of the cards while the list is empty, such as "No saves yet."</summary>
     public string Placeholder
     {
@@ -78,7 +92,7 @@ public partial class SlotList : ScrollContainer
         var index = items.Count;
         var card = new PanelContainer
         {
-            ThemeTypeVariation = "InsetPanel",
+            ThemeTypeVariation = Style(""),
             MouseFilter = MouseFilterEnum.Stop,
             MouseDefaultCursorShape = CursorShape.PointingHand,
             TooltipText = detail,
@@ -94,19 +108,17 @@ public partial class SlotList : ScrollContainer
                 MouseFilter = MouseFilterEnum.Ignore,
             });
         var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-        text.AddThemeConstantOverride("separation", 2);
-        text.AddChild(new Label
+        text.AddThemeConstantOverride("separation", compact ? 0 : 2);
+        text.AddChild(new FittedLabel
         {
-            Text = title,
-            ThemeTypeVariation = "HeadingLabel",
-            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+            FullText = title,
+            ThemeTypeVariation = compact ? string.Empty : "HeadingLabel",
             MouseFilter = MouseFilterEnum.Ignore,
         });
-        text.AddChild(new Label
+        text.AddChild(new FittedLabel
         {
-            Text = detail,
+            FullText = detail,
             ThemeTypeVariation = "DimLabel",
-            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             MouseFilter = MouseFilterEnum.Ignore,
         });
         row.AddChild(text);
@@ -186,7 +198,7 @@ public partial class SlotList : ScrollContainer
     private void Restyle()
     {
         for (var index = 0; index < items.Count; index++)
-            items[index].ThemeTypeVariation = index == selected ? "InsetPanelSelected"
-                : index == hovered ? "InsetPanelHover" : "InsetPanel";
+            items[index].ThemeTypeVariation = index == selected ? Style("Selected")
+                : index == hovered ? Style("Hover") : Style("");
     }
 }

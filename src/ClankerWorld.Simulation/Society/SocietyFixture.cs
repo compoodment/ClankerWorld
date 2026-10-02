@@ -13,26 +13,40 @@ namespace ClankerWorld.Simulation.Society;
 /// </summary>
 public static partial class SocietyFixture
 {
+    /// <summary>
+    /// Creates an adult of the given age at world tick 0, or at the adult
+    /// threshold when no age is given. The age must lie in the arrival range.
+    /// </summary>
     public static SocietyInhabitant CreateFounder(
         string id,
         string name,
         string? providerBindingId = null,
         int healthBasisPoints = 10_000,
-        SocietyConfig? config = null)
+        SocietyConfig? config = null,
+        int? startingAge = null)
     {
         var effectiveConfig = config ?? new SocietyConfig();
         effectiveConfig.Validate();
-        return new(
+        var age = startingAge ?? effectiveConfig.FounderStartingAge;
+        if (age < effectiveConfig.FounderStartingAge || age > LatestArrivalAge(effectiveConfig))
+        {
+            throw new ArgumentOutOfRangeException(nameof(startingAge));
+        }
+
+        return new SocietyInhabitant(
             NormalizeRequiredText(id, nameof(id)),
             NormalizeRequiredText(name, nameof(name)),
-            checked(-effectiveConfig.FounderStartingAge * effectiveConfig.TicksPerLifecycleAge),
+            checked(-age * effectiveConfig.TicksPerLifecycleAge),
             SocietyInhabitantStatus.Active,
-            effectiveConfig.AgeBandAt(effectiveConfig.FounderStartingAge),
+            effectiveConfig.AgeBandAt(age),
             ValidateBasisPoints(healthBasisPoints, nameof(healthBasisPoints)),
             null,
             NormalizeOptionalText(providerBindingId),
             SocietyWorkRole.Unassigned,
-            effectiveConfig.FounderStartingAge);
+            age)
+        {
+            DomesticFamilyUnitId = DomesticPersonUnit(id),
+        };
     }
 
     public static SocietyCheckpoint CreateGenesis(
@@ -46,6 +60,12 @@ public static partial class SocietyFixture
         effectiveConfig.Validate();
         var inhabitants = (founders ??
                 [CreateFounder("founder-scout", "Scout", config: effectiveConfig)])
+            .Select(person => person with
+            {
+                // Genesis assigns explicit singleton domestic units unless a
+                // fixture deliberately supplies a recorded group.
+                DomesticFamilyUnitId = person.DomesticFamilyUnitId ?? DomesticPersonUnit(person.Id),
+            })
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
         ValidateInhabitants(inhabitants, effectiveConfig, 0);
@@ -152,7 +172,12 @@ public static partial class SocietyFixture
             new[] { householdId, founder.Id }.Order(StringComparer.Ordinal).ToArray());
         var next = checkpoint with
         {
-            Inhabitants = checkpoint.Inhabitants.Append(founder with { HouseholdId = householdId, NeedsName = true })
+            Inhabitants = checkpoint.Inhabitants.Append(founder with
+            {
+                HouseholdId = householdId,
+                NeedsName = true,
+                DomesticFamilyUnitId = founder.DomesticFamilyUnitId ?? DomesticPersonUnit(founder.Id),
+            })
                 .OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
             Households = checkpoint.Households.Select(item => item.Id == householdId
                 ? item with { MemberIds = memberIds } : item).ToArray(),
@@ -198,10 +223,10 @@ public static partial class SocietyFixture
         var existingHousehold = home is null ? null :
             checkpoint.Households.FirstOrDefault(household => household.Id == home);
 
-        var age = checkpoint.Config.FounderStartingAge;
+        var age = AddedAdultArrivalAge(checkpoint);
         var lifeBirth = checked(checkpoint.LifeTickAt(checkpoint.WorldTick) -
             age * checkpoint.Config.TicksPerLifecycleAge);
-        var person = CreateFounder(id, "New agent", config: checkpoint.Config) with
+        var person = CreateFounder(id, "New agent", config: checkpoint.Config, startingAge: age) with
         {
             BirthTick = checkpoint.LifeClock is null ? lifeBirth : checkpoint.WorldTick,
             BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
@@ -390,6 +415,8 @@ public static partial class SocietyFixture
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         };
         next = ApplyRelationshipProjection(next, accepted);
+        if (accepted.Type == SocietyRelationshipType.Partnership)
+            next = ApplyPartnershipFamilyUnit(next, accepted);
         return Commit(next, "relationship_accepted", $"{relationshipId}:r{revision}", relationshipId);
     }
 
@@ -451,7 +478,10 @@ public static partial class SocietyFixture
             Relationships = checkpoint.Relationships.Select(item => item.Id == relationship.Id ? revoked : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         };
-        next = RemoveRelationshipProjection(next, revoked);
+        next = RemoveRelationshipProjection(next, revoked,
+            relationship.Type == SocietyRelationshipType.Caregiver && relationship.State == SocietyRelationshipState.Accepted);
+        if (revoked.Type == SocietyRelationshipType.Partnership)
+            next = SplitPartnershipFamilyUnit(next, revoked);
         return Commit(next, "relationship_revoked", $"{relationshipId}:{actor}", relationshipId);
     }
 
@@ -766,7 +796,9 @@ public static partial class SocietyFixture
         var existing = checkpoint.Births.SingleOrDefault(item => item.RequestId == request.Id);
         if (existing is not null)
         {
-            return existing.Revision == request.Revision
+            return existing.Revision == request.Revision &&
+                existing.PrimaryCaregiverId == request.PrimaryCaregiverId &&
+                existing.HouseholdId == request.HouseholdId
                 ? new SocietyOperationResult(checkpoint, existing.ChildId, [])
                 : Reject(checkpoint, "birth_rejected", $"{request.Id}:revision_conflict");
         }
@@ -778,9 +810,13 @@ public static partial class SocietyFixture
             !request.ConsentingParentIds.OrderBy(item => item, StringComparer.Ordinal)
                 .SequenceEqual(new[] { firstParent.Id, secondParent.Id }.OrderBy(item => item, StringComparer.Ordinal)) ||
             !HasActivePartnership(checkpoint, firstParent.Id, secondParent.Id) ||
+            request.PrimaryCaregiverId is not { } primaryCaregiverId ||
+            primaryCaregiverId != firstParent.Id && primaryCaregiverId != secondParent.Id ||
+            checkpoint.GetInhabitant(primaryCaregiverId).HouseholdId != household.Id ||
             request.CaregiverIds.Count == 0 ||
             request.CaregiverIds.Any(id => !household.MemberIds.Contains(id, StringComparer.Ordinal) ||
-                !IsAdult(checkpoint.GetInhabitant(id))))
+                !IsAdult(checkpoint.GetInhabitant(id))) ||
+            !request.CaregiverIds.Contains(primaryCaregiverId, StringComparer.Ordinal))
         {
             return Reject(checkpoint, "birth_rejected", $"{request.Id}:readiness_or_consent");
         }
@@ -812,6 +848,7 @@ public static partial class SocietyFixture
         }
 
         var childId = $"{checkpoint.WorldId}:inhabitant:{request.Id}";
+        var primaryCaregiver = checkpoint.GetInhabitant(primaryCaregiverId);
         var child = new SocietyInhabitant(
             childId,
             request.ChildName is null ? $"Child {childId}" : NormalizeRequiredText(request.ChildName, nameof(request.ChildName)),
@@ -823,7 +860,11 @@ public static partial class SocietyFixture
             ResolveNewbornProvider(checkpoint, firstParent, secondParent, request),
             SocietyWorkRole.Unassigned,
             0,
-            BirthLifeTick: checkpoint.LifeClock is null ? null : checkpoint.LifeTickAt(checkpoint.WorldTick));
+            BirthLifeTick: checkpoint.LifeClock is null ? null : checkpoint.LifeTickAt(checkpoint.WorldTick))
+        {
+            PrimaryCaregiverId = primaryCaregiverId,
+            DomesticFamilyUnitId = primaryCaregiver.DomesticFamilyUnitId,
+        };
         var relationships = checkpoint.Relationships.ToList();
         relationships.AddRange(
         [
@@ -849,7 +890,8 @@ public static partial class SocietyFixture
             Households = checkpoint.Households.Select(item => item.Id == household.Id ? updatedHousehold : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
             Relationships = relationships.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-            Births = checkpoint.Births.Append(new SocietyBirthRecord(request.Id, childId, request.Revision, checkpoint.WorldTick))
+            Births = checkpoint.Births.Append(new SocietyBirthRecord(request.Id, childId, request.Revision,
+                    checkpoint.WorldTick, primaryCaregiverId, household.Id, primaryCaregiver.DomesticFamilyUnitId!))
                 .OrderBy(item => item.RequestId, StringComparer.Ordinal).ToArray(),
             Inventory = inventory,
         };
@@ -999,11 +1041,7 @@ public static partial class SocietyFixture
         var estate = checkpoint.GetEstate(estateId);
         if (estate.WillStatus != "pending" || estate.Settled)
             return new SocietyOperationResult(checkpoint, null, []);
-        var validSnapshot = estate.FrozenLots is not null &&
-            estate.FrozenLots.All(frozen => checkpoint.Inventory.Lots.Any(lot =>
-                lot.Id == frozen.LotId && lot.OwnerId == estate.Id &&
-                lot.ItemKind == frozen.ItemKind && lot.Quantity == frozen.Quantity)) &&
-            checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).Count() == estate.FrozenLots.Count;
+        var validSnapshot = HasFrozenEstateInventory(checkpoint, estate);
         var words = finalWords is null ? null : CognitionWillChoice.NormalizeFinalWords(finalWords);
         var containedIn = checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
@@ -1041,13 +1079,15 @@ public static partial class SocietyFixture
     /// </summary>
     private static List<SocietyWillBequest>? PlanBequests(
         SocietyCheckpoint checkpoint, SocietyEstate estate, SocietyWillDirective directive,
-        IReadOnlySet<string> townHeirIds, Dictionary<string, string> containedIn)
+        IReadOnlySet<string> townHeirIds, Dictionary<string, string> containedIn,
+        bool requireLivingHeirs = true)
     {
         var heirs = directive.HeirIds;
         if (heirs is null || heirs.Count is 0 or > CognitionWillContext.MaximumNamedHeirs ||
             heirs.Distinct(StringComparer.Ordinal).Count() != heirs.Count ||
             heirs.Any(id => id == estate.DeceasedId || !townHeirIds.Contains(id) &&
-                !checkpoint.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active)) ||
+                !checkpoint.Inhabitants.Any(person => person.Id == id &&
+                    (!requireLivingHeirs || person.Status == SocietyInhabitantStatus.Active))) ||
             directive.Split is not (CognitionWillContext.EqualSplit or CognitionWillContext.ItemSplit) ||
             directive.Split == CognitionWillContext.EqualSplit && directive.LotHeirs is { Count: > 0 })
             return null;
@@ -1144,6 +1184,20 @@ public static partial class SocietyFixture
         ValidateAgentMemoryCompactions(checkpoint);
         EnsureCanonicalIds(checkpoint.Estates.Select(item => item.Id), "estates");
         EnsureCanonicalIds(checkpoint.Births.Select(item => item.RequestId), "births");
+        foreach (var birth in checkpoint.Births)
+        {
+            var child = checkpoint.Inhabitants.SingleOrDefault(person => person.Id == birth.ChildId);
+            if (birth.Revision <= 0 || birth.CommittedTick < 0 || birth.CommittedTick > checkpoint.WorldTick ||
+                string.IsNullOrWhiteSpace(birth.PrimaryCaregiverId) ||
+                string.IsNullOrWhiteSpace(birth.HouseholdId) ||
+                string.IsNullOrWhiteSpace(birth.DomesticFamilyUnitId) || child is null ||
+                !checkpoint.Inhabitants.Any(person => person.Id == birth.PrimaryCaregiverId) ||
+                !checkpoint.Households.Any(household => household.Id == birth.HouseholdId) ||
+                !checkpoint.Relationships.Any(relationship =>
+                    relationship.Type == SocietyRelationshipType.BiologicalParentage &&
+                    relationship.TargetId == birth.ChildId && relationship.ProposerId == birth.PrimaryCaregiverId))
+                throw new InvalidDataException("A saved birth caregiver or home record is malformed.");
+        }
         foreach (var estate in checkpoint.Estates)
         {
             if (estate.CreatedTick < 0 || estate.ExpiryTick < estate.CreatedTick ||
@@ -1155,7 +1209,9 @@ public static partial class SocietyFixture
             if (estate.FrozenLots is { } frozen)
             {
                 EnsureCanonicalIds(frozen.Select(item => item.LotId), $"estate:{estate.Id}:lots");
-                if (frozen.Any(item => string.IsNullOrWhiteSpace(item.ItemKind) || item.Quantity <= 0))
+                if (frozen.Any(item => string.IsNullOrWhiteSpace(item.ItemKind) || item.Quantity <= 0 ||
+                    item.StorageBuildingId is { } storage &&
+                    (string.IsNullOrWhiteSpace(storage) || storage != storage.Trim())))
                     throw new InvalidDataException("An estate snapshot is malformed.");
             }
         }
@@ -1385,6 +1441,28 @@ public static partial class SocietyFixture
             bequests.Any(item => item.Quantity <= 0 || !heirs.Contains(item.HeirId, StringComparer.Ordinal)) ||
             bequests.Select(item => (item.LotId, item.HeirId)).Distinct().Count() != bequests.Count)
             return false;
+        // A resolved plan cannot authorize different or missing stock when restored.
+        // Location changes at death may place carried goods on the ground, but
+        // personal goods frozen in House storage remain in that same building.
+        if (!estate.Settled && !HasFrozenEstateInventory(checkpoint, estate))
+            return false;
+        var containedIn = checkpoint.Inventory.Lots
+            .Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
+            .ToDictionary(lot => lot.Id, lot => lot.ContainerLotId!, StringComparer.Ordinal);
+        if (!estate.Settled && estate.WillSplit == CognitionWillContext.EqualSplit)
+        {
+            // A named heir may die after admission. Revalidate the saved division,
+            // not their current ability to receive it; settlement applies the default.
+            var expected = PlanBequests(checkpoint, estate,
+                new SocietyWillDirective(heirs, CognitionWillContext.EqualSplit),
+                heirs.Where(id => id.StartsWith("town:", StringComparison.Ordinal))
+                    .ToHashSet(StringComparer.Ordinal), containedIn, requireLivingHeirs: false);
+            if (expected is null || !expected.OrderBy(item => item.LotId, StringComparer.Ordinal)
+                    .ThenBy(item => item.HeirId, StringComparer.Ordinal)
+                    .SequenceEqual(bequests.OrderBy(item => item.LotId, StringComparer.Ordinal)
+                        .ThenBy(item => item.HeirId, StringComparer.Ordinal)))
+                return false;
+        }
         // While the estate is held, a vessel's contents must go to the vessel's heir.
         var containersStayWhole = estate.Settled || checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is not null)
@@ -1395,6 +1473,13 @@ public static partial class SocietyFixture
             frozen.All(lot => bequests.Where(item => item.LotId == lot.LotId).Sum(item => (long)item.Quantity) == lot.Quantity) &&
             bequests.All(item => frozen.Any(lot => lot.LotId == item.LotId));
     }
+
+    private static bool HasFrozenEstateInventory(SocietyCheckpoint checkpoint, SocietyEstate estate) =>
+        estate.FrozenLots is { } frozen &&
+        frozen.All(item => checkpoint.Inventory.Lots.Any(lot =>
+            lot.Id == item.LotId && lot.OwnerId == estate.Id && lot.ItemKind == item.ItemKind &&
+            lot.Quantity == item.Quantity && lot.StorageBuildingId == item.StorageBuildingId)) &&
+        checkpoint.Inventory.Lots.Count(lot => lot.OwnerId == estate.Id) == frozen.Count;
 
     private static SocietyOperationResult Kill(
         SocietyCheckpoint checkpoint,
@@ -1414,7 +1499,7 @@ public static partial class SocietyFixture
             .ToArray();
         var frozenLots = checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == inhabitant.Id)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-            .Select(lot => new SocietyEstateLot(lot.Id, lot.ItemKind, lot.Quantity)).ToArray();
+            .Select(lot => new SocietyEstateLot(lot.Id, lot.ItemKind, lot.Quantity, lot.StorageBuildingId)).ToArray();
         var inventory = MoveOwnedLotsToEstate(checkpoint.Inventory, inhabitant.Id, estateId, deathTick);
         var relationships = checkpoint.Relationships.Select(relationship =>
                 relationship.ProposerId == inhabitant.Id || relationship.TargetId == inhabitant.Id
@@ -1441,7 +1526,9 @@ public static partial class SocietyFixture
                         DeathTick = deathTick,
                         DeathCause = cause,
                     }
-                    : item)
+                    : item.PrimaryCaregiverId == inhabitant.Id
+                        ? item with { PrimaryCaregiverId = null }
+                        : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
             Relationships = relationships,
             Estates = checkpoint.Estates.Append(new SocietyEstate(
@@ -1473,7 +1560,7 @@ public static partial class SocietyFixture
     /// <summary>
     /// Carries out due estates once. An accepted will gives each named heir
     /// their exact parts: a living person owns them where they lie (goods the
-    /// dead agent carried are carried by the heir), and a Town keeps them in
+    /// dead agent carried remain at their last tile), and a Town keeps them in
     /// its Warehouse while there is room for that kind. Anything the will
     /// cannot deliver, such as a share for an heir who has since died, food or
     /// goods the Warehouse cannot take, follows the household default: an equal
@@ -1501,8 +1588,6 @@ public static partial class SocietyFixture
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
             var listeners = new SortedSet<string>(StringComparer.Ordinal);
-            if (estate.WillStatus == "accepted")
-                listeners.UnionWith((estate.WillHeirIds ?? []).Where(IsLiving));
             var bequests = estate.WillBequests ?? [];
             var containerOrdinal = 0;
             foreach (var lot in lots.Where(lot => lot.ContainerLotId is null))
@@ -1515,7 +1600,7 @@ public static partial class SocietyFixture
                     var family = lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id).ToArray();
                     var heir = bequests.FirstOrDefault(item => item.LotId == lot.Id)?.HeirId;
                     string? owner = null;
-                    string? storage = null;
+                    string? storage = lot.StorageBuildingId;
                     if (heir is not null && IsLiving(heir))
                     {
                         owner = heir;
@@ -1530,10 +1615,11 @@ public static partial class SocietyFixture
                     owner ??= beneficiaries.Length == 0
                         ? "settlement:communal"
                         : beneficiaries[containerOrdinal++ % beneficiaries.Length];
-                    if (owner != "settlement:communal" && storage is null) listeners.Add(owner);
+                    if (IsLiving(owner)) listeners.Add(owner);
                     nextLots.AddRange(family.Select(member => member with
                     {
                         OwnerId = owner,
+                        CarrierId = storage is null && member.CarrierId != owner ? member.CarrierId : null,
                         StorageBuildingId = storage,
                         DeliveryBuildingId = null,
                         GroundPosition = storage is null ? member.GroundPosition : null,
@@ -1548,7 +1634,7 @@ public static partial class SocietyFixture
                     var quantity = Math.Min(bequest.Quantity, undelivered);
                     if (IsLiving(bequest.HeirId))
                     {
-                        parts.Add((bequest.HeirId, null, quantity));
+                        parts.Add((bequest.HeirId, lot.StorageBuildingId, quantity));
                     }
                     else if (townStores.FirstOrDefault(store => store.TownId == bequest.HeirId) is { } store &&
                              !store.RefusedItemKinds.Contains(lot.ItemKind))
@@ -1566,14 +1652,14 @@ public static partial class SocietyFixture
 
                 if (undelivered > 0 && beneficiaries.Length == 0)
                 {
-                    parts.Add(("settlement:communal", null, undelivered));
+                    parts.Add(("settlement:communal", lot.StorageBuildingId, undelivered));
                 }
                 else if (undelivered > 0)
                 {
                     var baseShare = undelivered / beneficiaries.Length;
                     var remainder = undelivered % beneficiaries.Length;
                     for (var index = 0; index < beneficiaries.Length; index++)
-                        parts.Add((beneficiaries[index], null, baseShare + (index < remainder ? 1 : 0)));
+                        parts.Add((beneficiaries[index], lot.StorageBuildingId, baseShare + (index < remainder ? 1 : 0)));
                 }
 
                 var merged = parts.Where(part => part.Quantity > 0)
@@ -1587,12 +1673,13 @@ public static partial class SocietyFixture
                         nextLots.Add(lot with
                         {
                             OwnerId = part.OwnerId,
-                            StorageBuildingId = null,
+                            CarrierId = lot.CarrierId,
+                            StorageBuildingId = part.StorageId,
                             DeliveryBuildingId = null,
                         });
                         continue;
                     }
-                    if (part.OwnerId != "settlement:communal" && part.StorageId is null)
+                    if (IsLiving(part.OwnerId))
                         listeners.Add(part.OwnerId);
 
                     // Physical knowledge artifacts are indivisible and their saved
@@ -1602,6 +1689,7 @@ public static partial class SocietyFixture
                     {
                         Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{part.OwnerId}",
                         OwnerId = part.OwnerId,
+                        CarrierId = part.StorageId is null && lot.CarrierId != part.OwnerId ? lot.CarrierId : null,
                         Quantity = part.Quantity,
                         ProvenanceLotId = preserveIdentity ? lot.ProvenanceLotId : lot.Id,
                         StorageBuildingId = part.StorageId,
@@ -1655,11 +1743,20 @@ public static partial class SocietyFixture
         foreach (var offer in inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                      (offer.FirstPartyId == ownerId || offer.SecondPartyId == ownerId)).ToArray())
             inventory = InventoryFixture.CancelDirectBarterOffer(inventory, offer.Id, offer.Revision, ownerId);
+        // Ownership freezes without moving stored goods or a living custodian's load.
+        // The private world drops a deceased owner's carried estate at their last tile.
         var lots = inventory.Lots.Select(lot => lot.OwnerId == ownerId
-                ? lot with { OwnerId = estateId, StorageBuildingId = null, DeliveryBuildingId = null }
+                ? lot with
+                {
+                    OwnerId = estateId,
+                    CarrierId = lot.CarrierId == ownerId ? null : lot.CarrierId,
+                    DeliveryBuildingId = null,
+                }
                 : lot)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
-        var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId
+        var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId &&
+                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
+                    InventoryReservationState.Committed
                 ? reservation with { State = InventoryReservationState.Released }
                 : reservation)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
@@ -1726,6 +1823,8 @@ public static partial class SocietyFixture
         SocietyCheckpoint checkpoint,
         SocietyRelationship relationship)
     {
+        if (relationship.Type == SocietyRelationshipType.Partnership)
+            return checkpoint;
         if (relationship.Type != SocietyRelationshipType.HouseholdMembership &&
             relationship.Type != SocietyRelationshipType.Caregiver)
         {
@@ -1748,6 +1847,12 @@ public static partial class SocietyFixture
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray()
             : household.CaregiverIds;
+        if (relationship.Type == SocietyRelationshipType.Caregiver &&
+            relationship.State == SocietyRelationshipState.Accepted &&
+            checkpoint.GetInhabitant(relationship.TargetId) is { } dependent && IsYoungerDependent(dependent) &&
+            dependent.HouseholdId == household.Id && checkpoint.GetInhabitant(relationship.ProposerId).HouseholdId == household.Id &&
+            !HasActivePrimaryCaregiver(checkpoint, dependent.Id))
+            checkpoint = SetPrimaryCaregiver(checkpoint, relationship.ProposerId, dependent.Id);
         return checkpoint with
         {
             Inhabitants = relationship.Type == SocietyRelationshipType.HouseholdMembership
@@ -1765,24 +1870,40 @@ public static partial class SocietyFixture
 
     private static SocietyCheckpoint RemoveRelationshipProjection(
         SocietyCheckpoint checkpoint,
-        SocietyRelationship relationship)
+        SocietyRelationship relationship,
+        bool revokedAcceptedCare)
     {
+        if (relationship.Type == SocietyRelationshipType.Partnership)
+            return checkpoint;
         if (relationship.Type != SocietyRelationshipType.HouseholdMembership &&
-            relationship.Type != SocietyRelationshipType.Caregiver ||
-            relationship.HouseholdId is null)
+            relationship.Type != SocietyRelationshipType.Caregiver)
         {
             return checkpoint;
         }
 
-        var household = checkpoint.GetHousehold(relationship.HouseholdId);
-        return checkpoint with
-        {
-            Inhabitants = relationship.Type == SocietyRelationshipType.HouseholdMembership
+        var clearPrimaryCaregiver = revokedAcceptedCare && relationship.Type == SocietyRelationshipType.Caregiver &&
+            checkpoint.GetInhabitant(relationship.TargetId).PrimaryCaregiverId == relationship.ProposerId &&
+            !checkpoint.Relationships.Any(other => other.Type == SocietyRelationshipType.Caregiver &&
+                other.State == SocietyRelationshipState.Accepted && other.ProposerId == relationship.ProposerId &&
+                other.TargetId == relationship.TargetId);
+        var inhabitants = relationship.Type == SocietyRelationshipType.HouseholdMembership
+            ? checkpoint.Inhabitants.Select(item => item.Id == relationship.TargetId
+                    ? item with { HouseholdId = null }
+                    : item)
+                .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray()
+            : clearPrimaryCaregiver
                 ? checkpoint.Inhabitants.Select(item => item.Id == relationship.TargetId
-                        ? item with { HouseholdId = null }
+                        ? item with { PrimaryCaregiverId = null }
                         : item)
                     .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray()
-                : checkpoint.Inhabitants,
+                : checkpoint.Inhabitants;
+        if (relationship.HouseholdId is not { } householdId)
+            return clearPrimaryCaregiver ? checkpoint with { Inhabitants = inhabitants } : checkpoint;
+
+        var household = checkpoint.GetHousehold(householdId);
+        return checkpoint with
+        {
+            Inhabitants = inhabitants,
             Households = checkpoint.Households.Select(item => item.Id == household.Id
                     ? item with
                     {
@@ -1800,6 +1921,49 @@ public static partial class SocietyFixture
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         };
     }
+
+    private static SocietyCheckpoint ApplyPartnershipFamilyUnit(
+        SocietyCheckpoint checkpoint,
+        SocietyRelationship relationship)
+    {
+        var participants = new HashSet<string>([relationship.ProposerId, relationship.TargetId], StringComparer.Ordinal);
+        var unitId = $"domestic:partnership:{relationship.Id}";
+        return checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person =>
+                participants.Contains(person.Id) || IsYoungerDependent(person) &&
+                    person.PrimaryCaregiverId is { } caregiver && participants.Contains(caregiver)
+                    ? person with { DomesticFamilyUnitId = unitId }
+                    : person).ToArray(),
+        };
+    }
+
+    private static SocietyCheckpoint SplitPartnershipFamilyUnit(
+        SocietyCheckpoint checkpoint,
+        SocietyRelationship relationship)
+    {
+        var participants = new HashSet<string>([relationship.ProposerId, relationship.TargetId], StringComparer.Ordinal);
+        var unitByCaregiver = participants.ToDictionary(
+            id => id,
+            id => $"domestic:separate:{relationship.Id}:{id}",
+            StringComparer.Ordinal);
+        return checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person =>
+                participants.Contains(person.Id)
+                    ? person with { DomesticFamilyUnitId = unitByCaregiver[person.Id] }
+                    : IsYoungerDependent(person) && person.PrimaryCaregiverId is { } caregiver &&
+                        unitByCaregiver.TryGetValue(caregiver, out var unitId)
+                        ? person with { DomesticFamilyUnitId = unitId }
+                        : person).ToArray(),
+        };
+    }
+
+    private static bool IsYoungerDependent(SocietyInhabitant person) =>
+        person.Status == SocietyInhabitantStatus.Active &&
+        person.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent;
+
+    private static string DomesticPersonUnit(string inhabitantId) => $"domestic:person:{inhabitantId}";
 
     private static SocietyOperationResult Commit(
         SocietyCheckpoint checkpoint,
@@ -1905,6 +2069,7 @@ public static partial class SocietyFixture
         NormalizeRequiredText(request.FirstParentId, nameof(request.FirstParentId));
         NormalizeRequiredText(request.SecondParentId, nameof(request.SecondParentId));
         NormalizeRequiredText(request.HouseholdId, nameof(request.HouseholdId));
+        NormalizeRequiredText(request.PrimaryCaregiverId ?? string.Empty, nameof(request.PrimaryCaregiverId));
         if (request.ChildName is not null && (string.IsNullOrWhiteSpace(request.ChildName) || request.ChildName.Length > 80))
         {
             throw new ArgumentException("A child name must contain between 1 and 80 characters.", nameof(request));
@@ -1928,6 +2093,10 @@ public static partial class SocietyFixture
         foreach (var inhabitant in inhabitants)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(inhabitant.Name);
+            if (string.IsNullOrWhiteSpace(inhabitant.DomesticFamilyUnitId) ||
+                inhabitant.PrimaryCaregiverId is { } caregiverId &&
+                    (caregiverId == inhabitant.Id || !inhabitants.Any(person => person.Id == caregiverId)))
+                throw new InvalidDataException("An inhabitant's domestic family unit or primary caregiver is invalid.");
             if (inhabitant.BirthTick > worldTick ||
                 inhabitant.BirthLifeTick is { } birthLife && (lifeClock is null || birthLife > lifeClock.At(worldTick)) ||
                 inhabitant.HealthBasisPoints is < 0 or > 10_000 ||

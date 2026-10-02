@@ -133,12 +133,13 @@ public sealed partial class PrivateWorldRuntime
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
+        int Age(int index) => SocietyFixture.FounderArrivalAge(config, worldSeed, index);
         var founders = new[]
         {
-            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config),
-            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config),
-            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config),
-            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config),
+            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config, startingAge: Age(0)),
+            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config, startingAge: Age(1)),
+            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config, startingAge: Age(2)),
+            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config, startingAge: Age(3)),
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
@@ -148,6 +149,11 @@ public sealed partial class PrivateWorldRuntime
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
                 new InventoryLot("wood:camp-alpha", "wood", HouseholdId, 48, 10_000, 10_000, 0),
                 new InventoryLot("tools:camp-alpha", "tool", HouseholdId, 4, 10_000, 10_000, 0),
+                ..(startPace == WorldStartPace.Legacy ? new InventoryLot[]
+                {
+                    new("legacy-wooden-axe:camp-alpha", "wooden_axe", HouseholdId, 1, 10_000, 10_000, 0),
+                    new("legacy-wooden-pickaxe:camp-alpha", "wooden_pickaxe", HouseholdId, 1, 10_000, 10_000, 0),
+                } : []),
                 ..(startPace == WorldStartPace.FounderSetup ? new InventoryLot[]
                 {
                     new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),
@@ -236,10 +242,39 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            if (society.Checkpoint.Inventory.Lots.Any(lot => lot.CarrierId == id))
+            {
+                var position = inhabitants[id].Position;
+                ApplyInventoryTransition(inventory => InventoryFixture.DropCarrierGoods(inventory, id,
+                    new InventoryGroundPosition(position.X, position.Y)));
+            }
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            // Society escrows ownership at death. Goods that had no separate
+            // custodian or storage were carried by their owner; keep their
+            // physical position at the deceased's tile after that owner is gone.
+            var estate = society.Checkpoint.Estates.SingleOrDefault(item => item.DeceasedId == id);
+            if (estate is not null)
+            {
+                var position = inhabitants[id].Position;
+                foreach (var lot in society.Checkpoint.Inventory.Lots.Where(item => item.OwnerId == estate.Id &&
+                             item.ContainerLotId is null && item.CarrierId is null &&
+                             item.StorageBuildingId is null && item.GroundPosition is null).ToArray())
+                    ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
+                        $"death:{id}:{lot.Id}", lot.Id, estate.Id, lot.Quantity,
+                        groundPosition: new InventoryGroundPosition(position.X, position.Y)));
+            }
+            foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
+                         .Where(item => item.Outcome is "waiting" or "requested").ToArray())
+                FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id], TownForResident(id)));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with
+                {
+                    MedicalTreatment = null,
+                    Equipment = inhabitants[id].Equipment is { } equipment
+                        ? equipment with { OrnamentLotId = null } : null,
+                }, TownForResident(id)));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

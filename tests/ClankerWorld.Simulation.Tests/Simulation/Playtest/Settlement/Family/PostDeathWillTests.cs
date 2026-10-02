@@ -70,6 +70,8 @@ public sealed class PostDeathWillTests
             ("founder-mira", "Scout's final words were: 'Keep the orchard going.'"),
             ("founder-rowan", "Scout's final words were: 'Keep the orchard going.'"),
         ], FinalWordMemories(reloaded));
+        Assert.All(reloaded.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal)),
+            memory => Assert.Equal("private", memory.Visibility));
         Assert.DoesNotContain(reloaded.Memories, memory => memory.OwnerId == "founder-ilya" &&
             memory.Summary.Contains("final words", StringComparison.Ordinal));
         Assert.Single(reloaded.Events, item => item.Kind == "estate_settled" && item.Detail == estate.Id);
@@ -112,8 +114,11 @@ public sealed class PostDeathWillTests
         var settled = await AdvanceUntilSettled(world, estate.Id);
         Assert.Equal(SocietyAgeBand.Child, settled.GetInhabitant("founder-ilya").AgeBand);
         var childStone = Assert.Single(settled.Inventory.Lots, lot => lot.ProvenanceLotId == "stone-lot");
-        Assert.Equal(("founder-ilya", 5, null, null), (childStone.OwnerId, childStone.Quantity,
-            childStone.StorageBuildingId, childStone.GroundPosition));
+        var deathPosition = world.ExportState().DeceasedInhabitants!.Single(person => person.InhabitantId == "founder-scout")
+            .LastPhysical.Position;
+        Assert.Equal(("founder-ilya", 5, (string?)null, (string?)null,
+                (InventoryGroundPosition?)new InventoryGroundPosition(deathPosition.X, deathPosition.Y)),
+            (childStone.OwnerId, childStone.Quantity, childStone.CarrierId, childStone.StorageBuildingId, childStone.GroundPosition));
         Assert.Equal(5 + 3 + 1, settled.Inventory.Lots.Where(lot => lot.ProvenanceLotId is "rope-lot" or "seed-lot" or "stone-lot")
             .Sum(lot => lot.Quantity));
         Assert.DoesNotContain(settled.Memories, memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal));
@@ -441,14 +446,30 @@ public sealed class PostDeathWillTests
                     CurrentRole = SocietyWorkRole.Unassigned,
                 } : person).ToArray(),
             };
+            checkpoint = SocietyFixture.AcceptDependentGuardianship(checkpoint, "founder-mira", "founder-ilya").Checkpoint;
+            Assert.True(SocietyFixture.HasActivePrimaryCaregiver(checkpoint, "founder-ilya"));
+            Assert.Equal(checkpoint.GetInhabitant("founder-mira").DomesticFamilyUnitId,
+                checkpoint.GetInhabitant("founder-ilya").DomesticFamilyUnitId);
         }
+        var physical = state.Inhabitants.Single(item => item.InhabitantId == "founder-scout");
         checkpoint = SocietyFixture.Kill(checkpoint, "founder-scout", SocietyDeathCause.Accident).Checkpoint;
+        // This fixture archives the death directly, so perform the same physical
+        // drop as the runtime before removing the deceased's physical state.
+        var estateId = checkpoint.Estates.Single(estate => estate.DeceasedId == "founder-scout").Id;
+        inventory = checkpoint.Inventory;
+        if (inventory.Lots.Any(lot => lot.CarrierId == "founder-scout"))
+            inventory = InventoryFixture.DropCarrierGoods(inventory, "founder-scout",
+                new InventoryGroundPosition(physical.Position.X, physical.Position.Y));
+        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == estateId && lot.ContainerLotId is null &&
+                     lot.CarrierId is null && lot.StorageBuildingId is null && lot.GroundPosition is null).ToArray())
+            inventory = InventoryFixture.Relocate(inventory, $"death:founder-scout:{lot.Id}", lot.Id, estateId, lot.Quantity,
+                groundPosition: new InventoryGroundPosition(physical.Position.X, physical.Position.Y));
+        checkpoint = checkpoint with { Inventory = inventory };
         // Bounded test clock: settle a few ticks after the will instead of after a world day.
         checkpoint = checkpoint with
         {
             Estates = checkpoint.Estates.Select(estate => estate with { ExpiryTick = estate.CreatedTick + 4 }).ToArray(),
         };
-        var physical = state.Inhabitants.Single(item => item.InhabitantId == "founder-scout");
         var deceased = checkpoint.GetInhabitant("founder-scout");
         state = state with
         {

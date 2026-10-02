@@ -119,19 +119,14 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>Use the faster harvest only when its complete output fits the current carry space.</summary>
     private bool UseHarvestBonusForBuildingMaterial(string actor, string itemKind, MapResource source)
     {
-        var tool = itemKind switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        return tool is not null && HasCarriedItem(actor, tool) &&
-            FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, itemKind, source, useHarvestBonus: true);
+        var plan = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus: true);
+        return plan is { ToolLotId: not null, Quantity: > 4 } &&
+            FreeCarryCapacity(actor) >= checked(plan.Quantity + plan.TreeSeedQuantity);
     }
 
     /// <summary>
-    /// A carried project tool is kept at home until preparation materials have
-    /// room to travel. Building work can collect it again from the household.
+    /// Store a spare generic tool at home so preparation materials have room
+    /// to travel. Building work uses an available hammer or proceeds by hand.
     /// </summary>
     private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
     {
@@ -147,7 +142,9 @@ public sealed partial class PrivateWorldRuntime
             return null;
 
         var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                lot.ContainerLotId is null &&
                 lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
         return tool is not null && free + Math.Min(1, AvailableLotQuantity(tool)) >= required ? tool : null;

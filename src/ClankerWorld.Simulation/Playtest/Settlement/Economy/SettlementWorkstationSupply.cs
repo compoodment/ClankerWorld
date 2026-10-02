@@ -38,7 +38,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Contains("pottery", StringComparer.Ordinal)))
+                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care")))
                 .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
@@ -55,7 +55,7 @@ public sealed partial class PrivateWorldRuntime
                 var inventory = society.Checkpoint.Inventory;
                 var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
-                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
+                    .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         AvailableLotQuantity(lot) > 0)
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
@@ -92,13 +92,12 @@ public sealed partial class PrivateWorldRuntime
     private int WorkstationPickupQuantity(string actor, InventoryCheckpoint inventory, InventoryLot stock,
         string destinationId, int missing)
     {
-        var capacity = Math.Min(HouseHaulLoadQuantity, Math.Min(FreeCarryCapacity(actor),
-            WorkstationDeliveryRoom(inventory, destinationId)));
+        var capacity = Math.Min(FreeCarryCapacity(actor), WorkstationDeliveryRoom(inventory, destinationId));
         if (capacity <= 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
             ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity ? 1 : 0
-            : Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock)));
+            : Math.Min(HouseHaulLoadQuantity, Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock))));
     }
 
     private InventoryLot? SpareHouseholdStock(string actor, string householdId, string itemKind,
@@ -110,7 +109,7 @@ public sealed partial class PrivateWorldRuntime
                 AvailableLotQuantity(lot) > 0)
             .Select(lot => lot.ContainerLotId is { } containerId
                 ? inventory.GetLot(containerId) : lot)
-            .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != destination.InstanceId &&
+            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != destination.InstanceId &&
                 lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                  !HasActiveContainerReservation(inventory, lot.Id)) &&

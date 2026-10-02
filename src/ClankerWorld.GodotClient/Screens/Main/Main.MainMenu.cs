@@ -58,6 +58,7 @@ public partial class Main
     private readonly SlotList worldSelectionList = new();
     private readonly Button worldCreateButton = new();
     private readonly Button worldSelectButton = new();
+    private readonly Button worldSavesButton = new();
     private CatalogWorld[] listedWorlds = [];
     private readonly Button worldDeleteButton = new();
     private string? listedActiveWorldId;
@@ -152,6 +153,7 @@ public partial class Main
     private void ShowMainMenu()
     {
         isInWorld = false;
+        if (developerPanel.Visible) CloseDeveloperTools();
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
         mainMenuBackground.MouseFilter = MouseFilterEnum.Stop;
         mainMenuCenter.MouseFilter = MouseFilterEnum.Pass;
@@ -278,7 +280,6 @@ public partial class Main
         settingsButton.Visible = visible;
         modLibraryButton.Visible = visible;
         worldSettingsCategoryButton.Visible = visible;
-        developerToggleButton.Visible = visible;
         menuQuitToMainButton.Visible = visible;
         menuQuitSeparator.Visible = visible;
         modLibraryPanel.Hide();
@@ -468,7 +469,9 @@ public partial class Main
                 ? "Cannot open this world: " + (world.CompatibilityReason ?? "It was made with a different version.") + " Your save is safe."
                 : world.Compatibility == "unknown"
                     ? "Could not check this world. Opening it will try the saved copy and will not delete anything."
-                    : "This world is ready to open.";
+                    : world.Id == listedActiveWorldId
+                        ? "This is your current world. Open it, or load one of its saves."
+                        : "This world is ready to open. Open it first to load one of its saves.";
         };
         worldSelectionList.ItemActivated += index => _ = SelectListedWorldAsync();
         worldSelectionList.Hide();
@@ -493,6 +496,12 @@ public partial class Main
         worldCreateButton.Pressed += () => _ = CreateSelectedWorldAsync();
         worldCreateButton.Disabled = true;
         actions.AddChild(worldCreateButton);
+        worldSavesButton.Text = "Load a save...";
+        worldSavesButton.TooltipText = "Go back to one of the current world's saves. Playing on from an older save starts a new branch.";
+        StyleButton(worldSavesButton);
+        worldSavesButton.Pressed += () => _ = OpenManualSavesAsync(loadMode: true);
+        worldSavesButton.Hide();
+        actions.AddChild(worldSavesButton);
         worldSelectButton.Text = "Open World";
         StyleButton(worldSelectButton, primary: true);
         worldSelectButton.CustomMinimumSize = new Vector2(170, 34);
@@ -569,6 +578,8 @@ public partial class Main
         worldCreateButton.Visible = create;
         worldSelectionList.Visible = !create;
         worldSelectButton.Visible = !create;
+        worldSavesButton.Visible = !create;
+        worldSavesButton.Disabled = true;
         worldDeleteButton.Visible = !create;
         worldDeleteButton.Disabled = true;
         pendingDeletion = null;
@@ -596,11 +607,12 @@ public partial class Main
         listedActiveWorldId = null;
         worldSelectionList.Clear();
         worldSelectButton.Disabled = true;
+        worldSavesButton.Disabled = true;
         worldDeleteButton.Disabled = true;
         if (worldListRequest.IsLoading)
         {
-            worldMenuStatus.Text = "Checking saved worlds… This can take a moment. You can go back while you wait.";
-            worldSelectionList.Placeholder = "Checking saved worlds…";
+            worldMenuStatus.Text = "Checking saved worlds... This can take a moment. You can go back while you wait.";
+            worldSelectionList.Placeholder = "Checking saved worlds...";
         }
         else if (worldListRequest.Failure is { } failure)
         {
@@ -678,6 +690,8 @@ public partial class Main
             registeredEndpointInvalid || registration is null || deviceKey is null;
         var world = SelectedListedWorld();
         worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
+        // Saves load into the open world, so another world must be opened first.
+        worldSavesButton.Disabled = disabled || world is null || world.Id != listedActiveWorldId;
         worldDeleteButton.Disabled = disabled || world is null;
         worldPreviewButton.Disabled = disabled;
         worldCreateButton.Disabled = disabled || !CanCreatePreview(CurrentWorldOptions());
@@ -766,7 +780,7 @@ public partial class Main
         worldAcceptUnmetTargets.Hide();
         worldCreateButton.Disabled = true;
         worldPreview.Hide();
-        worldPreviewStatus.Text = "Updating the preview…";
+        worldPreviewStatus.Text = "Updating the preview...";
         if (refresh && worldMenuOverlay.Visible && worldMenuColumns.Visible)
             _ = RefreshWorldPreviewAfterChangeAsync(revision);
     }
@@ -797,7 +811,7 @@ public partial class Main
         worldCreateButton.Disabled = true;
         worldAcceptUnmetTargets.ButtonPressed = false;
         worldAcceptUnmetTargets.Hide();
-        worldPreviewStatus.Text = "Generating map preview…";
+        worldPreviewStatus.Text = "Generating map preview...";
         try
         {
             var result = await ownerApi.PreviewWorldAsync(ResolveWorldUri(), authority,
@@ -910,7 +924,7 @@ public partial class Main
         };
         await RunWorldMenuActionAsync(async () =>
         {
-            worldMenuStatus.Text = "Generating world…";
+            worldMenuStatus.Text = "Generating world...";
             try
             {
                 await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
@@ -939,7 +953,7 @@ public partial class Main
         var server = ResolveWorldUri();
         await RunWorldMenuActionAsync(async () =>
         {
-            worldMenuStatus.Text = "Opening world…";
+            worldMenuStatus.Text = "Opening world...";
             try
             {
                 await ownerApi.SetPausedAsync(server, authority, deviceId, true,

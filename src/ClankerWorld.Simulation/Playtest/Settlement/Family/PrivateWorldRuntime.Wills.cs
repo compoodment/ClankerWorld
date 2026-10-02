@@ -67,6 +67,7 @@ public sealed partial class PrivateWorldRuntime
                 {
                     try
                     {
+                        cancellation.Token.ThrowIfCancellationRequested();
                         return new WillDecisionOutcome(
                             await provider.DecideAsync(request, cancellation.Token).ConfigureAwait(false), "none");
                     }
@@ -117,22 +118,31 @@ public sealed partial class PrivateWorldRuntime
                 contents.Length is > 0 and <= 128 ? contents : null));
         }
 
+        var people = checkpoint.Inhabitants
+            .Where(item => item.Status == SocietyInhabitantStatus.Active && item.Id != deceased.Id)
+            .Select(item => (Person: item, Relation: WillRelation(checkpoint, deceased, item)))
+            .OrderBy(item => item.Relation is null ? 1 : 0)
+            .ThenBy(item => item.Person.Id, StringComparer.Ordinal)
+            .Take(MaximumWillPersonHeirs).ToArray();
+        var offeredTownId = archived?.TownId is { } residentTownId && TownsThatMayInherit().Contains(residentTownId)
+            ? residentTownId : null;
+        // Reserve every short raw key first so a long identity's hash can never
+        // shadow a different person's or Town's valid raw identity.
+        var occupiedKeys = people.Select(item => PersonHeirKeyPrefix + item.Person.Id)
+            .Concat(offeredTownId is null ? [] : new[] { TownHeirKeyPrefix + offeredTownId })
+            .Where(key => key.Length <= CognitionWillContext.MaximumHeirKeyLength)
+            .ToHashSet(StringComparer.Ordinal);
         var heirKeys = new Dictionary<string, string>(StringComparer.Ordinal);
         var heirs = new List<CognitionWillHeir>();
-        foreach (var (person, relation) in checkpoint.Inhabitants
-                     .Where(item => item.Status == SocietyInhabitantStatus.Active && item.Id != deceased.Id)
-                     .Select(item => (Person: item, Relation: WillRelation(checkpoint, deceased, item)))
-                     .OrderBy(item => item.Relation is null ? 1 : 0)
-                     .ThenBy(item => item.Person.Id, StringComparer.Ordinal)
-                     .Take(MaximumWillPersonHeirs))
+        foreach (var (person, relation) in people)
         {
-            var key = PersonHeirKeyPrefix + person.Id;
+            var key = BoundedWillHeirKey(PersonHeirKeyPrefix, person.Id, occupiedKeys);
             heirKeys.Add(key, person.Id);
             heirs.Add(new CognitionWillHeir(key, person.Name, relation));
         }
-        if (archived?.TownId is { } townId && TownsThatMayInherit().Contains(townId))
+        if (offeredTownId is { } townId)
         {
-            var key = TownHeirKeyPrefix + townId;
+            var key = BoundedWillHeirKey(TownHeirKeyPrefix, townId, occupiedKeys);
             heirKeys.Add(key, townId);
             heirs.Add(new CognitionWillHeir(key, towns.Single(item => item.Id == townId).Name, "your Town"));
         }
@@ -161,13 +171,24 @@ public sealed partial class PrivateWorldRuntime
         var digestInput = estate.Id + "|" + string.Join("|", snapshot.Select(item =>
             $"{item.LotId}:{item.ItemKind}:{item.Quantity}")) + "|" +
             string.Join("|", candidates.Select(item => item.Id)) + "|" +
-            string.Join("|", heirs.Select(item => $"{item.Key}:{item.Relation}")) + "|" +
+            string.Join("|", heirs.Select(item => $"{item.Key}:{heirKeys[item.Key]}:{item.Relation}")) + "|" +
             string.Join("|", memories.Select(item => item.Id));
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(digestInput)));
         var observation = new InhabitantObservation(estate.DeceasedId, estate.CreatedTick,
             checkpoint.RunEpoch, 0, digest, 0, candidates, RequiresPersonalProvider: true,
             RetrievedMemories: memories, Self: self, Will: new CognitionWillContext(items, heirs));
         return new WillRequestContext(observation, heirKeys, itemKeys);
+    }
+
+    private static string BoundedWillHeirKey(string prefix, string id, HashSet<string> occupiedKeys)
+    {
+        var raw = prefix + id;
+        if (raw.Length <= CognitionWillContext.MaximumHeirKeyLength) return raw;
+        var hashed = prefix + "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id))).ToLowerInvariant();
+        var key = hashed;
+        for (var collision = 1; !occupiedKeys.Add(key); collision++)
+            key = hashed + ":" + collision.ToString(CultureInfo.InvariantCulture);
+        return key;
     }
 
     /// <summary>A short label of how a living person was related to the dead agent, if at all.</summary>
@@ -213,9 +234,10 @@ public sealed partial class PrivateWorldRuntime
             .OfType<SocietyTownStore>().ToArray();
     }
 
-    private async ValueTask ProcessWillDecisionsAsync(
+    private void ProcessWillDecisions(
         IReadOnlyList<PendingWillDecision> completed, IReadOnlyList<string> activeIds,
-        IReadOnlyDictionary<string, string> inactiveReasons)
+        IReadOnlyDictionary<string, string> inactiveReasons,
+        Func<PendingWillDecision, bool> providerIsCurrent)
     {
         var completedById = completed.ToDictionary(item => item.EstateId, StringComparer.Ordinal);
         var active = activeIds.ToHashSet(StringComparer.Ordinal);
@@ -230,7 +252,7 @@ public sealed partial class PrivateWorldRuntime
 
             if (completedById.TryGetValue(estate.Id, out var pending))
             {
-                var outcome = await pending.Task.ConfigureAwait(false);
+                var outcome = pending.Task.GetAwaiter().GetResult();
                 var response = outcome.Response;
                 var valid = false;
                 if (response is not null)
@@ -242,7 +264,8 @@ public sealed partial class PrivateWorldRuntime
                             response.InhabitantId == estate.DeceasedId &&
                             response.Provider == DecisionProviderKind.LargeLanguageModel &&
                             response.ProviderEpoch == pending.Request.ProviderEpoch &&
-                            (providerFactory?.Invoke(estate.DeceasedId).ProviderEpoch ?? 0) == pending.Request.ProviderEpoch &&
+                            providerIsCurrent(pending) &&
+                            society.Checkpoint.RunEpoch == pending.Request.Observation.RunEpoch &&
                             response.RunEpoch == pending.Request.Observation.RunEpoch &&
                             response.DecisionGeneration == pending.Request.Observation.DecisionGeneration &&
                             response.ObservationDigest == pending.Request.Observation.ObservationDigest &&
@@ -284,6 +307,18 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private bool IsWillDecisionProviderCurrent(PendingWillDecision pending)
+    {
+        try
+        {
+            var provider = providerFactory?.Invoke(pending.Request.Observation.InhabitantId);
+            return provider is not null &&
+                provider.KindFor(pending.Request.Observation) == DecisionProviderKind.LargeLanguageModel &&
+                provider.ProviderEpoch == pending.Request.ProviderEpoch;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException) { return false; }
+    }
+
     /// <summary>
     /// Maps a reply's keys back to the heirs and lots this request offered.
     /// Any key the request did not offer makes the whole division unusable.
@@ -318,13 +353,13 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("estate_will_default", $"{estateId}:{reason}");
     }
 
-    private void CancelPendingWill(string estateId, string reason = "interrupted")
+    private void CancelPendingWill(string estateId, string reason = "interrupted", bool underRuntimeGate = true)
     {
         var estateIsPending = society.Checkpoint.Estates.Any(item => item.Id == estateId && item.WillStatus == "pending");
         if (!pendingWills.Remove(estateId, out var pending)) return;
         if (estateIsPending) pendingWillCancellationReasons[estateId] = reason;
         else pendingWillCancellationReasons.Remove(estateId);
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
 }

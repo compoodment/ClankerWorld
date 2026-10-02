@@ -21,7 +21,8 @@ public sealed record CognitionIntention(
     long RunEpoch,
     long DecisionGeneration,
     string ObservationDigest,
-    CognitionUsage? Usage = null);
+    CognitionUsage? Usage = null,
+    string? OperativeOrderInstructionId = null);
 
 public sealed record CognitionRequestRecord(
     CognitionDecisionRequest Request,
@@ -63,7 +64,9 @@ public sealed record CognitionAdmissionResult(
     bool FellBack,
     string Outcome,
     CognitionIntention? Intention,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionMemoryCompactionScore>? MemoryCompactionScores = null,
+    string? CivicProposal = null, IReadOnlyList<string>? CivicBallot = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionObserverGuidanceResult? ObserverGuidance = null);
 
 /// <summary>
 /// The first Phase 3 cognition boundary. It owns request admission and
@@ -238,7 +241,8 @@ public sealed class CognitionRuntime
                 request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest,
-                response.Usage);
+                response.Usage,
+                request.Observation.OperativeOrderInstructionId);
             currentIntention = intention;
             RetireInFlight(CognitionRequestState.Applied, "provider_decision", intention, response.Usage);
             AppendEvent(request.Observation.WorldTick, "cognition_decision_applied", $"{response.Provider}:{candidate.Id}");
@@ -246,12 +250,27 @@ public sealed class CognitionRuntime
             {
                 AppendEvent(request.Observation.WorldTick, "cognition_usage_recorded", FormatUsage(response.Usage));
             }
+            var observedGuidance = response.Provider == DecisionProviderKind.LargeLanguageModel &&
+                request.Observation.ObserverGuidance is { Count: > 0 } messages &&
+                request.Observation.WorldId is { } worldId
+                    ? new CognitionObserverGuidanceResult(
+                        worldId,
+                        request.Observation.InhabitantId,
+                        request.RequestId,
+                        request.Observation.RunEpoch,
+                        request.Observation.DecisionGeneration,
+                        request.Observation.ObservationDigest,
+                        messages.ToArray(),
+                        (response.ObserverReplies ?? []).ToArray())
+                    : null;
             return new CognitionAdmissionResult(
                 true,
                 false,
                 "provider_decision",
                 intention,
-                response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null);
+                response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
+                response.CivicProposal, response.CivicBallot,
+                observedGuidance);
         }
     }
 
@@ -405,7 +424,8 @@ public sealed class CognitionRuntime
             request.Observation.WorldTick,
             request.Observation.RunEpoch,
             request.Observation.DecisionGeneration,
-            request.Observation.ObservationDigest);
+            request.Observation.ObservationDigest,
+            OperativeOrderInstructionId: request.Observation.OperativeOrderInstructionId);
         currentIntention = intention;
         RetireInFlight(CognitionRequestState.Fallback, reason, intention);
         AppendEvent(request.Observation.WorldTick, "cognition_fallback_applied", $"{reason}:{candidate.Id}");
@@ -459,6 +479,15 @@ public sealed class CognitionRuntime
         catch (ArgumentException)
         {
             return "malformed_response";
+        }
+
+        var observerGuidance = request.Observation.ObserverGuidance ?? [];
+        foreach (var reply in response.ObserverReplies ?? [])
+        {
+            if (response.Provider != DecisionProviderKind.LargeLanguageModel ||
+                !observerGuidance.Any(message =>
+                    message.InstructionId == reply.InstructionId && message.ReplyAllowed))
+                return "observer_reply_not_requested";
         }
 
         if (!request.Observation.Candidates.Any(candidate =>

@@ -27,7 +27,11 @@ public sealed class TownHeirWillTests
         var lastDay = Assert.IsType<SocietyDayLifecycle>(society.Config.DayLifecycle).MaximumDay;
         // The founder reaches the last day of life on the next tick and dies of old age then.
         var birth = society.LifeTickAt(society.WorldTick + 1) - lastDay * society.Config.TicksPerLifecycleAge;
-        var inventory = InventoryFixture.AddLot(society.Inventory, "will-wood", "wood", deceasedId, 4);
+        var inventory = society.Inventory with
+        {
+            Lots = society.Inventory.Lots.Where(lot => lot.OwnerId != deceasedId).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "will-wood", "wood", deceasedId, 4);
         inventory = InventoryFixture.AddLot(inventory, "will-food", "food", deceasedId, 2);
         society = society with
         {
@@ -40,7 +44,12 @@ public sealed class TownHeirWillTests
                 LastLifecycleYearChecked = lastDay - 1,
             } : person).ToArray(),
         };
-        using var world = PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = society } }, Provider);
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = society },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == deceasedId
+                ? person with { Equipment = null } : person).ToArray(),
+        }, Provider);
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         var estate = Assert.Single(world.Society.Estates);
@@ -89,10 +98,11 @@ public sealed class TownHeirWillTests
         var food = settled.Inventory.Lots.Where(lot => lot.ProvenanceLotId == "will-food").ToArray();
         Assert.Equal(2, food.Sum(lot => lot.Quantity));
         Assert.All(food, lot => Assert.Contains(lot.OwnerId, estate.BeneficiaryIds));
-        var personHeir = estate.WillHeirIds[1];
-        Assert.Equal(food.Select(lot => lot.OwnerId).Append(personHeir).Distinct().Order(StringComparer.Ordinal),
+        Assert.Equal(food.Select(lot => lot.OwnerId).Distinct().Order(StringComparer.Ordinal),
             settled.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal))
                 .Select(memory => memory.OwnerId).Order(StringComparer.Ordinal));
+        Assert.All(settled.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal)),
+            memory => Assert.Equal("private", memory.Visibility));
         Assert.Single(handler.Bodies);
     }
 

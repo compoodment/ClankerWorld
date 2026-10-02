@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
         definition.CanonicalId == building.DefinitionId).Tags.Any(tag => tag is "farmhouse" or "silo");
 
     private int FarmStorageFree(string buildingId, bool includeDeliveries = true) => Math.Max(0,
-        FarmFieldRules.FarmStorageCapacity - society.Checkpoint.Inventory.Lots.Where(lot =>
+        FarmFieldRules.FarmStorageCapacity - ReservedBusinessStorageSpace(buildingId) - society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.StorageBuildingId == buildingId || includeDeliveries && lot.DeliveryBuildingId == buildingId)
         .Sum(lot => lot.Quantity));
 
@@ -42,7 +42,7 @@ public sealed partial class PrivateWorldRuntime
     private FarmStockChoice? FarmGrainForDelivery(string householdId, string actor)
     {
         var inventory = society.Checkpoint.Inventory;
-        foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId &&
+        foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
                      lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))

@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Towns, buildings and government
@@ -193,8 +193,12 @@ everything that is available in the current build. See [what works today](../wha
 The household's existing limit of one planned House remains separate from the
 number of people in its family. Splitting into two households does not erase
 parentage or other family relationships. Care during a living adult's departure
-is agreed below. Town affiliation follows the [Town membership rules](#town-membership);
-care after death and other guardianship cases still need their own decisions.
+is agreed below. Town affiliation follows the
+[Town membership rules](#town-membership). When a dependent loses their last
+active primary caregiver, the agreed care sequence is in [Agents and
+families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Any move between Towns still follows the admission rules in issue
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
 
 ### Household goods and departure
 
@@ -235,11 +239,19 @@ care after death and other guardianship cases still need their own decisions.
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
 
-Adult departure, personal ownership, limited collection access, the food
-allowance and solo formation are implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593).
-Death, wills and other guardianship cases remain separate choices in
-[Agents and families](agents-and-families.md#still-to-decide).
+Adult departure, personal ownership, limited physical collection, the once-only
+food allowance, care-group moves and solo formation are implemented through
+[#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
+notice and relocation selection remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
+response to losing a dependent's last active primary caregiver is described in
+[Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Cross-Town moves after accepted care still follow Town admission rules in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602). Wills are agreed
+in [Agents and
+families](agents-and-families.md#starting-agents-families-and-life-stages);
+other guardianship cases remain separate choices in [Agents and
+families](agents-and-families.md#still-to-decide).
 
 ### House resident capacity and relocation
 
@@ -270,6 +282,11 @@ resident counts.
   membership or distant ancestor does not by itself qualify. Nonresident
   relatives do not count toward dominance. A tie gives neither family
   priority. Extended ancestry does not automatically join that domestic unit.
+  **Owner decision, October 1:** when parents separate or a parent starts a new
+  relationship, younger children follow their recorded primary caregiver's
+  domestic family group for this count. This changes domestic-unit membership
+  only; it does not change anyone's household or residence, and it never merges
+  ancestry records.
 - **Displace only when there is no room.** In a 1×1 House, two partners, their
   baby and an unrelated adult can use all four places. A second baby makes
   five, so the crowding must be resolved by completed expansion or relocation.
@@ -277,12 +294,15 @@ resident counts.
   all residents after the move: a newcomer cannot use a family bonus their
   own arrival would remove. Ordinary adult newcomers still need unanimous agreement;
   family status alone cannot bypass it.
-- **Births always complete, even if the home is full.** The parents establish
-  a primary caregiver and intended home before birth. The newborn joins that
-  caregiver's actual household at birth; the other parent's residence does
-  not automatically change. A full or unavailable home creates a visible
-  housing need, not a lost or rejected baby. A House that exceeds its limit is
-  marked overcrowded and accepts no further voluntary residents. Once an
+- **Births always complete, even if the home is full.** Before preparation,
+  the initiating parent names a primary caregiver and intended household, and
+  the accepting parent chooses a named caregiver-and-home option. Either
+  parent's current household can be chosen. The newborn joins that caregiver's
+  actual household at birth, even if it changed after agreement; the other
+  parent's residence does not automatically change. A full or unavailable
+  home creates a visible housing need, not a lost or rejected baby. A House
+  that exceeds its limit is marked overcrowded and accepts no further
+  voluntary residents. Once an
   overcrowding case opens, a birth or age change does not restart its deadline.
 - **Adults relocate; dependents are not sent away alone.** Volunteers go
   first, then the most recently admitted eligible unrelated adult, with a
@@ -342,10 +362,11 @@ The resident counts, family scope, birth exceptions, notice and departure
 rules are agreed. The existing
 [housing-admission work](https://github.com/compoodment/ClankerWorld/issues/464)
 and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/463)
-remain their original implementation slices; the new residence and relocation
-rules require their own follow-up work, without competing with active claims.
-Resident limits and housing-driven expansion are tracked in [#598](https://github.com/compoodment/ClankerWorld/issues/598),
-and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+remain their original implementation slices. Resident limits, admission checks,
+birth placement and expansion for more places are implemented in
+[#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
+departure and relocation for existing overcrowding remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership
 
@@ -475,14 +496,17 @@ and invented content are not silently approved. In particular:
   satisfies more hunger, and orchard fruit. Flour is a sellable Farmhouse
   intermediate, including at a Market; cloth, made at the Tailor Shop from
   plant fiber, is likewise a real intermediate item.
-- The Blacksmith refines **iron ore into a separate metal item**, then uses it to
-  make tools. Selling spare refined metal directly from the Blacksmith is
-  a strong proposed extension awaiting final confirmation. The Blacksmith
-  already sells tools directly and takes tool-making requests—no separate
-  Store is required for its own products.
+- The Blacksmith refines **iron ore into a separate metal item**, then uses it
+  to make tools. **Agreed on October 1
+  ([#651](https://github.com/compoodment/ClankerWorld/issues/651)):** the
+  Blacksmith may also sell spare refined iron from its stock, as the Farmhouse
+  sells flour and the Tailor Shop sells cloth. The Blacksmith already sells
+  tools directly and takes tool-making requests—no separate Store is required
+  for its own products.
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
-  remain provisional.
+  remain provisional. The October 2 decision stages bandage production, storage
+  and trade now; injury causes and bandage treatment wait for the injury stage.
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
@@ -495,8 +519,12 @@ and invented content are not silently approved. In particular:
   **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
   eight stalls", and 5×4 lost the open column on each side that it needed.
   The stalls stand in two back-to-back rows of four, each facing an aisle,
-  with a path from the hall's door down the middle. Town Hall is
-  **3×4**. These are building/plot footprints, not interior rooms.
+  with a path from the hall's door down the middle. **Agreed on
+  October 1, 2026:** the Town owns the stalls. A new Market comes with a
+  starter set; when sellers need more, the Town builds them on the plaza as
+  Town building projects, using Town materials. The size of the starter set
+  stays provisional. Town Hall is **3×4**. These are building/plot
+  footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. **Agreed after
@@ -535,8 +563,31 @@ materials in hand. There is no Town-wide limit on how many of a kind exist
 until playtests show agents overbuilding. Only the household that holds the
 Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
 exception**: a household may plan it, and once it is built the Town holds it.
-Other buildings the Town shares wait for governance. Any Town resident may plan
-the Warehouse's expansion once its stock is nearly full.
+Other shared buildings use the Council-approved Town projects below. Any Town
+resident may still plan the Warehouse's expansion once its stock is nearly full.
+
+### Shared Town projects
+
+**Agreed by the owner on October 2, 2026 ([#760](https://github.com/compoodment/ClankerWorld/issues/760)):**
+an adult Town resident may propose a named shared construction project with
+its site and material budget. The legitimate current Council must approve it
+through the ordinary proposal and majority procedure before residents may
+spend Town materials or start that project. Pending votes follow the Council's
+existing membership and ballot rules; proposing a project grants no permission.
+
+This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
+communal boats at a Port. Resident adults physically supply and build the
+approved project with real materials. Approval creates no goods, transfers no
+private stock and grants no access to household or personal supplies. Private
+donations need separate consent and the ordinary physical transfer rules.
+
+Permission is bound to the approved project, site and material budget. A
+different site or larger budget needs another approval. Ownership, land rights,
+routes, carrying room, storage, work and reservations still apply. Cancelling
+or blocking a project must preserve its goods and safely release unspent
+reservations. This is a supported construction effect; free-form law text
+cannot execute it. The existing resident rule for Warehouse expansion stays
+in place. Costs, quantities and work times remain provisional for playtesting.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -579,13 +630,31 @@ building. The generator should not preselect a fixed lifetime building count.
 
 The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
-The Town border alone does not silently take over another claim or transfer a
-building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. The first Town begins with a council,
-not an assumed mayor. Residents can later approve creating an elected mayor
-through the protected government-change process. Its creation, term and
-elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+A plot is a connected group of land tiles and can include empty land. The Town
+border alone does not silently take over another claim or transfer a building,
+its stock or a household's private goods. Physical occupation or model text
+cannot rewrite these records. The first Town begins with a council, not an
+assumed mayor. Residents can later approve creating an elected mayor through
+the protected government-change process. Its creation, term and elections are
+agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
+
+**Current implementation, not yet confirmed by computment:** the first
+accepted Town layout records title to the connected land inside its initial
+border, and later border growth makes room for the Town without adding title.
+That follows answer 19A, that a boundary change does not by itself change
+title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
+Starter household use rights cover only the footprints of the buildings
+assigned to each household; the shared Warehouse remains Town property.
+Add Agent treats a recorded use right as household property and Town title
+like a Town border; a single pending request gives no household. A household
+building's current owner comes before another household's undisputed use right
+on its footprint, so reassigning a building does not block placement there. A
+field does not, and disputed land is always refused. Whether title grows with
+the Town, how much land comes with a starter use right, and whether reassigning
+a building should move its starter use right remain open. Because new grants
+use existing Town-owned land, the first answer decides where later households
+can receive use rights.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -602,7 +671,10 @@ agreement without mayor approval for every transfer. The elected mayor makes
 the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
-agreed [case procedure](#land-hearings-and-rulings).
+agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
+on the map, and inspecting a tile lists each household's claim. Approval,
+consent, transfer and case actions are not built yet
+([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
 
@@ -646,17 +718,20 @@ two tiles wide**; wider water is not bridged. Roads and bridges **cost no
 materials**. Either case excludes a redundant nearby bridge over the same
 crossing/river, not a necessary bridge over a different nearby stream. Bridge
 spacing compares the actual connected banks, with **no fixed radius**, so a
-needed bridge over a separate nearby stream is never blocked.
-For traffic-created bridges, the initial playtest threshold is **six completed
+needed bridge over a separate nearby stream is never blocked. For
+traffic-created bridges, the initial playtest threshold is **six completed
 crossings by at least two distinct agents within two world-days** at the same
-legal narrow crossing. Only actual traversal counts, not route previews,
-failed attempts or waiting. Keep bounded crossing evidence across saves; the
-threshold can be tuned after playtesting. Generated-Road bridges need not wait
-for this traffic.
-Both bridge triggers are now built; Road links between Towns wait for a second
-Town. [What works today](../what-works.md#maps-weather-and-appearance) says what
-normal play shows so far, and [How it works](../development/how-it-works.md#roads-and-bridges)
-says how the same connected banks are compared.
+legal narrow crossing. Agents may wade rivers up to two tiles wide ([The
+world](world.md#river-crossings-and-visible-forests-and-mountains)), so traffic
+can bridge two-tile crossings too. Only actual traversal counts, not route
+previews, failed attempts or waiting. Keep bounded crossing evidence across
+saves; the threshold can be tuned after playtesting. Generated-Road bridges
+need not wait for this traffic. Both bridge triggers are now built; Road links
+between Towns wait for a second Town. [What works
+today](../what-works.md#maps-weather-and-appearance) says what normal play
+shows so far, and [How it
+works](../development/how-it-works.md#roads-and-bridges) says how the same
+connected banks are compared.
 
 **Roads and bridges remain permanently** once built. They do not decay or
 disappear automatically when traffic stops, a building is removed or a Town is
@@ -1301,12 +1376,27 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
 | Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
-| Gold | Extract from a gold-bearing outcrop with an iron pickaxe and carry to the Blacksmith. | Ornaments, gifts and trade goods. |
+| Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
 The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
+
+An ornament remains a real owned item when worn. Wearing it changes neither
+protection nor carrying capacity, and does not change the agent's map appearance.
+Removing it leaves the same unit in carried stock. A named gift or barter moves
+actual goods to a nearby recipient through the existing inventory authority;
+foreign, reserved or promised goods remain protected. Production and shop
+exchanges use the same local-stock, receiving-space and private-access rules as
+other Blacksmith work. Ornament deterioration is not part of this stage.
+
+The ornament trial uses 2 gold ore and 1 wood to refine 1 gold in 24 work ticks;
+2 refined gold make 1 gold ornament in 24 work ticks; 1 gold ornament and
+1 diamond make 1 diamond ornament in 28 work ticks. All these quantities and
+work times remain provisional. Wearing, removing and giving an ornament are
+deliberate choices through a fresh accepted personal-model response. Jev,
+fallbacks, repeated intentions and owner orders do not make those choices.
 
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
@@ -1324,7 +1414,8 @@ and make either vessel at a household House.
 | Wooden hoe | Wood; prepares and tends fields. |
 | Iron hoe | Wood and iron; performs field work faster. |
 | Hammer | Wood and stone; helps construction and repairs. |
-| Sickle | Wood and iron; speeds crop harvesting. |
+| Wooden sickle | Wood; speeds crop harvesting. |
+| Iron sickle | Wood and iron; harvests faster than the wooden sickle. |
 | Knife | Iron; speeds food preparation and suitable crafting work. |
 
 Tools wear through use. The Blacksmith repairs worn tools with some of their
@@ -1367,7 +1458,7 @@ capacities, wear rates and repair effects remain provisional.
 
 | Product | Complete path |
 | --- | --- |
-| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → carry to a patient → consume while treating an injury. |
+| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → store, carry or trade. Injury treatment is deferred under the October 2 decision. |
 | Medicine | Gather medicinal herbs → carry to Clinic → herbs, water and fuel make medicine → administer to an ill agent. |
 | Clinic treatment | The Clinic stocks its own medicine and bandages. A patient visits or a caregiver carries supplies to them; treatment consumes the required goods. |
 | Eggs | Household chickens with reachable feed, water and care produce eggs; collect into local House/Restaurant stock, cook or sell. |
@@ -1380,26 +1471,68 @@ capacities, wear rates and repair effects remain provisional.
 | Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
 | Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
 
-Bandages treat injuries; medicine supports illness recovery. Neither instantly
-restores full health. Medicinal herbs, paper, hides and ornaments are approved
+Bandages are intended for the later injury stage; medicine supports gradual
+illness recovery. Neither is an instant full-health restoration. Medicinal
+herbs, paper, hides and ornaments are approved
 additions to the catalogue. Animals, mounts, combat and invention work retain
 their later staging; their detailed actions and balance are not settled by
 these item pipelines. See [combat](agents-and-families.md#combat) and
 [inventions](inventions-and-mods.md).
 
+#### Clinic supplies and illness care
+
+**Owner decision on October 2, 2026:** "Defer injury causes; build supplies now."
+This stage makes, stores and trades bandages, but does not create injuries or
+apply bandages to a patient. Medicine uses the existing illness system and
+supports recovery gradually. The Clinic implements this scope in the normal
+private-world path; its Windows playtest is pending, and the later injury stage
+stays tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
+[current availability](../what-works.md#life-work-and-society).
+
+The first Clinic is a household-held 1×2 building. Trial construction uses
+10 wood and 4 stone. At a House or Tailor Shop, 1 cloth makes 2 bandages in
+8 work ticks. At the Clinic, 2 medicinal herbs, 1 fresh water and 1 wood make
+2 medicine in 16 work ticks. Water must arrive in an actual reusable jug;
+using its contents leaves the vessel intact. Costs, quantities, time, stock
+targets and recovery rates remain provisional.
+
+Patients may use their own medicine. An adult patient explicitly chooses a
+named caregiver through a fresh, accepted personal-model decision and may
+revoke that permission. A purchase, household membership, kinship, helper
+choice, failed model reply, repeated intention or
+owner order cannot supply that agreement; neither can Jev or a fallback choice.
+A dependent's effective, accepted caregiver relationship supplies its existing
+care authority; another relative
+or household adult does not acquire it automatically. Treatment needs the
+actual usable dose at the patient and does not give the caregiver access to
+another household's stock.
+
+An outside customer buys real Clinic goods through the ordinary local barter
+rules. Buying a dose grants possession of that dose, not treatment permission
+or private work access. Care does not reveal distant patients' unseen health,
+location or private thoughts to an agent's model. Supplies, permissions,
+consumed doses and gradual progress survive saving and reopening. Interruption
+ends the remaining effect without refunding the consumed dose, and permission
+renewed later cannot reuse it. Pausing freezes treatment time. Effect rates and
+course length remain provisional; hands-on acceptance is still pending.
+
 #### Physical trade and production safeguards
 
 The Farmhouse sells produce, seeds and flour stocked at its location. The
-Blacksmith sells tools and takes tool-making orders. The Tailor Shop sells
-clothing, cloth and sacks. Restaurants buy ingredients and sell finished meals;
-Clinics stock care goods and sell treatment. An optional Store receives goods
-by actual delivery before selling them. Market sellers carry goods into their
-stalls, trade with agents from any Town and carry remaining goods away.
+Blacksmith sells tools and spare refined iron, and takes tool-making orders.
+The Tailor Shop sells clothing, cloth and sacks. Restaurants buy ingredients
+and sell finished meals; Clinics stock care goods and sell treatment. An
+optional Store receives goods by actual delivery before selling them. Market
+sellers carry goods into their stalls, trade with agents from any Town and
+carry remaining goods away.
 
 **Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
 it until they leave. The Town does not assign stalls. Leaving frees the stall
 for another seller; goods keep their recorded owner and must be
 carried away or transferred through an actual trade.
+
+**Owner answer on October 1, 2026:** the Town owns the stalls that sellers
+borrow. The Town adds stalls when sellers need them, using Town materials.
 
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods
@@ -1430,8 +1563,8 @@ These remain open; they are not new decisions.
    and one usable wooden pickaxe, and each starting agent has one garment kept
    in their House. The Farmhouse and Blacksmith are assigned
    automatically to the two starting households, one each, without player
-   selection. Decide optional extra starter supplies and how first-tier tools
-   are made when the Blacksmith is unavailable.
+   selection. There are no optional extra starter supplies for now. Decide how
+   first-tier tools are made when the Blacksmith is unavailable.
    Farm planning responds to population, yield and stored reserves as agreed
    above; the exact formula is provisional.
 
@@ -1443,18 +1576,21 @@ These remain open; they are not new decisions.
    is already agreed. What remains open is exact inter-Town route timing,
    layout and rendering.
 
-- **Homes, membership and family growth.** The [membership rules](#household-membership)
-   settle one household at a time, unanimous adult admission, voluntary adult
-   departure and solo formation. The [resident-capacity rules](#house-resident-capacity-and-relocation)
-   settle footprint-scaled places, family priority, births and relocation. The
-   [goods and departure rules](#household-goods-and-departure) settle personal
+- **Homes, membership and family growth.** The [membership
+   rules](#household-membership) settle one household at a time, unanimous
+   adult admission, voluntary adult departure and solo formation. The
+   [resident-capacity rules](#house-resident-capacity-and-relocation) settle
+   footprint-scaled places, family priority, births and relocation. The [goods
+   and departure rules](#household-goods-and-departure) settle personal
    ownership, collection access, the food allowance and care during a living
    adult's departure. [Town membership](#town-membership) settles recorded
    affiliation, homeless residents, ordinary newcomer approval and dependent
    children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
-   settle the empty-Town exception and communal access. Care after death,
-   other guardianship cases, private abandoned-property transfers and remaining
-   border assignment/dispute cases stay open.
+   settle the empty-Town exception and communal access. Cross-Town dependent
+   moves still follow admission rules in issue
+   [#602](https://github.com/compoodment/ClankerWorld/issues/602); private
+   abandoned-property transfers and remaining border assignment or dispute
+   cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details

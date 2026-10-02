@@ -85,9 +85,13 @@ public sealed partial class SettlementParenthoodTests
             adultState = FarmFieldTests.WithInventory(adultState, inventory);
             world.Dispose();
             var tools = adultState.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "tools");
+            var storeIds = adultState.WorldSimulation!.Buildings.Where(building => building.HouseholdId == household &&
+                    adultState.WorldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                        definition.Tags.Contains("store", StringComparer.Ordinal)))
+                .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
             var workFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"),
-                _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
-            world = PrivateWorldRuntime.Restore(adultState, _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
+                _ => new AdultWorkProvider(childId, tools.CanonicalId, observations, storeIds));
+            world = PrivateWorldRuntime.Restore(adultState, _ => new AdultWorkProvider(childId, tools.CanonicalId, observations, storeIds));
             var workshop = world.WorldContent.Buildings.Single(building => building.LocalId == "workshop");
             if (!world.WorldSimulation.Buildings.Any(building => building.DefinitionId == workshop.CanonicalId))
             {
@@ -142,7 +146,8 @@ public sealed partial class SettlementParenthoodTests
     }
 
     private sealed class AdultWorkProvider(string actor, string recipe,
-        System.Collections.Concurrent.ConcurrentDictionary<string, string> observations) : IDecisionProvider
+        System.Collections.Concurrent.ConcurrentDictionary<string, string> observations,
+        HashSet<string> storeIds) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
@@ -150,8 +155,11 @@ public sealed partial class SettlementParenthoodTests
         {
             var observation = request.Observation;
             observations[observation.InhabitantId] = string.Join(',', observation.Candidates.Select(item => item.Id));
+            // Finish stock already promised to a Store during the preceding family life.
+            // This policy still excludes starting a new Store collection.
             var routine = observation.Candidates.Where(item => item.Id is "consume_food" or "collect_shared_food" or
-                "seek_food" or "harvest_food" or "safe_idle");
+                "seek_food" or "harvest_food" or "safe_idle" ||
+                item.Id == "haul_household_stock" && item.DestinationId is { } destination && storeIds.Contains(destination));
             var candidates = observation.InhabitantId == actor && observation.HungerBasisPoints >= 3_500 &&
                 observation.Candidates.FirstOrDefault(item => item.Id == "build:recipe:" + recipe) is { } work
                 ? new[] { work } : routine.ToArray();
