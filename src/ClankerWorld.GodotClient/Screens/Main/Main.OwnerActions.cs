@@ -249,6 +249,9 @@ public partial class Main
         var worldId = snapshot.WorldId;
         await RunOwnerActionAsync(async () =>
         {
+            // Hold the attempt while the host decides: a refresh in the meantime
+            // must not reset the field before a refusal can keep it there.
+            refusedAgentRename.Remember(worldId, agentId, attempted);
             try
             {
                 var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
@@ -264,7 +267,11 @@ public partial class Main
             {
                 // The field keeps the refused name until the player changes or
                 // cancels it; refreshes still show the host's name above it.
-                refusedAgentRename.Remember(worldId, agentId, attempted);
+                throw;
+            }
+            catch
+            {
+                refusedAgentRename.Forget();
                 throw;
             }
         });

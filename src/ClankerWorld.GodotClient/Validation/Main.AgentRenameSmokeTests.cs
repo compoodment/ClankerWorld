@@ -9,8 +9,9 @@ public partial class Main
     /// <summary>
     /// A rename the host refuses because another agent holds the full name
     /// keeps the player's attempt in the Profile field through an ordinary
-    /// signed refresh with the field unfocused, while the Profile keeps
-    /// showing the host's name. Another agent or another world drops it.
+    /// signed refresh with the field unfocused, including one that lands while
+    /// the host is still deciding, while the Profile keeps showing the host's
+    /// name. Another agent or another world drops it.
     /// </summary>
     private async Task VerifyRefusedAgentRenameAsync()
     {
@@ -56,13 +57,30 @@ public partial class Main
                     shown.WorldId != next.Baseline.Snapshot.WorldId || shown.WorldTick != next.Baseline.Snapshot.WorldTick)
                     throw new InvalidOperationException("The rename check must apply the host's next snapshot through an ordinary refresh.");
             }
-            async Task RefuseTakenNameAsync()
+            async Task RefuseTakenNameAsync(OwnerWorldReconnect? refreshWhileDeciding = null)
             {
                 renameAgentInput.Text = "Aster Vale";
                 renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, renameAgentInput.Text);
                 // Pressing Rename takes keyboard focus away from the field.
                 GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
-                await RenameSelectedAgentAsync();
+                if (refreshWhileDeciding is null)
+                {
+                    await RenameSelectedAgentAsync();
+                }
+                else
+                {
+                    host.RenameReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var release = host.ReleaseRename = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var renaming = RenameSelectedAgentAsync();
+                    await host.RenameReceived.Task;
+                    // The periodic refresh does not wait for owner actions.
+                    await RefreshFromHostAsync(refreshWhileDeciding);
+                    if (renameAgentInput.Text != "Aster Vale")
+                        throw new InvalidOperationException($"A refresh while the host decides must keep the attempted name: field={renameAgentInput.Text}.");
+                    host.ReleaseRename = null;
+                    release.SetResult();
+                    await renaming;
+                }
                 if (!host.RenameRequests.TryDequeue(out var sent) || sent != new OwnerAgentRenameAction(rowanId, "Aster Vale") ||
                     !renameRow.Visible || renameAgentInput.Text != "Aster Vale" || renameAgentInput.HasFocus() ||
                     selectedActorNameLabel.Text != "Rowan Lake" ||
@@ -82,34 +100,35 @@ public partial class Main
             if (!agentProfilePanel.Visible || !renameRow.Visible || renameAgentInput.Text != "Rowan Lake" || !renameAgentInput.Editable)
                 throw new InvalidOperationException("The Profile's rename field must open with the agent's current name.");
 
-            await RefuseTakenNameAsync();
-            await RefreshFromHostAsync(World("rename-ui-smoke", 2));
+            await RefuseTakenNameAsync(refreshWhileDeciding: World("rename-ui-smoke", 2));
+            await RefreshFromHostAsync(World("rename-ui-smoke", 3));
             if (!renameRow.Visible || renameAgentInput.Text != "Aster Vale" || selectedActorNameLabel.Text != "Rowan Lake" ||
                 quickCardNameLabel.Text != "Rowan Lake")
                 throw new InvalidOperationException($"An ordinary refresh with the field unfocused must keep the refused name for the player to change, while the Profile shows the name the host holds: field={renameAgentInput.Text}.");
 
             SelectInhabitant(asterId);
             SelectInhabitant(rowanId);
-            await RefreshFromHostAsync(World("rename-ui-smoke", 3));
+            await RefreshFromHostAsync(World("rename-ui-smoke", 4));
             if (renameAgentInput.Text != "Rowan Lake")
                 throw new InvalidOperationException("Choosing another agent must drop the refused name.");
 
             await RefuseTakenNameAsync();
-            await RefreshFromHostAsync(World("rename-ui-other", 4));
+            await RefreshFromHostAsync(World("rename-ui-other", 5));
             if (renameAgentInput.Text != "Rowan Lake")
                 throw new InvalidOperationException("Opening another world must drop the old world's refused name.");
 
-            host.Reconnect = World("rename-ui-other", 5, rowanName: "Rowan Hill");
+            host.Reconnect = World("rename-ui-other", 6, rowanName: "Rowan Hill");
             renameAgentInput.Text = "Rowan Hill";
             renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, renameAgentInput.Text);
             await RenameSelectedAgentAsync();
             if (!host.RenameRequests.TryDequeue(out var accepted) || accepted != new OwnerAgentRenameAction(rowanId, "Rowan Hill") ||
                 renameRow.Visible || selectedActorNameLabel.Text != "Rowan Hill" ||
-                observationSession.Current?.Baseline.Snapshot.WorldTick != 5)
+                observationSession.Current?.Baseline.Snapshot.WorldTick != 6)
                 throw new InvalidOperationException("A different name must rename the agent, close the field and show the host's new name.");
         }
         finally
         {
+            host.ReleaseRename?.TrySetResult();
             // A hidden field forgets any refused name at the next render.
             renameRow.Hide();
             renamingAgentId = null;

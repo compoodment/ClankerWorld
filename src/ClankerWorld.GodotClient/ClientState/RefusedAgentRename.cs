@@ -1,9 +1,10 @@
 namespace ClankerWorld.GodotClient.ClientState;
 
 /// <summary>
-/// Remembers a rename the world host refused because another agent holds that
-/// full name, so the Profile can keep the player's attempt in its name field
-/// through ordinary world refreshes. It never changes the agent's displayed
+/// Remembers a rename while the world host decides it and after the host
+/// refused it because another agent holds that full name, so the Profile can
+/// keep the player's attempt in its name field through ordinary world
+/// refreshes. It never changes the agent's displayed
 /// name; only the host's snapshot does that. The attempt is forgotten once the
 /// field no longer holds it for the same agent in the same world, or when the
 /// Profile forgets it after an edit, a cancel or a successful rename.

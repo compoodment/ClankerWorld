@@ -164,6 +164,9 @@ public partial class Main
         /// <summary>Full names the host refuses as already taken.</summary>
         public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
+        public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // When set, the host holds its rename reply until the check releases it.
+        public TaskCompletionSource? ReleaseRename { get; set; }
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -239,6 +242,8 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerAgentRename:
                     var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;
                     RenameRequests.Enqueue(rename);
+                    RenameReceived.TrySetResult();
+                    if (ReleaseRename is { } releaseRename) await releaseRename.Task.ConfigureAwait(false);
                     if (TakenAgentNames.Contains(rename.Name))
                     {
                         // The same refusal the world host sends for a taken full name.
