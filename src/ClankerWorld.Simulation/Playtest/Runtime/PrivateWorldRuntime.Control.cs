@@ -124,6 +124,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
                 SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
@@ -159,9 +160,59 @@ public sealed partial class PrivateWorldRuntime
     private OwnerQueuedInstruction? PendingInstructionFor(string inhabitantId) =>
         instructionsByIdempotency.Values
             .Where(item => item.TargetInhabitantId == inhabitantId &&
+                item.Kind == OwnerInstructionKind.MustDo &&
                 !completedInstructionIds.Contains(item.InstructionId))
+            .Where(item => InstructionCandidate(item.Text) is not null)
             .OrderBy(item => item.SubmissionSequence)
             .FirstOrDefault();
+
+    private bool HasNewObserverGuidanceFor(string inhabitantId) =>
+        ObserverGuidanceInstructionsFor(inhabitantId).Any(item => item.GuidancePromptedTick is null);
+
+    private OwnerQueuedInstruction[] ObserverGuidanceInstructionsFor(string inhabitantId)
+    {
+        var messages = instructionsByIdempotency.Values
+            .Where(item => item.TargetInhabitantId == inhabitantId &&
+                !completedInstructionIds.Contains(item.InstructionId) &&
+                (item.Kind == OwnerInstructionKind.Suggestive || InstructionCandidate(item.Text) is not null))
+            .OrderBy(item => item.SubmissionSequence)
+            .ToList();
+        var selected = messages.Take(InhabitantObservation.MaximumObserverGuidanceCount).ToList();
+        if (messages.Count > selected.Count &&
+            PendingInstructionFor(inhabitantId) is { } operativeOrder &&
+            selected.All(item => item.InstructionId != operativeOrder.InstructionId))
+        {
+            selected[^1] = operativeOrder;
+            selected.Sort((left, right) => left.SubmissionSequence.CompareTo(right.SubmissionSequence));
+        }
+
+        return selected.ToArray();
+    }
+
+    private CognitionObserverGuidance[] ObserverGuidanceFor(string inhabitantId) =>
+        ObserverGuidanceInstructionsFor(inhabitantId)
+            .Select(item => new CognitionObserverGuidance(
+                item.InstructionId,
+                item.IssuerId,
+                item.TargetInhabitantId,
+                ToWireValue(item.Kind),
+                item.Text,
+                item.SubmittedTick,
+                item.RunEpoch,
+                item.SubmissionSequence,
+                item.Kind == OwnerInstructionKind.MustDo
+                    ? UnderstoodTaskFor(InstructionCandidate(item.Text))
+                    : null,
+                item.ObserverReply is null))
+            .ToArray();
+
+    private static string? UnderstoodTaskFor(string? candidate) => candidate switch
+    {
+        "consume_food" => "eat one carried food item",
+        "seek_food" => "travel within gathering range of an available food source",
+        "harvest_food" => "gather several food servings from a nearby food source",
+        _ => null,
+    };
 
     private static readonly HashSet<string> HarvestInstructionWords =
         new(StringComparer.Ordinal) { "harvest", "harvests", "harvesting", "gather", "gathers", "gathering" };
@@ -244,13 +295,29 @@ public sealed partial class PrivateWorldRuntime
         existing.Kind == request.Kind &&
         existing.Text == request.Text.Trim();
 
+    // Refuse everything a save would refuse before the request touches live
+    // state, so a bad request cannot leave the world unable to save.
     private static void ValidateInstructionRequest(OwnerInstructionRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Text);
+        if (!IsValidInstructionIdentifier(request.IdempotencyKey.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction idempotency key must be at most 128 characters without control characters.");
+        if (!IsValidInstructionIdentifier(request.IssuerId.Trim()))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction issuer ID must be at most 128 characters without control characters.");
+        if (request.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction kind must be suggestive or must_do.");
+        var text = request.Text.Trim();
+        if (text.Length > OwnerQueuedInstruction.MaximumTextLength || text.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Instruction text must be at most 512 characters without control characters.");
     }
+
+    private static bool IsValidInstructionIdentifier(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= OwnerQueuedInstruction.MaximumIdentifierLength &&
+        !value.Any(char.IsControl);
 
     private static string ToWireValue(OwnerInstructionKind kind) => kind switch
     {

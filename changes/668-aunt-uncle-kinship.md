@@ -1,0 +1,1 @@
+- Aunts and uncles, including half-aunts and half-uncles, can no longer propose to, accept or plan a child with their nieces or nephews. First cousins can still pair, and shared households and caregiving still do not count as kinship.
