@@ -186,7 +186,9 @@ public sealed record OwnerWorldInstruction(
     string State,
     long SubmittedTick,
     long RunEpoch,
-    long SubmissionSequence);
+    long SubmissionSequence,
+    long? ObservedTick = null,
+    string? ObserverReply = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

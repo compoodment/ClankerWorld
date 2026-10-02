@@ -2180,6 +2180,43 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            var messageSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-suggestion", founder.Id, "suggestive",
+                        "Try the riverbank berries.", "completed", 0, 0, 1, 1, "I will look there."),
+                    new OwnerWorldInstruction("message-other-agent", "agent:other", "suggestive",
+                        "Private message for someone else.", "pending", 0, 0, 2),
+                ],
+            };
+            RenderSelectedInhabitantCard(messageSnapshot);
+            var renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Try the riverbank berries.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
+                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                instructionText.MaxLength != 512)
+                throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
+            // The server keeps closed messages that no personal model heard, such as orders the game
+            // could not act on. They must show as closed without hiding an older order that is still open.
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-open-order", founder.Id, "must_do",
+                        "Eat the berries you carry.", "queued", 0, 0, 1),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-closed-order-{index}",
+                        founder.Id, "must_do", $"Build house number {index}.", "completed", 0, 0, 1 + index)),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Order pending · waiting for their personal model\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Order closed · not reported as heard\n“You said: Build house number 4.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Build house number 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;
