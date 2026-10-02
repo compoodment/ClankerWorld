@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
         definition.CanonicalId == building.DefinitionId).Tags.Any(tag => tag is "farmhouse" or "silo");
 
     private int FarmStorageFree(string buildingId, bool includeDeliveries = true) => Math.Max(0,
-        FarmFieldRules.FarmStorageCapacity - society.Checkpoint.Inventory.Lots.Where(lot =>
+        FarmFieldRules.FarmStorageCapacity - ReservedBusinessStorageSpace(buildingId) - society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.StorageBuildingId == buildingId || includeDeliveries && lot.DeliveryBuildingId == buildingId)
         .Sum(lot => lot.Quantity));
 

@@ -17,6 +17,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         rosterPanel.Visible = show;
+        if (show) QueueHudListsFit();
     }
 
     private void ToggleEvents()
@@ -28,6 +29,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+        if (show) QueueHudListsFit();
         if (show) MarkEventsSeen();
     }
 
@@ -264,14 +266,14 @@ public partial class Main
             GetViewport().GuiGetFocusOwner()!.ReleaseFocus();
             return true;
         }
-        if (worldMenuOverlay.Visible)
-        {
-            if (!worldMenuBusy) worldMenuOverlay.Hide();
-            return true;
-        }
         if (manualSaveOverlay.Visible)
         {
             manualSaveOverlay.Hide();
+            return true;
+        }
+        if (worldMenuOverlay.Visible)
+        {
+            if (!worldMenuBusy) worldMenuOverlay.Hide();
             return true;
         }
         if (gameMenuPanel.Visible)

@@ -45,6 +45,57 @@ public sealed class RiverBridgeTests
     }
 
     [Fact]
+    public void ATwoTileBridgeIsWalkedAtDryGroundSpeedWhereTheRiverWasWadedSlowly()
+    {
+        var map = Map(
+            "...~~...",
+            "...~~...",
+            "...~~...");
+        Assert.True(RiverBridgeRules.TryFindCrossing(map, new(2, 1), 1, 0, out var crossing));
+        Assert.Equal(("bridge-3-1-ew-2", BridgeDesigns.PlankSpanTwo), (crossing!.Id, crossing.Design));
+        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Traffic, 0, null));
+        GridPoint[] walk = [new(2, 1), new(3, 1), new(4, 1), new(5, 1)];
+
+        Assert.All(crossing.Span, tile => Assert.Equal(SeededMap.TwoTileWadingFootCost, map.FootTravelCost(tile)));
+        Assert.All(crossing.Span, tile => Assert.Equal(100, bridged.FootTravelCost(tile)));
+        Assert.Equal(2 * SeededMap.TwoTileWadingFootCost + 100, Cost(map, walk));
+        Assert.Equal(3 * 100, Cost(bridged, walk));
+        Assert.Equal(walk, DeterministicRouteFinder.Find(bridged, walk[0], walk[^1]));
+
+        // The deck is walked end to end only; the water beside it is still
+        // waded slowly in its own straight line.
+        Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
+        Assert.False(bridged.CanFootStep(new(3, 0), new(3, 1)));
+        Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
+        Assert.True(bridged.CanFootStep(new(2, 0), new(3, 0)));
+        Assert.Equal(SeededMap.TwoTileWadingFootCost, bridged.FootTravelCost(new(4, 2)));
+    }
+
+    [Fact]
+    public void ABridgeAcrossOneTileOfATwoTileCrossingLeavesTheOtherTileWadeableBackToItsBank()
+    {
+        // The spur at (2,1) is a one-tile crossing north to south, and also
+        // the far tile of a two-tile crossing west to east.
+        var map = Map(
+            ".~..",
+            ".~~.",
+            ".~..");
+        Assert.True(RiverBridgeRules.TryFindCrossing(map, new(0, 1), 1, 0, out var wide));
+        Assert.Equal("bridge-1-1-ew-2", wide!.Id);
+        Assert.True(RiverBridgeRules.TryFindCrossing(map, new(2, 0), 0, 1, out var spur));
+        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(spur!, BridgeTriggers.Traffic, 0, null));
+
+        // Someone wading at (1,1) is never stranded, but cannot step sideways onto the deck.
+        Assert.True(bridged.IsPassable(new(1, 1)));
+        Assert.True(bridged.CanFootStep(new(1, 1), new(0, 1)));
+        Assert.False(bridged.CanFootStep(new(1, 1), new(2, 1)));
+        Assert.DoesNotContain(new GridPoint(1, 1), DeterministicRouteFinder.Find(bridged, new(0, 1), new(3, 1)));
+        // Wading in there is not evidence for a second bridge over the deck.
+        Assert.False(RiverBridgeRules.TryFindCrossing(bridged, new(0, 1), 1, 0, out _));
+        Assert.True(BridgeTrafficRules.RecordStep(BridgeTrafficState.Empty, bridged, "a", new(0, 1), new(1, 1), 1).IsEmpty);
+    }
+
+    [Fact]
     public void ThreeTileRiverLakeAndOceanAreNeverBridged()
     {
         foreach (var water in new[] { "~~~", "L", "O" })
@@ -249,6 +300,9 @@ public sealed class RiverBridgeTests
 
     internal static SeededMap WithBridges(SeededMap map, params BridgeState[] bridges) =>
         map with { BridgeDecks = RiverBridgeRules.Decks(bridges) };
+
+    private static int Cost(SeededMap map, GridPoint[] route) =>
+        route.Zip(route.Skip(1), map.FootStepCost).Sum();
 
     private static RoadRouteRequest Request(SeededMap map, GridPoint[] starts, IEnumerable<GridPoint> network,
         IReadOnlyList<BridgeState>? bridges = null, IEnumerable<GridPoint>? blocked = null) =>

@@ -168,8 +168,11 @@ public partial class Main
                 !selectedTileText.Text.Contains("3 Cultivated greens", StringComparison.OrdinalIgnoreCase) ||
                 terrainLayer.HouseholdPropertyTileCount != 1 ||
                 !mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()) ||
-                selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException("Field ownership, crop and soil inspection must fit at 200% interface size.");
+                !TileCardText().Contains("Fertility\nGood", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Field · growing cultivated greens", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Household\nFarm household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("3 cultivated greens", StringComparison.Ordinal))
+                throw new InvalidOperationException("Field ownership, crop and soil inspection must show on the tile card and fit at 200% interface size: " + TileCardText());
             householdPropertyFilter.ButtonPressed = false;
             selectedTile = null;
             selectedTilePanel.Hide();
@@ -812,6 +815,7 @@ public partial class Main
         try
         {
             VerifyEventLogAgentNames();
+            await VerifyNewcomerOfferAsync();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -1034,6 +1038,7 @@ public partial class Main
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                VerifySaveBranchList();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1226,7 +1231,9 @@ public partial class Main
                     Convert.ToBase64String(Enumerable.Repeat((byte)3, 16).ToArray())),
                 Towns = [new OwnerWorldTown("town:first", "First Town", "founding", 0,
                     ["founder:1", "founder:2", "founder:3", "founder:4"], [],
-                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1)])],
+                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1), new(2, 2), new(3, 3)])],
+                TownLandTitles = [new("title:first", "town:first",
+                    [new(0, 0), new(1, 0), new(0, 1), new(1, 1), new(2, 2), new(3, 3)], 0)],
                 PlacedBuildings = [new("test-hall", "test-definition", new(0, 2), 0, "Test hall", ["shelter"], 2, 1)],
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
@@ -1292,6 +1299,8 @@ public partial class Main
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
+            VerifyPanelParts();
+            VerifyMapPanels();
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
@@ -1461,20 +1470,44 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!mapCanvas.GetGlobalRect().Encloses(selectedTilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Selected-tile inspection must open inside the world view: map={mapCanvas.GetGlobalRect()} card={selectedTilePanel.GetGlobalRect()}.");
-            if (selectedTileText.GetContentHeight() > selectedTileText.Size.Y + 1)
-                throw new InvalidOperationException($"Selected-tile facts must fit without an inner scrollbar: content={selectedTileText.GetContentHeight()} visible={selectedTileText.Size.Y}.");
+            // The card names the ground and lists each fact in plain words; climate has its own row.
+            if (tileTitle.Text != "Meadow" || tileSubtitle.Text != "Tile 1, 1" ||
+                !TileCardText().Contains("Climate\nTemperate", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Height\nMiddle · 123 of 255", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Town\nFirst Town", StringComparison.Ordinal) ||
+                selectedTilePanel.GetCombinedMinimumSize().Y > selectedTilePanel.Size.Y + 1)
+                throw new InvalidOperationException("The tile card must name the ground, give climate its own row and fit its facts: " + TileCardText());
             var ownedMap = sample with
             {
                 PlacedBuildings = [.. sample.PlacedBuildings,
                     new("test-house", "house", new(2, 2), 0, "House", ["shelter"], 2, 1,
                         HouseholdId: "household:one")],
-                Stockpiles = [new("household:one", "Founder's household", [])],
+                Stockpiles =
+                [
+                    new("household:one", "Founder's household", []),
+                    new("household:two", "Other household", []),
+                ],
+                HouseholdLandUseRights = [new("right:one", "town:first", "household:one",
+                    [new(2, 2)], 0, "starter_allocation", null),
+                    new("right:disputed", "town:first", "household:one",
+                        [new(1, 1)], 0, "starter_allocation", null)],
+                HouseholdLandUseRequests =
+                [
+                    new("request:disputed", "town:first", "household:two", "founder:4",
+                        [new(1, 1)], 1, null, true,
+                        ["household:one", "household:two"], [new(1, 1)]),
+                    new("request:open", "town:first", "household:two", "founder:4",
+                        [new(3, 3)], 1, null, false, ["household:two"], []),
+                ],
             };
             RenderMap(ownedMap);
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
+                townLandTitleFilter.ButtonPressed || householdLandUseFilter.ButtonPressed || disputedLandFilter.ButtonPressed ||
                 terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
+                terrainLayer.DisputedLandTileCount != 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
-                throw new InvalidOperationException("Map Filters must start off, with no Town borders or property drawn.");
+                throw new InvalidOperationException("Map Filters must start off, with no Town or household land records drawn.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!filtersPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(filtersPanel.GetGlobalRect()))
@@ -1484,6 +1517,18 @@ public partial class Main
                 !townBorderHint.Text.Contains("dashed line", StringComparison.Ordinal))
                 throw new InvalidOperationException("Turning on Town borders must draw them and explain the dashed line.");
             townBorderFilter.ButtonPressed = false;
+            townLandTitleFilter.ButtonPressed = true;
+            if (terrainLayer.TownLandTitleTileCount == 0)
+                throw new InvalidOperationException("Turning on Town land title must tint and outline titled land.");
+            townLandTitleFilter.ButtonPressed = false;
+            householdLandUseFilter.ButtonPressed = true;
+            if (terrainLayer.HouseholdLandUseTileCount < 2 || terrainLayer.DisputedLandTileCount != 0)
+                throw new InvalidOperationException("The household land-use filter must show recorded rights and pending requests separately from disputes.");
+            householdLandUseFilter.ButtonPressed = false;
+            disputedLandFilter.ButtonPressed = true;
+            if (terrainLayer.DisputedLandTileCount != 1)
+                throw new InvalidOperationException("The disputed-land filter must show only the tiles with competing claims.");
+            disputedLandFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
                 !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
@@ -1491,16 +1536,30 @@ public partial class Main
             selectedTile = new Vector2I(2, 2);
             selectedTilePanel.Show();
             RenderTileInspection(ownedMap);
-            if (!selectedTileText.Text.Contains("Household property: Founder's household", StringComparison.Ordinal))
-                throw new InvalidOperationException("Owned building footprints must expose their recorded household in tile inspection.");
+            // The visible card, not only the hidden plain text, must carry the land facts.
+            if (!TileCardText().Contains("Household\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Land title\nFirst Town", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Town land title: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("The tile card must show the household property, its use right and Town title: " + TileCardText());
+            selectedTile = new Vector2I(1, 1);
+            RenderTileInspection(ownedMap);
+            if (!TileCardText().Contains("Use right\nFounder's household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Use request\nOther household", StringComparison.Ordinal) ||
+                !TileCardText().Contains("Disputed\nFounder's household; Other household", StringComparison.Ordinal) ||
+                !selectedTileText.Text.Contains("Disputed household claims: Founder's household; Other household", StringComparison.Ordinal))
+                throw new InvalidOperationException("The tile card must list each household's use claim and the dispute: " + TileCardText());
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
             placingAddedAgent = true;
             founderSetupPanel.Show();
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
-                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0)
-                throw new InvalidOperationException("Add Agent placement must show Town borders and property without switching Filters on.");
+                townLandTitleFilter.ButtonPressed || householdLandUseFilter.ButtonPressed || disputedLandFilter.ButtonPressed ||
+                terrainLayer.TownBorderTileCount == 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
+                terrainLayer.TownLandTitleTileCount == 0 || terrainLayer.HouseholdLandUseTileCount == 0 ||
+                terrainLayer.DisputedLandTileCount == 0)
+                throw new InvalidOperationException("Add Agent placement must show recorded Town and household claims without switching Filters on.");
             ResetAddAgentPlacementHint();
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1508,14 +1567,46 @@ public partial class Main
                 founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: no Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must preview recorded household property without inferring Town membership.");
+            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership.");
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Unclaimed Town land must preview Town residency without invented household membership.");
+                throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
             UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
+            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
+            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 0.5f));
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
+
+            PreviewAddAgentPlacement(ownedMap with { Resources = [] }, new Vector2I(1, 1));
+            if (!founderSetupHint.Text.Contains("overlap here", StringComparison.Ordinal) ||
+                !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
+                throw new InvalidOperationException("Add Agent must refuse a tile with disputed household land-use claims.");
+
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:empty", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Household: Other household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                Fields = [new(new(0, 0), "household:one", "growing", "cultivated_greens", 67, null, null)],
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:tilled", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("overlap here", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A field must not override another household's use right; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [new("right:previous", "town:first", "household:two",
+                    [new(2, 2)], 0, "starter_allocation", null)],
+                HouseholdLandUseRequests = [],
+            }, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A building's owner must come before another household's use right; preview was '{founderSetupHint.Text}'.");
 
             var overlappingProperties = ownedMap with
             {
@@ -1524,9 +1615,9 @@ public partial class Main
                         HouseholdId: "household:two")],
             };
             PreviewAddAgentPlacement(overlappingProperties, new Vector2I(2, 2));
-            if (!founderSetupHint.Text.Contains("Household property overlaps", StringComparison.Ordinal) ||
+            if (!founderSetupHint.Text.Contains("Household property or land claims overlap", StringComparison.Ordinal) ||
                 !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must refuse a footprint claimed by two households.");
+                throw new InvalidOperationException($"Add Agent must refuse two households' conflicting land claims; preview was '{founderSetupHint.Text}'.");
 
             var secondTown = sample.Towns[0] with { Id = "town:second", Name = "Second Town" };
             PreviewAddAgentPlacement(sample with { Towns = [.. sample.Towns, secondTown] }, new Vector2I(0, 0));
@@ -1556,8 +1647,10 @@ public partial class Main
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
-            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0)
-                throw new InvalidOperationException("Leaving Add Agent placement must hide overlays the Filters leave off.");
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
+                terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
+                terrainLayer.DisputedLandTileCount != 0)
+                throw new InvalidOperationException("Leaving Add Agent placement must hide land overlays the Filters leave off.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             RenderMap(sample);
             selectedTile = new Vector2I(1, 1);
@@ -1859,7 +1952,7 @@ public partial class Main
             if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
                 TreeArtManifest.Entries.Count(entry => entry.Code > 0))
                 throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
-            for (byte kind = 1; kind <= 11; kind++)
+            for (byte kind = 1; kind <= 12; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
             // Farm fields: every crop and growth state draws its overlay over the
@@ -1954,6 +2047,13 @@ public partial class Main
                     !itemLooks.Add(Convert.ToBase64String(icon.GetData())))
                     throw new InvalidOperationException($"The {item} icon must sit on a clear square and look different from every other item.");
             }
+            var toolKinds = new[]
+            {
+                "wooden_axe", "stone_axe", "iron_axe", "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe",
+                "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "wooden_sickle", "iron_sickle", "iron_knife",
+            };
+            if (toolKinds.Any(kind => !ItemIcons.Has(kind)))
+                throw new InvalidOperationException("Every Blacksmith tool tier must have its own item icon.");
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
@@ -1962,6 +2062,9 @@ public partial class Main
                 GameUiText.ItemName("fresh_water") != "Fresh water")
                 throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            if (IconData("wooden_hammer") == IconData("stone_hammer") ||
+                IconData("wooden_sickle") == IconData("iron_sickle"))
+                throw new InvalidOperationException("Wooden and stronger work tools must show distinct tier colours.");
             if (!ItemIcons.Has("storage_pot") || !ItemIcons.Has("fresh_water") ||
                 IconData("storage_pot") != IconData("clay_pot") || IconData("fresh_water") != IconData("water") ||
                 IconData("storage_pot") == IconData("water_jug"))
@@ -2120,6 +2223,23 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
+                "available", 3, 3, NaturalObjectKind: "fallen_wood");
+            var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };
+            RenderMap(fallenWoodMap);
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Loose fallen wood must have a named, available natural site after an observation refresh.");
+            selectedTile = new Vector2I(3, 3);
+            RenderTileInspection(fallenWoodMap);
+            if (!selectedTileText.Text.Contains("Fallen wood · 3 available", StringComparison.Ordinal))
+                throw new InvalidOperationException("Selecting loose fallen wood must show its name and remaining stock.");
+            ClearTileSelection();
+            RenderMap(fallenWoodMap with { Resources = [sampleResource, fallenWood with { Quantity = 0, State = "depleted" }] });
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "depleted")
+                throw new InvalidOperationException("Exhausted loose wood must keep its site name and show its depleted stage.");
             var sampleOrchard = new OwnerWorldResource("sample-orchard", "fruit", new(2, 1), true,
                 "available", 1, 1, 1, 3, "spring", "orchard", TreeStage: "fruiting");
             RenderMap(sample with { Resources = [sampleResource, sampleTree, sampleOrchard] });
@@ -2185,6 +2305,43 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            var messageSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-suggestion", founder.Id, "suggestive",
+                        "Try the riverbank berries.", "completed", 0, 0, 1, 1, "I will look there."),
+                    new OwnerWorldInstruction("message-other-agent", "agent:other", "suggestive",
+                        "Private message for someone else.", "pending", 0, 0, 2),
+                ],
+            };
+            RenderSelectedInhabitantCard(messageSnapshot);
+            var renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Try the riverbank berries.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
+                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                instructionText.MaxLength != 512)
+                throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
+            // The server keeps closed messages that no personal model heard, such as orders the game
+            // could not act on. They must show as closed without hiding an older order that is still open.
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-open-order", founder.Id, "must_do",
+                        "Eat the berries you carry.", "queued", 0, 0, 1),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-closed-order-{index}",
+                        founder.Id, "must_do", $"Build house number {index}.", "completed", 0, 0, 1 + index)),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Order pending · waiting for their personal model\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Order closed · not reported as heard\n“You said: Build house number 4.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Build house number 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;
@@ -2431,10 +2588,11 @@ public partial class Main
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            VerifyEventRows();
             // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var zoomBeforeWheel = cameraZoom;
-            var overEventLog = eventLog.GetGlobalRect().GetCenter();
+            var overEventLog = eventScroll.GetGlobalRect().GetCenter();
             GetViewport().PushInput(new InputEventMouseMotion { Position = overEventLog, GlobalPosition = overEventLog }, true);
             for (var turn = 0; turn < 40; turn++)
                 GetViewport().PushInput(new InputEventMouseButton
@@ -2868,6 +3026,21 @@ public partial class Main
             if (currentTileSize > 9 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.3f ||
                 terrainLayer.VisibleTileCount > 40_000)
                 throw new InvalidOperationException($"Overview zoom must widen bounded terrain coverage: tile={currentTileSize}, width={oldVisibleWidth}->{worldOverview.VisibleTiles.Size.X}, tiles={terrainLayer.VisibleTileCount}.");
+            var overviewWood = fallenWood with { Position = new(84, 64) };
+            var overviewWoodMap = largeMap with { Resources = [overviewWood] };
+            RenderMap(overviewWoodMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.TileSize >= WorldTerrainLayer.SpriteTileMinimum ||
+                terrainLayer.OverviewNaturalObjectDrawCount != 1 ||
+                terrainLayer.NaturalObjectNameAt(84, 64) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(84, 64) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Available loose wood must remain drawn and inspectable below sprite zoom.");
+            RenderMap(largeMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.OverviewNaturalObjectDrawCount != 0 ||
+                mapObjectVisuals.ContainsKey("resource:sample-fallen-wood"))
+                throw new InvalidOperationException("Removing loose wood in the next observation must clear its overview drawing and marker.");
             var wideVisibleWidth = worldOverview.VisibleTiles.Size.X;
             var wideTileCount = terrainLayer.VisibleTileCount;
             var widePan = System.Diagnostics.Stopwatch.StartNew();
@@ -2940,7 +3113,17 @@ public partial class Main
             };
             RenderMap(rosterMap);
             RenderInhabitantList(rosterMap);
-            if (inhabitantList.ItemCount != 4 || !inhabitantList.Visible ||
+            // The cards show who is doing what and who needs help; the hidden text list keeps the same order for selection.
+            if (rosterCards.ItemCount != 3 || !rosterCards.Visible || inhabitantList.Visible ||
+                rosterCards.GetItemTitle(0) != "Ilya" || rosterCards.GetItemTitle(1) != "Rowan" || rosterCards.GetItemTitle(2) != "Mira" ||
+                !RosterCardText(1).Contains("Looking for food", StringComparison.Ordinal) ||
+                !RosterCardText(1).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                RosterCardText(0).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                !RosterCardText(2).Contains("Died", StringComparison.Ordinal) ||
+                !rosterSummaryLabel.Text.Contains("1 hungry", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents list must show a card per agent, living first, with activity and a Hungry tag: " +
+                    string.Join(" | ", Enumerable.Range(0, rosterCards.ItemCount).Select(RosterCardText)));
+            if (inhabitantList.ItemCount != 4 ||
                 !inhabitantList.GetItemText(0).StartsWith("Ilya", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("looking for food", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("very hungry", StringComparison.Ordinal) ||
@@ -2958,7 +3141,7 @@ public partial class Main
                 throw new InvalidOperationException($"Choosing a living agent in the roster must bring them into view: camera={cameraCenterTiles}.");
             selectedInhabitantId = null;
             RenderInhabitantList(rosterMap with { Inhabitants = [] });
-            if (inhabitantList.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
+            if (inhabitantList.Visible || rosterCards.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
@@ -3167,6 +3350,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!controlsPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(controlsPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"F1 must open the controls list inside the world view: map={mapCanvas.GetGlobalRect()} controls={controlsPanel.GetGlobalRect()}.");
+            VerifyControlsKeycaps();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
@@ -3224,7 +3408,8 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection and family tree.");
+            await VerifyRefusedAgentRenameAsync();
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)

@@ -294,6 +294,7 @@ public partial class Main
         }
         RefreshMenuIcons();
         RefreshAgentCardIcons();
+        FillControlsGroups();
     }
 
     /// <summary>Pause control, agent count and warning, climate and the unread count.</summary>

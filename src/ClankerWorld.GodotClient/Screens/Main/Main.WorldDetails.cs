@@ -49,6 +49,7 @@ public partial class Main
     private void RenderEventLog()
     {
         var snapshot = observationSession.Current?.Baseline.Snapshot;
+        var offersNewcomer = WorldEventText.OffersNewcomer(snapshot);
         var entries = knownEvents.Values
             .Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
             .OrderByDescending(worldEvent => worldEvent.EventId)
@@ -59,12 +60,31 @@ public partial class Main
         // Rebuilding identical rows every refresh would reset the reader's
         // scroll position, so only a changed list is redrawn.
         UpdateUnreadEvents(snapshot?.WorldId ?? eventsWorldId);
-        var content = newEventsAfter + "\n" +
+        var content = newEventsAfter + "|" + offersNewcomer + "\n" +
             string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
         if (renderedEventLog == content) return;
         renderedEventLog = content;
+        RenderEventRows(entries, offersNewcomer);
         eventLog.Clear();
-        if (entries.Length == 0)
+        if (offersNewcomer)
+        {
+            // Keep this current offer above the history even after the original
+            // rule-on event leaves the bounded history or the latest thirty rows.
+            eventLog.PushColor(UiTheme.Current.Warning);
+            eventLog.AddText(WorldEventText.ContinuityRisk + " ");
+            eventLog.Pop();
+            eventLog.PushMeta("add-newcomer");
+            eventLog.PushColor(LinkText);
+            eventLog.AddText("Add a newcomer");
+            eventLog.Pop();
+            eventLog.Pop();
+            if (entries.Length > 0)
+            {
+                eventLog.Newline();
+                eventLog.Newline();
+            }
+        }
+        if (entries.Length == 0 && !offersNewcomer)
         {
             eventLog.PushColor(DimText);
             eventLog.AddText("Nothing notable has happened yet.");
@@ -112,6 +132,18 @@ public partial class Main
             else eventLog.AddText(entry.Text);
         }
         FitTextPanel(eventLog);
+    }
+
+    private async Task HandleEventLogActionAsync(string action)
+    {
+        if (action == "add-newcomer")
+        {
+            // A link from a held row must not reopen an offer that has ended.
+            if (WorldEventText.OffersNewcomer(observationSession.Current?.Baseline.Snapshot))
+                await OpenAddAgentAsync();
+            return;
+        }
+        JumpToEvent(action);
     }
 
     private void JumpToEvent(string eventId)

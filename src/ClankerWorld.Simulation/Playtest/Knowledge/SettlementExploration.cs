@@ -105,7 +105,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         // Movement still obeys the ordinary travel delay, weather, occupancy,
-        // narrow-river and mountain rules. Only a completed step joins memory.
+        // river-wading and mountain rules. Only a completed step joins memory.
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], next.Value, "explore");
         var moved = inhabitants[actor];

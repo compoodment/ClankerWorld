@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # How the game works
@@ -66,12 +66,33 @@ candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
 Owner instructions are suggestions (**Suggest** on the agent card,
-`Suggestive`) or orders (**Order**, `MustDo`).
-The model does not receive their text. `InstructionCandidate` reads whole words
-only: *harvest* or *gather* means `harvest_food`; *berry* means `seek_food`;
-*eat*, *food* or *hungry* means `consume_food`; and *go*, *travel* or *move*
-means `seek_food`, so travel always heads toward food. A few plain inflections
-such as *gathering* and *berries* also count.
+`Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
+planning request for that agent can include the exact original words with an
+outside-observer label. The request contains only messages for its target
+agent. Guidance bypasses Jev's routine route, while adults still use their
+normal planning assignment or inherited world planning provider. A child
+without an explicit personal-model choice and an agent whose planning model is
+set to deterministic stay local; neither receives a forced hosted call.
+
+A submitted message is checked before it changes the world. Its idempotency key
+and issuer ID must each be at most 128 characters with no control characters,
+its kind must be a suggestion or an order, and its text must be at most 512
+characters. A request that fails these checks is refused with a validation
+error; the world, its message numbering and its save stay unchanged. These are
+the same limits a save applies, so an accepted message cannot leave the world
+unable to save.
+
+`InstructionCandidate` reads whole words only: *harvest* or *gather* means
+`harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
+`consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel
+always heads toward food. A few plain inflections such as *gathering* and
+*berries* also count. A recognized order includes that understood task beside
+the original wording, but the host still checks current legal choices and
+whether the physical action actually succeeds. Text about a place or resource
+does not create map knowledge. A personal model can return a short optional
+reply tied to one exact message ID; that reply is saved separately from private
+thoughts and conversation speech. A local deterministic choice does not mark a
+message as heard.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -82,18 +103,32 @@ instructions to that agent.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses: acquiring food or orchard fruit, eating, or taking a travel
-step. An unrelated action, blocked movement or unavailable food leaves the instruction pending,
-including across reload. Travel completion here is one step, not a full-route
-goal. Instructions to one agent apply in submission order, so a pending order
-holds later ones back. A Suggestion completes at the agent's next accepted
-decision, whatever that decision is.
+step. An unrelated action, blocked movement or unavailable food leaves the
+instruction pending, including across reload. Travel completion here is one
+step, not a full-route goal. Recognized orders to one agent apply in submission
+order, so a pending order holds later orders back. Suggestions do not block
+orders. A suggestion completes only after the addressed personal model accepts
+a request containing it; local choices and provider failures do not claim it
+was heard.
 
-A pending instruction prompts one fresh decision: it schedules cognition only
-until the agent has an accepted intention observed after the submission tick.
-After that, `NeedsCognition` applies its usual rules. For example, active agents
-reevaluate every 30 ticks, and idle agents reevaluate when their legal choices
-change or after 300 ticks. An order that cannot progress therefore cannot
-request a decision, or a paid model call, on every tick.
+A newly submitted message triggers one fresh cognition request. Its prompt
+marker only prevents a new request every tick; it is not a read receipt. The
+same pending message remains available on the agent's later ordinary planning
+requests until a personal-model result is accepted. After the fresh request,
+`NeedsCognition` applies its usual rules. For example, active agents reevaluate
+every 30 ticks, and idle agents reevaluate when their legal choices change or
+after 300 ticks. A blocked order therefore cannot request a paid model call on
+every tick.
+
+The owner snapshot sends every open message, plus the six most recently
+submitted closed messages for each agent, whether or not a personal model heard
+them. An order the game could not act on, or one carried out by local rules,
+therefore still appears on the agent card as closed and not heard. The card
+shows up to four messages per agent, newest first by submission but always
+preferring open messages over closed ones, then lists them in the order they
+were sent. Newer closed messages therefore cannot hide an order that is still
+waiting. The save keeps
+every message; only the snapshot is bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -115,19 +150,68 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided.
+carried inventory and current activity are not provided. Jev's routine request
+sends the same three needs as flat fields after `hunger_basis_points`:
+`warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
+their scales explained in its instructions.
+
+`ModelNeedWords` holds the agreed alternative from
+[#646](https://github.com/compoodment/ClankerWorld/issues/646): each need as a
+word followed by its whole scale, worst to best, with no exact value, such as
+`"fullness": "hungry (starving, hungry, fine, full; starving is worst, full is best)"`.
+Fullness is *full* from 70%, *fine* from 40%, *hungry* from 20% and *starving*
+below that, matching the comfortable and urgent food references. Warmth is
+*warm* from 60%, *chilly* from 35% and *freezing* below that. Illness is *well*
+below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: each
+step is where illness slows work further (the owner's choice on
+[#672](https://github.com/compoodment/ClankerWorld/issues/672)). In words, the
+personal request sends `fullness`, `self.warmth` and `self.illness` in place of
+the three `_basis_points` fields, in the same positions, and drops the numeric
+scale sentences; Jev's routine request sends `fullness`, `warmth` and `illness`
+the same way. Unknown warmth or illness stays `null`. Nothing else in either request changes, and
+the observation, its digest, admission and the simulation keep the exact values.
+
+Both adapters take a `needFormat` setting. `ModelNeedWords.DefaultFormat` is
+`Numbers`, so play sends numbers. Words were to become the default only if they
+did no worse than numbers with GLM 5.3 Flash and GPT 6 Luna; they did worse
+with GLM 5.3 Flash, and on October 2 the owner chose to keep numbers.
+[Need wording comparison](need-wording-comparison.md) describes the comparison
+harness and its results.
 
 Newly placed adults get one opportunity to choose personality and aspiration
 in the existing first personal-model action reply. Optional `chosen_personality`
 and `chosen_aspiration` strings are trimmed, limited to 256 characters and
 refused if they contain control characters. An accepted personal reply consumes
 the opportunity even if either field is missing or invalid; the placeholder
-stays without an additional model attempt. Later replies cannot overwrite it.
+stays without an additional model attempt. Routine replies cannot overwrite it.
 The pending opportunity is checkpointed, so pause/reload discards late replies
 and preserves an unconsumed choice. It selects the personal planner rather than
 Jev's routine router. Choice events contain only the agent ID; chosen text stays
-in that agent's saved state and later self context, not runtime logs. Children
-and identity changes later in life remain separate work.
+in that agent's saved state and later self context, not runtime logs. Children's
+initial identity remains separate work.
+
+The runtime records five named identity opportunities: midlife (half the
+configured maximum life, day 30 by default), parenthood, loss of a partner,
+loss of a biological parent, and becoming an elder. Each kind is recorded
+once per agent. After the initial identity choice, and outside urgent needs
+or another model turn, a separate request gives only the current identity and
+the named moment. It requires that agent's personal planner, never a world
+default or Jev. The existing installation usage meter reserves the call.
+The request has a 15-second timeout; accepted optional fields are limited to
+256 characters each and contain no control characters. Invalid fields refuse
+the entire change. An absent, declined, failed or interrupted reply consumes
+the opportunity without retry. With no selected personal model it keeps the
+identity without a call.
+
+Life-moment replies are admitted at the live tick commit boundary, rechecking
+the actor, current identity, run epoch and selected provider. Pause and presence
+loss cancel outstanding requests. A saved in-flight opportunity becomes
+interrupted when play resumes; death finalizes it in the deceased archive.
+The moment record saves accepted fields and timing. Events contain only agent
+IDs and the moment kind; runtime logs record only that an agent changed its
+identity. Accepted text appears in the owner profile and later self context.
+The offline bounded test reaches all five moments, observes exactly five
+requests, and confirms that more ticks and a reload add none.
 
 Request text uses the game's own words (*agent*, *Town*, *House*), not the older
 *inhabitant*, *settlement* and *camp*, including plurals. Both adapters omit the
@@ -154,6 +238,18 @@ survives pause and restore without a new per-agent save field. The name check
 is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
+
+Player renames reuse `InhabitantNameRules`, including NFC normalization,
+collapsed Unicode whitespace and `OrdinalIgnoreCase` comparison. The runtime
+checks all other recorded inhabitants, living or deceased, under the same
+world gate that commits the rename. A taken name returns `name_taken` from
+the signed owner endpoint; the client translates only that refusal into a
+name-specific explanation. The Profile's open name field then keeps the
+refused text through ordinary refreshes (`RefusedAgentRename`) until the
+player edits or closes it, renames successfully, or another agent or world is
+shown; its name labels always follow the host's snapshot. An unchanged name
+is a no-op. No name check rewrites saved dialogue or identity references, and
+player choices still supersede late model naming replies.
 
 The response must select a legal candidate. Any finite confidence from 0 to 1
 is accepted; confidence does not veto the choice or a valid chosen name.
@@ -319,11 +415,24 @@ deterministic options and retain their original resource layout.
 
 Movement reads water and elevation; build eligibility also reads surface.
 Diagonal foot steps cost 141% of cardinal entry and require both shoulder tiles
-to be passable, including clear occupancy during a move. One-tile rivers allow
-bank-to-bank crossing at half dry-ground speed, not travel along the river.
-A built bridge makes its river tiles walkable at dry-ground speed, end to end
-along the bridge only (see [Roads and bridges](#roads-and-bridges)).
-Mountains are slower to cross and cannot be built on; peaks are impassable.
+to be passable, including clear occupancy during a move. A river is waded in a
+straight cardinal line from one dry bank to the opposite one, across one or two
+river tiles: never along the river and never diagonally into, through or out of
+the water. A river tile costs what its narrowest crossing costs: 200, half
+dry-ground speed, where one tile of water separates dry banks, and
+`SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
+takes two. The two-tile speed is provisional. A third water tile in the line,
+or any lake or ocean tile, means there is no crossing there: wider rivers,
+lakes and the sea need boats. A two-tile line through a tile that also lies on
+a two-tile line across the other axis does not count either: that tile is a
+corner of a river one tile thick that runs diagonally, and wading it would turn
+inside the water and walk along the channel. Where a one-tile spur or a river's
+head meets a two-tile line, an agent can still turn once inside the water; no
+route crosses more than two water tiles, and such a turn records no bridge
+evidence. A built bridge makes its river tiles walkable at
+dry-ground speed, end to end along the bridge only (see
+[Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
+cannot be built on; peaks are impassable.
 
 Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
@@ -495,6 +604,16 @@ Later placement inside the saved border establishes residence; walking does
 not change it. Children inherit the resident parent's Town; death removes the
 resident. Owned-building placement establishes household membership.
 
+Founders and added adults arrive at a seeded age from day 15 to day 25 in
+day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
+per world seed and gives the founder in each placement position its day, so
+the four founders never share a day, the same seed repeats their ages, and a
+founder placed after an undo gets the undone position's age. `AddAdult` draws
+an added adult's day from the world seed and the number of inhabitants already
+recorded, living or dead, not from the client's agent ID. The saved birth tick
+holds the result, so loading never draws again. Year-based development worlds
+keep the 18-year adult age.
+
 Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRules`
 implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
@@ -598,8 +717,8 @@ touching sites ranked first. This provisional reading of "next to" keeps a Silo
 possible when Roads, resources or later buildings take the tiles beside it. While the first building it still needs lacks a material, one
 adult at a time is offered to gather it from a reachable source. Buildings the
 Town shares, including a new Warehouse, are never offered to a household. The
-kinds are listed in `HouseholdBuildingKinds`, which already names the Store so
-it follows the same rules once its content exists.
+kinds are listed in `HouseholdBuildingKinds`. The optional Store uses the same
+household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
@@ -615,7 +734,8 @@ requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
-ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+ranks no site), `awaiting_answer` and `overcrowded` (the household's House
+has more permanent residents than places). The code is shown on the owner's agent
 card and sent to the agent's own model as a `housing` line in its self context.
 An adult with no household is offered `household_ask:{household}` for each
 household that holds a House in the same Town, has an adult who can answer and
@@ -637,10 +757,64 @@ have a household are never offered a request in the current implementation.
 including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
 are agreed but remain implementation work in
 [#593](https://github.com/compoodment/ClankerWorld/issues/593).
-The related [resident limits](../game-design/towns.md#house-resident-capacity-and-relocation)
-and overcrowding relocation are follow-ups in
-[#598](https://github.com/compoodment/ClankerWorld/issues/598) and
+
+**House resident capacity** (`HouseResidentCapacityRules`). A completed House
+provides three permanent-resident places per footprint tile, or four per tile
+when one explicitly recorded domestic family unit has at least two residents
+and a strict majority of the House's residents. The unit is saved separately
+from ancestry; traveling residents and infants count, dead people and invited
+storm guests do not. Joining a household is offered only when the proposed
+resident fits after their arrival is counted. The server checks again after
+unanimous admission, and Add Agent checks the selected household property
+before placement. A birth always goes to the primary caregiver's current
+household, even when that puts the House over its limit; the building card,
+agent context and the newborn's saved housing status show the resulting need.
+An unavailable House is recorded the same way without delaying birth. This
+status gives dependents no adult admission or construction choices. House
+expansion can start for a
+storage need or when there is no resident place, but added places use only the
+completed footprint. Unfinished expansion does not reserve room for another
+resident. The game does not yet relocate people who already live in an
+overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
+**Continuity rule** (`SettlementContinuity`). The owner's answer on
+[#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
+numbers: the rule is on while fewer than eight active agents are not
+elders, and a couple may say "not yet" for two world days
+(`2 × TicksPerDay`). The checkpoint saves whether the rule was on at the last
+check and, per eligible couple, the tick at which their "not yet" ends. A new
+world appends `continuity_rule_on` when it is created; each tick
+`MaintainContinuity`, after `MaintainParenthood`, compares the live count with
+the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
+(detail `non_elders:{count}`) only when it changes, so reloading never repeats
+one.
+
+While the rule is on, an eligible couple is an accepted partnership that
+also passes the ordinary parenthood checks (both adults or elders, both with
+a household, not close kin) where neither partner is a parent or caregiver of
+a living infant. A couple first gets a deadline when it becomes eligible, and
+loses it when it stops being eligible or the rule turns off. Until the
+deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
+`parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
+candidates are neither offered nor applied. A couple held by the rule may
+propose while caring for an older child. At the deadline the server moves an
+existing plan to `preparing`, or creates a new plan for the partner who last
+asked (else the first by ID), and appends `continuity_plan_proceeded`.
+A new plan records that parent
+as its primary caregiver and their current household as its intended home.
+Resuming an accepted or postponed plan preserves its original initiating
+parent, request tick, selected caregiver and intended home. Birth still follows
+the caregiver's current household, including after a move or when its House
+is full. A plan past its deadline does not expire: it waits for the usual food,
+shelter and readiness checks. The rule only reads accepted partnerships and
+never proposes or accepts one.
+
+Each partner's self context carries a `continuity` note saying the rule and
+the hours left; a single agent's stays empty. Loading checks the flag and
+couples: known partner IDs in order, no couples while the rule is off, and no
+deadline more than two world days ahead. These events are logged as
+`settlement_family`; the two transitions are also Event Log lines.
 
 A recipe project that finds its work site busy waits with the blocker "Waiting
 for a free work site". While anyone waits, no one else is offered a new recipe
@@ -688,6 +862,29 @@ belongings while they have no legal trade response. The society transaction
 checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
+
+**Household shops** bind an inventory barter offer to its actual business and
+holding household in `BusinessTradeState`. Offers use unreserved goods in that
+building and payment already carried by the adult customer. The inventory
+remains the only authority for quantities, acceptance and lot reservations;
+the business binding keeps the transaction location and readable outcome.
+Positive net incoming space is held for both parties, alongside production and
+inbound delivery space. Both traders must reach the shop before the household
+accepts and the inventory transfers anything. Payment is placed in that exact
+building; the purchase becomes personal cargo. Cancelled, expired or
+invalidated offers release their reservations without transporting goods.
+Buyers compare usable tool tiers and garment protection in the current weather.
+Their best usable tool in each family, equipped clothing and carrying aids, and
+the active equipment repair target are excluded from payment.
+Customers receive transaction access only. Store stocking first moves actual
+surplus into carried delivery lots, then uses ordinary household hauling to
+reach the Store. A remote House, field or Warehouse is never sale stock.
+Store stocking also keeps each adult's best usable work tool. Optional shelf
+restocking waits behind gathering materials needed by household work.
+Rates, the eight-unit shelf target and four-unit carried loads are provisional.
+Blacksmiths can sell real refined iron for another household's tool work.
+Market stalls, tool orders, meals and care remain tracked in #564 and its
+domain issues; currency remains later work.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
@@ -754,8 +951,17 @@ the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
 satisfy this food reserve while their cooking paths remain unfinished, so they
 do not stop farmers planting fresh greens. Grain is milled into flour
-at the Farmhouse, one grain to one flour. Prepared meals and tool tiers are
-separate work.
+at the Farmhouse, one grain to one flour. Prepared meals remain separate work.
+Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
+reduce the work still needed to till and tend, while wooden and iron sickles
+reduce harvest work; an iron sickle is faster than a wooden one. Each committed
+work tick wears one unit of the selected tool. Interrupted or refused work does
+not wear it. A tool in storage, on the ground, in delivery or inside a pot is
+not directly usable; it must first be carried at the top level.
+If wear breaks a selected tool before the field effect completes, the runtime
+stops that work in the same committed action. The crop stays at its earlier
+stage and the broken tool stays in the owner's cargo, so the checkpoint remains
+valid without waiting for another tick.
 
 Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
@@ -800,8 +1006,9 @@ tiles wide on a new bridge, in two places:
 - A new side street is found by `RoadRoutePlanner`, which applies the side-street
   rules above and searches at most 32,768 tiles. Besides ground steps it may
   cross an existing bridge, or a new crossing, in a straight cardinal line. A
-  new crossing costs 200 per river tile, like wading, so an existing bridge is
-  cheaper. Ties break by cost, then row, then column, then discovery order.
+  new crossing costs 200 per river tile, like wading a one-tile river, so an
+  existing bridge is cheaper. Ties break by cost, then row, then column, then
+  discovery order.
 - A street running on past a door (`TownStreets.Wander`) that heads straight at
   a river may cross it. The far bank must be clear, and it counts as one step
   of the run-on. The first Town's starting layout does not use this rule and
@@ -829,15 +1036,24 @@ existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
 
 **Traffic bridges.** Only a committed foot step counts. Stepping from a bank
-onto an unbridged one-tile crossing starts a wade; the next step onto the
-opposite bank completes a crossing. Route previews, blocked moves, waiting and
-turning back add nothing, and walking on Roads or bridges is not wading. The
-evidence is saved: open wades, and completed crossings from the last two world
-days, at most five per agent per crossing, which is enough to decide the rule
-exactly. At the end of each tick, a crossing with six completed crossings by at
-least two agents gets a `traffic` bridge. It is not built, and its evidence is
-cleared, if a bank holds a building, resource or camp object, or an existing
-bridge already joins the same banks. A traffic bridge adds no Road tiles.
+onto an unbridged crossing of one or two river tiles starts a wade. On a
+two-tile crossing, stepping onto its other water tile keeps the same wade
+open; a step out of the water onto the opposite bank completes a crossing.
+Route previews, blocked moves, waiting and turning back add nothing, and
+walking on Roads or bridges is not wading. Both widths use the same rule and
+the same saved evidence, keyed by the crossing's bridge ID (such as
+`bridge-124-62-ew-2`): open wades, and completed crossings from the last two
+world days, at most five per agent per crossing, which is enough to decide the
+rule exactly. A crossing with a bank that is not buildable, such as a
+mountain, can be waded but gives no evidence, since no bridge could land there.
+At the end of each tick, a crossing with six completed crossings by at least two
+agents gets a `traffic` bridge across its whole width (`plank_span_1` or
+`plank_span_2`). It is not built, and its evidence is cleared, if a bank holds
+a building, resource or camp object, or an existing bridge already joins the
+same banks. A traffic bridge adds no Road tiles. Wading only reads terrain, so
+a bridge laid across one tile of a two-tile crossing from the other direction
+leaves the other tile wadeable back to its own bank, but the deck cannot be
+entered from the side.
 
 Events are `bridge_built` (`road:<bridge>:<route>` or `traffic:<bridge>`),
 `traffic_bridge_not_built`, `town_road_unconnected` and, if a run-on fails its
@@ -876,6 +1092,12 @@ fields are read separately. Existing entries use the current saved name, includi
 deceased profiles. Hosted-decision and Town telemetry likewise keep complete IDs.
 These readers do not rewrite accepted event details or change save/replay formats.
 
+The owner snapshot projects the saved continuity rule's current on/off state.
+Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
+rule is on in a started world, even when the transition event has left bounded
+history. The link opens the existing Add Agent controls and rechecks the current
+snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished
@@ -895,6 +1117,28 @@ not use it yet. This does not change fuel duration or harvest yields.
 Shared fuel and equipment also require an unoccupied route to their collection
 point. Unreachable stock stays untouched and does not prevent an agent from
 using reachable supplies or gathering local fuel instead.
+
+Tools gate and speed real material work. A wooden pickaxe extracts finite
+stone, a stone pickaxe extracts iron ore, and an iron pickaxe extracts gold or
+diamonds. Axes improve tree-felling output; when no usable axe is available,
+agents can still gather one loose fallen-wood item by hand. Each gather action
+uses one shared plan for output, tree seeds and tool wear. The runtime checks
+that the whole planned load fits before it depletes ecology, then commits the
+inventory output and single-unit wear together. A full load or a refused action
+does not consume source stock or damage a tool.
+
+An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
+diamond mining from a reachable finite outcrop. The complete eight-item trial
+load must fit. The decision stops offering more once the adult and their
+household together hold eight of that material. These goods remain carried
+physical stock; ornament making and a special rare-goods market are later work.
+
+The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
+iron ore into separate refined iron, and repairs one carried worn tool at a
+time. Repair consumes the recipe materials carried by that tool's owner; it
+does not restore condition for free. Hammer use speeds building work, and an
+iron knife speeds food or other preparation recipes. Recipe and field records
+keep their exact selected tool lot through save and reload.
 
 ## Trees and planting
 
@@ -920,6 +1164,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
+  Replanting selects stumps reachable from the acting agent, including on
+  disconnected islands, and skips stumps with no unoccupied route into reach.
 - **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so

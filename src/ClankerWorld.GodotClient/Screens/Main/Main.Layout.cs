@@ -165,7 +165,11 @@ public partial class Main
         BuildBuildingCards();
 
         worldOverview.CenterRequested += CenterCameraAt;
-        AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
+        var overviewBody = new VBoxContainer();
+        overviewBody.AddThemeConstantOverride("separation", 6);
+        overviewBody.AddChild(worldOverview);
+        overviewBody.AddChild(OverviewLegend());
+        AddClosablePanelContents(worldOverviewPanel, "World Map", overviewBody);
         worldOverviewPanel.Position = new Vector2(14, 14);
         worldOverviewPanel.ZIndex = 80;
         worldOverviewPanel.Hide();
@@ -194,6 +198,7 @@ public partial class Main
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
         inhabitantList.TooltipText = "Choose someone to find them in the world.";
         rosterBody.AddChild(inhabitantList);
+        BuildRosterCards(rosterBody);
         AddClosablePanelContents(rosterPanel, "Agents", rosterBody);
         rosterPanel.CustomMinimumSize = new Vector2(410, 0);
         rosterPanel.ZIndex = 80;
@@ -201,10 +206,14 @@ public partial class Main
         content.AddChild(rosterPanel);
 
         ConfigureTextPanel(eventLog, 300);
-        eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
+        eventLog.MetaClicked += meta => _ = HandleEventLogActionAsync(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
-        AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
-        eventsPanel.CustomMinimumSize = new Vector2(390, 0);
+        var eventsBody = new VBoxContainer();
+        eventLog.Hide();
+        eventsBody.AddChild(eventLog);
+        BuildEventRows(eventsBody);
+        AddClosablePanelContents(eventsPanel, "Event Log", eventsBody);
+        eventsPanel.CustomMinimumSize = new Vector2(430, 0);
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
@@ -249,21 +258,7 @@ public partial class Main
         BuildWorldInfoPanel(content);
         BuildControlsPanel(content);
 
-        var tileBody = new VBoxContainer();
-        var tileHeading = new HBoxContainer();
-        tileHeading.AddChild(new Label { Text = "Selected tile", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-        var closeTile = CloseButton("Close tile inspection");
-        closeTile.Pressed += ClearTileSelection;
-        tileHeading.AddChild(closeTile);
-        tileBody.AddChild(tileHeading);
-        ConfigureTextPanel(selectedTileText, float.MaxValue);
-        tileBody.AddChild(selectedTileText);
-        AddPanelContents(selectedTilePanel, tileBody);
-        selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
-        selectedTilePanel.Resized += PositionSelectedTilePanel;
-        selectedTilePanel.ZIndex = 80;
-        selectedTilePanel.Hide();
-        content.AddChild(selectedTilePanel);
+        BuildTileCard(content);
         BuildMapHud(content);
     }
 
