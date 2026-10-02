@@ -42,6 +42,7 @@ public sealed partial class PrivateWorldRuntime
         {
             PrivateWorldRuntimeState baseline;
             long baselineEventId;
+            int baselineOrderCancellationCount;
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
             PendingConversationTurn[] completedConversationTurns = [];
@@ -103,6 +104,7 @@ public sealed partial class PrivateWorldRuntime
                     .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
+                baselineOrderCancellationCount = orderCancellations.Count;
             }
             finally
             {
@@ -129,7 +131,8 @@ public sealed partial class PrivateWorldRuntime
                 {
                     return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
                 }
-                if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick ||
+                    historyArchiveHead != baseline.HistoryArchiveHead || orderCancellations.Count != baselineOrderCancellationCount)
                 {
                     return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
@@ -157,7 +160,8 @@ public sealed partial class PrivateWorldRuntime
                     cancellationToken.ThrowIfCancellationRequested();
                     if (commitPermitted is not null && !commitPermitted())
                         return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
-                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick ||
+                        historyArchiveHead != baseline.HistoryArchiveHead || orderCancellations.Count != baselineOrderCancellationCount)
                         return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
                 // A provider assignment can change without advancing a world

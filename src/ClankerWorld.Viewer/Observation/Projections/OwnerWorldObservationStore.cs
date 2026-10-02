@@ -410,8 +410,8 @@ public sealed class OwnerWorldObservationStore
                     instruction.TargetInhabitantId,
                     ToWireValue(instruction.Kind),
                     instruction.Text,
-                    instruction.Order?.Status ?? (completedInstructionIds.Contains(instruction.InstructionId)
-                        ? "completed" : ToWireValue(instruction.State)),
+                    completedInstructionIds.Contains(instruction.InstructionId)
+                        ? "completed" : ToWireValue(instruction.State),
                     instruction.SubmittedTick,
                     instruction.RunEpoch,
                     instruction.SubmissionSequence,

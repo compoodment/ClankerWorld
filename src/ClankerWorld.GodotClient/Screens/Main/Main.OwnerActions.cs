@@ -72,11 +72,11 @@ public partial class Main
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.SubmitInstructionAsync(
+            await ownerApi.SubmitInstructionAsync(
                 ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
             completed = true;
             instructionText.Text = string.Empty;
-            return $"queued {action.Kind} instruction {receipt.InstructionId}";
+            return InstructionSubmissionResultText(action.Kind, action.Queue);
         });
         if (completed)
         {
@@ -115,10 +115,28 @@ public partial class Main
             var receipt = await ownerApi.CancelOrderAsync(
                 ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
             completed = true;
-            return receipt.Changed ? "Order cancelled" : $"Order is already {receipt.Status}";
+            return OrderCancellationResultText(receipt);
         });
         if (completed)
             CompletePendingSubmission(pending);
+    }
+
+    private static string InstructionSubmissionResultText(string kind, bool queue) => kind == "must_do"
+        ? queue ? "Order added to the queue." : "Order sent."
+        : "Suggestion sent.";
+
+    private static string OrderCancellationResultText(OwnerOrderControlReceipt receipt)
+    {
+        if (receipt.Changed)
+            return "Order cancelled.";
+
+        return receipt.Status switch
+        {
+            "cancelled" => "That order was already cancelled.",
+            "finished" => "That order had already finished.",
+            "not_understood" => "The agent could not follow that order.",
+            _ => "That order is no longer waiting or active.",
+        };
     }
 
     private async Task SubmitAuthoringAsync()

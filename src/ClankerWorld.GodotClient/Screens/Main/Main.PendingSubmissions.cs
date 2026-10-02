@@ -144,10 +144,10 @@ public partial class Main
         {
             if (pending.Instruction is { } instruction)
             {
-                var receipt = await ownerApi.SubmitInstructionAsync(
+                await ownerApi.SubmitInstructionAsync(
                     ResolveWorldUri(), authority, deviceId, instruction.ToAction(), signer, CancellationToken.None);
                 completed = true;
-                return $"confirmed {instruction.Kind} instruction {receipt.InstructionId}";
+                return InstructionSubmissionResultText(instruction.Kind, instruction.Queue);
             }
 
             if (pending.Authoring is { } authoring)
@@ -165,8 +165,7 @@ public partial class Main
                 var receipt = await ownerApi.CancelOrderAsync(
                     ResolveWorldUri(), authority, deviceId, cancellation.ToAction(), signer, CancellationToken.None);
                 completed = true;
-                return receipt.Changed ? $"confirmed cancellation of order {receipt.OrderId}" :
-                    $"confirmed order {receipt.OrderId} is already {receipt.Status}";
+                return OrderCancellationResultText(receipt);
             }
 
             throw new InvalidOperationException("The retained owner request has no supported payload.");
