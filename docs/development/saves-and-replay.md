@@ -256,7 +256,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 42. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 43. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -265,21 +265,24 @@ learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
 equipment with timed repairs and exact reservations, reusable container lots
 with their contents, locations, owners and reservations, explicit domestic
-family and caregiver/birth-home records, owner messages with whether a
-personal model heard them and any short reply, and connected Town-title plots,
-household use rights and pending use requests. Land records are checked
-against the saved map, Towns, households and one another before load. These
-fields retain their current validation and roundtrip behavior.
+family and caregiver/birth-home records, owner messages with whether a personal
+model heard them and any short reply, tool-lot links for saved field and recipe
+work, and connected Town-title plots, household use rights and pending use
+requests. Land records are checked against the saved map, Towns, households and
+one another before load. These fields retain their current validation and
+roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
-for fields and ground lots, schema 35 for conversations, schema 37 for personal
-equipment, schema 39 for reusable containers, schema 40 for domestic family
-and caregiver records, schema 41 for owner-message delivery and schema 42 for
-Town land records, record when those fields were introduced; they do not allow
-an earlier checkpoint schema past the current alpha cutoff.
+for fields and ground lots, schema 35 for conversations, schema 36 for terrain
+and weather generation, schema 37 for personal equipment, schema 38 for building
+assignments, schema 39 for reusable containers, schema 40 for domestic family
+and caregiver records, schema 41 for owner-message delivery, schema 42 for
+selected tools on saved field and recipe work, and schema 43 for Town land
+records, record when those fields or behaviors were introduced; they do not
+allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -307,7 +310,8 @@ an earlier checkpoint schema past the current alpha cutoff.
 | Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
 | Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 | Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
-| Schema 42 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
+| Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
+| Schema 43 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

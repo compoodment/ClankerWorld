@@ -1905,7 +1905,7 @@ public partial class Main
             if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
                 TreeArtManifest.Entries.Count(entry => entry.Code > 0))
                 throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
-            for (byte kind = 1; kind <= 11; kind++)
+            for (byte kind = 1; kind <= 12; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
             // Farm fields: every crop and growth state draws its overlay over the
@@ -2000,6 +2000,13 @@ public partial class Main
                     !itemLooks.Add(Convert.ToBase64String(icon.GetData())))
                     throw new InvalidOperationException($"The {item} icon must sit on a clear square and look different from every other item.");
             }
+            var toolKinds = new[]
+            {
+                "wooden_axe", "stone_axe", "iron_axe", "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe",
+                "wooden_hoe", "iron_hoe", "wooden_hammer", "stone_hammer", "wooden_sickle", "iron_sickle", "iron_knife",
+            };
+            if (toolKinds.Any(kind => !ItemIcons.Has(kind)))
+                throw new InvalidOperationException("Every Blacksmith tool tier must have its own item icon.");
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
@@ -2008,6 +2015,9 @@ public partial class Main
                 GameUiText.ItemName("fresh_water") != "Fresh water")
                 throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            if (IconData("wooden_hammer") == IconData("stone_hammer") ||
+                IconData("wooden_sickle") == IconData("iron_sickle"))
+                throw new InvalidOperationException("Wooden and stronger work tools must show distinct tier colours.");
             if (!ItemIcons.Has("storage_pot") || !ItemIcons.Has("fresh_water") ||
                 IconData("storage_pot") != IconData("clay_pot") || IconData("fresh_water") != IconData("water") ||
                 IconData("storage_pot") == IconData("water_jug"))
@@ -2166,6 +2176,23 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
+                "available", 3, 3, NaturalObjectKind: "fallen_wood");
+            var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };
+            RenderMap(fallenWoodMap);
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Loose fallen wood must have a named, available natural site after an observation refresh.");
+            selectedTile = new Vector2I(3, 3);
+            RenderTileInspection(fallenWoodMap);
+            if (!selectedTileText.Text.Contains("Fallen wood · 3 available", StringComparison.Ordinal))
+                throw new InvalidOperationException("Selecting loose fallen wood must show its name and remaining stock.");
+            ClearTileSelection();
+            RenderMap(fallenWoodMap with { Resources = [sampleResource, fallenWood with { Quantity = 0, State = "depleted" }] });
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "depleted")
+                throw new InvalidOperationException("Exhausted loose wood must keep its site name and show its depleted stage.");
             var sampleOrchard = new OwnerWorldResource("sample-orchard", "fruit", new(2, 1), true,
                 "available", 1, 1, 1, 3, "spring", "orchard", TreeStage: "fruiting");
             RenderMap(sample with { Resources = [sampleResource, sampleTree, sampleOrchard] });
@@ -2951,6 +2978,21 @@ public partial class Main
             if (currentTileSize > 9 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.3f ||
                 terrainLayer.VisibleTileCount > 40_000)
                 throw new InvalidOperationException($"Overview zoom must widen bounded terrain coverage: tile={currentTileSize}, width={oldVisibleWidth}->{worldOverview.VisibleTiles.Size.X}, tiles={terrainLayer.VisibleTileCount}.");
+            var overviewWood = fallenWood with { Position = new(84, 64) };
+            var overviewWoodMap = largeMap with { Resources = [overviewWood] };
+            RenderMap(overviewWoodMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.TileSize >= WorldTerrainLayer.SpriteTileMinimum ||
+                terrainLayer.OverviewNaturalObjectDrawCount != 1 ||
+                terrainLayer.NaturalObjectNameAt(84, 64) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(84, 64) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Available loose wood must remain drawn and inspectable below sprite zoom.");
+            RenderMap(largeMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.OverviewNaturalObjectDrawCount != 0 ||
+                mapObjectVisuals.ContainsKey("resource:sample-fallen-wood"))
+                throw new InvalidOperationException("Removing loose wood in the next observation must clear its overview drawing and marker.");
             var wideVisibleWidth = worldOverview.VisibleTiles.Size.X;
             var wideTileCount = terrainLayer.VisibleTileCount;
             var widePan = System.Diagnostics.Stopwatch.StartNew();

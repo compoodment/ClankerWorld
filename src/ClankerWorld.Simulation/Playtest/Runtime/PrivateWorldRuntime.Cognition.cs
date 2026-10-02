@@ -541,6 +541,11 @@ public sealed partial class PrivateWorldRuntime
             GatherBlacksmithOre(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal))
+        {
+            GatherBlacksmithInput(inhabitantId, state, candidateId[GatherBlacksmithInputPrefix.Length..]);
+            return;
+        }
         if (candidateId == "deliver_smith_ore")
         {
             DeliverBlacksmithOre(inhabitantId, state);
@@ -548,8 +553,27 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
-            CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
+            var kind = candidateId == "collect_wooden_axe" ? "wooden_axe" :
+                candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe";
+            if (MayCollectToolFamily(inhabitantId, ToolProgressionRules.Find(kind)!.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
+        {
+            var kind = candidateId[CollectToolPrefix.Length..];
+            if (ToolProgressionRules.Find(kind) is { } tool && MayCollectToolFamily(inhabitantId, tool.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
+        {
+            RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RareMiningPrefix, StringComparison.Ordinal))
+        {
+            GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
@@ -880,6 +904,7 @@ public sealed partial class PrivateWorldRuntime
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
             AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
+            AddRareMiningCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);

@@ -771,8 +771,17 @@ the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
 satisfy this food reserve while their cooking paths remain unfinished, so they
 do not stop farmers planting fresh greens. Grain is milled into flour
-at the Farmhouse, one grain to one flour. Prepared meals and tool tiers are
-separate work.
+at the Farmhouse, one grain to one flour. Prepared meals remain separate work.
+Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
+reduce the work still needed to till and tend, while wooden and iron sickles
+reduce harvest work; an iron sickle is faster than a wooden one. Each committed
+work tick wears one unit of the selected tool. Interrupted or refused work does
+not wear it. A tool in storage, on the ground, in delivery or inside a pot is
+not directly usable; it must first be carried at the top level.
+If wear breaks a selected tool before the field effect completes, the runtime
+stops that work in the same committed action. The crop stays at its earlier
+stage and the broken tool stays in the owner's cargo, so the checkpoint remains
+valid without waiting for another tick.
 
 Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
@@ -912,6 +921,28 @@ not use it yet. This does not change fuel duration or harvest yields.
 Shared fuel and equipment also require an unoccupied route to their collection
 point. Unreachable stock stays untouched and does not prevent an agent from
 using reachable supplies or gathering local fuel instead.
+
+Tools gate and speed real material work. A wooden pickaxe extracts finite
+stone, a stone pickaxe extracts iron ore, and an iron pickaxe extracts gold or
+diamonds. Axes improve tree-felling output; when no usable axe is available,
+agents can still gather one loose fallen-wood item by hand. Each gather action
+uses one shared plan for output, tree seeds and tool wear. The runtime checks
+that the whole planned load fits before it depletes ecology, then commits the
+inventory output and single-unit wear together. A full load or a refused action
+does not consume source stock or damage a tool.
+
+An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
+diamond mining from a reachable finite outcrop. The complete eight-item trial
+load must fit. The decision stops offering more once the adult and their
+household together hold eight of that material. These goods remain carried
+physical stock; ornament making and a special rare-goods market are later work.
+
+The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
+iron ore into separate refined iron, and repairs one carried worn tool at a
+time. Repair consumes the recipe materials carried by that tool's owner; it
+does not restore condition for free. Hammer use speeds building work, and an
+iron knife speeds food or other preparation recipes. Recipe and field records
+keep their exact selected tool lot through save and reload.
 
 ## Trees and planting
 
