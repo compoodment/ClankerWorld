@@ -577,7 +577,7 @@ public partial class Main
         return (RecipeName(job.RecipeId), percent, $"{worker} · {TimeLeft(job.CompletionTick - snapshot.WorldTick)}");
     }
 
-    /// <summary>A recipe's own words, such as "Mill grain" for <c>…/mill-grain</c>.</summary>
+    /// <summary>A recipe's own words, such as "Mill grain" for <c>.../mill-grain</c>.</summary>
     private static string RecipeName(string recipeId) =>
         Sentence(recipeId[(recipeId.LastIndexOf('/') + 1)..].Replace('-', ' ').Replace('_', ' '));
 
