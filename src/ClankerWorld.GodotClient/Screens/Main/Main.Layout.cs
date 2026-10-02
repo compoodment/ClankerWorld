@@ -205,7 +205,7 @@ public partial class Main
         content.AddChild(rosterPanel);
 
         ConfigureTextPanel(eventLog, 300);
-        eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
+        eventLog.MetaClicked += meta => _ = HandleEventLogActionAsync(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
         AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
         eventsPanel.CustomMinimumSize = new Vector2(390, 0);
