@@ -206,6 +206,62 @@ public sealed class TownLandRightsTests
         }));
     }
 
+    [Fact]
+    public void ReassignedBuildingPlacesAddedAgentsWithItsNewOwnerWhileDisputesStayRefused()
+    {
+        var world = WithoutBuildingStock(CreateStartedTown("town-land-rights-reassign"), "first-town-blacksmith");
+        try
+        {
+            var blacksmith = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+            var previousOwner = blacksmith.HouseholdId!;
+            var nextOwner = previousOwner == "household:camp-alpha" ? "household:camp-beta" : "household:camp-alpha";
+            var definition = world.WorldContent.Buildings.Single(item => item.CanonicalId == blacksmith.DefinitionId);
+            var tile = WorldContentSimulationRules.Footprint(definition, blacksmith)
+                .First(point => world.Inhabitants.All(person => person.Position != point));
+            const string addedAgent = "agent:00000000000000000000000000000093";
+            world.ValidateAgentPlacement(addedAgent, tile, previousOwner, TownBorderRules.FirstTownId);
+
+            var reassigned = world.ReassignBuilding(blacksmith.InstanceId, blacksmith.TownId, previousOwner, null, nextOwner);
+            Assert.True(reassigned.Applied, reassigned.Failure);
+            // The starter use right stays with the previous household; the building's
+            // current owner still decides an added agent's household on its footprint.
+            Assert.Contains(world.HouseholdLandUseRights, right =>
+                right.HouseholdId == previousOwner && right.Tiles.Contains(tile));
+            world.ValidateAgentPlacement(addedAgent, tile, nextOwner, TownBorderRules.FirstTownId);
+
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+            reloaded.ValidateAgentPlacement(addedAgent, tile, nextOwner, TownBorderRules.FirstTownId);
+
+            var requester = reloaded.Society.Inhabitants.First(person => person.HouseholdId == nextOwner).Id;
+            var request = reloaded.RequestHouseholdLandUse("request:reassigned", requester,
+                TownBorderRules.FirstTownId, [tile]);
+            Assert.True(request.Applied, request.Failure);
+            Assert.True(request.IsDisputed);
+            Assert.Throws<InvalidOperationException>(() => reloaded.ValidateAgentPlacement(addedAgent, tile));
+        }
+        finally
+        {
+            world.Dispose();
+        }
+    }
+
+    private static PrivateWorldRuntime WithoutBuildingStock(PrivateWorldRuntime world, string buildingId)
+    {
+        var state = world.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        var removed = inventory.Lots.Where(lot => lot.StorageBuildingId == buildingId || lot.DeliveryBuildingId == buildingId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => !removed.Contains(lot.Id)).ToArray(),
+            Reservations = inventory.Reservations.Where(item => !removed.Contains(item.LotId)).ToArray(),
+        };
+        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        world.Dispose();
+        return PrivateWorldRuntime.Restore(state);
+    }
+
     private static PrivateWorldRuntime CreateStartedTown(string seed)
     {
         var geography = new GeographyOptions(seed, WorldSizePreset.Small);

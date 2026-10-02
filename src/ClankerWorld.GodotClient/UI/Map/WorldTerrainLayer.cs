@@ -914,7 +914,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawHouseholdLandUses((int Left, int Top, int Width, int Height) bounds, int stride)
     {
-        if (world is null || tileSize <= 0) return;
+        if (world is null || tileSize <= 0 || householdLandUseTiles.Count == 0 && pendingLandUseTiles.Count == 0) return;
         foreach (var (point, drawX) in VisibleLandTiles(bounds))
         {
             if (!householdLandUseTiles.TryGetValue(point, out var households)) continue;

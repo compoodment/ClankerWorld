@@ -32,7 +32,7 @@ test alone does not make it available in the game.
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
-| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. Clicking a disputed tile lists its recorded household claims. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
+| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches and date/time formats. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
@@ -169,12 +169,14 @@ title over its then-connected land; later border expansion does not add title.
 Starter household use rights cover the footprints of the buildings assigned to
 each household. Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
-and land claimed by one Town gives Town membership. A lone pending use request
-does not create household membership. Conflicting claims are refused for a new
-placement, but do not move existing residents or stop ordinary movement and
-work. The server checks the preview against current records again when the
-adult is placed. Walking does not change membership. An adult with no household cannot
-build a House. Instead they can ask a household that holds a House with a free
+and land claimed by one Town gives Town membership. A building or field's
+current owner comes before an older use right on the same tile, so a reassigned
+building places new agents with its new owner. A lone pending use request does
+not create household membership. Disputed land and other conflicting claims are
+refused for a new placement, but do not move existing residents or stop
+ordinary movement and work. The server checks the preview against current
+records again when the adult is placed. Walking does not change membership. An
+adult with no household cannot build a House. Instead they can ask a household that holds a House with a free
 resident place in their Town to take them in. Every adult member of that household must agree within
 the same short window as other proposals; one refusal or no answer ends the
 request, and that household is not asked again for two world days. Standing

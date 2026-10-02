@@ -513,13 +513,15 @@ public partial class Main
 
     private static AgentPlacementResolution ResolveAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
     {
-        var householdOwners = snapshot.PlacedBuildings
+        var propertyOwners = snapshot.PlacedBuildings
             .Where(item => item.HouseholdId is not null &&
                 tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
                 tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)
             .Select(item => item.HouseholdId)
             .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
-                .Select(item => (string?)item.HouseholdId));
+                .Select(item => (string?)item.HouseholdId))
+            .ToArray();
+        IEnumerable<string?> householdOwners = propertyOwners;
         var rights = snapshot.HouseholdLandUseRights
             .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
         var requests = snapshot.HouseholdLandUseRequests
@@ -527,8 +529,11 @@ public partial class Main
         var claimants = rights.Select(item => item.HouseholdId)
             .Concat(requests.Select(item => item.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        // Matches the server: a dispute always counts, and otherwise a use right
+        // counts only where no building or field owner stands.
         if (claimants.Length > 1) householdOwners = householdOwners.Concat(claimants);
-        else householdOwners = householdOwners.Concat(rights.Select(item => item.HouseholdId));
+        else if (!propertyOwners.Any(owner => owner is not null))
+            householdOwners = householdOwners.Concat(rights.Select(item => item.HouseholdId));
         var townIds = snapshot.Towns
             .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||
                 snapshot.TownLandTitles.Any(title => title.TownId == item.Id &&

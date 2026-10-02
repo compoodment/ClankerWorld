@@ -180,12 +180,14 @@ public sealed partial class PrivateWorldRuntime
             throw new ArgumentException("Choose an empty passable tile for this agent.", nameof(position));
 
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        var householdOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
+        var propertyOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
                 WorldContentSimulationRules.Footprint(definition, building).Contains(position))
             .Select(building => building.HouseholdId)
             .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId))
-            .Concat(HouseholdLandClaimantsAt(position));
+            .ToArray();
+        var householdOwners = propertyOwners
+            .Concat(HouseholdLandClaimantsAt(position, propertyOwners.Any(owner => owner is not null)));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position) ||
                 TownLandRightsRules.IsCoveredByTownTitle(position, item.Id, townLandTitles))
             .Select(item => item.Id);
@@ -204,12 +206,16 @@ public sealed partial class PrivateWorldRuntime
         return membership;
     }
 
-    private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position)
+    private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position, bool ownedProperty)
     {
         var rights = householdLandUseRights.Where(right => right.Tiles.Contains(position)).ToArray();
         var requests = householdLandUseRequests.Where(request => request.Tiles.Contains(position)).ToArray();
         if (TownLandRightsRules.IsDisputed(position, rights, requests))
             return TownLandRightsRules.ClaimantsAt(position, rights, requests);
+        // A building or field's current owner comes before an older use right on
+        // the same tile, so a reassigned building does not block placement there.
+        if (ownedProperty)
+            return [];
         return rights.Select(right => right.HouseholdId);
     }
 

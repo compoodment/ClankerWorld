@@ -311,7 +311,7 @@ public partial class Main
         }
         foreach (var right in useRights)
             lines.Add($"Household use right: {GameUiText.PartyName(snapshot, right.HouseholdId)}" +
-                (right.AgreedEndTick is not null ? " · agreed end date" : string.Empty));
+                (right.AgreedEndTick is { } endTick ? $" · agreed end {DisplayWorldClock(endTick)}" : string.Empty));
         foreach (var request in useRequests)
         {
             var requester = snapshot.Inhabitants.FirstOrDefault(person => person.Id == request.RequestedByAgentId)?.DisplayName;

@@ -595,19 +595,25 @@ building. The generator should not preselect a fixed lifetime building count.
 
 The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
-A plot is a connected group of land tiles and can include empty land. The first
-accepted Town layout records title to the connected land in that layout's
-initial border. Later border growth makes room for the Town but does not
-silently add title. Starter household use rights cover the footprints of the
-buildings assigned to each household; the shared Warehouse remains Town
-property. The Town border alone does not silently take over another claim or
-transfer a building, its stock or a household's private goods. Physical
-occupation or model text cannot rewrite these records. The first Town begins
-with a council, not an assumed mayor. Residents can later approve creating an
-elected mayor through the protected government-change process. Its creation,
-term and elections are agreed in
-[The mayor's office and elections](#the-mayors-office-and-elections);
+A plot is a connected group of land tiles and can include empty land. The Town
+border alone does not silently take over another claim or transfer a building,
+its stock or a household's private goods. Physical occupation or model text
+cannot rewrite these records. The first Town begins with a council, not an
+assumed mayor. Residents can later approve creating an elected mayor through
+the protected government-change process. Its creation, term and elections are
+agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
+
+**Current implementation, not yet confirmed by computment:** the first
+accepted Town layout records title to the connected land inside its initial
+border, and later border growth makes room for the Town without adding title.
+That follows answer 19A, that a boundary change does not by itself change
+title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
+Starter household use rights cover only the footprints of the buildings
+assigned to each household; the shared Warehouse remains Town property.
+Whether title grows with the Town, and how much land comes with a starter use
+right, remain open. Because new grants use existing Town-owned land, the first
+answer decides where later households can receive use rights.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
