@@ -64,6 +64,14 @@ public sealed partial class PrivateWorldRuntimeTests
                 Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
                 Assert.Equal(position, CancellationActorPosition(world.ExportState()));
             }
+            // On a busy runner the fresh planning request can still be on its way after
+            // those ticks. Keep ticking, still without movement, until it reaches the provider.
+            for (var tick = 0; tick < 200 && !provider.OrdinaryRequested.Task.IsCompleted; tick++)
+            {
+                await Task.WhenAny(provider.OrdinaryRequested.Task, Task.Delay(25));
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+                Assert.Equal(position, CancellationActorPosition(world.ExportState()));
+            }
 
             Assert.Single(provider.Requests, request => request.OperativeOrderInstructionId == order.InstructionId);
             Assert.Single(provider.Requests, request => request.OperativeOrderInstructionId is null);
@@ -217,12 +225,14 @@ public sealed partial class PrivateWorldRuntimeTests
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> OrdinaryRequested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
             request.Validate();
             Requests.Enqueue(request.Observation);
+            if (request.Observation.OperativeOrderInstructionId is null) OrdinaryRequested.TrySetResult(true);
             if (holdFirstOrder && Requests.Count == 1 && request.Observation.OperativeOrderInstructionId is not null)
             {
                 Started.TrySetResult(true);
