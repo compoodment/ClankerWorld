@@ -50,6 +50,7 @@ lettering, Timber, is drawn in code in `UI/Theme/TimberFont.cs`.
 | Godot scripts, scenes or UI | Run the Godot client check and relevant automated tests; inspect the affected controls in the game. |
 | Windows export or device storage | Run the Windows export check and relevant native Windows checks. Test the actual bundle on Windows when claiming player usability. |
 | Saves, events or compatibility | Include the replay and rollback checks described in [Saves and replay](saves-and-replay.md). During alpha, older saves need not keep loading, so no old-save or migration checks are needed; a save that cannot load must still be refused visibly and preserved. |
+| Workflow automation (scripts, workflows, labels and templates in `.github/`) | Run `node --test .github/scripts/*.test.js`, and add or update tests when a script's behavior changes. For `.github/labels.json`, read the pull request's Labels check output to see what it would create, rename or delete; after merging, check that the Labels run on main passed. |
 | Release | Follow the applicable [release gate](releasing.md#release-gate), including real player-path checks. |
 
 The CI configuration in [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
@@ -98,10 +99,12 @@ dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 ```
 
-These checks cover the required pages, front matter, local links and linked
-headings. The documentation test reads each page with both LF and CRLF line
-endings, and CI also runs it on a Windows checkout. That job is separate from a
-Windows game playtest and from the native provider-storage checks.
+These checks cover front matter on pages under `docs/`, local links and linked
+headings in every Markdown file, and that each entry in `changes/` starts with
+a `- ` bullet. They do not check that any particular page exists. The
+documentation test reads each page with both LF and CRLF line endings, and CI
+also runs it on a Windows checkout. That job is separate from a Windows game
+playtest and from the native provider-storage checks.
 
 ## Windows playtests
 
@@ -109,12 +112,13 @@ The [playtest list](../../playtest/README.md) holds the merged changes that
 still need trying by hand in the Windows game. Automated checks, including the
 Windows CI jobs and a passing export, do not count as a playtest.
 
-When you record a playtest result, note the client and host commits, the
-Windows build, the date, the screen resolution and the interface size it
-picked. Say whether each check passed, failed or could not be run, with what
-you did and saw. Leave out private keys, pairing codes, agent thoughts and raw
-model replies. Link each failure to its own issue; one passing check does not
-close a report with several problems.
+When you record a playtest result, note what you know of the client and host
+commits, the Windows build, the date, the screen resolution and the interface
+size it picked; ask the owner for missing details only when a check failed. Say
+whether each check passed, failed or could not be run, with what you did and
+saw. Leave out private keys, pairing codes, agent thoughts and raw model
+replies. Link each failure to its own issue; one passing check does not close a
+report with several problems.
 
 Do not deploy, change credentials or modify the active playtest save just to
 run a check; that needs the owner's separate go-ahead. Use a disposable world

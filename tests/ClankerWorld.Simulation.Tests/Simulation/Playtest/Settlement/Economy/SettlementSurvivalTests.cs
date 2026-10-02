@@ -248,7 +248,7 @@ public sealed class SettlementSurvivalTests
     }
 
     [Fact]
-    public async Task ColdSettlementUsesFuelAndToolsAndCanRecoverAcrossRestart()
+    public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);

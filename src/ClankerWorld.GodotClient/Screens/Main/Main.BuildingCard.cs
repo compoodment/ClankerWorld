@@ -32,6 +32,16 @@ public partial class Main
     private readonly VBoxContainer buildingPeopleSection = new();
     private readonly Label buildingPeopleSummary = new() { ThemeTypeVariation = "DimLabel" };
     private readonly Label buildingPeopleText = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly VBoxContainer buildingManagementSection = new();
+    private readonly Label buildingManagementNote = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly OptionButton buildingManagementChoice = new();
+    private readonly Button buildingManagementApply = new() { Text = "Change owner" };
+    private readonly Button buildingRemoveButton = new() { Text = "Remove building" };
+    private readonly ConfirmationDialog buildingRemoveConfirmation = new();
+    private OwnerBuildingRemovalAction? pendingBuildingRemoval;
+    private string? pendingBuildingRemovalWorldId;
+    private string? renderedBuildingManagementWorldId;
+    private string? renderedBuildingManagementId;
     private string? selectedBuildingId;
     private bool buildingDetailsRequested;
     private OwnerWorldSnapshot? buildingCardSnapshot;
@@ -81,6 +91,24 @@ public partial class Main
         buildingPeopleSection.AddChild(SectionRow("PEOPLE", buildingPeopleSummary));
         buildingPeopleSection.AddChild(buildingPeopleText);
         buildingDetailsContent.AddChild(buildingPeopleSection);
+        buildingManagementSection.AddThemeConstantOverride("separation", 5);
+        buildingManagementSection.AddChild(new Label { Text = "OWNER ACTIONS", ThemeTypeVariation = "SectionLabel" });
+        buildingManagementNote.Text = "Empty stored items and wait for work and deliveries before changing ownership or removing this building. A Warehouse keeps its Town access record when moved.";
+        buildingManagementSection.AddChild(buildingManagementNote);
+        buildingManagementChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        buildingManagementSection.AddChild(buildingManagementChoice);
+        StyleButton(buildingManagementApply);
+        buildingManagementApply.Pressed += ApplyBuildingReassignment;
+        buildingManagementSection.AddChild(buildingManagementApply);
+        StyleButton(buildingRemoveButton);
+        buildingRemoveButton.Pressed += ConfirmBuildingRemoval;
+        buildingManagementSection.AddChild(buildingRemoveButton);
+        buildingDetailsContent.AddChild(buildingManagementSection);
+        StyleConfirmation(buildingRemoveConfirmation, "Remove this building?", "Remove building");
+        buildingRemoveConfirmation.GetOkButton().ThemeTypeVariation = "DangerButton";
+        buildingRemoveConfirmation.Confirmed += RemoveSelectedBuilding;
+        buildingRemoveConfirmation.Canceled += CancelBuildingRemoval;
+        uiLayer.AddChild(buildingRemoveConfirmation);
         // On a short view the facts scroll under a header that stays put.
         buildingDetailsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
         buildingDetailsScroll.AddChild(buildingDetailsContent);
@@ -145,6 +173,9 @@ public partial class Main
 
     private void ClearBuildingSelection()
     {
+        CancelBuildingRemoval();
+        renderedBuildingManagementWorldId = null;
+        renderedBuildingManagementId = null;
         selectedBuildingId = null;
         buildingDetailsRequested = false;
         terrainLayer.SetSelectedBuilding(null);
@@ -174,6 +205,9 @@ public partial class Main
 
     private void RenderBuildingCard(OwnerWorldSnapshot snapshot)
     {
+        if (pendingBuildingRemoval is { } pending &&
+            (pendingBuildingRemovalWorldId != snapshot.WorldId || pending.InstanceId != selectedBuildingId))
+            CancelBuildingRemoval();
         buildingCardSnapshot = snapshot;
         if (SelectedBuilding() is not { } building)
         {
@@ -214,7 +248,7 @@ public partial class Main
         {
             storage.Visible = stored is not null;
             if (stored is not null)
-                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, Pretty(item.Kind))).ToArray());
+                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, GameUiText.ItemName(item.Kind))).ToArray());
         }
         RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
@@ -337,6 +371,140 @@ public partial class Main
         if (residents.Length > 0) people.Add($"Permanent residents (including travelers): {string.Join(", ", residents)}");
         buildingPeopleText.Text = string.Join('\n', people);
         buildingPeopleText.Visible = people.Count > 0;
+        RenderBuildingManagement(snapshot, building);
+    }
+
+    private void RenderBuildingManagement(OwnerWorldSnapshot snapshot, OwnerWorldPlacedBuilding building)
+    {
+        if (!TryGetOwner(out _, out _, out _))
+        {
+            buildingManagementSection.Hide();
+            renderedBuildingManagementWorldId = null;
+            renderedBuildingManagementId = null;
+            return;
+        }
+
+        var previousTarget = renderedBuildingManagementWorldId == snapshot.WorldId &&
+            renderedBuildingManagementId == building.InstanceId && buildingManagementChoice.Selected >= 0
+            ? buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString()
+            : null;
+        buildingManagementSection.Show();
+        buildingManagementChoice.Clear();
+        var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
+        if (isWarehouse)
+        {
+            buildingManagementNote.Text = "Move a Warehouse to another recorded Town. Its Town border and land records stay where they are; stored stock and active work block the move.";
+            foreach (var town in snapshot.Towns.Where(item => item.Id != building.TownId).OrderBy(item => item.Name, StringComparer.CurrentCulture))
+            {
+                buildingManagementChoice.AddItem(town.Name);
+                buildingManagementChoice.SetItemMetadata(buildingManagementChoice.ItemCount - 1, town.Id);
+            }
+        }
+        else if (building.AllowsHouseholdOwner || building.HouseholdId is not null)
+        {
+            var isHouse = building.Tags?.Contains("house", StringComparer.Ordinal) == true;
+            buildingManagementNote.Text = "Changing a private building's household owner keeps its recorded Town assignment and title. Stock, deliveries and active work block the change.";
+            foreach (var household in snapshot.Stockpiles.Where(item => item.OwnerId != building.HouseholdId)
+                         .OrderBy(item => item.Name, StringComparer.CurrentCulture))
+            {
+                buildingManagementChoice.AddItem(household.Name);
+                buildingManagementChoice.SetItemMetadata(buildingManagementChoice.ItemCount - 1, household.OwnerId);
+            }
+            if (!isHouse && building.HouseholdId is not null)
+            {
+                buildingManagementChoice.AddItem("No household owner");
+                buildingManagementChoice.SetItemMetadata(buildingManagementChoice.ItemCount - 1, string.Empty);
+            }
+        }
+        else
+        {
+            buildingManagementNote.Text = "This building has no household or Town reassignment rule.";
+        }
+
+        var selectedTarget = 0;
+        for (var index = 0; index < buildingManagementChoice.ItemCount; index++)
+            if (previousTarget is not null && buildingManagementChoice.GetItemMetadata(index).AsString() == previousTarget)
+            {
+                selectedTarget = index;
+                break;
+            }
+        if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(selectedTarget);
+        renderedBuildingManagementWorldId = buildingManagementChoice.ItemCount > 0 ? snapshot.WorldId : null;
+        renderedBuildingManagementId = buildingManagementChoice.ItemCount > 0 ? building.InstanceId : null;
+        buildingManagementChoice.Visible = buildingManagementChoice.ItemCount > 0;
+        buildingManagementApply.Visible = buildingManagementChoice.ItemCount > 0;
+        buildingManagementApply.Disabled = buildingManagementChoice.ItemCount == 0;
+        buildingRemoveButton.Visible = true;
+    }
+
+    private async void ApplyBuildingReassignment()
+    {
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
+            buildingManagementChoice.Selected < 0 || !TryGetOwner(out var authority, out var deviceId, out var signer))
+        {
+            SetStatus("Select a building and a new owner first.", good: false);
+            return;
+        }
+
+        var target = buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString();
+        var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
+        var action = new OwnerBuildingReassignmentAction(building.InstanceId, building.TownId, building.HouseholdId,
+            isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target,
+            WorldId: snapshot.WorldId);
+        OwnerBuildingManagementResult? result = null;
+        await RunOwnerActionAsync(async () =>
+        {
+            result = await ownerApi.ReassignBuildingAsync(ResolveWorldUri(), authority, deviceId, action,
+                signer, CancellationToken.None);
+            return result.Applied ? "Building owner changed" : result.Failure ?? "The building could not be reassigned.";
+        });
+        if (result is { } changed)
+            SetStatus(changed.Applied ? "Building owner changed" : changed.Failure ?? "The building could not be reassigned.",
+                good: changed.Applied);
+    }
+
+    private void ConfirmBuildingRemoval()
+    {
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
+            !TryGetOwner(out _, out _, out _)) return;
+        pendingBuildingRemoval = new(building.InstanceId, building.TownId, building.HouseholdId, snapshot.WorldId);
+        pendingBuildingRemovalWorldId = snapshot.WorldId;
+        buildingRemoveConfirmation.DialogText = $"Remove {building.DisplayName ?? "this building"}? Its Town border and existing Roads will remain. The action is saved to the world.";
+        PopupDialog(buildingRemoveConfirmation);
+    }
+
+    private void CancelBuildingRemoval()
+    {
+        pendingBuildingRemoval = null;
+        pendingBuildingRemovalWorldId = null;
+        buildingRemoveConfirmation.Hide();
+    }
+
+    private async void RemoveSelectedBuilding()
+    {
+        var action = pendingBuildingRemoval;
+        var worldId = pendingBuildingRemovalWorldId;
+        CancelBuildingRemoval();
+        if (action is null || buildingCardSnapshot?.WorldId != worldId || selectedBuildingId != action.InstanceId ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer))
+        {
+            SetStatus("Select a building before removing it.", good: false);
+            return;
+        }
+
+        OwnerBuildingManagementResult? result = null;
+        await RunOwnerActionAsync(async () =>
+        {
+            result = await ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
+                action,
+                signer, CancellationToken.None);
+            return result.Applied ? "Building removed" : result.Failure ?? "The building could not be removed.";
+        });
+        if (result is not { } removed) return;
+        SetStatus(removed.Applied ? "Building removed" : removed.Failure ?? "The building could not be removed.",
+            good: removed.Applied);
+        if (removed.Applied && buildingCardSnapshot?.WorldId == worldId && selectedBuildingId == action.InstanceId)
+            ClearBuildingSelection();
     }
 
     private void RenderBuildingFacts(List<(string Key, string Value)> facts)

@@ -258,7 +258,10 @@ public sealed record ViewerPlacedBuilding(
     int? ResidentLimit = null,
     int PermanentResidentCount = 0,
     bool HasDominantFamily = false,
-    bool IsOvercrowded = false);
+    bool IsOvercrowded = false)
+{
+    public bool AllowsHouseholdOwner { get; init; }
+}
 
 public sealed record ViewerProductionJob(
     string JobId,

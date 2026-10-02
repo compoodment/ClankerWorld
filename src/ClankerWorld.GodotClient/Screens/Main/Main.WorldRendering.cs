@@ -164,7 +164,7 @@ public partial class Main
             var assignedTown = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
             var household = snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == building.HouseholdId);
             var stored = building.StoredItems is { Count: > 0 }
-                ? string.Join(" · ", building.StoredItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))
+                ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
             // The terrain layer draws the roof. Buildings show no name on the map;
             // the marker keeps the hover help that names them.
@@ -231,6 +231,11 @@ public partial class Main
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
+                // Facing and frame only present what the observation says:
+                // the tile the host reports and what the agent is doing there.
+                actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
+                    mapWidth, snapshot.WrapsEastWest);
+                actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);

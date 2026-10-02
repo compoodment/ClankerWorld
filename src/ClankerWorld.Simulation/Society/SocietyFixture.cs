@@ -1078,6 +1078,7 @@ public static partial class SocietyFixture
         {
             throw new InvalidDataException("Society and inventory clocks must agree.");
         }
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint.Inventory);
 
         if (checkpoint.LifeClock is { } clock && (clock.Rate is not (1 or 365 or 1_460) ||
             clock.WorldAnchorTick < 0 || clock.WorldAnchorTick > checkpoint.WorldTick || clock.LifeAnchorTick < clock.WorldAnchorTick ||
@@ -1420,16 +1421,36 @@ public static partial class SocietyFixture
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray();
             var lots = current.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).ToArray();
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
-            foreach (var lot in lots)
+            var containerOrdinal = 0;
+            foreach (var lot in lots.Where(lot => lot.ContainerLotId is null))
             {
                 if (beneficiaries.Length == 0)
                 {
-                    nextLots.Add(lot with
+                    var family = InventoryContainerRules.IsContainer(lot.ItemKind)
+                        ? lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id)
+                        : [lot];
+                    nextLots.AddRange(family.Select(member => member with
                     {
                         OwnerId = "settlement:communal",
                         StorageBuildingId = null,
                         DeliveryBuildingId = null,
-                    });
+                    }));
+                    continue;
+                }
+
+                if (InventoryContainerRules.IsContainer(lot.ItemKind))
+                {
+                    // A vessel and its contents are a single physical estate
+                    // family. Keep their IDs and quantities together instead
+                    // of splitting a child lot away from the vessel.
+                    var beneficiary = beneficiaries[containerOrdinal++ % beneficiaries.Length];
+                    nextLots.AddRange(lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id)
+                        .Select(member => member with
+                        {
+                            OwnerId = beneficiary,
+                            StorageBuildingId = null,
+                            DeliveryBuildingId = null,
+                        }));
                     continue;
                 }
 
