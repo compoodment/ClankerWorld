@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Saves and replay
@@ -172,6 +172,19 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
+The Clinic draft raises the private-world schema to 42 above its parent's 41.
+Each living inhabitant may record named adult medical permissions and an
+active medicine course. The course binds its patient and caregiver to the
+actual completed inventory reservation for the consumed dose, including the
+supply lot, owner and start time. Strict validation checks permission, identity
+and progress; it refuses a mismatched or already closed receipt. Completed or
+interrupted courses close that receipt's medical purpose without releasing or
+refunding goods, so renewed permission cannot restore a spent effect. Death
+cleanup preserves completed receipts while releasing live claims. Archived
+physical profiles retain permission history but cannot retain active treatment.
+No schema 41 migration is provided; older alpha saves are refused and preserved.
+The number is provisional until the stacked merge order is reconciled.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -245,18 +258,18 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 41. The minimum supported schema is
-the same value, so older alpha checkpoints are refused with a reason and left
-unchanged; no private-world migration runs. The current schema also includes
+`PrivateWorldRuntime.StateSchemaVersion` 42 in the Clinic draft. The minimum
+supported schema is the same value, so older alpha checkpoints are refused
+with a reason and left unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
 equipment with timed repairs and exact reservations, reusable container lots
 with their contents, locations, owners and reservations, and tool-lot links for
-saved field and recipe work, and physical shop exchanges beside their exact
-inventory offers. These fields
-retain their current validation and roundtrip behavior.
+saved field and recipe work, physical shop exchanges beside their exact
+inventory offers, and medical permission and consumed-dose progress. These
+fields retain their current validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -265,8 +278,10 @@ Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 36 for terrain
 and weather generation, schema 37 for personal equipment, schema 38 for building
 assignments, schema 39 for reusable containers, schema 40 for selected tools on saved field and recipe
-work, and schema 41 for physical shop exchanges, record when those fields or behaviors were introduced; they do not allow
-an earlier checkpoint schema past the current alpha cutoff.
+work, schema 41 for physical shop exchanges, and schema 42 for medical permission
+and consumed-dose progress, record when those fields or behaviors were
+introduced; they do not allow an earlier checkpoint schema past the current
+alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -293,6 +308,8 @@ an earlier checkpoint schema past the current alpha cutoff.
 | Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
 | Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
 | Schema 40 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; completion wears the tool only when the work commits. Older checkpoints cannot contain these links. |
+| Schema 41 | Physical shop exchanges bind exact inventory barter offers to the business, household, customer and transaction location. Pending exchanges and Store deliveries retain their stock and access checks through reload. |
+| Schema 42, provisional Clinic draft | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

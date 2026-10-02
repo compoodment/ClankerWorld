@@ -329,10 +329,18 @@ public sealed class MedicalTreatmentConsentTests
         Assert.EndsWith(":closed", world.Society.Inventory.GetReservation(dose).Purpose, StringComparison.Ordinal);
         var dead = Assert.Single(world.ExportState().DeceasedInhabitants!, person => person.InhabitantId == caregiver);
         Assert.Null(dead.LastPhysical.MedicalTreatment);
+        var revocation = new MedicalChoiceProvider("medical_revoke:" + caregiver);
         using var revoking = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())),
-            patient, new MedicalChoiceProvider("medical_revoke:" + caregiver));
-        Assert.True((await revoking.AdvanceOneTickAsync()).Advanced);
+            patient, revocation);
+        // Reloading with another provider preserves the ordinary idle intention and its 300-tick decision interval.
+        for (var tick = 0; tick < 301 && Physical(revoking, patient).MedicalConsent is not null; tick++)
+            Assert.True((await revoking.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(revocation.Offered, candidate => candidate.Id == "medical_revoke:" + caregiver);
+        Assert.Single(revoking.ExportState().Events, item => item.Kind == "medical_care_revoked");
         Assert.Null(Physical(revoking, patient).MedicalConsent);
+        Assert.Equal(world.Society.Inventory.GetReservation(dose), revoking.Society.Inventory.GetReservation(dose));
+        Assert.DoesNotContain(revoking.Society.Inventory.Lots, lot => lot.Id == "medical-test-dose");
+        Assert.NotEmpty(PrivateWorldRuntimeCodec.Encode(revoking.ExportState()));
         revoking.Validate();
 
         var archivedTreatment = world.ExportState() with

@@ -523,6 +523,11 @@ public sealed partial class PrivateWorldRuntime
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
             return;
         }
+        if (candidateId.StartsWith(ReturnEmptyVesselPrefix, StringComparison.Ordinal))
+        {
+            ReturnEmptyVessel(inhabitantId, state, candidateId[ReturnEmptyVesselPrefix.Length..]);
+            return;
+        }
         if (candidateId == "collect_water_jug")
         {
             CollectWaterJug(inhabitantId, state);

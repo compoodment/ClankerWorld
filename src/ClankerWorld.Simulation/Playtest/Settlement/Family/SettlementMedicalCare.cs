@@ -208,9 +208,11 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(MedicalCollectPrefix + "medicine", "Visit accessible care stock and collect one real dose of medicine.",
                 8, shared.StorageBuildingId));
         var existing = inhabitants[actor].MedicalConsent?.CaregiverIds ?? [];
-        if (existing.Count(LivingMedicalAdult) >= MedicalCareRules.MaximumNamedCaregivers) return;
+        var remainingPermissions = MedicalCareRules.MaximumNamedCaregivers - existing.Count(LivingMedicalAdult);
+        if (remainingPermissions <= 0) return;
         foreach (var other in inhabitants.Keys.Order(StringComparer.Ordinal).Where(other => other != actor &&
-            LivingMedicalAdult(other) && CanObserveMedicalPatient(actor, other) && !existing.Contains(other, StringComparer.Ordinal)))
+            LivingMedicalAdult(other) && CanObserveMedicalPatient(actor, other) && !existing.Contains(other, StringComparer.Ordinal))
+            .Take(remainingPermissions))
             candidates.Add(new(MedicalAllowPrefix + other,
                 $"Allow {society.Checkpoint.GetInhabitant(other).Name} to provide medical care to you. Your personal choice is required.",
                 110, other, society.Checkpoint.GetInhabitant(other).Name));

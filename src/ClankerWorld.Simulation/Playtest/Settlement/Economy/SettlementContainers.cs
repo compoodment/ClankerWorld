@@ -92,6 +92,7 @@ public sealed partial class PrivateWorldRuntime
             }
         }
 
+        AddEmptyVesselReturnCandidate(candidates, actor, person);
         AddFoodPotCandidates(candidates, actor, person, householdId, house);
     }
 

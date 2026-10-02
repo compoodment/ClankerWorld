@@ -241,6 +241,7 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId?.StartsWith("return_empty_vessel:", StringComparison.Ordinal) == true) return "bringing an empty vessel home";
         if (candidateId?.StartsWith("medical_allow:", StringComparison.Ordinal) == true) return "allowing medical care";
         if (candidateId?.StartsWith("medical_revoke:", StringComparison.Ordinal) == true) return "withdrawing medical permission";
         if (candidateId?.StartsWith("medical_collect:", StringComparison.Ordinal) == true) return "collecting medicine";
@@ -275,6 +276,7 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
         if (normalized.StartsWith("guardian_offer:", StringComparison.Ordinal)) return "offer to look after someone";

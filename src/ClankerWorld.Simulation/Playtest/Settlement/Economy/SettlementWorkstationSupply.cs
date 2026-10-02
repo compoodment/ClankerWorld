@@ -92,13 +92,12 @@ public sealed partial class PrivateWorldRuntime
     private int WorkstationPickupQuantity(string actor, InventoryCheckpoint inventory, InventoryLot stock,
         string destinationId, int missing)
     {
-        var capacity = Math.Min(HouseHaulLoadQuantity, Math.Min(FreeCarryCapacity(actor),
-            WorkstationDeliveryRoom(inventory, destinationId)));
+        var capacity = Math.Min(FreeCarryCapacity(actor), WorkstationDeliveryRoom(inventory, destinationId));
         if (capacity <= 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
             ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity ? 1 : 0
-            : Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock)));
+            : Math.Min(HouseHaulLoadQuantity, Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock))));
     }
 
     private InventoryLot? SpareHouseholdStock(string actor, string householdId, string itemKind,
