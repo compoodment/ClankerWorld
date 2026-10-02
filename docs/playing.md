@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Playing the current game
@@ -71,7 +71,7 @@ Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
 an agent's Model panel. This sends one real request and counts toward the
-installation's paid-call limit, even if the provider times out or rejects it.
+model-call limit, even if the provider times out or rejects it.
 A key pasted for this check is not saved. The result tells you whether the
 provider returned a reply the game can use; it does not show provider error
 details.
@@ -112,10 +112,24 @@ thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
 
-**Suggest** opens a **Suggestion** and **Order** opens a **Direct order**. Their
-model does not read your words yet. A direct order works only when it asks them to gather
-or harvest food, eat, or go somewhere, and "go" currently means walking toward
-food. [What works today](what-works.md#agents-and-their-models) has the details.
+**Suggest** shares an idea with the agent's own planning model. **Order** gives
+it a task. A new suggestion or recognized order asks for one fresh planning
+decision; any short reply comes in that same response. Following an order does
+not add a model request for every step or tick.
+
+Food orders can eat carried food, collect accessible household food to eat,
+travel to a food source, or gather berries, fruit or wild greens. Use simple
+phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
+berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
+waits until the agent is hungry enough, and gathering needs enough carrying
+space. A recognized new order replaces the current one unless you turn on
+**Queue**. Use **Cancel task** to stop a waiting or active order.
+
+An instruction the game cannot understand leaves the current order running.
+Unsupported requests, such as "build a house" or "gather wood," close as not
+understood and appear in the Event Log. Recognized orders follow normal access
+and survival rules. [What works today](what-works.md#agents-and-their-models)
+has the details.
 
 Click a building to outline it and open a small card beside it: who owns it,
 what is being made there or who is inside, and what it stores, shown as item
@@ -169,12 +183,12 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
-Game Settings controls the window, theme, weather effects and date/time format.
+Game Settings controls the window, theme, weather effects, date/time format
+and the model-call limit.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-Jev and the current model-usage controls. Main Menu Settings exposes Game
-Settings only.
+Jev and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
@@ -194,10 +208,14 @@ planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
 
-The optional model-call limit counts hosted call attempts across this
-installation, including failed, retried or abandoned attempts. It is not a
-currency budget or provider invoice. Reaching it pauses time. Add allowance or
-remove the cap in World Settings, then resume separately.
+**Settings → Game → Model calls** shows how many model calls this installation
+has made and sets an optional limit. One count and limit cover all your worlds.
+Every call attempt counts, including failed, retried or abandoned ones; tokens
+reported by providers are shown for information only. The count never resets
+by itself, and loading an older save does not lower it. It is not a currency
+budget or provider invoice. When the count reaches 80% of the limit, the Event
+Log warns you once. Reaching the limit pauses time: raise or remove the limit,
+or choose **Allow 100 more calls**, then resume separately.
 
 ## Save and return
 

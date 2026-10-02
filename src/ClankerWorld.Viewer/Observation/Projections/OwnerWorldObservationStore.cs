@@ -442,7 +442,12 @@ public sealed class OwnerWorldObservationStore
                     instruction.RunEpoch,
                     instruction.SubmissionSequence,
                     instruction.ObservedTick,
-                    instruction.ObserverReply))
+                    instruction.ObserverReply,
+                    instruction.Order is { } order ? new ViewerInstructionOrder(
+                        order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
+                        order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
+                        order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
+                        order.BlockedReason) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages

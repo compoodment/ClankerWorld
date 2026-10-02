@@ -42,6 +42,7 @@ public sealed partial class PrivateWorldRuntime
         {
             PrivateWorldRuntimeState baseline;
             long baselineEventId;
+            int baselineOrderCancellationCount;
             IReadOnlyDictionary<string, PlaytestPlannedRoute> routesBefore;
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
@@ -62,7 +63,7 @@ public sealed partial class PrivateWorldRuntime
                     {
                         if (!society.Checkpoint.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active) ||
                             society.CurrentProviderEpoch(id) != pending.Request.ProviderEpoch ||
-                            society.Checkpoint.RunEpoch != pending.Request.Observation.RunEpoch)
+                            !IsOrderDecisionObservationCurrent(pending.Request.Observation))
                         {
                             CancelPendingHosted(id);
                         }
@@ -104,6 +105,7 @@ public sealed partial class PrivateWorldRuntime
                     .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
+                baselineOrderCancellationCount = orderCancellations.Count;
                 routesBefore = plannedRoutes;
             }
             finally
@@ -135,7 +137,8 @@ public sealed partial class PrivateWorldRuntime
                 {
                     return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
                 }
-                if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick ||
+                    historyArchiveHead != baseline.HistoryArchiveHead || orderCancellations.Count != baselineOrderCancellationCount)
                 {
                     return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
@@ -163,7 +166,8 @@ public sealed partial class PrivateWorldRuntime
                     cancellationToken.ThrowIfCancellationRequested();
                     if (commitPermitted is not null && !commitPermitted())
                         return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
-                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                    if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick ||
+                        historyArchiveHead != baseline.HistoryArchiveHead || orderCancellations.Count != baselineOrderCancellationCount)
                         return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
                 }
                 // A provider assignment can change without advancing a world
@@ -261,11 +265,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void CancelPendingHosted(string inhabitantId)
+    private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
         RecordModelAttempt(inhabitantId, "canceled");
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
 
@@ -307,6 +311,7 @@ public sealed partial class PrivateWorldRuntime
         knowledge = proposed.knowledge;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
+        orderCancellations = proposed.orderCancellations;
         completedInstructionIds = proposed.completedInstructionIds;
         events = proposed.events;
         nextEventId = proposed.nextEventId;
@@ -522,8 +527,13 @@ public sealed partial class PrivateWorldRuntime
                     var id = item.Request.Observation.InhabitantId;
                     if (!inhabitants.TryGetValue(id, out var physical)) continue;
                     var outcome = await item.Task.ConfigureAwait(false);
-                    var legal = CreateCandidates(id, physical).Select(candidate => candidate.Id)
-                        .ToHashSet(StringComparer.Ordinal);
+                    var request = item.Request;
+                    var completedRequestedOrder = IsFinishedOrderDecisionAwaitingReply(request.Observation);
+                    var legal = completedRequestedOrder
+                        ? request.Observation.Candidates.Select(candidate => candidate.Id)
+                            .ToHashSet(StringComparer.Ordinal)
+                        : CreateCandidates(id, physical).Select(candidate => candidate.Id)
+                            .ToHashSet(StringComparer.Ordinal);
                     var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
                         outcome.Failure, legal);
                     if (decision is not null)
@@ -568,8 +578,9 @@ public sealed partial class PrivateWorldRuntime
                 ApplyDecision(decision);
             }
             var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
-            ApplyContinuingIntentions(decisions.Select(item => item.InhabitantId).Concat(waiting));
-            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
+            var orderActorsHandledThisTick = ApplyContinuingIntentions(
+                decisions.Select(item => item.InhabitantId), waiting);
+            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
