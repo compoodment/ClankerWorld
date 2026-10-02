@@ -36,7 +36,6 @@ public partial class Main
     };
     private readonly VBoxContainer townsPage = new();
     private readonly VBoxContainer townList = new();
-    private readonly Label townBorderHint = new();
     private string? renderedTownList;
     private string? eventsWorldId;
     private long lastSeenEventId = long.MinValue;
@@ -387,14 +386,7 @@ public partial class Main
         townsPage.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         townsPage.MinimumSizeChanged += QueueHudListsFit;
         townsPage.AddChild(townList);
-        townBorderHint.ThemeTypeVariation = "DimLabel";
-        townsPage.AddChild(townBorderHint);
-        ConfigureTextPanel(worldDetails, 240);
-        townsPage.AddChild(worldDetails);
-        townsScroll.AddChild(townsPage);
-        body.AddChild(townsScroll);
-        ConfigureTextPanel(worldInfoText, 300);
-        body.AddChild(worldInfoText);
+        BuildWorldInfoPages(body);
         AddClosablePanelContents(worldInfoPanel, "World Info", body);
         worldInfoPanel.CustomMinimumSize = new Vector2(420, 0);
         worldInfoPanel.ZIndex = 80;
@@ -408,7 +400,7 @@ public partial class Main
     private void ShowWorldInfoPage(bool towns)
     {
         townsScroll.Visible = towns;
-        worldInfoText.Visible = !towns;
+        worldStatsPage.Visible = !towns;
         worldInfoTownsTab.SetPressedNoSignal(towns);
         worldInfoWorldTab.SetPressedNoSignal(!towns);
         worldInfoPanel.ResetSize();
@@ -433,12 +425,8 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{TownCivicText(town, snapshot.WorldTick)}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}")) +
             "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
-        townBorderHint.Visible = snapshot.Towns.Count > 0;
-        townBorderHint.Text = townBorderFilter.ButtonPressed
-            ? "Town borders show as a dashed line on the map."
-            : "Town borders are hidden. Turn them on in Filters.";
         if (renderedTownList == signature) return;
         renderedTownList = signature;
         foreach (var child in townList.GetChildren())
@@ -479,6 +467,7 @@ public partial class Main
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
+            text.AddChild(ResidentPortraits(snapshot, town));
             if (town.Governance is not null)
                 text.AddChild(new Label
                 {
@@ -491,8 +480,9 @@ public partial class Main
             {
                 Text = "Show",
                 TooltipText = $"Move the map to {town.Name}.",
-                Icon = PixelIcons.Themed(PixelGlyph.Map, UiTheme.Current.Primary, 2),
+                Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                 Disabled = town.BorderTiles.Count == 0,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
             };
             StyleButton(show);
             var townId = town.Id;

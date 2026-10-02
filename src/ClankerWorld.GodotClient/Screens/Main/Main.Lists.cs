@@ -256,8 +256,13 @@ public partial class Main
         rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rosterWantedHeight, ListRoom(rosterPanel, rosterCards)));
         eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
         if (townsScroll.Visible)
-            townsScroll.CustomMinimumSize = new Vector2(0,
-                Math.Min(townsPage.GetCombinedMinimumSize().Y, ListRoom(worldInfoPanel, townsScroll)));
+        {
+            var townsWanted = townsPage.GetCombinedMinimumSize().Y;
+            var townsRoom = ListRoom(worldInfoPanel, townsScroll);
+            // Keep the Show buttons and details clear of the scrollbar, as in Settings.
+            townsGap.AddThemeConstantOverride("margin_right", townsWanted > townsRoom ? SettingsScrollGap : 0);
+            townsScroll.CustomMinimumSize = new Vector2(0, Math.Min(townsWanted, townsRoom));
+        }
         rosterPanel.ResetSize();
         eventsPanel.ResetSize();
         worldInfoPanel.ResetSize();
