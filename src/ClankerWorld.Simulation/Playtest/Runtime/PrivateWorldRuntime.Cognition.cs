@@ -24,6 +24,11 @@ public sealed partial class PrivateWorldRuntime
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         var waitingHosted = society.PendingHostedInhabitantIds();
+        var waitingOrderDecisions = cognitionState.Queue
+            .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
+                entry.Observation.OperativeOrderInstructionId is not null)
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
@@ -37,7 +42,7 @@ public sealed partial class PrivateWorldRuntime
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
             var operativeOrder = PendingInstructionFor(inhabitant.Id);
-            if (waitingHosted.Contains(inhabitant.Id) && !HasNewObserverGuidanceFor(inhabitant.Id))
+            if (waitingOrderDecisions.Contains(inhabitant.Id) && !HasNewObserverGuidanceFor(inhabitant.Id))
                 continue;
             if (HasWaitingIdentityMoment(physical) && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !IsConversationBusy(inhabitant.Id))
