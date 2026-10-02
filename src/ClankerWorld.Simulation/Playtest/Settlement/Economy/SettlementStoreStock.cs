@@ -22,7 +22,9 @@ public sealed partial class PrivateWorldRuntime
         var protectedToolIds = BestUsableToolIds(inventory, actor);
         foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) &&
                      BusinessRules.MaySell("store", lot.ItemKind) && lot.StorageBuildingId != store.InstanceId &&
-                     (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == householdId &&
+                     // Own carried goods, or household stock nobody is carrying.
+                     (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
+                      lot.OwnerId == householdId && lot.CarrierId is null &&
                          (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                              building.InstanceId == lot.StorageBuildingId && building.HouseholdId == householdId))) &&
                      !protectedToolIds.Contains(lot.Id) &&
