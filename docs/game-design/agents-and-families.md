@@ -87,7 +87,13 @@ everything that is available in the current build. See [what works today](../wha
   may pair. Only biological parentage counts, not a shared household or
   caregiving.
 - Agents can become a couple and then marry, but **a couple may have a baby
-  without marrying first**. Marriage is not a birth requirement. When agents
+  without marrying first**. Marriage is not a birth requirement. **Agreed with
+  computment on October 2:** to marry, one partner proposes face to face in an
+  ordinary conversation, and the other accepts or declines with their own
+  model. An accepted proposal is saved as a marriage, and the surname
+  conversation below follows; the couple does not register with the Town
+  Council. Building this is tracked in
+  [#784](https://github.com/compoodment/ClankerWorld/issues/784). When agents
   marry, both partners must share one of their existing surnames, chosen by them
   in a dedicated conversation. That
   conversation is initiated even if they are far apart in the world: a narrow
