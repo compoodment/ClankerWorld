@@ -38,7 +38,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care")))
+                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care" or "knowledge")))
                 .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {

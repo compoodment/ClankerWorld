@@ -358,8 +358,12 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null || recipe.Outputs.Any(output =>
+    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => recipe.Outputs.Any(output =>
     {
+        if (output.ResourceId == KnowledgeContent.Paper)
+            return NeedsKnowledgePaper(ownerId);
+        if (survivalState is null)
+            return true;
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
                 (ownerId is null || lot.OwnerId == ownerId))
             .Sum(AvailableLotQuantity);
