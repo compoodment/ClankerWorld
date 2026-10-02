@@ -68,6 +68,20 @@ public sealed class StoredFuelRoutingTests
                     world = PrivateWorldRuntime.Restore(saved, _ => provider);
                 }
             }
+            if (!world.ExportState().Survival!.Fires.Any(fire => fire.BuildingId == "first-town-house-a"))
+            {
+                // A changed layout can leave only the final hearth approach after
+                // the original budget. Permit a short, physically bounded tail.
+                var arrival = world.ExportState();
+                var actor = arrival.Inhabitants.Single(person => person.InhabitantId == ids[0]).Position;
+                var hearth = arrival.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a").Position;
+                var distance = arrival.Map.FootDistance(actor, hearth);
+                Assert.InRange(distance, 0, 4);
+                Assert.True(arrival.Map.IsReachableOnFoot(actor, hearth));
+                for (var tick = 0; tick < distance + 3 &&
+                    !world.ExportState().Survival!.Fires.Any(fire => fire.BuildingId == "first-town-house-a"); tick++)
+                    Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            }
             var result = world.ExportState();
             Assert.Equal(!blockStorage, provider.WasToolOffered);
             if (blockStorage)

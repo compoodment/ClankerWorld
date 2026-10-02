@@ -246,28 +246,9 @@ public sealed partial class PrivateWorldRuntimeTests
         IDecisionProvider? provider = null,
         int? hungerBasisPoints = null)
     {
-        var options = new GeographyOptions("audit-food-route-13", WorldSizePreset.Small);
-        var world = new PrivateWorldRuntime(options.Seed,
-            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true),
-            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
-        var map = world.ExportState().Map;
-        var anchor = map.Resources.Single(item => item.Id == "berry-patch").Position;
-        world.InitializeFirstTownContent();
-        world.AcceptFirstTownLayout(anchor);
-        var buildingTiles = world.WorldSimulation.Buildings.SelectMany(building =>
-            WorldContentSimulationRules.Footprint(
-                world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId),
-                building.Position)).ToHashSet();
-        var startingTiles = map.Tiles.Where(tile =>
-                Math.Abs(tile.Position.X - anchor.X) <= 5 && Math.Abs(tile.Position.Y - anchor.Y) <= 5 &&
-                map.IsBuildable(tile.Position) && !buildingTiles.Contains(tile.Position) &&
-                !map.Resources.Any(item => item.Position == tile.Position))
-            .Take(4).Select(tile => tile.Position).ToArray();
-        Assert.Equal(4, startingTiles.Length);
-        for (var index = 0; index < startingTiles.Length; index++)
-            world.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), startingTiles[index]);
-        world.StartWorld();
-        world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : new GridPoint(126, 66));
+        var world = NormalPathWorld.CreateGenerated("audit-food-route-13",
+            _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+        world.AddAgent(HarvestInstructionActor, orchard ? OrchardStand(world) : BerryStand(world));
         var state = world.ExportState();
         var actorPosition = state.Inhabitants.Single(item => item.InhabitantId == HarvestInstructionActor).Position;
         var target = orchard
@@ -310,6 +291,16 @@ public sealed partial class PrivateWorldRuntimeTests
         world.Dispose();
         return PrivateWorldRuntime.Restore(state,
             _ => provider ?? new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
+    }
+
+    private static GridPoint BerryStand(PrivateWorldRuntime world)
+    {
+        var map = world.ExportState().Map;
+        var occupied = world.Inhabitants.Select(person => person.Position).ToHashSet();
+        var berry = map.Resources.Single(item => item.Id == "berry-patch");
+        return map.FootNeighbors(berry.Position).First(point => map.IsBuildable(point) &&
+            !occupied.Contains(point) && map.Resources.All(item => item.Position != point) &&
+            map.CampObjects.All(item => item.Position != point));
     }
 
     // An empty tile beside an orchard tree with no other food within reach,

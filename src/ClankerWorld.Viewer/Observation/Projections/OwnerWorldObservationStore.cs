@@ -832,6 +832,7 @@ public sealed class OwnerWorldObservationStore
                     { ConditionBasisPoints: > 0 },
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Equipment = EquipmentFor(state, physical),
+            MedicalCareNote = inhabitant.Status == SocietyInhabitantStatus.Active ? MedicalCareRules.Note(physical) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,

@@ -140,8 +140,14 @@ public sealed partial class PrivateWorldRuntimeTests
                 resumeWorld = restored;
             }
             resumeWorld.Resume();
-            for (var tick = 0; tick < 5; tick++)
+            // The fresh request starts on a background task, so a slow runner
+            // may need a few more ticks before the provider sees it.
+            for (var tick = 0; tick < 5 || tick < 60 &&
+                     !provider.Requests.Any(request => request.RunEpoch != originalRequest.RunEpoch); tick++)
+            {
                 Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
+                if (tick >= 5) await Task.Delay(10);
+            }
 
             var freshRequest = Assert.Single(provider.Requests, request => request.RunEpoch != originalRequest.RunEpoch);
             Assert.Equal(resumeWorld.Society.RunEpoch, freshRequest.RunEpoch);

@@ -164,6 +164,7 @@ public sealed record ViewerInhabitant(
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
     public ViewerEquipment? Equipment { get; init; }
+    public string? MedicalCareNote { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];

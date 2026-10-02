@@ -885,7 +885,7 @@ public partial class Main
                 var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
                 if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains("15.0% forest and 10.0% mountains", StringComparison.Ordinal) ||
+                    !worldPreviewStatus.Text.Contains($"{15d:F1}% forest and {10d:F1}% mountains", StringComparison.Ordinal) ||
                     worldAcceptUnmetTargets.Visible)
                     throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
                 InvalidateWorldPreview(refresh: false);
@@ -1417,6 +1417,7 @@ public partial class Main
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
+            VerifyModelSettingsLayout();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
@@ -1560,8 +1561,10 @@ public partial class Main
                 throw new InvalidOperationException("Started worlds must offer Add Agent instead of founder setup controls.");
             Render(sample, []);
             RenderModLibrary(sample);
-            if (!modLibraryContents.Text.Contains("proposed by builder-test", StringComparison.Ordinal))
-                throw new InvalidOperationException("Mod Library must show existing agent proposal provenance.");
+            if (!ModLibraryText().Contains("Proposed by an agent", StringComparison.Ordinal) ||
+                ModLibraryText().Contains("builder-test", StringComparison.Ordinal))
+                throw new InvalidOperationException("Mod Library must show who proposed an add-on without raw ids.");
+            VerifyModsDialogsAndStatus(sample);
             RenderMap(sample);
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!terrainLayer.DrawsGroundTextures)
@@ -1697,16 +1700,16 @@ public partial class Main
                 UpdateTileHover(pointer);
             }
             HoverPlacementTile(2, 2);
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Founder's household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership: " + founderSetupHint.Text);
             HoverPlacementTile(0, 0);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
             HoverPlacementTile(3, 3);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
             HoverPlacementTile(3, 0);
-            if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would start their own household, outside any Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
 
             PreviewAddAgentPlacement(ownedMap with { Resources = [] }, new Vector2I(1, 1));
@@ -1719,7 +1722,7 @@ public partial class Main
                 HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
                     new("right:empty", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
             }, new Vector2I(0, 0));
-            if (!founderSetupHint.Text.Contains("Household: Other household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Other household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
             PreviewAddAgentPlacement(ownedMap with
             {
@@ -1735,7 +1738,7 @@ public partial class Main
                     [new(2, 2)], 0, "starter_allocation", null)],
                 HouseholdLandUseRequests = [],
             }, new Vector2I(2, 2));
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Founder's household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A building's owner must come before another household's use right; preview was '{founderSetupHint.Text}'.");
 
             var overlappingProperties = ownedMap with
@@ -1773,7 +1776,7 @@ public partial class Main
             founderModelPicker.Choice.GetPopup().Hide();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             HoverPlacementTile(0, 0);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
@@ -2452,7 +2455,7 @@ public partial class Main
                 !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
                 !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
                 renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
-                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                privateThoughtHistory.Text.Contains("I will look there.", StringComparison.Ordinal) ||
                 instructionText.MaxLength != 512)
                 throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
             // The server keeps closed messages that no personal model heard, such as orders the game
@@ -2604,7 +2607,7 @@ public partial class Main
                 throw new InvalidOperationException("Clearing the selection must close both the quick card and the Profile.");
             selectedInhabitantId = founder.Id;
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
-            if (inhabitantSocialDetails.GetParsedText().Length == 0 || privateThoughtHistory.GetParsedText().Length == 0)
+            if (ProfilePeopleText().Length == 0 || privateThoughtHistory.Text.Length == 0)
                 throw new InvalidOperationException("Reselecting an unchanged agent must restore their social details and private thoughts.");
             RenderSelectedInhabitantCard(occupied with
             {
@@ -2620,15 +2623,15 @@ public partial class Main
                 Stockpiles = [new("household:one", "Founder's household", [])],
             });
             if (quickWarmthMeter.Visible || profileWarmthMeter.Visible || selectedActorConditionLabel.Text.Contains('%') ||
-                !inhabitantSocialDetails.Text.Contains("Member of Founder's household", StringComparison.Ordinal) ||
-                inhabitantSocialDetails.Text.Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
+                !ProfilePeopleText().Contains("Member of Founder's household", StringComparison.Ordinal) ||
+                ProfilePeopleText().Contains("household:one", StringComparison.OrdinalIgnoreCase) ||
                 inhabitantDetails.Text.Contains("Unassigned", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Building skill · taught by Mira", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Crafting skill · learned by doing", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Learning Farming with Mira", StringComparison.Ordinal) ||
                 inhabitantDetails.Text.Contains("teacher-id", StringComparison.Ordinal) ||
                 !quickCardActivityLabel.Text.Contains("Keeping a safe routine", StringComparison.Ordinal))
-                throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {inhabitantSocialDetails.Text}");
+                throw new InvalidOperationException($"The agent cards must read naturally, name households and omit unavailable condition or unassigned-role placeholders: {quickCardActivityLabel.Text} / {ProfilePeopleText()}");
             RenderSelectedInhabitantCard(occupied with { WorldTick = 1 });
             if (!quickWarmthMeter.Visible || !profileWarmthMeter.Visible)
                 throw new InvalidOperationException("Reported agent condition must be shown again.");
@@ -3396,10 +3399,10 @@ public partial class Main
                 throw new InvalidOperationException("Deceased profiles must retain their saved private thoughts without generating new ones.");
             memoriesButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!memoriesPanel.Visible ||
-                !memoryHistory.Text.Contains("I hid the garden tools", StringComparison.Ordinal) ||
-                !memoryHistory.Text.Contains("Field map", StringComparison.Ordinal) ||
-                !memoryHistory.Text.Contains("Forest at (7, 9)", StringComparison.Ordinal) ||
-                inhabitantSocialDetails.Text.Contains("I hid the garden tools", StringComparison.Ordinal))
+                !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
+                ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
             memoriesPanel.Hide();
             cameraZoom = 4;
@@ -3503,8 +3506,8 @@ public partial class Main
                 var scrollRect = familyTreeScroll.GetGlobalRect();
                 if (familyTreeScroll.Size.Y < familyTreeView.GetCombinedMinimumSize().Y ||
                     !GetViewportRect().Encloses(panelRect) || !panelRect.Encloses(scrollRect) ||
-                    !panelRect.Encloses(familyTreeStatus.GetGlobalRect()))
-                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and help text at {size}: panel={panelRect}, scroll={scrollRect}, help={familyTreeStatus.GetGlobalRect()}.");
+                    !familyLegend.Visible || !panelRect.Encloses(familyLegend.GetGlobalRect()))
+                    throw new InvalidOperationException($"Reopened short Family Tree must fit its content and key at {size}: panel={panelRect}, scroll={scrollRect}, key={familyLegend.GetGlobalRect()}.");
                 if (familyTreeScroll.GetVScrollBar().MaxValue > familyTreeScroll.GetVScrollBar().Page)
                     throw new InvalidOperationException("A fitting short tree must not retain the long tree's vertical scroll range.");
             }
@@ -3520,6 +3523,7 @@ public partial class Main
             if (familyTreeView.VisiblePersonIds.Count != 1 || familyTreeView.ParentEdgeCount != 0)
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
+            await VerifyAgentPanelsAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (eventsPanel.Visible)
@@ -3616,7 +3620,7 @@ public partial class Main
             // and a long one wraps at a readable width instead of stretching.
             var shortDialog = FitDialog(quitGameConfirmation);
             var dialogMargins = quitGameConfirmation.GetThemeStylebox("panel").GetMinimumSize();
-            deletionConfirmation.DialogText = "Permanently delete ‘A world with quite a long name’ and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
+            deletionConfirmation.DialogText = "Permanently delete \"A world with quite a long name\" and all of its manual saves and autosaves? Your other worlds and account settings stay unchanged. There is no undo.";
             var longDialog = FitDialog(deletionConfirmation);
             if (shortDialog.Y >= 120 || quitGameConfirmation.GetLabel().GetLineCount() != 1 ||
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||

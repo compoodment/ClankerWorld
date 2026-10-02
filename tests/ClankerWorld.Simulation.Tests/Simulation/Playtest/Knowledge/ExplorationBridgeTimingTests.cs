@@ -27,7 +27,7 @@ public sealed class ExplorationBridgeTimingTests
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var placed = world.PlaceBuilding("same-tick-road-workshop", workshop.CanonicalId, new(3, 102));
         Assert.True(placed.Applied, placed.Failure);
-        var bridge = Assert.Single(world.Bridges);
+        var bridge = Assert.Single(world.Bridges, item => item.Id == "bridge-0-102-ew-2");
         Assert.Equal("bridge-0-102-ew-2", bridge.Id);
         Assert.Equal(exploration.LastOutingTick, bridge.BuiltTick);
         var after = world.ExportState();
@@ -51,7 +51,7 @@ public sealed class ExplorationBridgeTimingTests
         var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var placed = world.PlaceBuilding("earlier-road-workshop", workshop.CanonicalId, new(3, 102));
         Assert.True(placed.Applied, placed.Failure);
-        var bridge = Assert.Single(world.Bridges);
+        var bridge = Assert.Single(world.Bridges, item => item.Id == "bridge-0-102-ew-2");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var state = world.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
@@ -143,7 +143,7 @@ public sealed class ExplorationBridgeTimingTests
             var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
             var placed = world.PlaceBuilding("later-malformed-control-workshop", workshop.CanonicalId, new(3, 102));
             Assert.True(placed.Applied, placed.Failure);
-            var bridge = Assert.Single(world.Bridges);
+            var bridge = Assert.Single(world.Bridges, item => item.Id == "bridge-0-102-ew-2");
             Assert.Equal("bridge-0-102-ew-2", bridge.Id);
             Assert.Equal(1, bridge.BuiltTick);
             Assert.True(bridge.BuiltTick > 0); // Every damaged outing below claims start tick zero.

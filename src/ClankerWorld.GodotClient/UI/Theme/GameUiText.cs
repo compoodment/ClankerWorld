@@ -230,6 +230,9 @@ public static class GameUiText
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
             "continuity_rule_on" or "continuity_rule_off" or
+            "medical_care_allowed" or "medical_care_revoked" or
+            "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
+            "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
@@ -294,26 +297,14 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId?.StartsWith("return_empty_vessel:", StringComparison.Ordinal) == true) return "bringing an empty vessel home";
+        if (candidateId?.StartsWith("medical_allow:", StringComparison.Ordinal) == true) return "allowing medical care";
+        if (candidateId?.StartsWith("medical_revoke:", StringComparison.Ordinal) == true) return "withdrawing medical permission";
+        if (candidateId?.StartsWith("medical_collect:", StringComparison.Ordinal) == true) return "collecting medicine";
+        if (candidateId?.StartsWith("medical_treat:", StringComparison.Ordinal) == true) return "giving medicine";
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
-    }
-
-    /// <summary>Describes one relationship in plain words for the agent card.</summary>
-    public static string RelationshipSummary(string type, string state, string otherName, string? direction = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        var summary = type switch
-        {
-            "household_membership" => $"Member of {otherName}",
-            "biological_parentage" when direction == "parent" => $"Parent of {otherName}",
-            "biological_parentage" when direction == "child" => $"Child of {otherName}",
-            "partnership" => $"Partnership with {otherName}",
-            _ => $"{char.ToUpperInvariant(type[0])}{type[1..].Replace('_', ' ')} with {otherName}",
-        };
-        return string.Equals(state, "accepted", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(state)
-            ? summary
-            : $"{summary} · {state.Replace('_', ' ')}";
     }
 
     public static string HumanizeIdentifier(string value)
@@ -324,6 +315,7 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
         if (normalized.StartsWith("guardian_offer:", StringComparison.Ordinal)) return "offer to look after someone";

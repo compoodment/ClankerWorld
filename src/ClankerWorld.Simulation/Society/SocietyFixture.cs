@@ -1535,7 +1535,9 @@ public static partial class SocietyFixture
                 ? lot with { OwnerId = estateId, CarrierId = null, StorageBuildingId = null, DeliveryBuildingId = null }
                 : lot)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
-        var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId
+        var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId &&
+                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
+                    InventoryReservationState.Committed
                 ? reservation with { State = InventoryReservationState.Released }
                 : reservation)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
