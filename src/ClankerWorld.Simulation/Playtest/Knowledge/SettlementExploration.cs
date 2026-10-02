@@ -140,7 +140,6 @@ public sealed partial class PrivateWorldRuntime
     {
         if (exploration.OutingPath.Count == 1 && person.Position == exploration.OutingPath[0])
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = person with
             {
                 Exploration = exploration with
@@ -168,7 +167,6 @@ public sealed partial class PrivateWorldRuntime
             };
         else if (moved.MoveWaitTicks >= 30)
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = moved with
             {
                 Exploration = exploration with
