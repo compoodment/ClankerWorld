@@ -122,11 +122,9 @@ public partial class Main : Control
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
-    private readonly RichTextLabel inhabitantSocialDetails = new();
-    private readonly RichTextLabel privateThoughtHistory = new();
+    private readonly Label privateThoughtHistory = new();
     private readonly Button memoriesButton = new();
     private readonly PanelContainer memoriesPanel = new();
-    private readonly RichTextLabel memoryHistory = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
