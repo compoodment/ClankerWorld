@@ -352,10 +352,10 @@ everything that is available in the current build. See [what works today](../wha
   thought. An agent can distinguish the observer's guidance from its own
   intentions.
 - **Suggest** sends the player's actual words to the agent's own model at its
-  next ordinary personal-model decision. The agent may accept, modify or
-  reject the suggestion. Sending a suggestion does not trigger a separate
-  model request. For example, "Growing potatoes could help your household
-  through winter" conveys the reasoning, not just a farming task hint.
+  next personal-model decision. The agent may accept, modify or reject the
+  suggestion. A new message asks for one fresh decision; any brief reply is
+  part of that response. For example, "Growing potatoes could help your
+  household through winter" conveys the reasoning, not just a farming task hint.
 - A recognized **Order** takes priority over the agent's ordinary plans. The
   agent obeys within the game's physical and access rules; its model cannot
   refuse the order merely because it prefers another activity. An order cannot
@@ -393,16 +393,20 @@ everything that is available in the current build. See [what works today](../wha
   two sacks" finishes after two sacks; "Keep gathering food" continues until
   cancelled. Emergency interruptions preserve the outstanding task, quantity
   or ongoing instruction.
-- A **new Order replaces the previous order by default**, including an ongoing
-  or waiting order. The player can explicitly choose **Queue** to have the
+- A **recognized new Order replaces the previous order by default**, including
+  an ongoing or waiting order. The player can explicitly choose **Queue** to have the
   new order done afterward instead. Pending and ongoing orders can be
   cancelled. For example, "Make two sacks" replaces "Keep gathering food"
   unless the player chooses Queue.
+- **Agreed on October 2:** an order the game cannot understand leaves the
+  current order running. The failed new instruction is reported as not
+  understood; a typo does not cancel a task already in progress.
 - The agent's own model sees an order's **original words and the task the
   game understood** in its next ordinary request. The wording supplies
   context, such as why the household needs food; it does not let the model
   refuse an otherwise valid order merely because it prefers another plan.
-  Sending an order does not trigger a separate paid request.
+  A new active order asks for one fresh decision. Following its steps does not
+  add per-tick model requests or a separate paid acknowledgement.
 - The agent card shows orders and their status: **waiting, doing,
   interrupted, blocked with a reason, finished, cancelled or not understood**.
   For example, "Waiting for cloth: needs two pieces" explains a blocked job.
@@ -421,21 +425,14 @@ everything that is available in the current build. See [what works today](../wha
   relationships and memories; old conversation text remains as originally
   spoken rather than being rewritten to use the new name.
 
-**Existing agreed order handling, from September 30:** the agent card's
-**Speak to them** box sends a message as **Suggest** or **Order**. An order
-that asks for nothing the game can act on, such as "build a house" in the
-current prototype, is accepted and closed at once, and the Event Log says the
-agent did not understand it. It uses no model request and does not hold up
-later suggestions or orders to that agent. An order the game understands but
-that cannot be carried out yet, such as "eat" while the agent carries no food,
-keeps waiting, including across saves. It is checked again only when the agent
-next makes one of its usual decisions, never on every tick.
+**Existing agreed handling, from September 30:** an order the game cannot act
+on is accepted and closed at once as not understood, without a model request.
+It does not hold up later suggestions or orders. A recognized task that cannot
+be carried out yet keeps waiting, including across saves. Blocked tasks retry
+on the agent's usual decision schedule, without paid polling on every tick.
 
-These are intended rules, not a claim that the current prototype reads
-suggestions or supports the full catalogue. Supported actions expand as the
-normal game implements each system; this section does not settle those
-systems' remaining game rules or authorize their development ahead of their
-agreed stage.
+**These are intended rules.** [What works today](../what-works.md#agents-and-their-models)
+describes the supported food orders and the remaining catalogue.
 
 ### Leaning toward
 

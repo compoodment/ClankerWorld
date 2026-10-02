@@ -186,6 +186,10 @@ public sealed record InhabitantObservation(
     [JsonIgnore]
     public string? ConversationChoiceContext { get; init; }
 
+    /// <summary>Host-only identity binding this decision to the current persistent order.</summary>
+    [JsonIgnore]
+    public string? OperativeOrderInstructionId { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? IdentityMoment { get; init; }
 
@@ -203,6 +207,9 @@ public sealed record InhabitantObservation(
 
         if (WorldId is not null && (string.IsNullOrWhiteSpace(WorldId) || WorldId.Length > 128 || WorldId.Any(char.IsControl)))
             throw new ArgumentException("World identity must be bounded and contain no control characters.", nameof(WorldId));
+        if (OperativeOrderInstructionId is { } orderId &&
+            (string.IsNullOrWhiteSpace(orderId) || orderId.Length > 128 || orderId.Any(char.IsControl)))
+            throw new ArgumentException("Operative order identity must be bounded and contain no control characters.", nameof(OperativeOrderInstructionId));
 
         var guidance = ObserverGuidance ?? [];
         if (guidance.Count > MaximumObserverGuidanceCount || guidance.Count > 0 && WorldId is null)

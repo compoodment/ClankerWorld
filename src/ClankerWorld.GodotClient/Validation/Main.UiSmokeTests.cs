@@ -2442,23 +2442,76 @@ public partial class Main
                 Instructions =
                 [
                     new OwnerWorldInstruction("message-open-order", founder.Id, "must_do",
-                        "Eat the berries you carry.", "queued", 0, 0, 1),
+                        "Eat the berries you carry.", "queued", 0, 0, 1,
+                        Order: new OwnerWorldInstructionOrder("consume_food", "waiting", 1, 0, "food_items", false)),
                     .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-closed-order-{index}",
                         founder.Id, "must_do", $"Build house number {index}.", "completed", 0, 0, 1 + index)),
                 ],
             });
             renderedMessages = instructionHistory.GetParsedText();
-            if (!renderedMessages.Contains("Order pending · waiting for their personal model\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
+            if (!renderedMessages.Contains("Waiting · Eating food\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
                 !renderedMessages.Contains("Order closed · not reported as heard\n“You said: Build house number 4.”", StringComparison.Ordinal) ||
                 !renderedMessages.Contains("Build house number 2.", StringComparison.Ordinal) ||
-                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal))
+                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal) ||
+                !instructionCancelButton.Visible || instructionCancelButton.Text != "Cancel task")
                 throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
+            var queuedOrderSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-active-order", founder.Id, "must_do",
+                        "Eat three berries you carry.", "queued", 0, 0, 1,
+                        Order: new OwnerWorldInstructionOrder("consume_food", "doing", 3, 2, "food_items", false)),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-queued-order-{index}",
+                        founder.Id, "must_do", $"Gather berries from queued site {index}.", "queued", 0, 0, 1 + index,
+                        Order: new OwnerWorldInstructionOrder("harvest_food", "queued", 1, 0, "harvests", false))),
+                ],
+            };
+            RenderSelectedInhabitantCard(queuedOrderSnapshot);
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Doing · Eating food · 2/3 food items\n“You said: Eat three berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Gather berries from queued site 4.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Gather berries from queued site 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Gather berries from queued site 1.", StringComparison.Ordinal) ||
+                renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4 ||
+                !instructionCancelButton.Visible || PendingOrderToCancel(queuedOrderSnapshot, founder.Id)?.InstructionId != "message-active-order")
+                throw new InvalidOperationException($"Four queued orders must not hide the active task, its progress or the task Cancel targets: {renderedMessages}");
+            RenderSelectedInhabitantCard(queuedOrderSnapshot with
+            {
+                Instructions =
+                [
+                    .. queuedOrderSnapshot.Instructions,
+                    new OwnerWorldInstruction("message-new-suggestion", founder.Id, "suggestive",
+                        "Try the sunny riverbank next.", "queued", 0, 0, 6),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Eat three berries you carry.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion waiting for their personal model\n“You said: Try the sunny riverbank next.”", StringComparison.Ordinal) ||
+                renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4)
+                throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
+            var alreadyFinished = OrderCancellationResultText(
+                new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));
+            var alreadyUnrecognized = OrderCancellationResultText(
+                new OwnerOrderControlReceipt("order-private-id", "not_understood", false, 0, 0));
+            if (alreadyFinished != "That order had already finished." ||
+                alreadyUnrecognized != "The agent could not follow that order." ||
+                alreadyUnrecognized.Contains("not_understood", StringComparison.Ordinal) ||
+                InstructionSubmissionResultText("must_do", queue: true) != "Order added to the queue." ||
+                InstructionSubmissionResultText("must_do", queue: false) != "Order sent." ||
+                InstructionSubmissionResultText("suggestive", queue: false) != "Suggestion sent.")
+                throw new InvalidOperationException("Task confirmations must use player-facing wording instead of internal status values.");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;
+            var queueDisabled = instructionQueueToggle.Disabled;
+            var cancelDisabled = instructionCancelButton.Disabled;
             instructionSuggestButton.Disabled = instructionOrderButton.Disabled = false;
+            instructionQueueToggle.Disabled = false;
+            instructionCancelButton.Disabled = false;
             try
             {
+                instructionOrderButton.ButtonPressed = false;
                 instructionOrderButton.GrabFocus();
                 if (!instructionOrderButton.HasFocus())
                     throw new InvalidOperationException("Order must be reachable by keyboard in the Profile.");
@@ -2466,8 +2519,26 @@ public partial class Main
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                if (!instructionOrderButton.ButtonPressed || instructionSuggestButton.ButtonPressed)
+                if (!instructionOrderButton.ButtonPressed || instructionSuggestButton.ButtonPressed || !instructionQueueToggle.Visible)
                     throw new InvalidOperationException("Keyboard activation must switch the instruction kind to Order.");
+                instructionQueueToggle.GrabFocus();
+                if (!instructionQueueToggle.HasFocus())
+                    throw new InvalidOperationException("Queue must be reachable by keyboard in the Profile.");
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!instructionQueueToggle.ButtonPressed)
+                    throw new InvalidOperationException("Keyboard activation must turn on queued orders.");
+                instructionCancelButton.GrabFocus();
+                if (!instructionCancelButton.HasFocus())
+                    throw new InvalidOperationException("Cancel task must be reachable by keyboard in the Profile.");
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = true });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = "ui_accept", Pressed = false });
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!statusLabel.Text.Contains("Wait for the world to load before cancelling an order.", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Cancel task must explain when the owner has not loaded a world yet.");
                 instructionSuggestButton.GrabFocus();
                 if (!instructionSuggestButton.HasFocus())
                     throw new InvalidOperationException("Suggest must be reachable by keyboard in the Profile.");
@@ -2475,6 +2546,9 @@ public partial class Main
             }
             finally
             {
+                instructionQueueToggle.ButtonPressed = false;
+                instructionQueueToggle.Disabled = queueDisabled;
+                instructionCancelButton.Disabled = cancelDisabled;
                 instructionSuggestButton.Disabled = suggestDisabled;
                 instructionOrderButton.Disabled = orderDisabled;
             }

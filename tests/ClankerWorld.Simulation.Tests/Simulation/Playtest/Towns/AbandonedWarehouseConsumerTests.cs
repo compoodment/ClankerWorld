@@ -287,7 +287,7 @@ public sealed class AbandonedWarehouseConsumerTests
 
     private static List<CognitionCandidate> Candidates(PrivateWorldRuntime world, string actor) =>
         (List<CognitionCandidate>)typeof(PrivateWorldRuntime).GetMethod("CreateCandidates", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor)])!;
+            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor), true])!;
 
     private static void Choose(PrivateWorldRuntime world, string actor, string choice) =>
         typeof(PrivateWorldRuntime).GetMethod("ApplyCandidate", BindingFlags.Instance | BindingFlags.NonPublic)!

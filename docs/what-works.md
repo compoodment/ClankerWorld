@@ -134,17 +134,38 @@ Those facts survive a refresh and save/reload. The paired Windows/model-wait
 check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
-**Order**. This is a basic version. The next ordinary request to the agent's
-personal planning model can include the exact words; the card keeps them under
-**Your messages** and shows whether the model heard them, whether an order is
-still open, and any short reply separately from private thoughts. The game
-understands only orders to gather food, eat or go toward food. An order the game
-can't act on closes at once, and the Event Log says the agent did not
-understand it. An order that can't be carried out yet waits without extra
-model requests. A deterministic local choice does not claim the model heard a
-message. Suggestions do not block recognized orders. Hands-on Windows
-paired-client checks remain pending in the
-[playtest list](../playtest/586-observer-guidance.md).
+**Order**. A new suggestion or recognized order asks for one fresh decision from
+the agent's planning model containing the exact words; a queued order reaches it when that order
+becomes active. Any brief reply comes in the same response, without a separate
+acknowledgement request. Order steps do not cause requests every tick.
+The card keeps them under **Your messages** and shows whether the model heard
+them, whether an order is still open, and any short reply separately from
+private thoughts.
+
+Orders currently cover eating carried food, collecting accessible household
+food to eat, going to a known food source or discovering one through ordinary
+exploration, and gathering berries, fruit or wild greens from a matching source.
+Examples include "eat 3 berries", "gather two berries", "gather berries from
+berry-patch", "go to berries at (12, 4)" and "keep gathering food until
+cancelled". Quantities count food actually eaten or gathered; travel finishes
+on arrival at the food source. Eating waits until the agent is hungry enough,
+and a full load blocks gathering with a reason.
+
+A recognized new order replaces the active and queued orders unless **Queue**
+is selected. **Cancel task** stops a waiting or active order. An instruction
+the game cannot understand preserves the current task and its queue. Explicit
+source names must match exactly; the game does not quietly choose another
+source or food. Unsupported, mixed, negated or incomplete requests close as not
+understood and appear in the Event Log. The parser also refuses counted travel
+such as "go get 2 berries" instead of guessing a task. A recognized task that
+cannot be done yet stays pending, with model retries on the usual schedule.
+Urgent survival can interrupt it before it resumes; waiting for a model reply
+does not stop the agent from following its task or handling an urgent need.
+Deterministic local choices do not claim the model heard a message, and
+suggestions do not block recognized orders. Hands-on Windows paired-client
+checks remain pending in the
+[playtest list](../playtest/586-observer-guidance.md) and the
+[food-order checklist](../playtest/587-food-orders.md).
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can

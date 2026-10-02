@@ -156,20 +156,23 @@ public sealed partial class PrivateWorldRuntime
     private static int FoodHarvestCarryUnits(MapResource source) => FoodHarvestQuantity(source) +
         (source.TreeKind == TreeGrowthRules.Orchard ? TreeGrowthRules.OrchardSeedsPerPick : 0);
 
-    private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
+    private FoodHarvestEffect? HarvestFood(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        MapResource? requestedSource = null)
     {
-        var source = AvailableFoodSource(inhabitantId, state.Position);
+        var source = requestedSource ?? AvailableFoodSource(inhabitantId, state.Position);
         if (source is null || !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             AppendEvent("harvest_failed", $"{inhabitantId}:not_at_available_food");
-            return;
+            return null;
         }
 
         var harvestYield = FoodHarvestQuantity(source);
         if (FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(source))
         {
             AppendEvent("carrying_full", inhabitantId);
-            return;
+            return null;
         }
         var ecologyResource = worldSystems.Ecology.GetResource(source.Id);
         var harvest = EcologyRules.Harvest(ecologyResource, 1);
@@ -177,7 +180,7 @@ public sealed partial class PrivateWorldRuntime
         {
             SyncEcologyResourceStates();
             AppendEvent("harvest_failed", $"{inhabitantId}:{harvest.Failure ?? "food_depleted"}");
-            return;
+            return null;
         }
 
         var harvested = source.TreeKind == "orchard" && harvest.Resource.Quantity == 0
@@ -197,9 +200,9 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
+        var harvestedLotId = $"food:harvest:{WorldTick:D10}:{inhabitantId}";
         ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
-            inventory,
-            $"food:harvest:{WorldTick:D10}:{inhabitantId}",
+            inventory, harvestedLotId,
             source.Kind == "fruit" ? "fruit" : source.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries",
             inhabitantId,
             harvestYield,
@@ -215,6 +218,9 @@ public sealed partial class PrivateWorldRuntime
                 inhabitantId, lotId, 1, "orchard_replanting", long.MaxValue));
             AppendEvent("fruit_harvested", $"{inhabitantId}:{source.Id}:{harvestYield}:picked");
         }
+        return new FoodHarvestEffect(harvestedLotId,
+            source.Kind == "fruit" ? "fruit" : source.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries",
+            harvestYield, source.Id);
     }
 
     private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
@@ -243,19 +249,23 @@ public sealed partial class PrivateWorldRuntime
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
         lot.StorageBuildingId is null && lot.GroundPosition is null ? ResourceInteractionRange : 0;
 
-    private InventoryLot? AvailableSharedFood(string actor) =>
+    private InventoryLot? AvailableSharedFood(string actor, string? requiredItemKind = null) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && MayCollectSharedFood(actor)
         ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
+            (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
             (lot.StorageBuildingId is null ||
              society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                 HouseholdStockInteractionRange(lot)).Count > 0)
         : null;
 
-    private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
+    private void CollectSharedFood(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        string? requiredItemKind = null)
     {
         if (FreeCarryCapacity(inhabitantId) == 0) return;
-        if (AvailableSharedFood(inhabitantId) is not { } lot)
+        if (AvailableSharedFood(inhabitantId, requiredItemKind) is not { } lot)
             return;
         var supplyPoint = HouseholdStockPosition(lot);
         var interactionRange = HouseholdStockInteractionRange(lot);
@@ -271,13 +281,14 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("household_food_collected", $"{inhabitantId}:{lot.Id}:1");
     }
 
-    private void ConsumeFood(string inhabitantId, PlaytestInhabitantState state)
+    private string? ConsumeFood(string inhabitantId, PlaytestInhabitantState state, string? requiredItemKind = null)
     {
-        var lot = PreferredFood(inhabitantId, inhabitantId).FirstOrDefault();
+        var lot = PreferredFood(inhabitantId, inhabitantId)
+            .FirstOrDefault(item => requiredItemKind is null || item.ItemKind == requiredItemKind);
         if (lot is null)
         {
             AppendEvent("consumption_failed", $"{inhabitantId}:no_food");
-            return;
+            return null;
         }
 
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, inhabitantId, lot.Id, 1));
@@ -287,6 +298,7 @@ public sealed partial class PrivateWorldRuntime
             Survival = AfterMeal(state, lot)
         };
         AppendEvent("food_consumed", inhabitantId);
+        return lot.Id;
     }
 
 }

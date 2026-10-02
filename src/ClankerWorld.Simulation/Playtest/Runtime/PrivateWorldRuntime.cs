@@ -20,8 +20,9 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 48;
+    public const int StateSchemaVersion = 49;
     public const int ObserverGuidanceSchemaVersion = 41;
+    public const int OrderLifecycleSchemaVersion = 49;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
@@ -64,6 +65,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
     private Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
+        new(StringComparer.Ordinal);
+    private Dictionary<string, OwnerOrderCancellation> orderCancellations =
         new(StringComparer.Ordinal);
     private HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
     private List<PlaytestWorldEvent> events = [];
@@ -340,6 +343,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
+        runtime.orderCancellations.Clear();
         runtime.completedInstructionIds.Clear();
         foreach (var instruction in state.Instructions ?? [])
         {
@@ -362,6 +366,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         foreach (var completedInstructionId in state.CompletedInstructionIds ?? [])
         {
             runtime.completedInstructionIds.Add(completedInstructionId);
+        }
+
+        foreach (var cancellation in state.OrderCancellations ?? [])
+        {
+            if (!runtime.orderCancellations.TryAdd(cancellation.IdempotencyKey, cancellation))
+            {
+                runtime.Dispose();
+                throw new InvalidDataException("The private-world order cancellation idempotency keys are duplicated.");
+            }
         }
 
         runtime.nextInstructionSequence = runtime.instructionsByIdempotency.Count == 0
@@ -450,7 +463,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
-        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity);
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
+        orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
+            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray());
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {
