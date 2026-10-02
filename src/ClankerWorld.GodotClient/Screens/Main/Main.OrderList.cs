@@ -21,7 +21,9 @@ public partial class Main
     private static void ConfigureOrderLabel(Label label)
     {
         label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        label.TooltipText = "All orders, in the Profile, lists every order the world keeps for them.";
+        // A label shows its tooltip only when it takes the pointer; Pass still lets clicks reach the card.
+        label.MouseFilter = Control.MouseFilterEnum.Pass;
+        label.TooltipText = "All orders, in the Profile, lists their current, queued and recent orders.";
         label.Hide();
     }
 

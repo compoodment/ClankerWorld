@@ -130,6 +130,27 @@ public partial class Main
                 if (!GetViewportRect().Grow(1).Encloses(reader) || ordersPanel.Position.Y < HudTop - 1 ||
                     reader.Position.X < profile.End.X && reader.Intersects(profile))
                     throw new InvalidOperationException($"All orders must open on screen beside the Profile or in the middle, at {size}: reader={reader} profile={profile}.");
+
+                // The next snapshot, as after a reconnect or reload, replaces what the open reader and card show:
+                // the host finished the eating order, so the first queued order is now current.
+                var advanced = snapshot with
+                {
+                    Instructions = [.. snapshot.Instructions.Select(item => item.InstructionId switch
+                    {
+                        "order-list-4" => Order(4, "Eat three berries.", "finished", requested: 3, completed: 3, reply: "I am not hungry yet."),
+                        "order-list-5" => Order(5, "Go to the berries at 2, 1.", "waiting", "seek_food"),
+                        _ => item,
+                    })],
+                };
+                RenderSelectedInhabitantCard(advanced);
+                text = ordersReaderText.GetParsedText();
+                var nowAt = At("Now\nWaiting · Going to a food site\nYou said: “Go to the berries at 2, 1.”");
+                var finishedAt = At("Finished · Eating food · 3/3 food items · Heard by their personal model\nYou said: “Eat three berries.”");
+                if (profileOrderLabel.Text != "Order: Waiting · Going to a food site\n3 more orders queued" || nowAt < 0 ||
+                    finishedAt < At("Earlier") || At("Earlier") < At("Queued") || At("Queued") < nowAt ||
+                    text.Contains("Blocked", StringComparison.Ordinal) || text.Split("You said:").Length - 1 != orders.Length)
+                    throw new InvalidOperationException($"All orders and the order line must follow the host's next snapshot, at {size}: {profileOrderLabel.Text}\n{text}");
+                RenderSelectedInhabitantCard(snapshot);
                 _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
                 if (ordersPanel.Visible || !agentProfilePanel.Visible)
                     throw new InvalidOperationException("Escape must close All orders before the Profile.");
