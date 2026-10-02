@@ -28,7 +28,10 @@ const PinnedShards = [
     'PotteryContentTests',
   ],
   [
-    'SettlementParenthoodTests',
+    'SettlementParenthoodTests.ContinuityResumesPostponedAcceptance',
+    'SettlementParenthoodTests.NewbornKeepsInitiatingParentsModel',
+    'SettlementParenthoodTests.ContinuityCoupleMayPostpone',
+    'SettlementParenthoodTests.OlderDependentsDecideIndependently',
     'FarmFieldTests.PhysicalCropCycleSurvivesReload',
     'PersonalEquipmentTests',
     'BusinessTradeTests',
