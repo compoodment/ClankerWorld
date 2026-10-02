@@ -592,6 +592,6 @@ body when needed. A closing keyword in a commit that reaches main also closes
 the issue, so do not write one for an issue the change does not complete.
 Report vulnerabilities privately, never in an issue, pull request or comment
 ([Security problems](#priorities)): agents tell the owner in chat, and people
-contact the repository owner directly, without credentials, pairing material or
-private saves. Be respectful, assume good faith, and argue with evidence about
+use [private vulnerability reporting](https://github.com/compoodment/ClankerWorld/security/advisories/new),
+without credentials, pairing material or private saves. Be respectful, assume good faith, and argue with evidence about
 the design rather than the person.
