@@ -277,15 +277,19 @@ public sealed partial class PrivateWorldRuntime
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
                 if (BuildingStorageRules.Capacity(definition, building) is not { } capacity) continue;
-                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
-                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity);
+                var before = checkpoint.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity) +
+                    ReservedBusinessStorageSpace(building.InstanceId, checkpoint.Inventory);
+                var after = updated.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId).Sum(lot => lot.Quantity) +
+                    ReservedBusinessStorageSpace(building.InstanceId, updated);
                 if (after > capacity && after > before)
                     throw new InvalidOperationException("The building's storage is full; carry the remaining stock or expand it first.");
             }
             foreach (var person in inhabitants.Values)
             {
-                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]);
-                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment);
+                var before = PersonalEquipmentRules.CarriedQuantity(checkpoint.Inventory, person.InhabitantId, equipmentBefore[person.InhabitantId]) +
+                    ReservedBusinessCarrySpace(person.InhabitantId, checkpoint.Inventory);
+                var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment) +
+                    ReservedBusinessCarrySpace(person.InhabitantId, updated);
                 if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
                     throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }

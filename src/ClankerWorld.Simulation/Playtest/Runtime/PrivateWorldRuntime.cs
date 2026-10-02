@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 44;
+    public const int StateSchemaVersion = 45;
     public const int ObserverGuidanceSchemaVersion = 41;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
@@ -310,6 +310,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.bridgeTraffic = state.BridgeTraffic!;
         runtime.conversations = state.Conversations!.ToList();
         runtime.conversationBudgets = state.ConversationBudgets!.ToList();
+        runtime.businessTrades = state.BusinessTrades!.ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
@@ -446,7 +447,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
-        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests);
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades);
 
     private void AppendEvent(string kind, string detail)
     {

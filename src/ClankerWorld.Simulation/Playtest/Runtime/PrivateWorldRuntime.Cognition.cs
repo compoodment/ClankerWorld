@@ -504,6 +504,11 @@ public sealed partial class PrivateWorldRuntime
             ApplyTradeCandidate(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith("business_", StringComparison.Ordinal))
+        {
+            ApplyBusinessCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId == "haul_household_stock")
         {
             HaulHouseholdStock(inhabitantId, state);
@@ -886,6 +891,7 @@ public sealed partial class PrivateWorldRuntime
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
+            AddBusinessCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
