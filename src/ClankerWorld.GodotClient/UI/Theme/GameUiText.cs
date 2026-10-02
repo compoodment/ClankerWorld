@@ -307,23 +307,6 @@ public static class GameUiText
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
-    /// <summary>Describes one relationship in plain words for the agent card.</summary>
-    public static string RelationshipSummary(string type, string state, string otherName, string? direction = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        var summary = type switch
-        {
-            "household_membership" => $"Member of {otherName}",
-            "biological_parentage" when direction == "parent" => $"Parent of {otherName}",
-            "biological_parentage" when direction == "child" => $"Child of {otherName}",
-            "partnership" => $"Partnership with {otherName}",
-            _ => $"{char.ToUpperInvariant(type[0])}{type[1..].Replace('_', ' ')} with {otherName}",
-        };
-        return string.Equals(state, "accepted", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(state)
-            ? summary
-            : $"{summary} · {state.Replace('_', ' ')}";
-    }
-
     public static string HumanizeIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

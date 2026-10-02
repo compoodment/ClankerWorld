@@ -8,16 +8,20 @@ namespace ClankerWorld.GodotClient.UI;
 /// </summary>
 public partial class FamilyTreeView : Control
 {
-    private const float NodeWidth = 156;
-    private const float NodeHeight = 62;
-    private const float ColumnWidth = 190;
-    private const float RowHeight = 120;
+    private const float NodeWidth = 132;
+    private const float NodeHeight = 36;
+    private const float ColumnWidth = 150;
+    private const float RowHeight = 76;
+    private const float Margin = 8;
     private readonly Dictionary<string, Button> buttons = new(StringComparer.Ordinal);
     private readonly List<(string Parent, string Child)> parentEdges = [];
     private readonly List<(string First, string Second)> partnerEdges = [];
     private string? currentSignature;
 
     public event Action<string>? PersonRequested;
+
+    /// <summary>Draws a person's small portrait for their box; the flag is whether they are alive.</summary>
+    public Func<OwnerWorldInhabitant, bool, Texture2D>? Portrait { get; set; }
 
     public IReadOnlyCollection<string> VisiblePersonIds => buttons.Keys.ToArray();
     public int ParentEdgeCount => parentEdges.Count;
@@ -26,9 +30,10 @@ public partial class FamilyTreeView : Control
     public void SetPeople(string worldId, IReadOnlyList<OwnerWorldInhabitant> people, string centerId)
     {
         ArgumentNullException.ThrowIfNull(people);
-        var signature = worldId + ":" + centerId + ":" + string.Join('|', people
+        var signature = worldId + ":" + centerId + ":" + UiTheme.Current.Name + ":" + string.Join('|', people
             .OrderBy(person => person.Id, StringComparer.Ordinal)
             .Select(person => person.Id + ":" + person.DisplayName + ":" + person.Lifecycle + ":" +
+                person.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail + ":" +
                 string.Join(',', person.Relationships.OrderBy(item => item.RelationshipId, StringComparer.Ordinal)
                     .Select(item => item.RelationshipId + ":" + item.Type + ":" + item.State + ":" + item.Direction))));
         if (signature == currentSignature) return;
@@ -98,8 +103,9 @@ public partial class FamilyTreeView : Control
         }
 
         var rows = generation.GroupBy(item => item.Value).OrderBy(group => group.Key).ToArray();
-        var width = Math.Max(500, rows.Max(group => group.Count()) * ColumnWidth + 40);
-        CustomMinimumSize = new Vector2(width, rows.Length * RowHeight + 40);
+        // Just big enough for the widest generation, so the panel can fit the tree.
+        var width = rows.Max(group => group.Count()) * ColumnWidth - (ColumnWidth - NodeWidth) + 2 * Margin;
+        CustomMinimumSize = new Vector2(width, rows.Length * RowHeight - (RowHeight - NodeHeight) + 2 * Margin);
         for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
         {
             var row = rows[rowIndex].Select(item => byId[item.Key])
@@ -112,8 +118,11 @@ public partial class FamilyTreeView : Control
                 var deceased = person.Lifecycle.Equals("dead", StringComparison.OrdinalIgnoreCase);
                 var button = new Button
                 {
-                    Text = person.DisplayName + (deceased ? "\nDeceased" : "\nLiving"),
-                    Position = new Vector2(left + column * ColumnWidth, 24 + rowIndex * RowHeight),
+                    Text = deceased ? person.DisplayName + " · died" : person.DisplayName,
+                    Icon = Portrait?.Invoke(person, !deceased),
+                    Alignment = HorizontalAlignment.Left,
+                    ClipText = true,
+                    Position = new Vector2(left + column * ColumnWidth, Margin + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
                     TooltipText = "Open " + person.DisplayName + "'s profile",
                     // The person whose tree this is stands out; the deceased are faded.
@@ -151,6 +160,11 @@ public partial class FamilyTreeView : Control
             var a = buttons[first].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
             var b = buttons[second].Position + new Vector2(NodeWidth / 2, NodeHeight / 2);
             DrawLine(a, b, UiTheme.Current.Partner, 2);
+            // A heart on the line where it shows between the two boxes.
+            var gapLeft = Math.Min(a.X, b.X) + NodeWidth / 2;
+            var gapRight = Math.Max(a.X, b.X) - NodeWidth / 2;
+            var heart = PixelIcons.Texture(PixelGlyph.Heart, UiTheme.Current.Partner, UiTheme.Current.Partner, 1);
+            DrawTexture(heart, new Vector2(Mathf.Floor((gapLeft + gapRight) / 2), Mathf.Floor(a.Y)) - heart.GetSize() / 2);
         }
     }
 }
