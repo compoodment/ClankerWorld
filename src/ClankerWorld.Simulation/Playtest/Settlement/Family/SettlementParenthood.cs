@@ -40,13 +40,20 @@ public sealed partial class PrivateWorldRuntime
     private bool FamilyResourcesReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
         AccessibleShelters(actor).Any() &&
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind))
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) &&
+            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot))
             .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
                 person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
         BirthFood(actor) is not null;
 
+    // Birth reserves and consumes its food in place, which the inventory
+    // allows for food in a usable storage pot as well as loose food.
     private InventoryLot? BirthFood(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+        lot.OwnerId == HouseholdFor(actor) && InUsableVesselOrLoose(lot) &&
+        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+
+    private bool InUsableVesselOrLoose(InventoryLot lot) => lot.ContainerLotId is not { } containerId ||
+        society.Checkpoint.Inventory.GetLot(containerId).ConditionBasisPoints > 0;
 
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -63,6 +70,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in inhabitants.Values.Where(person => ActiveParenthood(person.Parenthood) &&
                      (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)))
         {
+            // While the continuity rule holds a couple, "not yet" replaces refusal until their two days are up.
+            var rule = ContinuityCoupleFor(person.InhabitantId, person.Parenthood!.PartnerId);
+            var mayPostpone = rule is not null && ContinuityAllowsPostponement(rule);
             if (person.Parenthood is { Stage: "requested" } && person.InhabitantId != actor)
             {
                 foreach (var option in ParenthoodCaregiverOptions(person.InhabitantId, actor))
@@ -73,15 +83,27 @@ public sealed partial class PrivateWorldRuntime
                     candidates.Add(new($"parent_accept:{person.InhabitantId}:{option.Selector}:{Uri.EscapeDataString(option.HouseholdId)}",
                         $"Agree to parenthood with {caregiver.Name} as primary caregiver in the {household.Name} household ({household.Id}); this records the intended home before preparation, which takes time and needs food and shelter.", 25));
                 }
-                candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
+                if (rule is null)
+                    candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
+                else if (mayPostpone)
+                    candidates.Add(new("parent_postpone:" + person.InhabitantId, "Say not yet to having a child. While fewer than eight " +
+                        "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 70));
             }
-            else
+            else if (rule is null)
             {
                 candidates.Add(new("parent_cancel:" + person.InhabitantId, "Withdraw consent before the planned birth.", 110));
             }
+            else if (mayPostpone)
+            {
+                candidates.Add(new("parent_postpone:" + person.InhabitantId, "Put off the child plan for now. While fewer than eight " +
+                    "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 110));
+            }
         }
+        // A couple held by the continuity rule may start sooner even with an older child, as long as no infant.
+        var continuityCouple = ContinuityCoupleOf(actor);
         if (!FamilyResourcesReady(actor) || inhabitants.Values.Any(person => ActiveParenthood(person.Parenthood) &&
                 (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)) ||
+            continuityCouple is null &&
             society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver && item.ProposerId == actor &&
                 item.State == SocietyRelationshipState.Accepted && inhabitants.ContainsKey(item.TargetId) &&
                 society.Checkpoint.GetInhabitant(item.TargetId).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child) ||
@@ -95,8 +117,11 @@ public sealed partial class PrivateWorldRuntime
                 (person.InhabitantId == other || person.Parenthood!.PartnerId == other)));
         if (partner is not null)
         {
-            candidates.Add(new("parent_propose:" + partner,
-                "Ask your partner whether to raise a child together. If they agree, they may choose either parent as the primary caregiver and that parent's household as the intended home. Their independent consent is required.", 75));
+            candidates.Add(new("parent_propose:" + partner, continuityCouple is null
+                ? "Ask your partner whether to raise a child together. If they agree, they may choose either parent as the primary caregiver and that parent's household as the intended home. Their independent consent is required."
+                : "Ask your partner to start raising a child together now. While fewer than eight non-elders are alive " +
+                    "they may say not yet but not refuse; the plan goes ahead when your two days are up. " +
+                    "They may choose either parent as the primary caregiver and that parent's household as the intended home.", 75));
         }
     }
 
@@ -139,6 +164,12 @@ public sealed partial class PrivateWorldRuntime
                 PrimaryCaregiverId = selected.CaregiverId,
                 IntendedHouseholdId = selected.HouseholdId,
             });
+        }
+        else if (ContinuityCoupleFor(target, plan.PartnerId) is { } rule)
+        {
+            // Refusal is not available while the rule holds the couple; "not yet" lasts only until the deadline.
+            if (candidate.StartsWith("parent_postpone:", StringComparison.Ordinal) && ContinuityAllowsPostponement(rule))
+                SetParenthood(target, plan with { Stage = "postponed" });
         }
         else if (candidate.StartsWith("parent_cancel:", StringComparison.Ordinal) || candidate.StartsWith("parent_decline:", StringComparison.Ordinal))
         {
@@ -192,8 +223,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            // A plan the continuity rule has sent ahead waits for food and shelter instead of expiring.
             if (!Partners(person.InhabitantId, plan.PartnerId) ||
-                WorldTick - plan.LastTransitionTick > (plan.Stage == "requested" ? 120 : 2_400))
+                WorldTick - plan.LastTransitionTick > (plan.Stage == "requested" ? 120 : 2_400) &&
+                !ContinuityPlanDue(person.InhabitantId, plan.PartnerId))
             {
                 SetParenthood(person.InhabitantId, plan with { Stage = "cancelled" });
                 continue;
@@ -282,6 +315,23 @@ public sealed partial class PrivateWorldRuntime
                 ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
                     HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
             }
+            else if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
+                     HouseForHousehold(householdId) is { } house &&
+                     FindFoodInPot(householdId, house.InstanceId) is { } potFood &&
+                     (parent.Position == house.Position ||
+                      FindUnoccupiedRoute(actor, parent.Position, house.Position, 0).Count > 0))
+            {
+                // Food kept in the household pot can feed the child too.
+                if (parent.Position != house.Position)
+                {
+                    MoveToward(actor, parent, house.Position, "care_food", 0);
+                    return;
+                }
+                if (FreeCarryCapacity(actor) == 0) return;
+                ApplyInventoryTransition(inventory => InventoryFixture.TakeFromContainer(inventory,
+                    $"care-food-pot:{WorldTick}:{actor}", householdId, actor, potFood.Pot.Id, potFood.Food.Id, 1));
+                AppendEvent("food_taken_from_pot", $"{actor}:{potFood.Pot.Id}:{potFood.Food.Id}:1");
+            }
             else
             {
                 if (AvailableFoodSource(actor, parent.Position) is { } source)
@@ -334,9 +384,9 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Parenthood is not { } plan) continue;
             if (!known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
-                plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled") || plan.RequestedTick < 0 ||
+                plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled" or "postponed") || plan.RequestedTick < 0 ||
                 plan.LastTransitionTick < plan.RequestedTick || plan.LastTransitionTick > state.Society.Society.WorldTick ||
-                (ActiveParenthood(plan) || plan.Stage == "completed") &&
+                (ActiveParenthood(plan) || plan.Stage is "completed" or "postponed") &&
                     (plan.PrimaryCaregiverId is not { } caregiverId ||
                      caregiverId != person.InhabitantId && caregiverId != plan.PartnerId ||
                      plan.IntendedHouseholdId is not { } homeId ||
@@ -348,7 +398,7 @@ public sealed partial class PrivateWorldRuntime
                         birth.PrimaryCaregiverId == plan.PrimaryCaregiverId &&
                         birth.HouseholdId == birthHomeId)) ||
                 plan.Stage != "completed" && (plan.ChildId is not null || plan.BirthHouseholdId is not null) ||
-                ActiveParenthood(plan) && state.Society.Society.Births.Any(birth =>
+                (ActiveParenthood(plan) || plan.Stage == "postponed") && state.Society.Society.Births.Any(birth =>
                     birth.RequestId == $"family:{person.InhabitantId}:{plan.RequestedTick}") ||
                 ActiveParenthood(plan) && (!participants.Add(person.InhabitantId) || !participants.Add(plan.PartnerId)))
             {

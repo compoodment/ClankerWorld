@@ -24,6 +24,18 @@ public static class PersonalEquipmentRules
         (lot.CarrierId == actor || lot.CarrierId is null && lot.OwnerId == actor) &&
         lot.StorageBuildingId is null && lot.GroundPosition is null;
 
+    public static bool IsPhysicallyCarried(InventoryCheckpoint inventory, InventoryLot lot, string actor)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(lot);
+        if (lot.OwnerId != actor)
+            return false;
+        if (lot.ContainerLotId is not { } containerId)
+            return IsCarried(lot, actor);
+        var container = inventory.Lots.FirstOrDefault(candidate => candidate.Id == containerId);
+        return container is not null && container.ContainerLotId is null && IsCarried(container, actor);
+    }
+
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
         lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 : Math.Max(0, lot.Quantity -
             inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
@@ -51,8 +63,20 @@ public static class PersonalEquipmentRules
         // count each unit once; there is no recursive container multiplier.
         var clothing = EquippedUnit(inventory, actor, equipment?.ClothingLotId);
         var aid = EquippedUnit(inventory, actor, equipment?.CarryAidLotId);
-        return inventory.Lots.Where(lot => IsCarried(lot, actor)).Sum(lot => lot.Quantity) -
+        var lotsById = inventory.Lots.ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+        return inventory.Lots.Where(lot => IsPhysicallyCarried(lotsById, lot, actor)).Sum(lot => lot.Quantity) -
             (clothing is null ? 0 : 1) - (aid is null || aid.Id == clothing?.Id ? 0 : 1);
+    }
+
+    private static bool IsPhysicallyCarried(Dictionary<string, InventoryLot> lotsById,
+        InventoryLot lot, string actor)
+    {
+        if (lot.OwnerId != actor)
+            return false;
+        if (lot.ContainerLotId is not { } containerId)
+            return IsCarried(lot, actor);
+        return lotsById.TryGetValue(containerId, out var container) &&
+            container.ContainerLotId is null && IsCarried(container, actor);
     }
 
     public static int FreeCapacity(InventoryCheckpoint inventory, string actor, PersonalEquipment? equipment) =>

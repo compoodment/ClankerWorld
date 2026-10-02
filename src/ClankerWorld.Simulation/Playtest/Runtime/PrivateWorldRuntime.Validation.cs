@@ -18,6 +18,7 @@ public sealed partial class PrivateWorldRuntime
         SocietyFixture.Validate(society.Checkpoint);
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
+        ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
@@ -82,6 +83,8 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateTowns(towns, map, founderSetup, society.Checkpoint, worldSimulation, worldContent);
+        TownLandRightsRules.ValidateRecords(map, WorldTick, towns, townLandTitles,
+            householdLandUseRights, householdLandUseRequests, society.Checkpoint);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -93,12 +96,14 @@ public sealed partial class PrivateWorldRuntime
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
+        ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
             ValidateProficiency(inhabitant);
             ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), WorldTick);
             ValidatePrivateThoughts(inhabitant.RecentThoughts, WorldTick);
+            AgentIdentityMoment.Validate(inhabitant.IdentityMoments, WorldTick, checkpointSchemaVersion);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -147,43 +152,69 @@ public sealed partial class PrivateWorldRuntime
         if (savedTowns.Count == 0 && !setup.Started && setup.FounderIds.Count == 0 &&
             map.CampObjects.Count == 0 && simulation.Buildings.Count == 0)
             return;
-        if (savedTowns.Count != 1)
-            throw new InvalidDataException("A founder-setup world must have exactly one first Town.");
-        var town = savedTowns[0];
-        if (town.Id != TownBorderRules.FirstTownId || town.Name != TownBorderRules.FirstTownName ||
-            town.FoundingState != (setup.Started ? "founded" : "founding") || town.FoundedTick != 0 ||
-            town.OriginSite is { } origin && !map.IsBuildable(origin) ||
-            town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
-            town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
-            town.AssignedBuildingIds.Distinct(StringComparer.Ordinal).Count() != town.AssignedBuildingIds.Count ||
-            town.BorderTiles.Distinct().Count() != town.BorderTiles.Count || town.BorderTiles.Count == 0)
-            throw new InvalidDataException("The first Town identity, founding state, or membership is invalid.");
+
+        var firstTown = savedTowns.FirstOrDefault(item => item.Id == TownBorderRules.FirstTownId);
+        if (firstTown is null || savedTowns.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != savedTowns.Count)
+            throw new InvalidDataException("A founder-setup world must keep its original first Town and unique Town identities.");
 
         var active = society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        if (town.ResidentIds.Any(id => !active.Contains(id)) ||
-            setup.FounderIds.Any(id => active.Contains(id) && !town.ResidentIds.Contains(id, StringComparer.Ordinal)))
-            throw new InvalidDataException("Town residents must be active inhabitants and active founders retain their founding membership.");
-
+        var assignedResidents = new HashSet<string>(StringComparer.Ordinal);
         var byInstance = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
-        var assignedIds = simulation.Buildings.Where(item => item.TownId == town.Id)
-            .Select(item => item.InstanceId).Order(StringComparer.Ordinal).ToArray();
-        if (!town.AssignedBuildingIds.Order(StringComparer.Ordinal).SequenceEqual(assignedIds) ||
-            simulation.Buildings.Any(item => item.TownId is not null && item.TownId != town.Id))
-            throw new InvalidDataException("Town building assignments disagree with the placed-building state.");
-
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        foreach (var buildingId in town.AssignedBuildingIds)
-            if (!byInstance.ContainsKey(buildingId))
-                throw new InvalidDataException("A Town references a building that is not placed.");
-        // The saved border is authoritative; it must lie on the map and cover
-        // the Town's origin and every assigned building.
-        var border = town.BorderTiles.ToHashSet();
-        if (town.BorderTiles.Any(point => !map.Contains(point)) ||
-            town.OriginSite is { } site && !border.Contains(site) ||
-            town.AssignedBuildingIds.Any(id => !definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) ||
-                WorldContentSimulationRules.Footprint(definition, byInstance[id]).Any(tile => !border.Contains(tile))))
-            throw new InvalidDataException("The saved Town border does not cover its founding site and assigned buildings.");
+        var townIds = savedTowns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var town in savedTowns)
+        {
+            var isFirstTown = town.Id == TownBorderRules.FirstTownId;
+            if (string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() || town.Id.Length > 128 ||
+                town.Id.Any(char.IsControl) || string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() ||
+                town.Name.Length > 120 || town.FoundedTick < 0 || town.FoundedTick > society.WorldTick ||
+                town.OriginSite is { } origin && !map.IsBuildable(origin) ||
+                town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
+                town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
+                town.AssignedBuildingIds.Distinct(StringComparer.Ordinal).Count() != town.AssignedBuildingIds.Count ||
+                town.BorderTiles.Distinct().Count() != town.BorderTiles.Count || town.BorderTiles.Count == 0 ||
+                town.ResidentIds.Any(id => !active.Contains(id) || !assignedResidents.Add(id)))
+                throw new InvalidDataException("A Town identity, founding record, membership, or footprint is invalid.");
+
+            if (isFirstTown)
+            {
+                if (town.Name != TownBorderRules.FirstTownName ||
+                    town.FoundingState != (setup.Started ? "founded" : "founding") || town.FoundedTick != 0)
+                    throw new InvalidDataException("The original first Town's identity and founding history are invalid.");
+            }
+            else if (town.FoundingState != "founded")
+            {
+                throw new InvalidDataException("An additional recorded Town must have a completed founding record.");
+            }
+
+            var assignedIds = simulation.Buildings.Where(item => item.TownId == town.Id)
+                .Select(item => item.InstanceId).Order(StringComparer.Ordinal).ToArray();
+            if (!town.AssignedBuildingIds.Order(StringComparer.Ordinal).SequenceEqual(assignedIds))
+                throw new InvalidDataException("Town building assignments disagree with the placed-building state.");
+
+            var border = town.BorderTiles.ToHashSet();
+            if (town.BorderTiles.Any(point => !map.Contains(point)) ||
+                town.OriginSite is { } site && !border.Contains(site))
+                throw new InvalidDataException("The saved Town border does not cover its founding site.");
+            foreach (var buildingId in town.AssignedBuildingIds)
+            {
+                if (!byInstance.TryGetValue(buildingId, out var building) ||
+                    !definitions.TryGetValue(building.DefinitionId, out var definition))
+                    throw new InvalidDataException("A Town references a building that is not placed.");
+                if (WorldContentSimulationRules.Footprint(definition, building).Any(tile => !border.Contains(tile)) &&
+                    !definition.Tags.Contains("warehouse", StringComparer.Ordinal))
+                    throw new InvalidDataException("The saved Town border does not cover an assigned building.");
+            }
+
+            var warehouses = town.AssignedBuildingIds.Count(id => definitions.TryGetValue(byInstance[id].DefinitionId, out var definition) &&
+                definition.Tags.Contains("warehouse", StringComparer.Ordinal));
+            if (warehouses > 1)
+                throw new InvalidDataException("A Town can have only one assigned Warehouse.");
+        }
+
+        if (simulation.Buildings.Any(item => item.TownId is { } townId && !townIds.Contains(townId)))
+            throw new InvalidDataException("A placed building references a Town that is not recorded.");
     }
 
     private static void ValidateFounderSetup(FounderSetupState? setup, SocietyCheckpoint society)
@@ -240,6 +271,13 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private static bool HasSavedToolUseState(PrivateWorldRuntimeState state) =>
+        state.WorldSimulation is { } simulation &&
+            simulation.ProductionJobs.Concat(simulation.CropBuilds ?? [])
+                .Any(job => job is not null && job.ToolLotId is not null) ||
+        (state.Fields ?? []).Any(field => field is not null &&
+            (field.Work?.HoeLotId is not null || field.Work?.SickleLotId is not null));
+
     internal static void ValidateMinimumSupportedSchemaVersion(int schemaVersion)
     {
         if (schemaVersion < MinimumSupportedStateSchemaVersion)
@@ -274,11 +312,14 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         if (state.Towns is null || state.Knowledge is null || state.RoadTiles is null ||
-            state.Bridges is null || state.BridgeTraffic is null)
-            throw new InvalidDataException("The current private-world checkpoint is missing required Town, map-knowledge, Road or bridge state.");
+            state.Bridges is null || state.BridgeTraffic is null || state.TownLandTitles is null ||
+            state.HouseholdLandUseRights is null || state.HouseholdLandUseRequests is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing required Town, land-rights, map-knowledge, Road or bridge state.");
         if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
             state.WorldSimulation is null || state.AssetReservations is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
+        if (state.SchemaVersion < ToolProgressionSchemaVersion && HasSavedToolUseState(state))
+            throw new InvalidDataException($"Saved tool use links require private-world schema {ToolProgressionSchemaVersion}.");
         if (state.SchemaVersion >= ConversationSchemaVersion && (state.Conversations is null || state.ConversationBudgets is null))
             throw new InvalidDataException($"Private-world schema {ConversationSchemaVersion} requires conversation state and daily budgets.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
@@ -303,8 +344,13 @@ public sealed partial class PrivateWorldRuntime
         var travelMap = TravelMap(state);
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
+        if (state.SchemaVersion >= ObserverGuidanceSchemaVersion &&
+            (state.Instructions is null || state.CompletedInstructionIds is null))
+            throw new InvalidDataException($"Private-world schema {ObserverGuidanceSchemaVersion} requires authoritative instruction state.");
+        ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
+        ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);
@@ -330,9 +376,11 @@ public sealed partial class PrivateWorldRuntime
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.Society.Society.WorldTick);
             ValidatePrivateThoughts(person.RecentThoughts, state.Society.Society.WorldTick);
+            AgentIdentityMoment.Validate(person.IdentityMoments, state.Society.Society.WorldTick, state.SchemaVersion);
             ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
+        ValidateContinuity(state.Continuity, state.Society.Society, state.SchemaVersion);
         ContentPackageRegistry.Restore(state.Content);
         WorldSystemsRules.Validate(state.WorldSystems);
         if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
@@ -357,6 +405,9 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("A House references a missing household.");
         ValidateTowns(state.Towns, state.Map, state.FounderSetup,
             state.Society.Society, state.WorldSimulation, state.WorldContent);
+        TownLandRightsRules.ValidateRecords(state.Map, state.Society.Society.WorldTick, state.Towns,
+            state.TownLandTitles, state.HouseholdLandUseRights, state.HouseholdLandUseRequests,
+            state.Society.Society);
         ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
@@ -381,6 +432,51 @@ public sealed partial class PrivateWorldRuntime
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
         }
+    }
+
+    private static void ValidateSavedInstructions(
+        IReadOnlyList<OwnerQueuedInstruction> instructions,
+        IReadOnlyList<string> completedInstructionIds,
+        SocietyCheckpoint checkpoint)
+    {
+        var people = checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        var instructionIds = new HashSet<string>(StringComparer.Ordinal);
+        var idempotencyKeys = new HashSet<string>(StringComparer.Ordinal);
+        var sequences = new HashSet<long>();
+        foreach (var instruction in instructions)
+        {
+            if (instruction is null || string.IsNullOrWhiteSpace(instruction.InstructionId) ||
+                instruction.InstructionId.Length > OwnerQueuedInstruction.MaximumIdentifierLength ||
+                instruction.InstructionId != $"private-instruction-{instruction.SubmissionSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}" ||
+                !instructionIds.Add(instruction.InstructionId) ||
+                !IsValidInstructionIdentifier(instruction.IdempotencyKey) ||
+                !idempotencyKeys.Add(instruction.IdempotencyKey) ||
+                !IsValidInstructionIdentifier(instruction.IssuerId) ||
+                !people.Contains(instruction.TargetInhabitantId) ||
+                instruction.Kind is not (OwnerInstructionKind.Suggestive or OwnerInstructionKind.MustDo) ||
+                instruction.State != OwnerInstructionState.Queued ||
+                string.IsNullOrWhiteSpace(instruction.Text) || instruction.Text.Length > OwnerQueuedInstruction.MaximumTextLength ||
+                instruction.Text != instruction.Text.Trim() || instruction.Text.Any(char.IsControl) ||
+                instruction.SubmittedTick < 0 || instruction.SubmittedTick > checkpoint.WorldTick ||
+                instruction.GuidancePromptedTick is { } promptedTick &&
+                    (promptedTick < instruction.SubmittedTick || promptedTick > checkpoint.WorldTick) ||
+                instruction.RunEpoch < 0 || instruction.RunEpoch > checkpoint.RunEpoch ||
+                instruction.SubmissionSequence <= 0 || !sequences.Add(instruction.SubmissionSequence) ||
+                instruction.ObservedTick is { } observedTick &&
+                    (observedTick < instruction.SubmittedTick || observedTick > checkpoint.WorldTick) ||
+                instruction.ObserverReply is not null &&
+                    (instruction.ObservedTick is null ||
+                     CognitionDecisionResponse.NormalizeObserverReply(instruction.ObserverReply) != instruction.ObserverReply))
+                throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
+        }
+
+        if (completedInstructionIds.Any(id => string.IsNullOrWhiteSpace(id) || !instructionIds.Contains(id)) ||
+            completedInstructionIds.Distinct(StringComparer.Ordinal).Count() != completedInstructionIds.Count)
+            throw new InvalidDataException("The completed owner instruction list is invalid.");
+        var completed = completedInstructionIds.ToHashSet(StringComparer.Ordinal);
+        if (instructions.Any(item => item.Kind == OwnerInstructionKind.Suggestive &&
+                completed.Contains(item.InstructionId) && item.ObservedTick is null))
+            throw new InvalidDataException("A suggestion cannot be completed before an agent's personal model observes it.");
     }
 
     private static void ValidateConversationState(PrivateWorldRuntimeState state, SocietyCheckpoint checkpoint)
@@ -469,6 +565,7 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
+            AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));

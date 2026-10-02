@@ -333,6 +333,34 @@ public sealed class SocietyTests
     }
 
     [Fact]
+    public void DeathAndEstateSettlementKeepAContainerFamilyTogether()
+    {
+        var config = TestConfig() with { EstateEscrowDays = 1 };
+        var checkpoint = SocietyFixture.CreateGenesis("container-estate",
+            [SocietyFixture.CreateFounder("alice", "Alice", config: config),
+             SocietyFixture.CreateFounder("bob", "Bob", config: config)],
+            [
+                new InventoryLot("pot", InventoryContainerRules.StoragePot, "alice", 1, 10_000, 10_000, 0),
+                new InventoryLot("berries", "berries", "alice", 3, 10_000, 10_000, 0, ContainerLotId: "pot"),
+            ], config);
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
+
+        var killed = SocietyFixture.Kill(checkpoint, "alice", SocietyDeathCause.Hazard).Checkpoint;
+        var estateId = "estate:alice:0";
+        Assert.Equal(estateId, killed.Inventory.GetLot("pot").OwnerId);
+        Assert.Equal(estateId, killed.Inventory.GetLot("berries").OwnerId);
+        Assert.Equal("pot", killed.Inventory.GetLot("berries").ContainerLotId);
+
+        var settled = SocietyFixture.AdvanceTo(killed, config.TicksPerWorldDay * config.EstateEscrowDays).Checkpoint;
+
+        Assert.True(settled.GetEstate(estateId).Settled);
+        Assert.Equal("bob", settled.Inventory.GetLot("pot").OwnerId);
+        Assert.Equal("bob", settled.Inventory.GetLot("berries").OwnerId);
+        Assert.Equal("pot", settled.Inventory.GetLot("berries").ContainerLotId);
+        Assert.Equal(3, settled.Inventory.GetLot("berries").Quantity);
+    }
+
+    [Fact]
     public async Task MultipleInhabitantsHaveIndependentFairCognitionSchedules()
     {
         var config = TestConfig();

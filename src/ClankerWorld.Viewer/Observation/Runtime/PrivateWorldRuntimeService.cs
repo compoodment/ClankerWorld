@@ -44,6 +44,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
 
+    [LoggerMessage(EventId = 2288, Level = LogLevel.Information,
+        Message = "agent_identity_changed tick={WorldTick} inhabitant={InhabitantId}")]
+    private static partial void LogIdentityChanged(ILogger logger, long worldTick, string inhabitantId);
+
     [LoggerMessage(EventId = 2255, Level = LogLevel.Information,
         Message = "estate_will tick={WorldTick} estate={EstateId} deceased={DeceasedId} outcome={Outcome} reason={Reason}")]
     private static partial void LogEstateWill(ILogger logger, long worldTick, string estateId, string deceasedId, string outcome, string reason);
@@ -294,6 +298,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "agent_identity_revised"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is not null) LogIdentityChanged(logger, worldEvent.WorldTick, actor);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal) ||
                              item.Kind is "bridge_built" or "traffic_bridge_not_built"))
                     LogTownEvent(worldEvent);
@@ -371,6 +380,7 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
                              "partnership_refused" or "partnership_ended" or "partnership_expired" or
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
+                             "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))

@@ -471,6 +471,45 @@ public sealed class HouseholdJoinRequestTests
     }
 
     [Fact]
+    public void AddAgentOnPropertyOfAHouseholdWithoutAHouseStillJoinsIt()
+    {
+        using var seed = NormalPathWorld.CreateGenerated("house-resident-no-house", _ => new ScriptedProvider());
+        var state = seed.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        // Empty the House so the owner may remove it.
+        var stored = state.Society.Society.Inventory.Lots.Where(lot =>
+            lot.StorageBuildingId == house.InstanceId || lot.DeliveryBuildingId == house.InstanceId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !stored.Contains(lot.Id) &&
+                (lot.ContainerLotId is null || !stored.Contains(lot.ContainerLotId))).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations
+                .Where(reservation => !stored.Contains(reservation.LotId)).ToArray(),
+        };
+        // The Farmhouse's stone comes from household stock outside the House.
+        inventory = InventoryFixture.AddLot(inventory, "no-house-farm-stone", "stone", Alpha, 2);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new ScriptedProvider());
+        var farmhouse = world.WorldContent.Buildings.Single(item => item.LocalId == "farmhouse-1x1");
+        var property = TownTileBeside(world, house.InstanceId);
+        var placed = world.PlaceBuilding("alpha-farm-without-house", farmhouse.CanonicalId, property, Alpha);
+        Assert.True(placed.Applied, placed.Failure);
+        var removed = world.RemoveBuilding(house.InstanceId, house.TownId, Alpha);
+        Assert.True(removed.Applied, removed.Failure);
+
+        // With no House there are no resident places to fill, so the new agent joins as before.
+        var agent = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, world.AddAgent(agent, property));
+        Assert.Equal(Alpha, world.Society.GetInhabitant(agent).HouseholdId);
+        world.Validate();
+    }
+
+    [Fact]
     public async Task PendingAdmissionCannotUseAFamilyBonusThatItWouldRemove()
     {
         var provider = new ScriptedProvider();

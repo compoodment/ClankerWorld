@@ -45,8 +45,18 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string ItemName(string kind) => kind switch
+    {
+        "storage_pot" => "Storage pot",
+        "water_jug" => "Water jug",
+        "fresh_water" => "Fresh water",
+        _ => HumanizeIdentifier(kind),
+    };
+
     public static string FriendlyFailure(Exception exception) => exception switch
     {
+        Pairing.OwnerAgentNameTakenException =>
+            "that full name belongs to another agent. Choose a different name",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
@@ -96,6 +106,7 @@ public static class GameUiText
         "fiber_plant" => "Fiber plant",
         "reeds" => "Reeds",
         "stone_outcrop" => "Stone outcrop",
+        "fallen_wood" => "Fallen wood",
         "iron_outcrop" => "Iron outcrop",
         "gold_outcrop" => "Gold outcrop",
         "diamond_outcrop" => "Diamond outcrop",
@@ -170,7 +181,10 @@ public static class GameUiText
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "continuity_rule_on" or "continuity_rule_off" or
             "council_policy_adopted" or "settlement_trade_completed" or
+            "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
+            "store_stock_collected" or "store_stock_delivered" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
@@ -270,7 +284,8 @@ public static class GameUiText
         if (normalized.StartsWith("parent_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("parent_propose:", StringComparison.Ordinal) ? "talk about having a child"
-                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child" : "decide against having a child";
+                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child"
+                : normalized.StartsWith("parent_postpone:", StringComparison.Ordinal) ? "put off having a child" : "decide against having a child";
         }
         if (normalized.StartsWith("partner_", StringComparison.Ordinal))
         {
@@ -320,6 +335,9 @@ public static class GameUiText
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
+            "storage_pot" => "storage pot",
+            "water_jug" => "water jug",
+            "fresh_water" => "fresh water",
             _ => null,
         };
         if (known is not null)

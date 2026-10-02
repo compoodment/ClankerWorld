@@ -14,7 +14,8 @@ public sealed record BuildingExpansionJob(
     int ExpectedRevision, GridPoint ExpectedPosition, GridPoint TargetPosition,
     BuildingFootprintRevision TargetFootprint, long StartedTick, long CompletionTick,
     WorldProductionJobState State, IReadOnlyList<string> InputReservationIds,
-    string? Failure = null)
+    string? Failure = null,
+    string? DefinitionId = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? PausedAtTick { get; init; }
@@ -35,7 +36,8 @@ public static class BuildingStorageRules
             width, height, definition.Capacity, definition.BuildCosts, definition.Tags);
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
-        definition.Tags.Any(tag => tag is "house" or "warehouse")
+        definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -69,7 +71,8 @@ public sealed partial class PrivateWorldRuntime
         var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId)) : int.MaxValue;
+            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
+                ReservedBusinessStorageSpace(buildingId)) : int.MaxValue;
     }
 
     private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
@@ -122,16 +125,18 @@ public sealed partial class PrivateWorldRuntime
     {
         var owner = ExpansionOwner(building);
         var site = ExpansionGroundPosition(building);
-        var residentWarehouse = building.HouseholdId is not null && building.TownId == TownForResident(actor)
-            ? WarehouseForResident(actor) : null;
+        // Town Warehouse stock follows the usual Warehouse access rules: the
+        // actor's own Town, or an empty Town's Warehouse anyone may recover.
+        var warehouseStock = building.HouseholdId is not null
+            ? AvailableWarehouseStock(actor, itemKind) : Enumerable.Empty<InventoryLot>();
         return society.Checkpoint.Inventory.Lots
-            .Where(lot => (lot.OwnerId == owner || residentWarehouse is { } warehouse &&
-                    warehouse.TownId == building.TownId && lot.OwnerId == warehouse.TownId &&
-                    lot.StorageBuildingId == warehouse.InstanceId) && lot.ItemKind == itemKind &&
+            .Where(lot => lot.OwnerId == owner && lot.ItemKind == itemKind &&
                 lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null &&
-                lot.GroundPosition != site && AvailableLotQuantity(lot) > 0)
+                lot.GroundPosition != site && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-            .FirstOrDefault(lot => CanReachSharedItem(actor, lot));
+            .Where(lot => CanReachSharedItem(actor, lot))
+            .Concat(warehouseStock)
+            .FirstOrDefault();
     }
 
     private (InventoryLot? Source, int Quantity) ExpansionSharedMaterialPickup(
@@ -424,7 +429,8 @@ public sealed partial class PrivateWorldRuntime
         IReadOnlyList<string> reservations = [];
         ApplyInventoryTransition(inventory => ReserveExpansionMaterials(inventory, actor, building, costs, jobId, completion, out reservations));
         var job = new BuildingExpansionJob(jobId, buildingId, actor, owner, building.Footprint?.Revision ?? 0,
-            building.Position, shape.Position, shape.Footprint, WorldTick, completion, WorldProductionJobState.Running, reservations);
+            building.Position, shape.Position, shape.Footprint, WorldTick, completion, WorldProductionJobState.Running, reservations,
+            DefinitionId: building.DefinitionId);
         worldSimulation = worldSimulation with
         {
             BuildingExpansions = (worldSimulation.BuildingExpansions ?? []).Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),

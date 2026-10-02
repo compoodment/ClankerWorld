@@ -127,6 +127,49 @@ public sealed partial class SettlementParenthoodTests
             OwnerInstructionKind.MustDo, "build a shelter")));
         Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for");
         Assert.Contains(caring.Society.Relationships, item => item.ProposerId == second && item.TargetId == birth.ChildId);
+
+        var childId = birth.ChildId;
+        state = completedState;
+        var caregiverId = state.Society.Society.Relationships.First(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted).ProposerId;
+        var child = state.Inhabitants.Single(person => person.InhabitantId == childId);
+        var caregiverTile = state.Map.FootNeighbors(child.Position).First(point => state.Map.IsPassable(point) &&
+            Math.Abs(point.X - child.Position.X) + Math.Abs(point.Y - child.Position.Y) == 1 &&
+            !state.Inhabitants.Any(person => person.InhabitantId != caregiverId && person.InhabitantId != childId && person.Position == point));
+        const int initialIllness = 9_000;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId switch
+            {
+                var id when id == caregiverId => person with
+                {
+                    Position = caregiverTile,
+                    HungerBasisPoints = 9_000,
+                    Survival = new SurvivalCondition(10_000, 0),
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                },
+                var id when id == childId => person with
+                {
+                    HungerBasisPoints = 9_000,
+                    Survival = new SurvivalCondition(9_000, initialIllness),
+                    Project = null,
+                },
+                _ => person,
+            }).ToArray(),
+        };
+        using var tending = PrivateWorldRuntime.Restore(state, actor =>
+            new ParentProvider(actor == caregiverId ? "care:" : "safe_idle"));
+
+        var tendingStep = await tending.AdvanceOneTickAsync();
+        Assert.True(tendingStep.Advanced);
+
+        var caredFor = tending.Inhabitants.Single(person => person.InhabitantId == childId);
+        Assert.Contains(tendingStep.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
+        Assert.Equal(10_000, caredFor.Survival!.WarmthBasisPoints);
+        Assert.True(caredFor.Survival.IllnessBasisPoints < initialIllness - 12,
+            $"Expected direct caregiver care to improve on ordinary warm-and-fed recovery; actual illness {caredFor.Survival.IllnessBasisPoints}.");
     }
 
     [Fact]
@@ -359,13 +402,48 @@ public sealed partial class SettlementParenthoodTests
     [InlineData("safe_idle")]
     public async Task RefusalOrSilenceNeverCreatesAChild(string response)
     {
-        var state = await PreparedState();
+        // Ordinary refusal applies once eight non-elders live and the continuity rule is off.
+        var state = WithEightNonElders(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : response));
         for (var tick = 0; tick < 125; tick++) await world.AdvanceOneTickAsync();
         Assert.Empty(world.Society.Births);
         Assert.Equal("cancelled", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        Assert.Equal(4, world.Inhabitants.Count);
+        Assert.Equal(8, world.Inhabitants.Count);
+        Assert.False(world.ExportState().Continuity!.Active);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FirstCousinsButNotAuntsOrUnclesCanPlanAChild(bool cousins)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var third = state.Inhabitants[2].InhabitantId;
+        var fourth = state.Inhabitants[3].InhabitantId;
+        if (cousins)
+        {
+            (state, var grandparent) = FamilyTreeFixture.WithDeadAncestor(state, "grandparent");
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (grandparent, third), (grandparent, fourth), (third, first), (fourth, second));
+        }
+        else
+        {
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (fourth, first), (fourth, third), (third, second));
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
+        await world.AdvanceOneTickAsync();
+        if (cousins)
+        {
+            Assert.Equal("requested", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
+        }
+        else
+        {
+            Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
+        }
     }
 
     [Fact]
@@ -401,7 +479,8 @@ public sealed partial class SettlementParenthoodTests
     [Fact]
     public async Task EitherParentCanWithdrawDuringPreparation()
     {
-        var state = await PreparedState();
+        // Withdrawal is ordinary refusal, so it needs the continuity rule to be off.
+        var state = WithEightNonElders(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         await world.AdvanceOneTickAsync();

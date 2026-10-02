@@ -12,26 +12,37 @@ namespace ClankerWorld.Simulation.Society;
 /// </summary>
 public static partial class SocietyFixture
 {
+    /// <summary>
+    /// Creates an adult of the given age at world tick 0, or at the adult
+    /// threshold when no age is given. The age must lie in the arrival range.
+    /// </summary>
     public static SocietyInhabitant CreateFounder(
         string id,
         string name,
         string? providerBindingId = null,
         int healthBasisPoints = 10_000,
-        SocietyConfig? config = null)
+        SocietyConfig? config = null,
+        int? startingAge = null)
     {
         var effectiveConfig = config ?? new SocietyConfig();
         effectiveConfig.Validate();
+        var age = startingAge ?? effectiveConfig.FounderStartingAge;
+        if (age < effectiveConfig.FounderStartingAge || age > LatestArrivalAge(effectiveConfig))
+        {
+            throw new ArgumentOutOfRangeException(nameof(startingAge));
+        }
+
         return new SocietyInhabitant(
             NormalizeRequiredText(id, nameof(id)),
             NormalizeRequiredText(name, nameof(name)),
-            checked(-effectiveConfig.FounderStartingAge * effectiveConfig.TicksPerLifecycleAge),
+            checked(-age * effectiveConfig.TicksPerLifecycleAge),
             SocietyInhabitantStatus.Active,
-            effectiveConfig.AgeBandAt(effectiveConfig.FounderStartingAge),
+            effectiveConfig.AgeBandAt(age),
             ValidateBasisPoints(healthBasisPoints, nameof(healthBasisPoints)),
             null,
             NormalizeOptionalText(providerBindingId),
             SocietyWorkRole.Unassigned,
-            effectiveConfig.FounderStartingAge)
+            age)
         {
             DomesticFamilyUnitId = DomesticPersonUnit(id),
         };
@@ -211,10 +222,10 @@ public static partial class SocietyFixture
         var existingHousehold = home is null ? null :
             checkpoint.Households.FirstOrDefault(household => household.Id == home);
 
-        var age = checkpoint.Config.FounderStartingAge;
+        var age = AddedAdultArrivalAge(checkpoint);
         var lifeBirth = checked(checkpoint.LifeTickAt(checkpoint.WorldTick) -
             age * checkpoint.Config.TicksPerLifecycleAge);
-        var person = CreateFounder(id, "New agent", config: checkpoint.Config) with
+        var person = CreateFounder(id, "New agent", config: checkpoint.Config, startingAge: age) with
         {
             BirthTick = checkpoint.LifeClock is null ? lifeBirth : checkpoint.WorldTick,
             BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
@@ -1078,6 +1089,7 @@ public static partial class SocietyFixture
         {
             throw new InvalidDataException("Society and inventory clocks must agree.");
         }
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint.Inventory);
 
         if (checkpoint.LifeClock is { } clock && (clock.Rate is not (1 or 365 or 1_460) ||
             clock.WorldAnchorTick < 0 || clock.WorldAnchorTick > checkpoint.WorldTick || clock.LifeAnchorTick < clock.WorldAnchorTick ||
@@ -1420,17 +1432,37 @@ public static partial class SocietyFixture
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray();
             var lots = current.Inventory.Lots.Where(lot => lot.OwnerId == estate.Id).ToArray();
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
-            foreach (var lot in lots)
+            var containerOrdinal = 0;
+            foreach (var lot in lots.Where(lot => lot.ContainerLotId is null))
             {
                 if (beneficiaries.Length == 0)
                 {
-                    nextLots.Add(lot with
+                    var family = InventoryContainerRules.IsContainer(lot.ItemKind)
+                        ? lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id)
+                        : [lot];
+                    nextLots.AddRange(family.Select(member => member with
                     {
                         OwnerId = "settlement:communal",
                         CarrierId = null,
                         StorageBuildingId = null,
                         DeliveryBuildingId = null,
-                    });
+                    }));
+                    continue;
+                }
+
+                if (InventoryContainerRules.IsContainer(lot.ItemKind))
+                {
+                    // A vessel and its contents are a single physical estate
+                    // family. Keep their IDs and quantities together instead
+                    // of splitting a child lot away from the vessel.
+                    var beneficiary = beneficiaries[containerOrdinal++ % beneficiaries.Length];
+                    nextLots.AddRange(lots.Where(member => member.Id == lot.Id || member.ContainerLotId == lot.Id)
+                        .Select(member => member with
+                        {
+                            OwnerId = beneficiary,
+                            StorageBuildingId = null,
+                            DeliveryBuildingId = null,
+                        }));
                     continue;
                 }
 

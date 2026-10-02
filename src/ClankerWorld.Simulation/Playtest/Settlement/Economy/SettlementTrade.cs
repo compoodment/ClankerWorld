@@ -169,7 +169,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool TradeQuantityAvailable(InventoryLot lot) =>
-        PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.DeliveryBuildingId is null &&
+        PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.ContainerLotId is null &&
+        !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
         (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
          lot.Id != carrier.Equipment?.ClothingLotId && lot.Id != carrier.Equipment?.CarryAidLotId && lot.Id != carrier.Equipment?.Repair?.LotId) &&
         AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ? 1 : 2);
