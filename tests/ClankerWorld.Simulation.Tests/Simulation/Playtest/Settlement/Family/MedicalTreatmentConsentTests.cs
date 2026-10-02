@@ -72,13 +72,37 @@ public sealed class MedicalTreatmentConsentTests
         var patient = state.Inhabitants[0].InhabitantId;
         var caregiver = state.Inhabitants[1].InhabitantId;
         state = WithMedicine(state, caregiver, 2);
+        if (mustDo)
+        {
+            state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+                "medical-forced-berry", "berries", patient, 1)) with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
+                    ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
+            };
+        }
         var choice = new MedicalChoiceProvider("medical_allow:" + caregiver, kind, fail);
         using var world = Restore(state, patient, choice);
         Assert.False(world.TreatPatient(caregiver, patient, "medicine").Applied);
-        if (mustDo) world.SubmitInstruction(new("medical-forced-order", "owner:test", patient,
-            OwnerInstructionKind.MustDo, "idle"));
+        OwnerInstructionReceipt? order = null;
+        if (mustDo)
+        {
+            order = world.SubmitInstruction(new("medical-forced-order", "owner:test", patient,
+                OwnerInstructionKind.MustDo, "eat food"));
+            Assert.Contains(world.ExportState().Instructions!, item => item.InstructionId == order.InstructionId &&
+                item.Kind == OwnerInstructionKind.MustDo && item.State == OwnerInstructionState.Queued);
+            Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        }
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(choice.Offered, item => item.Id == "medical_allow:" + caregiver);
+        if (order is not null)
+        {
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == "medical-forced-berry");
+            Assert.Equal(10_000, Physical(world, patient).HungerBasisPoints);
+            Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds!);
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "instruction_applied" &&
+                item.Detail == order.InstructionId + ":consume_food");
+        }
         var allowed = kind == DecisionProviderKind.LargeLanguageModel && !fail && !mustDo;
         Assert.Equal(allowed, Physical(world, patient).MedicalConsent?.CaregiverIds.Contains(caregiver) == true);
         Assert.Equal(allowed, world.TreatPatient(caregiver, patient, "medicine").Applied);
@@ -117,7 +141,8 @@ public sealed class MedicalTreatmentConsentTests
         Assert.Equal(InventoryReservationState.Completed, revoking.Society.Inventory.GetReservation(dose).State);
         Assert.EndsWith(":closed", revoking.Society.Inventory.GetReservation(dose).Purpose, StringComparison.Ordinal);
         Assert.Single(revoking.ExportState().Events, item => item.Kind == "medical_care_revoked");
-        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(revoking.ExportState())));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(revoking.ExportState())),
+            patient, new MedicalChoiceProvider("medical_revoke:" + caregiver));
         for (var tick = 0; tick < 4; tick++)
         {
             Assert.True((await revoking.AdvanceOneTickAsync()).Advanced);

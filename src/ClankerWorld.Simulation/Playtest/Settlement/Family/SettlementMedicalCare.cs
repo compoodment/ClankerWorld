@@ -47,10 +47,10 @@ public sealed partial class PrivateWorldRuntime
         var selected = decision.Admission.Intention;
         if (selected is null || !(selected.CandidateId.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal) ||
             selected.CandidateId.StartsWith(MedicalRevokePrefix, StringComparison.Ordinal))) return false;
+        if (PendingInstructionFor(decision.InhabitantId)?.Kind == OwnerInstructionKind.MustDo) return false;
         if (!decision.Admission.Accepted || decision.Admission.FellBack ||
             selected.Provider != DecisionProviderKind.LargeLanguageModel ||
-            selected.InhabitantId != decision.InhabitantId ||
-            PendingInstructionFor(decision.InhabitantId)?.Kind == OwnerInstructionKind.MustDo) return true;
+            selected.InhabitantId != decision.InhabitantId) return true;
         var allowed = selected.CandidateId.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal);
         var caregiver = selected.CandidateId[(allowed ? MedicalAllowPrefix.Length : MedicalRevokePrefix.Length)..];
         ChangeMedicalConsent(decision.InhabitantId, caregiver, allowed);

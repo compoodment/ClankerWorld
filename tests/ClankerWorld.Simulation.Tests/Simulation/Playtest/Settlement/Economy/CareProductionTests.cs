@@ -4,10 +4,11 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using Xunit.Abstractions;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class CareProductionTests
+public sealed class CareProductionTests(ITestOutputHelper output)
 {
     private const string Alpha = "household:camp-alpha";
     private const string House = "first-town-house-a";
@@ -174,6 +175,20 @@ public sealed class CareProductionTests
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
                 minimumHerbStock = Math.Min(minimumHerbStock, world.ExportState().WorldSystems!.Ecology.GetResource(herbs.Id).Quantity);
+                if (tick % 60 == 59)
+                {
+                    var snapshot = world.ExportState();
+                    var person = snapshot.Inhabitants.Single(item => item.InhabitantId == actor);
+                    output.WriteLine("Tick {0}: position={1}, hunger={2}, project={3}",
+                        world.WorldTick, person.Position, person.HungerBasisPoints, person.Project);
+                    foreach (var lot in snapshot.Society.Society.Inventory.Lots.Where(item =>
+                                 item.OwnerId == actor || item.OwnerId == Alpha &&
+                                 (item.ItemKind is "medicinal_herbs" or "fresh_water" or "water_jug" or "wood" or "clay" or "medicine")))
+                        output.WriteLine("  {0}: {1} x{2}, owner={3}, storage={4}, delivery={5}, container={6}",
+                            lot.Id, lot.ItemKind, lot.Quantity, lot.OwnerId, lot.StorageBuildingId,
+                            lot.DeliveryBuildingId, lot.ContainerLotId);
+                    foreach (var decision in choices.Decisions.TakeLast(4)) output.WriteLine("  " + decision);
+                }
                 if (restored is null && world.WorldSimulation.ProductionJobs.Any(job =>
                         job.RecipeId == medicineRecipe.CanonicalId && job.State == WorldProductionJobState.Running))
                     restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
@@ -263,6 +278,7 @@ public sealed class CareProductionTests
     private sealed class Preferred(IReadOnlyList<string> prefixes) : IDecisionProvider
     {
         public HashSet<string> Offers { get; } = new(StringComparer.Ordinal);
+        public List<string> Decisions { get; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -271,6 +287,10 @@ public sealed class CareProductionTests
             var choice = prefixes.Select(prefix => request.Observation.Candidates.FirstOrDefault(candidate =>
                 candidate.Id.StartsWith(prefix, StringComparison.Ordinal))).FirstOrDefault(candidate => candidate is not null)
                 ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            Decisions.Add($"{request.Observation.WorldTick}: chose {choice.Id}; offered " + string.Join(", ",
+                request.Observation.Candidates.Where(candidate => prefixes.Any(prefix =>
+                    candidate.Id.StartsWith(prefix, StringComparison.Ordinal))).Select(candidate =>
+                    candidate.Id + " -> " + candidate.DestinationId)));
             return new DeterministicDecisionProvider().DecideAsync(request with
             { Observation = request.Observation with { Candidates = [choice] } }, cancellationToken);
         }

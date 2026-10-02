@@ -23,6 +23,6 @@ public static class MedicalCareRules
         var note = person.MedicalTreatment is null
             ? "No medicine treatment is underway." : "Medicine is being applied gradually.";
         return person.MedicalConsent is { } consent ? note +
-            $" You have allowed medical care from {consent.CaregiverIds.Count} named adults." : note;
+            $" Medical care is permitted from {consent.CaregiverIds.Count} named adults." : note;
     }
 }
