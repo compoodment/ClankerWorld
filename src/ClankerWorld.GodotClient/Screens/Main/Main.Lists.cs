@@ -248,15 +248,19 @@ public partial class Main
     private bool hudListsRefitQueued;
 
     /// <summary>
-    /// The Agents list and Event Log grow with their rows until they would pass
+    /// The Agents list, Event Log and Towns page grow until they would pass
     /// the bottom of the screen, then scroll. Called again when the window changes.
     /// </summary>
     private void FitHudLists()
     {
         rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rosterWantedHeight, ListRoom(rosterPanel, rosterCards)));
         eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
+        if (townsScroll.Visible)
+            townsScroll.CustomMinimumSize = new Vector2(0,
+                Math.Min(townsPage.GetCombinedMinimumSize().Y, ListRoom(worldInfoPanel, townsScroll)));
         rosterPanel.ResetSize();
         eventsPanel.ResetSize();
+        worldInfoPanel.ResetSize();
     }
 
     /// <summary>

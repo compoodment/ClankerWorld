@@ -1260,6 +1260,138 @@ public partial class Main
             {
                 displayPreferences = installedClockPreferences;
             }
+            var civicTown = sample.Towns[0] with
+            {
+                FoundingState = "founded",
+                Governance = new OwnerTownGovernance("representative", "none", ["Mira Vale", "Sol Reed", "Ash Rowan"],
+                    7_200, 0, ["Mira Vale (full term)"],
+                    [new("proposal-1", "law", "Keep public harvest records.", "pending", 1, 0, 2, 3_960),
+                     new("proposal-2", "admission", "Admit Nia Moss.", "passed", 2, 0, 2, 3_600),
+                     new("proposal-3", "law", "Close the public path.", "rejected", 0, 2, 2, 3_600),
+                     new("proposal-4", "law", "Reserve storm fuel.", "cancelled", 1, 0, 2, 3_600)],
+                    new("election-1", "regular", "runoff", 1, 3_960,
+                        [new("candidate-1", "Nia Moss", 2), new("candidate-2", "Sol Reed", 1)], ["Mira Vale", "Ash Rowan"])),
+            };
+            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40), Towns = [civicTown] }, []);
+            var civicLabels = TownListText();
+            foreach (var phrase in new[] { "Council: elected representatives", "Mira Vale, Sol Reed, Ash Rowan", "Term ends ",
+                         "Scheduled council election", "Runoff voting", "1 seat", "Sol Reed: 1 vote", "Nia Moss: 2 votes",
+                         "1 yes / 0 no", "Pending law proposal", "Passed admission proposal",
+                         "Rejected law proposal", "Cancelled law proposal" })
+                if (!civicLabels.Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The Town council rows must show readable names, current ballots and honest proposal states: " + phrase);
+            if (civicLabels.Contains("1 seats", StringComparison.Ordinal) || civicLabels.Contains("1 votes", StringComparison.Ordinal) ||
+                civicLabels.Contains("tick", StringComparison.OrdinalIgnoreCase) || civicLabels.Contains("candidate-", StringComparison.Ordinal) ||
+                civicLabels.Contains("representative", StringComparison.Ordinal) && !civicLabels.Contains("elected representatives", StringComparison.Ordinal))
+                throw new InvalidOperationException("Normal Town council rows must use world clocks and names rather than internal counters or IDs.");
+            var revisedCivicTown = civicTown with
+            {
+                Governance = civicTown.Governance! with
+                {
+                    Proposals = civicTown.Governance!.Proposals.Select(p => p.Id == "proposal-1" ? p with { Status = "passed", Yes = 2 } : p).ToArray(),
+                }
+            };
+            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40), Towns = [revisedCivicTown] }, []);
+            if (!TownListText().Contains("Passed law proposal: Keep public harvest records.", StringComparison.Ordinal))
+                throw new InvalidOperationException("A civic result must refresh its Town row even when Town membership is unchanged.");
+            foreach (var (stage, phrase) in new[] { ("main", " · Voting · "), ("ready", "Representatives chosen") })
+            {
+                var electionTown = civicTown with
+                {
+                    Governance = civicTown.Governance! with
+                    {
+                        Election = civicTown.Governance!.Election! with { Kind = stage == "main" ? "initial" : "regular", Stage = stage },
+                    },
+                };
+                Render(sample with { WorldTick = 3_600, Towns = [electionTown] }, []);
+                var labels = TownListText();
+                if (!labels.Contains(phrase, StringComparison.Ordinal) || labels.Contains(" · Main · ", StringComparison.Ordinal) ||
+                    labels.Contains(" · Ready · ", StringComparison.Ordinal) || labels.Contains("Initial election", StringComparison.Ordinal) ||
+                    stage == "ready" && (labels.Contains("Voting closes", StringComparison.Ordinal) ||
+                        !labels.Contains("take office when the current term ends", StringComparison.Ordinal)))
+                    throw new InvalidOperationException("The Towns page must explain voting and the pending handover in plain language.");
+            }
+            foreach (var (stage, phrase) in new[]
+                     {
+                         ("completed", "Last election completed: Mira Vale, Ash Rowan"),
+                         ("failed", "The last election did not elect a supported council."),
+                         ("cancelled", "The last election was cancelled."),
+                     })
+            {
+                var settledTown = civicTown with
+                {
+                    Governance = civicTown.Governance! with
+                    {
+                        Election = null,
+                        LatestElection = civicTown.Governance!.Election! with { Stage = stage },
+                    },
+                };
+                Render(sample with { Towns = [settledTown] }, []);
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal) || TownListText().Contains("Voting closes", StringComparison.Ordinal))
+                    throw new InvalidOperationException("The latest completed, failed or cancelled election must remain visible after voting closes.");
+            }
+            var secondCivicTown = civicTown with { Id = "town:second", Name = "Second Town" };
+            var civicEventSnapshot = sample with { Towns = [civicTown, secondCivicTown] };
+            foreach (var town in civicEventSnapshot.Towns)
+            {
+                foreach (var kind in new[] { "council", "election", "runoff", "proposal", "result", "cancelled" })
+                {
+                    var eventText = WorldEventText.Describe(new(1, 0, "town_civic_" + kind, town.Id + "|subject-id|notice"), civicEventSnapshot);
+                    if (!eventText.Contains(town.Name, StringComparison.Ordinal) || eventText.Contains(town.Id, StringComparison.Ordinal) ||
+                        kind == "council" && eventText.Contains("proposals", StringComparison.Ordinal) ||
+                        kind == "result" && !eventText.Contains("Towns page", StringComparison.Ordinal))
+                        throw new InvalidOperationException("Civic events must identify the Town, use the real page name and claim only known outcomes.");
+                }
+            }
+            var civicWindowSize = displayWindow.Size;
+            var civicRenderSize = displayWindow.ContentScaleSize;
+            var civicPanelVisible = worldInfoPanel.Visible;
+            try
+            {
+                var longProposals = Enumerable.Range(1, 8).Select(index => new OwnerCivicProposal(
+                    "long-proposal-" + index, "law", $"Proposal {index}: " + string.Join(" ", Enumerable.Repeat("Keep clear public harvest records.", 7)),
+                    index == 8 ? "passed" : "pending", 2, 0, 2, 3_960)).ToArray();
+                var longCivicTown = civicTown with { Governance = civicTown.Governance! with { Proposals = longProposals } };
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1920, 1080) })
+                {
+                    displayWindow.Size = size;
+                    displayWindow.ContentScaleSize = size;
+                    Render(sample with { Towns = [longCivicTown, longCivicTown with { Id = "town:second", Name = "Second Town" }] }, []);
+                    ShowWorldInfoPage(towns: true);
+                    worldInfoPanel.Show();
+                    townsScroll.ScrollVertical = 0;
+                    for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    ApplyResponsiveLayout();
+                    for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    var panelRect = worldInfoPanel.GetGlobalRect();
+                    var scrollRect = townsScroll.GetGlobalRect();
+                    if (!GetViewportRect().Grow(1).Encloses(panelRect) || !panelRect.Grow(1).Encloses(scrollRect) ||
+                        townsScroll.GetVScrollBar().MaxValue <= townsScroll.GetVScrollBar().Page)
+                        throw new InvalidOperationException($"Long civic results must stay in a screen-bounded, scrollable Towns page at {size}: panel={panelRect}, scroll={scrollRect}.");
+                    townsScroll.ScrollVertical = (int)townsScroll.GetVScrollBar().MaxValue;
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    var lastCivicLabel = townList.GetChild<PanelContainer>(1)
+                        .FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>()
+                        .Single(label => label.Text.StartsWith("Council:", StringComparison.Ordinal));
+                    var lastLineBottom = lastCivicLabel.GetGlobalRect().End.Y;
+                    if (townsScroll.ScrollVertical == 0 || lastLineBottom < scrollRect.Position.Y || lastLineBottom > scrollRect.End.Y + 1)
+                        throw new InvalidOperationException("Scrolling to the bottom must make the last Town's proposal result reachable.");
+                    ShowWorldInfoPage(towns: false);
+                    if (townsScroll.Visible || !worldInfoText.Visible)
+                        throw new InvalidOperationException("The World page must replace the scrolling Towns contents.");
+                }
+            }
+            finally
+            {
+                displayWindow.Size = civicWindowSize;
+                displayWindow.ContentScaleSize = civicRenderSize;
+                Render(sample, []);
+                ShowWorldInfoPage(towns: true);
+                worldInfoPanel.Visible = civicPanelVisible;
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                ApplyResponsiveLayout();
+            }
+            Render(sample, []);
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
             VerifyConsistentButtons();
@@ -1516,6 +1648,7 @@ public partial class Main
             await VerifyBuildingCardsAsync(ownedMap);
             RenderMap(ownedMap);
             householdPropertyFilter.ButtonPressed = false;
+            var placementMapStagePosition = mapStage.Position;
             placingAddedAgent = true;
             founderSetupPanel.Show();
             if (townBorderFilter.ButtonPressed || householdPropertyFilter.ButtonPressed ||
@@ -1530,16 +1663,29 @@ public partial class Main
             var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
                 founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 2.5f, currentTileSize * 2.5f));
+            void HoverPlacementTile(int x, int y)
+            {
+                // Pin this fixture tile to clear map space before hovering it.
+                // The four-tile map can otherwise sit underneath Add Agent,
+                // and headless windows may clamp requested physical sizes.
+                var pointer = new Vector2(24, mapCanvas.Size.Y - 24);
+                var globalPointer = mapCanvas.GetGlobalTransform() * pointer;
+                if (!mapCanvas.GetGlobalRect().HasPoint(globalPointer) || founderSetupPanel.GetGlobalRect().HasPoint(globalPointer))
+                    throw new InvalidOperationException($"Placement hover must target visible map outside Add Agent: tile={x},{y}, pointer={globalPointer}, panel={founderSetupPanel.GetGlobalRect()}.");
+                mapStage.Position = pointer - new Vector2(x * (currentTileSize + TileGap) + currentTileSize / 2f,
+                    y * (currentTileSize + TileGap) + currentTileSize / 2f);
+                UpdateTileHover(pointer);
+            }
+            HoverPlacementTile(2, 2);
             if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
-                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+                throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership: " + founderSetupHint.Text);
+            HoverPlacementTile(0, 0);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 3.5f));
+            HoverPlacementTile(3, 3);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 3.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(3, 0);
             if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
 
@@ -1601,16 +1747,17 @@ public partial class Main
                 throw new InvalidOperationException("A pointer inside Add Agent must keep the last visible placement preview.");
             founderModelPicker.Choice.GetPopup().Popup();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(0, 0);
             if (founderSetupHint.Text != placementPreview)
                 throw new InvalidOperationException("An open model popup must not preview the map behind it.");
             founderModelPicker.Choice.GetPopup().Hide();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            UpdateTileHover(mapStage.Position + new Vector2(currentTileSize * 0.5f, currentTileSize * 0.5f));
+            HoverPlacementTile(0, 0);
             if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
+            mapStage.Position = placementMapStagePosition;
             if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
                 terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
                 terrainLayer.DisputedLandTileCount != 0)

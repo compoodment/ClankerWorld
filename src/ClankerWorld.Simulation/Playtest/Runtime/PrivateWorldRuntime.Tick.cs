@@ -502,6 +502,7 @@ public sealed partial class PrivateWorldRuntime
             RemoveDeadPhysicalState();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
+            AdvanceTownGovernance();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();

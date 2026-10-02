@@ -551,7 +551,19 @@ public sealed class HouseholdDepartureTests
             Households = society.Households.Select(home => home.Id == Alpha
                 ? home with { CaregiverIds = [adult] } : home).ToArray(),
         };
-        return state with { Society = state.Society with { Society = society } };
+        return state with
+        {
+            Society = state.Society with { Society = society },
+            Towns = state.Towns!.Select(town => town with
+            {
+                // The former adult is now a dependent and no longer sits on the council.
+                Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed,
+                    town.ResidentIds.Where(id => society.Inhabitants.Any(person => person.Id == id &&
+                        person.Status == SocietyInhabitantStatus.Active &&
+                        person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)),
+                    society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+            }).ToArray(),
+        };
     }
 
     private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) => state with
