@@ -13,8 +13,8 @@ words on a stated scale instead of exact numbers
 words must be compared with today's numbers in a controlled comparison before
 they become the default. [#672](https://github.com/compoodment/ClankerWorld/issues/672)
 built the words and this comparison. In the
-[model-backed run](#model-backed-results), words did worse than numbers with
-GLM 5.3 Flash, so play keeps sending numbers.
+[model-backed run](#model-backed-results), words did no worse than numbers with
+GPT 6 Luna but clearly worse with GLM 5.3 Flash, so play keeps sending numbers.
 [How it works](how-it-works.md#model-inputs-usage-and-memories) describes the
 two request formats.
 
@@ -111,6 +111,32 @@ either arm, but with words agents spent 704 agent-ticks freezing against 167
 with numbers, and 674 hungry or worse against 213. They picked survival
 choices more often yet still stayed cold and hungry for longer, and made fewer
 decisions in rain and storm. Two calls failed, both in the numbers arm.
+
+### GPT 6 Luna on OpenAI (`gpt-6-luna`)
+
+| Weather | Needs as | Decisions | Survival choices | Time under a survival choice | Starving | Hungry or worse | Freezing | Unwell or worse | Peak illness | Food | Meals | Deaths | Failed calls | Input/output tokens |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| Clear | Numbers | 125 | 9.6% (12) | 1.1% | 0 | 67 | 0 | 0 | 0% | 32/31/36 | 4 | 0 | 0 | 168,827/24,293 |
+| Clear | Words | 105 | 11.4% (12) | 1.3% | 0 | 99 | 0 | 0 | 0% | 32/32/40 | 4 | 0 | 1 | 148,183/17,630 |
+| Rain | Numbers | 125 | 40.8% (51) | 45.8% | 0 | 21 | 96 | 0 | 0% | 32/28/28 | 4 | 0 | 0 | 182,253/24,397 |
+| Rain | Words | 157 | 43.9% (69) | 50.8% | 0 | 28 | 0 | 0 | 0% | 32/32/40 | 4 | 0 | 0 | 235,263/24,045 |
+| Storm | Numbers | 141 | 31.2% (44) | 41.4% | 0 | 42 | 77 | 0 | 0% | 32/28/28 | 4 | 0 | 0 | 204,694/27,343 |
+| Storm | Words | 84 | 44.0% (37) | 37.2% | 0 | 8 | 111 | 0 | 0% | 32/32/40 | 4 | 0 | 0 | 118,979/11,069 |
+
+**Words did no worse with GPT 6 Luna.** Nobody starved, fell ill or died in
+either arm. With words, agents spent 111 agent-ticks freezing against 173 with
+numbers, and 135 hungry or worse against 130. One call failed, in the words
+arm.
+
+### Conclusion
+
+The owner's rule was to make words the default only if they did no worse with
+both models. They did no worse with GPT 6 Luna but clearly worse with GLM 5.3
+Flash, so the default stays numbers. Each model ran once per arm, so the
+difference may partly be run-to-run noise, but GLM's gap (about four times as
+much freezing) is far larger than Luna's. Whether to keep numbers or adjust
+the words and compare again is waiting on the owner
+([#672](https://github.com/compoodment/ClankerWorld/issues/672)).
 
 ## Running the model-backed comparison
 
