@@ -35,7 +35,74 @@ public sealed partial class PrivateWorldRuntime
         worldSimulation.Buildings.Any(building => building.InstanceId == trade.BuildingInstanceId &&
             building.HouseholdId == trade.SellerHouseholdId && building.Position == trade.Position);
 
-    private bool BusinessBuyerWants(string actor, InventoryLot lot)
+    private bool BusinessBuyerWants(string actor, InventoryLot lot) =>
+        BusinessBuyerWantsWithoutRestaurant(actor, lot) || RestaurantInputDemand(actor, lot.ItemKind) > 0;
+
+    private int RestaurantInputDemand(string actor, string itemKind, int spentPersonalQuantity = 0)
+    {
+        if (HouseholdFor(actor) is not { } householdId) return 0;
+        var inventory = society.Checkpoint.Inventory;
+        var restaurants = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId &&
+            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                definition.Tags.Contains("restaurant", StringComparer.Ordinal))).ToArray();
+        var missing = restaurants.Sum(building => Math.Max(0, WorkstationInputTarget(building, itemKind) -
+            WorkstationOnsiteQuantity(inventory, building, itemKind) -
+            WorkstationIncomingQuantity(inventory, building, itemKind)));
+        if (missing == 0) return 0;
+
+        // Personal stock is usable only by its actual owner; other members'
+        // uncommitted possessions are not a household promise.
+        var carried = inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == itemKind &&
+                lot.DeliveryBuildingId is null && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor))
+            .Where(lot => restaurants.Any(building => WorkstationInputTarget(building, itemKind) >
+                    WorkstationOnsiteQuantity(inventory, building, itemKind) +
+                    WorkstationIncomingQuantity(inventory, building, itemKind) &&
+                WorkstationDeliveryRoom(inventory, building.InstanceId) > 0 &&
+                (lot.ContainerLotId is not { } containerId ||
+                 !HasActiveContainerReservation(inventory, containerId) &&
+                 !UnusableDeliveryStock(inventory, inventory.GetLot(containerId)) &&
+                 ContainerFamilyQuantity(inventory, containerId) <= WorkstationDeliveryRoom(inventory, building.InstanceId))))
+            .Sum(lot => UsableWorkstationQuantity(inventory, lot));
+        var householdStock = inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
+                lot.CarrierId is null && lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
+                (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
+                    building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
+                        definition.CanonicalId == building.DefinitionId &&
+                        definition.Tags.Any(tag => tag is "house" or "silo" or "farmhouse" or "restaurant")))))
+            .Where(lot => lot.ContainerLotId is not { } containerId ||
+                CanRemoveWorkstationStock(inventory, inventory.GetLot(containerId), 1))
+            .Where(lot => restaurants.Any(building => WorkstationInputTarget(building, itemKind) >
+                    WorkstationOnsiteQuantity(inventory, building, itemKind) +
+                    WorkstationIncomingQuantity(inventory, building, itemKind) &&
+                WorkstationPickupQuantity(actor, inventory,
+                    lot.ContainerLotId is { } containerId ? inventory.GetLot(containerId) : lot,
+                    building.InstanceId, int.MaxValue) > 0))
+            .Where(lot => IsWithinInteractionRange(inhabitants[actor].Position, HouseholdStockPosition(lot),
+                    HouseholdStockInteractionRange(lot)) ||
+                FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+                    HouseholdStockInteractionRange(lot)).Count > 0)
+            .GroupBy(lot => lot.StorageBuildingId)
+            // Reserve the source's target once across all of its lots.
+            .Sum(group => Math.Min(group.Sum(lot => UsableWorkstationQuantity(inventory, lot)),
+                WorkstationSourceSurplus(inventory, group.First())));
+        var purchases = OpenBusinessTrades(inventory).Where(pair => pair.Offer.ExpiryTick >= WorldTick &&
+                pair.Trade.GoodsKind == itemKind &&
+                society.Checkpoint.Inhabitants.Any(person => person.Id == pair.Trade.BuyerId &&
+                    person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active) &&
+                pair.Offer.AcceptedBy.Contains(pair.Trade.BuyerId, StringComparer.Ordinal))
+            .Where(pair => inventory.Lots.Any(lot => lot.Id == pair.Offer.FirstLotId &&
+                    lot.OwnerId == pair.Trade.SellerHouseholdId &&
+                    lot.StorageBuildingId == pair.Trade.BuildingInstanceId &&
+                    lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
+                    lot.Quantity >= pair.Offer.FirstQuantity) &&
+                inventory.Reservations.Any(reservation => reservation.Id == pair.Offer.Id + ":first" &&
+                    reservation.State == InventoryReservationState.Reserved &&
+                    reservation.Quantity >= pair.Offer.FirstQuantity))
+            .Sum(pair => pair.Offer.FirstQuantity);
+        return Math.Max(0, missing - Math.Max(0, carried - spentPersonalQuantity) - householdStock - purchases);
+    }
+
+    private bool BusinessBuyerWantsWithoutRestaurant(string actor, InventoryLot lot)
     {
         var inventory = society.Checkpoint.Inventory;
         if (ToolProgressionRules.Find(lot.ItemKind) is { } offeredTool)
@@ -141,6 +208,12 @@ public sealed partial class PrivateWorldRuntime
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var amounts = BusinessQuoteAmounts(building, goods, payment);
+                if (!BusinessBuyerWantsWithoutRestaurant(buyer, goods) &&
+                    amounts.Goods > RestaurantInputDemand(buyer, goods.ItemKind)) continue;
+                // A satisfied input reserve can become short after payment:
+                // protect the exact quoted quantity, not just a desire flag.
+                if (RestaurantInputDemand(buyer, payment.ItemKind, amounts.Payment) >
+                    RestaurantInputDemand(buyer, payment.ItemKind)) continue;
                 if (AvailableLotQuantity(goods) >= amounts.Goods && AvailableLotQuantity(payment) >= amounts.Payment &&
                     BusinessReceivingSpace(buyer, building, amounts.Goods, amounts.Payment))
                     return new(goods, amounts.Goods, payment, amounts.Payment);

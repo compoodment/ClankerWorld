@@ -408,6 +408,9 @@ public sealed class ConcreteMealTests
         using var world = Restore(state, actor, choices);
         await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
             job.RecipeId == recipe.CanonicalId && job.State == WorldProductionJobState.Completed), 90);
+        // Keep the same policy after cooking so a still-cold cook must choose
+        // where to recover rather than stopping while the recipe owns the turn.
+        for (var tick = 0; tick < 8; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(world.ExportState().Events, item => item.Kind == "fire_fuelled" && item.Detail == house.InstanceId);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "fire_fuelled" && item.Detail == restaurant.InstanceId);
         Assert.DoesNotContain(world.ExportState().Survival!.Fires, fire => fire.BuildingId == restaurant.InstanceId);

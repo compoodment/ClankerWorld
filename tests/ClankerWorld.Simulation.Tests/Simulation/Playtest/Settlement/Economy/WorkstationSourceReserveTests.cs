@@ -271,9 +271,9 @@ public sealed class WorkstationSourceReserveTests
     }
 
     [Fact]
-    public async Task APhysicallySpoiledChildDoesNotPreventMovingAWholePotOfRealGrainSurplus()
+    public async Task UsableOnsiteGrainInAMixedPotProtectsItsReserveWhileOnlyLooseSurplusIsDelivered()
     {
-        var fixture = Prepared("grain", 5);
+        var fixture = Prepared("grain", 2);
         var inventory = InventoryFixture.AddLot(fixture.State.Society.Society.Inventory,
             "a-mixed-surplus-pot", InventoryContainerRules.StoragePot, fixture.Household, 1,
             storageBuildingId: fixture.House.InstanceId);
@@ -283,29 +283,92 @@ public sealed class WorkstationSourceReserveTests
             freshnessBasisPoints: 0, storageBuildingId: fixture.House.InstanceId, containerLotId: "a-mixed-surplus-pot");
         using var world = Restore(FarmFieldTests.WithInventory(fixture.State, inventory), fixture.Actor,
             new Choices("supply_workstation:grain", "haul_household_stock"));
-        await AdvanceUntil(world, () => world.Society.Inventory.GetLot("a-mixed-surplus-pot").OwnerId == fixture.Actor, 32);
+        await AdvanceUntil(world, () => world.Society.Inventory.Lots.Any(lot =>
+            lot.ProvenanceLotId == "reserve-source-grain" && lot.OwnerId == fixture.Actor), 32);
+        var load = Assert.Single(world.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "reserve-source-grain");
         Assert.Equal(0, world.Society.Inventory.GetLot("mixed-spoiling-berries").FreshnessBasisPoints);
         Assert.Equal(2, world.Society.Inventory.GetLot("mixed-spoiling-berries").Quantity);
         Assert.Equal((fixture.Actor, fixture.Restaurant.InstanceId, 1),
-            (world.Society.Inventory.GetLot("a-mixed-surplus-pot").OwnerId,
-                world.Society.Inventory.GetLot("a-mixed-surplus-pot").DeliveryBuildingId,
-                world.Society.Inventory.GetLot("mixed-surplus-grain").Quantity));
+            (load.OwnerId, load.DeliveryBuildingId, load.Quantity));
+        Assert.Equal(1, world.Society.Inventory.GetLot("reserve-source-grain").Quantity);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), fixture.Actor,
             new Choices("supply_workstation:grain", "haul_household_stock"));
-        await AdvanceTogether(world, replay, () => world.Society.Inventory.GetLot("a-mixed-surplus-pot").StorageBuildingId ==
+        await AdvanceTogether(world, replay, () => world.Society.Inventory.GetLot(load.Id).StorageBuildingId ==
             fixture.Restaurant.InstanceId, 96);
         foreach (var id in new[] { "a-mixed-surplus-pot", "mixed-surplus-grain", "mixed-spoiling-berries" })
         {
             var lot = world.Society.Inventory.GetLot(id);
             Assert.Equal(fixture.Household, lot.OwnerId);
-            Assert.Equal(fixture.Restaurant.InstanceId, lot.StorageBuildingId);
+            Assert.Equal(fixture.House.InstanceId, lot.StorageBuildingId);
+            Assert.Null(lot.DeliveryBuildingId);
         }
         Assert.Equal("a-mixed-surplus-pot", world.Society.Inventory.GetLot("mixed-surplus-grain").ContainerLotId);
         Assert.Equal("a-mixed-surplus-pot", world.Society.Inventory.GetLot("mixed-spoiling-berries").ContainerLotId);
-        Assert.Equal(5, world.Society.Inventory.GetLot("reserve-source-grain").Quantity);
+        // The actual one-grain recipes keep two batches: one loose unit and
+        // one usable on-site unit in the otherwise undeliverable mixed pot.
+        Assert.Equal(1, world.Society.Inventory.GetLot("reserve-source-grain").Quantity);
         Assert.Equal(1, world.Society.Inventory.GetLot("mixed-surplus-grain").Quantity);
         Assert.Equal(2, world.Society.Inventory.GetLot("mixed-spoiling-berries").Quantity);
+        Assert.Equal(1, world.Society.Inventory.GetLot("a-mixed-surplus-pot").Quantity);
+        Assert.Equal(10_000, world.Society.Inventory.GetLot("a-mixed-surplus-pot").ConditionBasisPoints);
+        Assert.Equal((fixture.Household, fixture.Restaurant.InstanceId, 1),
+            (world.Society.Inventory.GetLot(load.Id).OwnerId, world.Society.Inventory.GetLot(load.Id).StorageBuildingId,
+                world.Society.Inventory.GetLot(load.Id).Quantity));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "household_stock_delivered" &&
+            item.Detail.StartsWith(fixture.Actor + ":" + load.Id + ":", StringComparison.Ordinal));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "workstation_input_picked_up" &&
+            item.Detail.Contains("a-mixed-surplus-pot", StringComparison.Ordinal));
+        AssertClaimsRemain(world, fixture);
+    }
+
+    [Theory]
+    [InlineData(true, false, 0)]
+    [InlineData(false, false, 0)]
+    [InlineData(false, true, 1)]
+    public async Task OnlyADeliverableUnclaimedMemberFamilyCanCoverTheHouseGrainReserve(
+        bool spoiledSibling, bool expiredSiblingClaim, int moved)
+    {
+        var fixture = Prepared("grain", 2);
+        var deliverer = fixture.State.Society.Society.Inhabitants.Single(person =>
+            person.HouseholdId == fixture.Household && person.Id != fixture.Actor).Id;
+        var inventory = InventoryFixture.AddLot(fixture.State.Society.Society.Inventory,
+            "incoming-family-pot", InventoryContainerRules.StoragePot, fixture.Household, 1);
+        inventory = InventoryFixture.AddLot(inventory, "incoming-family-grain", "grain", fixture.Household, 1,
+            containerLotId: "incoming-family-pot");
+        inventory = InventoryFixture.AddLot(inventory, "incoming-family-berries", "berries", fixture.Household, 1,
+            freshnessBasisPoints: spoiledSibling ? 0 : 10_000, containerLotId: "incoming-family-pot");
+        inventory = InventoryFixture.Transfer(inventory, "real-member-family-promise", fixture.Household, deliverer,
+            "incoming-family-pot", 1, "household_stock_picked_up",
+            destinationDeliveryBuildingId: fixture.House.InstanceId);
+        if (!spoiledSibling)
+            inventory = InventoryFixture.Reserve(inventory, "actual-family-sibling-claim", deliverer,
+                "incoming-family-berries", 1, "independent-incoming-work", expiredSiblingClaim ? 0 : long.MaxValue);
+        using var world = Restore(FarmFieldTests.WithInventory(fixture.State, inventory), fixture.Actor,
+            new Choices("supply_workstation:grain", "haul_household_stock"));
+        for (var tick = 0; tick < 32; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(2 - moved, world.Society.Inventory.GetLot("reserve-source-grain").Quantity);
+        Assert.Equal(moved, world.Society.Inventory.Lots.Where(lot => lot.ProvenanceLotId == "reserve-source-grain")
+            .Sum(lot => lot.Quantity));
+        foreach (var id in new[] { "incoming-family-pot", "incoming-family-grain", "incoming-family-berries" })
+        {
+            var lot = world.Society.Inventory.GetLot(id);
+            Assert.Equal((deliverer, fixture.House.InstanceId, (string?)null, 1),
+                (lot.OwnerId, lot.DeliveryBuildingId, lot.StorageBuildingId, lot.Quantity));
+        }
+        Assert.Equal("incoming-family-pot", world.Society.Inventory.GetLot("incoming-family-grain").ContainerLotId);
+        Assert.Equal("incoming-family-pot", world.Society.Inventory.GetLot("incoming-family-berries").ContainerLotId);
+        if (spoiledSibling) Assert.Equal(0, world.Society.Inventory.GetLot("incoming-family-berries").FreshnessBasisPoints);
+        else Assert.Equal(expiredSiblingClaim ? InventoryReservationState.Released : InventoryReservationState.Reserved,
+            world.Society.Inventory.GetReservation("actual-family-sibling-claim").State);
+        AssertClaimsRemain(world, fixture);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), fixture.Actor,
+            new Choices("supply_workstation:grain", "haul_household_stock"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
     }
 
     [Fact]

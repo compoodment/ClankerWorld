@@ -48,8 +48,16 @@ public sealed partial class PrivateWorldRuntime
         building.HouseholdId is { } householdId ? inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId &&
                 lot.ItemKind == itemKind && (lot.OwnerId == householdId ||
                     society.Checkpoint.Inhabitants.Any(person => person.Id == lot.OwnerId &&
-                        person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active)))
+                        person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active)) &&
+                CanCreditWorkstationIncoming(inventory, lot))
             .Sum(lot => UsableWorkstationQuantity(inventory, lot)) : 0;
+
+    private static bool CanCreditWorkstationIncoming(InventoryCheckpoint inventory, InventoryLot lot)
+    {
+        var root = lot.ContainerLotId is { } containerId ? inventory.GetLot(containerId) : lot;
+        return !InventoryContainerRules.IsContainer(root.ItemKind) ||
+            !UnusableDeliveryStock(inventory, root) && !HasActiveContainerReservation(inventory, root.Id);
+    }
 
     private int WorkstationSourceSurplus(InventoryCheckpoint inventory, InventoryLot resource)
     {
@@ -73,7 +81,7 @@ public sealed partial class PrivateWorldRuntime
         if (quantity <= 0) return false;
         if (!InventoryContainerRules.IsContainer(root.ItemKind))
             return quantity <= WorkstationStockSurplus(inventory, root);
-        if (quantity != 1 || root.ConditionBasisPoints <= 0 || HasActiveContainerReservation(inventory, root.Id))
+        if (quantity != 1 || UnusableDeliveryStock(inventory, root) || HasActiveContainerReservation(inventory, root.Id))
             return false;
         return inventory.Lots.Where(lot => lot.ContainerLotId == root.Id)
             .GroupBy(lot => lot.ItemKind).All(group =>

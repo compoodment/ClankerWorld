@@ -102,7 +102,12 @@ public sealed class SocietyMultiLotBirthTests
                 Lots = inventory.Lots.Select(lot => lot.Id == last
                 ? lot with { FreshnessBasisPoints = 1 } : lot).ToArray()
             };
-            checkpoint = SocietyFixture.AdvanceTo(checkpoint with { Inventory = inventory }, checkpoint.WorldTick + 1).Checkpoint;
+            using var spoiling = CookedBirthFixture.Restore(prepared with
+            {
+                State = FarmFieldTests.WithInventory(prepared.State, inventory)
+            });
+            Assert.True((await spoiling.AdvanceOneTickAsync()).Advanced);
+            checkpoint = spoiling.Society;
             inventory = checkpoint.Inventory;
             Assert.Equal(0, inventory.GetLot(last).FreshnessBasisPoints);
             Assert.True(inventory.GetLot(prepared.OutputIds[0]).FreshnessBasisPoints > 0);

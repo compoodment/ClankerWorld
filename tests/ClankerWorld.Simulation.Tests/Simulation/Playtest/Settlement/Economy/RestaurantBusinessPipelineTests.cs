@@ -1,0 +1,552 @@
+using System.Collections.Concurrent;
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
+
+namespace ClankerWorld.Simulation.Tests;
+
+public sealed class RestaurantBusinessPipelineTests
+{
+    private const string Alpha = "household:camp-alpha";
+    private const string Beta = "household:camp-beta";
+    private const string JugId = "restaurant-pipeline-jug";
+
+    [Fact]
+    public async Task RestaurantBuysRealMilledFlourRefillsAndDeliversInputsThenSellsBreadToAnOutsiderAcrossReload()
+    {
+        var fixture = CreateFixture();
+        using var world = Restore(fixture);
+        var beforeUnauthorized = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var unauthorized = world.StartProduction(fixture.Recipe.CanonicalId, fixture.Restaurant.InstanceId, fixture.Customer);
+        Assert.False(unauthorized.Applied);
+        Assert.Contains("member", unauthorized.Failure!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(beforeUnauthorized, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
+            job.RecipeId == fixture.Recipe.CanonicalId && job.State == WorldProductionJobState.Running));
+        var baking = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.RecipeId == fixture.Recipe.CanonicalId);
+        Assert.Equal(Beta, baking.OwnerId);
+        Assert.Equal(fixture.Cook, baking.WorkerId);
+        Assert.Equal(fixture.Restaurant.InstanceId, baking.BuildingInstanceId);
+        Assert.Equal(2, world.BusinessTrades.Count(trade => trade.BuyerId == fixture.Cook && trade.GoodsKind == "flour"));
+        foreach (var trade in world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook))
+        {
+            var offer = world.Society.Inventory.GetOffer(trade.OfferId);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+            Assert.Equal(1, offer.FirstQuantity);
+            Assert.Equal(1, offer.SecondQuantity);
+            Assert.Equal("berries", trade.PaymentKind);
+            Assert.Equal(Alpha, trade.SellerHouseholdId);
+            Assert.Equal(fixture.Miller, trade.SellerActorId);
+            Assert.Equal(new[] { Alpha, fixture.Cook }.Order(StringComparer.Ordinal), offer.AcceptedBy);
+            var producedFlour = Assert.Single(world.WorldSimulation.ProductionJobs,
+                job => offer.FirstLotId == job.JobId + ":output:00");
+            Assert.Equal(fixture.MillRecipe.CanonicalId, producedFlour.RecipeId);
+            Assert.Equal(WorldProductionJobState.Completed, producedFlour.State);
+            var paymentId = "restaurant-buyer-payment#barter:" + offer.Id;
+            var payment = world.Society.Inventory.GetLot(paymentId);
+            Assert.Equal(Alpha, payment.OwnerId);
+            Assert.Equal(fixture.Farmhouse.InstanceId, payment.StorageBuildingId);
+            Assert.Equal(1, payment.Quantity);
+        }
+        Assert.Equal(4, world.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
+        Assert.Equal(fixture.House.InstanceId, world.Society.Inventory.GetLot("restaurant-house-flour").StorageBuildingId);
+        Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-house-wood").Quantity);
+        Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-house-fresh_water").Quantity);
+        var claims = baking.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
+        Assert.All(claims, claim => Assert.Equal(InventoryReservationState.Reserved, claim.State));
+        Assert.All(claims, claim =>
+        {
+            var input = world.Society.Inventory.GetLot(claim.LotId);
+            Assert.Equal(Beta, input.OwnerId);
+            Assert.Equal(fixture.Restaurant.InstanceId, input.StorageBuildingId);
+        });
+        Assert.Equal(2, claims.Where(claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == "flour")
+            .Sum(claim => claim.Quantity));
+        Assert.Equal(1, claims.Where(claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == "wood")
+            .Sum(claim => claim.Quantity));
+        Assert.Equal(1, claims.Where(claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == InventoryContainerRules.FreshWater)
+            .Sum(claim => claim.Quantity));
+        Assert.Equal(JugId, world.Society.Inventory.GetLot(Assert.Single(claims,
+            claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == InventoryContainerRules.FreshWater).LotId).ContainerLotId);
+        Assert.Equal(fixture.Restaurant.InstanceId, world.Society.Inventory.GetLot(JugId).StorageBuildingId);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "water_jug_collected" &&
+            item.Detail == fixture.Cook + ":" + JugId);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "water_jug_filled" &&
+            item.Detail.StartsWith(fixture.Cook + ":" + JugId + ":", StringComparison.Ordinal));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "workstation_input_picked_up" &&
+            item.Detail.StartsWith(fixture.Cook + ":restaurant-house-extra-wood:", StringComparison.Ordinal));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" &&
+            item.Detail.StartsWith(fixture.Cook + ":", StringComparison.Ordinal));
+        Assert.NotEqual(fixture.State.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position,
+            world.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position);
+        await AssertStrictReplayAndDiscard(world, fixture);
+
+        await AdvanceUntil(world, () => world.BusinessTrades.Any(trade => trade.BuyerId == fixture.Customer &&
+            world.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open));
+        var sale = Assert.Single(world.BusinessTrades, trade => trade.BuyerId == fixture.Customer);
+        var quoted = world.Society.Inventory.GetOffer(sale.OfferId);
+        Assert.Equal("bread", sale.GoodsKind);
+        Assert.Equal("wood", sale.PaymentKind);
+        Assert.Equal(2, quoted.FirstQuantity);
+        Assert.Equal(1, quoted.SecondQuantity);
+        Assert.Equal(baking.JobId + ":output:00", quoted.FirstLotId);
+        Assert.Equal(new[] { fixture.Customer }, quoted.AcceptedBy);
+        Assert.Equal(2, world.Society.Inventory.GetLot(quoted.FirstLotId).Quantity);
+        Assert.All(world.Society.Inventory.Reservations.Where(reservation => reservation.Purpose == "barter:" + sale.OfferId),
+            reservation => Assert.Equal(InventoryReservationState.Reserved, reservation.State));
+        await AssertStrictReplayAndDiscard(world, fixture);
+
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var resumed = Restore(fixture, PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        await AdvanceUntil(resumed, () => resumed.Inhabitants.Single(person => person.InhabitantId == fixture.Customer)
+            .Survival?.LastMealKind == "bread");
+        Assert.Equal(DirectBarterState.Settled, resumed.Society.Inventory.GetOffer(sale.OfferId).State);
+        Assert.Equal(fixture.Cook, resumed.BusinessTrades.Single(trade => trade.OfferId == sale.OfferId).SellerActorId);
+        var purchased = Assert.Single(resumed.Society.Inventory.Lots, lot => lot.OwnerId == fixture.Customer &&
+            lot.ItemKind == "bread" && (lot.Id == quoted.FirstLotId || lot.ProvenanceLotId == quoted.FirstLotId));
+        Assert.Equal(1, purchased.Quantity);
+        Assert.True(PersonalEquipmentRules.IsCarried(purchased, fixture.Customer));
+        var mealPayment = resumed.Society.Inventory.GetLot("restaurant-customer-payment");
+        Assert.Equal(Beta, mealPayment.OwnerId);
+        Assert.Equal(fixture.Restaurant.InstanceId, mealPayment.StorageBuildingId);
+        Assert.Equal(1, mealPayment.Quantity);
+        Assert.Equal(Alpha, resumed.Society.GetInhabitant(fixture.Customer).HouseholdId);
+        Assert.Equal(4, resumed.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
+        Assert.Equal(fixture.House.InstanceId, resumed.Society.Inventory.GetLot("restaurant-house-flour").StorageBuildingId);
+        Assert.Equal(fixture.Restaurant.InstanceId, resumed.Society.Inventory.GetLot(JugId).StorageBuildingId);
+        Assert.All(baking.InputReservationIds.Select(resumed.Society.Inventory.GetReservation),
+            claim => Assert.Equal(InventoryReservationState.Completed, claim.State));
+        var afterUnauthorized = PrivateWorldRuntimeCodec.Encode(resumed.ExportState());
+        Assert.False(resumed.StartProduction(fixture.Recipe.CanonicalId, fixture.Restaurant.InstanceId, fixture.Customer).Applied);
+        Assert.Equal(afterUnauthorized, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        resumed.Validate();
+    }
+
+    [Theory]
+    [InlineData("store")]
+    [InlineData("oversized-pot")]
+    public async Task RestaurantStillPurchasesRealFlourWhenItsOtherHeldStockHasNoExecutableWorkstationPickup(string sourceKind)
+    {
+        var fixture = CreateFixture(purchaseOnly: true, inaccessibleSource: sourceKind);
+        using var world = Restore(fixture);
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Count(job =>
+            job.RecipeId == fixture.MillRecipe.CanonicalId && job.State == WorldProductionJobState.Completed) == 4);
+        await Advance(world, 30);
+        Assert.Equal(2, world.BusinessTrades.Count);
+        Assert.All(world.BusinessTrades, trade =>
+        {
+            Assert.Equal("flour", trade.GoodsKind);
+            Assert.Equal(Alpha, trade.SellerHouseholdId);
+            Assert.Equal(DirectBarterState.Settled, world.Society.Inventory.GetOffer(trade.OfferId).State);
+        });
+        Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Cook && lot.ItemKind == "flour")
+            .Sum(lot => lot.Quantity));
+        var unused = world.Society.Inventory.GetLot("restaurant-withheld-flour");
+        Assert.Equal(4, unused.Quantity);
+        Assert.Equal(Beta, unused.OwnerId);
+        Assert.Equal("restaurant-withheld-source", unused.StorageBuildingId);
+        Assert.Equal(4, world.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
+        if (sourceKind == "oversized-pot")
+        {
+            Assert.Equal("restaurant-withheld-pot", unused.ContainerLotId);
+            Assert.Equal(9, 1 + world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == unused.ContainerLotId)
+                .Sum(lot => lot.Quantity));
+            Assert.True(9 > PersonalEquipmentRules.Capacity(world.Society.Inventory, fixture.Cook, null));
+        }
+        else
+        {
+            Assert.Null(unused.ContainerLotId);
+            var source = world.WorldSimulation.Buildings.Single(building => building.InstanceId == unused.StorageBuildingId);
+            Assert.Contains("store", world.WorldContent.Buildings.Single(definition => definition.CanonicalId == source.DefinitionId).Tags);
+        }
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    public async Task RestaurantIngredientQuoteKeepsItsExactPairAndDoesNotOverbuyAMissingSinglePotato(
+        int restaurantPotatoes, int expectedPurchases)
+    {
+        var fixture = CreateFixture(purchaseOnly: true, restaurantPotatoes: restaurantPotatoes, farmhousePotatoes: 2);
+        using var world = Restore(fixture);
+        await Advance(world, 50);
+        var purchases = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook && trade.GoodsKind == "potatoes").ToArray();
+        Assert.Equal(expectedPurchases, purchases.Length);
+        if (expectedPurchases > 0)
+        {
+            var offer = world.Society.Inventory.GetOffer(Assert.Single(purchases).OfferId);
+            Assert.Equal(2, offer.FirstQuantity);
+            Assert.Equal(1, offer.SecondQuantity);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+            Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Cook && lot.ItemKind == "potatoes")
+                .Sum(lot => lot.Quantity));
+        }
+        else
+        {
+            Assert.Equal(2, world.Society.Inventory.GetLot("restaurant-farm-potatoes").Quantity);
+            Assert.Equal(Alpha, world.Society.Inventory.GetLot("restaurant-farm-potatoes").OwnerId);
+            Assert.Equal(fixture.Farmhouse.InstanceId, world.Society.Inventory.GetLot("restaurant-farm-potatoes").StorageBuildingId);
+        }
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData("porridge", "porridge")]
+    [InlineData("berry-porridge", "berry_porridge")]
+    [InlineData("fruit-porridge", "fruit_porridge")]
+    public async Task RestaurantQuotesTwoActualCookedServingsForOneWoodAndCustomerEatsTheirPaidMeal(
+        string recipeLocalId, string mealKind)
+    {
+        var fixture = CreateFixture(recipeLocalId, kitchenReady: true);
+        using var world = Restore(fixture);
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
+            job.RecipeId == fixture.Recipe.CanonicalId && job.State == WorldProductionJobState.Running));
+        var job = Assert.Single(world.WorldSimulation.ProductionJobs, item => item.RecipeId == fixture.Recipe.CanonicalId);
+        var inputClaims = job.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
+        Assert.All(inputClaims, claim => Assert.Equal(InventoryReservationState.Reserved, claim.State));
+        Assert.Contains(inputClaims, claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == InventoryContainerRules.FreshWater);
+        Assert.Contains(inputClaims, claim => world.Society.Inventory.GetLot(claim.LotId).ItemKind == "wood");
+        Assert.Equal(fixture.Restaurant.InstanceId, world.Society.Inventory.GetLot(JugId).StorageBuildingId);
+        await AdvanceUntil(world, () => world.BusinessTrades.Any(trade => trade.BuyerId == fixture.Customer));
+        var sale = Assert.Single(world.BusinessTrades, trade => trade.BuyerId == fixture.Customer);
+        var offer = world.Society.Inventory.GetOffer(sale.OfferId);
+        Assert.Equal(DirectBarterState.Open, offer.State);
+        Assert.Equal(WorldProductionJobState.Completed,
+            world.WorldSimulation.ProductionJobs.Single(item => item.JobId == job.JobId).State);
+        Assert.Equal(job.JobId + ":output:00", offer.FirstLotId);
+        Assert.Equal(mealKind, sale.GoodsKind);
+        Assert.Equal(2, offer.FirstQuantity);
+        Assert.Equal(1, offer.SecondQuantity);
+        Assert.Equal("wood", sale.PaymentKind);
+        Assert.Equal(2, world.Society.Inventory.GetLot(offer.FirstLotId).Quantity);
+        await AssertStrictReplayAndDiscard(world, fixture);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = Restore(fixture, PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        await AdvanceUntil(restored, () => restored.Inhabitants.Single(person => person.InhabitantId == fixture.Customer)
+            .Survival?.LastMealKind == mealKind);
+        Assert.Equal(DirectBarterState.Settled, restored.Society.Inventory.GetOffer(offer.Id).State);
+        Assert.Equal(new[] { Beta, fixture.Customer }.Order(StringComparer.Ordinal),
+            restored.Society.Inventory.GetOffer(offer.Id).AcceptedBy);
+        Assert.Equal(Beta, restored.Society.Inventory.GetLot("restaurant-customer-payment").OwnerId);
+        Assert.Equal(fixture.Restaurant.InstanceId, restored.Society.Inventory.GetLot("restaurant-customer-payment").StorageBuildingId);
+        Assert.Equal(Alpha, restored.Society.GetInhabitant(fixture.Customer).HouseholdId);
+        Assert.Equal(1, restored.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Customer && lot.ItemKind == mealKind)
+            .Sum(lot => lot.Quantity));
+        restored.Validate();
+    }
+
+    [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 0)]
+    public async Task IngredientPurchasesPreserveActualPersonalReserveAndNeverSpendHouseholdOwnedCargo(
+        bool householdOwnsPayment, int purchases)
+    {
+        var fixture = CreateFixture(purchaseOnly: true, householdOwnsPayment: householdOwnsPayment);
+        using var world = Restore(fixture);
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Count(job =>
+            job.RecipeId == fixture.MillRecipe.CanonicalId && job.State == WorldProductionJobState.Completed) >= purchases + 2);
+        await Advance(world, 30);
+        Assert.Equal(purchases, world.BusinessTrades.Count);
+        Assert.All(world.BusinessTrades, trade =>
+            Assert.Equal(DirectBarterState.Settled, world.Society.Inventory.GetOffer(trade.OfferId).State));
+        Assert.Equal(4 - purchases, world.Society.Inventory.GetLot("restaurant-buyer-payment").Quantity);
+        Assert.Equal(householdOwnsPayment ? Beta : fixture.Cook,
+            world.Society.Inventory.GetLot("restaurant-buyer-payment").OwnerId);
+        Assert.Equal(purchases, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == fixture.Cook && lot.ItemKind == "flour")
+            .Sum(lot => lot.Quantity));
+        Assert.True(world.Society.Inventory.Lots.Where(lot => lot.OwnerId == Alpha &&
+            lot.StorageBuildingId == fixture.Farmhouse.InstanceId && lot.ItemKind == "flour").Sum(lot => lot.Quantity) >= 2);
+        Assert.Equal(4, world.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
+        Assert.Equal(fixture.State.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position,
+            world.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position);
+        Assert.True(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, fixture.Cook, null) <
+            PersonalEquipmentRules.BaseCapacity);
+        var recent = fixture.CookProvider.SeenObservations.Last();
+        Assert.DoesNotContain(recent.Candidates, candidate => candidate.Id == "business_shop:" + fixture.Farmhouse.InstanceId);
+        await AssertStrictReplayAndDiscard(world, fixture);
+    }
+
+    [Theory]
+    [InlineData(6, true, true)]
+    [InlineData(7, true, false)]
+    [InlineData(0, false, false)]
+    public async Task RestaurantRealOutputRequiresPhysicalCustomerAndNetRoomForExactTwoServingQuote(
+        int ballast, bool near, bool mayBuy)
+    {
+        var fixture = CreateFixture("porridge", kitchenReady: true, customerBallast: ballast, customerNear: near);
+        using var world = Restore(fixture);
+        await AdvanceUntil(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
+            job.RecipeId == fixture.Recipe.CanonicalId && job.State == WorldProductionJobState.Completed));
+        await Advance(world, 35);
+        var sales = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Customer).ToArray();
+        Assert.Equal(mayBuy ? 1 : 0, sales.Length);
+        if (mayBuy)
+        {
+            var offer = world.Society.Inventory.GetOffer(Assert.Single(sales).OfferId);
+            Assert.Equal(2, offer.FirstQuantity);
+            Assert.Equal(1, offer.SecondQuantity);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+        }
+        else
+        {
+            var output = Assert.Single(world.Society.Inventory.Lots, lot => lot.ItemKind == "porridge");
+            Assert.Equal(2, output.Quantity);
+            Assert.Equal(Beta, output.OwnerId);
+            Assert.Equal(fixture.Restaurant.InstanceId, output.StorageBuildingId);
+            Assert.Equal(1, world.Society.Inventory.GetLot("restaurant-customer-payment").Quantity);
+            Assert.DoesNotContain(world.Society.Inventory.Offers, offer => offer.SecondPartyId == fixture.Customer);
+        }
+        world.Validate();
+    }
+
+    private sealed record Fixture(PrivateWorldRuntimeState State, string Cook, string Miller, string Customer,
+        PlacedBuilding Restaurant, PlacedBuilding Farmhouse, PlacedBuilding House, RecipeDefinition Recipe,
+        RecipeDefinition MillRecipe, bool KitchenReady, bool PurchaseOnly, PipelineProvider CookProvider);
+
+    private static Fixture CreateFixture(string recipeLocalId = "bread", bool kitchenReady = false,
+        bool purchaseOnly = false, bool householdOwnsPayment = false, int customerBallast = 0, bool customerNear = true,
+        int restaurantPotatoes = 2, int farmhousePotatoes = 0, string? inaccessibleSource = null)
+    {
+        using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new PipelineProvider("safe_idle"));
+        var state = generated.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == Beta &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+        var farmhouse = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == Alpha &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("farmhouse"));
+        var restaurantDefinition = state.WorldContent!.Buildings.Single(definition => definition.LocalId == "restaurant-1x2");
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in restaurantDefinition.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-paid-build-" + cost.ResourceId,
+                cost.ResourceId, Beta, cost.Amount, storageBuildingId: house.InstanceId);
+        var materialsBefore = restaurantDefinition.BuildCosts.ToDictionary(cost => cost.ResourceId,
+            cost => inventory.Lots.Where(lot => lot.OwnerId == Beta && lot.ItemKind == cost.ResourceId).Sum(lot => lot.Quantity));
+        using (var placing = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new PipelineProvider("safe_idle")))
+        {
+            _ = state.Map.Tiles.Select(tile => tile.Position)
+                .Where(point => state.Map.IsReachableFromCampOnFoot(point))
+                .OrderBy(point => state.Map.FootDistance(house.Position, point))
+                .First(point => placing.PlaceBuilding("restaurant-pipeline", restaurantDefinition.CanonicalId, point, Beta).Applied);
+            foreach (var cost in restaurantDefinition.BuildCosts)
+                Assert.Equal(materialsBefore[cost.ResourceId] - cost.Amount,
+                    placing.Society.Inventory.Lots.Where(lot => lot.OwnerId == Beta && lot.ItemKind == cost.ResourceId).Sum(lot => lot.Quantity));
+            placing.Validate();
+            state = placing.ExportState();
+        }
+        if (inaccessibleSource is not null)
+        {
+            var sourceDefinition = state.WorldContent!.Buildings.Where(definition =>
+                    definition.Tags.Contains(inaccessibleSource == "store" ? "store" : "farmhouse"))
+                .OrderBy(definition => definition.Width * definition.Height).First();
+            state = AddPaidSource(state, house, sourceDefinition);
+        }
+        var restaurant = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "restaurant-pipeline");
+        var cook = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Beta).Id;
+        var alphaAdults = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == Alpha).ToArray();
+        Assert.Equal(2, alphaAdults.Length);
+        var miller = alphaAdults[0].Id;
+        var customer = alphaAdults[1].Id;
+        var recipe = state.WorldContent!.Recipes.Single(item => item.WorkstationBuildingId == restaurant.DefinitionId &&
+            item.LocalId == recipeLocalId);
+        var millRecipe = state.WorldContent!.Recipes.Single(item => item.WorkstationBuildingId == farmhouse.DefinitionId &&
+            item.LocalId == "mill-grain");
+
+        // Initial premises only: no cooked Restaurant or Farmhouse output is
+        // injected. House flour is existing private stock the Restaurant must preserve.
+        inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind is "field_map" or "field_record" ||
+                lot.OwnerId != Alpha && lot.OwnerId != Beta && lot.OwnerId != cook && lot.OwnerId != customer).ToArray(),
+        };
+        var houseInputs = state.WorldContent!.Recipes.Where(item => item.WorkstationBuildingId == house.DefinitionId &&
+                item.Tags.Any(tag => tag is "named-meal" or "pottery"))
+            .SelectMany(item => item.Inputs).GroupBy(input => input.ResourceId)
+            .Select(group => new ContentQuantity(group.Key, group.Max(input => input.Amount) * 2)).ToArray();
+        inventory = AddInitialInputs(inventory, house, houseInputs, "restaurant-house");
+        if (inaccessibleSource is not null)
+        {
+            var pot = inaccessibleSource == "oversized-pot" ? "restaurant-withheld-pot" : null;
+            if (pot is not null)
+                inventory = InventoryFixture.AddLot(inventory, pot, InventoryContainerRules.StoragePot, Beta, 1,
+                    storageBuildingId: "restaurant-withheld-source");
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-withheld-flour", "flour", Beta, 4,
+                storageBuildingId: "restaurant-withheld-source", containerLotId: pot);
+            if (pot is not null)
+                inventory = InventoryFixture.AddLot(inventory, "restaurant-withheld-fruit", "fruit", Beta, 4,
+                    storageBuildingId: "restaurant-withheld-source", containerLotId: pot);
+        }
+        // This real extra wood is carried from the House; its own target2 stays.
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-house-extra-wood", "wood", Beta, 2,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-mill-grain", "grain", Alpha, 4,
+            storageBuildingId: farmhouse.InstanceId);
+        if (farmhousePotatoes > 0)
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-farm-potatoes", "potatoes", Alpha, farmhousePotatoes,
+                storageBuildingId: farmhouse.InstanceId);
+        foreach (var (kind, quantity) in new (string, int)[]
+            { ("grain", 2), ("fruit", 2), ("potatoes", restaurantPotatoes), ("cultivated_greens", 2) }.Where(item => item.Item2 > 0))
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-raw-" + kind, kind, Beta, quantity,
+                storageBuildingId: restaurant.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, JugId, InventoryContainerRules.WaterJug, Beta, 1,
+            storageBuildingId: restaurant.InstanceId);
+        if (kitchenReady)
+        {
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-raw-berries", "berries", Beta, 2,
+                storageBuildingId: restaurant.InstanceId);
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-raw-wood", "wood", Beta, 1,
+                storageBuildingId: restaurant.InstanceId);
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-raw-water", InventoryContainerRules.FreshWater, Beta, 1,
+                storageBuildingId: restaurant.InstanceId, containerLotId: JugId);
+        }
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-buyer-payment", "berries",
+            householdOwnsPayment ? Beta : cook, 4);
+        if (householdOwnsPayment)
+            inventory = inventory with
+            {
+                Lots = inventory.Lots.Select(lot => lot.Id == "restaurant-buyer-payment"
+                    ? lot with { CarrierId = cook } : lot).ToArray(),
+            };
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-customer-payment", "wood", customer, 1);
+        if (customerBallast > 0)
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-customer-ballast", "stone", customer, customerBallast);
+        state = WithInventory(state, inventory);
+        var footprints = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
+        var occupied = state.Inhabitants.Where(person => person.InhabitantId != cook && person.InhabitantId != miller &&
+                person.InhabitantId != customer).Select(person => person.Position).Concat(footprints).ToHashSet();
+        occupied.Add(farmhouse.Position);
+        var cookPosition = kitchenReady ? restaurant.Position : Neighbor(farmhouse.Position);
+        occupied.Add(cookPosition);
+        var customerPosition = customerNear ? Neighbor(restaurant.Position) : state.Map.Tiles.Select(tile => tile.Position)
+            .First(point => state.Map.IsPassable(point) && state.Map.IsReachableFromCampOnFoot(point) &&
+                Distance(point, restaurant.Position) > 4 && !occupied.Contains(point));
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == cook ? cookPosition : person.InhabitantId == miller ? farmhouse.Position :
+                    person.InhabitantId == customer ? customerPosition : person.Position,
+                HungerBasisPoints = person.InhabitantId == customer ? 6_000 : 9_000,
+                LastDecisionContext = null,
+                Project = null,
+                Equipment = person.InhabitantId == cook || person.InhabitantId == customer ? null : person.Equipment,
+            }).ToArray(),
+        };
+        var cookProvider = CookProvider(farmhouse, recipe, kitchenReady, purchaseOnly);
+        return new(state, cook, miller, customer, restaurant, farmhouse, house, recipe, millRecipe,
+            kitchenReady, purchaseOnly, cookProvider);
+
+        GridPoint Neighbor(GridPoint site) => state.Map.Tiles.Select(tile => tile.Position).First(point =>
+            Distance(point, site) == 1 && state.Map.IsPassable(point) && !occupied.Contains(point));
+    }
+
+    private static InventoryCheckpoint AddInitialInputs(InventoryCheckpoint inventory, PlacedBuilding site,
+        IEnumerable<ContentQuantity> inputs, string prefix)
+    {
+        foreach (var input in inputs)
+        {
+            var water = input.ResourceId == InventoryContainerRules.FreshWater;
+            var jugId = prefix + "-jug";
+            if (water)
+                inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug, site.HouseholdId!, 1,
+                    storageBuildingId: site.InstanceId);
+            inventory = InventoryFixture.AddLot(inventory, prefix + "-" + input.ResourceId, input.ResourceId,
+                site.HouseholdId!, input.Amount, storageBuildingId: site.InstanceId, containerLotId: water ? jugId : null);
+        }
+        return inventory;
+    }
+
+    private static PrivateWorldRuntimeState AddPaidSource(PrivateWorldRuntimeState state, PlacedBuilding house,
+        BuildingDefinition definition)
+    {
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in definition.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "restaurant-withheld-build-" + cost.ResourceId,
+                cost.ResourceId, Beta, cost.Amount, storageBuildingId: house.InstanceId);
+        using var placing = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new PipelineProvider("safe_idle"));
+        _ = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsReachableFromCampOnFoot(point))
+            .OrderBy(point => state.Map.FootDistance(house.Position, point))
+            .First(point => placing.PlaceBuilding("restaurant-withheld-source", definition.CanonicalId, point, Beta).Applied);
+        placing.Validate();
+        return placing.ExportState();
+    }
+
+    private static PipelineProvider CookProvider(PlacedBuilding farmhouse, RecipeDefinition recipe, bool ready, bool purchaseOnly) =>
+        ready ? new("business_continue:", "build:recipe:" + recipe.CanonicalId) :
+        purchaseOnly ? new("business_continue:", "business_shop:" + farmhouse.InstanceId) :
+        new("business_continue:", "business_shop:" + farmhouse.InstanceId, "build:recipe:" + recipe.CanonicalId,
+            "fill_water_jug:", "collect_water_jug", "haul_household_stock", "supply_workstation:");
+
+    private static PrivateWorldRuntime Restore(Fixture fixture, PrivateWorldRuntimeState? state = null,
+        bool useInitialProvider = true) => PrivateWorldRuntime.Restore(state ?? fixture.State, id =>
+        id == fixture.Cook ? useInitialProvider && state is null ? fixture.CookProvider :
+            CookProvider(fixture.Farmhouse, fixture.Recipe, fixture.KitchenReady, fixture.PurchaseOnly) :
+        id == fixture.Miller ? fixture.KitchenReady ? new PipelineProvider("safe_idle") :
+            new PipelineProvider("business_continue:", "build:recipe:" + fixture.MillRecipe.CanonicalId) :
+        id == fixture.Customer ? new PipelineProvider("business_continue:", "business_shop:" + fixture.Restaurant.InstanceId, "consume_food") :
+            new PipelineProvider("safe_idle"));
+
+    private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) => state with
+    {
+        Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+    };
+
+    private static int Distance(GridPoint left, GridPoint right) => Math.Abs(left.X - right.X) + Math.Abs(left.Y - right.Y);
+
+    private static async Task AssertStrictReplayAndDiscard(PrivateWorldRuntime source, Fixture fixture)
+    {
+        var bytes = PrivateWorldRuntimeCodec.Encode(source.ExportState());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(bytes)));
+        using var first = Restore(fixture, PrivateWorldRuntimeCodec.Decode(bytes));
+        using var second = Restore(fixture, PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(first.ExportState()));
+        Assert.False((await first.AdvanceOneTickAsync(commitPermitted: () => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(first.ExportState()));
+        for (var tick = 0; tick < 12; tick++)
+        {
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(first.ExportState()), PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+        }
+        first.Validate();
+        second.Validate();
+    }
+
+    private static async Task Advance(PrivateWorldRuntime world, int ticks)
+    {
+        for (var tick = 0; tick < ticks; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+    }
+
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, int limit = 700)
+    {
+        for (var tick = 0; tick < limit && !done(); tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True(done(), "tick=" + world.WorldTick + " | " + string.Join(" | ", world.ExportState().Events.TakeLast(14)
+            .Select(item => item.Kind + ":" + item.Detail)));
+    }
+
+    private sealed class PipelineProvider(params string[] prefixes) : IDecisionProvider
+    {
+        public ConcurrentQueue<InhabitantObservation> SeenObservations { get; } = new();
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            SeenObservations.Enqueue(request.Observation);
+            var choice = prefixes.Select(prefix => request.Observation.Candidates.FirstOrDefault(candidate =>
+                    candidate.Id == prefix || candidate.Id.StartsWith(prefix, StringComparison.Ordinal)))
+                .FirstOrDefault(candidate => candidate is not null) ??
+                request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            return new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = request.Observation with { Candidates = [choice] },
+            }, cancellationToken);
+        }
+    }
+}
