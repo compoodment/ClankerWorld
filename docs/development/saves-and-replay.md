@@ -185,6 +185,17 @@ physical profiles retain permission history but cannot retain active treatment.
 No schema 41 migration is provided; older alpha saves are refused and preserved.
 The number is provisional until the stacked merge order is reconciled.
 
+The ornament draft targets private-world schema 43 above its Clinic parent's
+42. It adds an optional exact ornament-lot selection to the existing personal
+equipment record, without introducing combat equipment or a second inventory.
+Current-format checks must reject a foreign, reserved, stored or otherwise
+ineligible selected unit and preserve intermediate refining, diamond setting,
+gifts and barter. Removing or giving the ornament clears the selection while
+keeping the actual item; death and estate handling retain the property without
+an active selection on an archived profile. Runtime and replay verification are
+pending. The number remains provisional until merge; no older-alpha migration
+is planned.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list

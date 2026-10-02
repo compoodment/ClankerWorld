@@ -170,7 +170,7 @@ public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisP
     int NutritionBasisPoints, string? LastMealKind);
 public sealed record OwnerWorldEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
     int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
-    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired, string? OrnamentKind = null);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,

@@ -1030,12 +1030,13 @@ public sealed class OwnerWorldObservationStore
         var inventory = state.Society.Society.Inventory;
         var garment = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.ClothingLotId);
         var aid = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.CarryAidLotId);
+        var ornament = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.OrnamentLotId);
         var repair = person.Equipment?.Repair;
         return new(PersonalEquipmentRules.CarriedQuantity(inventory, person.InhabitantId, person.Equipment),
             PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment),
             garment?.ItemKind, garment?.ConditionBasisPoints / 100, aid?.ItemKind, aid?.ConditionBasisPoints / 100,
             inventory.Lots.FirstOrDefault(lot => lot.Id == repair?.LotId)?.ItemKind,
-            repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks);
+            repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks, ornament?.ItemKind);
     }
 
     private static ViewerInventoryEntry[] InventoryFor(

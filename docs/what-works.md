@@ -157,7 +157,12 @@ summaries remain unfinished.
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
 gold or diamond outcrop. The goods remain in their carried stock. Trial mining
 pauses once the adult and household hold eight of that material; ornament
-making remains unfinished.
+making is being added in the [ornament draft](https://github.com/compoodment/ClankerWorld/issues/567).
+That draft is intended to connect carried gold ore and diamonds to Blacksmith
+refining and crafting, actual worn-item selection, named gifts and physical
+barter. It gives no warmth, carrying or combat bonus and adds no art. Normal
+runtime checks, review, merge and [the Windows playtest](../playtest/567-ornaments.md)
+remain pending; these additions are not yet available on main.
 
 Life-stage thresholds are child at day 3, adult at day 15, elder at day 45 and
 death by day 60 from birth. Added adults begin at a nonzero age. These are

@@ -312,6 +312,7 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
         if (ApplyMedicalConsentDecision(decision)) return;
+        if (ApplyOrnamentDecision(decision)) return;
         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
             decision.Admission.Intention?.Provider == DecisionProviderKind.Jev &&
             decision.Admission.MemoryCompactionScores is { Count: > 0 } memoryScores)
@@ -363,6 +364,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (IsOrnamentCandidate(candidateId)) return;
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {

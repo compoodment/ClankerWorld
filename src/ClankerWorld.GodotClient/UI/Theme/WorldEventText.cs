@@ -58,6 +58,9 @@ public static class WorldEventText
             "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished a course of medicine.",
             "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)} stopped treatment; the used dose was not returned.",
             "empty_vessel_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected an empty household vessel to bring home.",
+            "ornament_worn" => $"{LeadingName(snapshot, worldEvent.Detail)} put on an ornament.",
+            "ornament_removed" => $"{LeadingName(snapshot, worldEvent.Detail)} took off an ornament.",
+            "ornament_given" => $"{LeadingName(snapshot, worldEvent.Detail)} gave an ornament to {OrnamentGiftRecipient(snapshot, worldEvent.Detail)}.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
             "business_trade_offered" => "A customer offered an exchange at a shop; the goods are set aside while both traders meet there.",
@@ -117,6 +120,17 @@ public static class WorldEventText
         var person = snapshot?.Inhabitants.OrderByDescending(item => item.Id.Length)
             .FirstOrDefault(item => IsLeadingId(detail, item.Id));
         return person?.DisplayName ?? Name(snapshot, detail.Split(':', 2)[0]);
+    }
+
+    private static string OrnamentGiftRecipient(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        const string marker = ":ornament_gift:";
+        var actor = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length)
+            .FirstOrDefault(person => detail.StartsWith(person.Id + marker, StringComparison.Ordinal));
+        if (actor is null) return "someone";
+        var recipientDetail = detail[(actor.Id.Length + marker.Length)..];
+        return snapshot!.Inhabitants.OrderByDescending(person => person.Id.Length)
+            .FirstOrDefault(person => IsLeadingId(recipientDetail, person.Id))?.DisplayName ?? "someone";
     }
 
     private static string ResidentName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent)

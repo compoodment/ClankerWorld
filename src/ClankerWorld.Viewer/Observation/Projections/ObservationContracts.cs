@@ -163,7 +163,7 @@ public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoint
     int NutritionBasisPoints, string? LastMealKind);
 public sealed record ViewerEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
     int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
-    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired, string? OrnamentKind = null);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 // Keep the existing observation field name so older owner clients can still display a lesson.

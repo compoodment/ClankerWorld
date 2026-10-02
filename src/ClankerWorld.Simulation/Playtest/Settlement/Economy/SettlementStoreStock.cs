@@ -26,9 +26,7 @@ public sealed partial class PrivateWorldRuntime
                          (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                              building.InstanceId == lot.StorageBuildingId && building.HouseholdId == householdId))) &&
                      !protectedToolIds.Contains(lot.Id) &&
-                     lot.Id != inhabitants[actor].Equipment?.ClothingLotId &&
-                     lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
-                     lot.Id != inhabitants[actor].Equipment?.Repair?.LotId)
+                     !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                      .OrderBy(lot => lot.OwnerId == actor ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {
             var reserve = IsEdibleFood(lot.ItemKind) ? lot.OwnerId == actor ? 2 :

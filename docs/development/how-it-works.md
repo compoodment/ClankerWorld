@@ -946,7 +946,21 @@ An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
 diamond mining from a reachable finite outcrop. The complete eight-item trial
 load must fit. The decision stops offering more once the adult and their
 household together hold eight of that material. These goods remain carried
-physical stock; ornament making and a special rare-goods market are later work.
+physical stock.
+The ornament draft extends this stock path with Blacksmith gold refining,
+gold ornaments and optional diamond setting. It is intended to reuse normal
+physical supply, reserved production and shop exchanges, rather than add a
+second inventory or market. Runtime verification is pending.
+
+Its worn-item record refers to one exact personally carried ornament. Wearing
+does not exempt that unit from cargo or grant protection. Collection, removal,
+gifts, sale, storage and estate handling must keep ownership, reservations and
+location consistent; automatic storage or payment must protect the selected
+unit. Viewer and client descriptions show the worn kind, without a new sprite.
+Wear, removal and gift candidates require a fresh accepted non-fallback
+LargeLanguageModel response whose exact offered target is still valid at
+admission. Jev, continuing intentions and MustDo cannot select them. Gift
+recipients come from locally observable people rather than a remote world scan.
 
 The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
 iron ore into separate refined iron, and repairs one carried worn tool at a

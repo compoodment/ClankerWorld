@@ -237,6 +237,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         AddEquipmentCandidates(candidates, actor, person);
+        AddOrnamentCandidates(candidates, actor);
         var losingWarmth = WarmthChange(person) < 0;
         if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && AccessibleHeatingBuildings(actor).Any(building => !IsFireLit(building)) &&
             (HasCarriedItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null ||

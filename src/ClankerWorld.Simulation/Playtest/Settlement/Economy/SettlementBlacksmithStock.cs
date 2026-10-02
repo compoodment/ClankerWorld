@@ -179,7 +179,8 @@ public sealed partial class PrivateWorldRuntime
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
                 .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
-                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
+                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+                    !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots

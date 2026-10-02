@@ -282,6 +282,7 @@ public sealed class AgentKnowledgeTests
         var buyerId = state.Inhabitants[1].InhabitantId;
         var otherId = state.Inhabitants[2].InhabitantId;
         state = WithArtifact(state, sellerId, state.Inhabitants[0].Position, "field_map");
+        state = SettlementTradeTests.AtTradeMeeting(state, sellerId, buyerId);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             "trade-clothing-for-map", "clothing", buyerId, 2);
         state = state with

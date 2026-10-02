@@ -5,7 +5,7 @@ using ClankerWorld.Simulation.World;
 namespace ClankerWorld.Simulation.Playtest;
 
 public sealed record PersonalEquipment(string? ClothingLotId = null, string? CarryAidLotId = null,
-    EquipmentRepairWork? Repair = null);
+    EquipmentRepairWork? Repair = null, string? OrnamentLotId = null);
 
 public sealed record EquipmentRepairWork(string LotId, string BuildingId, long StartedTick,
     int WorkDone, IReadOnlyList<string> MaterialReservationIds);
@@ -20,6 +20,10 @@ public static class PersonalEquipmentRules
 
     public static bool IsGarment(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak";
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
+    public static bool IsOrnament(string kind) => kind is "gold_ornament" or "diamond_ornament";
+    public static bool IsSelected(PersonalEquipment? equipment, string lotId) => equipment is not null &&
+        (equipment.ClothingLotId == lotId || equipment.CarryAidLotId == lotId ||
+         equipment.OrnamentLotId == lotId || equipment.Repair?.LotId == lotId);
     public static bool IsCarried(InventoryLot lot, string actor) =>
         lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null;
 
