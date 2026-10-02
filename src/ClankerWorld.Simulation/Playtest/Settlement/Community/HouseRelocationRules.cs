@@ -1,4 +1,3 @@
-using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -20,10 +19,6 @@ public static class HouseRelocationRules
     public const string LatestArrival = "latest_arrival";
 
     public static readonly IReadOnlyList<string> Reasons = [Volunteer, LatestUnrelatedArrival, LatestArrival];
-
-    /// <summary>What a household whose own members cannot be required to leave can do next.</summary>
-    public const string ExpandPlan = "expand";
-    public const string SplitPlan = "split";
 
     /// <summary>
     /// An adult resident's facts for selection. <paramref name="MovesAlone"/> is
@@ -76,14 +71,6 @@ public static class HouseRelocationRules
         }
         return new(chosen, capacity);
     }
-
-    /// <summary>
-    /// The household's next housing step when nobody can be required to leave:
-    /// grow the House while a larger supported footprint remains, otherwise split
-    /// into another household that builds its own House.
-    /// </summary>
-    public static string FamilyPlan(BuildingDefinition definition, BuildingFootprintRevision? footprint) =>
-        (footprint?.Revision ?? 0) < 2 && definition.Tags.Contains("house", StringComparer.Ordinal) ? ExpandPlan : SplitPlan;
 
     /// <summary>The one recorded domestic unit with at least two residents and a strict majority, if any.</summary>
     public static string? DominantFamily(IReadOnlyCollection<SocietyInhabitant> residents) => residents

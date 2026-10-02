@@ -91,7 +91,7 @@ public sealed partial class PrivateWorldRuntime
             ReconcileRelocation(householdId);
             // A failed exit cancels its notice, so this loop always ends.
             while (RelocationNotices(householdId).FirstOrDefault(item => item.Notice.DeadlineTick <= WorldTick) is
-                   { Id: not null } due)
+                { Id: not null } due)
             {
                 if (!DepartHousehold(due.Id, "displaced"))
                     CancelRelocation(due.Id, due.Notice, "not_needed");
@@ -192,9 +192,8 @@ public sealed partial class PrivateWorldRuntime
         var notices = RelocationNotices(householdId).Count();
         if (notices > 0)
             return $"{counts} {notices} adult{(notices == 1 ? " has" : "s have")} notice to move out." + expansion;
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
-        var next = HouseRelocationRules.FamilyPlan(definition, house.Footprint) == HouseRelocationRules.ExpandPlan
-            ? "expand the House"
+        var next = expansion.Length > 0 ? "finish the expansion"
+            : HouseCanExpandFurther(house) ? "expand the House"
             : "an adult may start a separate household with their dependents and build a House";
         return $"{counts} Nobody can be required to leave. Next: {next}." + expansion;
     }

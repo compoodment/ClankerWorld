@@ -309,7 +309,7 @@ public sealed partial class PrivateWorldRuntime
             ResumePausedHouseholdWork(actor, candidate["household_resume_work:".Length..]);
             return;
         }
-        if (candidate == "household_leave") { DepartHousehold(actor, "voluntary"); return; }
+        if (candidate == "household_leave") { DepartHousehold(actor, HoldsRelocationNotice(actor) ? "displaced" : "voluntary"); return; }
         if (candidate == "household_found")
         {
             if (!AdultResident(actor) || !MayFoundHousehold(actor) ||
