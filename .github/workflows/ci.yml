@@ -102,7 +102,16 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           filter="$(node .github/scripts/ci-plan.js filter "$SHARD")"
-          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$filter"
+          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$filter" --logger "trx;LogFileName=timings.trx" --results-directory "$RUNNER_TEMP/test-results"
+      # Each test's duration, for rebalancing the shards in ci-plan.js.
+      - name: Upload test timings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-timings-${{ matrix.shard }}
+          path: ${{ runner.temp }}/test-results/*.trx
+          retention-days: 14
+          if-no-files-found: warn
 
   verify:
     needs: [scope, checks, tests]

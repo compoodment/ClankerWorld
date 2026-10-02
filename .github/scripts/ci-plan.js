@@ -2,35 +2,36 @@
 //   node ci-plan.js scope < changed-files   prints code=true, or code=false for a documentation-only change
 //   node ci-plan.js matrix                  prints shards=[1,2,...], one entry per test job
 //   node ci-plan.js filter <shard>          prints the dotnet test --filter for that test job
-// Every test runs in exactly one job: each pinned shard runs the tests its entries name, and the
-// last shard runs everything no entry names, so new or renamed tests always run somewhere.
+// Every test runs in exactly one job: a test belongs to the first pinned shard with an entry that
+// names it, and the last shard runs everything no entry names, so new or renamed tests always run.
 const { isDocumentation } = require('./pr-labels.js');
 
 // The slowest tests and classes, measured with the trx logger (docs/development/build-and-test.md),
 // spread so each job takes about as long as the slowest single test. "Class" names a whole test
-// class; "Class.Method" names one test method, or several that start with that text. Tests of one
-// class run one after another inside a job, so a class's slowest methods are split across jobs.
-// A name that no longer matches only makes the jobs less even: its tests move to the last shard.
+// class, apart from tests an earlier shard already names; "Class.Method" names one test method, or
+// several that start with that text. Tests of one class run one after another inside a job, so a
+// slow class is split across jobs, and a job given a long class should have at most four classes:
+// a runner has four cores, so each then starts at once instead of waiting for a free one.
+// A name that no longer matches only makes the jobs less even: its tests move to a later shard.
 const PinnedShards = [
   [
     'SettlementParenthoodTests.ContinuityDeadlineWithoutARequest',
     'FoodRoutingTests',
     'SettlementSurvivalTests',
     'DamagedCheckpointEntryTests',
-    'TailorContentTests',
   ],
   [
     'SettlementParenthoodTests.ChildCanGrowIntoAWorkingAdult',
+    'SettlementParenthoodTests.BirthUsesTheAgreedCaregivers',
     'BuildingExpansionTests',
     'HouseholdBuildingUseCoverageTests',
     'PotteryContentTests',
-    'StoredFuelRoutingTests',
   ],
   [
+    'SettlementParenthoodTests',
     'FarmFieldTests.PhysicalCropCycleSurvivesReload',
     'PersonalEquipmentTests',
     'BusinessTradeTests',
-    'SettlementParenthoodTests.ContinuityResumesPostponedAcceptance',
   ],
 ];
 
@@ -51,10 +52,10 @@ function testFilter(shard, shards = PinnedShards) {
   if (!Number.isInteger(shard) || shard < 1 || shard > shardCount(shards)) {
     throw new Error(`Test shard must be a whole number from 1 to ${shardCount(shards)}.`);
   }
-  if (shard <= shards.length) {
-    return shards[shard - 1].map(entry => `FullyQualifiedName~${namePart(entry)}`).join('|');
-  }
-  return shards.flat().map(entry => `FullyQualifiedName!~${namePart(entry)}`).join('&');
+  const excluded = shards.slice(0, shard - 1).flat().map(entry => `FullyQualifiedName!~${namePart(entry)}`);
+  if (shard > shards.length) return excluded.join('&');
+  const named = shards[shard - 1].map(entry => `FullyQualifiedName~${namePart(entry)}`).join('|');
+  return [`(${named})`, ...excluded].join('&');
 }
 
 // Main always runs everything; a pull request skips the code checks only when every changed

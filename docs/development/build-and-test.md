@@ -77,18 +77,23 @@ its older run.
 
 [.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) decides which
 tests each job runs. Its `PinnedShards` list names the slowest test classes and
-methods for the first three jobs, and the last job runs every test no entry
-names, so a new or renamed test always runs somewhere. Tests in one class run
-one after another, so a slow class's slowest methods go in different jobs. When
-one test job takes much longer than the others, measure and rebalance:
+methods for the first three jobs. A test runs in the first job whose list names
+it, and the last job runs every test no entry names, so a new or renamed test
+always runs exactly once. Tests in one class run one after another, so a slow
+class is split across jobs, and a job holding a long class keeps to four
+classes so that each starts at once on the runner's four cores.
+
+Each test job uploads its durations as a `test-timings-<job>` artifact. When
+one test job takes much longer than the others, read those timings, move
+entries between jobs, and list what each job would run:
 
 ```bash
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --logger "trx;LogFileName=timings.trx"
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-build --list-tests --filter "$(node .github/scripts/ci-plan.js filter 1)"
 ```
 
-The first command records each test's duration in `TestResults/timings.trx`;
-the second lists the tests a job would run.
+The first command records each test's duration locally in
+`TestResults/timings.trx`; the second lists the tests job 1 would run.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
