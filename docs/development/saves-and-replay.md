@@ -117,8 +117,10 @@ after infancy. Living and deceased profiles validate the descriptor against its
 recorded birth and schema. While provider storage is being recovered, the Model
 panel keeps showing the selected provider and model with a setup message.
 
-Schema 41 saves an unresolved dependent-guardian search, including its current
-relative, household or Town stage, start tick and offered adults. Acceptance is
+Schema 50 saves an unresolved dependent-guardian search, including its current
+relative, household or Town stage, start tick and offered adults. Each stage
+keeps the earlier groups, and the offers are brought up to date at the end of
+every tick, so a save always matches the households it was made with. Acceptance is
 an explicit adult action that changes the saved current primary caregiver.
 Household membership changes in that same action only when a completed House
 in the child's Town has room; otherwise it stays unchanged. The original birth

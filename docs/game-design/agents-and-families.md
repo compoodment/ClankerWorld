@@ -224,15 +224,18 @@ everything that is available in the current build. See [what works today](../wha
   family group for housing counts without changing residence or parentage.
 - If a dependent's last active primary caregiver dies or ends care, the game
   asks living biological relatives first, then adults in the dependent's household, then
-  adult residents of their Town. The first adult who explicitly accepts becomes
+  adult residents of their Town. Each wider group is added to those already
+  asked, so a relative who missed the first day can still accept. The first adult who explicitly accepts becomes
   the current primary caregiver. A child moves to that adult's household only
   when its completed House has a free resident place and both belong to the
   same Town; Town membership and birth parentage remain unchanged. A cross-Town
   acceptance records care but leaves the child's household in place until
   Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
   allow a move. Until acceptance, the child stays where they are, nearby adults
-  may still feed them, and the player can see and order care for the unmet
-  guardian need. The one-day interval for each group is provisional.
+  may still feed them, and the player can see the unmet guardian need and
+  suggest an adult in a message. Ordering an adult to take the child in waits
+  for the order list in [issue #587](https://github.com/compoodment/ClankerWorld/issues/587).
+  The one-day interval for each group is provisional.
 
 ### Agreed starter Town and remaining choices
 

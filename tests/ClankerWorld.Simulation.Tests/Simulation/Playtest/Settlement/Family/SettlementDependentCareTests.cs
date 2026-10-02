@@ -75,7 +75,7 @@ public sealed partial class SettlementParenthoodTests
         var wrongStage = pending with
         {
             Inhabitants = pending.Inhabitants.Select(person => person.InhabitantId == child
-                ? person with { GuardianSearch = initialSearch with { Stage = "town" } }
+                ? person with { GuardianSearch = initialSearch with { Stage = "relatives" } }
                 : person).ToArray(),
         };
         var invalidSearch = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(wrongStage, _ => new ParentProvider("safe_idle")));
@@ -100,6 +100,9 @@ public sealed partial class SettlementParenthoodTests
             edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
         Assert.Equal(acceptingAdult, accepted.ProposerId);
         Assert.Contains(acceptingProvider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + child);
+        // Household replacement care is only for a child whose caregiver is still alive; an orphan goes through the search.
+        Assert.DoesNotContain(acceptingProvider.SeenCandidates, candidate => candidate.Id == "household_accept_care:" + child);
+        Assert.Null(SocietyFixture.AcceptReplacementCare(state.Society.Society, acceptingAdult, child).CreatedId);
         Assert.True(accepted.EffectiveTick - state.Society.Society.WorldTick < stageTicks,
             "A newly opened household offer must be decided before its one-day stage expires.");
         Assert.Equal(SocietyConsentState.Accepted, accepted.Consent);
@@ -286,7 +289,7 @@ public sealed partial class SettlementParenthoodTests
         var householdSearch = Assert.Single(waiting.ExportState().Inhabitants, person => person.InhabitantId == child).GuardianSearch;
         Assert.NotNull(householdSearch);
         Assert.Equal("household", householdSearch.Stage);
-        Assert.Equal([householdAdult], householdSearch.OfferedAdultIds);
+        Assert.Equal(new[] { relative, householdAdult }.Order(StringComparer.Ordinal), householdSearch.OfferedAdultIds);
 
         waiting.Pause();
         var householdSave = PrivateWorldRuntimeCodec.Encode(waiting.ExportState());
@@ -297,6 +300,33 @@ public sealed partial class SettlementParenthoodTests
         var townSearch = Assert.Single(townWaiting.ExportState().Inhabitants, person => person.InhabitantId == child).GuardianSearch;
         Assert.NotNull(townSearch);
         Assert.Equal("town", townSearch.Stage);
+        // The search widens: the relative and household adult are still asked alongside the Town.
+        Assert.Contains(relative, townSearch.OfferedAdultIds);
+        Assert.Contains(householdAdult, townSearch.OfferedAdultIds);
+    }
+
+    [Fact]
+    public async Task AGuardianSearchSavedAfterAnOfferedAdultLeavesHomeStillLoads()
+    {
+        var state = await OrphanState(olderChild: true);
+        var child = state.Society.Society.Births.Single().ChildId;
+        using var probe = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new ParentProvider("safe_idle"));
+        Assert.True((await probe.AdvanceOneTickAsync()).Advanced);
+        var leaver = Assert.Single(probe.ExportState().Inhabitants, person => person.InhabitantId == child)
+            .GuardianSearch!.OfferedAdultIds[0];
+
+        // The adult leaves in the same tick the search offered them care, after the search was refreshed.
+        using var world = PrivateWorldRuntime.Restore(state, actor =>
+            new ParentProvider(actor == leaver ? "household_leave" : "safe_idle"));
+        for (var tick = 0; tick < 40 && world.Society.GetInhabitant(leaver).HouseholdId is not null; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Null(world.Society.GetInhabitant(leaver).HouseholdId);
+        Assert.NotNull(Assert.Single(world.ExportState().Inhabitants, person => person.InhabitantId == child).GuardianSearch);
+
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ParentProvider("safe_idle"));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
@@ -316,6 +346,8 @@ public sealed partial class SettlementParenthoodTests
         for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        Assert.Equal("not_understood", Assert.Single(world.ExportState().Instructions!,
+            item => item.InstructionId == order.InstructionId).Order!.Status);
         Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
         Assert.Null(world.Society.GetInhabitant(child).PrimaryCaregiverId);
@@ -549,12 +581,8 @@ public sealed partial class SettlementParenthoodTests
                 }
             };
             var childId = state.Society.Society.Births.Single().ChildId;
-            var adultId = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
-                person.Id != childId && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
             var guardianProvider = new ParentProvider("guardian_accept:");
             using var world = PrivateWorldRuntime.Restore(state, _ => guardianProvider);
-            var instruction = world.SubmitInstruction(new OwnerInstructionRequest("care-telemetry-guardian", "owner:test",
-                adultId, OwnerInstructionKind.MustDo, $"guardian_accept:{childId}"));
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
             presence.RecordAuthenticatedReconnect("owner");
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
@@ -563,7 +591,6 @@ public sealed partial class SettlementParenthoodTests
                 Assert.True(await service.TryAdvanceOnceAsync());
             Assert.Contains(guardianProvider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + childId);
             Assert.Contains(guardianProvider.SelectedCandidateIds, candidate => candidate == "guardian_accept:" + childId);
-            Assert.Contains(instruction.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
             Assert.Contains(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
                 edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
             Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&

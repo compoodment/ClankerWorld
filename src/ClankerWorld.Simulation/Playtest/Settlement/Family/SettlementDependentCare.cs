@@ -82,30 +82,48 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
 
-            var stageAdults = GuardianAdultsForStage(child, search.Stage);
-            if (search.Stage != "town" && (stageAdults.Length == 0 ||
-                WorldTick - search.StageStartedTick >= GuardianStageTicks))
-            {
-                search = NextGuardianStage(child, search);
-            }
-            else
-            {
-                var currentAdults = stageAdults;
-                if (!search.OfferedAdultIds.SequenceEqual(currentAdults, StringComparer.Ordinal))
-                    search = search with { OfferedAdultIds = currentAdults };
-            }
+            search = RefreshedGuardianSearch(child, search, WorldTick - search.StageStartedTick >= GuardianStageTicks);
             if (search != inhabitants[child].GuardianSearch)
                 SetGuardianSearch(child, search);
         }
+    }
+
+    /// <summary>
+    /// Decisions later in the tick can change who lives where, so open searches are brought up to date
+    /// before the tick ends and the saved offers always match the world they were saved with.
+    /// </summary>
+    private void SettleGuardianSearches()
+    {
+        foreach (var child in inhabitants.Keys.Order(StringComparer.Ordinal).ToArray())
+        {
+            if (inhabitants[child].GuardianSearch is not { } search) continue;
+            if (!NeedsCaregiver(child))
+            {
+                SetGuardianSearch(child, null);
+                continue;
+            }
+            var settled = RefreshedGuardianSearch(child, search, stageExpired: false);
+            if (settled != search)
+                SetGuardianSearch(child, settled);
+        }
+    }
+
+    private SettlementGuardianSearch RefreshedGuardianSearch(string child, SettlementGuardianSearch search, bool stageExpired)
+    {
+        var stageAdults = GuardianAdultsForStage(child, search.Stage);
+        if (search.Stage != "town" && (stageAdults.Length == 0 || stageExpired))
+            return NextGuardianStage(child, search);
+        return search.OfferedAdultIds.SequenceEqual(stageAdults, StringComparer.Ordinal)
+            ? search
+            : search with { OfferedAdultIds = stageAdults };
     }
 
     private SettlementGuardianSearch NewGuardianSearch(string child, long tick)
     {
         foreach (var stage in new[] { "relatives", "household", "town" })
         {
-            var adults = GuardianAdultsForStage(child, stage);
-            if (adults.Length > 0 || stage == "town")
-                return new(stage, tick, tick, adults);
+            if (stage == "town" || NewGuardianAdultsForStage(society.Checkpoint, towns, child, stage).Length > 0)
+                return new(stage, tick, tick, GuardianAdultsForStage(child, stage));
         }
         throw new InvalidOperationException("A guardian search must have a final Town stage.");
     }
@@ -118,13 +136,10 @@ public sealed partial class PrivateWorldRuntime
             "household" => "town",
             _ => "town",
         };
-        while (true)
-        {
-            var adults = GuardianAdultsForStage(child, nextStage);
-            if (adults.Length > 0 || nextStage == "town")
-                return new(nextStage, previous.StartedTick, WorldTick, adults);
+        // A stage that would ask nobody new is skipped rather than waited out.
+        if (nextStage != "town" && NewGuardianAdultsForStage(society.Checkpoint, towns, child, nextStage).Length == 0)
             nextStage = "town";
-        }
+        return new(nextStage, previous.StartedTick, WorldTick, GuardianAdultsForStage(child, nextStage));
     }
 
     private string[] GuardianAdultsForStage(string child, string stage)
@@ -132,7 +147,29 @@ public sealed partial class PrivateWorldRuntime
         return GuardianAdultsForStage(society.Checkpoint, towns, child, stage);
     }
 
+    /// <summary>
+    /// The search widens: each stage adds a new group and keeps asking the earlier ones, so a relative
+    /// who missed their first day can still accept later.
+    /// </summary>
     private static string[] GuardianAdultsForStage(
+        SocietyCheckpoint checkpoint,
+        IReadOnlyList<TownRuntimeState> towns,
+        string child,
+        string stage)
+    {
+        var stages = stage switch
+        {
+            "relatives" => new[] { "relatives" },
+            "household" => ["relatives", "household"],
+            "town" => ["relatives", "household", "town"],
+            _ => throw new InvalidDataException("The saved guardian search stage is invalid."),
+        };
+        return stages.SelectMany(item => NewGuardianAdultsForStage(checkpoint, towns, child, item))
+            .Order(StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>The adults a stage adds to the search; nobody belongs to more than one stage.</summary>
+    private static string[] NewGuardianAdultsForStage(
         SocietyCheckpoint checkpoint,
         IReadOnlyList<TownRuntimeState> towns,
         string child,

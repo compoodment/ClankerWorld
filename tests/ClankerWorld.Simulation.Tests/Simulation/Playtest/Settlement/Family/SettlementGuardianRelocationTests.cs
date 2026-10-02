@@ -174,6 +174,17 @@ public sealed partial class SettlementParenthoodTests
         if (scenario == "no_town")
             Assert.DoesNotContain(world.ExportState().Towns!, town => town.ResidentIds.Contains(child) || town.ResidentIds.Contains(adult));
         else Assert.Equal(originalTownId, world.ExportState().Towns!.Single(town => town.ResidentIds.Contains(child)).Id);
+        var careGroup = SocietyFixture.MovingCareGroup(world.Society, adult);
+        if (scenario == "last_place") Assert.Contains(child, careGroup);
+        else
+        {
+            // A guardian whose child stayed in another household can still leave their own, and the child stays put.
+            Assert.DoesNotContain(child, careGroup);
+            var left = SocietyFixture.LeaveHousehold(world.Society, adult);
+            Assert.Equal(adult, left.CreatedId);
+            Assert.Null(left.Checkpoint.GetInhabitant(adult).HouseholdId);
+            Assert.Equal(originHousehold, left.Checkpoint.GetInhabitant(child).HouseholdId);
+        }
         var encoded = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(encoded)));
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(beforeAcceptance),

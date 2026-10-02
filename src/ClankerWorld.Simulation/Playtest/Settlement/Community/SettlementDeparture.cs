@@ -273,7 +273,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
                      person.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
                      person.HouseholdId is not null && person.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId &&
-                     person.PrimaryCaregiverId != actor))
+                     person.PrimaryCaregiverId != actor &&
+                     // A child with no living caregiver is placed through the guardian search instead.
+                     SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, person.Id)))
             candidates.Add(new("household_accept_care:" + child.Id, $"Explicitly accept primary care of {child.Name}, so their current caregiver may leave without taking them.", 112));
     }
 
