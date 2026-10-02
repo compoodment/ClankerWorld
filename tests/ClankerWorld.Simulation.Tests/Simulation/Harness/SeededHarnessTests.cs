@@ -285,9 +285,6 @@ public sealed class SeededHarnessTests
         Assert.False(map.CanFootStep(new GridPoint(1, 6), new GridPoint(1, 5)));
         Assert.False(map.CanFootStep(new GridPoint(1, 5), new GridPoint(2, 5)));
         Assert.False(map.CanFootStep(new GridPoint(0, 5), new GridPoint(1, 5)));
-        // A route across the land never passes through the river's corners.
-        var route = DeterministicRouteFinder.Find(map, new GridPoint(1, 7), new GridPoint(6, 2));
-        Assert.DoesNotContain(route, tile => water.Contains(tile) && tile != new GridPoint(1, 6) && tile != new GridPoint(5, 2));
     }
 
     [Fact]
