@@ -4,3 +4,5 @@
   completed House has room and both homes are in the same Town; otherwise the
   child stays where they are. A child who still needs a guardian remains visible,
   and nearby adults can still feed them. Birth and parent records stay intact.
+  A caregiver who ends care no longer changes the child's family group when
+  they start a new relationship.

@@ -195,7 +195,9 @@ everything that is available in the current build. See [what works today](../wha
 ### Dependent care after loss of the last active primary caregiver
 
 - The birth record keeps the caregiver chosen for that birth as history. The
-  child's current primary caregiver remains that person while they are active.
+  child's current primary caregiver remains that person while they still
+  provide care. If they die or end that care, the current caregiver is cleared;
+  the child's family group stays the same while waiting for someone to accept.
   A second accepted caregiver does not take over or change the child's domestic
   family group by itself. If the current primary caregiver is no longer
   available, an explicit care assignment may make an already accepted caregiver
