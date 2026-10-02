@@ -46,6 +46,9 @@ public partial class WorldTerrainLayer : Control
 
     public int VisibleTileCount { get; private set; }
 
+    /// <summary>Natural sites drawn with simple shapes in the last overview frame.</summary>
+    public int OverviewNaturalObjectDrawCount { get; private set; }
+
     /// <summary>Opt-in developer measurement of CPU draw-command submission, excluding GPU rendering.</summary>
     public bool MeasureDrawCost { get; set; }
 
@@ -394,6 +397,7 @@ public partial class WorldTerrainLayer : Control
             9 => "Gold outcrop",
             10 => "Diamond outcrop",
             11 => "Clay bank",
+            12 => "Fallen wood",
             _ => null,
         };
     }
@@ -424,6 +428,7 @@ public partial class WorldTerrainLayer : Control
                 "fiber_plant" => (byte)3,
                 "reeds" => (byte)4,
                 "stone_outcrop" => (byte)5,
+                "fallen_wood" => (byte)12,
                 "wild_seed_patch" => (byte)6,
                 "fertile_soil" => (byte)7,
                 "iron_outcrop" => (byte)8,
@@ -524,6 +529,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        OverviewNaturalObjectDrawCount = 0;
         BeginReliefDraw();
         if (world is null) return;
         var bounds = VisibleBounds();
@@ -714,11 +720,13 @@ public partial class WorldTerrainLayer : Control
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.18f), new Color("77766D", 0.78f));
             DrawCircle(center, Math.Max(1f, tileSize * 0.1f), new Color("A69A81", 0.72f));
+            OverviewNaturalObjectDrawCount++;
             return;
         }
         if (stage == 2)
         {
             DrawCircle(center, Math.Max(1.5f, tileSize * 0.10f), new Color("658451", 0.74f));
+            OverviewNaturalObjectDrawCount++;
             return;
         }
         switch (kind)
@@ -794,7 +802,13 @@ public partial class WorldTerrainLayer : Control
                 DrawLine(center + new Vector2(-tileSize * 0.12f, -tileSize * 0.03f),
                     center + new Vector2(tileSize * 0.11f, -tileSize * 0.07f), new Color("B69B69"), scale);
                 break;
+            case 12: // fallen wood
+                DrawCampResource(position, NatureSprite.WoodPile);
+                break;
+            default:
+                return;
         }
+        OverviewNaturalObjectDrawCount++;
     }
 
     private void DrawLeaf(Vector2 center, float radius, Color color)
