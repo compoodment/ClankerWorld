@@ -199,8 +199,23 @@ everything that is available in the current build. See [what works today](../wha
     Status messages show a tick or a warning sign.
   - Load Save draws a world's save branches as a large timeline with the
     chosen save described underneath and the list behind a **Timeline / List**
-    switch (option C of three, for #680). computment wants its drawing
-    improved further before it is built.
+    switch (option C of three, for #680). After two more rounds of drawings,
+    computment chose this look:
+    - Each branch is a thick line in its own colour, with a numbered badge and
+      its save count on the left. A new branch bends down from the save it
+      grew from.
+    - A thin season bar runs across the top, with a tick per day, each
+      season's icon and name ("Spring · year 2") and day numbers where there
+      is room. A faint wash of each season's colour sits behind the lanes.
+    - Older saves are open points with a dot of the branch's colour, and
+      autosaves are small diamonds. Each branch's newest save is a solid point
+      under a small hanging banner in the branch's colour.
+    - Save names sit in small tags below the line, or above it when the space
+      below is taken. The chosen save's tag turns orange, with corner marks
+      around its point.
+    - **You are here** is an orange camp marker at the end of a dotted line.
+    - The row above the timeline holds a key to the points (newest on its
+      branch, save, autosave) beside the switch, instead of a line of counts.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
