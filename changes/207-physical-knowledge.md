@@ -1,0 +1,1 @@
+- Households make paper from fiber and water, and agents use real paper and cloth to write maps, records and books. Reading and trading share only the knowledge those goods contain; copying uses fresh supplies.
